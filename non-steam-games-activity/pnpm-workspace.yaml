@@ -1,0 +1,4 @@
+# @parcel/watcher is a native dependency of the Millennium build tool and needs
+# its install script to run. Matches the reference plugin's configuration.
+allowBuilds:
+  '@parcel/watcher': true

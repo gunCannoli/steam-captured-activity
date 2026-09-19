@@ -97,21 +97,40 @@ A 20-thumbnail page is ~0.4 MB of JSON; the same page of full images would be
 
 ---
 
-## Phase 3 — Plugin scaffold & first load ⬅ NEXT
+## Phase 3 — Plugin scaffold & first load ✅ DONE
 
-- [ ] `package.json`, `tsconfig.json` (copy the reference plugin's config)
-- [ ] `dev.ps1` taking the Steam path as a **parameter**, not a hardcoded default
-      ([ADR-0011](docs/decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths))
-- [ ] Minimal `frontend/index.tsx` that calls `GetDiagnostics` and logs it
-- [ ] **Milestone:** plugin loads in Steam; diagnostics appear in the console
-      with the expected 223/211/6 numbers
+**Milestone met.** The live Steam client logs:
 
-This is the first time our code runs inside Steam — keep it trivial so any
-failure is unambiguous.
+```
+Non-Steam Games Activity  Ready. 223 shortcuts, 211 screenshots across 6 non-Steam games.
+```
+
+Exactly the values the test suite asserts, so the whole backend — VDF parsing,
+protobuf, 64-bit id arithmetic, path discovery — is proven inside Steam.
+
+- [x] `package.json`, `tsconfig.json`, `pnpm-workspace.yaml`
+- [x] `dev.ps1` — discovers Steam via `-SteamPath` → `$env:STEAM_PATH` → registry
+      → default; `-Pnpm`, `-NoRestart`, `-SkipBuild`
+- [x] `frontend/rpc.ts` — typed client mirroring `backend/rpc.lua`
+- [x] `frontend/assets.ts` — in-memory thumbnail/full-image cache
+- [x] `frontend/index.tsx` — calls `GetDiagnostics`, logs it, never throws
+- [x] Builds clean (`tsc --noEmit` + `millennium-ttc`)
+- [x] Deploys and loads in Steam
+
+Two bugs found by doing it for real rather than assuming:
+
+1. **`-Encoding UTF8` writes a BOM** in Windows PowerShell, which broke
+   Millennium's own `config.json` for strict JSON parsers. `dev.ps1` now writes
+   UTF-8 without a BOM via `System.IO.File`.
+2. **The plugin name is baked into the bundle at build time**, and Millennium
+   routes RPC by that name. Renaming the manifest *after* building made the
+   frontend call `<name>` while the backend registered as `<name>-dev`, so every
+   call failed with "plugin not running". `dev.ps1` now renames before the build
+   and restores the source manifest in a `finally`.
 
 ---
 
-## Phase 4 — App detail page
+## Phase 4 — App detail page ⬅ NEXT
 
 - [ ] `library-app.tsx` — detect `/library/app/<appid>`, guard on
       `appid >= NON_STEAM_APP_APPID_MASK`, fetch `GetActivity`
@@ -277,6 +296,11 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
   between underscores; regression test added.
 - Added `sessions_for()` + `post_game_summary()` so the page mirrors Steam's
   two-scope layout (session summary above, per-day activity below).
+- **Phase 3 done.** Scaffold built, deployed and loaded in the live client;
+  diagnostics report 223/211/6, matching the suite. Two real bugs found in
+  `dev.ps1`: PowerShell's `-Encoding UTF8` BOM corrupted Millennium's
+  `config.json`, and the plugin name is baked into the bundle at build time so
+  the dev rename has to happen *before* building, not after.
 - **Phase 2 resolved.** Read Millennium's loopback source rather than guessing:
   `steamloopback.host` is jailed to `<Steam>/steamui/` and explicitly rejects
   traversal, so it cannot serve anything from `userdata/`. Measured the

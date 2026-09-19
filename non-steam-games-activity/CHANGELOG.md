@@ -7,8 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-Backend data layer complete and tested. No UI yet, so the plugin does not render
-anything in Steam — not yet releasable.
+Backend complete, tested, and verified loading in the live Steam client. No UI
+yet, so the plugin does not render anything — not yet releasable.
 
 ### Added
 
@@ -50,6 +50,16 @@ anything in Steam — not yet releasable.
   specific expectations are isolated in a `FIXTURE` table and can be skipped
   with `NSGA_SKIP_FIXTURES=1`.
 
+- **Plugin scaffold** — `package.json`, `tsconfig.json`, `pnpm-workspace.yaml`,
+  and `dev.ps1`, which builds and deploys a parallel `-dev` copy so a released
+  build stays installed. Steam is discovered via `-SteamPath`, `$env:STEAM_PATH`,
+  the registry, then the default path.
+- **Frontend groundwork** — `rpc.ts` (typed client mirroring the Lua RPC surface),
+  `assets.ts` (in-memory cache, since base64 data URIs are not browser-cacheable),
+  and `index.tsx`, which currently only fetches diagnostics and logs them. It
+  never throws out of the load hook: a plugin that fails should leave Steam
+  untouched.
+
 ### Fixed
 
 Caught by the test suite before any of this ran inside Steam:
@@ -65,6 +75,14 @@ Caught by the test suite before any of this ran inside Steam:
 - **Fields after a 64-bit id being misread.** The varint reader stopped early on
   values too large for a Lua double, leaving the byte offset mid-value. It now
   consumes the whole varint and returns nil for the value.
+- **Every RPC call failing with "plugin not running".** The builder bakes
+  `plugin.json`'s `name` into the bundle and Millennium routes RPC by that baked
+  name, so renaming the manifest to `<name>-dev` *after* building left the
+  frontend calling one name and the backend registered under another. `dev.ps1`
+  now renames before building and restores the source manifest afterwards.
+- **A BOM corrupting Millennium's config.** `dev.ps1` used PowerShell's
+  `-Encoding UTF8`, which prepends a byte-order mark that breaks strict JSON
+  parsers. It now writes UTF-8 without a BOM.
 - **Native-game recordings being missed.** Clips for native Steam games are keyed
   by the raw appid (`clip_435150_…`), not the composed gameid used for non-Steam
   games. The lookup now picks the id form by app type and anchors the match

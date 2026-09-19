@@ -9,8 +9,14 @@ on top of this.
 
 ## Status
 
-**Step 1 complete — backend data layer.** Parses real data, fully tested, not yet
-wired to any UI.
+**Phases 1–3 complete.** The backend is tested and **verified inside the live
+Steam client**; the UI has not been built yet.
+
+On load the plugin logs:
+
+```
+Non-Steam Games Activity  Ready. 223 shortcuts, 211 screenshots across 6 non-Steam games.
+```
 
 | Module | Does | State |
 | --- | --- | --- |
@@ -21,7 +27,10 @@ wired to any UI.
 | `timeline.lua` | Day grouping + post-game summary | ✅ tested |
 | `assets.lua` | Images as base64 data URIs, path-allowlisted | ✅ tested |
 | `rpc.lua` | Frontend-callable methods | ✅ shape tested |
-| `frontend/` | The UI | ❌ not started |
+| `frontend/rpc.ts` | Typed client for the backend | ✅ loads in Steam |
+| `frontend/assets.ts` | Thumbnail / full-image cache | ✅ built |
+| `frontend/index.tsx` | Entry point (diagnostics only) | ✅ loads in Steam |
+| Renderers | The actual UI | ❌ not started (Phase 4) |
 
 Recordings are verified against a real 14s clip: the directory name embeds the
 gameid, `clip.pb` yields the recorded-at timestamp, duration and resolution, and
@@ -38,6 +47,23 @@ without an MSE player — the thumbnail is the cheap path for a media card.
 | `GetAsset` | `{ path }` | one image as a base64 data URI |
 | `GetAssets` | `{ paths[], budget? }` | several images (thumbnails) at once |
 | `GetDiagnostics` | `{}` | what the backend can see — use this first |
+
+## Develop
+
+```bash
+pnpm install
+pnpm check                  # tsc --noEmit
+pnpm build                  # production bundle
+pnpm dev                    # build + deploy to Steam + restart
+```
+
+`dev.ps1` deploys a parallel `-dev` copy so a released build stays installed. It
+discovers Steam via `-SteamPath` → `$env:STEAM_PATH` → registry → default, and
+takes `-Pnpm <path>`, `-NoRestart` (frontend-only changes need just `Ctrl+R` in
+the devtools) and `-SkipBuild`.
+
+Backend changes need a Steam restart. Run Steam with `-dev` for CEF devtools on
+`http://localhost:8080`.
 
 ## Tests
 
@@ -75,6 +101,13 @@ Current result: **all pass**, matching independently measured values.
   known to be messages, or a string's bytes get read as field tags.
 - A varint must be fully consumed even when it overflows a Lua double (the
   gameid is 64-bit), or every following field desynchronises.
+- The plugin name is **baked into the bundle at build time** and Millennium
+  routes RPC by it, so a dev rename must happen *before* building. Renaming
+  after leaves the frontend calling `<name>` while the backend is `<name>-dev`,
+  and every call fails with "plugin not running".
+- Windows PowerShell's `-Encoding UTF8` writes a **BOM**, which breaks strict
+  JSON parsers — including Millennium's own `config.json`. Write UTF-8 without
+  one via `System.IO.File`.
 - `steamloopback.host` **cannot** serve capture images: Millennium resolves it
   against `<Steam>/steamui/` only. Images go over RPC as base64 data URIs, and
   `assets.lua` restricts reads to the capture directories.

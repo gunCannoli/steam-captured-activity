@@ -40,6 +40,10 @@ This repo is private and unversioned; entries are grouped by date.
   stand on exact arithmetic instead of fuzzy ROM matching, so providers became
   optional enrichment.
 
+- **First live load.** The plugin builds, deploys and runs in Steam, reporting
+  223 shortcuts / 211 screenshots / 6 games with media — the same numbers the
+  test suite asserts offline.
+
 ### Notes
 
 Key findings recorded during this period, all verified against a real install:

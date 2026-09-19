@@ -101,7 +101,7 @@ All I/O and merging happen in the backend; the frontend only renders
 ```
 non-steam-games-activity/
 ├─ plugin.json                                                    ✅
-├─ dev.ps1                                                        ☐
+├─ dev.ps1                                                        ✅
 ├─ backend/
 │  ├─ main.lua            # lifecycle + RPC globals               ✅
 │  ├─ rpc.lua             # JSON-in/JSON-out wrappers             ✅
@@ -116,9 +116,10 @@ non-steam-games-activity/
 ├─ tests/
 │  ├─ harness.lua         # stubs Millennium's modules            ✅
 │  └─ test_backend.lua    # runs real modules on real data        ✅
-└─ frontend/                                                      ☐
-   ├─ index.tsx           # OnPluginLoaded — watchers + patches
-   ├─ rpc.ts
+└─ frontend/
+   ├─ index.tsx           # OnPluginLoaded — diagnostics only so far   ✅
+   ├─ rpc.ts              # typed client for the backend               ✅
+   ├─ assets.ts           # thumbnail / full-image cache               ✅
    ├─ renderers/
    │  ├─ library-app.tsx  # the app detail page (desktop)
    │  ├─ gamepad-app.tsx  # the app detail page (Big Picture)
