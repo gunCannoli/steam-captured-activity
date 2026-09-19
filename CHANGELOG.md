@@ -44,6 +44,10 @@ This repo is private and unversioned; entries are grouped by date.
   223 shortcuts / 211 screenshots / 6 games with media — the same numbers the
   test suite asserts offline.
 
+- **The first visible feature.** `non-steam-games-activity` now renders a real
+  activity page in Steam for non-Steam games, in place of the grey
+  "information is unavailable" placeholder.
+
 ### Notes
 
 Key findings recorded during this period, all verified against a real install:

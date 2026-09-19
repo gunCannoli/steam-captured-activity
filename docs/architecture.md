@@ -120,8 +120,9 @@ non-steam-games-activity/
    ├─ index.tsx           # OnPluginLoaded — diagnostics only so far   ✅
    ├─ rpc.ts              # typed client for the backend               ✅
    ├─ assets.ts           # thumbnail / full-image cache               ✅
+   ├─ styles.ts           # scoped CSS on Steam's theme vars            ✅
    ├─ renderers/
-   │  ├─ library-app.tsx  # the app detail page (desktop)
+   │  ├─ library-app.tsx  # the app detail page (desktop)               ✅
    │  ├─ gamepad-app.tsx  # the app detail page (Big Picture)
    │  └─ library-home.tsx # patch AppOverview so the grid shows stats
    └─ components/

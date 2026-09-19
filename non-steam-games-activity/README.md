@@ -9,8 +9,9 @@ on top of this.
 
 ## Status
 
-**Phases 1–3 complete.** The backend is tested and **verified inside the live
-Steam client**; the UI has not been built yet.
+**Phases 1–4 complete.** The activity page renders in the live Steam client:
+Steam's grey "information is unavailable" box is replaced by a post-game summary
+and a day-grouped activity feed.
 
 On load the plugin logs:
 
@@ -30,7 +31,10 @@ Non-Steam Games Activity  Ready. 223 shortcuts, 211 screenshots across 6 non-Ste
 | `frontend/rpc.ts` | Typed client for the backend | ✅ loads in Steam |
 | `frontend/assets.ts` | Thumbnail / full-image cache | ✅ built |
 | `frontend/index.tsx` | Entry point (diagnostics only) | ✅ loads in Steam |
-| Renderers | The actual UI | ❌ not started (Phase 4) |
+| `renderers/library-app.tsx` | Injects the page, hides the placeholder | ✅ verified in Steam |
+| `components/` | Activity feed, media cards, class resolution | ✅ verified in Steam |
+| `styles.ts` | Scoped CSS on Steam's theme variables | ✅ |
+| Library grid / Big Picture | Phases 5–6 | ❌ not started |
 
 Recordings are verified against a real 14s clip: the directory name embeds the
 gameid, `clip.pb` yields the recorded-at timestamp, duration and resolution, and

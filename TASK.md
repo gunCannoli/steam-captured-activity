@@ -130,29 +130,35 @@ Two bugs found by doing it for real rather than assuming:
 
 ---
 
-## Phase 4 — App detail page ⬅ NEXT
+## Phase 4 — App detail page ✅ DONE
 
-- [ ] `library-app.tsx` — detect `/library/app/<appid>`, guard on
-      `appid >= NON_STEAM_APP_APPID_MASK`, fetch `GetActivity`
-- [ ] Resolve Steam's classes via `findClassModule`; render into
-      `.GameStatsSection` ([ADR-0005](docs/decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules))
-- [ ] `post-game-summary.tsx` — last session's media, Steam's header style
-- [ ] `timeline.tsx` — day-grouped activity feed
-- [ ] `media-grid.tsx` — screenshot thumbnails + clip poster frames with duration
-- [ ] Batch thumbnails via `GetAssets`; fetch a full image with `GetAsset` only
-      when the user opens one. Cache decoded thumbnails in memory — data URIs
-      are not browser-cacheable ([ADR-0017](docs/decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first))
-- [ ] Hide Steam's "information is unavailable" placeholder
-- [ ] `data-nsga` attributes so re-renders replace rather than duplicate
-- [ ] Unpatch on navigation away and popup close
+**Steam's grey "information is unavailable" box is gone**, replaced by a real
+activity page. Verified in the live client for AM2R: `POST-GAME SUMMARY` with
+the Sep 19 clip (`0:14` badge), then `ACTIVITY` showing `TODAY` and
+`OCTOBER 24, 2025`. Four media cards, all four thumbnails decoded and drawn.
 
-**Recordings are MPEG-DASH**, not mp4 — a `<video>` tag cannot play
-`session.mpd` without an MSE player. v1 renders `thumbnail.jpg` as a poster with
-a duration badge and hands off to Steam's player on click.
+- [x] `library-app.tsx` — watches `/library/app/<appid>`, guards on
+      `appid >= NON_STEAM_APPID_MIN`, fetches `GetActivity`
+- [x] `components/classes.ts` — resolves Steam's hashed classes at runtime
+- [x] `components/activity.tsx` — summary + day-grouped feed
+- [x] `components/media-card.tsx` — thumbnails, duration badges
+- [x] `styles.ts` — scoped CSS using Steam's own theme variables
+- [x] Hides Steam's placeholder, and restores it on teardown
+- [x] `data-nsga` markers so re-renders replace rather than duplicate
+- [x] Unpatch on navigation away and popup close
+- [x] Batch thumbnails via `GetAssets`; full images on demand via `GetAsset`
 
----
+Found by screenshotting rather than trusting the DOM probe: the first render
+anchored to `.GameStatsSection`, whose parent is a **46px flex row inside the
+play bar**, so the content existed in the DOM and reported sane numbers while
+being clipped to invisibility. The anchor is now the details page's
+`LeftColumn`, where Steam puts the placeholder we are replacing.
 
-## Phase 5 — Library grid
+Also of note: the placeholder is hidden with a scoped stylesheet rather than by
+removing the node, because Steam owns that element and re-renders it — deleting
+a React-managed node invites reconciliation errors.
+
+## Phase 5 — Library grid ⬅ NEXT
 
 - [ ] `library-home.tsx` — `beforePatch(Steam.CollectionStore, 'OnAppOverviewChange')`
 - [ ] Batch `GetLibraryStats` across the apps in one callback
@@ -296,6 +302,10 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
   between underscores; regression test added.
 - Added `sessions_for()` + `post_game_summary()` so the page mirrors Steam's
   two-scope layout (session summary above, per-day activity below).
+- **Phase 4 done.** The activity page renders in the live client. A DOM probe
+  reported 4 cards and 4 loaded images while the page was in fact invisible —
+  only a screenshot revealed the content was clipped inside the play bar. Worth
+  remembering: for UI, verify visually, not just structurally.
 - **Phase 3 done.** Scaffold built, deployed and loaded in the live client;
   diagnostics report 223/211/6, matching the suite. Two real bugs found in
   `dev.ps1`: PowerShell's `-Encoding UTF8` BOM corrupted Millennium's

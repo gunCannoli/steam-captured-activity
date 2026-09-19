@@ -7,8 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-Backend complete, tested, and verified loading in the live Steam client. No UI
-yet, so the plugin does not render anything — not yet releasable.
+The activity page renders in the live Steam client, replacing Steam's
+"information is unavailable" box for non-Steam games. Library grid, Big Picture
+and recording playback are still to come.
 
 ### Added
 
@@ -60,6 +61,19 @@ yet, so the plugin does not render anything — not yet releasable.
   never throws out of the load hook: a plugin that fails should leave Steam
   untouched.
 
+- **The activity page** — a session-scoped post-game summary above a day-grouped
+  activity feed, mirroring the layout Steam uses for its own games. Steam's grey
+  "information is unavailable" placeholder is hidden while the plugin is active
+  and restored on teardown.
+- **Media cards** — screenshot thumbnails and recording poster frames with
+  duration badges. Thumbnails are batched over one RPC call per page; full-size
+  images load only when opened.
+- **Runtime class resolution** (`components/classes.ts`) — Steam's hashed CSS
+  module names are looked up at runtime, never hardcoded, so the UI survives
+  client updates.
+- **Refresh on quit** — closing a game clears the asset cache and re-renders any
+  open page for it, so new captures appear without restarting Steam.
+
 ### Fixed
 
 Caught by the test suite before any of this ran inside Steam:
@@ -90,7 +104,8 @@ Caught by the test suite before any of this ran inside Steam:
 
 ### Known limitations
 
-- No frontend — nothing renders in Steam yet.
+- Recording playback is not implemented; clicking a clip logs its path.
+- The library grid does not yet show capture counts (Phase 5).
 - Recordings are MPEG-DASH, so they cannot play in a plain `<video>` element.
 - Big Picture is not implemented (ADR-0016).
 - Only `clips/` has been observed; background `video/` recordings are handled by
