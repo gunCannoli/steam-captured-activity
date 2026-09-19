@@ -15,7 +15,10 @@ This repo is private and unversioned; entries are grouped by date.
   `.gitignore`, and per-plugin changelogs. Repo initialised and pushed to
   GitHub as private.
 - **`plugin.md`** — how to create a plugin in this workspace and publish it as a
-  standalone public repo via `git subtree`.
+  standalone public repo via `git subtree`. The split was dry-run verified: it
+  produces the plugin files at the repo root with no workspace docs and no
+  machine-specific data.
+- **`.gitattributes`** — LF in the repo for sources, CRLF for `.ps1`.
 - **`AGENTS.md`** — conventions, environment facts, and the two-identifier rule
   that everything else depends on.
 - **`TASK.md`** — 9 phases through to a shipped first plugin, with a 15-row smoke
