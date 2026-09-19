@@ -608,7 +608,13 @@ Treat Big Picture as **the same plugin with a second renderer**, not a second pr
 
 ## ADR-0017: Serve capture images as base64 data URIs, thumbnails first
 
-**Status:** Accepted · 2026-09-19 · **Supersedes [ADR-0015](#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)**
+**Status:** Superseded by [ADR-0019](#adr-0019-use-steams-own-media-apis-routes-and-components) · 2026-09-19 · Supersedes [ADR-0015](#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)
+
+> The spike behind this ADR tested `steamloopback.host/<path>`, which maps to
+> `<Steam>/steamui/` and cannot reach `userdata/`. That conclusion was correct but
+> the search was too narrow: Steam also serves captures under a **`screenshots/`
+> route** on the same host. Images load directly by URL, so base64 is
+> unnecessary. See ADR-0019.
 
 ### Context
 
@@ -726,3 +732,77 @@ indistinguishable from working.
   one `collectionStore`, and the handler early-outs on non-Steam appids.
 - Any future `AppOverview` write must first check for `fnCustomSetter` in
   Steam's bundle. Assume nothing is a plain property.
+
+---
+
+## ADR-0019: Use Steam's own media APIs, routes and components
+
+**Status:** Accepted · 2026-09-19 · **Supersedes [ADR-0017](#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)**
+
+### Context
+
+User testing of the Phase 4 page found that clicking a screenshot or recording
+did nothing, and that our layout diverges from Steam's: the native post-game
+summary is a single row of 3–4 items with arrows, recordings animate on hover,
+and a clip carries a golden scissors glyph with its duration.
+
+Investigating those reports turned up capability we had assumed absent:
+
+1. **`SteamClient.Screenshots` is a first-class API.** `GetAllLocalScreenshots()`
+   returns records with `hHandle`, `nAppID`, `strGameID`, `nCreated`, dimensions
+   and `strUrl`, plus `GetLocalScreenshotPath`, `ShowScreenshotInSystemViewer`
+   and `ShowScreenshotsOnDisk`.
+
+2. **Captures load directly by URL.** `strUrl` is
+   `screenshots/<gameid>/screenshots/<file>.jpg`, served from the loopback
+   origin. Verified live: the full image loads at **3840×2160** and the
+   thumbnail (`…/screenshots/thumbnails/<file>.jpg`) at **200×112**.
+   ADR-0017 concluded otherwise because the spike only tested paths under
+   `steamloopback.host/` that map to `<Steam>/steamui/`; the `screenshots/`
+   route was never tried.
+
+3. **Steam has media routes.** Its navigator defines
+   `Media.Screenshot → /media?item={"type":"screenshot","id":<hHandle>}`,
+   `Media.Clip → {"type":"clip","id":…}` and
+   `Media.Recording → {"type":"recording","id":<gameid>,playbackDefinition}`.
+   Navigating there opens Steam's own viewer — including a DASH player we do
+   not have to write.
+
+4. **The post-game summary has its own class module**: `GamePlaySummaryContainer`,
+   `SummaryCarouselContainer`, `SummaryCarouselScrollingContainer`,
+   `SummaryScreenshot`, `SummaryAchievement`, `PostGameSummaryClip`,
+   `ClipThumbnail`, `EventCarousel`, `hoverAnimation`.
+
+### Decision
+
+Prefer Steam's own mechanisms over reimplementation, in this order:
+
+1. **Images by URL, not base64.** Render `strUrl` (thumbnail variant in grids)
+   straight into `<img>`. This removes the RPC round trip, the 33% encoding
+   overhead, the budget logic and the in-memory cache, and restores normal
+   browser caching.
+2. **Clicks navigate to Steam's media routes**, so screenshots and clips open in
+   the native viewer and recordings play without us shipping an MSE player.
+3. **Reuse Steam's summary classes** via `findClassModule`, so the carousel,
+   hover animation and clip styling match natively.
+4. Keep `assets.lua` as a **fallback** for captures absent from Steam's index —
+   it is tested and cheap to retain — but it is no longer the primary path.
+
+`hHandle` becomes part of the payload: it is the id Steam's routes take. The
+backend already parses `screenshots.vdf`; it will map each entry to its handle
+via `GetAllLocalScreenshots` on the frontend, since handles are a client concept.
+
+### Consequences
+
+- The page gains working clicks, native playback, and Steam's real look, while
+  we own less code.
+- Payloads shrink to metadata; a page of thumbnails costs no JSON at all.
+- Cost: a dependency on undocumented routes and client APIs. Mitigated by
+  feature-detecting each one and falling back to the base64 path.
+- Cost: ADR-0017's implementation was largely wasted. The lesson is narrow and
+  worth stating: **when a spike returns "not possible", check whether the
+  question was too narrow before building around the answer.** The right
+  question was "how does Steam itself load these?", not "can this one host route
+  reach this one directory?"
+- Big Picture (ADR-0016) benefits too: reusing Steam's components is far more
+  likely to work under Gamepad UI than a hand-built grid.

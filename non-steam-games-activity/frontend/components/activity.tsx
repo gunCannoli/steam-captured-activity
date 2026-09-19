@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Activity, TimelineEntry } from '../rpc';
-import { loadThumbnails } from '../assets';
-import { ActivityClasses as A, cx } from './classes';
+import { loadScreenshotIndex, type LocalScreenshot } from '../steam-media';
+import { ActivityClasses as A, SummaryClasses as S, cx } from './classes';
 import { MediaCard } from './media-card';
 
 /**
@@ -53,22 +53,24 @@ export function ActivityPage({ activity, onOpen }: Props) {
   const summary = activity.post_game_summary;
   const days = activity.timeline;
 
-  // Warm the thumbnail cache for everything on the page in one round trip,
-  // rather than letting each card fetch on its own.
+  // Steam's own screenshot index gives each capture a loopback URL and the
+  // handle its media viewer takes (ADR-0019). One call serves the whole page.
+  const [index, setIndex] = useState<Map<string, LocalScreenshot>>(new Map());
+
   useEffect(() => {
-    const sources = new Set<string>();
-    for (const day of days) {
-      for (const entry of day.entries) {
-        const source = entry.thumb ?? entry.path;
-        if (source) sources.add(source);
-      }
-    }
-    if (sources.size > 0) {
-      loadThumbnails([...sources]).catch(() => {
-        /* Cards fall back to loading individually. */
+    let cancelled = false;
+    loadScreenshotIndex()
+      .then((loaded) => {
+        if (!cancelled) setIndex(loaded);
+      })
+      .catch(() => {
+        /* Cards fall back to base64 thumbnails over RPC. */
       });
-    }
-  }, [days]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (days.length === 0) {
     return (
@@ -95,11 +97,7 @@ export function ActivityPage({ activity, onOpen }: Props) {
               </span>
               <span className="nsga-summary-meta">{summariseEntries(summary.entries)}</span>
             </div>
-            <div className="nsga-media-row">
-              {summary.entries.map((entry) => (
-                <MediaCard key={`${entry.type}-${entry.at}-${entry.path}`} entry={entry} onOpen={onOpen} />
-              ))}
-            </div>
+            <SummaryCarousel entries={summary.entries} index={index} onOpen={onOpen} />
           </div>
         </section>
       )}
@@ -114,7 +112,12 @@ export function ActivityPage({ activity, onOpen }: Props) {
             <div className={cx(A.Rule, 'nsga-day-rule')} />
             <div className="nsga-media-row">
               {day.entries.map((entry) => (
-                <MediaCard key={`${entry.type}-${entry.at}-${entry.path}`} entry={entry} onOpen={onOpen} />
+                <MediaCard
+                  key={`${entry.type}-${entry.at}-${entry.path}`}
+                  entry={entry}
+                  index={index}
+                  onOpen={onOpen}
+                />
               ))}
             </div>
           </div>
@@ -139,6 +142,71 @@ function EmptyState({ name }: { name?: string }) {
         Screenshots and recordings you capture while playing
         {name ? ` ${name}` : ' this game'} will show up here.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Steam's post-game summary is a single row showing a few items at a time, with
+ * arrows to page through the rest. This mirrors that rather than wrapping
+ * everything onto multiple lines.
+ */
+function SummaryCarousel({
+  entries,
+  index,
+  onOpen,
+}: {
+  entries: TimelineEntry[];
+  index: Map<string, LocalScreenshot>;
+  onOpen?: (entry: TimelineEntry) => void;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState(0);
+
+  /** How many cards fit at once, matching Steam's 3-4 per row. */
+  const PAGE = 4;
+  const maxOffset = Math.max(0, entries.length - PAGE);
+  const visible = entries.slice(offset, offset + PAGE);
+
+  return (
+    <div className={cx(S.SummaryCarouselContainer, 'nsga-carousel')}>
+      {maxOffset > 0 && (
+        <button
+          type="button"
+          className="nsga-carousel-arrow"
+          disabled={offset === 0}
+          onClick={() => setOffset((value) => Math.max(0, value - 1))}
+          aria-label="Previous"
+        >
+          ‹
+        </button>
+      )}
+
+      <div
+        ref={scroller}
+        className={cx(S.SummaryCarouselScrollingContainer, 'nsga-carousel-track')}
+      >
+        {visible.map((entry) => (
+          <MediaCard
+            key={`${entry.type}-${entry.at}-${entry.path}`}
+            entry={entry}
+            index={index}
+            onOpen={onOpen}
+          />
+        ))}
+      </div>
+
+      {maxOffset > 0 && (
+        <button
+          type="button"
+          className="nsga-carousel-arrow"
+          disabled={offset >= maxOffset}
+          onClick={() => setOffset((value) => Math.min(maxOffset, value + 1))}
+          aria-label="Next"
+        >
+          ›
+        </button>
+      )}
     </div>
   );
 }

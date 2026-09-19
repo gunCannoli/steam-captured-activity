@@ -37,6 +37,13 @@ export const PlayBarClasses = classModule('GameStatsSection');
  */
 export const ActivityClasses = classModule('AppActivityDay');
 
+/**
+ * Steam's post-game summary: a horizontal carousel of screenshots, clips and
+ * achievements with navigation arrows. Reusing these gives us its hover
+ * animation and clip styling for free.
+ */
+export const SummaryClasses = classModule('SummaryCarouselContainer');
+
 /** True when a module resolved; lets callers degrade instead of rendering unstyled. */
 export function hasClasses(map: ClassMap): boolean {
   return Object.keys(map).length > 0;

@@ -4,6 +4,13 @@ import { ActivityPage } from '../components/activity';
 import { rpc, type Activity, type TimelineEntry } from '../rpc';
 import { ensureStyles } from '../styles';
 import { loadFullImage } from '../assets';
+import { gameidFor } from '../gameid';
+import {
+  loadScreenshotIndex,
+  normaliseKey,
+  openRecording,
+  openScreenshot,
+} from '../steam-media';
 
 /**
  * Injects the activity page into a non-Steam game's library page.
@@ -82,19 +89,28 @@ export async function refresh(appid: number): Promise<void> {
 }
 
 /**
- * Open a capture at full size.
+ * Open a capture in Steam's own media viewer.
  *
- * Screenshots are fetched on demand - they average ~1 MB, so they are
- * deliberately not part of the page payload (ADR-0017). Recordings are
- * MPEG-DASH and cannot play in a plain <video> element, so v1 opens the
- * clip's folder rather than pretending to be a player.
+ * Steam already has a viewer that shows screenshots and plays recordings
+ * (which are DASH, so we would otherwise need an MSE player). Navigating to its
+ * `/media` route reuses all of that (ADR-0019).
+ *
+ * Falls back to opening a full-size image ourselves when Steam has no record of
+ * the capture, or when the route is unavailable.
  */
-async function openEntry(window: Window, entry: TimelineEntry): Promise<void> {
+async function openEntry(window: Window, appid: number, entry: TimelineEntry): Promise<void> {
+  const index = await loadScreenshotIndex();
+
   if (entry.type === 'recording') {
-    logger.info('Recording selected (playback is not implemented yet)', entry.path);
+    if (openRecording(gameidFor(appid))) return;
+    logger.info('Could not open the recording in Steam; no fallback player.', entry.path);
     return;
   }
 
+  const shot = index.get(normaliseKey(entry.path) ?? '');
+  if (shot && openScreenshot(shot.hHandle)) return;
+
+  // Fallback: Steam does not know about this capture.
   const uri = await loadFullImage(entry.path);
   if (!uri) {
     logger.warn('Could not load full-size image', entry.path);
@@ -154,7 +170,10 @@ export async function patch(window: Window, appid: number): Promise<void> {
   hidePlaceholder(window.document);
 
   const element = renderComponent(
-    <ActivityPage activity={activity} onOpen={(entry) => void openEntry(window, entry)} />,
+    <ActivityPage
+      activity={activity}
+      onOpen={(entry) => void openEntry(window, appid, entry)}
+    />,
   );
   element.setAttribute(MARKER, 'root');
   // Above Steam's own sections, matching where the native page puts its

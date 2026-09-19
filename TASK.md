@@ -186,6 +186,37 @@ changed. "Patch registered" with zero effect looks identical to success.
 
 ---
 
+## Phase 5b — Use Steam's own media surface ✅ DONE ⬅ from user testing
+
+User testing found: clicks did nothing, and the layout diverged from Steam's
+(one row with arrows, animated clip previews, a golden scissors glyph).
+Investigating turned up capability we had wrongly assumed absent
+([ADR-0019](docs/decisions.md#adr-0019-use-steams-own-media-apis-routes-and-components)).
+
+- [x] **Images load by URL, not base64.** Steam serves captures at
+      `steamloopback.host/screenshots/<gameid>/screenshots/<file>.jpg`.
+      Verified: full image 3840×2160, thumbnail 200×112. This **supersedes
+      ADR-0017** — the earlier spike only tested routes mapping to
+      `<Steam>/steamui/` and never tried the `screenshots/` route.
+- [x] **Clicks open Steam's own viewer** via `/media?item={type,id}`, using the
+      `hHandle` from `SteamClient.Screenshots.GetAllLocalScreenshots()`.
+      Verified live: clicking a card navigates to `/media?item=…`.
+- [x] Post-game summary is a **carousel** (4 per page, arrows), matching Steam.
+- [x] Clip badge is a **golden scissors** glyph with duration.
+- [x] Reuses Steam's `SummaryCarouselContainer` / `PostGameSummaryClip` classes.
+- [x] `assets.lua` retained as a fallback for captures Steam has not indexed.
+
+Still open from that testing round:
+
+- [ ] **Recordings** — the click path is wired, but the `/media` clip route
+      needs a clip id we do not yet extract from `clip.pb`. Currently falls
+      back to the game's media grid.
+- [ ] **Animated hover previews** for clips: Steam shows motion on hover.
+      Mechanism not yet identified (likely a short video or sprite sheet).
+- [ ] **Big Picture** shows nothing — expected, that is Phase 6.
+
+---
+
 ## Phase 6 — Big Picture (Gamepad UI) ⬅ NEXT
 
 **Investigated 2026-09-19** — no separate backend work is needed. Findings and
@@ -320,6 +351,11 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
   between underscores; regression test added.
 - Added `sessions_for()` + `post_game_summary()` so the page mirrors Steam's
   two-scope layout (session summary above, per-day activity below).
+- **User testing round.** Four reports: clicks dead, no Big Picture, layout
+  divergence, animated clip previews. Chasing them found `SteamClient.Screenshots`
+  and Steam's `/media` routes, and that captures load by plain URL — overturning
+  ADR-0017's base64 design. Lesson recorded in ADR-0019: when a spike says "not
+  possible", check whether the question was too narrow before building around it.
 - **Phase 5 done.** The library grid reflects capture dates. Cost several
   iterations to find that `rt_last_time_played` is not a plain property and that
   `afterPatch` was targeting an instance rather than a prototype — both failed

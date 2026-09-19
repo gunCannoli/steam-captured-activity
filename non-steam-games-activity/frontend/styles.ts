@@ -68,6 +68,42 @@ const CSS = `
   margin-bottom: 10px;
 }
 
+/* Steam's post-game summary is one row with arrows, not a wrapping grid. */
+.nsga-carousel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nsga-carousel-track {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.nsga-carousel-arrow {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 64px;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--gpTextColorPrimary, #dcdedf);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nsga-carousel-arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nsga-carousel-arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
 .nsga-media-row {
   display: flex;
   flex-wrap: wrap;
@@ -117,6 +153,7 @@ const CSS = `
   to   { background-position: -50% 0; }
 }
 
+/* Steam marks a clip with a golden scissors glyph and its duration. */
 .nsga-media-badge {
   position: absolute;
   left: 6px;
@@ -127,7 +164,7 @@ const CSS = `
   padding: 2px 6px;
   border-radius: 2px;
   background: rgba(0, 0, 0, 0.75);
-  color: #fff;
+  color: #e5c15a;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
