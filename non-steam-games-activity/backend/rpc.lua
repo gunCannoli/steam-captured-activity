@@ -76,11 +76,11 @@ RPC.GetLibraryStats = method("GetLibraryStats", function(_)
   local paths, err = steam_paths.resolve()
   if not paths then error(err or "could not resolve Steam paths") end
 
-  local counts = captures.non_steam_counts(paths)
+  local stats = captures.library_stats(paths)
   local out = {}
-  for appid, count in pairs(counts) do
+  for appid, entry in pairs(stats) do
     -- JSON object keys must be strings.
-    out[tostring(appid)] = { screenshots = count }
+    out[tostring(appid)] = entry
   end
   return out
 end)

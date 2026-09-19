@@ -124,7 +124,7 @@ non-steam-games-activity/
    ├─ renderers/
    │  ├─ library-app.tsx  # the app detail page (desktop)               ✅
    │  ├─ gamepad-app.tsx  # the app detail page (Big Picture)
-   │  └─ library-home.tsx # patch AppOverview so the grid shows stats
+   │  └─ library-home.tsx # patch AppOverview so the grid shows stats  ✅
    └─ components/
       ├─ post-game-summary.tsx
       ├─ timeline.tsx

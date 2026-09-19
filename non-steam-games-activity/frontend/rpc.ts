@@ -75,6 +75,12 @@ export interface Activity {
   last_session?: { id: string; started_at: number; duration_ms: number; ended_at: number };
 }
 
+export interface LibraryStat {
+  screenshots: number;
+  /** Unix seconds of the newest capture; 0 when unknown. */
+  newest: number;
+}
+
 export interface Diagnostics {
   ok: boolean;
   error?: string;
@@ -98,8 +104,7 @@ export interface AssetResult {
 export const rpc = {
   getActivity: (appid: number) => call<Activity>('GetActivity', { appid }),
 
-  getLibraryStats: () =>
-    call<Record<string, { screenshots: number }>>('GetLibraryStats'),
+  getLibraryStats: () => call<Record<string, LibraryStat>>('GetLibraryStats'),
 
   /** One image. Use for full-size images, on demand — they average ~1 MB. */
   getAsset: (path: string) => call<AssetResult>('GetAsset', { path }),

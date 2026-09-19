@@ -183,6 +183,30 @@ for appid in pairs(counts) do
 end
 check("no missing files", missing == 0, tostring(missing) .. " missing")
 
+-- library_stats: feeds the grid with a last-played lower bound
+local lib = captures.library_stats(paths)
+local lib_games = 0
+for _ in pairs(lib) do lib_games = lib_games + 1 end
+fixture("library_stats covers every media game", lib_games == FIXTURE.games_with_media,
+        tostring(lib_games))
+
+local stat = lib[FIXTURE.am2r_appid]
+check("library_stats has AM2R", stat ~= nil)
+if stat then
+  fixture("library_stats screenshot count", stat.screenshots == FIXTURE.am2r_shots,
+          tostring(stat.screenshots))
+  check("library_stats newest is a real timestamp", stat.newest > 1600000000,
+        tostring(stat.newest))
+
+  -- newest must equal the newest screenshot's timestamp
+  local newest_shot = am2r_shots[1] and am2r_shots[1].taken_at or 0
+  check("library_stats newest matches newest screenshot", stat.newest == newest_shot,
+        stat.newest .. " vs " .. newest_shot)
+end
+
+check("library_stats excludes native Steam appids",
+      lib[FIXTURE.native_appid] == nil)
+
 -- ============ timeline ============
 print("\n=== timeline ===")
 local timeline = require("timeline")

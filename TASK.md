@@ -158,17 +158,35 @@ Also of note: the placeholder is hidden with a scoped stylesheet rather than by
 removing the node, because Steam owns that element and re-renders it — deleting
 a React-managed node invites reconciliation errors.
 
-## Phase 5 — Library grid ⬅ NEXT
+## Phase 5 — Library grid ✅ DONE
 
-- [ ] `library-home.tsx` — `beforePatch(Steam.CollectionStore, 'OnAppOverviewChange')`
-- [ ] Batch `GetLibraryStats` across the apps in one callback
-- [ ] Write onto app overviews so Steam's own sorting works
-      ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom))
-- [ ] Early-out guard so we do not slow startup
+Non-Steam games with captures now carry a real recent-activity timestamp, so
+Steam's own sorting and date labels reflect play it has no record of. Verified
+live: zeroing the fields and firing `OnAppOverviewChange` restored them to the
+exact capture timestamps.
+
+- [x] `library-home.tsx` — patches `CollectionStore.OnAppOverviewChange`
+- [x] Batched `GetLibraryStats`, now returning `newest` per app
+- [x] `captures.library_stats()` + tests (88 assertions)
+- [x] Early-out on non-Steam appids so startup is not slowed
+- [x] Re-enriches after a game quits
+
+Two silent-failure traps, both recorded in
+[ADR-0018](docs/decisions.md#adr-0018-write-only-observable-appoverview-fields-and-patch-the-prototype):
+
+1. **`rt_last_time_played` has a custom setter** (`fnCustomSetter: SetLastTimePlayed`)
+   backed by protobuf state. A plain assignment writes a shadow property that
+   reads back correctly and is then discarded. We write only plain observables —
+   so "Last Played" itself stays blank for these games, by design.
+2. **`collectionStore` is a class instance**, so `OnAppOverviewChange` lives on
+   the prototype. `afterPatch` on the instance reported success and never fired.
+
+Both were caught only because the code logs how many records it actually
+changed. "Patch registered" with zero effect looks identical to success.
 
 ---
 
-## Phase 6 — Big Picture (Gamepad UI)
+## Phase 6 — Big Picture (Gamepad UI) ⬅ NEXT
 
 **Investigated 2026-09-19** — no separate backend work is needed. Findings and
 rationale in [ADR-0016](docs/decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer).
@@ -302,6 +320,11 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
   between underscores; regression test added.
 - Added `sessions_for()` + `post_game_summary()` so the page mirrors Steam's
   two-scope layout (session summary above, per-day activity below).
+- **Phase 5 done.** The library grid reflects capture dates. Cost several
+  iterations to find that `rt_last_time_played` is not a plain property and that
+  `afterPatch` was targeting an instance rather than a prototype — both failed
+  silently. The fix that made it tractable was logging the number of records
+  actually changed.
 - **Phase 4 done.** The activity page renders in the live client. A DOM probe
   reported 4 cards and 4 loaded images while the page was in fact invisible —
   only a screenshot revealed the content was clipped inside the play bar. Worth

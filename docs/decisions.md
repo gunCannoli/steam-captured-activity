@@ -666,3 +666,63 @@ Serve images as **base64 data URIs** over RPC, thumbnails first.
   frontend should hold decoded thumbnails in memory for the life of the page.
 - If Millennium ever widens the loopback jail or adds a plugin asset route, revisit —
   serving by URL would be strictly better.
+
+---
+
+## ADR-0018: Write only observable `AppOverview` fields, and patch the prototype
+
+**Status:** Accepted · 2026-09-19
+
+### Context
+
+The library grid should show *something* for non-Steam games that have clearly
+been played. Steam records playtime for shortcuts it launched itself, but plenty
+of entries sit at zero: on the dev machine, Breath of the Wild has 14
+screenshots from March 2026 and `rt_last_time_played = 0`. A screenshot is hard
+evidence the game ran, so the newest capture is a sound lower bound.
+
+Implementing it surfaced two traps, both of which fail **silently**:
+
+1. **Not every `AppOverview` field is a plain property.** Steam declares them
+   with metadata (read from its own bundle):
+
+   ```js
+   rt_recent_activity_time: { observable: true },
+   rt_last_time_played:     { fnCustomSetter: (e, t) => e.SetLastTimePlayed(t),
+                              fnCustomComparator: …, observable: true },
+   ```
+
+   Assigning `rt_last_time_played` bypasses `SetLastTimePlayed` and writes a
+   shadow property. It reads back correctly, so it looks like it worked — and is
+   then discarded on Steam's next sync.
+
+2. **`collectionStore` is a class instance**, so `OnAppOverviewChange` lives on
+   its prototype. `afterPatch(store, …)` reports success and never fires.
+   Confirmed by printing the live function source: it was still Steam's original.
+
+Both were only caught because the code logged how many apps it had actually
+changed. Without that counter, "patch registered" plus zero effect is
+indistinguishable from working.
+
+### Decision
+
+- Write only fields declared as plain observables — `rt_recent_activity_time`
+  and `rt_last_time_played_or_installed`. **Do not write `rt_last_time_played`**;
+  it needs `SetLastTimePlayed`, which is not part of any stable surface.
+- Patch whichever object actually owns the method: check
+  `hasOwnProperty`, else fall back to the prototype.
+- Only ever move a timestamp **forward**, so Steam's own value wins when newer.
+- Log the number of records actually changed, not just that a patch registered.
+
+### Consequences
+
+- The grid's recent-activity ordering reflects real play for games Steam has no
+  record of. Verified live: zeroed values were restored to exact capture
+  timestamps when `OnAppOverviewChange` fired.
+- Cost: the "Last Played" column proper stays blank for those games, because the
+  field behind it is not safely writable. Showing the right data in a nearby
+  field beats writing a value Steam will silently drop.
+- Cost: patching a prototype affects every instance. Acceptable here — there is
+  one `collectionStore`, and the handler early-outs on non-Steam appids.
+- Any future `AppOverview` write must first check for `fnCustomSetter` in
+  Steam's bundle. Assume nothing is a plain property.

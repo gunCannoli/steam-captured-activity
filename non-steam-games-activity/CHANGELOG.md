@@ -74,6 +74,11 @@ and recording playback are still to come.
 - **Refresh on quit** — closing a game clears the asset cache and re-renders any
   open page for it, so new captures appear without restarting Steam.
 
+- **Library grid enrichment** — non-Steam games with screenshots now carry a
+  recent-activity timestamp derived from their newest capture, so Steam's own
+  sorting and date labels work for games it has no play record of. Timestamps
+  only ever move forward.
+
 ### Fixed
 
 Caught by the test suite before any of this ran inside Steam:
@@ -105,7 +110,9 @@ Caught by the test suite before any of this ran inside Steam:
 ### Known limitations
 
 - Recording playback is not implemented; clicking a clip logs its path.
-- The library grid does not yet show capture counts (Phase 5).
+- The "Last Played" column stays blank for games Steam did not launch itself:
+  that field has a custom setter backed by protobuf state and cannot be written
+  safely. Recent-activity ordering does reflect captures.
 - Recordings are MPEG-DASH, so they cannot play in a plain `<video>` element.
 - Big Picture is not implemented (ADR-0016).
 - Only `clips/` has been observed; background `video/` recordings are handled by

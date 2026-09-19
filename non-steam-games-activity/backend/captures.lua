@@ -188,6 +188,38 @@ function captures.non_steam_counts(paths)
   return counts
 end
 
+--- Per-app capture summary for the library grid.
+---
+--- `newest` is the most recent capture time and doubles as evidence the game
+--- was played: Steam leaves `rt_last_time_played` at 0 for shortcuts it did not
+--- launch itself, even when screenshots plainly exist.
+---
+--- Reads the screenshot index only (cheap, already cached). Recordings would
+--- mean walking the clips directory for every app, which is not worth it for a
+--- grid - the app page picks them up anyway.
+---@param paths steam_paths.Paths
+---@return table<integer, table> stats  appid -> { screenshots, newest }
+function captures.library_stats(paths)
+  local games = load_index(paths)
+  local out = {}
+
+  for id, list in pairs(games) do
+    if gameid.is_non_steam(id) then
+      local appid = gameid.to_appid(id)
+      if appid then
+        local newest = 0
+        for _, shot in ipairs(list) do
+          local at = shot.creation or 0
+          if at > newest then newest = at end
+        end
+        out[appid] = { screenshots = #list, newest = newest }
+      end
+    end
+  end
+
+  return out
+end
+
 ---@class captures.Recording
 ---@field path string            Recording directory
 ---@field started_at integer     Unix seconds (from clip.pb, else folder mtime)

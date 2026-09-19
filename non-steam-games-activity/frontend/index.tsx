@@ -3,6 +3,7 @@ import { onAppLaunch, onLocationChange, onPopupCreate, PopupType } from 'steambr
 import { clearAssetCache } from './assets';
 import { logger } from './logger';
 import { patch as patchLibraryApp, refresh as refreshLibraryApp, unpatch as unpatchLibraryApp } from './renderers/library-app';
+import { refresh as refreshLibraryHome, register as registerLibraryHome } from './renderers/library-home';
 import { rpc } from './rpc';
 
 /**
@@ -36,6 +37,10 @@ export default async function OnPluginLoaded() {
     logger.error('Failed to reach the backend:', error);
     return;
   }
+
+  // ===== Library grid =====
+  // Fills in last-played dates Steam does not have, from capture timestamps.
+  await registerLibraryHome();
 
   // ===== App detail pages =====
   // Each Steam window is its own document, so watch them individually.
@@ -78,6 +83,7 @@ export default async function OnPluginLoaded() {
       logger.info(`${app.display_name} closed; refreshing its activity.`);
       clearAssetCache();
       void refreshLibraryApp(app.appid);
+      void refreshLibraryHome();
     });
   });
 }
