@@ -169,7 +169,10 @@ function SummaryCarousel({
   const visible = entries.slice(offset, offset + PAGE);
 
   return (
-    <div className={cx(S.SummaryCarouselContainer, 'nsga-carousel')}>
+    // Steam's own SummaryCarouselContainer carries a panel background in this
+    // position, which doubles up with the section's. Use our own layout class
+    // and borrow only the inner scrolling container's spacing.
+    <div className="nsga-carousel">
       {maxOffset > 0 && (
         <button
           type="button"

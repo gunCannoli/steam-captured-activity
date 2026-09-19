@@ -19,19 +19,26 @@ const CSS = `
   margin: 16px 0 24px;
 }
 
+/*
+ * Matches Steam's own GamePlaySummaryHeader, measured from the live client:
+ * 14px / weight 400 / 1px letter-spacing / uppercase / rgb(148,161,166).
+ */
 .nsga-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--gpTextColorSecondary, #8f98a0);
+  color: rgb(148, 161, 166);
   margin: 0 0 8px;
 }
 
+/*
+ * No background here. Steam's summary containers are all transparent - the dark
+ * panel around them belongs to the surrounding AppDetailsSection. Adding our own
+ * produced a visible box-inside-a-box.
+ */
 .nsga-summary {
-  background: var(--gpBackgroundDark, rgba(0, 0, 0, 0.2));
-  border-radius: 3px;
-  padding: 12px;
+  padding: 10px 0 5px;
 }
 
 .nsga-summary-head {
@@ -45,6 +52,8 @@ const CSS = `
   font-size: 14px;
   font-weight: 700;
   color: var(--gpTextColorPrimary, #dcdedf);
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .nsga-summary-meta {
@@ -55,10 +64,10 @@ const CSS = `
 .nsga-day { margin-bottom: 20px; }
 
 .nsga-day-date {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--gpTextColorSecondary, #8f98a0);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  color: rgb(148, 161, 166);
   margin-bottom: 6px;
 }
 

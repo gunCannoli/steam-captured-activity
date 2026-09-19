@@ -806,3 +806,63 @@ via `GetAllLocalScreenshots` on the frontend, since handles are a client concept
   reach this one directory?"
 - Big Picture (ADR-0016) benefits too: reusing Steam's components is far more
   likely to work under Gamepad UI than a hand-built grid.
+
+---
+
+## ADR-0020: Match Steam's measured styles; open media through client APIs
+
+**Status:** Accepted · 2026-09-19
+
+### Context
+
+A second round of user testing compared our page against a native one side by
+side and found three problems:
+
+1. **Clicking a capture showed a blank black screen.** Navigating to
+   `/media/item/screenshot/<handle>` (the real route — the earlier
+   `?item=` query form was wrong) loads the page but renders nothing.
+   Steam's own call site explains why:
+
+   ```js
+   Media.Screenshot({ state: { id: t.id,
+     filter: { listSource: { type: "app", gameid: t.strGameID } } } })
+   ```
+
+   The viewer needs list state, passed as a navigator *state object*, that
+   `Navigate(url)` cannot express. The item id is also the media item's `id`,
+   which is not the same as `hHandle`.
+
+2. **Double background.** Measuring the native page showed every summary
+   container is transparent — `GamePlaySummaryContainer`,
+   `SummaryCarouselContainer` and its scrolling child all report
+   `rgba(0,0,0,0)`. The dark panel comes from the enclosing
+   `AppDetailsSection`. Our own `.nsga-summary` panel produced a box inside a box.
+
+3. **Wrong typography.** Steam's `GamePlaySummaryHeader` measures
+   **14px / weight 400 / 1px letter-spacing / uppercase / `rgb(148,161,166)`**.
+   Ours was 13px / 700 / 0.5px in a different grey.
+
+### Decision
+
+- **Measure, do not guess, when matching Steam.** Read computed styles off a
+  native page and copy the values, rather than approximating from a screenshot.
+- **Add no background of our own** in a position where Steam's own containers
+  are transparent.
+- Borrow a Steam class only where it helps. `SummaryCarouselScrollingContainer`
+  gives useful spacing; `SummaryCarouselContainer` brings a panel that doubles
+  up, so our own layout class is used there instead.
+- **Open screenshots with `SteamClient.Screenshots.ShowScreenshotInSystemViewer(appid, handle)`.**
+  It is a stable client API that reliably shows the image. Recordings reveal
+  their folder via `ShowScreenshotsOnDisk`.
+
+### Consequences
+
+- The page matches Steam's type and spacing, with no doubled panels.
+- Clicking a screenshot shows it, instead of a black screen.
+- Cost: screenshots open in the OS viewer rather than Steam's in-client overlay,
+  which is less integrated. Reaching the native overlay needs the navigator's
+  state object; if a future SDK exposes it, revisit.
+- Cost: recordings still do not play in-client. DASH needs an MSE player, so
+  revealing the folder is the honest fallback.
+- The `hHandle` vs media-item `id` distinction is recorded so nobody assumes
+  they are interchangeable again.

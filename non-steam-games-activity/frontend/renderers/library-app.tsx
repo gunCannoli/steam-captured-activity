@@ -4,7 +4,6 @@ import { ActivityPage } from '../components/activity';
 import { rpc, type Activity, type TimelineEntry } from '../rpc';
 import { ensureStyles } from '../styles';
 import { loadFullImage } from '../assets';
-import { gameidFor } from '../gameid';
 import {
   loadScreenshotIndex,
   normaliseKey,
@@ -89,26 +88,27 @@ export async function refresh(appid: number): Promise<void> {
 }
 
 /**
- * Open a capture in Steam's own media viewer.
+ * Open a capture.
  *
- * Steam already has a viewer that shows screenshots and plays recordings
- * (which are DASH, so we would otherwise need an MSE player). Navigating to its
- * `/media` route reuses all of that (ADR-0019).
+ * Screenshots go to the OS image viewer via `ShowScreenshotInSystemViewer`;
+ * Steam's in-client viewer needs list state we cannot supply through
+ * `Navigate` and renders blank without it (see steam-media.ts). Recordings
+ * reveal their folder, since DASH cannot play in a plain <video>.
  *
- * Falls back to opening a full-size image ourselves when Steam has no record of
- * the capture, or when the route is unavailable.
+ * Falls back to rendering the image ourselves when Steam has no record of the
+ * capture.
  */
 async function openEntry(window: Window, appid: number, entry: TimelineEntry): Promise<void> {
-  const index = await loadScreenshotIndex();
-
   if (entry.type === 'recording') {
-    if (openRecording(gameidFor(appid))) return;
-    logger.info('Could not open the recording in Steam; no fallback player.', entry.path);
+    if (!openRecording(appid)) {
+      logger.info('Could not open the recording.', entry.path);
+    }
     return;
   }
 
+  const index = await loadScreenshotIndex();
   const shot = index.get(normaliseKey(entry.path) ?? '');
-  if (shot && openScreenshot(shot.hHandle)) return;
+  if (shot && openScreenshot(appid, shot.hHandle)) return;
 
   // Fallback: Steam does not know about this capture.
   const uri = await loadFullImage(entry.path);

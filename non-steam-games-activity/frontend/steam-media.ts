@@ -31,6 +31,8 @@ export interface LocalScreenshot {
  */
 interface ScreenshotsApi {
   GetAllLocalScreenshots?: () => Promise<LocalScreenshot[]>;
+  /** (appId as string, screenshot handle) - opens the OS image viewer. */
+  ShowScreenshotInSystemViewer?: (appid: string, handle: number) => void;
   ShowScreenshotsOnDisk?: (appid: number) => void;
 }
 
@@ -102,27 +104,52 @@ export function screenshotUrl(shot: LocalScreenshot, thumbnail: boolean): string
   return `https://steamloopback.host/${url}`;
 }
 
-/** Open a screenshot in Steam's own media viewer. */
-export function openScreenshot(handle: number): boolean {
-  const item = encodeURIComponent(JSON.stringify({ type: 'screenshot', id: handle }));
-  return navigate(`/media?item=${item}`);
+/**
+ * Open a screenshot.
+ *
+ * Steam's in-client viewer lives at `/media/item/<type>/<id>`, but navigating
+ * there directly renders a blank page: its components expect list state that
+ * only Steam's own media grid supplies (its internal call passes
+ * `{state: {id, filter: {listSource: {type: "app", gameid}}}}`, which is not
+ * reachable through the public `Navigate(url)` surface).
+ *
+ * So we use `ShowScreenshotInSystemViewer`, which is a stable client API and
+ * opens the image full-size in the OS viewer. Less integrated than Steam's own
+ * overlay, but it reliably shows the picture instead of a black screen.
+ */
+export function openScreenshot(appid: number, handle: number): boolean {
+  const api = screenshotsApi();
+  if (typeof api?.ShowScreenshotInSystemViewer !== 'function') return false;
+
+  try {
+    api.ShowScreenshotInSystemViewer(String(appid), handle);
+    return true;
+  } catch (error) {
+    logger.warn('Could not open the screenshot:', error);
+    return false;
+  }
 }
 
 /**
- * Open a recording in Steam's own player.
+ * Open a recording.
  *
- * Steam's navigator offers both `clip` (a saved clip) and `recording` (a
- * background session, keyed by gameid). We try the clip route first and fall
- * back to the game's media grid.
+ * Recordings are MPEG-DASH, so there is nothing we can hand to a plain
+ * `<video>`. Steam's media grid plays them, so we send the user there scoped to
+ * this game rather than to a blank item page.
  */
-export function openRecording(gameid: string, clipId?: string): boolean {
-  if (clipId) {
-    const item = encodeURIComponent(JSON.stringify({ type: 'clip', id: clipId }));
-    if (navigate(`/media?item=${item}`)) return true;
+export function openRecording(appid: number): boolean {
+  // Reveal the clip on disk as the dependable fallback; the grid route does not
+  // accept a game filter through Navigate().
+  const api = screenshotsApi();
+  if (typeof api?.ShowScreenshotsOnDisk === 'function') {
+    try {
+      api.ShowScreenshotsOnDisk(appid);
+      return true;
+    } catch {
+      /* fall through */
+    }
   }
-
-  const filter = encodeURIComponent(JSON.stringify({ gameid }));
-  return navigate(`/media?filter=${filter}`);
+  return navigate('/media/grid');
 }
 
 /** Reveal a game's screenshots in the OS file manager. */

@@ -206,11 +206,20 @@ Investigating turned up capability we had wrongly assumed absent
 - [x] Reuses Steam's `SummaryCarouselContainer` / `PostGameSummaryClip` classes.
 - [x] `assets.lua` retained as a fallback for captures Steam has not indexed.
 
+Second testing round (side-by-side with a native page) fixed:
+
+- [x] **Blank viewer on click** — `/media/item/...` needs navigator state we
+      cannot pass; screenshots now open via `ShowScreenshotInSystemViewer`
+- [x] **Double background** — Steam's summary containers are all transparent;
+      our extra panel is gone
+- [x] **Typography** — matched Steam's measured 14px/400/1px/rgb(148,161,166)
+
 Still open from that testing round:
 
-- [ ] **Recordings** — the click path is wired, but the `/media` clip route
-      needs a clip id we do not yet extract from `clip.pb`. Currently falls
-      back to the game's media grid.
+- [ ] **Recordings** do not play in-client. DASH needs an MSE player; clicking
+      reveals the clip folder instead ([ADR-0020](docs/decisions.md#adr-0020-match-steams-measured-styles-open-media-through-client-apis)).
+- [ ] **Screenshots open in the OS viewer**, not Steam's in-client overlay,
+      which needs a navigator state object `Navigate(url)` cannot express.
 - [ ] **Animated hover previews** for clips: Steam shows motion on hover.
       Mechanism not yet identified (likely a short video or sprite sheet).
 - [ ] **Big Picture** shows nothing — expected, that is Phase 6.
