@@ -37,9 +37,15 @@ anything in Steam — not yet releasable.
   newest first, plus `post_game_summary()` scoped to the most recent play
   session (matching Steam's own layout) with a newest-day fallback for media
   predating Steam Game Recording.
-- **RPC surface** (`rpc.lua`) — `GetActivity`, `GetLibraryStats`,
-  `GetDiagnostics`.
-- **Test suite** (`tests/`) — 70 assertions running the real backend modules
+- **Image serving** (`assets.lua`) — capture images as base64 data URIs, since
+  Millennium's `steamloopback.host` interception is jailed to `<Steam>/steamui/`
+  and cannot reach `userdata/`. Reads are restricted to the capture directories,
+  `..` is rejected, and per-call and per-file size budgets apply. Steam's own
+  thumbnails are ~11 KB, so a page of them is ~0.4 MB of JSON; full-size images
+  are fetched one at a time on demand.
+- **RPC surface** (`rpc.lua`) — `GetActivity`, `GetLibraryStats`, `GetAsset`,
+  `GetAssets`, `GetDiagnostics`.
+- **Test suite** (`tests/`) — 82 assertions running the real backend modules
   against a real Steam install, with Millennium's modules stubbed. Machine
   specific expectations are isolated in a `FIXTURE` table and can be skipped
   with `NSGA_SKIP_FIXTURES=1`.
@@ -67,7 +73,6 @@ Caught by the test suite before any of this ran inside Steam:
 ### Known limitations
 
 - No frontend — nothing renders in Steam yet.
-- Serving local images to Steam's sandboxed UI is unresolved (ADR-0015).
 - Recordings are MPEG-DASH, so they cannot play in a plain `<video>` element.
 - Big Picture is not implemented (ADR-0016).
 - Only `clips/` has been observed; background `video/` recordings are handled by

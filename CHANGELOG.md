@@ -29,7 +29,7 @@ This repo is private and unversioned; entries are grouped by date.
   off a real install, not inferred from documentation.
 - **`docs/architecture.md`** — the core/provider split, data flow, module layout
   and the provider contract.
-- **`docs/decisions.md`** — 16 ADRs.
+- **`docs/decisions.md`** — 17 ADRs.
 
 ### Changed
 
@@ -52,3 +52,6 @@ Key findings recorded during this period, all verified against a real install:
   with a ready-made `thumbnail.jpg`.
 - Big Picture is a separate popup window (`SP BPM_`), not a separate sandbox, so
   it needs a second renderer but no backend changes (ADR-0016).
+- `steamloopback.host` is jailed to `<Steam>/steamui/` and cannot serve files
+  from `userdata/`, so capture images cross the RPC boundary as base64 data URIs
+  (ADR-0017 supersedes ADR-0015).

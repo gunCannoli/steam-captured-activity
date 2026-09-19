@@ -496,7 +496,11 @@ AM2R, and that is normal, not an error.
 
 ## ADR-0015: Serve capture images by reference, with a base64 fallback
 
-**Status:** Proposed · 2026-09-19
+**Status:** Superseded by [ADR-0017](#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first) · 2026-09-19
+
+> The spike this ADR called for was run. `steamloopback.host` **cannot** reach
+> our files, so the "by reference" option does not exist and the fallback became
+> the design. See ADR-0017.
 
 ### Context
 
@@ -599,3 +603,66 @@ Treat Big Picture as **the same plugin with a second renderer**, not a second pr
   source, not observed**. The gamepad phase must begin by confirming them live.
 - Risk: if #754's isolation turns out to affect JS as well, the gamepad renderer is
   blocked. Cheap to test — log from inside a gamepad popup before building anything.
+
+---
+
+## ADR-0017: Serve capture images as base64 data URIs, thumbnails first
+
+**Status:** Accepted · 2026-09-19 · **Supersedes [ADR-0015](#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)**
+
+### Context
+
+[ADR-0015](#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)
+proposed serving images by reference through `steamloopback.host` and called for a
+spike before building any UI. The spike is done, and it settles the question.
+
+**`steamloopback.host` cannot serve our images.** Millennium intercepts that host and
+maps URLs to local files, but `local_path_from_lb_url` in
+`src/instrumentation/loopback/src/url.rs` resolves every path against
+**`<Steam>/steamui/`** and accepts only `Component::Normal` segments. Its own tests
+assert that `..` traversal, Windows absolute paths and UNC paths are all rejected.
+Our captures live under `<Steam>/userdata/`, outside that jail, with no link into
+`steamui/`. The interception is real and does serve `image/jpeg` — just not for
+anything we own.
+
+That leaves base64 over the RPC channel. Measured on this machine:
+
+| | count | median | mean |
+| --- | --- | --- | --- |
+| Steam thumbnails | 615 | **11 KB** | 11 KB |
+| Full screenshots | 616 | **931 KB** | 1047 KB |
+
+Base64 adds ~33%. A real AM2R thumbnail is 14 KB raw → 18 KB encoded, so a
+20-thumbnail page costs ~0.4 MB of JSON. The same page of full-size images would be
+~25 MB.
+
+A local HTTP server was reconsidered and rejected again: opening a port and a
+security surface to display a picture is disproportionate when 0.4 MB of JSON works.
+
+### Decision
+
+Serve images as **base64 data URIs** over RPC, thumbnails first.
+
+- `GetAssets` batches **thumbnails** for a page; `GetAsset` fetches **one full image**
+  on demand when the user opens it.
+- Steam already generates the thumbnails, so there is nothing to resize.
+- `assets.lua` enforces a **path allowlist**: only files under the screenshot and
+  recording roots are readable, `..` is rejected outright, and only image MIME types
+  are served. The frontend can only echo back paths we gave it, but a bug must not
+  turn this into an arbitrary file reader.
+- A per-call byte budget (8 MB default) and a 12 MB single-file ceiling stop one
+  request from flooding the channel.
+
+### Consequences
+
+- Images work with no new surface area: no port, no scheme handler, no extra process.
+- The thumbnail/full split keeps the common case (a page of media) small and the
+  expensive case (a full 4K screenshot) explicit and user-initiated.
+- The path allowlist means the RPC cannot be repurposed into a file reader, and it is
+  covered by tests that attempt real traversal and absolute-path reads.
+- Cost: a full-size image costs ~1.3 MB of JSON to open. Acceptable for a deliberate
+  click; it would not be acceptable per page.
+- Cost: data URIs are not cacheable by the browser the way a URL would be. The
+  frontend should hold decoded thumbnails in memory for the life of the page.
+- If Millennium ever widens the loopback jail or adds a plugin asset route, revisit —
+  serving by URL would be strictly better.

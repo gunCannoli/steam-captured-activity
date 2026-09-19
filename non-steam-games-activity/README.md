@@ -19,6 +19,7 @@ wired to any UI.
 | `shortcuts.lua` | Parse binary `shortcuts.vdf` | ✅ tested |
 | `captures.lua` | Parse `screenshots.vdf` + recordings (`clip.pb`) | ✅ tested |
 | `timeline.lua` | Day grouping + post-game summary | ✅ tested |
+| `assets.lua` | Images as base64 data URIs, path-allowlisted | ✅ tested |
 | `rpc.lua` | Frontend-callable methods | ✅ shape tested |
 | `frontend/` | The UI | ❌ not started |
 
@@ -34,6 +35,8 @@ without an MSE player — the thumbnail is the cheap path for a media card.
 | --- | --- | --- |
 | `GetActivity` | `{ appid }` | media, session-scoped `post_game_summary`, day-grouped `timeline` |
 | `GetLibraryStats` | `{}` | `{ "<appid>": { screenshots } }` for the grid |
+| `GetAsset` | `{ path }` | one image as a base64 data URI |
+| `GetAssets` | `{ paths[], budget? }` | several images (thumbnails) at once |
 | `GetDiagnostics` | `{}` | what the backend can see — use this first |
 
 ## Tests
@@ -72,3 +75,6 @@ Current result: **all pass**, matching independently measured values.
   known to be messages, or a string's bytes get read as field tags.
 - A varint must be fully consumed even when it overflows a Lua double (the
   gameid is 64-bit), or every following field desynchronises.
+- `steamloopback.host` **cannot** serve capture images: Millennium resolves it
+  against `<Steam>/steamui/` only. Images go over RPC as base64 data URIs, and
+  `assets.lua` restricts reads to the capture directories.

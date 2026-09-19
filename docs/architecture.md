@@ -111,7 +111,7 @@ non-steam-games-activity/
 │  ├─ captures.lua        # screenshots.vdf + recordings         ✅
 │  ├─ timeline.lua        # group entries by date                 ✅
 │  ├─ providers.lua       # registry: discover, call, isolate     ☐
-│  ├─ assets.lua          # serve local image bytes               ☐
+│  ├─ assets.lua          # base64 data URIs + path allowlist     ✅
 │  └─ _lib/               # vendored json fs http logger …        ✅
 ├─ tests/
 │  ├─ harness.lua         # stubs Millennium's modules            ✅
@@ -162,7 +162,8 @@ newest first. Provider entries are interleaved by timestamp, not appended.
 | --- | --- |
 | `GetActivity(appid)` | full payload for one app detail page |
 | `GetLibraryStats(appids[])` | batched minimal stats for the grid |
-| `GetAsset(path)` | image bytes for a local capture |
+| `GetAsset(path)` | one image as a base64 data URI |
+| `GetAssets(paths[])` | several images (thumbnails) in one round trip |
 
 `GetActivity` payload:
 
@@ -298,11 +299,12 @@ tab sub-routes (`/library/app/<appid>/tab/<Name>`), its own class modules, and
 controller focus. Desktop ships first
 ([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
 
-**Serving local images** is the one open implementation question. Steam's CEF treats
-`steamloopback.host` as its own local origin, which is the likely route; the verified
-fallback is returning base64 bytes over `GetAsset` and using a data URI. Thumbnails
-first, full images on demand — the payload must stay small
-([ADR-0015](decisions.md#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)).
+**Serving local images** is settled: `steamloopback.host` is jailed to
+`<Steam>/steamui/` and cannot reach `userdata/`, so capture images cross the RPC
+boundary as **base64 data URIs**. Thumbnails (~11 KB each) are batched with
+`GetAssets`; a full image (~1 MB) is fetched with `GetAsset` only when opened.
+`assets.lua` enforces a path allowlist so the RPC cannot become a file reader
+([ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)).
 
 ---
 

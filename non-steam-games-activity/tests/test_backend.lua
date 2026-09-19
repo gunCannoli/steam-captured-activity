@@ -251,12 +251,71 @@ if #synth == 2 then
         synth[1].entries[1].at >= synth[1].entries[2].at)
 end
 
+-- ============ assets ============
+print("\n=== assets ===")
+local assets = require("assets")
+
+-- Security boundary: only capture directories may be read. The frontend can
+-- only echo back paths we gave it, but a bug must not become a file reader.
+local denied = {
+  [[C:\Windows\win.ini]],
+  [[C:\game\steam\config\loginusers.vdf]],
+  paths.screenshots_root .. [[\..\..\config\loginusers.vdf]],
+  [[\server\share\secret.jpg]],
+  "",
+}
+local all_denied = true
+for _, bad in ipairs(denied) do
+  local r = assets.read(bad, paths)
+  if r.ok then all_denied = false; print("      LEAK: " .. bad) end
+end
+check("rejects paths outside capture dirs", all_denied)
+check("rejects traversal", assets.read(
+  paths.screenshots_root .. [[\..\..\config\loginusers.vdf]], paths).ok == false)
+
+-- Non-image inside an allowed root must still be refused.
+check("rejects non-image types",
+      assets.read(paths.recordings .. [[\gamerecording.pb]], paths).ok == false)
+
+if #am2r_shots > 0 and am2r_shots[1].thumb then
+  local r = assets.read(am2r_shots[1].thumb, paths)
+  check("reads a real thumbnail", r.ok == true, r.error)
+  if r.ok then
+    check("returns a jpeg data URI",
+          r.uri:sub(1, 23) == "data:image/jpeg;base64,", r.uri:sub(1, 30))
+    check("data URI has payload", #r.uri > 100, "#" .. #r.uri)
+    check("reports byte count", r.bytes > 0, tostring(r.bytes))
+  end
+
+  -- Batch read, used for a page of thumbnails.
+  local many = assets.read_many({ am2r_shots[1].thumb }, paths)
+  check("read_many returns per-path results", many[am2r_shots[1].thumb] ~= nil)
+  check("read_many entry ok", many[am2r_shots[1].thumb].ok == true)
+
+  -- A zero budget must refuse rather than silently serve.
+  local broke = assets.read_many({ am2r_shots[1].thumb }, paths, 0)
+  check("read_many honours the budget",
+        broke[am2r_shots[1].thumb].ok == false,
+        broke[am2r_shots[1].thumb].error)
+end
+
+check("missing file reports not found",
+      assets.read(paths.screenshots_root .. [[
+ope
+ope.jpg]], paths).ok == false)
+
 -- ============ rpc ============
 print("\n=== rpc (shape) ===")
 local RPC = require("rpc")
 local diag = RPC.GetDiagnostics("{}")
 check("GetDiagnostics returns json", type(diag) == "string" and diag:find("\"ok\""), diag)
 print("    " .. diag)
+
+if #am2r_shots > 0 and am2r_shots[1].thumb then
+  local asset_json = RPC.GetAsset('{"path":"' .. am2r_shots[1].thumb:gsub("\\", "\\\\") .. '"}')
+  check("GetAsset returns json with a data URI",
+        type(asset_json) == "string" and asset_json:find("data:image/jpeg;base64,", 1, true) ~= nil)
+end
 
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

@@ -12,6 +12,8 @@ local RPC = require("rpc")
 -- Millennium exposes globals to the frontend as callable methods.
 GetActivity     = RPC.GetActivity
 GetLibraryStats = RPC.GetLibraryStats
+GetAsset        = RPC.GetAsset
+GetAssets       = RPC.GetAssets
 GetDiagnostics  = RPC.GetDiagnostics
 
 local function on_load()

@@ -70,26 +70,34 @@ Parses real data on this machine. 68 assertions, all passing.
 
 ---
 
-## Phase 2 — Image spike ⬅ NEXT
+## Phase 2 — Image spike ✅ DONE
 
-The one unproven assumption, and it gates every visual. **Do this before writing
-UI.** See [ADR-0015](docs/decisions.md#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)
-(status: Proposed — this phase resolves it).
+**Answer: `steamloopback.host` cannot serve our images.** Millennium intercepts
+that host, but `local_path_from_lb_url` resolves every path against
+`<Steam>/steamui/` and rejects `..`, absolute paths and UNC — its own tests
+assert this. Our captures live in `<Steam>/userdata/`, outside that jail.
 
-- [ ] Throwaway page: can Steam's CEF load a local JPEG via `steamloopback.host`?
-      Test with a real screenshot **and** a clip `thumbnail.jpg`.
-- [ ] If no: measure base64-over-RPC with Steam's own thumbnails (not the 4K
-      originals) and confirm payload size is sane.
-- [ ] Decide, then update ADR-0015 to Accepted/Superseded with what was found.
-- [ ] Implement `assets.lua` per the outcome.
+So base64 over RPC, which the measurements make comfortable:
 
-Known: Steam's UI itself runs on `https://steamloopback.host/index.html`
-(confirmed in `cef_log.txt`), so the origin exists. Unknown: whether arbitrary
-local paths are reachable through it.
+| | count | median |
+| --- | --- | --- |
+| Steam thumbnails | 615 | **11 KB** |
+| Full screenshots | 616 | **931 KB** |
+
+A 20-thumbnail page is ~0.4 MB of JSON; the same page of full images would be
+~25 MB. Hence thumbnails in bulk, full images on demand.
+
+- [x] Determine whether `steamloopback.host` can reach capture files — **no**
+- [x] Measure base64 cost against Steam's own thumbnails
+- [x] Resolve [ADR-0015](docs/decisions.md#adr-0015-serve-capture-images-by-reference-with-a-base64-fallback)
+      → superseded by [ADR-0017](docs/decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)
+- [x] `assets.lua` — data URIs, path allowlist, size budgets
+- [x] `GetAsset` / `GetAssets` RPC methods
+- [x] Tests, including attempted traversal and absolute-path reads (82 assertions total)
 
 ---
 
-## Phase 3 — Plugin scaffold & first load
+## Phase 3 — Plugin scaffold & first load ⬅ NEXT
 
 - [ ] `package.json`, `tsconfig.json` (copy the reference plugin's config)
 - [ ] `dev.ps1` taking the Steam path as a **parameter**, not a hardcoded default
@@ -112,6 +120,9 @@ failure is unambiguous.
 - [ ] `post-game-summary.tsx` — last session's media, Steam's header style
 - [ ] `timeline.tsx` — day-grouped activity feed
 - [ ] `media-grid.tsx` — screenshot thumbnails + clip poster frames with duration
+- [ ] Batch thumbnails via `GetAssets`; fetch a full image with `GetAsset` only
+      when the user opens one. Cache decoded thumbnails in memory — data URIs
+      are not browser-cacheable ([ADR-0017](docs/decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first))
 - [ ] Hide Steam's "information is unavailable" placeholder
 - [ ] `data-nsga` attributes so re-renders replace rather than duplicate
 - [ ] Unpatch on navigation away and popup close
@@ -235,7 +246,7 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
 
 | Question | Blocks | Plan |
 | --- | --- | --- |
-| Can `steamloopback.host` serve local files? | Phase 2, all visuals | Spike now |
+| ~~Can `steamloopback.host` serve local files?~~ | — | **Answered: no** — jailed to `<Steam>/steamui/`. Base64 instead ([ADR-0017](docs/decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)) |
 | Does Millennium #754's BPM isolation affect JS, or only CSS? | Phase 6 | Log from an `SP BPM_` popup before building |
 | Do BPM tabs need separate injection per tab? | Phase 6 | Observe live; route is `/tab/<Name>` |
 | Can we play DASH inline, or must we hand off? | Phase 4 polish | Poster + handoff in v1 |
@@ -266,6 +277,12 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
   between underscores; regression test added.
 - Added `sessions_for()` + `post_game_summary()` so the page mirrors Steam's
   two-scope layout (session summary above, per-day activity below).
+- **Phase 2 resolved.** Read Millennium's loopback source rather than guessing:
+  `steamloopback.host` is jailed to `<Steam>/steamui/` and explicitly rejects
+  traversal, so it cannot serve anything from `userdata/`. Measured the
+  alternative — Steam's thumbnails are 11 KB median, so base64 over RPC costs
+  ~0.4 MB for a 20-image page. Built `assets.lua` with a path allowlist and
+  size budgets; ADR-0015 superseded by ADR-0017.
 - Investigated **Big Picture**: it is a separate popup window (`SP BPM_`), not a
   separate sandbox, and `steambrew-utils` already exposes `PopupType.Gamepad`.
   The backend needs **no** Big Picture work; only a second renderer. Recorded as

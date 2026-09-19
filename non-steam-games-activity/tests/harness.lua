@@ -71,6 +71,19 @@ function fs.last_write_time(path)
   return tonumber(lines[1]) or 0
 end
 
+function fs.extension(path)
+  local ext = path:match("(%.[^%.\\/]+)$")
+  return ext or ""
+end
+
+function fs.file_size(path)
+  local f = io.open(path, "rb")
+  if not f then return nil end
+  local size = f:seek("end")
+  f:close()
+  return size
+end
+
 function fs.list(path)
   local entries = {}
   for _, name in ipairs(popen_lines('dir /b "' .. path .. '" 2>nul')) do
@@ -90,6 +103,15 @@ package.loaded["fs"] = fs
 
 -- ---------- stub: utils ----------
 local utils = {}
+function utils.base64_encode(input)
+  local B = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  return ((input:gsub('...', function(x)
+    local r, b = '', x:byte(1) * 65536 + x:byte(2) * 256 + x:byte(3)
+    for i = 1, 4 do r = r .. B:sub((b >> (24 - i * 6)) % 64 + 1, (b >> (24 - i * 6)) % 64 + 1) end
+    return r
+  end)) .. ({ '', '==', '=' })[#input % 3 + 1])
+end
+
 function utils.read_file(path)
   local f = io.open(path, "rb")
   if not f then return nil, "not found" end
@@ -104,11 +126,45 @@ local json = {}
 
 --- Minimal decoder: enough for the flat { "key": value } payloads the RPC
 --- methods receive in tests. Not a general JSON parser.
+---
+--- It does unescape backslashes, because Windows paths cross this boundary and
+--- a decoder that left "C:\\game" as-is would make tests pass or fail for
+--- reasons the real json module would not reproduce.
+local function unescape(str)
+  return (str:gsub('\\(.)', function(c)
+    if c == "n" then return "\n" end
+    if c == "t" then return "\t" end
+    if c == "r" then return "\r" end
+    return c  -- covers \\ and \"
+  end))
+end
+
 function json.decode(s)
   local out = {}
   if type(s) ~= "string" then return out end
-  for key, value in s:gmatch('"([^"]+)"%s*:%s*"([^"]*)"') do
-    out[key] = value
+  -- Lua patterns have no alternation, so scan for string values manually to
+  -- keep escaped quotes and backslashes intact.
+  local pos = 1
+  while true do
+    local ks, ke, key = s:find('"([^"]+)"%s*:%s*"', pos)
+    if not ks then break end
+
+    local i, buf = ke + 1, {}
+    while i <= #s do
+      local c = s:sub(i, i)
+      if c == "\\" then
+        buf[#buf + 1] = s:sub(i, i + 1)
+        i = i + 2
+      elseif c == '"' then
+        break
+      else
+        buf[#buf + 1] = c
+        i = i + 1
+      end
+    end
+
+    out[key] = unescape(table.concat(buf))
+    pos = i + 1
   end
   for key, value in s:gmatch('"([^"]+)"%s*:%s*(-?%d+%.?%d*)') do
     out[key] = tonumber(value)

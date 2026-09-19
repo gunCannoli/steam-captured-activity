@@ -9,6 +9,7 @@ local steam_paths = require("steam_paths")
 local shortcuts   = require("shortcuts")
 local captures    = require("captures")
 local timeline    = require("timeline")
+local assets      = require("assets")
 local gameid      = require("gameid")
 
 local RPC = {}
@@ -82,6 +83,25 @@ RPC.GetLibraryStats = method("GetLibraryStats", function(_)
     out[tostring(appid)] = { screenshots = count }
   end
   return out
+end)
+
+--- One image as a base64 data URI.
+---
+--- Steam's sandboxed UI cannot read the filesystem and steamloopback.host is
+--- jailed to <Steam>/steamui/, so capture images must cross the RPC boundary.
+--- See ADR-0015 and backend/assets.lua.
+RPC.GetAsset = method("GetAsset", function(data)
+  local paths, err = steam_paths.resolve()
+  if not paths then error(err or "could not resolve Steam paths") end
+  return assets.read(data.path, paths)
+end)
+
+--- Several images at once. Intended for thumbnails (~11 KB each); full-size
+--- screenshots (~1 MB) should be fetched singly and on demand.
+RPC.GetAssets = method("GetAssets", function(data)
+  local paths, err = steam_paths.resolve()
+  if not paths then error(err or "could not resolve Steam paths") end
+  return assets.read_many(data.paths, paths, data.budget)
 end)
 
 --- Diagnostic: what the backend can see. Used by the smoke test.
