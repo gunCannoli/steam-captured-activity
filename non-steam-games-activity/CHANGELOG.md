@@ -1,0 +1,74 @@
+# Changelog
+
+All notable changes to **Non-Steam Games Activity**.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+Backend data layer complete and tested. No UI yet, so the plugin does not render
+anything in Steam — not yet releasable.
+
+### Added
+
+- **Steam path discovery** (`steam_paths.lua`) — resolves the Steam root via
+  `millennium.steam_path()` and the active user from `loginusers.vdf`
+  (`MostRecent`), falling back to the most recently written userdata directory.
+  No hardcoded paths.
+- **App id conversion** (`gameid.lua`) — converts between the 32-bit `appid` the
+  UI uses and the 64-bit `gameid` Steam's capture store is keyed by
+  (`gameid = (appid << 32) | 0x02000000`). Lua numbers are doubles and cannot
+  hold a gameid exactly, so the arithmetic runs on decimal strings in base-10⁷
+  limbs.
+- **Shortcut parsing** (`shortcuts.lua`) — reads the binary `shortcuts.vdf` by
+  scanning type-tagged fields, extracting appid, name, exe, launch options and
+  tags.
+- **Screenshot parsing** (`captures.lua`) — reads the text-format
+  `screenshots.vdf` index, resolves each entry to an absolute path, and verifies
+  the file exists before returning it.
+- **Recording parsing** (`captures.lua`) — enumerates `gamerecordings/clips/`,
+  reads `clip.pb` with a minimal protobuf reader for recorded-at timestamp,
+  duration and resolution, and locates `thumbnail.jpg` and the DASH
+  `session.mpd`.
+- **Session index** (`captures.lua`) — reads `gamerecording.pb` for play-session
+  windows.
+- **Activity timeline** (`timeline.lua`) — groups entries into local-time days,
+  newest first, plus `post_game_summary()` scoped to the most recent play
+  session (matching Steam's own layout) with a newest-day fallback for media
+  predating Steam Game Recording.
+- **RPC surface** (`rpc.lua`) — `GetActivity`, `GetLibraryStats`,
+  `GetDiagnostics`.
+- **Test suite** (`tests/`) — 70 assertions running the real backend modules
+  against a real Steam install, with Millennium's modules stubbed. Machine
+  specific expectations are isolated in a `FIXTURE` table and can be skipped
+  with `NSGA_SKIP_FIXTURES=1`.
+
+### Fixed
+
+Caught by the test suite before any of this ran inside Steam:
+
+- **Screenshots leaking between games.** `screenshots.vdf` block detection used
+  key length to tell a game id from a screenshot index, but a Steam appid
+  (`238960`) has the same shape as an index (`0`). AM2R reported **222**
+  screenshots instead of 2. Block type is now determined by brace depth.
+- **Recording metadata reading as zero.** The protobuf reader recursed into every
+  length-delimited field, but the wire format does not distinguish a nested
+  message from a string — the timeline name was parsed as a message and
+  desynchronised the rest. Only known-message fields are re-parsed now.
+- **Fields after a 64-bit id being misread.** The varint reader stopped early on
+  values too large for a Lua double, leaving the byte offset mid-value. It now
+  consumes the whole varint and returns nil for the value.
+- **Native-game recordings being missed.** Clips for native Steam games are keyed
+  by the raw appid (`clip_435150_…`), not the composed gameid used for non-Steam
+  games. The lookup now picks the id form by app type and anchors the match
+  between underscores, so `435150` cannot match `4351501`.
+
+### Known limitations
+
+- No frontend — nothing renders in Steam yet.
+- Serving local images to Steam's sandboxed UI is unresolved (ADR-0015).
+- Recordings are MPEG-DASH, so they cannot play in a plain `<video>` element.
+- Big Picture is not implemented (ADR-0016).
+- Only `clips/` has been observed; background `video/` recordings are handled by
+  the same code but unverified.

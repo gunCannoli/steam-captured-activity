@@ -1,0 +1,641 @@
+# Knowledgebase
+
+Reference material for building Millennium plugins, and the facts the
+`non-steam-games-activity` core and its providers depend on. Everything marked
+**✅ verified** was read off this machine on 2026-09-19; everything else is from
+upstream docs.
+
+- **Part 1 — Millennium**: the framework, SDK and plugin mechanics
+- **Part 2 — Steam's own data**: what the *core* plugin runs on
+- **Parts 3–5 — Provider sources**: RetroAchievements, RetroArch, and the join key
+
+---
+
+## The problem we are solving
+
+Steam's app detail page for an owned game is rich: a post-game summary, an activity
+feed by date, achievement progress with icons, screenshots, playtime, "friends who play".
+
+For a **non-Steam shortcut**, Steam shows a single grey box:
+
+> Some detailed information on AM2R - Another Metroid 2 Remake is unavailable because
+> it is a non-Steam game or mod. Steam will still manage launching the game for you and
+> in most cases the in-game overlay will be available.
+
+The claim is misleading. Steam *does* have data for these apps — the same sidebar on
+that very page lists "3 recordings and screenshots". Steam captured them, filed them
+under a per-game id, and then declined to build a page around them.
+
+So the core plugin needs no emulator, no API and no network: it renders what Steam
+already has. Providers then enrich particular games on top of that.
+
+---
+
+## Part 1 — Millennium
+
+### What it is
+
+Millennium is an open-source framework that injects custom themes and plugins into
+the **desktop Steam Client**. Steam's UI is Chromium/CEF running a React app;
+Millennium hooks that runtime so plugin code executes *inside* Steam's UI with access
+to Steam's own React instance, stores, and components.
+
+Installed version here: **v3.4.1** (`MillenniumInstaller-Windows.exe` in `C:\game`).
+
+### The three execution contexts
+
+A plugin has up to three parts, each in a different sandbox:
+
+| Part | Runs in | Language | Can do |
+| --- | --- | --- | --- |
+| **backend** | Native process, LuaJIT | Lua | Full filesystem, HTTP, OS access |
+| **frontend** | Steam's UI (CEF) | TS + React | Steam React, stores, DOM of the client |
+| **webkit** | Steam's browser views (store, community) | Plain TS | DOM only, no React |
+
+The frontend and webkit live in Chromium's sandbox, so **anything touching the disk
+or the network must go through the backend**. That single constraint drives most of
+the architecture: reading `screenshots.vdf`, scanning capture folders and calling the
+RetroAchievements API are all backend jobs.
+
+Both the core and the providers use **backend + frontend**. No webkit — we modify the
+client's library pages, not the Steam store website.
+
+### Plugin file structure
+
+```
+my-plugin/
+├─ plugin.json          # manifest — the only required file
+├─ package.json
+├─ tsconfig.json
+├─ backend/
+│  └─ main.lua          # entry point; must return lifecycle table
+├─ frontend/
+│  └─ index.tsx         # entry point; default export = OnPluginLoaded
+└─ .millennium/Dist/    # build output (gitignored)
+   └─ index.js
+```
+
+### `plugin.json`
+
+Fields, from the [official schema](https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json) (**✅ verified** — note the path is `src/system/`, not the `src/sys/` that published plugins reference in their `$schema` key; that URL 404s):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | string | **Required.** Internal unique id. Must not shadow another plugin. |
+| `common_name` | string | Display name in Settings → Plugins |
+| `description` | string | — |
+| `version` | string | — |
+| `useBackend` | boolean | If true, a `backend` folder must exist |
+| `backend` | string | Custom backend dir (default `backend`) |
+| `frontend` | string | Custom frontend dir (default `frontend`) |
+| `include` | string[] | Extra relative paths to bundle into the distribution |
+| `thumbnail` | string | 16:9, min 512×288, absolute URL |
+| `splash_image` | string | 16:9, min 1920×1080, absolute URL |
+
+`backendType: "lua"` is **not in the published schema** but is used by every current
+plugin (**✅ verified** in the installed `achievement-groups` plugin and in the
+reference plugin). Set it; the schema is simply behind.
+
+### Backend lifecycle (Lua)
+
+`backend/main.lua` returns a table of hooks. Anything assigned to a **global** becomes
+callable from the frontend by name.
+
+```lua
+local millennium = require("millennium")
+
+-- Globals = the RPC surface the frontend can call
+GetActivity = RPC.GetActivity
+
+local function on_load()
+  -- set up state here
+  millennium.ready()          -- REQUIRED: signals the backend is up
+end
+
+local function on_frontend_loaded() end
+local function on_unload() end
+
+return {
+  on_load = on_load,
+  on_frontend_loaded = on_frontend_loaded,
+  on_unload = on_unload,
+}
+```
+
+`millennium.ready()` must be called or the frontend will hang waiting for the backend.
+
+Built-in Lua modules available to the backend (**✅ verified** from the installed
+plugin's `backend/_lib/`): `json`, `fs`, `http`, `logger`, `millennium`, `utils`,
+`datetime`. These are vendored per-plugin, so copy the ones you need.
+
+### Frontend ↔ backend RPC
+
+One channel: `Millennium.callServerMethod(name, argsObject)`. Arguments and the return
+value are **strings**, so everything is JSON-encoded on both sides.
+
+The reference plugin's wrapper (**✅ verified**, `frontend/rpc.ts`):
+
+```ts
+async function call<R>(route: `RPC.${string}`, payload: object): Promise<R> {
+  return Millennium.callServerMethod(route.slice(4), {
+    payload: JSON.stringify(payload),
+  }).then((r) => JSON.parse(r));
+}
+```
+
+And the Lua side (**✅ verified**, `backend/rpc.lua`):
+
+```lua
+local function rpcmethod(func)
+  return function(payload)
+    local data = json.decode(payload)
+    local result = func(data)
+    if result then return json.encode(result)
+    else return 'null' end   -- must not return nil; Millennium tries to stoi it
+  end
+end
+```
+
+> **Gotcha:** returning bare `nil` from a Lua RPC method crashes Millennium — it tries
+> to parse the result as an integer. Always return the string `'null'`.
+
+### Frontend SDK — `@steambrew/client`
+
+Key exports used by this plugin:
+
+- `Millennium.callServerMethod` — the RPC channel above.
+- `findModuleExport(predicate)` — pull a function out of Steam's webpack bundle by
+  matching its source text. Used to borrow Steam's own formatters.
+- `findClassModule(predicate)` — get Steam's hashed CSS class names at runtime.
+- `beforePatch(obj, method, fn)` / `afterPatch` — monkey-patch Steam methods; returns
+  `{ unpatch }`.
+
+`steambrew-utils` is a companion package providing `Steam` (store accessors),
+`waitFor`, `NON_STEAM_APP_APPID_MASK`, plus `steambrew-utils/dom`
+(`querySelectorAll`, `renderComponent`), `/watchers` (`onAppLaunch`, `onPopupCreate`,
+`onLocationChange`), and `/logger`.
+
+### Borrowing Steam's own UI
+
+This is the technique that makes a plugin look native rather than bolted on
+(**✅ verified**, reference plugin `frontend/components/play-bar.tsx`):
+
+```ts
+// Steam's own relative-date and duration formatters, found by source text
+const formatRelativeDate = findModuleExport((e) => e?.toString?.()?.includes('"#Time_Today"'));
+const formatDuration     = findModuleExport((e) => e?.toString?.()?.includes('"#Played_"'));
+
+// Steam's hashed class names for the play bar
+const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
+```
+
+Localized strings come from Steam too:
+
+```ts
+Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_LastPlayed')
+```
+
+Using these means the plugin inherits Steam's fonts, spacing, colors, date formats,
+and translations for free — and automatically follows any restyle.
+
+### Identifying non-Steam apps
+
+Steam assigns shortcuts very high app ids. The SDK exposes the boundary as
+`NON_STEAM_APP_APPID_MASK`; the idiom is:
+
+```ts
+if (app.appid < NON_STEAM_APP_APPID_MASK) return;  // a real Steam game — skip
+```
+
+### Three integration points (all proven by the reference plugin)
+
+1. **Library home / grid** — `beforePatch(Steam.CollectionStore, 'OnAppOverviewChange')`,
+   then write onto the app overview objects before Steam renders them. This is how the
+   reference plugin makes non-Steam playtime appear in the library list. Patching the
+   *data* is far more robust than patching the DOM.
+
+2. **App detail page** — watch for the location `/library/app/<appid>` via
+   `onPopupCreate` + `onLocationChange`, then render components into
+   `.${PlayBarClasses.GameStatsSection}`.
+
+3. **App properties dialog** — the reference plugin adds a tab by patching
+   `Array.prototype.map` and detecting the page-descriptor array
+   (route `/app/:appid/properties/…`). Its own comment calls this "not ideal"; it is a
+   last resort. Note its performance guard: wait for `Steam.MainWindowBrowserManager`
+   first, because `Array#map` is called ~15,000 times during startup.
+
+### Deploying a plugin
+
+A plugin is "installed" by placing a folder in the plugins dir and enabling it in
+Millennium's `config.json` under `plugins.enabledPlugins` (**✅ verified** — the live
+config here lists `achievement-groups`).
+
+A deployed plugin folder contains only: `plugin.json`, `.millennium/Dist/`, `backend/`
+(**✅ verified** from the installed plugin and from `dev.ps1`'s copy list). Source
+`frontend/` is not deployed.
+
+The reference `dev.ps1` flow: stop Steam → rename plugin to `<name>-dev` → build →
+copy → disable the release plugin and enable the dev one → start Steam with `-dev`.
+
+---
+
+## Part 2 — Steam's own data (**✅ all verified on this machine**)
+
+This is what the **core** plugin runs on. All of it is local, already present, and
+needs no configuration.
+
+### The two identifiers
+
+Steam uses **two different ids** for one non-Steam game, and mixing them up breaks
+everything:
+
+| Id | Width | Where it appears |
+| --- | --- | --- |
+| **appid** | 32-bit | `shortcuts.vdf`, library URL `/library/app/<appid>`, `AppOverview.appid` |
+| **gameid** | 64-bit | screenshot folder names, `screenshots.vdf`, recordings |
+
+The conversion is exact:
+
+```
+gameid = (appid << 32) | 0x02000000
+appid  = gameid >> 32
+```
+
+`0x02000000` (= `33554432`) is a constant low word marking "this is a shortcut".
+
+**✅ Verified** against all 9 non-Steam screenshot folders here — the low word was
+`33554432` in every single case, and the high word matched a shortcut appid:
+
+| Folder (gameid) | appid | Resolves to |
+| --- | --- | --- |
+| `18310622842007322624` | 4263274102 | AM2R - Another Metroid 2 Remake |
+| `18118536687461072896` | 4218550559 | Super Metroid Vitality |
+| `13849926725288329216` | 3224687354 | Hyper Metroid |
+| `13910469344501956608` | 3238783531 | Metroid Prime Trilogy |
+| `13646487632148955136` | 3177320499 | The Legend of Zelda: Breath of the Wild |
+| 4 others | — | removed from library since |
+
+Folders for removed shortcuts persist, so **always tolerate a gameid with no matching
+shortcut** — show it, or skip it, but do not crash.
+
+### Steam's own capture store (**✅ verified**)
+
+Screenshots live under the Steam user's `760` directory:
+
+```
+userdata/<userid>/760/
+├─ screenshots.vdf                         # the index
+└─ remote/<gameid>/screenshots/
+   ├─ 20251024002134_1.jpg
+   └─ thumbnails/20251024002134_1.jpg
+```
+
+`screenshots.vdf` is **text** VDF (unlike the binary `shortcuts.vdf`):
+
+```
+"screenshots"
+{
+	"18118536687461072896"
+	{
+		"0"
+		{
+			"type"		"1"
+			"filename"		"18118536687461072896/screenshots/20251015100149_1.jpg"
+			"thumbnail"		"18118536687461072896/screenshots/thumbnails/20251015100149_1.jpg"
+			"imported"		"0"
+			"width"		"3840"
+			"height"		"2160"
+			"gameid"		"18118536687461072896"
+			"creation"		"1760533309"
+			"Permissions"		"2"
+			"hscreenshot"		"18446744073709551615"
+		}
+	}
+}
+```
+
+`creation` is **unix seconds** — the activity timeline needs nothing else. `filename`
+and `thumbnail` are relative to `userdata/<userid>/760/remote/`.
+
+> **Parser trap (cost us a real bug).** What distinguishes a *game* key from a
+> *screenshot index* key is **nesting depth**, not the key's appearance. A Steam
+> appid (`"238960"`) is the same shape as a screenshot index (`"0"`), so any
+> digit-length heuristic misclassifies it and silently merges one game's
+> screenshots into the previously-open game. Track brace depth: game keys sit at
+> depth 1, screenshot indices at depth 2, fields at depth 3. Caught by
+> `tests/test_backend.lua`, which asserted AM2R has 2 screenshots and got 222.
+
+Measured here:
+
+| Metric | Value |
+| --- | --- |
+| Games in `screenshots.vdf` | 33 (27 Steam, **6 non-Steam**) |
+| Non-Steam screenshots indexed | **211** |
+| Present on disk | **211 / 211 (100%)** |
+| Date range | 2025-10-15 → 2026-06-24 |
+
+Note: an index entry can outlive its file, so **stat before listing**. It happened to
+be 100% here; that is not a guarantee.
+
+### Recordings (**✅ verified** — one real clip captured 2026-09-19)
+
+Steam Game Recording stores per-user data in `userdata/<userid>/gamerecordings/`.
+A saved clip is a **directory**, not a file:
+
+```
+gamerecordings/
+├─ gamerecording.pb        # index of background-recording sessions
+├─ timelines/
+│  └─ timeline_<gameid><YYYYMMDD>_<HHMMSS>.json     # plain JSON
+└─ clips/
+   └─ clip_<gameid>_<YYYYMMDD>_<HHMMSS>/
+      ├─ clip.pb           # metadata (protobuf)
+      ├─ thumbnail.jpg     # ready-made poster frame
+      ├─ timelines/…
+      └─ video/fg_<gameid>_<YYYYMMDD>_<HHMMSS>/
+         ├─ session.mpd                # MPEG-DASH manifest
+         ├─ init-stream0.m4s          # video init segment
+         ├─ init-stream1.m4s          # audio init segment
+         └─ chunk-stream{0,1}-NNNNN.m4s
+```
+
+**The directory name embeds the gameid**, so recordings join to an app by the same
+`(appid << 32) | 0x02000000` arithmetic as screenshots — no extra lookup needed.
+
+Three things matter for the UI:
+
+1. **Video is fragmented MPEG-DASH, not a single mp4.** `session.mpd` is the entry
+   point; the `.m4s` chunks are useless individually. A `<video>` element cannot play
+   this without an MSE player (dash.js/hls.js) — but `thumbnail.jpg` is a normal JPEG,
+   so a poster-frame card that opens the clip in Steam's own player is the cheap path.
+2. **`thumbnail.jpg` already exists.** No frame extraction needed.
+3. The manifest carries the authoritative duration and resolution, e.g.
+   `mediaPresentationDuration="PT14.144S"`, `maxWidth="2560" maxHeight="1440"`.
+
+#### `clip.pb` field map (**✅ decoded from a real clip**)
+
+```
+field 1  (message) session
+  field 1  string  timeline name   "timeline_1831062284200732262420260919_163712"
+  field 2  varint  gameid          18310622842007322624
+  field 3  varint  recorded at     1789835832  (unix seconds)
+  field 4  varint  session len ms  14826
+  field 5  (message) video
+    field 1  string  "fg_<gameid>_<date>_<time>"
+    field 3  varint  duration ms   14144   <- matches PT14.144S in the manifest
+field 2  varint  7678
+field 3  varint  clip created at   1789835839  (unix seconds)
+field 4  varint  gameid            18310622842007322624
+field 12 varint  width             1920
+field 13 varint  height            1080
+```
+
+Prefer `session.field 3` for "when this was played"; top-level `field 3` is when the
+clip was *saved*, a few seconds later.
+
+> **Protobuf parsing traps** (both hit during implementation):
+> - A length-delimited field is a **string or a nested message** — the wire format
+>   does not say which. Recursing into every one of them misreads a string's bytes as
+>   field tags. Re-parse only fields you know are messages (here: 1, and 5 within it).
+> - A varint must be **fully consumed even when its value overflows** a Lua double.
+>   The gameid needs 64 bits; bailing out mid-varint desynchronises every following
+>   field. Skip the bytes, return nil for the value.
+
+`timeline_*.json` is plain JSON and needs no protobuf work. It holds `daterecorded`,
+`starttime`, `endtime` (ms) and an `entries` array of markers:
+
+```json
+{ "daterecorded": "1789835832", "starttime": "0", "endtime": "28064",
+  "entries": [ { "id": "1", "time": "19803", "type": "usermarker",
+                 "icon": "steam_marker", "possible_clip": 2 } ] }
+```
+
+Markers are a natural future timeline source (a user marker *is* an activity event),
+but v1 does not use them.
+
+### Shortcuts (`shortcuts.vdf`) (**✅ verified**)
+
+Binary VDF at `userdata/<userid>/config/shortcuts.vdf`. Fields are type-tagged:
+`0x00` nested map, `0x01` string, `0x02` int32, each followed by a NUL-terminated key.
+
+Useful fields per entry: `appid` (int32, read as unsigned), `AppName`, `Exe`,
+`StartDir`, `LaunchOptions`, `icon`, `tags`, `LastPlayTime`.
+
+Parsed here: **223 entries — 210 RetroArch, 13 other** (AM2R among them). A full VDF
+implementation is unnecessary; scanning for the type markers is enough.
+
+> `appid` is stored as a **signed** int32 but used as unsigned. Mask with
+> `& 0xFFFFFFFF` before the `<< 32` conversion, or ids above 2³¹ come out negative.
+
+---
+
+## Part 3 — RetroAchievements
+
+*Source for the `retroachievements` provider.*
+
+### API basics
+
+- Base URL: `https://retroachievements.org/API/`
+- Endpoints are `.php` files: `API_<Name>.php`
+- Auth: **`y` query param** = web API key. `u` = username or ULID.
+- Get a key at <https://retroachievements.org/settings> (Web API Key section).
+
+It is a free, donation-funded community service. Cache; do not hammer it.
+
+### Endpoints the provider uses
+
+| Endpoint | Params | Gives us |
+| --- | --- | --- |
+| `API_GetUserRecentlyPlayedGames.php` | `u`, `c` (≤50), `o` | Recently played games + per-game `NumAchieved`, `LastPlayed`, box art |
+| `API_GetGameInfoAndUserProgress.php` | `u`, `g` (game id) | Full achievement list with `DateEarned` / `DateEarnedHardcore` per achievement |
+| `API_GetAchievementsEarnedOnDay.php` | `u`, `d` (`YYYY-MM-DD`) | Every unlock on one date, across all games |
+
+**`GetGameInfoAndUserProgress` is the workhorse.** Per-achievement fields:
+`ID`, `Title`, `Description`, `Points`, `TrueRatio`, `BadgeName`, `type`
+(e.g. `"progression"`), `NumAwarded`, `DisplayOrder`, and — only when the user has
+earned it — `DateEarned` and `DateEarnedHardcore`.
+
+Game-level user fields: `NumAwardedToUser`, `NumAwardedToUserHardcore`,
+`UserCompletion`, `UserTotalPlaytime`, `HighestAwardKind`, `HighestAwardDate`.
+
+> There is **no** `GetAchievementsEarnedBetween` endpoint. To build a date-ranged
+> timeline, either call `GetAchievementsEarnedOnDay` per day (expensive) or derive it
+> from `DateEarned` values in `GetGameInfoAndUserProgress` (cheap — one call per game).
+> We do the latter. See [ADR-0006](decisions.md#adr-0006-build-the-timeline-from-dateearned-not-per-day-queries).
+
+### Badge images
+
+`BadgeName` is an id; the image is at:
+
+```
+https://media.retroachievements.org/Badge/<BadgeName>.png        # unlocked
+https://media.retroachievements.org/Badge/<BadgeName>_lock.png   # locked
+```
+
+Responses also carry absolute `BadgeURL` / `GameIcon` paths in some endpoints — prefer
+those when present.
+
+### Local credentials
+
+`retroarch.cfg` already holds the user's RA identity (**✅ verified**):
+
+```
+cheevos_enable          = "true"
+cheevos_username        = "gunCannoli"
+cheevos_token           = "<REDACTED>"
+cheevos_password        = "<REDACTED>"
+cheevos_hardcore_mode_enable = "false"
+cheevos_auto_screenshot = "true"
+```
+
+We read **`cheevos_username`** from here so the user never types it. The `token` is a
+RetroArch session token, **not** a web API key — it cannot be used with the public API,
+so the API key must still be supplied by the user. Never log, copy, or transmit the
+token or password.
+
+---
+
+## Part 4 — RetroArch local data (**✅ all verified on this machine**)
+
+*Source for the `retroarch` provider.*
+
+RetroArch install: `C:\emu\RetroArch`, portable mode. In `retroarch.cfg` the prefix
+`:\` means "the RetroArch directory", so `":\screenshots"` → `C:\emu\RetroArch\screenshots`.
+
+Relevant config:
+
+```
+screenshot_directory    = ":\screenshots"
+playlist_directory      = ":\playlists"
+content_history_path    = ":\playlists\builtin\content_history.lpl"
+savestate_directory     = ":\states"
+log_dir                 = ":\logs"
+auto_screenshot_filename = "true"
+content_runtime_log      = "true"
+content_runtime_log_aggregate = "false"
+```
+
+### Screenshots — the killer feature
+
+Because `cheevos_auto_screenshot = "true"`, RetroArch **automatically captures a
+screenshot at the exact moment an achievement unlocks**, and names it with the
+achievement id:
+
+```
+Chrono Trigger (USA)-cheevo-1989.png
+Super Metroid (Japan, USA) (En,Ja)-cheevo-4620.png
+Hyper Metroid (v1.00)-cheevo-124948.png
+```
+
+Pattern: `<ROM basename>-cheevo-<AchievementID>.png`
+
+This gives a **direct join** between a local image and a RetroAchievements unlock —
+which in turn carries a `DateEarned`. That is the entire activity timeline: a
+screenshot, the achievement it commemorates, and the timestamp, with no guessing.
+
+Manual screenshots use `<ROM basename>-<yymmdd-hhmmss>.png` instead
+(`auto_screenshot_filename = true`). Handle both patterns; on this machine all 19
+screenshots are currently the `-cheevo-` kind.
+
+### Runtime logs — playtime
+
+With `content_runtime_log = "true"`, RetroArch writes one file per game:
+
+`playlists/logs/<Core Name>/<ROM basename>.lrtl`
+
+```json
+{
+  "version": "1.0",
+  "runtime": "0:02:44",
+  "last_played": "2025-12-21 16:02:29",
+  "play_count": "1",
+  "state_slot": "0"
+}
+```
+
+This is real playtime **and** last-played, straight from the emulator — no session
+tracking needed. 22 such logs exist here across cores `Snes9x`, `mGBA`, `FinalBurn Neo`.
+
+> Note `content_runtime_log_aggregate = "false"`: logs are per-core, so the same ROM
+> played on two cores has two files. Sum `runtime` and take the max `last_played`.
+
+### Playlists
+
+`playlists/*.lpl` are JSON (v1.5+) with an `items` array:
+
+```json
+{
+  "path": "C:\\emu\\roms\\snes\\ActRaiser (USA).zip",
+  "label": "ActRaiser (USA)",
+  "core_path": "DETECT",
+  "core_name": "DETECT",
+  "crc32": "00000000|crc",
+  "db_name": "Nintendo - Super Nintendo Entertainment System.lpl"
+}
+```
+
+`db_name` gives the console/platform — useful for grouping and for thumbnails.
+`playlists/builtin/content_history.lpl` is recently-played, but its entries have empty
+`label`/`crc32` — it is less useful than the runtime logs.
+
+> **Parser warning:** RetroArch's `.lpl` writer is whitespace-sensitive and not strictly
+> conformant JSON ([libretro#8439](https://github.com/libretro/RetroArch/issues/8439)).
+> Parse defensively and tolerate an empty file.
+
+---
+
+## Part 5 — The ROM join key (**✅ verified, measured**)
+
+*Used by the `retroarch` and `retroachievements` providers. The core does not need this — it uses the exact appid↔gameid conversion in Part 2 instead.*
+
+This is the linchpin of the whole design. Steam knows a shortcut by its `AppName`;
+RetroArch knows everything by ROM filename. They are joined through the shortcut's
+launch command.
+
+`shortcuts.vdf` (binary VDF at
+`C:\game\steam\userdata\<id>\config\shortcuts.vdf`) stores an `Exe` per shortcut:
+
+```
+"C:\emu\RetroArch\retroarch.exe" -L cores\snes9x_libretro.dll "C:\emu\roms\snes\Zombies Ate My Neighbors (USA).zip"
+```
+
+Extracting the quoted ROM path and taking its basename without extension yields the
+**ROM basename** — the same string RetroArch uses for screenshots, runtime logs, and
+playlist labels.
+
+Measured on this library:
+
+| Check | Result |
+| --- | --- |
+| RetroArch shortcuts in `shortcuts.vdf` | 210 |
+| Parsed a core + ROM path successfully | **210 / 210 (100%)** |
+| Cores in use | `snes9x` ×139, `mgba` ×36, `fbneo` ×35 |
+| Screenshots joining to a shortcut | **7 / 7 distinct names (100%)** |
+| Runtime logs joining to a shortcut | 21 / 22 |
+
+The single unjoined runtime log is `The Legend of Zelda - A Link to the Past (USA)`,
+a naming variant of the shortcut's `Legend of Zelda, The - A Link to the Past (USA)` —
+a stale log from before a rename, not a parser failure.
+
+Also note the Steam `AppName` ("Zombies Ate My Neighbors") is a *cleaned* title and
+does **not** equal the ROM basename ("Zombies Ate My Neighbors (USA)"). Join on the
+parsed ROM path, never on the display name.
+
+Remaining gap: ROM basename → RetroAchievements **GameID**. Arcade ROMs are terse
+(`xmvsf`, `kof98`, `dmnfrnt`) and will not match by title. Resolution strategy is
+[ADR-0008](decisions.md#adr-0008-resolve-romgameid-by-cached-history-first-manual-override-last).
+
+---
+
+## Sources
+
+- [Millennium plugin docs](https://docs.steambrew.app/plugins/) ·
+  [file structure](https://docs.steambrew.app/plugins/structure/file-structure) ·
+  [Millennium repo](https://github.com/SteamClientHomebrew/Millennium)
+- [Reference plugin: k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)
+- [RetroAchievements API docs](https://api-docs.retroachievements.org/) ·
+  [GetUserRecentlyPlayedGames](https://api-docs.retroachievements.org/v1/get-user-recently-played-games.html) ·
+  [GetGameInfoAndUserProgress](https://api-docs.retroachievements.org/v1/get-game-info-and-user-progress.html) ·
+  [GetAchievementsEarnedOnDay](https://api-docs.retroachievements.org/v1/get-achievements-earned-on-day.html)
+- [Libretro: playlists & thumbnails](https://docs.libretro.com/guides/roms-playlists-thumbnails/) ·
+  [directory config](https://docs.libretro.com/guides/change-directories/)

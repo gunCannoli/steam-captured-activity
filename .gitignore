@@ -1,0 +1,37 @@
+# Build output
+.millennium/
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+Thumbs.db
+Desktop.ini
+*.swp
+
+# Local tooling
+# A standalone Lua interpreter is needed to run the backend tests but is not
+# part of the project (Millennium ships only its embedded VM). See plugin.md.
+tools/lua/
+*.exe
+*.dll
+
+# Never commit secrets or captured user data.
+# retroarch.cfg holds cheevos_token / cheevos_password; Steam's userdata holds
+# screenshots and recordings. Neither belongs in this repo.
+*.local
+.env
+.env.*
+secrets.json
+overrides.json
+retroarch.cfg
+*.vdf
+*.pb
+cache/
