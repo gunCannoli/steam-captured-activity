@@ -24,6 +24,7 @@ The core must be useful alone and must never depend on a provider. See
 | [TASK.md](TASK.md) | **Start here** — current phase, what is next, the smoke test |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, provider sources, verified facts |
 | [docs/architecture.md](docs/architecture.md) | Core/provider split, the provider contract, data flow, RPC |
+| [docs/steam-styles.md](docs/steam-styles.md) | Steam's measured styles — copy these, do not approximate |
 | [docs/decisions.md](docs/decisions.md) | ADRs — *why* things are the way they are |
 
 Do not re-derive facts already recorded there. Do not contradict an ADR without
@@ -96,6 +97,10 @@ it as a parameter.
   Probe scripts belong in the scratchpad, not the repo.
 - **The core never reaches the network.** Network access is a provider concern.
   See [ADR-0012](docs/decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins).
+- **Match Steam by measuring, not by eye.** Read `getComputedStyle` off a native
+  element and copy the value into [docs/steam-styles.md](docs/steam-styles.md).
+  Check `backgroundImage` too — Steam uses gradients where a flat colour would
+  be expected ([ADR-0021](docs/decisions.md#adr-0021-measure-steams-styles-from-the-live-client-and-keep-a-style-bible)).
 - **Steam's DOM is not a public API.** Class names are hashed and change between
   builds. Resolve via `findClassModule` at runtime; never hardcode a hashed class.
   See [ADR-0005](docs/decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules).

@@ -20,8 +20,10 @@ const CSS = `
 }
 
 /*
- * Matches Steam's own GamePlaySummaryHeader, measured from the live client:
- * 14px / weight 400 / 1px letter-spacing / uppercase / rgb(148,161,166).
+ * All values below are measured from the live Steam client - see
+ * docs/steam-styles.md. Do not adjust them by eye; re-measure instead.
+ *
+ * Section header = GamePlaySummaryHeader.
  */
 .nsga-section-title {
   font-size: 14px;
@@ -37,8 +39,9 @@ const CSS = `
  * panel around them belongs to the surrounding AppDetailsSection. Adding our own
  * produced a visible box-inside-a-box.
  */
+/* GamePlaySummaryContainer: transparent, 20px vertical rhythm. */
 .nsga-summary {
-  padding: 10px 0 5px;
+  margin: 20px 0;
 }
 
 .nsga-summary-head {
@@ -63,11 +66,13 @@ const CSS = `
 
 .nsga-day { margin-bottom: 20px; }
 
+/* AppActivityDate. Note this grey differs from the summary header's. */
 .nsga-day-date {
   font-size: 14px;
   font-weight: 400;
   letter-spacing: 1px;
-  color: rgb(148, 161, 166);
+  text-transform: uppercase;
+  color: rgb(138, 138, 138);
   margin-bottom: 6px;
 }
 
@@ -77,11 +82,22 @@ const CSS = `
   margin-bottom: 10px;
 }
 
-/* Steam's post-game summary is one row with arrows, not a wrapping grid. */
+/*
+ * SummaryCarouselContainer. The panel is a radial GRADIENT, not a background
+ * colour - checking background-color alone reports transparent, which led to
+ * this being wrongly removed once already.
+ */
 .nsga-carousel {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 10px 0 5px;
+  border-radius: 3px;
+  background-image: radial-gradient(
+    100% 150% at 33% 45%,
+    rgba(29, 34, 43, 0.3) 0%,
+    rgba(10, 11, 14, 0.3) 100%
+  );
 }
 
 .nsga-carousel-track {
@@ -94,7 +110,7 @@ const CSS = `
 .nsga-carousel-arrow {
   flex: 0 0 auto;
   width: 24px;
-  height: 64px;
+  height: 126px;
   border: 0;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.06);
@@ -119,21 +135,22 @@ const CSS = `
   gap: 8px;
 }
 
+/* SummaryScreenshot / PostGameSummaryClip: 224x126, square corners, offset shadow. */
 .nsga-media-card {
   position: relative;
-  width: 200px;
-  height: 112px;
-  border-radius: 3px;
+  width: 224px;
+  height: 126px;
   overflow: hidden;
   cursor: pointer;
-  background: var(--gpBackgroundDark, rgba(0, 0, 0, 0.35));
+  background: rgb(0, 0, 0);
+  box-shadow: rgb(0, 0, 0) 2px 2px 8px 0px;
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
 .nsga-media-card:hover,
 .nsga-media-card:focus-visible {
   transform: scale(1.03);
-  box-shadow: 0 0 0 2px var(--gpColorHighlight, #1a9fff);
+  box-shadow: rgb(0, 0, 0) 2px 2px 8px 0px, 0 0 0 2px var(--gpColorHighlight, #1a9fff);
   outline: none;
   z-index: 1;
 }

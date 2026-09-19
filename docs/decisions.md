@@ -866,3 +866,49 @@ side and found three problems:
   revealing the folder is the honest fallback.
 - The `hHandle` vs media-item `id` distinction is recorded so nobody assumes
   they are interchangeable again.
+
+---
+
+## ADR-0021: Measure Steam's styles from the live client, and keep a style bible
+
+**Status:** Accepted · 2026-09-19
+
+### Context
+
+Matching Steam's look by eye took three rounds of user testing and still missed:
+wrong header weight and colour, a doubled background panel, then — after
+over-correcting — a *missing* panel, undersized tiles and no shadows.
+
+The root cause was method, not care. Each round compared screenshots and
+adjusted by guess. One round of `getComputedStyle` against a native page
+produced exact values immediately, and revealed two things a screenshot cannot:
+
+- The carousel panel is a **`radial-gradient`**, not a `background-color`.
+  Checking `backgroundColor` returns `rgba(0,0,0,0)`, which is what caused the
+  panel to be removed as "transparent" — it looked correct by that measure and
+  wrong on screen.
+- Steam's section headers are **weight 400**, not bold. They read as prominent
+  from uppercase and 1px letter-spacing.
+
+### Decision
+
+- **Measure, never approximate.** Before styling anything to match Steam, read
+  `getComputedStyle` off the equivalent native element and copy the values.
+- **Record findings in [docs/steam-styles.md](steam-styles.md)**, with the
+  element each value came from, so they are reusable and reviewable rather than
+  rediscovered per component.
+- Check `backgroundImage` as well as `backgroundColor`; Steam uses gradients
+  where a flat colour would be expected.
+- Select native elements by `[class*="ReadableName"]`. Steam's DOM carries both
+  the hashed and readable halves, so this survives build changes without
+  hardcoding a hash (consistent with
+  [ADR-0005](#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)).
+
+### Consequences
+
+- The page matches Steam's spacing, type and depth without further guesswork.
+- Future components start from recorded values instead of another testing round.
+- Cost: measurements are taken from one Steam build and could drift. The bible
+  documents how to re-measure, which makes that cheap.
+- Cost: the bible must be kept honest — a value edited by eye and left
+  unrecorded is worse than none, because it looks authoritative.

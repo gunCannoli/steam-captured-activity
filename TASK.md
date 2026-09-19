@@ -214,6 +214,17 @@ Second testing round (side-by-side with a native page) fixed:
       our extra panel is gone
 - [x] **Typography** — matched Steam's measured 14px/400/1px/rgb(148,161,166)
 
+Third round, after measuring the live client
+([docs/steam-styles.md](docs/steam-styles.md), [ADR-0021](docs/decisions.md#adr-0021-measure-steams-styles-from-the-live-client-and-keep-a-style-bible)):
+
+- [x] **Carousel panel restored** — it is a `radial-gradient`, not a background
+      colour, which is why checking `backgroundColor` reported transparent and
+      it was wrongly removed
+- [x] **Tile size** 200×112 → **224×126**, Steam's actual dimensions
+- [x] **Drop shadows** on tiles: `rgb(0,0,0) 2px 2px 8px 0px`, square corners
+- [x] **Day heading colour** corrected to `rgb(138,138,138)` (differs from the
+      summary header's `rgb(148,161,166)`)
+
 Still open from that testing round:
 
 - [ ] **Recordings** do not play in-client. DASH needs an MSE player; clicking
