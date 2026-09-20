@@ -25,13 +25,17 @@ Steam-native data. Providers contribute extra material for games they recognise.
         ┌───────────────────┼───────────────────┬────────────────┐
         ▼                   ▼                   ▼                ▼
 ┌───────────────┐  ┌────────────────┐  ┌──────────────┐  ┌──────────────┐
-│ retroarch     │  │ retroachieve-  │  │ artwork      │  │ guides       │
-│               │  │ ments          │  │              │  │              │
-│ playtime,     │  │ achievements,  │  │ box art,     │  │ links,       │
-│ emulator      │  │ badges, dates  │  │ logos, hero  │  │ manuals      │
-│ screenshots   │  │                │  │              │  │              │
+│ retroarch     │  │ retroachieve-  │  │ guides-      │  │ game-        │
+│               │  │ ments          │  │ artwork      │  │ metadata     │
+│ playtime,     │  │ achievements,  │  │ manuals, box │  │ publisher,   │
+│ emulator      │  │ badges, dates  │  │ art (Screen- │  │ developer,   │
+│ screenshots   │  │                │  │ Scraper /    │  │ release date │
+│               │  │                │  │ Archive.org) │  │ (IGDB/TGDB)  │
 └───────────────┘  └────────────────┘  └──────────────┘  └──────────────┘
 ```
+
+See [Providers planned](#providers-planned) below for what each one needs and
+where its data comes from — this diagram is a map, not the spec.
 
 **The core must be fully useful with zero providers installed.** That is the design
 constraint everything else follows from ([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
@@ -254,7 +258,11 @@ installing a provider and enabling it is the whole setup.
 
 ## Providers planned
 
-### `retroarch`
+Roughly in build order. Each is an independent plugin; none of them can block
+or depend on another (`the core calls providers; providers never call each
+other`, above).
+
+### 1. `retroarch`
 
 Recognises a game when `exe` contains `retroarch.exe`. Parses the `-L <core>` argument
 and the quoted ROM path; the **ROM basename** is the key to all RetroArch data
@@ -262,9 +270,10 @@ and the quoted ROM path; the **ROM basename** is the key to all RetroArch data
 Verified: 210/210 shortcuts parse.
 
 Contributes playtime and last-played from `.lrtl` runtime logs, plus emulator
-screenshots. Also publishes `romBasename` and `core` for other providers to use.
+screenshots. Also publishes `romBasename` and `core` for other providers to use —
+the two providers below both need exactly that identity to look anything up.
 
-### `retroachievements`
+### 2. `retroachievements`
 
 Needs a `romBasename` (from the `retroarch` provider, or its own parse) and a user API
 key. Resolves ROM → RA GameID by cached history, never by silent guess
@@ -276,9 +285,66 @@ The strongest signal it adds: RetroArch's `cheevos_auto_screenshot` names captur
 `<rom>-cheevo-<id>.png`, linking an image directly to an unlock
 ([ADR-0006](decisions.md#adr-0006-build-the-timeline-from-dateearned-not-per-day-queries)).
 
-### `artwork`, `guides`
+Full API reference in [knowledgebase.md](knowledgebase.md#part-3-retroachievements) —
+already written, this provider mostly assembles pieces already documented there.
 
-Later. They fit the same contract: match on name or tags, return `sections`.
+### 3. `guides-artwork`
+
+Manuals, box art, and reference material for a game that has none of Steam's own
+Community Hub content (there is no store page for a ROM). Two sources considered:
+
+- **ScreenScraper** (screenscraper.fr) — the more complete source: box art, wheel
+  art, manuals, control-scheme diagrams, videos, looked up by ROM CRC/MD5/SHA1 —
+  the exact hashes RetroArch playlists already carry
+  ([knowledgebase.md](knowledgebase.md#playlists)), so no fuzzy name matching
+  needed. Requires **two layers of credentials**: a developer id/password
+  (this plugin's own, requested once from screenscraper.fr) *and* an end
+  user's own login (`ssid`/`sspassword`) — meaning **every user of this
+  provider needs their own free ScreenScraper account**, not just an API key
+  typed once. Rate limits scale with the user's contribution level to the
+  ScreenScraper database and return `429`/`430` on a limit hit, so this needs
+  the same disk cache + backoff discipline as `retroachievements`
+  ([ADR-0007](decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).
+- **Archive.org** — no API key at all, and its Advanced Search API
+  (`archive.org/advancedsearch.php`) plus per-item metadata
+  (`archive.org/metadata/<identifier>`) can find manual scans in existing
+  community collections (e.g. `retrokit-manuals`). Coverage is far patchier and
+  matching is by title search, not a hash, so it is the honest-fallback tier
+  rather than the primary source.
+
+Planned resolution order: ScreenScraper by hash when the user has configured
+credentials → Archive.org title search as a no-setup fallback → `unsupported`.
+Contributes a `sections` entry, never into the timeline — this is static
+reference material, not something that happened on a date. Manuals/scans are a
+`kind: "links"` list (title + URL, per ADR-0013's existing vocabulary); box
+art and screenshots earn a new `kind: "gallery"` only if `links` genuinely
+cannot express a grid of images — that decision is deferred to when this
+provider is actually built, not made speculatively here.
+
+### 4. `game-metadata`
+
+Publisher, developer, original release date, genres — the box-back facts Steam
+shows for an owned game but has none of for a shortcut. Two sources considered:
+
+- **IGDB** (igdb.com, run by Twitch) — the more consistent, actively-maintained
+  data model, but auth is a **Twitch OAuth client-credentials flow**
+  (`POST id.twitch.tv/oauth2/token` with a Twitch app's `client_id`/`client_secret`
+  → bearer token), meaning the user needs a Twitch developer application, not
+  just an API key. Rate limit is **4 requests/second, 8 concurrent** — fine
+  once cached, since this data never changes after a game ships.
+- **TheGamesDB** — simpler auth (a single API key), community-maintained so
+  field completeness and quality vary per entry more than IGDB's.
+
+Planned: IGDB when the user configures Twitch credentials, TheGamesDB as the
+lower-effort default, matched by title (retro titles rarely collide) with a
+manual-override escape hatch mirroring
+[ADR-0008](decisions.md#adr-0008-resolve-romgameid-by-cached-history-first-manual-override-last)'s
+pattern. Contributes a `sections` entry — publisher, developer, release date,
+genre tags — as `kind: "list"` (label/value pairs; no new `kind` needed, per
+ADR-0013's rule to keep that vocabulary small), displayed once per game, not
+per session. Aggressively cacheable: this is the one provider whose data is
+permanently static once fetched, so it never needs a refresh trigger beyond
+"first time this game is viewed."
 
 ---
 

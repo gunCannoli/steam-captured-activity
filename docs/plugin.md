@@ -173,6 +173,51 @@ const formatDuration = findModuleExport((e) => e?.toString?.()?.includes('"#Play
 Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_PlayTime');
 ```
 
+**Do not write custom CSS to approximate Steam's look.** Copy it instead. See
+[knowledgebase.md § Reusing Steam's native UI](knowledgebase.md#reusing-steams-native-ui-verified-reading-k0d13steam-non-steam-playtimes-at-commit-f2c14ec)
+for the full pattern; the one-paragraph version:
+
+1. **Clone Steam's exact DOM shape** for the element you're replacing — same
+   nesting, same classes (resolved via `findClassModule`, never hardcoded),
+   same `Panel` utility class. Not a lookalike; the literal same tree.
+2. **Hide Steam's original in that slot** with one scoped rule, and reveal only
+   your clone via a marker attribute:
+   ```tsx
+   <div data-mine="playtime" className={`${C.GameStat} ${C.Playtime} Panel`}>
+     <style>{`.${C.GameStat}.${C.Playtime}:not([data-mine]){display:none!important}`}</style>
+     {/* ...clone the rest of Steam's tree here... */}
+   </div>
+   ```
+   `:not([data-mine])` hides only Steam's unmarked original, never your clone,
+   and the rule is scoped by the same two classes so it cannot leak elsewhere.
+3. **Only render a clone when you have the data**, matching how Steam's own
+   container (usually a `flex` row) only shows populated stats. An unconditional
+   clone can show an empty box Steam itself would never render.
+4. **Before building any custom widget** (carousel, image placeholder,
+   button, text field, dialog, tabs, focus/hover wrapper), check whether
+   `@steambrew/client` already exports it — `Carousel`, `SuspensefulImage`,
+   `Focusable`/`FocusRing`, `Button`, `TextField`, `Panel`, `Tabs`, `Modal`,
+   `Dropdown`, `SliderField`, `ToggleField`, and more are all real, shipped
+   components. Reusing them means their focus, keyboard and (for `Focusable`)
+   gamepad behavior comes for free — reimplementing them with plain
+   `<div>`/CSS does not. Full list in the knowledgebase.
+5. **Resolve ONE `findClassModule` probe per CSS module, never per feature.**
+   Classes seen together in one captured `outerHTML` do **not** imply they
+   live in the same webpack module — a real UI element (Steam's own
+   Post-Game Summary) was split across **four** separate modules. Reusing one
+   probe for all of them made `findClassModule` silently return `undefined`
+   for the other three modules' keys, and React rendered those elements with
+   **no class at all** — no error, just a tile with `className="Panel"` and
+   none of its sizing/positioning CSS. If in doubt, verify co-membership by
+   walking Steam's module cache directly (snippet and full writeup in
+   [knowledgebase.md § Classes seen together are not necessarily one module](knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)),
+   and always sanity-check a resolved class map by dumping it whole
+   (`console.log(SomeClasses)`) rather than trusting a name "sounds right".
+
+If a project ends up with a dedicated stylesheet of hand-tuned colors/shadows/
+spacing meant to *look like* Steam, that is the signal something should have
+been cloned or reused instead.
+
 Prefer patching Steam's **data** over its DOM where Steam already models the field
 ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
 

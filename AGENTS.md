@@ -107,6 +107,11 @@ it as a parameter.
 - **Prefer patching Steam's data over its DOM** ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
 - **Respect third-party APIs.** RetroAchievements is donation-funded: cache hard,
   never poll, send a descriptive `User-Agent` ([ADR-0007](docs/decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).
+- **Push to GitHub when a session's work is done.** Once a batch of work is
+  complete (docs updated, changes verified, TASK.md reflects the true state),
+  commit and push to `origin/main` rather than leaving it sitting in the
+  working tree. Don't wait to be asked. Still confirm before pushing if
+  something in the diff looks destructive or unverified.
 
 ## Build & run
 

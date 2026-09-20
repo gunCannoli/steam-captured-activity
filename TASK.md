@@ -237,7 +237,134 @@ Still open from that testing round:
 
 ---
 
-## Phase 6 — Big Picture (Gamepad UI) ⬅ NEXT
+## Phase 5c — Rebuild the summary as real Steam components ✅ DONE (with follow-ups) ⬅ NEXT: items 2, 3, 5 below
+
+The prior "carousel" was our own hand-rolled markup/CSS wearing Steam's class
+names as decoration, not a clone of Steam's real tree — visibly inconsistent
+per user testing. Rebuilt properly: see
+[knowledgebase.md § Reusing Steam's native UI](docs/knowledgebase.md#reusing-steams-native-ui-verified-reading-k0d13steam-non-steam-playtimes-at-commit-f2c14ec)
+and [§ Classes seen together are not necessarily one module](docs/knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity).
+
+- [x] Deleted `styles.ts` entirely — no bespoke stylesheet left
+- [x] Reproduced Steam's real tree: `PageableContainer` → `HeaderPageControls`
+      (title + pager + dismiss) → `SummaryCarouselContainer` → one
+      `SummaryContainer` **per tile** (not per day — corrected from an earlier,
+      wrong pass of this doc), joined by `TypeSeparator` spacers
+- [x] Swapped our hand-drawn shimmer placeholder for `@steambrew/client`'s own
+      `SuspensefulImage` (real `Spinner` + "Missing image" state)
+- [x] Copied Steam's real clip icon SVG path verbatim (was a generic scissors glyph)
+- [x] **Found and fixed a real, silent bug**: resolved all summary classes from
+      ONE `findClassModule` probe, but the Post-Game Summary is split across
+      **four** separate webpack modules. Classes from the other three resolved
+      to `undefined`, so React rendered those elements with no class at
+      all — a clip tile grew to fill its whole row instead of showing as a
+      contained 224×126 thumbnail (`tile.className` was just `"Panel"` in the
+      live DOM). Found by walking Steam's `webpackChunksteamui` module cache
+      directly; fixed by resolving `SummaryClasses` / `PageableClasses` /
+      `ClipClasses` / `ScreenshotClasses` as four separate probes.
+- [x] Verified live after the fix: all 4 tiles render at Steam's real 224×126,
+      "POST-GAME SUMMARY" header matches Steam's measured type exactly
+      (`14px/400/1px/uppercase/rgb(148,161,166)`), day headings and duration
+      badges correct.
+
+**Fourth and fifth rounds of user testing** found five more gaps, not yet
+fixed — noted here per instruction to save token budget rather than keep
+live-debugging:
+
+1. [x] **Verified live, fixed in full.** Close button had a white background
+   and sat on its own row, not inline with the "Post-Game Summary" title like
+   native. Two separate bugs, found across two live-testing passes:
+   - **Bug A** (fixed and confirmed first): we rendered a real `<button>`
+     element, which carries browser-default chrome (white/grey background,
+     border) that `PageableCloseButton`'s CSS was never written to reset —
+     Steam's own clickable elements are all `<div role="button">`, never a
+     real `<button>`. Changed to `<div role="button" tabIndex={0}>` with a
+     keyboard handler.
+   - **Bug B** (found on a second, more careful live diff against a native
+     button on Divinity: Original Sin 2, appid 435150): even after Bug A, the
+     button still didn't match. Native's real class is
+     `_2dB1oJFsqNThak1cFya2-q PageableCloseButton _3qlJ0L41KQFqUTzVQKFERC Small`
+     — **two hashes**, not one. Our code was `cx(P.PageableCloseButton,
+     'Small')` — the literal string `'Small'`, not `P.Small`. In
+     `PageableClasses` (module `29158`), `Small` does not resolve to a bare
+     hash like most modifier classes do; it resolves to a two-token string,
+     confirmed live: `PageableClasses.Small === "_3qlJ0L41KQFqUTzVQKFERC
+     Small"`. The literal string silently dropped that second hash, so the
+     button never picked up the sizing/positioning rule scoped to it. Fixed
+     to `cx(P.PageableCloseButton, P.Small)`.
+   - **Live verification after both fixes** (fresh Steam restart to load the
+     new bundle, AM2R page, `aria-label=Dismiss` element in the real desktop
+     popup DOM): our class is now `_2dB1oJFsqNThak1cFya2-q
+     _3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
+     matches native exactly: `16×16px`, `background: rgba(0,0,0,0)`,
+     `color: rgb(221,221,221)`. Position within the header row also checked:
+     `6px` from the row's top in a `28px`-tall row — exactly centered for a
+     16px-tall button — and flush to the row's right edge, matching native's
+     layout.
+2. [ ] **No pager arrows rendered at all** in our version — native shows `‹ ›`
+   before the `✕`, ours shows only the close button. We dropped `PageLeft`/
+   `PageRight` entirely because we don't implement real paging (Phase 5b
+   already wraps extra tiles onto a second row instead). Options: (a) render
+   the arrows but make them a no-op / hide when everything already fits in
+   view (matching how native disables them at an edge), or (b) implement real
+   paging using `@steambrew/client`'s `Carousel` component instead of our flex
+   row, which would make the arrows meaningful and might resolve #2 alongside
+   proper keyboard/gamepad paging (relevant to Big Picture too).
+3. [ ] **No hover/click interactions match native**: native hovering a
+   screenshot opens a small detail popup and brightens a download icon
+   top-right of the image; hovering a *recording* plays the clip inline on
+   its own thumbnail; clicking either opens fullscreen in Steam's own
+   overlay. We currently do none of this — `MediaCard` has no hover state,
+   and click falls back to `ShowScreenshotInSystemViewer` (OS viewer) because
+   the in-client `/media` route needs navigator state we could not pass
+   (ADR-0020). Two source classes exist to investigate:
+   `ScreenshotShareIcon` (module `84009`, already known — see
+   `ScreenshotClasses`) for the hover icon, and the clip's animated-hover
+   mechanism is still the unidentified item from `steam-styles.md`'s open
+   questions. This is the largest remaining gap and likely needs the same
+   module-cache-walking technique used for the summary tree, applied to
+   whatever component renders `/media/item/...` — worth revisiting once/if a
+   way to reach Steam's real overlay (not just the OS viewer) is found.
+4. [x] **Verified live, fixed. Clip badge color/size wrong**: ours rendered
+   the scissors icon+time in blue at a too-small size; native is a
+   distinctive **amber/yellow** at a visibly larger size. Root cause
+   confirmed by comparing computed styles against a real native clip tile
+   (Divinity: Original Sin 2, appid 435150): native `color: rgb(255, 213,
+   95)`, ours `rgb(26, 159, 255)` (Steam's default highlight blue — i.e. we
+   were getting `DurationText`'s own base color with none of the amber
+   override applied). Bug: `cx(C.DurationText, 'Clip')` used the literal
+   string `'Clip'`, not `C.Clip`'s resolved hash — native's real class order
+   is `"DurationText Clip"`, both hashes present, and the amber rule lives
+   specifically on the `.Clip` hash-scoped class, not on `DurationText`
+   alone. Fixed to `cx(C.DurationText, C.Clip)`. Icon size: native's SVG
+   is authored at `width="24" height="24"` (renders non-square, ~20×25px,
+   due to container constraints — not because the SVG itself is small); we
+   had hardcoded `14×14`. Fixed to `24×24` to match native's authored
+   attributes.
+5. **Vertical gap between day sections is far too large** — compared
+   side-by-side (Post-Game Summary + "Today" + "October 24, 2025" on our page
+   vs. native's tightly-packed "Yesterday"/"September 17"/"September 15"),
+   native spaces consecutive day sections roughly **2 title-row-heights**
+   apart; ours has several times that. Root cause is understood, just not
+   fixed: our own JSX adds **no** margin/padding around a day's `div` at all
+   (`{days.map((day) => (<div className={A.AppActivityDay}>…`, no `style`
+   prop) — the gap is entirely `AppActivityDay`'s own Steam CSS, which Steam
+   tuned for its **native use** (a feed of compact one-line `Event` rows:
+   achievement unlocks, patch notes). We are reusing that same class as a
+   wrapper around a much taller 126px-high media-tile row, so whatever
+   fixed `margin-bottom`/`padding` Steam authored compounds visually against
+   content it was never measured against. This is a general risk worth
+   naming: **cloning a Steam class does not guarantee correct rhythm when
+   the content placed inside it has a different shape than what Steam
+   itself puts there.** Not yet measured or fixed — needs
+   `getComputedStyle(dayDiv).marginBottom` (or padding) captured live, then
+   either accept Steam's spacing as-is (if intentional) or override with an
+   explicit smaller margin once the actual native day-to-day gap is measured
+   in pixels rather than eyeballed.
+
+---
+
+## Phase 6 — Big Picture (Gamepad UI)
 
 **Investigated 2026-09-19** — no separate backend work is needed. Findings and
 rationale in [ADR-0016](docs/decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer).

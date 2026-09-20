@@ -4,7 +4,7 @@ A private workspace for building [Millennium](https://steambrew.app/) plugins �
 mods for the desktop Steam Client.
 
 Plugins are developed here as subfolders and published individually as public
-repositories once they are ready for release. See [plugin.md](plugin.md).
+repositories once they are ready for release. See [docs/plugin.md](docs/plugin.md).
 
 ## The idea
 
@@ -22,30 +22,34 @@ around them. This workspace builds that page, and makes it extensible.
 **One core plugin, plus optional providers:**
 
 ```
-non-steam-games-activity  (core)   Steam's own screenshots + recordings
-   ├── retroachievements  (provider)  achievements, badges, unlock dates
+non-steam-games-activity  (core)      Steam's own screenshots + recordings
    ├── retroarch          (provider)  playtime, emulator screenshots
-   ├── artwork            (provider)  box art, logos
-   └── guides             (provider)  links, manuals
+   ├── retroachievements  (provider)  achievements, badges, unlock dates
+   ├── guides-artwork     (provider)  manuals, box art (ScreenScraper / Archive.org)
+   └── game-metadata      (provider)  publisher, developer, release date (IGDB / TheGamesDB)
 ```
 
 The core works with **zero providers** — no emulator, no API key, no network.
-Providers enrich games they recognise and fail silently for the rest.
+Providers enrich games they recognise and fail silently for the rest. See
+[docs/architecture.md § Providers planned](docs/architecture.md#providers-planned)
+for what each one needs and where its data comes from.
 
 ## Plugins
 
 | Plugin | Status | Public repo |
 | --- | --- | --- |
-| [non-steam-games-activity](non-steam-games-activity/) | 🚧 Phase 1 of 9 — backend done, UI not started | not yet published |
-| `retroachievements` | 📋 planned | — |
+| [non-steam-games-activity](non-steam-games-activity/) | 🚧 Phase 5c — core UI working, polish + Big Picture ahead | not yet published |
 | `retroarch` | 📋 planned | — |
+| `retroachievements` | 📋 planned | — |
+| `guides-artwork` | 📋 planned | — |
+| `game-metadata` | 📋 planned | — |
 
 ## Documentation
 
 | Doc | What it holds |
 | --- | --- |
 | [TASK.md](TASK.md) | Current phase, what is next, the smoke test |
-| [plugin.md](plugin.md) | How to create a plugin, and how to publish one |
+| [docs/plugin.md](docs/plugin.md) | How to create a plugin, and how to publish one |
 | [AGENTS.md](AGENTS.md) | Conventions and environment facts for contributors and AI agents |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, verified facts |
 | [docs/architecture.md](docs/architecture.md) | Core/provider split, data flow, the provider contract |

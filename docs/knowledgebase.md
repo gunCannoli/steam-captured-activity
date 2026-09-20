@@ -169,34 +169,298 @@ Key exports used by this plugin:
 - `findClassModule(predicate)` — get Steam's hashed CSS class names at runtime.
 - `beforePatch(obj, method, fn)` / `afterPatch` — monkey-patch Steam methods; returns
   `{ unpatch }`.
+- **A full component library** — see [Steam's own React components](#steams-own-react-components-not-just-its-classes-verified-steambrewclient585) below.
+  This is easy to miss because the reference plugin only uses `findClassModule` and
+  `findModuleExport`, but the package exports far more.
 
 `steambrew-utils` is a companion package providing `Steam` (store accessors),
 `waitFor`, `NON_STEAM_APP_APPID_MASK`, plus `steambrew-utils/dom`
 (`querySelectorAll`, `renderComponent`), `/watchers` (`onAppLaunch`, `onPopupCreate`,
 `onLocationChange`), and `/logger`.
 
-### Borrowing Steam's own UI
+### Reusing Steam's native UI (**✅ verified**, reading `k0d13/steam-non-steam-playtimes` at commit `f2c14ec`)
 
-This is the technique that makes a plugin look native rather than bolted on
-(**✅ verified**, reference plugin `frontend/components/play-bar.tsx`):
+This is the core technique for making a plugin indistinguishable from Steam's own
+UI, and it is broader than "look up a class name". The reference plugin's
+`frontend/components/play-bar.tsx` and `frontend/renderers/app-properties.tsx`
+demonstrate it end to end, and **write zero custom CSS anywhere in the project.**
+
+There is no dedicated stylesheet, no `styled-components`, no `<style>` block with
+hand-written rules — only the one-line `<style>` tag shown below, whose entire
+job is to hide Steam's original element.
+
+#### The pattern: clone the DOM shape, then hide the original
+
+Steam's own markup for a UI element (say, the play bar's playtime stat) is a
+fixed tree of elements with hashed classes:
+
+```
+<div class="{GameStat} {Playtime} Panel">
+  <div class="{GameStatIcon} {PlaytimeIcon}"> ...icon svg... </div>
+  <div class="{GameStatRight}">
+    <div class="{PlayBarLabel}">Play Time</div>
+    <div class="{PlayBarDetailLabel}">12 hrs</div>
+  </div>
+</div>
+```
+
+To make a non-Steam game show the same thing, the plugin does **not** invent new
+markup or new CSS. It **reproduces this exact tree**, with the exact same classes
+(resolved at runtime via `findClassModule`, never hardcoded — see
+[ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)),
+and mounts its own copy as a sibling of Steam's real element. Then it hides
+Steam's original with one scoped CSS rule and reveals its own copy via a marker
+attribute:
+
+```tsx
+const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
+
+export function Playtime({ minutesForever }: { minutesForever: number }) {
+  return (
+    <div data-nsp="playtime" className={`${PlayBar.GameStat} ${PlayBar.Playtime} Panel`}>
+      {/* Hide Steam's REAL element (the one without data-nsp) in this exact
+          slot; our clone (which HAS data-nsp) stays visible. */}
+      <style>{`.${PlayBar.GameStat}.${PlayBar.Playtime}:not([data-nsp]){display:none!important}`}</style>
+      <div className={`${PlayBar.GameStatIcon} ${PlayBar.PlaytimeIcon}`}>
+        <PlayTimeIcon />
+      </div>
+      <div className={PlayBar.GameStatRight}>
+        <div className={PlayBar.PlayBarLabel}>
+          {Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_PlayTime')}
+        </div>
+        <div className={PlayBar.PlayBarDetailLabel}>{formatDuration(minutesForever)}</div>
+      </div>
+    </div>
+  );
+}
+```
+
+The `:not([data-nsp])` selector is precise: it hides only the *unmarked*
+element sharing the same two classes — Steam's real (and, for a non-Steam game,
+empty/hidden-by-Steam) node — never our own clone. Because the injected
+`<style>` is scoped by that same class pair, it cannot leak into unrelated parts
+of the page.
+
+This is also why `Playtime`/`LastPlayed` are only rendered conditionally
+(`if (minutesForever > 0)`, `if (lastPlayedAt)` in the renderer): Steam's game-stat
+row is a `flex` container that Steam itself only populates with the stats it has
+data for, so omitting a clone when there is no data lets the row lay out exactly
+as it would natively, with no empty box.
+
+Icons are copied too, not restyled — `PlayTimeIcon` in `play-bar.tsx` is a literal
+inline SVG with Steam's own path data and `SVGIcon_Button SVGIcon_PlayTime`
+classes, not a custom icon.
+
+#### Borrow formatters and strings, never hand-format
 
 ```ts
 // Steam's own relative-date and duration formatters, found by source text
 const formatRelativeDate = findModuleExport((e) => e?.toString?.()?.includes('"#Time_Today"'));
 const formatDuration     = findModuleExport((e) => e?.toString?.()?.includes('"#Played_"'));
-
-// Steam's hashed class names for the play bar
-const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
 ```
-
-Localized strings come from Steam too:
 
 ```ts
 Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_LastPlayed')
 ```
 
 Using these means the plugin inherits Steam's fonts, spacing, colors, date formats,
-and translations for free — and automatically follows any restyle.
+and translations for free — and automatically follows any restyle **because there
+is no separate style to fall out of sync.**
+
+#### Steam's own React components, not just its classes (**✅ verified**, `@steambrew/client@5.8.5`)
+
+`@steambrew/client`'s `index.d.ts` re-exports `./components` and
+`./custom-components` — a real component library, not just the class-lookup and
+patch helpers the reference plugin happens to use for its play-bar work. It is
+easy to miss because that plugin's play-bar case doesn't need them, but its
+**own `app-properties.tsx` / `playtime-input.tsx` renderer does**, importing
+`Button` and `TextField` directly from `@steambrew/client` rather than building
+custom form controls.
+
+Full list of exported components (`build/components/*.d.ts`): `Button`,
+`ButtonItem`, `Carousel`, `ControlsList`, `Dialog`, `DialogCheckbox`, `Dropdown`,
+`ErrorBoundary`, `Field`, `FocusRing`, `Focusable`, `FooterLegend`, `IconsModule`,
+`Item`, `Marquee`, `Menu`, `Modal`, `Panel` (`PanelSection`, `PanelSectionRow`),
+`ProgressBar`, `Scroll`, `SidebarNavigation`, `SliderField`, `Spinner`,
+`SteamSpinner`, `Tabs`, `TextField`, `Toast`, `Toggle`, `ToggleField`. Plus
+`custom-components`: `ColorPickerModal`, `ReorderableList`, `SuspensefulImage`.
+
+Three of these are directly relevant to this plugin and should be used instead
+of anything hand-built:
+
+- **`Carousel`** — a real carousel component (`fnItemRenderer`, `nNumItems`,
+  `nItemHeight`, `nItemMarginX`, `scrollToAlignment`, arrow paging, keyboard
+  support) — this is what Steam's own post-game summary carousel is built from.
+  Hand-rolling arrow buttons and a scrolling flex row with custom CSS
+  reimplements something already shipped, and does not get its focus/keyboard
+  behavior for free.
+- **`SuspensefulImage`** — `suspenseWidth`/`suspenseHeight` loading placeholder
+  for an `<img>`. This is Steam's own answer to "what shows while an image
+  loads", replacing a hand-written shimmer/skeleton placeholder.
+- **`Focusable`** / **`FocusRing`** — gamepad- and keyboard-navigable focus
+  wrapper (`onActivate`, `onCancel`, `focusClassName`). This is very likely
+  the missing piece for Big Picture / Gamepad UI support (ADR-0016): Steam's
+  own Focusable is what makes an element reachable by controller D-pad
+  navigation, which a plain `<div onClick>` is not.
+
+`Panel` (`PanelSection`, `PanelSectionRow`) is the generic titled-section
+container used throughout Settings and Quick Access; useful for any future
+settings UI this plugin adds, again without writing container CSS by hand.
+
+**Rule of thumb going forward:** before writing a custom component (carousel,
+image placeholder, focus/hover wrapper, button, text input, dialog, tab strip),
+check `build/components` and `build/custom-components` first — Steam very
+likely already ships it, and the reference plugin's own `app-properties.tsx`
+demonstrates importing `Button`/`TextField` directly rather than building them.
+
+#### The real Post-Game Summary DOM, verbatim (**✅ verified**, live CEF devtools session)
+
+Captured with `outerHTML` on a native game's app page (Divinity: Original Sin 2,
+`appid` 435150, one clip + several screenshots) and on Fields of Mistria (enough
+items to show the pager arrows). This is the exact tree to reproduce — every
+class name below is the real hashed-plus-readable pair Steam ships, e.g.
+`KniunRMLsSnzOWTG-tq81 PostGameSummaryClip Panel` (only the readable half is
+shown here for brevity; always resolve the pair at runtime via
+`findClassModule`, never hardcode the hash).
+
+```
+PageableContainer.Panel
+├─ HeaderPageControls
+│  ├─ GamePlaySummaryHeader              -- text is literally "Post-Game Summary";
+│  │                                        CSS applies text-transform: uppercase
+│  └─ PageClickContainer
+│     ├─ PageLeft.Small [.Disabled when at start]   -- arrow SVG, scaleX(-1)
+│     ├─ PageRight.Small [.Disabled when at end]    -- same arrow SVG, not flipped
+│     └─ PageableCloseButton.Small       -- the "X" dismiss button
+└─ BoxCarousel.SummaryCarouselContainer
+   └─ BoxCarouselContents.SummaryCarouselScrollingContainer   -- display:flex, row
+      └─ [role=list].ListElement (style="display:contents")
+         │
+         │  ONE ITEM PER TILE, NOT PER DAY — verified against a page with
+         │  a clip + screenshots: each was its OWN SummaryContainer, sitting
+         │  as flex siblings and visually joined into rows by CSS, not by
+         │  nesting multiple tiles inside one SummaryContainerChildren.
+         │
+         ├─ [role=listitem].SummaryContainer.NoAnimation      -- tile 1 of a day
+         │  ├─ EventHeaderBlock          -- "Today" ONLY on the day's first tile;
+         │  │                               empty string on the rest of that day
+         │  └─ SummaryContainerChildren  -- wraps exactly ONE tile (verified: every
+         │     │                            observed instance had children.length === 1)
+         │     └─ [role=button].PostGameSummaryClip.Panel
+         │          style="aspect-ratio: 1.77778 / 1"
+         │        ├─ img.ClipThumbnail  [src = .../gamerecordings/clips/<id>/thumbnail.jpg]
+         │        └─ CornerContent
+         │           └─ DurationText.Clip
+         │              ├─ <svg>Steam's own clip icon, real path data</svg>
+         │              └─ "0:06"  (mm:ss, plain text node after the icon)
+         ├─ div.TypeSeparator.SpaceOnly [data-carousel="ignore"]   -- empty spacer
+         ├─ [role=listitem].SummaryContainer.NoAnimation      -- tile 2, same day
+         │  ├─ EventHeaderBlock          -- empty (already shown on tile 1)
+         │  └─ SummaryContainerChildren
+         │     └─ [role=button].SummaryScreenshot.ClickableScreenshot.Panel
+         │          style="aspect-ratio: 1.77778 / 1"
+         │        ├─ img.ClickableScreenshotImg.UseHeight  [src = full-size screenshot URL]
+         │        └─ ScreenshotShareIcon (share/upload glyph, shown on hover)
+         ├─ div.TypeSeparator.SpaceOnly [data-carousel="ignore"]
+         └─ … (repeats per tile) …
+      (a trailing div.ForcedCarouselPadding[data-carousel="ignore"] closes the row)
+```
+
+Things this corrects versus a from-scratch guess:
+
+- **There is no separate "POST-GAME SUMMARY" section header outside the
+  carousel** — the header (`GamePlaySummaryHeader`) and the pager arrows
+  (`PageLeft`/`PageRight`) and the **dismiss button** (`PageableCloseButton`,
+  the "X" seen in the top-right of the summary box) all live together in one
+  `HeaderPageControls` row, itself a sibling of the carousel, both inside one
+  `PageableContainer`. A plugin that renders its own `<h2>` title beside a
+  separately-built carousel has already diverged from the real tree.
+- **`SummaryContainer` is one tile, not one day.** This was wrong in an earlier
+  pass of this doc: a day with multiple captures is multiple sibling
+  `SummaryContainer`s (each wrapping exactly one tile in its own
+  `SummaryContainerChildren`), joined by empty `TypeSeparator` spacer `div`s,
+  not one container holding several tiles. Only the **first** tile of a run
+  gets a non-empty `EventHeaderBlock` ("Today", a date, …); the rest have an
+  empty one. `BoxCarouselContents` is `display: flex; flex-direction: row`,
+  and that flex row is what actually lines the tiles up — `SummaryContainer`
+  and `SummaryContainerChildren` are themselves `display: block`.
+- **The pager arrows are plain siblings of the header text**, not flanking the
+  carousel left/right. They share one `PageClickContainer` with the close
+  button. `.Disabled` is added/removed by Steam depending on scroll position —
+  there is no separate `disabled` attribute logic to hand-write; it is a class.
+- **The clip's icon is a specific Steam SVG** with real path data (not a
+  generic "scissors" glyph) — copy the path verbatim from a live capture if
+  redrawing is unavoidable, or better, find it via `findModuleExport` the same
+  way `formatDuration` is found.
+- **Screenshot tiles get a `ScreenshotShareIcon` on hover** (a share/upload
+  glyph), which a plugin does not need to implement for non-Steam games (there
+  is no Steam Community to share to) — but its presence explains part of the
+  "why does hovering a native tile look different" gap.
+- Both tile types set `aspect-ratio: 1.77778 / 1` (16:9) as an inline style
+  rather than fixed pixel `width`/`height` — sizing is fluid, not a hardcoded
+  `224×126` box. (The `224×126` figure recorded elsewhere in this doc is one
+  observed *rendered* size at one window width, not the authored size.)
+- `TypeSeparator` and `ForcedCarouselPadding` are empty, presentation-only
+  `div`s carrying `data-carousel="ignore"` (almost certainly a hint to Steam's
+  own carousel/paging math to skip them when measuring item positions) — they
+  exist purely for the gap/edge-padding CSS gives them, there is no content or
+  behavior to replicate beyond rendering an empty spacer between tiles.
+
+#### Classes seen together in one element are NOT necessarily one CSS module (**✅ verified the hard way**, building `non-steam-games-activity`)
+
+Building against the tree above, every class name was resolved with **one**
+`findClassModule('SummaryCarouselContainer')` call, on the assumption that
+because `PostGameSummaryClip`, `PageableContainer`, `GamePlaySummaryHeader`,
+etc. all appear in the *same captured `outerHTML`*, they live in the same
+webpack CSS module and one probe key would resolve all of them.
+
+**That assumption is false, and it fails silently.** `findClassModule` returns
+`undefined` for a key not present in the module it found, React then renders
+that element with **no class attribute at all**, and the element loses every
+rule that class carried — `position`, sizing, everything. The *symptom* was a
+clip tile rendering at the full width of its flex row instead of a contained
+16:9 thumbnail; `tile.className` in the live DOM was just `"Panel"`.
+
+The Post-Game Summary alone is split across **four** separate modules. Found
+by walking Steam's own webpack module cache directly rather than guessing:
+
+```js
+// From a CEF devtools console on SharedJSContext:
+let req;
+window.webpackChunksteamui.push([[Symbol()], {}, (r) => { req = r; }]);
+
+// Find every module factory whose SOURCE mentions a class name:
+const hits = [];
+for (const id in req.m) {
+  if (req.m[id].toString().includes('PostGameSummaryClip')) hits.push(id);
+}
+
+// Execute one and inspect its real exports:
+const exports = req(Number(hits[0]));
+Object.keys(exports.default ?? exports);   // the module's actual key set
+```
+
+Result for this page:
+
+| Module (probe key that finds it) | Also exports |
+| --- | --- |
+| `SummaryCarouselContainer` | `SummaryCarouselScrollingContainer`, `GamePlaySummaryHeader`, `SummaryContainer`, `SummaryContainerChildren`, `SummaryScreenshot`, `EventHeaderBlock`, `TypeSeparator`, `ForcedCarouselPadding` |
+| `PageableContainer` | `HeaderPageControls`, `PageClickContainer`, `PageLeft`, `PageRight`, `PageableCloseButton`, `Disabled`, `Small` |
+| `PostGameSummaryClip` | `ClipThumbnail`, `CornerContent`, `DurationText` |
+| `ClickableScreenshotImg` | `ClickableScreenshot`, `ScreenshotShareIcon`, `UseWidth`, `UseHeight` |
+
+Note in particular: `GamePlaySummaryHeader` is **only** in the first module —
+a second bug in the same session came from reading it off the *second* map
+(`PageableContainer`'s), which has no such key, silently rendering the header
+with an empty class. `HeaderPageControls` (the real parent, which DID resolve)
+absorbed the blame at first because a `textContent`-based debugging query
+matched the nearest *classed* ancestor of the now-classless header text.
+
+**The rule going forward:** resolve one `findClassModule` probe per module,
+never assume co-occurrence in a DOM capture implies co-membership, and when a
+resolved class's effect looks wrong, dump the *whole* object
+(`console.log(SomeClasses)` or the CDP snippet above) and check every name
+against it by exact match — do not trust that a name "sounds like" it belongs.
 
 ### Identifying non-Steam apps
 
@@ -216,7 +480,13 @@ if (app.appid < NON_STEAM_APP_APPID_MASK) return;  // a real Steam game — skip
 
 2. **App detail page** — watch for the location `/library/app/<appid>` via
    `onPopupCreate` + `onLocationChange`, then render components into
-   `.${PlayBarClasses.GameStatsSection}`.
+   `.${PlayBarClasses.GameStatsSection}` using the
+   [clone-the-DOM-shape-and-hide-the-original technique](#reusing-steams-native-ui-verified-reading-k0d13steam-non-steam-playtimes-at-commit-f2c14ec)
+   above — never bespoke markup/CSS. The mount idiom, also from `library-app.tsx`:
+   render the clone, then `parent.querySelector(':has([data-nsp="..."])')` — if a
+   previous clone is already mounted, `existing.replaceWith(element)`; otherwise
+   `parent.appendChild(element)`. This is what makes `refresh()` (called after a
+   game quits) update the live page instead of duplicating nodes.
 
 3. **App properties dialog** — the reference plugin adds a tab by patching
    `Array.prototype.map` and detecting the page-descriptor array
@@ -632,7 +902,12 @@ Remaining gap: ROM basename → RetroAchievements **GameID**. Arcade ROMs are te
 - [Millennium plugin docs](https://docs.steambrew.app/plugins/) ·
   [file structure](https://docs.steambrew.app/plugins/structure/file-structure) ·
   [Millennium repo](https://github.com/SteamClientHomebrew/Millennium)
-- [Reference plugin: k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)
+- [Reference plugin: k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes) ·
+  [commit f2c14ec](https://github.com/k0d13/steam-non-steam-playtimes/tree/f2c14ecbc0cfcdff6bba5f1d703231ec6037588f)
+  studied specifically for the clone-and-hide UI pattern
+- [`@steambrew/client@5.8.5`](https://www.npmjs.com/package/@steambrew/client) —
+  read `build/*.d.ts` directly (locally in `node_modules/.pnpm/`) for its full
+  component export list; not documented on steambrew.app at time of writing
 - [RetroAchievements API docs](https://api-docs.retroachievements.org/) ·
   [GetUserRecentlyPlayedGames](https://api-docs.retroachievements.org/v1/get-user-recently-played-games.html) ·
   [GetGameInfoAndUserProgress](https://api-docs.retroachievements.org/v1/get-game-info-and-user-progress.html) ·

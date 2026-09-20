@@ -2,7 +2,6 @@ import { querySelectorAll, renderComponent } from 'steambrew-utils/dom';
 import { logger } from '../logger';
 import { ActivityPage } from '../components/activity';
 import { rpc, type Activity, type TimelineEntry } from '../rpc';
-import { ensureStyles } from '../styles';
 import { loadFullImage } from '../assets';
 import {
   loadScreenshotIndex,
@@ -166,7 +165,6 @@ export async function patch(window: Window, appid: number): Promise<void> {
   // Navigation may have happened while querySelectorAll was polling.
   if (activeViews.get(window) !== appid) return;
 
-  ensureStyles(window.document);
   hidePlaceholder(window.document);
 
   const element = renderComponent(
