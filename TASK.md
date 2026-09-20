@@ -20,7 +20,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop) | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`. |
 | Library grid | ✅ Shipped. |
 | Per-day Activity feed | 🔶 Blocked on a fakeable Steam store record; see below. |
-| Big Picture | 🔶 Blocked on plugin code reachability; see below. |
+| Big Picture | 🛑 Blocked on Millennium itself — confirmed, not actionable here; see below. |
 | Provider contract | ⬜ Not started (Phase 8). |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
@@ -29,22 +29,7 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Next up
 
-### 1. Big Picture — verify the summary reaches it, before anything else
-
-Big Picture already renders the identical `Ge.T` Post-Game Summary component,
-gated by the identical `setSections.has("postgamesummary")` — same code path as
-desktop. Nothing to build there. The blocker: Millennium never runs this
-plugin's frontend inside the Big Picture window at all (`window.Millennium` is
-`undefined` there — a separate bundle, not a separate renderer).
-
-**Next step:** find a way to get `steam/sections.ts` + `steam/summary.ts`'s
-setup to execute inside that window's own JS context.
-
-- Procedure to re-enter Big Picture for testing, and the full finding:
-  [steam-components.md § Inspecting Big Picture](docs/steam-components.md#inspecting-big-picture-phase-6-answered)
-- Decision record: [ADR-0023](docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)
-
-### 2. Per-day Activity feed
+### 1. Per-day Activity feed
 
 Every event needs a Steam *store* record the game doesn't have — but that
 record is fakeable with no network call (verified live). What's left: wire it
@@ -57,6 +42,27 @@ risk, then feed real day/event objects from our captures.
   non-Steam games — keep only the dated groups. Achievements are out of scope
   for now; the achievement renderer needs no store record, so it'll work
   whenever a provider supplies them.
+
+### 2. Big Picture — blocked on Millennium, not on this plugin
+
+Confirmed live on 2026-09-21 (smoke test): AM2R's Big Picture "ACTIVITY" tab
+renders completely blank. Root cause confirmed **from Millennium's own
+source**, not just observation: its plugin loader attaches to exactly one CDP
+target (`title == "SharedJSContext"`), once, at startup, and never looks
+again; its other, dynamic-discovery injector explicitly excludes
+`steamloopback.host` — the host Big Picture's window also uses. Between the
+two, nothing in the current Millennium engine can run our plugin's code there.
+No amount of change in `steam/sections.ts` or `steam/summary.ts` fixes this.
+
+**Nothing to do here until Millennium changes.** Don't re-open this by editing
+plugin code — re-test only after a Millennium release that plausibly touches
+`plugin_loader.cc` or `target_url.cc`.
+
+- Full source-level finding: [ADR-0023](docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)
+- Re-verification procedure: [steam-components.md § Inspecting Big Picture](docs/steam-components.md#inspecting-big-picture-phase-6-answered)
+- Consider filing a focused upstream issue — sharper than the existing closed
+  [#754](https://github.com/SteamClientHomebrew/Millennium/issues/754), which
+  covers CSS only.
 
 ### Later
 

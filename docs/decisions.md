@@ -1043,28 +1043,83 @@ by the identical `GetSections()` call. Nothing needs to be built or cloned for
 Big Picture's UI; the section patch and the store-feeding code in `steam/`
 would work unchanged the moment they run in that window.
 
+### Root cause, confirmed from Millennium's own source (2026-09-21)
+
+Cloned `SteamClientHomebrew/Millennium` and read the engine directly rather
+than inferring further from behaviour. The mechanism is single-target **by
+design**, in two independent places:
+
+**1. The plugin frontend loader attaches to exactly one CDP target, ever.**
+`plugin_loader::init_devtools()` (`src/engine/plugin_loader.cc`):
+
+```cpp
+constexpr auto targetFrame = "SharedJSContext";
+...
+auto it = std::find_if(targets["targetInfos"].begin(), targets["targetInfos"].end(),
+    [&](const auto& target) { return target.value("title", "") == targetFrame; });
+...
+auto result = m_cdp->send_host("Target.attachToTarget", attach_params).get();
+m_cdp->set_shared_js_session_id(result.at("sessionId").get<std::string>());
+```
+
+This runs once at Steam startup, blocking until a target titled exactly
+`SharedJSContext` appears, attaches to it, and never looks for another target
+for the process lifetime (`cdp_client` holds one `m_shared_js_session_id`,
+singular, used by every plugin-frontend CDP call). Big Picture's window has a
+different CDP title (`Steam Big Picture Mode`) and is never considered.
+
+**2. Millennium's other injector (`webkit_world_mgr`, used for CSS themes and
+generic webkit hooks on arbitrary pages) explicitly excludes the host both
+windows share.** `target_url::allows_webkit_injection()`
+(`src/engine/target_url.cc`):
+
+```cpp
+bool target_url::allows_webkit_injection(...) const {
+    if (!m_valid) return false;
+    if (!is_safe_for_js()) return false;
+    if (m_host == k_steam_loopback) return false;   // ← "steamloopback.host", excluded unconditionally
+    if (is_steam_owned()) return true;
+    ...
+}
+```
+
+So even the general-purpose, multi-target injector would refuse Big Picture's
+window on host alone, before title is ever considered. Between the two, there
+is no path in the current engine that reaches a Gamepad UI window.
+
+This matches [issue #754](https://github.com/SteamClientHomebrew/Millennium/issues/754)
+(closed, no fix, no maintainer comment on cause) almost exactly — its own
+description, "the modern Gamepad UI runs in a nested, isolated context or
+different WebKit view that Millennium's current injection methods do not
+penetrate," is correct, and now confirmed at the source level: it is a
+different CDP *target*, and the single-target-by-title design in
+`plugin_loader.cc` is why "different injection methods" don't reach it either.
+
 ### Decision
 
-- **Big Picture needs a way to execute the existing `steam/` patches inside its
-  own JS context**, not a new renderer and not new components. This replaces
-  ADR-0016's "resolve gamepad class modules against the gamepad window, build
-  `gamepad-app.tsx`" plan — there is nothing to resolve or build once the
-  patch runs there, per ADR-0022's approach.
-- Until that reachability problem is solved, treat Big Picture as **not
-  started**, not "half-done." The backend-sharing conclusion of ADR-0016 still
-  holds (no backend work needed), but its renderer plan does not.
-- Investigate: how does Millennium load a plugin's frontend bundle into a
-  window in the first place, and can that be triggered a second time for a
-  Gamepad popup — versus some other injection mechanism (e.g. evaluating setup
-  code directly in that window once `onPopupCreate` reports it).
+- **This cannot be fixed from inside this plugin.** It needs a change to
+  Millennium's engine — either making `plugin_loader::init_devtools()` attach
+  to more than one target (by discovering `Steam Big Picture Mode` the same
+  way, or reusing `webkit_world_mgr`'s dynamic-discovery loop for plugin
+  frontends generally), or a narrower carve-out for Gamepad-titled targets in
+  `target_url::allows_webkit_injection()`.
+- Until Millennium ships that, treat Big Picture as **not started**, not
+  "half-done" — this is not a bug in `steam/sections.ts` or `steam/summary.ts`
+  to keep re-testing. The backend-sharing conclusion of ADR-0016 still holds
+  (no backend work needed), but its renderer plan does not.
+- **Report upstream.** #754 covers CSS; this plugin's finding is stronger (no
+  JS execution at all, source-confirmed root cause) and is worth a fresh,
+  more specific issue rather than assuming #754 already covers it.
 
 ### Consequences
 
 - Phase 6 is smaller in scope than ADR-0016 implied (no gamepad-specific UI
-  work) but blocked on a different, more fundamental problem (code reachability,
-  not rendering).
+  work) but blocked on a dependency outside this repo, not a problem this
+  plugin's own code can solve by trying harder.
 - `docs/steam-components.md § Inspecting Big Picture` carries the full
-  verification detail and the reusable procedure
-  (`SetUIMode`/`GetUIMode`) for re-testing this.
-- If Millennium has no supported way to run plugin code inside a Gamepad
-  window, that is worth reporting upstream rather than working around blindly.
+  verification detail and the reusable procedure (`SetUIMode`/`GetUIMode`,
+  plus how to re-clone and grep Millennium's engine) for re-testing this once
+  Millennium changes.
+- Confirmed live, 2026-09-21: AM2R's Big Picture "ACTIVITY" tab renders
+  completely blank (no summary, no Steam placeholder either) — the visible
+  symptom of `GetSections()` never being patched there. Screenshot on file.

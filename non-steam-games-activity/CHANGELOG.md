@@ -8,8 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works; Big Picture and the per-day activity feed are in
-progress — see below.
+of them. Library grid works; the per-day activity feed is in progress. Big
+Picture is blocked on Millennium itself, not on this plugin — see below.
 
 ### Known limits
 
@@ -22,12 +22,15 @@ progress — see below.
 - **Steam's "information is unavailable" box is left in place.** It is still
   accurate, and it is the only other thing in that column — removing it leaves
   the page blank under the summary.
-- **Big Picture does not show the summary yet.** Millennium never loads this
-  plugin's frontend into the Big Picture window — it runs in a separate CEF
-  bundle with no shared module cache, not merely a different renderer. Steam's
-  own components there (`Ge.T`, the same Post-Game Summary) would render for
-  free once the plugin's patch actually reaches that window; getting it there
-  is the open work ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
+- **Big Picture does not show the summary, and this plugin cannot fix that.**
+  Confirmed live (smoke test): AM2R's Big Picture "ACTIVITY" tab renders
+  completely blank. Root cause confirmed from Millennium's own source: its
+  plugin loader attaches to exactly one CDP target (`SharedJSContext`), once,
+  at startup, and its other injector explicitly excludes the host Big
+  Picture's window uses. Steam's own components there (`Ge.T`, the same
+  Post-Game Summary) would render for free the moment Millennium's engine can
+  reach that window — nothing to build on this plugin's side until then
+  ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
 - **"Last Played" stays blank for games Steam did not launch itself.** That
   `AppOverview` field has a custom setter backed by protobuf state and cannot
   be written safely; recent-activity ordering does reflect captures instead
@@ -189,7 +192,7 @@ pass before calling v1 done.
 | 6 | Library grid | Recent-activity timestamps visible; sorting still works |
 | 7 | Restart Steam | Plugin loads clean; no console errors |
 | 8 | Disable the plugin | Steam returns to its stock page with no leftovers |
-| 9 | **Big Picture** — open a non-Steam game's page | Summary renders (blocked today — see Known limits) |
+| 9 | **Big Picture** — open a non-Steam game's page | Summary renders (blocked on Millennium — see Known limits) |
 | 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state |
 
 Also confirm: no secrets in logs, and `GetDiagnostics` reports accurate counts

@@ -384,10 +384,14 @@ Nothing needs to be built or cloned for its UI.
 The open problem is different: Big Picture's window (`Steam Big Picture Mode`)
 runs a **separate bundle** with no `window.Millennium` and no shared module
 cache — this plugin's frontend never executes there at all, not a rendering
-gap. [ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)'s
+gap. Confirmed from Millennium's own source, not just observation: its plugin
+loader attaches to one CDP target by exact title match at startup and never
+looks again, and its other injector explicitly excludes the host Big Picture's
+window shares. **Not fixable from this repo** — it needs a Millennium engine
+change. [ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)'s
 "second renderer" plan is superseded by
 [ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one),
-which has the full finding and the reusable test procedure
+which has the full source-level finding and the reusable test procedure
 ([steam-components.md § Inspecting Big Picture](steam-components.md#inspecting-big-picture-phase-6-answered)).
 
 **Serving local images** no longer needs base64 for the detail page. The

@@ -856,29 +856,76 @@ component tree.
 Blocked on (1): nothing to focus until the summary renders. Revisit once the
 patch reaches the window.
 
-### What Phase 6 actually needs
+### Why the patch can't reach it — confirmed from Millennium's own source
 
-Not a new renderer, not new class-module work — **get the existing patch to
-run inside the Big Picture window's own JS context.** Concretely:
+**This is not fixable from this plugin's code.** Cloned
+`SteamClientHomebrew/Millennium` and read the engine directly rather than
+speculating further. Two independent findings, both hard blocks:
 
-- Find how Millennium (or `@steambrew/client`) exposes a hook into a Gamepad
-  popup's *own* `window`/module scope, if one exists — separate from
-  `onPopupCreate`, which only reaches the DOM from outside.
-- If no such hook exists, the patch needs to run some setup code inside that
-  window directly (e.g. via `popup.window.eval`-equivalent, or by having
-  Millennium load the frontend bundle a second time in that context).
-- Once the patch's `GetSections`/`CGamePlaySession` calls are reachable there,
-  no further UI work should be needed — `Ge.T` and `ae.W` (activity) already
-  read from the same `setSections` and `appid` this plugin already publishes
-  to in `SharedJSContext`. Confirm `CAppSpotlightStore` (`Ri`) is also a
-  *process-wide* singleton rather than one instantiated per bundle before
-  assuming this — check `Ri.GetOrCreateAppData` returns the same object
-  instance across both windows for the same appid.
-- Big Picture's own `ACTIVITY` tab includes the daily activity feed
-  (`ae.W`/`activity` section) in the *same* tab as the summary, not a
-  separate one — so the store-record blocker documented above
+**1. The plugin frontend loader attaches to exactly one CDP target, by exact
+title match, once, at Steam startup — and never looks again:**
+
+```cpp
+// src/engine/plugin_loader.cc — plugin_loader::init_devtools()
+constexpr auto targetFrame = "SharedJSContext";
+...
+auto it = std::find_if(targets["targetInfos"].begin(), targets["targetInfos"].end(),
+    [&](const auto& target) { return target.value("title", "") == targetFrame; });
+...
+m_cdp->set_shared_js_session_id(result.at("sessionId").get<std::string>());
+```
+
+`cdp_client` holds one `m_shared_js_session_id` for the process lifetime.
+`Steam Big Picture Mode` has a different title and is never considered, ever,
+by anything that loads a plugin's `frontend/index.tsx`.
+
+**2. Millennium's other injector — `webkit_world_mgr`, the dynamic,
+multi-target one used for CSS themes and generic webkit hooks on arbitrary
+pages — excludes the exact host both windows share, unconditionally:**
+
+```cpp
+// src/engine/target_url.cc — target_url::allows_webkit_injection()
+if (m_host == k_steam_loopback) return false;   // "steamloopback.host"
+```
+
+So even the general-purpose path would refuse Big Picture on host alone.
+Between the two mechanisms, nothing in the current engine reaches a Gamepad UI
+window. This confirms and sharpens
+[issue #754](https://github.com/SteamClientHomebrew/Millennium/issues/754)
+(closed, unfixed): its "isolated context / different WebKit view" description
+is correct — it is a different CDP *target*, source-confirmed.
+
+Full writeup: [ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one).
+
+**What this means for the work here:** nothing to build until Millennium
+changes. Once it does — whichever way — the rest of this document's finding
+still holds and needs no revisiting:
+
+- `Ge.T` (Post-Game Summary) and `ae.W` (activity) in Big Picture's `WhatsNew`
+  tab already read from the same `setSections`/`appid` shape this plugin
+  already publishes to in `SharedJSContext`. No new component, no new
+  class-module work, nothing to clone.
+- Confirm `CAppSpotlightStore` (`Ri`) is a *process-wide* singleton, not one
+  instantiated per bundle, before assuming the store side needs no extra work
+  either — check `Ri.GetOrCreateAppData` returns the same object instance
+  across both windows for the same appid, once there are two windows able to
+  ask it.
+- Big Picture's `ACTIVITY` tab includes the daily activity feed (`ae.W`) in
+  the *same* tab as the summary — so the store-record blocker documented above
   ([§ The store record can be faked](#the-store-record-can-be-faked-verified-not-yet-wired-up))
   applies here too, once reachable.
 
-Record findings from step 3 onward here once the reachability question is
-solved.
+### Re-checking this later
+
+```bash
+git clone --depth 1 https://github.com/SteamClientHomebrew/Millennium.git
+grep -n "targetFrame\|SharedJSContext" src/engine/plugin_loader.cc
+grep -n "allows_webkit_injection" src/engine/target_url.cc
+```
+
+If `plugin_loader.cc` gains a loop over multiple targets, or `target_url.cc`
+carves out Gamepad-titled targets from the loopback exclusion, re-run
+[§ How to get into Big Picture for testing](#how-to-get-into-big-picture-for-testing)
+above and confirm `window.Millennium` is defined inside `Steam Big Picture
+Mode`. If so, the rest of this document's finding should hold with no further
+investigation.
