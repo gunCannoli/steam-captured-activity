@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Activity, TimelineEntry } from '../rpc';
 import { loadScreenshotIndex, type LocalScreenshot } from '../steam-media';
 import { ActivityClasses as A, PageableClasses as P, SummaryClasses as S, cx } from './classes';
+import { ItemCarousel, type ItemCarouselHandle } from './carousel';
 import { MediaCard } from './media-card';
 
 /**
@@ -152,12 +153,12 @@ export function ActivityPage({ activity, onOpen }: Props) {
  *   ├─ HeaderPageControls
  *   │  ├─ GamePlaySummaryHeader           "Post-Game Summary"
  *   │  └─ PageClickContainer
- *   │     ├─ PageLeft  [.Disabled at start]
- *   │     ├─ PageRight [.Disabled at end]
+ *   │     ├─ PageLeft  [.Disabled at start]   -- only rendered when overflowing
+ *   │     ├─ PageRight [.Disabled at end]     -- only rendered when overflowing
  *   │     └─ PageableCloseButton
  *   └─ SummaryCarouselContainer                 <- SummaryClasses (module B)
- *      └─ SummaryCarouselScrollingContainer  (flex row)
- *         └─ ListElement[role=list] (display:contents)
+ *      └─ BoxCarousel > BoxCarouselContents        <- CarouselClasses (module E)
+ *         └─ ListElement[role=list]
  *            ├─ SummaryContainer[role=listitem]   -- ONE PER TILE, not per day
  *            │  ├─ EventHeaderBlock                 heading text, or empty
  *            │  └─ SummaryContainerChildren         wraps exactly one tile
@@ -166,11 +167,16 @@ export function ActivityPage({ activity, onOpen }: Props) {
  *
  * `PageableContainer` and `SummaryCarouselContainer` are TWO DIFFERENT webpack
  * modules (verified by walking Steam's module cache - see classes.ts), so this
- * uses two separate resolved class maps rather than one. `BoxCarousel` /
- * `BoxCarouselContents`, seen wrapping the carousel in the captured markup, are
- * omitted: neither resolves to a class carrying any CSS in the module search,
- * so they are very likely a behavioral marker for Steam's own carousel
- * component logic (keyboard paging etc.), which this does not reimplement.
+ * uses two separate resolved class maps rather than one.
+ *
+ * The pager (`PageLeft`/`PageRight`) and the actual scroll-by-tile mechanics
+ * are real, not a fake disabled pair - see `carousel.tsx` for the reimplemented
+ * scrolling primitive (Steam's own module `26271`, walked live) and
+ * `ItemCarousel`'s doc comment for why native shows NO arrows at all rather
+ * than a disabled pair when everything fits one row. `leftEnabled`/
+ * `rightEnabled` here come straight from that carousel's own overflow check,
+ * exactly mirroring Steam's real `Pageable` (module `4584`): the arrows only
+ * exist in the tree when at least one of them is usable.
  *
  * Verified against a live page holding a clip and screenshots: each was its
  * own `SummaryContainer`/`SummaryContainerChildren` pair, not grouped into one
@@ -198,6 +204,16 @@ function PostGameSummary({
     return formatDayHeading(summary.date ?? '');
   }, [summary]);
 
+  const carouselRef = useRef<ItemCarouselHandle>(null);
+  const [leftEnabled, setLeftEnabled] = useState(false);
+  const [rightEnabled, setRightEnabled] = useState(false);
+  const showArrows = leftEnabled || rightEnabled;
+
+  const onUpdateArrows = useCallback((left: boolean, right: boolean) => {
+    setLeftEnabled(left);
+    setRightEnabled(right);
+  }, []);
+
   return (
     <div className={cx(P.PageableContainer, 'Panel')}>
       {/*
@@ -219,6 +235,38 @@ function PostGameSummary({
             naive textContent-based DOM query while debugging). */}
         <div className={S.GamePlaySummaryHeader}>Post-Game Summary</div>
         <div className={cx(P.PageClickContainer)} style={{ display: 'flex', alignItems: 'center' }}>
+          {/*
+           * Real pager arrows, present only when the carousel itself reports
+           * overflow in that direction - matching native exactly (confirmed
+           * live: native's own Post-Game Summary shows no arrows at all when
+           * every tile fits in one row, not a disabled pair). `.Disabled`
+           * greys out whichever single direction is currently unusable while
+           * the pair is showing (e.g. scrolled all the way left).
+           */}
+          {showArrows && (
+            <Fragment>
+              <div
+                role="button"
+                tabIndex={0}
+                className={cx(P.PageLeft, !leftEnabled && P.Disabled)}
+                onClick={() => leftEnabled && carouselRef.current?.scrollLeft()}
+                aria-label="Scroll left"
+                aria-disabled={!leftEnabled}
+              >
+                <PageArrowIcon flipped />
+              </div>
+              <div
+                role="button"
+                tabIndex={0}
+                className={cx(P.PageRight, !rightEnabled && P.Disabled)}
+                onClick={() => rightEnabled && carouselRef.current?.scrollRight()}
+                aria-label="Scroll right"
+                aria-disabled={!rightEnabled}
+              >
+                <PageArrowIcon />
+              </div>
+            </Fragment>
+          )}
           {/*
            * A `div role="button"`, not a real <button> - Steam's own
            * clickable tiles are all divs (see MediaCard, PostGameSummaryClip
@@ -255,44 +303,75 @@ function PostGameSummary({
       </div>
 
       {/*
-       * Steam's real carousel PAGES rather than wraps when more tiles exist
-       * than fit one row (that pager logic is JS-driven, which we do not
-       * reimplement - see the class-module note above). We wrap onto extra
-       * rows instead, which is an honest simplification: showing every tile
-       * beats hiding some behind unimplemented pager arrows. So this
-       * deliberately does NOT set overflow:hidden here, unlike the tile-level
-       * safety net in media-card.tsx - a wrapped second row must stay visible,
-       * not be clipped.
+       * Real carousel now (see carousel.tsx) - scrolls instead of wrapping,
+       * matching native. `SummaryCarouselContainer` is our sizing/spacing
+       * wrapper; `ItemCarousel` supplies the actual `BoxCarousel`/
+       * `BoxCarouselContents` scrolling behaviour Steam's own component
+       * implements (module `26271`, not `@steambrew/client`'s different,
+       * windowed `Carousel` - see carousel.tsx for why).
        */}
       <div className={S.SummaryCarouselContainer}>
-        <div
-          className={S.SummaryCarouselScrollingContainer}
-          style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}
-        >
-          <div role="list" aria-label="Post-Game Summary" style={{ display: 'contents' }}>
-            {summary.entries.map((entry, i) => (
-              <Fragment key={`${entry.type}-${entry.at}-${entry.path}`}>
-                {i > 0 && <div className={cx(S.TypeSeparator, 'SpaceOnly')} />}
-                {/* width:224px is our own addition - see the day-feed row
-                    above for why a SummaryContainer needs an explicit width. */}
-                <div
-                  role="listitem"
-                  className={cx(S.SummaryContainer, 'NoAnimation')}
-                  style={{ width: '224px', flex: '0 0 auto' }}
-                >
-                  {/* Only the first tile carries the visible heading, matching
-                      Steam's own real markup. */}
-                  <div className={S.EventHeaderBlock}>{i === 0 ? heading : ''}</div>
-                  <div className={S.SummaryContainerChildren}>
-                    <MediaCard entry={entry} index={index} onOpen={onOpen} />
-                  </div>
+        <ItemCarousel ref={carouselRef} ariaLabel="Post-Game Summary" onUpdateArrows={onUpdateArrows}>
+          {summary.entries.map((entry, i) => (
+            <Fragment key={`${entry.type}-${entry.at}-${entry.path}`}>
+              {i > 0 && <div className={cx(S.TypeSeparator, 'SpaceOnly')} data-carousel="ignore" />}
+              {/* width:224px is our own addition - see the day-feed row
+                  above for why a SummaryContainer needs an explicit width. */}
+              <div
+                role="listitem"
+                className={cx(S.SummaryContainer, 'NoAnimation')}
+                style={{ width: '224px', flex: '0 0 auto' }}
+              >
+                {/* Only the first tile carries the visible heading, matching
+                    Steam's own real markup. */}
+                <div className={S.EventHeaderBlock}>{i === 0 ? heading : ''}</div>
+                <div className={S.SummaryContainerChildren}>
+                  <MediaCard entry={entry} index={index} onOpen={onOpen} />
                 </div>
-              </Fragment>
-            ))}
-          </div>
-        </div>
+              </div>
+            </Fragment>
+          ))}
+        </ItemCarousel>
       </div>
     </div>
+  );
+}
+
+/**
+ * Steam's own pager chevron, copied verbatim from the icon component real
+ * `Pageable` passes `singlearrow={true}` to (module `50376`, function `be`,
+ * walked live - `@steambrew/client` does not export this one either). Single
+ * arrow: only the first `polyline` renders (`Arrow2` is skipped when
+ * `singlearrow` is set - the un-skipped pair is Steam's *double*-chevron
+ * variant used elsewhere, e.g. "skip to end"). Native passes `angle={0}` for
+ * `PageLeft` and `angle={180}` for `PageRight` - a rotation on the SAME
+ * left-pointing path, not two different paths.
+ */
+function PageArrowIcon({ flipped = false }: { flipped?: boolean }) {
+  return (
+    <svg
+      // Authored at native's real 256x256 - `SVGIcon_Button` (a global,
+      // literal utility class, same as the close icon) does the scaling down
+      // to the button's actual 16x16 box, not this attribute. Confirmed live
+      // against a native PageLeft: rendered 16x16 despite the 256px attrs.
+      style={{ transform: `rotate(${flipped ? 0 : 180}deg)` }}
+      version="1.1"
+      xmlns="http://www.w3.org/2000/svg"
+      className="SVGIcon_Button SVGIcon_DoubleArrow HasHorizontalDirection"
+      width="256px"
+      height="256px"
+      viewBox="0 0 256 256"
+      aria-hidden="true"
+    >
+      <polyline
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="23"
+        strokeLinecap="round"
+        strokeMiterlimit="10"
+        points="135.65,21.667 30.081,127.235 137.18,234.333"
+      />
+    </svg>
   );
 }
 

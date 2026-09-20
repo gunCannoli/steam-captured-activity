@@ -35,12 +35,17 @@ import { findClassModule } from '@steambrew/client';
  * resolved to `undefined`, so the tile got no `position`/size rules and grew
  * to fill its container - confirmed live: `tile.className` was just `"Panel"`.
  *
- * Also NOT in any of these four: `BoxCarousel`/`BoxCarouselContents`, seen
- * wrapping the summary carousel in the captured markup. These resolve to a
- * class with no CSS of its own in every module search performed - almost
- * certainly a behavioral marker Steam's own carousel *component* logic reads,
- * not a style. We do not implement that carousel logic (no keyboard paging
- * beyond the dismiss button), so they are omitted rather than guessed at.
+ * A fifth module, `CarouselClasses`, was added once real paging was
+ * implemented (Phase 5c item 2). `BoxCarousel`/`BoxCarouselContents` were
+ * initially dismissed as "no CSS of their own" from a narrower search - that
+ * was wrong. They live in their own module (probe: `BoxCarousel`), a shared
+ * generic carousel/animation utility module reused well beyond the Post-Game
+ * Summary, which is exactly why the earlier four-module search never turned
+ * it up: none of those four probes are also present in it, and it doesn't
+ * carry `SummaryCarouselContainer`/`PageableContainer`/etc. either. Found by
+ * reading Steam's *actual* Carousel component source (module `26271`) rather
+ * than guessing from class co-occurrence again - see CarouselClasses below
+ * and Pageable.tsx for the full trace.
  *
  * Lesson: after adding ANY class name to one of these maps, verify it
  * ACTUALLY RESOLVES (non-empty string on `element.className`) in the live
@@ -109,6 +114,21 @@ export const ClipClasses = classModule('PostGameSummaryClip');
  * but the `<img>` and its hover-share-icon classes do not.
  */
 export const ScreenshotClasses = classModule('ClickableScreenshotImg');
+
+/**
+ * The real scrolling-carousel primitive's own classes: `BoxCarousel` (the
+ * scrollable row, `overflow-x` + edge-mask gradient), `BoxCarouselContents`,
+ * `ListElement`, `MaskRight`/`MaskRightNew` (the fade-out gradient hinting
+ * more content), `OnLastPage` (removes the mask at the end). A generic,
+ * widely-shared module (also used by Steam for things far outside the
+ * Post-Game Summary) - resolved separately because it does not carry any of
+ * the four keys the other four modules are probed by, and none of THEM carry
+ * `BoxCarousel` either. See Pageable.tsx for how this pairs with
+ * `PageableClasses`/`SummaryClasses` to reproduce Steam's real
+ * Pageable+Carousel composition (module `4584` + `26271`, walked from the
+ * live client - not reverse-engineered from markup alone).
+ */
+export const CarouselClasses = classModule('BoxCarousel');
 
 /** True when a module resolved; lets callers degrade instead of rendering unstyled. */
 export function hasClasses(map: ClassMap): boolean {

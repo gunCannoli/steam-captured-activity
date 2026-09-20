@@ -157,15 +157,33 @@ border) this class was never written to reset.
 HeaderPageControls               (flex row, header text left, controls right)
 ├─ GamePlaySummaryHeader           "Post-Game Summary" (text-transform: uppercase)
 └─ PageClickContainer
-   ├─ PageLeft  [.Disabled at start]   -- SVG arrow, transform: scale(-1, 1)
-   ├─ PageRight [.Disabled at end]     -- same SVG arrow, not flipped
+   ├─ PageLeft  [.Disabled at start]   -- only rendered at all when overflowing
+   ├─ PageRight [.Disabled at end]     -- only rendered at all when overflowing
    └─ PageableCloseButton              -- the "X"; dismisses the whole summary
 ```
 
-`.Disabled` is a plain class Steam toggles based on scroll position — there is
-no separate ARIA `disabled` attribute to manage by hand if you reuse this
-structure (e.g. via `@steambrew/client`'s `Carousel`, which likely implements
-the same paging state).
+`.Disabled` is a plain class Steam toggles based on scroll position (a real
+`ARIA disabled` attribute is worth adding alongside it for accessibility, but
+Steam's own markup does not carry one). **Corrected from an earlier, wrong
+guess in this doc**: the pager arrow is not the same SVG mirrored via
+`transform: scale(-1, 1)` — it is `transform: rotate(0deg)` for `PageLeft` and
+`rotate(180deg)` for `PageRight`, on an icon authored at `256×256`
+(`SVGIcon_Button SVGIcon_DoubleArrow`, scaled down to `16×16` rendered by the
+same global utility class the close icon uses). `PageLeft`/`PageRight` are
+each their own two-token class from `PageableClasses` (same module as
+`PageableCloseButton`/`Small`, module `29158`) — `_14b-...CUX PageLeft` /
+`_3IIE...naT PageRight` — with `.Disabled`'s hash
+(`_16nHYucq6xgfe67DrVWLCI`) appended when that direction has nothing left to
+scroll to.
+
+Also corrected: this pager is **not** `@steambrew/client`'s exported
+`Carousel` (a windowed, index-based virtualizer built for long uniform
+lists — the wrong shape here). It is Steam's own unexported `Pageable` +
+`Carousel` pair (modules `4584` and `26271`), reimplemented directly in
+`frontend/components/carousel.tsx` — see knowledgebase.md for the full trace,
+including two silent-no-op runtime quirks in this Steam/CEF build
+(`scrollTo({behavior:'smooth'})` and JS-driven `scrollLeft` not firing a
+`scroll` event) found and worked around while implementing it.
 
 ---
 

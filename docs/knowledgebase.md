@@ -462,6 +462,163 @@ resolved class's effect looks wrong, dump the *whole* object
 (`console.log(SomeClasses)` or the CDP snippet above) and check every name
 against it by exact match — do not trust that a name "sounds like" it belongs.
 
+#### A literal string in `cx()` can silently drop a real hash (**✅ verified twice**, building `non-steam-games-activity`)
+
+Two separate bugs, same root cause: `cx(SomeClasses.Foo, 'Bar')` was written
+with the **literal string** `'Bar'` where `SomeClasses.Bar` (a lookup) was
+meant. TypeScript cannot catch this — a literal string is a perfectly valid
+`string` argument — so it compiles clean and only fails visually, at runtime,
+in the live client.
+
+The reason it fails at all: not every class value in these modules is a bare
+hash. Several are **two-token strings already**, e.g. (from `PageableClasses`,
+probe `PageableContainer`):
+
+```js
+PageableClasses.Small               // "_3qlJ0L41KQFqUTzVQKFERC Small"
+PageableClasses.PageableCloseButton // "_2dB1oJFsqNThak1cFya2-q PageableCloseButton"
+```
+
+Passing the literal string `'Small'` instead of `PageableClasses.Small` drops
+the hash `_3qlJ0L41KQFqUTzVQKFERC` entirely — the element keeps whatever rules
+`PageableCloseButton`'s own hash carries, but loses every rule scoped to
+`.Small` specifically (in this case, the close button's actual sizing).
+Native's real rendered class is 4 tokens
+(`<hash1> PageableCloseButton <hash2> Small`); the bug rendered only 2.
+
+The second instance was identical in shape: `cx(ClipClasses.DurationText,
+'Clip')` instead of `cx(ClipClasses.DurationText, ClipClasses.Clip)` dropped
+`.Clip`'s amber colour rule (`rgb(255,213,95)`), leaving the clip duration
+badge in `DurationText`'s own default blue
+(`rgb(26,159,255)`, Steam's default highlight colour) — a bug that looks like
+"wrong color" rather than "missing class," which is what made it non-obvious
+from the rendered result alone.
+
+**The rule going forward:** never write a class-modifier as a literal string
+next to a resolved lookup in the same `cx()` call. If a modifier needs adding,
+resolve it from the same class map (`SomeClasses.Modifier`), even if it looks
+like a plain, unhashed word — check its actual value first
+(`console.log(SomeClasses)`), because it may already be a multi-token string
+in disguise.
+
+#### Two runtime APIs are silent no-ops in this Steam/CEF build (**✅ verified**, building the Post-Game Summary's real carousel)
+
+Found implementing real pager/scroll behaviour (see "Reusing Steam's native
+UI" above for the component this belongs to). Both fail **silently** — no
+thrown error, no console warning — which is what makes them worth recording
+rather than re-discovering:
+
+1. **`Element.scrollTo({ behavior: 'smooth' })` does nothing.** `scrollLeft`
+   never changes. Confirmed by monkeypatching `scrollTo` on the live element
+   to trace every call: the correct target value was computed and passed
+   every time; only the `smooth` variant failed to apply. The exact same call
+   with `behavior: 'auto'` works instantly. Native's own scrolling-carousel
+   component (module `26271`, see below) never actually relies on the
+   browser's smooth-scroll for this reason — it animates `scrollLeft` by hand
+   via its own small animation helper
+   (`new SomeAnimator(el, {scrollLeft}, {msDuration:500,
+   timing:"cubic-in-out"})`). `non-steam-games-activity` now does the same
+   (`animateScrollLeft` in `frontend/components/carousel.tsx`): a plain
+   `requestAnimationFrame` loop easing `scrollLeft` from its current value to
+   the target over 500ms.
+2. **Setting `scrollLeft` from JS never dispatches a native `scroll`
+   event**, in this build, at all. Confirmed by attaching a `scroll`
+   listener that incremented a counter, then running a full visible
+   scroll-left-to-right animation (via the manual animator above) and polling
+   the counter for a full second afterward — it stayed at `0` throughout, even
+   though `scrollLeft` visibly moved from `0` to `308`. Any code relying on
+   `element.addEventListener('scroll', ...)` to react to a JS-driven scroll
+   (as opposed to a real wheel/trackpad/touch scroll, which may still dispatch
+   normally) needs its own explicit hook into whatever moves `scrollLeft` —
+   for the carousel, that means the scroll-animation loop itself calls the
+   "recompute pager state" function on every frame, rather than leaning on
+   `onScroll`.
+
+Neither of these is Millennium- or plugin-specific; they are properties of
+the specific CEF build Steam embeds. Worth re-checking if Steam ever updates
+its embedded CEF version.
+
+#### Steam's real Post-Game Summary carousel is not `@steambrew/client`'s `Carousel` (**✅ verified**, walking the live module cache)
+
+`@steambrew/client` exports a `Carousel` component
+(`build/components/Carousel.d.ts`), but it is the wrong shape for this UI: it
+is a **windowed, index-based virtualizer** (`fnItemRenderer(id)`,
+`nNumItems`, `fnGetColumnWidth`) built for long uniform lists — a friends
+list, a store shelf — where rendering every item at once would be wasteful.
+The Post-Game Summary has a handful of variable-size tiles (screenshots,
+clips, achievement stacks, trading cards) and does not need virtualization at
+all.
+
+Steam's own client does **not** use its exported `Carousel` for this either.
+Walking the live module cache (same technique as above, searching factory
+source text for `PageLeft`/`PageRight` co-occurrence, then for
+`fnUpdateArrows`) found the real, unexported pair:
+
+- **Module `4584`** (`Pageable`) — renders `PageableContainer` →
+  `HeaderPageControls` (title, then `PageClickContainer` holding
+  `PageLeft`/`PageRight`/`PageableCloseButton`) → `PageableContent`. Takes
+  `bLeftEnabled`/`bRightEnabled` as props and **only renders the
+  `PageLeft`/`PageRight` fragment at all when at least one is true** — this
+  is why native shows no arrows whatsoever on a summary small enough to fit
+  one row, not a disabled pair. A `Carousel`-suffixed outer class (exported
+  as `C`) wraps this, holding `bLeftArrowEnabled`/`bRightArrowEnabled` as
+  state and exposing `ScrollLeft`/`ScrollRight`/`ScrollToFirstChild` methods
+  via a ref to its actual scrolling child.
+- **Module `26271`** (the real `Carousel`, exported as `Q`) — the plain-DOM
+  scrolling primitive itself: a `ResizeObserver` on the scrolling div
+  re-checks overflow on any size change, `UpdateScrollArrows` computes
+  `bLeftEnabled`/`bRightEnabled` from `scrollLeft`/`clientWidth`/
+  `scrollWidth` (`scrollLeft >= 1` for left; `scrollLeft + clientWidth <
+  scrollWidth` for right) and reports them via `fnUpdateArrows`,
+  `ScrollLeft`/`ScrollRight` walk the DOM children to find the next/previous
+  tile not already fully visible and scroll to its leading edge (not a fixed
+  pixel amount, not a full page), and `componentDidUpdate` re-runs the
+  overflow check unconditionally on every render (not only from the
+  `ResizeObserver` — see the silent-no-op section above for why that
+  distinction matters). Children carrying `data-carousel="ignore"` (Steam's
+  own `TypeSeparator`/`ForcedCarouselPadding` spacers) are skipped by this
+  visibility math.
+
+Real usage, decompiled from the actual Post-Game Summary component (module
+`53074`):
+
+```jsx
+<Pageable
+  name="Post-Game Summary"
+  bShowCloseButton={true}
+  onCloseButtonClicked={dismiss}
+  buttonSize="small"
+>
+  {(ref, fnUpdateArrows) => (
+    <Carousel
+      className={SummaryClasses.SummaryCarouselContainer}
+      leftMargin={32}
+      ref={ref}
+      fnUpdateArrows={fnUpdateArrows}
+      edgeMask="none"
+    >
+      {tiles}
+    </Carousel>
+  )}
+</Pageable>
+```
+
+Neither `Pageable` nor this real `Carousel` is exported by
+`@steambrew/client` — `non-steam-games-activity` reimplements `26271`'s
+behaviour directly (`frontend/components/carousel.tsx`, `ItemCarousel`) along
+with its own resolved class module (`CarouselClasses`, probe `BoxCarousel` —
+a fifth module beyond the four the Post-Game Summary tree already needed, and
+a genuinely different one from all of them: it does not carry any of their
+probe keys, and none of them carry `BoxCarousel`).
+
+The pager chevron itself (`PageLeft`/`PageRight`'s icon) was copied the same
+way — module `50376`, the function Steam calls with `singlearrow={true}`:
+passing that prop skips rendering the icon's second `<polyline>` (a
+double-chevron by default; Steam's *other* uses of the same icon component,
+e.g. a "skip to end" control, presumably want both). `angle={0}` /
+`angle={180}` rotate the same left-pointing path via an inline
+`transform: rotate(...)`, rather than two different paths for left vs right.
+
 ### Identifying non-Steam apps
 
 Steam assigns shortcuts very high app ids. The SDK exposes the boundary as

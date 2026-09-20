@@ -79,10 +79,10 @@ assert this. Our captures live in `<Steam>/userdata/`, outside that jail.
 
 So base64 over RPC, which the measurements make comfortable:
 
-| | count | median |
-| --- | --- | --- |
-| Steam thumbnails | 615 | **11 KB** |
-| Full screenshots | 616 | **931 KB** |
+|                  | count | median     |
+| ---------------- | ----- | ---------- |
+| Steam thumbnails | 615   | **11 KB**  |
+| Full screenshots | 616   | **931 KB** |
 
 A 20-thumbnail page is ~0.4 MB of JSON; the same page of full images would be
 ~25 MB. Hence thumbnails in bulk, full images on demand.
@@ -123,7 +123,7 @@ Two bugs found by doing it for real rather than assuming:
    Millennium's own `config.json` for strict JSON parsers. `dev.ps1` now writes
    UTF-8 without a BOM via `System.IO.File`.
 2. **The plugin name is baked into the bundle at build time**, and Millennium
-   routes RPC by that name. Renaming the manifest *after* building made the
+   routes RPC by that name. Renaming the manifest _after_ building made the
    frontend call `<name>` while the backend registered as `<name>-dev`, so every
    call failed with "plugin not running". `dev.ps1` now renames before the build
    and restores the source manifest in a `finally`.
@@ -237,7 +237,7 @@ Still open from that testing round:
 
 ---
 
-## Phase 5c — Rebuild the summary as real Steam components ✅ DONE (with follow-ups) ⬅ NEXT: items 2, 3, 5 below
+## Phase 5c — Rebuild the summary as real Steam components ✅ DONE (with follow-ups) ⬅ NEXT: items 3, 5 below
 
 The prior "carousel" was our own hand-rolled markup/CSS wearing Steam's class
 names as decoration, not a clone of Steam's real tree — visibly inconsistent
@@ -272,95 +272,132 @@ fixed — noted here per instruction to save token budget rather than keep
 live-debugging:
 
 1. [x] **Verified live, fixed in full.** Close button had a white background
-   and sat on its own row, not inline with the "Post-Game Summary" title like
-   native. Two separate bugs, found across two live-testing passes:
-   - **Bug A** (fixed and confirmed first): we rendered a real `<button>`
-     element, which carries browser-default chrome (white/grey background,
-     border) that `PageableCloseButton`'s CSS was never written to reset —
-     Steam's own clickable elements are all `<div role="button">`, never a
-     real `<button>`. Changed to `<div role="button" tabIndex={0}>` with a
-     keyboard handler.
-   - **Bug B** (found on a second, more careful live diff against a native
-     button on Divinity: Original Sin 2, appid 435150): even after Bug A, the
-     button still didn't match. Native's real class is
-     `_2dB1oJFsqNThak1cFya2-q PageableCloseButton _3qlJ0L41KQFqUTzVQKFERC Small`
-     — **two hashes**, not one. Our code was `cx(P.PageableCloseButton,
-     'Small')` — the literal string `'Small'`, not `P.Small`. In
-     `PageableClasses` (module `29158`), `Small` does not resolve to a bare
-     hash like most modifier classes do; it resolves to a two-token string,
-     confirmed live: `PageableClasses.Small === "_3qlJ0L41KQFqUTzVQKFERC
-     Small"`. The literal string silently dropped that second hash, so the
-     button never picked up the sizing/positioning rule scoped to it. Fixed
-     to `cx(P.PageableCloseButton, P.Small)`.
-   - **Live verification after both fixes** (fresh Steam restart to load the
-     new bundle, AM2R page, `aria-label=Dismiss` element in the real desktop
-     popup DOM): our class is now `_2dB1oJFsqNThak1cFya2-q
-     _3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
-     matches native exactly: `16×16px`, `background: rgba(0,0,0,0)`,
-     `color: rgb(221,221,221)`. Position within the header row also checked:
-     `6px` from the row's top in a `28px`-tall row — exactly centered for a
-     16px-tall button — and flush to the row's right edge, matching native's
-     layout.
-2. [ ] **No pager arrows rendered at all** in our version — native shows `‹ ›`
-   before the `✕`, ours shows only the close button. We dropped `PageLeft`/
-   `PageRight` entirely because we don't implement real paging (Phase 5b
-   already wraps extra tiles onto a second row instead). Options: (a) render
-   the arrows but make them a no-op / hide when everything already fits in
-   view (matching how native disables them at an edge), or (b) implement real
-   paging using `@steambrew/client`'s `Carousel` component instead of our flex
-   row, which would make the arrows meaningful and might resolve #2 alongside
-   proper keyboard/gamepad paging (relevant to Big Picture too).
+       and sat on its own row, not inline with the "Post-Game Summary" title like
+       native. Two separate bugs, found across two live-testing passes: - **Bug A** (fixed and confirmed first): we rendered a real `<button>`
+       element, which carries browser-default chrome (white/grey background,
+       border) that `PageableCloseButton`'s CSS was never written to reset —
+       Steam's own clickable elements are all `<div role="button">`, never a
+       real `<button>`. Changed to `<div role="button" tabIndex={0}>` with a
+       keyboard handler. - **Bug B** (found on a second, more careful live diff against a native
+       button on Divinity: Original Sin 2, appid 435150): even after Bug A, the
+       button still didn't match. Native's real class is
+       `_2dB1oJFsqNThak1cFya2-q PageableCloseButton _3qlJ0L41KQFqUTzVQKFERC Small`
+       — **two hashes**, not one. Our code was `cx(P.PageableCloseButton,
+'Small')` — the literal string `'Small'`, not `P.Small`. In
+       `PageableClasses` (module `29158`), `Small` does not resolve to a bare
+       hash like most modifier classes do; it resolves to a two-token string,
+       confirmed live: `PageableClasses.Small === "_3qlJ0L41KQFqUTzVQKFERC
+Small"`. The literal string silently dropped that second hash, so the
+       button never picked up the sizing/positioning rule scoped to it. Fixed
+       to `cx(P.PageableCloseButton, P.Small)`. - **Live verification after both fixes** (fresh Steam restart to load the
+       new bundle, AM2R page, `aria-label=Dismiss` element in the real desktop
+       popup DOM): our class is now `_2dB1oJFsqNThak1cFya2-q
+_3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
+       matches native exactly: `16×16px`, `background: rgba(0,0,0,0)`,
+       `color: rgb(221,221,221)`. Position within the header row also checked:
+       `6px` from the row's top in a `28px`-tall row — exactly centered for a
+       16px-tall button — and flush to the row's right edge, matching native's
+       layout.
+2. [x] **Verified live, fixed in full. Real paging implemented** — not fake
+       disabled arrows, and not `@steambrew/client`'s exported `Carousel`
+       either (that one is windowed/index-based, built for long uniform
+       lists — the wrong shape for a handful of variable-size tiles). Walked
+       Steam's own client instead: the real Post-Game Summary uses an
+       unexported pair of components — module `4584` (`Pageable`, renders
+       `HeaderPageControls`/`PageLeft`/`PageRight`/`PageableCloseButton`) and
+       module `26271` (`Carousel`, the actual plain-DOM scrolling
+       primitive) — neither re-exported by `@steambrew/client`. Reimplemented
+       `26271`'s real behaviour in `frontend/components/carousel.tsx`
+       (`ItemCarousel`): a `ResizeObserver`-backed overflow check, scroll-by-
+       one-tile paging, and a fifth resolved class module (`CarouselClasses`,
+       probe `BoxCarousel`) for its own CSS. Confirmed live: native shows **no
+       arrows at all** when everything fits one row (not a disabled pair) —
+       `Pageable`'s own source only renders the `PageLeft`/`PageRight`
+       fragment when `bLeftEnabled || bRightEnabled`; ours now does the same.
+       Native's pager chevron (`SVGIcon_Button SVGIcon_DoubleArrow`,
+       `singlearrow` prop skips the second polyline) was also copied verbatim
+       from module `50376` rather than approximated.
+
+       **Two real bugs found only by testing the click path, not just the
+       markup** (both now fixed):
+       - `Element.scrollTo({behavior:'smooth'})` is a **silent no-op** in this
+         Steam/CEF build — `scrollLeft` never changes, no error thrown,
+         confirmed by monkeypatching `scrollTo` to trace calls (the correct
+         target was always computed and passed; only the smooth variant
+         failed to apply). `behavior:'auto'` on the identical call works
+         instantly. Fixed by animating `scrollLeft` by hand
+         (`animateScrollLeft`, 500ms cubic-in-out) — which is what native's
+         own carousel does too (module `26271` uses its own animation helper,
+         never the browser's smooth-scroll, for exactly this kind of
+         cross-environment reliability reason).
+       - Setting `scrollLeft` from JS **never dispatches a native `scroll`
+         event** in this build either (confirmed by a listener + polling
+         counter that stayed at 0 through a full visible animation). This
+         made `onScroll={updateArrows}` dead code, not just throttled —
+         arrows would have frozen at whichever state they had before the
+         first scroll. Fixed by having the scroll animation call
+         `updateArrows` itself every frame (`onFrame` callback), standing in
+         for the event this environment won't deliver; `onScroll` is kept as
+         a correct-where-possible fallback (real wheel/touch scrolling may
+         still dispatch it normally) rather than removed.
+
+       Verified live end-to-end on AM2R's real (organically grown during
+       testing to 6 entries) Post-Game Summary: arrows appear only when
+       content overflows, `PageLeft` starts `.Disabled`+`aria-disabled=true`,
+       clicking `PageRight` animates the scroll and correctly flips both
+       arrows' enabled state, and scrolling back re-disables `PageLeft` at the
+       start.
 3. [ ] **No hover/click interactions match native**: native hovering a
-   screenshot opens a small detail popup and brightens a download icon
-   top-right of the image; hovering a *recording* plays the clip inline on
-   its own thumbnail; clicking either opens fullscreen in Steam's own
-   overlay. We currently do none of this — `MediaCard` has no hover state,
-   and click falls back to `ShowScreenshotInSystemViewer` (OS viewer) because
-   the in-client `/media` route needs navigator state we could not pass
-   (ADR-0020). Two source classes exist to investigate:
-   `ScreenshotShareIcon` (module `84009`, already known — see
-   `ScreenshotClasses`) for the hover icon, and the clip's animated-hover
-   mechanism is still the unidentified item from `steam-styles.md`'s open
-   questions. This is the largest remaining gap and likely needs the same
-   module-cache-walking technique used for the summary tree, applied to
-   whatever component renders `/media/item/...` — worth revisiting once/if a
-   way to reach Steam's real overlay (not just the OS viewer) is found.
+       screenshot opens a small detail popup and brightens a download icon
+       top-right of the image; hovering a _recording_ plays the clip inline on
+       its own thumbnail; clicking either opens fullscreen in Steam's own
+       overlay. We currently do none of this — `MediaCard` has no hover state,
+       and click falls back to `ShowScreenshotInSystemViewer` (OS viewer) because
+       the in-client `/media` route needs navigator state we could not pass
+       (ADR-0020). Two source classes exist to investigate:
+       `ScreenshotShareIcon` (module `84009`, already known — see
+       `ScreenshotClasses`) for the hover icon, and the clip's animated-hover
+       mechanism is still the unidentified item from `steam-styles.md`'s open
+       questions. This is the largest remaining gap and likely needs the same
+       module-cache-walking technique used for the summary tree, applied to
+       whatever component renders `/media/item/...` — worth revisiting once/if a
+       way to reach Steam's real overlay (not just the OS viewer) is found.
 4. [x] **Verified live, fixed. Clip badge color/size wrong**: ours rendered
-   the scissors icon+time in blue at a too-small size; native is a
-   distinctive **amber/yellow** at a visibly larger size. Root cause
-   confirmed by comparing computed styles against a real native clip tile
-   (Divinity: Original Sin 2, appid 435150): native `color: rgb(255, 213,
-   95)`, ours `rgb(26, 159, 255)` (Steam's default highlight blue — i.e. we
-   were getting `DurationText`'s own base color with none of the amber
-   override applied). Bug: `cx(C.DurationText, 'Clip')` used the literal
-   string `'Clip'`, not `C.Clip`'s resolved hash — native's real class order
-   is `"DurationText Clip"`, both hashes present, and the amber rule lives
-   specifically on the `.Clip` hash-scoped class, not on `DurationText`
-   alone. Fixed to `cx(C.DurationText, C.Clip)`. Icon size: native's SVG
-   is authored at `width="24" height="24"` (renders non-square, ~20×25px,
-   due to container constraints — not because the SVG itself is small); we
-   had hardcoded `14×14`. Fixed to `24×24` to match native's authored
-   attributes.
-5. **Vertical gap between day sections is far too large** — compared
-   side-by-side (Post-Game Summary + "Today" + "October 24, 2025" on our page
-   vs. native's tightly-packed "Yesterday"/"September 17"/"September 15"),
-   native spaces consecutive day sections roughly **2 title-row-heights**
-   apart; ours has several times that. Root cause is understood, just not
-   fixed: our own JSX adds **no** margin/padding around a day's `div` at all
-   (`{days.map((day) => (<div className={A.AppActivityDay}>…`, no `style`
-   prop) — the gap is entirely `AppActivityDay`'s own Steam CSS, which Steam
-   tuned for its **native use** (a feed of compact one-line `Event` rows:
-   achievement unlocks, patch notes). We are reusing that same class as a
-   wrapper around a much taller 126px-high media-tile row, so whatever
-   fixed `margin-bottom`/`padding` Steam authored compounds visually against
-   content it was never measured against. This is a general risk worth
-   naming: **cloning a Steam class does not guarantee correct rhythm when
-   the content placed inside it has a different shape than what Steam
-   itself puts there.** Not yet measured or fixed — needs
-   `getComputedStyle(dayDiv).marginBottom` (or padding) captured live, then
-   either accept Steam's spacing as-is (if intentional) or override with an
-   explicit smaller margin once the actual native day-to-day gap is measured
-   in pixels rather than eyeballed.
+       the scissors icon+time in blue at a too-small size; native is a
+       distinctive **amber/yellow** at a visibly larger size. Root cause
+       confirmed by comparing computed styles against a real native clip tile
+       (Divinity: Original Sin 2, appid 435150): native `color: rgb(255, 213,
+95)`, ours `rgb(26, 159, 255)` (Steam's default highlight blue — i.e. we
+       were getting `DurationText`'s own base color with none of the amber
+       override applied). Bug: `cx(C.DurationText, 'Clip')` used the literal
+       string `'Clip'`, not `C.Clip`'s resolved hash — native's real class order
+       is `"DurationText Clip"`, both hashes present, and the amber rule lives
+       specifically on the `.Clip` hash-scoped class, not on `DurationText`
+       alone. Fixed to `cx(C.DurationText, C.Clip)`. Icon size: native's SVG
+       is authored at `width="24" height="24"` (renders non-square, ~20×25px,
+       due to container constraints — not because the SVG itself is small); we
+       had hardcoded `14×14`. Fixed to `24×24` to match native's authored
+       attributes.
+5. [ ] **Vertical gap between day sections is far too large** — compared
+       side-by-side (Post-Game Summary + "Today" + "October 24, 2025" on our page
+       vs. native's tightly-packed "Yesterday"/"September 17"/"September 15"),
+       native spaces consecutive day sections roughly **2 title-row-heights**
+       apart; ours has several times that. Root cause is understood, just not
+       fixed: our own JSX adds **no** margin/padding around a day's `div` at all
+       (`{days.map((day) => (<div className={A.AppActivityDay}>…`, no `style`
+       prop) — the gap is entirely `AppActivityDay`'s own Steam CSS, which Steam
+       tuned for its **native use** (a feed of compact one-line `Event` rows:
+       achievement unlocks, patch notes). We are reusing that same class as a
+       wrapper around a much taller 126px-high media-tile row, so whatever
+       fixed `margin-bottom`/`padding` Steam authored compounds visually against
+       content it was never measured against. This is a general risk worth
+       naming: **cloning a Steam class does not guarantee correct rhythm when
+       the content placed inside it has a different shape than what Steam
+       itself puts there.** Not yet measured or fixed — needs
+       `getComputedStyle(dayDiv).marginBottom` (or padding) captured live, then
+       either accept Steam's spacing as-is (if intentional) or override with an
+       explicit smaller margin once the actual native day-to-day gap is measured
+       in pixels rather than eyeballed.
 
 ---
 
@@ -382,7 +419,7 @@ Tasks:
 
 - [ ] **First: confirm JS reaches the gamepad window.** Log from inside an
       `SP BPM_` popup. Millennium [#754](https://github.com/SteamClientHomebrew/Millennium/issues/754)
-      (closed) reports injected *CSS* not reaching BPM's inner DOM; if that
+      (closed) reports injected _CSS_ not reaching BPM's inner DOM; if that
       isolation applies to JS too, this phase is blocked — find out before
       building.
 - [ ] Read location per popup type: `Steam.MainWindowBrowserManager.m_lastLocation`
@@ -428,23 +465,23 @@ real consumer, not guessed.
 Run against the live Steam client with the plugin installed. Every row must pass
 before the plugin is considered done.
 
-| # | Scenario | Expected |
-| --- | --- | --- |
-| 1 | Open **AM2R** (has 2 screenshots + 1 clip) | Summary shows the clip; activity shows 2026-09-19 and 2025-10-24 |
-| 2 | Open **Super Metroid Vitality** (3 screenshots, no clip) | Activity renders; no empty summary box |
-| 3 | Open a non-Steam game with **no media** | Friendly empty state, **not** Steam's grey box |
-| 4 | Open a **native Steam game** (e.g. 435150) | Plugin does not touch the page at all |
-| 5 | Open a RetroArch shortcut (e.g. Chrono Trigger) | Core page renders; no provider errors |
-| 6 | Click a screenshot | Opens at full size |
-| 7 | Click a clip | Plays, or hands off to Steam's player |
-| 8 | Play a game, quit, reopen its page | New media appears without restarting Steam |
-| 9 | Library grid | Screenshot counts visible; sorting still works |
-| 10 | Restart Steam | Plugin loads clean; no console errors |
-| 11 | Disable the plugin | Steam returns to its stock page with no leftovers |
-| 12 | Startup timing | No perceptible delay vs plugin disabled |
-| 13 | **Big Picture** — open AM2R's page | Same media as desktop, in BPM's layout |
-| 14 | **Big Picture** — navigate with a controller only | Every media card reachable and activatable |
-| 15 | Switch desktop → BPM → desktop | Both render; no duplicate or orphaned nodes |
+| #   | Scenario                                                 | Expected                                                         |
+| --- | -------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1   | Open **AM2R** (has 2 screenshots + 1 clip)               | Summary shows the clip; activity shows 2026-09-19 and 2025-10-24 |
+| 2   | Open **Super Metroid Vitality** (3 screenshots, no clip) | Activity renders; no empty summary box                           |
+| 3   | Open a non-Steam game with **no media**                  | Friendly empty state, **not** Steam's grey box                   |
+| 4   | Open a **native Steam game** (e.g. 435150)               | Plugin does not touch the page at all                            |
+| 5   | Open a RetroArch shortcut (e.g. Chrono Trigger)          | Core page renders; no provider errors                            |
+| 6   | Click a screenshot                                       | Opens at full size                                               |
+| 7   | Click a clip                                             | Plays, or hands off to Steam's player                            |
+| 8   | Play a game, quit, reopen its page                       | New media appears without restarting Steam                       |
+| 9   | Library grid                                             | Screenshot counts visible; sorting still works                   |
+| 10  | Restart Steam                                            | Plugin loads clean; no console errors                            |
+| 11  | Disable the plugin                                       | Steam returns to its stock page with no leftovers                |
+| 12  | Startup timing                                           | No perceptible delay vs plugin disabled                          |
+| 13  | **Big Picture** — open AM2R's page                       | Same media as desktop, in BPM's layout                           |
+| 14  | **Big Picture** — navigate with a controller only        | Every media card reachable and activatable                       |
+| 15  | Switch desktop → BPM → desktop                           | Both render; no duplicate or orphaned nodes                      |
 
 Also confirm: no secrets in logs, and `GetDiagnostics` still reports
 223 shortcuts / 211 screenshots / 6 games with media.
@@ -465,14 +502,14 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
 
 ## Open questions
 
-| Question | Blocks | Plan |
-| --- | --- | --- |
-| ~~Can `steamloopback.host` serve local files?~~ | — | **Answered: no** — jailed to `<Steam>/steamui/`. Base64 instead ([ADR-0017](docs/decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)) |
-| Does Millennium #754's BPM isolation affect JS, or only CSS? | Phase 6 | Log from an `SP BPM_` popup before building |
-| Do BPM tabs need separate injection per tab? | Phase 6 | Observe live; route is `/tab/<Name>` |
-| Can we play DASH inline, or must we hand off? | Phase 4 polish | Poster + handoff in v1 |
-| Are `timeline_*.json` user markers worth showing? | — | Deferred; data is parsed and available |
-| Recording `video/` (background) vs `clips/` | Phase 4 | Only `clips/` seen so far; `video/` stays empty here |
+| Question                                                     | Blocks         | Plan                                                                                                                                                               |
+| ------------------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ~~Can `steamloopback.host` serve local files?~~              | —              | **Answered: no** — jailed to `<Steam>/steamui/`. Base64 instead ([ADR-0017](docs/decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)) |
+| Does Millennium #754's BPM isolation affect JS, or only CSS? | Phase 6        | Log from an `SP BPM_` popup before building                                                                                                                        |
+| Do BPM tabs need separate injection per tab?                 | Phase 6        | Observe live; route is `/tab/<Name>`                                                                                                                               |
+| Can we play DASH inline, or must we hand off?                | Phase 4 polish | Poster + handoff in v1                                                                                                                                             |
+| Are `timeline_*.json` user markers worth showing?            | —              | Deferred; data is parsed and available                                                                                                                             |
+| Recording `video/` (background) vs `clips/`                  | Phase 4        | Only `clips/` seen so far; `video/` stays empty here                                                                                                               |
 
 ---
 
@@ -483,13 +520,13 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
 - Docs restructured to core + providers after finding Steam's own capture store
   (211 screenshots, 100% on disk). Rewrote the plugin around it.
 - Phase 1 built and tested. Bugs the suite caught, all now regression-guarded:
-  - `screenshots.vdf` block detection used digit-length, so Steam appid
-    `238960` was read as a screenshot index — AM2R returned **222** screenshots
-    instead of 2. Fixed by tracking brace depth.
-  - Protobuf reader recursed into every length-delimited field, misreading the
-    timeline *string* as a nested message → duration/dimensions came back 0.
-  - Varint reader bailed out mid-value on the 64-bit gameid, desynchronising
-    every later field.
+    - `screenshots.vdf` block detection used digit-length, so Steam appid
+      `238960` was read as a screenshot index — AM2R returned **222** screenshots
+      instead of 2. Fixed by tracking brace depth.
+    - Protobuf reader recursed into every length-delimited field, misreading the
+      timeline _string_ as a nested message → duration/dimensions came back 0.
+    - Varint reader bailed out mid-value on the 64-bit gameid, desynchronising
+      every later field.
 - User recorded a clip on AM2R → recordings verified end to end (14144 ms from
   `clip.pb` matches `PT14.144S` in the DASH manifest).
 - User recorded a clip on a **native** game (435150) → found that native games
@@ -516,7 +553,7 @@ Also confirm: no secrets in logs, and `GetDiagnostics` still reports
   diagnostics report 223/211/6, matching the suite. Two real bugs found in
   `dev.ps1`: PowerShell's `-Encoding UTF8` BOM corrupted Millennium's
   `config.json`, and the plugin name is baked into the bundle at build time so
-  the dev rename has to happen *before* building, not after.
+  the dev rename has to happen _before_ building, not after.
 - **Phase 2 resolved.** Read Millennium's loopback source rather than guessing:
   `steamloopback.host` is jailed to `<Steam>/steamui/` and explicitly rejects
   traversal, so it cannot serve anything from `userdata/`. Measured the
