@@ -101,11 +101,34 @@ export const PageableClasses = classModule('PageableContainer');
 
 /**
  * The clip tile specifically: `PostGameSummaryClip`, `ClipThumbnail`,
- * `CornerContent`, `DurationText`. A screenshot tile does not need this
- * module; a clip tile needs both this AND `SummaryClasses` (for
+ * `CornerContent`, `DurationText`, `Clip`. A screenshot tile does not need
+ * this module; a clip tile needs both this AND `SummaryClasses` (for
  * `SummaryContainer`/`SummaryContainerChildren`, which wrap either tile type).
+ *
+ * BUG FOUND LIVE, same session as the badge-colour fix it undid: probing on
+ * `PostGameSummaryClip` alone is AMBIGUOUS - two entirely different modules
+ * both export a key by that name (and also both export `Clip`/`DurationText`/
+ * `CornerContent`/`ClipThumbnail`). The other one is Steam's Media Manager
+ * ("manage recordings" list view - has `DeleteRecordingButton`,
+ * `ExportFileButton`, `BumperGlyph`/`TriggerGlyph` gamepad hints, etc.),
+ * which apparently shares the same tile component but a DIFFERENT colour
+ * scheme for its own `.Clip` badge. `findClassModule` returns whichever one
+ * it happens to encounter first, which is not stable across Steam
+ * sessions/builds - confirmed live: one session it resolved to the intended
+ * small Post-Game-Summary-only module, a later session (same code, same
+ * plugin build) it resolved to the Media Manager one instead, silently
+ * bringing back the exact "blue instead of amber" bug that was already fixed
+ * once, with no code change at all.
+ *
+ * Fixed by probing on `PostGameSummaryHighlight` instead - present ONLY in
+ * the small, dedicated module (confirmed by dumping both modules' full key
+ * lists side by side and diffing them), not in the Media Manager one. Any
+ * class this map is used for should be double-checked against a live
+ * `Object.keys(ClipClasses)` dump if it starts looking wrong again with no
+ * corresponding code change - that pattern means the probe found the wrong
+ * module again, not that something regressed.
  */
-export const ClipClasses = classModule('PostGameSummaryClip');
+export const ClipClasses = classModule('PostGameSummaryHighlight');
 
 /**
  * The screenshot tile's clickable image itself: `ClickableScreenshot`,

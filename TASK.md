@@ -237,7 +237,7 @@ Still open from that testing round:
 
 ---
 
-## Phase 5c — Rebuild the summary as real Steam components ✅ DONE (with follow-ups) ⬅ NEXT: items 3, 5 below
+## Phase 5c — Rebuild the summary as real Steam components ✅ DONE (with follow-ups) ⬅ NEXT: items 3, 7 below
 
 The prior "carousel" was our own hand-rolled markup/CSS wearing Steam's class
 names as decoration, not a clone of Steam's real tree — visibly inconsistent
@@ -267,9 +267,9 @@ and [§ Classes seen together are not necessarily one module](docs/knowledgebase
       (`14px/400/1px/uppercase/rgb(148,161,166)`), day headings and duration
       badges correct.
 
-**Fourth and fifth rounds of user testing** found five more gaps, not yet
-fixed — noted here per instruction to save token budget rather than keep
-live-debugging:
+**Fourth and fifth rounds of user testing** found five more gaps. A sixth
+round found a regression in one already-"fixed" item plus a sixth genuinely
+new gap (items 6-7 below were added then).
 
 1. [x] **Verified live, fixed in full.** Close button had a white background
        and sat on its own row, not inline with the "Post-Game Summary" title like
@@ -347,6 +347,31 @@ _3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
        clicking `PageRight` animates the scroll and correctly flips both
        arrows' enabled state, and scrolling back re-disables `PageLeft` at the
        start.
+
+       **Superseded same session, per explicit user instruction to prefer
+       reuse over reimplementation wherever possible** (see AGENTS.md "Reuse
+       Steam's real components"): the `ItemCarousel` reimplementation above
+       — while verified working — was replaced with `RealPostGameSummaryShell`
+       (`carousel.tsx`), which renders Steam's ACTUAL `Pageable`/`Carousel`
+       component instances (resolved via `@steambrew/client`'s
+       `findModuleExport`, filtered by stable `prototype` method names rather
+       than a fragile raw module id) instead of hand-built markup standing in
+       for them. `PostGameSummary` (activity.tsx) now supplies only the
+       tiles; header, dismiss button, pager arrows and all scroll/animation
+       behaviour are Steam's own code, byte-identical to native by
+       construction. Two more real bugs found and fixed getting this right
+       (both about `Pageable`'s exact prop contract, decompiled from module
+       `53074`, not guessed): passing `name` alone renders `Pageable`'s OWN
+       generic header instead of the real `GamePlaySummaryHeader`-classed one
+       (native never takes that path); `bNoHeader={true}` unconditionally
+       suppresses the ENTIRE header div, custom header included — the real
+       caller only sets it true for an achievements-only "short" summary,
+       never for screenshots/recordings, so this plugin now always passes
+       `bNoHeader={false}` + `customheader`. Verified live end-to-end again
+       after the swap: header markup now matches native down to
+       `headerPadding="0px 8px 0px 0px"`, arrows/dismiss both still
+       functional through the real component. A `PlainFallbackCarousel`
+       remains for the case Steam's own components fail to resolve.
 3. [ ] **No hover/click interactions match native**: native hovering a
        screenshot opens a small detail popup and brightens a download icon
        top-right of the image; hovering a _recording_ plays the clip inline on
@@ -362,6 +387,17 @@ _3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
        module-cache-walking technique used for the summary tree, applied to
        whatever component renders `/media/item/...` — worth revisiting once/if a
        way to reach Steam's real overlay (not just the OS viewer) is found.
+
+       **Approach it the way item 2 ended up going** (see AGENTS.md "Reuse
+       Steam's real components" and the carousel.tsx rewrite above): the
+       hover popup, share icon, and fullscreen overlay are almost certainly
+       real, resolvable Steam components too, not something to hand-build
+       from measured CSS. Find and render the real ones (`findModuleExport`
+       filtered by a stable `prototype`/export shape, same technique as
+       `RealPostGameSummaryShell`) before reaching for a from-scratch
+       reimplementation — a hand-built hover/lightbox is the higher-risk,
+       higher-effort path exactly like the carousel was, and was explicitly
+       the wrong final answer there.
 4. [x] **Verified live, fixed. Clip badge color/size wrong**: ours rendered
        the scissors icon+time in blue at a too-small size; native is a
        distinctive **amber/yellow** at a visibly larger size. Root cause
@@ -378,7 +414,42 @@ _3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
        due to container constraints — not because the SVG itself is small); we
        had hardcoded `14×14`. Fixed to `24×24` to match native's authored
        attributes.
-5. [ ] **Vertical gap between day sections is far too large** — compared
+
+       **Regressed and re-fixed later the same day, with no code change to
+       this fix itself**: the badge silently went back to blue in a later
+       session despite `cx(C.DurationText, C.Clip)` still being correct in
+       the source. Root cause: `ClipClasses`'s probe key
+       (`PostGameSummaryHighlight`... originally `PostGameSummaryClip`) was
+       ambiguous — **two different webpack modules** both export a
+       `PostGameSummaryClip`/`Clip`/`DurationText`/`CornerContent` set (the
+       small Post-Game-Summary-only module, and Steam's much larger Media
+       Manager "manage recordings" list view, which apparently shares the
+       same tile component but a different colour scheme). `findClassModule`
+       returned whichever one it found first, which is not stable across
+       Steam sessions — same plugin build, same source code, different
+       result. Fixed by re-probing on `PostGameSummaryHighlight`, present
+       only in the correct module (confirmed by diffing both modules' full
+       key lists). See `classes.ts` and knowledgebase.md for the full
+       writeup — this is a real, generally-applicable risk for any class
+       probe that isn't provably unique.
+6. [x] **Verified live, fixed. Dot separator shown between every tile pair**,
+       including two tiles of the same kind — native only shows the dot
+       crossing into/out of the "media" family (screenshot/clip/recording
+       highlights); two adjacent media tiles, or two tiles of the identical
+       kind, get invisible `SpaceOnly` spacing instead. Decompiled the exact
+       rule from Steam's real Post-Game Summary component (module `53074`):
+       `spaceOnly = prevKind == kind || (isMedia(prevKind) && isMedia(kind))`.
+       Confirmed live on Fields of Mistria (appid 2142790): a screenshot tile
+       followed by an achievement-stack tile has a bare `TypeSeparator` with
+       no `SpaceOnly` modifier — the dot renders. Implemented as
+       `typeSeparatorIsSpaceOnly()` in `activity.tsx`, used by both the
+       Post-Game Summary carousel and the day-feed row. Since this plugin's
+       own entries today are only `screenshot`/`recording` (both "media"),
+       this is a no-op visually right now — always `SpaceOnly` — but is the
+       real rule rather than a hardcode, so it stays correct once a provider
+       (e.g. retroachievements) contributes a non-media `kind` into the same
+       feed.
+7. [ ] **Vertical gap between day sections is far too large** — compared
        side-by-side (Post-Game Summary + "Today" + "October 24, 2025" on our page
        vs. native's tightly-packed "Yesterday"/"September 17"/"September 15"),
        native spaces consecutive day sections roughly **2 title-row-heights**

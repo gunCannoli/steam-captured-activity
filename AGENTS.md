@@ -104,6 +104,24 @@ it as a parameter.
 - **Steam's DOM is not a public API.** Class names are hashed and change between
   builds. Resolve via `findClassModule` at runtime; never hardcode a hashed class.
   See [ADR-0005](docs/decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules).
+- **Reuse Steam's real components over recreating them.** This plugin's job is to
+  make non-Steam games look like they have a native page, not to run a parallel
+  UI that merely resembles one. When a real Steam component for the behaviour
+  you need is reachable — including one not exported by `@steambrew/client`, via
+  `findModuleExport`/`findModule` from Steam's own module cache — render that
+  component directly rather than reimplementing its markup or behaviour by hand,
+  even if a hand-built version already exists and passes testing. A resolved
+  Steam component cannot drift from native (spacing tweaks, animation changes, a
+  future UI refresh); a hand-built copy can and will. Resolve by a stable,
+  minification-proof signature (real `prototype` method names — these are not
+  mangled, only variable/module bindings are — or a class-map probe key), never
+  by a raw numeric module id, which reshuffles between Steam builds. Always keep
+  a graceful fallback for when resolution fails, so a Steam update degrades the
+  page instead of crashing it. See the Post-Game Summary's carousel
+  (`non-steam-games-activity/frontend/components/carousel.tsx`) for a worked
+  example, including one it replaced: a from-scratch reimplementation of Steam's
+  scrolling carousel that worked, but was still discarded in favour of rendering
+  the real `Pageable`/`Carousel` components once they were confirmed reachable.
 - **Prefer patching Steam's data over its DOM** ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
 - **Respect third-party APIs.** RetroAchievements is donation-funded: cache hard,
   never poll, send a descriptive `User-Agent` ([ADR-0007](docs/decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).

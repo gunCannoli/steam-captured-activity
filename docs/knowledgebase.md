@@ -538,7 +538,7 @@ Neither of these is Millennium- or plugin-specific; they are properties of
 the specific CEF build Steam embeds. Worth re-checking if Steam ever updates
 its embedded CEF version.
 
-#### Steam's real Post-Game Summary carousel is not `@steambrew/client`'s `Carousel` (**✅ verified**, walking the live module cache)
+#### Steam's real Post-Game Summary carousel is not `@steambrew/client`'s `Carousel` — and the fix is to render the real one, not reimplement it (**✅ verified**, walking the live module cache)
 
 `@steambrew/client` exports a `Carousel` component
 (`build/components/Carousel.d.ts`), but it is the wrong shape for this UI: it
@@ -554,16 +554,16 @@ Walking the live module cache (same technique as above, searching factory
 source text for `PageLeft`/`PageRight` co-occurrence, then for
 `fnUpdateArrows`) found the real, unexported pair:
 
-- **Module `4584`** (`Pageable`) — renders `PageableContainer` →
-  `HeaderPageControls` (title, then `PageClickContainer` holding
-  `PageLeft`/`PageRight`/`PageableCloseButton`) → `PageableContent`. Takes
-  `bLeftEnabled`/`bRightEnabled` as props and **only renders the
-  `PageLeft`/`PageRight` fragment at all when at least one is true** — this
-  is why native shows no arrows whatsoever on a summary small enough to fit
-  one row, not a disabled pair. A `Carousel`-suffixed outer class (exported
-  as `C`) wraps this, holding `bLeftArrowEnabled`/`bRightArrowEnabled` as
-  state and exposing `ScrollLeft`/`ScrollRight`/`ScrollToFirstChild` methods
-  via a ref to its actual scrolling child.
+- **Module `4584`** (`Pageable`, exported as `C`) — renders `PageableContainer`
+  → `HeaderPageControls` (title, then `PageClickContainer` holding
+  `PageLeft`/`PageRight`/`PageableCloseButton`) → `PageableContent`. Its
+  `children` prop is a **render-prop function**, `(ref, fnUpdateArrows) =>
+  ReactNode`, not plain JSX children — it owns `bLeftArrowEnabled`/
+  `bRightArrowEnabled` as internal state, computed from whatever calls the
+  `fnUpdateArrows` it hands its render-prop, and **only renders the
+  `PageLeft`/`PageRight` fragment in the tree at all when at least one is
+  true** — this is why native shows no arrows whatsoever on a summary small
+  enough to fit one row, not a disabled pair.
 - **Module `26271`** (the real `Carousel`, exported as `Q`) — the plain-DOM
   scrolling primitive itself: a `ResizeObserver` on the scrolling div
   re-checks overflow on any size change, `UpdateScrollArrows` computes
@@ -573,11 +573,9 @@ source text for `PageLeft`/`PageRight` co-occurrence, then for
   `ScrollLeft`/`ScrollRight` walk the DOM children to find the next/previous
   tile not already fully visible and scroll to its leading edge (not a fixed
   pixel amount, not a full page), and `componentDidUpdate` re-runs the
-  overflow check unconditionally on every render (not only from the
-  `ResizeObserver` — see the silent-no-op section above for why that
-  distinction matters). Children carrying `data-carousel="ignore"` (Steam's
-  own `TypeSeparator`/`ForcedCarouselPadding` spacers) are skipped by this
-  visibility math.
+  overflow check unconditionally on every render. Children carrying
+  `data-carousel="ignore"` (Steam's own `TypeSeparator`/
+  `ForcedCarouselPadding` spacers) are skipped by this visibility math.
 
 Real usage, decompiled from the actual Post-Game Summary component (module
 `53074`):
@@ -585,9 +583,14 @@ Real usage, decompiled from the actual Post-Game Summary component (module
 ```jsx
 <Pageable
   name="Post-Game Summary"
+  bNoHeader={isShortSummary}       // false whenever any real tile exists
+  customheader={<div className={SummaryClasses.GamePlaySummaryHeader}>
+    Post-Game Summary
+  </div>}
   bShowCloseButton={true}
   onCloseButtonClicked={dismiss}
   buttonSize="small"
+  headerPadding="0px 8px 0px 0px"
 >
   {(ref, fnUpdateArrows) => (
     <Carousel
@@ -603,21 +606,82 @@ Real usage, decompiled from the actual Post-Game Summary component (module
 </Pageable>
 ```
 
-Neither `Pageable` nor this real `Carousel` is exported by
-`@steambrew/client` — `non-steam-games-activity` reimplements `26271`'s
-behaviour directly (`frontend/components/carousel.tsx`, `ItemCarousel`) along
-with its own resolved class module (`CarouselClasses`, probe `BoxCarousel` —
-a fifth module beyond the four the Post-Game Summary tree already needed, and
-a genuinely different one from all of them: it does not carry any of their
-probe keys, and none of them carry `BoxCarousel`).
+Two easy misreadings of `Pageable`'s prop contract, both hit while building
+this, both worth flagging for the next thing that renders it:
 
-The pager chevron itself (`PageLeft`/`PageRight`'s icon) was copied the same
-way — module `50376`, the function Steam calls with `singlearrow={true}`:
-passing that prop skips rendering the icon's second `<polyline>` (a
-double-chevron by default; Steam's *other* uses of the same icon component,
-e.g. a "skip to end" control, presumably want both). `angle={0}` /
-`angle={180}` rotate the same left-pointing path via an inline
-`transform: rotate(...)`, rather than two different paths for left vs right.
+- Passing `name` alone (no `customheader`) renders `Pageable`'s OWN generic
+  `Name`+`Rule` header — not what native's Post-Game Summary actually shows
+  (its header carries the `GamePlaySummaryHeader` class, never `Name`).
+  Native computes its own header div once and passes it in as
+  `customheader` regardless of anything else.
+- `bNoHeader` is not a "hide `Pageable`'s default header, still show my
+  `customheader`" flag — reading `Pageable`'s own source
+  (`!this.props.bNoHeader && <div className={HeaderPageControls}>{customheader
+  ? customheader : <defaultHeader/>}</div>`) shows it gates the **entire**
+  header div, `customheader` included. The real caller only ever sets it
+  `true` for a "short" summary made up entirely of multi-achievement groups
+  (rendering that same header as a plain sibling above `Pageable` instead) —
+  never for screenshots/recordings. A consumer whose content is always
+  media tiles should always pass `bNoHeader={false}`.
+
+**First built as a from-scratch reimplementation, then replaced with the
+real components once resolvable** — worth recording as a full worked example
+of "Reuse Steam's real components" (see AGENTS.md): `26271`'s scrolling
+behaviour was fully reimplemented and verified working
+(`frontend/components/carousel.tsx`, then called `ItemCarousel`) before this
+project's owner explicitly said to prefer rendering the real components
+wherever reachable, even over an already-working hand-built copy — the
+principle being that a resolved Steam component cannot drift from native,
+where a hand-built approximation can and does (see the header-prop mistakes
+above, discovered only once a real diff against native was actually
+performed).
+
+Both `Pageable` and this real `Carousel` are resolved via
+`@steambrew/client`'s own `findModuleExport` (an official, documented API —
+not a hand-rolled webpack walk), filtered by a **stable signature over each
+component's real `prototype` method names**:
+
+```js
+const RealPageable = findModuleExport((m) =>
+  typeof m === 'function' &&
+  typeof m.prototype?.OnUpdateArrows === 'function' &&
+  typeof m.prototype?.ScrollToFirstChild === 'function' &&
+  typeof m.prototype?.onCloseButtonClicked === 'function');
+
+const RealCarousel = findModuleExport((m) =>
+  typeof m === 'function' &&
+  typeof m.prototype?.BindScrollingContainer === 'function' &&
+  typeof m.prototype?.UpdateScrollArrows === 'function' &&
+  typeof m.prototype?.ScheduleUpdateScrollArrows === 'function');
+```
+
+Real class method names are **not** mangled by Steam's minifier — only
+variable and module bindings are — so this kind of filter survives a Steam
+update reshuffling module ids the same way `findClassModule`'s name-based
+class probing already does elsewhere in this codebase. A raw numeric module
+id (`req(4584)`) would not survive that and should be treated as a
+throwaway value for one-off live investigation, never something to commit to
+source. `hasRealCarousel` (both resolved) gates a fallback path
+(`PlainFallbackCarousel` + a hand-built header) for the case a future Steam
+update renames every method this filter checks — degraded, not crashed.
+
+The pager chevron itself (`PageLeft`/`PageRight`'s icon) was identified the
+same source-reading way — module `50376`, the function Steam calls with
+`singlearrow={true}`: passing that prop skips rendering the icon's second
+`<polyline>` (a double-chevron by default; Steam's *other* uses of the same
+icon component, e.g. a "skip to end" control, presumably want both).
+`angle={0}` / `angle={180}` rotate the same left-pointing path via an inline
+`transform: rotate(...)`, rather than two different paths for left vs right
+- moot for `non-steam-games-activity` now that the real `Pageable` supplies
+this icon itself, but worth recording for whatever eventually needs this
+same icon component directly (e.g. a "skip to end" control elsewhere).
+
+`CarouselClasses` (probe `BoxCarousel`) — the fifth resolved class module
+found while building the (now superseded) reimplementation — is kept in
+`classes.ts` regardless: `SummaryClasses.SummaryCarouselContainer` (this
+plugin's own sizing/spacing wrapper around the real `Carousel`) still needs
+resolving, and the module is documented there as a real, if now less
+central, discovery.
 
 ### Identifying non-Steam apps
 
