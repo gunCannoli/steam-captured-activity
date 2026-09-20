@@ -1,55 +1,90 @@
 # non-steam-games-activity
 
-The core plugin. Rebuilds Steam's game activity page for **any** non-Steam game,
-using the screenshots and recordings Steam has already captured.
+The core plugin. Gives **any** non-Steam game the app detail page Steam already
+knows how to draw — using the screenshots and recordings Steam has already
+captured.
 
 No emulator, no API key, no network. Providers
 ([architecture](../docs/architecture.md)) add achievements, playtime and artwork
 on top of this.
 
+## How it works
+
+**It does not build UI.** Steam has the components; it hides them from
+shortcuts and never loads their data. Steam's app-details section registry
+swaps the full section list for a three-item one:
+
+```js
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+```
+
+So the plugin does two things and Steam does the rest:
+
+1. **Restores the section** — puts `postgamesummary` back, and removes
+   `nonsteam` (Steam's grey "information is unavailable" box) once there is
+   content to replace it with.
+2. **Feeds Steam's own store** — pushes captures into `CGamePlaySession`.
+   Steam renders the pager, day separators, `Today`/`Yesterday` labels, hover
+   states and the media viewer.
+
+Captures come from Steam's own APIs, which work unmodified for a shortcut:
+`SteamClient.Apps.GetScreenshotsInTimeRange` and the recording service's
+`GetClips`. Steam serves both over `steamloopback.host`, so **no image crosses
+the RPC boundary** for this page.
+
+Full trace: [docs/steam-components.md](../docs/steam-components.md).
+Decision: [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
+
 ## Status
 
-**Phases 1–4 complete.** The activity page renders in the live Steam client:
-Steam's grey "information is unavailable" box is replaced by a post-game summary
-and a day-grouped activity feed.
+Post-game summary and library grid work in the live client. Verified from a
+clean Steam start:
+
+| Case | Result |
+| --- | --- |
+| AM2R (4 screenshots + 3 clips) | 7 tiles, native panel, placeholder gone |
+| A shortcut with no captures | Steam's own placeholder kept, no empty panel |
+| Divinity: Original Sin 2 (native) | unaffected |
 
 On load the plugin logs:
 
 ```
-Non-Steam Games Activity  Ready. 223 shortcuts, 211 screenshots across 6 non-Steam games.
+Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sections.
 ```
 
 | Module | Does | State |
 | --- | --- | --- |
+| `steam/modules.ts` | Steam's webpack cache; resolve by signature | ✅ verified in Steam |
+| `steam/sections.ts` | Restore the sections Steam hides | ✅ verified in Steam |
+| `steam/summary.ts` | Feed `CGamePlaySession`; provider API | ✅ verified in Steam |
+| `steam/stores.ts` | Typed store/service/payload shapes | ✅ verified in Steam |
+| `steam/gameid.ts` | appid ↔ 64-bit gameid (BigInt) | ✅ matches real folders |
+| `renderers/library-app.tsx` | Publish/clear per app | ✅ verified in Steam |
+| `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts | ✅ verified in Steam |
 | `steam_paths.lua` | Find Steam root + active user | ✅ tested |
-| `gameid.lua` | appid ↔ 64-bit gameid | ✅ tested |
 | `shortcuts.lua` | Parse binary `shortcuts.vdf` | ✅ tested |
-| `captures.lua` | Parse `screenshots.vdf` + recordings (`clip.pb`) | ✅ tested |
-| `timeline.lua` | Day grouping + post-game summary | ✅ tested |
-| `assets.lua` | Images as base64 data URIs, path-allowlisted | ✅ tested |
-| `rpc.lua` | Frontend-callable methods | ✅ shape tested |
-| `frontend/rpc.ts` | Typed client for the backend | ✅ loads in Steam |
-| `frontend/assets.ts` | Thumbnail / full-image cache | ✅ built |
-| `frontend/index.tsx` | Entry point (diagnostics only) | ✅ loads in Steam |
-| `renderers/library-app.tsx` | Injects the page, hides the placeholder | ✅ verified in Steam |
-| `components/` | Activity feed, media cards, class resolution | ✅ verified in Steam |
-| `styles.ts` | Scoped CSS on Steam's theme variables | ✅ |
-| Library grid / Big Picture | Phases 5–6 | ❌ not started |
+| `captures.lua` | Parse `screenshots.vdf` (grid counts) | ✅ tested |
+| `gameid.lua` | appid ↔ gameid, decimal limbs | ✅ tested |
+| `rpc.lua` | `GetLibraryStats`, `GetDiagnostics` | ✅ shape tested |
+| Activity feed (per-day list) | Still stock — see below | ❌ |
+| Big Picture | Phase 6 | ❌ |
 
-Recordings are verified against a real 14s clip: the directory name embeds the
-gameid, `clip.pb` yields the recorded-at timestamp, duration and resolution, and
-`thumbnail.jpg` is a ready-made poster frame. Video is **MPEG-DASH**
-(`session.mpd` + `.m4s` chunks), so it cannot be dropped into a `<video>` tag
-without an MSE player — the thumbnail is the cheap path for a media card.
+### Why the backend is small
+
+It used to assemble the whole page: `GetActivity` built a session-scoped
+summary from `clip.pb` protobuf and `gamerecording.pb`, and `GetAsset`/
+`GetAssets` shipped images across as base64. Steam's own APIs replaced all of
+it, so those methods, `timeline.lua`, `assets.lua` and the recording parsers
+were removed. They are in git history if the activity feed needs them back.
+
+What remains is the one thing Steam genuinely does not have: evidence a
+shortcut was played, for games Steam never launched itself.
 
 ## RPC methods
 
 | Method | Payload | Returns |
 | --- | --- | --- |
-| `GetActivity` | `{ appid }` | media, session-scoped `post_game_summary`, day-grouped `timeline` |
-| `GetLibraryStats` | `{}` | `{ "<appid>": { screenshots } }` for the grid |
-| `GetAsset` | `{ path }` | one image as a base64 data URI |
-| `GetAssets` | `{ paths[], budget? }` | several images (thumbnails) at once |
+| `GetLibraryStats` | `{}` | `{ "<appid>": { screenshots, newest } }` for the grid |
 | `GetDiagnostics` | `{}` | what the backend can see — use this first |
 
 ## Develop
@@ -69,6 +104,12 @@ the devtools) and `-SkipBuild`.
 Backend changes need a Steam restart. Run Steam with `-dev` for CEF devtools on
 `http://localhost:8080`.
 
+## Inspecting Steam's own UI
+
+Before writing any component, check whether Steam already has one. The method,
+the CDP harness and the traps are in
+[docs/steam-components.md § Reproducing this](../docs/steam-components.md#reproducing-this-the-inspection-method).
+
 ## Tests
 
 Millennium does not ship a standalone Lua, so get one from
@@ -82,15 +123,35 @@ The suite stubs Millennium's `fs`/`utils`/`logger`/`millennium` modules
 (`tests/harness.lua`) and runs the **real** backend modules against a **real**
 Steam install — no mock data.
 
-`FIXTURE` at the top of `test_backend.lua` records the dev machine's library
-(223 shortcuts, 6 games with media, 211 screenshots). On another install those
-counts differ; run with `NSGA_SKIP_FIXTURES=1` for invariant checks only.
+`FIXTURE` at the top of `test_backend.lua` records the dev machine's library.
+On another install those counts differ; run with `NSGA_SKIP_FIXTURES=1` for
+invariant checks only.
 
-Current result: **all pass**, matching independently measured values.
+The frontend has no unit tests on purpose: it is almost entirely calls into
+Steam's live internals, which a mock would not exercise meaningfully. It is
+verified against the running client instead — see the Status table.
 
 ## Notes for the next change
 
-- `screenshots.vdf` is **text** VDF; `shortcuts.vdf` is **binary**. Different parsers.
+**On reusing Steam's UI** (the important ones):
+
+- **Look before you build.** Steam hides sections from non-Steam games by app
+  type, not by capability. A "missing" feature is usually a filter.
+- **Resolve by prototype signature, never by numeric module id.** Ids reshuffle
+  between builds; method names survive minification.
+- **`GetSections` returns its memo, not the set it just built**, and compares
+  that cache **by size alone**. Mutate the returned set in place, and refresh
+  the memo — a swap that keeps the count identical is otherwise ignored.
+- Publishing is async, so the first render precedes the data. The section patch
+  tracks live component instances and forces a re-render.
+- Steam's own gameid helper **truncates a shortcut's gameid to 32 bits**, which
+  is the real reason non-Steam clips never appear natively. Ask the recording
+  service with the full 64-bit value.
+
+**On Steam's data formats** (still true, still bites):
+
+- `screenshots.vdf` is **text** VDF; `shortcuts.vdf` is **binary**. Different
+  parsers.
 - In `screenshots.vdf`, nesting depth — not key length — distinguishes a game
   from a screenshot index. A Steam appid (`238960`) looks exactly like an index
   (`0`). Getting this wrong silently merges one game's screenshots into another.
@@ -98,13 +159,12 @@ Current result: **all pass**, matching independently measured values.
   converting.
 - Lua numbers are doubles, so 64-bit gameids are handled as decimal strings with
   manual limb arithmetic in `gameid.lua`. Do not "simplify" it to `<<` / `|`.
+  (The frontend uses `BigInt` and can.)
+
+**On Millennium**:
+
 - An RPC method must never return bare `nil` — Millennium tries to parse the
   result as an integer. Return `'null'`.
-- In `clip.pb`, a length-delimited protobuf field may be a string *or* a nested
-  message; the wire format does not distinguish them. Re-parse only the fields
-  known to be messages, or a string's bytes get read as field tags.
-- A varint must be fully consumed even when it overflows a Lua double (the
-  gameid is 64-bit), or every following field desynchronises.
 - The plugin name is **baked into the bundle at build time** and Millennium
   routes RPC by it, so a dev rename must happen *before* building. Renaming
   after leaves the frontend calling `<name>` while the backend is `<name>-dev`,
@@ -112,6 +172,7 @@ Current result: **all pass**, matching independently measured values.
 - Windows PowerShell's `-Encoding UTF8` writes a **BOM**, which breaks strict
   JSON parsers — including Millennium's own `config.json`. Write UTF-8 without
   one via `System.IO.File`.
-- `steamloopback.host` **cannot** serve capture images: Millennium resolves it
-  against `<Steam>/steamui/` only. Images go over RPC as base64 data URIs, and
-  `assets.lua` restricts reads to the capture directories.
+- `steamloopback.host` cannot serve **our** files: Millennium resolves it
+  against `<Steam>/steamui/` only. That is why `assets.lua` existed. It does not
+  stop us using the URLs **Steam itself** hands out for its own captures, which
+  is what the detail page now does.

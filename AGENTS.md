@@ -8,9 +8,11 @@ A workspace for building **Millennium** plugins (Steam Client homebrew mods).
 
 The product is a **core plugin plus optional provider plugins**:
 
-- **`non-steam-games-activity`** (the backbone) — rebuilds Steam's rich app detail
-  page for **any** non-Steam game, using only data Steam already has: the screenshots
-  and recordings Steam itself captured. No emulator, no network, no API key.
+- **`non-steam-games-activity`** (the backbone) — gives **any** non-Steam game
+  Steam's own rich app detail page, using only data Steam already has: the
+  screenshots and recordings Steam itself captured. It does not rebuild that
+  page — Steam hides it from shortcuts by app type, so the plugin restores the
+  section and feeds Steam's own store. No emulator, no network, no API key.
 - **Providers** — optional plugins that enrich the timeline for games they recognise:
   `retroachievements`, `retroarch`, guides, artwork, and so on.
 
@@ -98,36 +100,48 @@ it as a parameter.
   Probe scripts belong in the scratchpad, not the repo.
 - **The core never reaches the network.** Network access is a provider concern.
   See [ADR-0012](docs/decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins).
-- **Match Steam by measuring, not by eye.** Read `getComputedStyle` off a native
-  element and copy the value into [docs/steam-styles.md](docs/steam-styles.md).
-  Check `backgroundImage` too — Steam uses gradients where a flat colour would
-  be expected ([ADR-0021](docs/decisions.md#adr-0021-measure-steams-styles-from-the-live-client-and-keep-a-style-bible)).
 - **Steam's DOM is not a public API.** Class names are hashed and change between
   builds. Resolve via `findClassModule` at runtime; never hardcode a hashed class.
   See [ADR-0005](docs/decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules).
-- **Reuse Steam's real components over recreating them.** This plugin's job is to
-  make non-Steam games look like they have a native page, not to run a parallel
-  UI that merely resembles one. When a real Steam component for the behaviour
-  you need is reachable — including one not exported by `@steambrew/client`, via
-  `findModuleExport`/`findModule` from Steam's own module cache — render that
-  component directly rather than reimplementing its markup or behaviour by hand,
-  even if a hand-built version already exists and passes testing. A resolved
-  Steam component cannot drift from native (spacing tweaks, animation changes, a
-  future UI refresh); a hand-built copy can and will. Resolve by a stable,
-  minification-proof signature (real `prototype` method names — these are not
-  mangled, only variable/module bindings are — or a class-map probe key), never
-  by a raw numeric module id, which reshuffles between Steam builds. Always keep
-  a graceful fallback for when resolution fails, so a Steam update degrades the
-  page instead of crashing it. See the Post-Game Summary's carousel
-  (`non-steam-games-activity/frontend/components/carousel.tsx`) for a worked
-  example, including one it replaced: a from-scratch reimplementation of Steam's
-  scrolling carousel that worked, but was still discarded in favour of rendering
-  the real `Pageable`/`Carousel` components once they were confirmed reachable.
-  [docs/steam-components.md](docs/steam-components.md) maps the whole app detail
-  page this way: Steam hides Post-Game Summary and Activity from non-Steam games
-  with a one-line app-type filter in its section registry, not because the data
-  is missing — both stores accept a shortcut's appid and render natively once
-  fed. Prefer feeding those stores over rebuilding their output.
+- **Before building UI, check whether Steam already builds it.** This is the
+  first question, not the last. Steam hides whole features from non-Steam games
+  by **app type**, not by capability — its app-details section registry swaps
+  the full list for `["nonsteam", "notes", "screenshots"]` when
+  `BIsModOrShortcut()`. Every component and store behind that filter accepted a
+  shortcut's appid the whole time. Restoring the section name and feeding
+  Steam's own store produced the real Post-Game Summary and let us **delete
+  ~1200 lines** of careful, tested, unnecessary reimplementation
+  ([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+  The inspection takes minutes and the method is written down:
+  [docs/steam-components.md](docs/steam-components.md#reproducing-this-the-inspection-method).
+  Work down this ladder and stop at the first rung that applies:
+  1. **Restore what Steam already renders** — is it filtered out, not missing?
+  2. **Feed Steam's own store** and let it render
+     ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
+  3. **Render Steam's real component**, resolved from its module cache even
+     when `@steambrew/client` does not export it.
+  4. **Only then clone Steam's DOM** — last resort.
+
+  A resolved Steam component cannot drift from native (spacing tweaks,
+  animation changes, a future UI refresh); a hand-built copy can and will. The
+  Post-Game Summary was cloned faithfully, passed testing, and was still
+  discarded: it needed five CSS modules resolved by probe key — one of them
+  **ambiguous across two different modules**, which silently reintroduced an
+  already-fixed bug with no code change — and Steam's own spacing misbehaved
+  against content it was never measured for. **If you are measuring pixels to
+  match Steam, you are probably on the wrong rung.**
+
+  Resolve by a stable, minification-proof signature (real `prototype` method
+  names — these are not mangled, only variable/module bindings are — or a
+  class-map probe key), **never by a raw numeric module id**, which reshuffles
+  between Steam builds. Always keep a graceful fallback, so a Steam update
+  degrades the page instead of crashing it.
+- **If you do end up drawing something, match Steam by measuring, not by eye.**
+  This applies only on the last rung above — reaching for it early is the
+  mistake ADR-0022 corrected. Read `getComputedStyle` off a native element and
+  copy the value into [docs/steam-styles.md](docs/steam-styles.md). Check
+  `backgroundImage` too — Steam uses gradients where a flat colour would be
+  expected ([ADR-0021](docs/decisions.md#adr-0021-measure-steams-styles-from-the-live-client-and-keep-a-style-bible)).
 - **Prefer patching Steam's data over its DOM** ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
 - **Respect third-party APIs.** RetroAchievements is donation-funded: cache hard,
   never poll, send a descriptive `User-Agent` ([ADR-0007](docs/decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).

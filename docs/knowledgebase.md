@@ -180,8 +180,25 @@ Key exports used by this plugin:
 
 ### Reusing Steam's native UI (**✅ verified**, reading `k0d13/steam-non-steam-playtimes` at commit `f2c14ec`)
 
-This is the core technique for making a plugin indistinguishable from Steam's own
-UI, and it is broader than "look up a class name". The reference plugin's
+> **Read this second, not first.** Cloning Steam's DOM is the **last resort**,
+> valid only when no real component is reachable and Steam models no data you
+> can write to. Try, in order: restore a section Steam already renders but
+> filters out by app type → feed Steam's own store → render Steam's real
+> component from its module cache → *then* clone.
+>
+> That ordering is not theoretical. The Post-Game Summary was built with the
+> technique below, cloned faithfully, passed testing — and was still deleted,
+> because Steam had been rendering it all along and merely filtering it out for
+> non-Steam games. ~1200 lines went away
+> ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
+> method in [steam-components.md](steam-components.md)).
+>
+> The play-bar case below **is** a legitimate use: Steam models no per-shortcut
+> playtime stat to write to, so there is nothing to feed and no hidden
+> component to restore.
+
+This is the technique for that last resort, and it is broader than "look up a
+class name". The reference plugin's
 `frontend/components/play-bar.tsx` and `frontend/renderers/app-properties.tsx`
 demonstrate it end to end, and **write zero custom CSS anywhere in the project.**
 
@@ -676,12 +693,61 @@ icon component, e.g. a "skip to end" control, presumably want both).
 this icon itself, but worth recording for whatever eventually needs this
 same icon component directly (e.g. a "skip to end" control elsewhere).
 
-`CarouselClasses` (probe `BoxCarousel`) — the fifth resolved class module
-found while building the (now superseded) reimplementation — is kept in
-`classes.ts` regardless: `SummaryClasses.SummaryCarouselContainer` (this
-plugin's own sizing/spacing wrapper around the real `Carousel`) still needs
-resolving, and the module is documented there as a real, if now less
-central, discovery.
+`CarouselClasses` (probe `BoxCarousel`) was the fifth resolved class module
+found while building that reimplementation. **All five are now gone**, along
+with `classes.ts` itself: Steam renders the summary, so nothing needs
+resolving. The finding is kept here because the *method* — verifying
+co-membership by walking the module cache — remains correct, and because the
+count itself is the argument: five modules of fragile lookups to reproduce
+something Steam was already willing to draw.
+
+### Feeding Steam's own stores (**✅ verified live on this machine**)
+
+The technique that replaced cloning for the app detail page. Full trace in
+[steam-components.md](steam-components.md); the reusable facts:
+
+**Steam's stores are MobX singletons with ordinary public methods.** They are
+not sealed, and they do not validate app type. `CGamePlaySession` exposes
+`AddClip`, `BAddScreenshotNotification`, `GetSessionEvents`,
+`ClearSessionEvents`, `HasSessionEvents` — all of which accept a non-Steam
+game's data without complaint.
+
+**Features are hidden by app type, not capability.** Steam's app-details
+section registry:
+
+```js
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+```
+
+Three sections instead of eighteen. Nothing behind the filter objects to a
+shortcut's appid — the components and stores work, they are simply never asked.
+**Check for this before concluding a feature is missing.**
+
+**Steam already indexes non-Steam captures.** Both of these work unmodified for
+a shortcut and return absolute `steamloopback.host` URLs Steam serves itself:
+
+```js
+await SteamClient.Apps.GetScreenshotsInTimeRange(appid, since, 0)   // 32-bit appid
+await service.GetClips({ game_id: gameid, created_after: since })   // 64-bit gameid
+```
+
+**Steam's own gameid helper truncates to 32 bits.** `bY(4263274102)` returns
+`1861238`, not `18310622842007322624`. That single bug is why non-Steam clips
+never appear natively — the service is willing, Steam just asks about the wrong
+game. Compose the gameid yourself.
+
+**Three traps when patching a store or registry method:**
+
+1. **`GetSections` returns its memo, not the set it just built**, and compares
+   that cache **by size alone**. Mutate the returned set *in place*; a local
+   copy is discarded on a cache hit, and a swap that keeps the count identical
+   (one added, one removed) is ignored unless you refresh the memo.
+2. **Async data arrives after the first render.** Nothing tells a MobX observer
+   to re-run when *your* state changes, because it observes Steam's stores, not
+   yours. Track the live component instances and `forceUpdate` them.
+3. **A DOM probe can report success while the page looks wrong.** Verify with a
+   screenshot. This exact mismatch — correct section set, stale rendered page —
+   cost a debugging round.
 
 ### Identifying non-Steam apps
 
@@ -699,15 +765,18 @@ if (app.appid < NON_STEAM_APP_APPID_MASK) return;  // a real Steam game — skip
    reference plugin makes non-Steam playtime appear in the library list. Patching the
    *data* is far more robust than patching the DOM.
 
-2. **App detail page** — watch for the location `/library/app/<appid>` via
-   `onPopupCreate` + `onLocationChange`, then render components into
-   `.${PlayBarClasses.GameStatsSection}` using the
-   [clone-the-DOM-shape-and-hide-the-original technique](#reusing-steams-native-ui-verified-reading-k0d13steam-non-steam-playtimes-at-commit-f2c14ec)
-   above — never bespoke markup/CSS. The mount idiom, also from `library-app.tsx`:
-   render the clone, then `parent.querySelector(':has([data-nsp="..."])')` — if a
-   previous clone is already mounted, `existing.replaceWith(element)`; otherwise
-   `parent.appendChild(element)`. This is what makes `refresh()` (called after a
-   game quits) update the live page instead of duplicating nodes.
+2. **App detail page** — watch `/library/app/<appid>` via `onPopupCreate` +
+   `onLocationChange`. **What you do next depends on whether Steam already has
+   the UI.** For the post-game summary it does, so
+   `non-steam-games-activity` restores the section and feeds Steam's store and
+   renders nothing itself (see [§ Feeding Steam's own
+   stores](#feeding-steams-own-stores-verified-live-on-this-machine) below).
+   Only when no component and no store exist does the
+   [clone-and-hide technique](#reusing-steams-native-ui-verified-reading-k0d13steam-non-steam-playtimes-at-commit-f2c14ec)
+   apply — as it does for the reference plugin's play bar. Its mount idiom:
+   render the clone, then `parent.querySelector(':has([data-nsp="..."])')` — if
+   a previous clone is mounted, `existing.replaceWith(element)`; otherwise
+   `parent.appendChild(element)`, so a refresh updates rather than duplicates.
 
 3. **App properties dialog** — the reference plugin adds a tab by patching
    `Array.prototype.map` and detecting the page-descriptor array

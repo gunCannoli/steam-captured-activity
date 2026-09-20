@@ -14,9 +14,9 @@ Steam-native data. Providers contribute extra material for games they recognise.
             ┌───────────────────────────────────────────────┐
             │      non-steam-games-activity  (CORE)         │
             │                                               │
-            │  • owns the app detail page UI                │
-            │  • Steam screenshots + recordings (local)     │
-            │  • the activity timeline                      │
+            │  • restores Steam's own detail sections       │
+            │  • feeds them Steam's screenshots + clips     │
+            │  • the library grid's play evidence           │
             │  • the provider registry                      │
             │                                               │
             │  no network · no emulator · no API key        │
@@ -49,9 +49,11 @@ the other.
 
 ### Why this works without any provider
 
-Steam already captures screenshots and recordings for non-Steam games and files them
-under a per-game id. It simply never renders them on the app page. The core reads that
-store and builds the page Steam declined to build.
+Steam already captures screenshots and recordings for non-Steam games, files them
+under a per-game id, **and already has the UI to show them**. It hides those
+sections from shortcuts with a one-line app-type filter in its section registry.
+The core removes that filter and feeds Steam's own stores; Steam renders
+([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 
 Verified on this machine: **211 non-Steam screenshots across 6 games, 100% present on
 disk**, every one carrying a creation timestamp. See
@@ -72,30 +74,34 @@ where providers must be probabilistic.
 
 ### Data flow
 
+**App detail page** — no backend involved. Steam's own APIs already serve a
+shortcut's captures, so the data never leaves the client:
+
 ```
-                    ┌──────── BACKEND (LuaJIT) ────────────────────┐
-                    │                                              │
-  screenshots.vdf ─►│ captures ─► [{ path, takenAt, w, h, type }]  │
-                    │      │                                       │
-  gamerecordings/ ─►│ recordings ─► [{ path, startedAt, duration }]│
-                    │      │                                       │
-  shortcuts.vdf ───►│ shortcuts ─► appid, name, exe, launchOpts    │
-                    │      │                                       │
-                    │      ├──► providers.collect(context) ────────┼──► provider
-                    │      │         (parallel, best-effort)       │    plugins
-                    │      │                                       │
-                    │      └──► timeline ─► merge + group by date  │
-                    └───────────────────┬──────────────────────────┘
-                                        │ JSON over callServerMethod
-                    ┌───────────────────▼──────────────────────────┐
-                    │          FRONTEND (Steam React/CEF)          │
-                    │  library-app ─► render into .GameStatsSection│
-                    │     PostGameSummary · Timeline · Media       │
-                    │     + provider-contributed sections          │
-                    └──────────────────────────────────────────────┘
+  SteamClient.Apps.GetScreenshotsInTimeRange(appid) ─┐
+  CGameRecordingService.GetClips({ game_id })       ─┤
+  registerSummaryProvider(…)  ← provider plugins    ─┘
+                            │
+                            ▼  sorted oldest-first
+        CGamePlaySession.BAddScreenshotNotification / AddClip
+                            │
+        steam/sections.ts ──┴──► Steam's OWN component renders
+        (restore the section)     pager · day separators · date
+                                  labels · hover · media viewer
 ```
 
-All I/O and merging happen in the backend; the frontend only renders
+**Library grid** — the one thing Steam does not hold, so the backend still reads it:
+
+```
+  screenshots.vdf ─► captures.library_stats ─► { appid: { screenshots, newest } }
+                            │ JSON over callServerMethod
+                            ▼
+                     library-home.tsx ─► patch AppOverview fields
+```
+
+The frontend does not render the detail page; Steam does
+([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+Where the backend is still involved, it owns the I/O
 ([ADR-0004](decisions.md#adr-0004-backend-owns-all-io-and-merging-the-frontend-only-renders)).
 
 ### Module layout
@@ -112,10 +118,8 @@ non-steam-games-activity/
 │  ├─ steam_paths.lua     # steam_path(), active userdata id      ✅
 │  ├─ gameid.lua          # appid <-> 64-bit gameid               ✅
 │  ├─ shortcuts.lua       # parse binary shortcuts.vdf            ✅
-│  ├─ captures.lua        # screenshots.vdf + recordings         ✅
-│  ├─ timeline.lua        # group entries by date                 ✅
+│  ├─ captures.lua        # screenshots.vdf (grid counts)         ✅
 │  ├─ providers.lua       # registry: discover, call, isolate     ☐
-│  ├─ assets.lua          # base64 data URIs + path allowlist     ✅
 │  └─ _lib/               # vendored json fs http logger …        ✅
 ├─ tests/
 │  ├─ harness.lua         # stubs Millennium's modules            ✅
@@ -163,38 +167,27 @@ Paths are relative to `userdata/<id>/760/remote/`. Recordings live in
 > Verify a file exists before listing it — the index can outlive deleted files.
 > Here 211/211 were present, but that is not guaranteed.
 
-**`timeline.lua`** — merges core captures with provider entries into dated buckets,
-newest first. Provider entries are interleaved by timestamp, not appended.
-
 ### RPC surface
+
+Deliberately small. The backend used to assemble the whole detail page —
+`GetActivity` built a session-scoped summary from `clip.pb` and
+`gamerecording.pb`, and `GetAsset`/`GetAssets` shipped images as base64. Steam's
+own APIs replaced all of it (ADR-0022), so those methods, `timeline.lua`,
+`assets.lua` and the recording parsers were removed. Git history has them if the
+activity feed needs them back.
 
 | Method | Returns |
 | --- | --- |
-| `GetActivity(appid)` | full payload for one app detail page |
-| `GetLibraryStats(appids[])` | batched minimal stats for the grid |
-| `GetAsset(path)` | one image as a base64 data URI |
-| `GetAssets(paths[])` | several images (thumbnails) in one round trip |
+| `GetLibraryStats()` | `{ "<appid>": { screenshots, newest } }` for the grid |
+| `GetDiagnostics()` | what the backend can see — check this first |
 
-`GetActivity` payload:
+What remains is the one thing Steam genuinely does not hold: evidence a shortcut
+was played, for games Steam never launched itself.
 
-```jsonc
-{
-  "appid": 4263274102,
-  "gameid": "18310622842007322624",
-  "name": "AM2R - Another Metroid 2 Remake",
-  "media": {
-    "screenshots": [ { "path": "…/20251024002134_1.jpg", "thumb": "…", "takenAt": 1761276095 } ],
-    "recordings":  [ { "path": "…", "startedAt": 0, "durationSec": 0 } ]
-  },
-  "timeline": [
-    { "date": "2025-10-24",
-      "entries": [ { "type": "screenshot", "at": 1761276095, "path": "…" } ] }
-  ],
-  "providers": [
-    { "id": "retroachievements", "status": "ok", "sections": [ /* see below */ ] }
-  ]
-}
-```
+The **provider** surface is separate and still to come (Phase 8); a provider
+contributes summary *events* through the frontend's `registerSummaryProvider`,
+or data through its own RPC, and never renders markup
+([ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it)).
 
 ---
 
@@ -383,12 +376,17 @@ that cache **by size alone** and our change swaps one member for another).
 See [steam-components.md](steam-components.md) for the full trace, and
 [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
 
-**Big Picture** is the same plugin with a second renderer. It is a separate popup
-window (`SP BPM_`), which `onPopupCreate` already reports as `PopupType.Gamepad`, so
-the backend and the `GetActivity` payload are unchanged. Only the rendering differs:
-tab sub-routes (`/library/app/<appid>/tab/<Name>`), its own class modules, and
-controller focus. Desktop ships first
-([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
+**Big Picture** is a separate popup window (`SP BPM_`), which `onPopupCreate`
+reports as `PopupType.Gamepad`. It renders the same sections from the same
+stores, but as tab sub-routes (`/library/app/<appid>/tab/<Name>`) and with
+controller focus.
+
+[ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)
+planned a *second renderer* for it. **That assumption predates ADR-0022 and is
+now worth re-testing**, because we no longer render anything — if Big Picture
+shares the JS context and the section registry, most of this may already work.
+Answer that before writing code:
+[steam-components.md § Inspecting Big Picture](steam-components.md#inspecting-big-picture-phase-6).
 
 **Serving local images** no longer needs base64 for the detail page. The
 constraint in [ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)

@@ -8,9 +8,10 @@ screenshots.
 This document exists to answer one question: *what does Steam actually do, so
 that we can call it instead of imitating it?*
 
-> **Read this before touching the renderer.** The plugin currently hand-builds
-> markup that Steam already builds better. The finding in
-> [§ The real problem](#the-real-problem) changes the approach.
+> **Read this before building any UI.** It is the reference behind
+> [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
+> which the plugin now implements. The inspection procedure at the end is
+> reusable for anything not yet mapped — start there for Big Picture.
 
 ---
 
@@ -58,16 +59,20 @@ our backend data  ─►  our components that look like Steam's
 
 ---
 
-## The real problem
+## The problem this solved
 
-The current renderer reimplements Steam's summary and day list by hand. That is
-why it keeps not looking right: every spacing value, separator rule, date label
-and hover behaviour has to be rediscovered and will drift on the next Steam
-build. [AGENTS.md](../AGENTS.md) already calls this out —
-*"reuse Steam's real components over recreating them"* — and
+The renderer used to reimplement Steam's summary and day list by hand. That is
+why it kept not looking right: every spacing value, separator rule, date label
+and hover behaviour had to be rediscovered, and would drift on the next Steam
+build. [AGENTS.md](../AGENTS.md) already said *"reuse Steam's real components
+over recreating them"*, and
 [ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)
-says prefer patching data over DOM. The section filter is the missing piece that
-makes both achievable here.
+already said prefer patching data over DOM. The section filter was the missing
+piece that made both achievable.
+
+**This is now implemented** — the hand-built components are deleted. The value
+of this document from here on is (a) the reference below, for the parts not yet
+wired up, and (b) the method at the end, for everything still unmapped.
 
 ---
 
@@ -523,46 +528,201 @@ without waiting for midnight.
 
 ---
 
-## What this implies for the plugin
+## What was done, and what is left
 
-Stated as findings, not as a committed plan — the call on how far to go is
-yours.
+**Done** (ADR-0022, verified in the live client):
 
-1. **Patch `GetSections`** to re-add `postgamesummary` (and `activity`, if we
-   feed it) for `BIsModOrShortcut()` apps. Remember to refresh
-   `m_setSectionsMemo`, which compares by size only.
-2. **Feed `m_session` via `PushSessionEvent`**, mapping our backend's
-   screenshots and clips onto the documented payload shapes, then set
-   `m_postGameSummary`. Steam renders the rest — pager, separators, date
-   headers, hover, the media viewer.
-3. **The Activity feed needs a custom event class** implementing the small
-   `BIsValid` / `GetParentalFeature` / `rtEventTime` contract, pushed through
-   `AddEvent`. The stock screenshot/video adders are unusable (they need
-   `publishedfileid`).
-4. **Retest `steamloopback.host` for capture URLs.** Steam serves its own
-   screenshots and clip thumbnails over that host; if a shortcut's paths resolve
-   too, the base64-over-RPC pipeline becomes unnecessary.
-5. Much of `components/` and `renderers/` becomes deletable — that is the point.
-   A resolved Steam component cannot drift; our copy will.
+1. **`GetSections` patched** to re-add `postgamesummary` for
+   `BIsModOrShortcut()` apps, and to drop `nonsteam` once there is content to
+   replace it with. The memo is refreshed explicitly — it compares by size
+   only, and this change swaps one member for another.
+2. **`m_session` fed** via `BAddScreenshotNotification` / `AddClip`, oldest
+   first, then `m_postGameSummary` set. Steam renders the rest.
+3. **Captures read from Steam's own APIs** —
+   `SteamClient.Apps.GetScreenshotsInTimeRange` and the recording service's
+   `GetClips`. Both work for a shortcut; the clips call needs the full 64-bit
+   gameid, since Steam's own helper truncates it to 32 bits.
+4. **`steamloopback.host` question answered:** Steam serves its *own* captures
+   over that origin and hands back absolute URLs, so no image crosses the RPC
+   boundary for this page. ADR-0017's jail still applies to files Steam does
+   not index.
+5. **`components/` deleted**, along with `assets.ts`, `steam-media.ts`,
+   `timeline.lua`, `assets.lua` and the recording parsers.
 
-Each of 1–3 needs a graceful fallback so a Steam update degrades the page
-instead of crashing it.
+**Left:**
+
+- **The Activity feed** needs a custom event class implementing the small
+  `BIsValid` / `GetParentalFeature` / `rtEventTime` contract, pushed through
+  `AddEvent`. The stock screenshot/video adders are unusable — they resolve a
+  `publishedfileid` that local captures do not have. See
+  [§ Activity feed](#activity-feed).
+- **Big Picture** — run the procedure in
+  [§ Inspecting Big Picture](#inspecting-big-picture-phase-6). The stores are
+  shared, so much of it may already work.
+
+Everything that reaches into Steam keeps a graceful fallback, so a Steam update
+degrades the page to stock instead of crashing it.
 
 ---
 
-## Reproducing this
+## Reproducing this — the inspection method
 
-The probe harness is in the session scratchpad (`cdp.py` + `p*.js`). The method:
+This is the procedure to run **before building any component**, and the one
+Phase 6 (Big Picture) should start from. It takes minutes and has repeatedly
+turned "we need to build X" into "Steam already has X".
 
-1. `curl http://localhost:8080/json/list` → find `SharedJSContext` (JS/stores)
-   and `Steam` (the rendered DOM — **separate JS contexts**, navigate from the
-   former, read the DOM from the latter).
-2. `Runtime.evaluate` with `awaitPromise` + `returnByValue`.
-3. Capture `req` via the probe-chunk push; read factories with
-   `Function.prototype.toString`; run the result through `prettier` to read it.
-4. Poke stores with real appids: `692850` Bloodstained (14 events),
-   `435150` Divinity 2 (screenshots + a clip), `2142790` Fields of Mistria,
-   `4263274102` AM2R (non-Steam).
+### 1. Attach
 
-Always revert patches and `ClearSessionEvents()` when done — these mutate the
-running client.
+Steam must run with `-dev` to expose CEF devtools on `http://localhost:8080`.
+
+```bash
+curl -s http://localhost:8080/json/list
+```
+
+**There are several targets and they are not interchangeable:**
+
+| Target | What it is | Use it for |
+| --- | --- | --- |
+| `SharedJSContext` | the JS context: stores, modules, `SteamUIStore` | evaluating code, navigating, poking stores |
+| `Steam` (`minwidth=1010` in its URL) | the rendered desktop window | reading the DOM, screenshots |
+| `SP BPM_…` / Gamepad popup | Big Picture's window | the same, for Big Picture |
+| `… Supernav`, `… Menu` | chrome fragments | nothing — they match naive title filters |
+
+Two traps, both hit this session:
+
+- **Match the main window by URL, not title.** Several targets are titled
+  `Steam`; filtering on the title alone picks a menu popup and you read an
+  empty DOM. Filter on `'minwidth=1010' in url`.
+- **Navigate from `SharedJSContext`, read the DOM from the window.** They are
+  separate JS contexts. `window.SteamUIStore` exists only in the former;
+  `document` for the page you care about lives in the latter.
+
+Do not `location.reload()` the SharedJSContext to pick up a plugin change — it
+tears down the render window and leaves you with no DOM target. Restart Steam.
+
+### 2. Capture Steam's module require
+
+```js
+let req = null;
+window.webpackChunksteamui.push([
+  ['probe_' + Date.now()],
+  { probe_mod: (m, e, r) => { req = r; } },
+  (r) => { r(r.s = 'probe_mod'); },
+]);
+window.__wreq = req;   // req.m = ~2600 factories; req(id) = evaluated exports
+```
+
+`__wreq` does not survive a Steam restart — re-run this after each one.
+
+### 3. Find the thing
+
+Search factory **source text** for a distinctive string, then read it:
+
+```js
+for (const id of Object.keys(req.m)) {
+  const src = Function.prototype.toString.call(req.m[id]);
+  if (src.includes('PostGameSummary')) console.log(id, src.length);
+}
+```
+
+Best search terms, in order of usefulness:
+
+1. **Localization tokens** (`#AppDetails_SectionTitle_`, `#AppActivity_`) —
+   these name features exactly and are not minified.
+2. **Store method names** (`GetPostGameSummary`) — property names survive.
+3. Class-map keys (`GamePlaySummaryContainer`).
+
+Pipe the factory through `prettier --parser babel` before reading it; minified
+Steam code is unreadable otherwise and perfectly clear after.
+
+### 4. Confirm against the live client
+
+Never conclude from source alone. Poke the real stores with real appids:
+
+| appid | Game | Why it is useful |
+| --- | --- | --- |
+| `692850` | Bloodstained | biggest summary — 14 events |
+| `435150` | Divinity: Original Sin 2 | screenshots **and** a clip |
+| `2142790` | Fields of Mistria | small, ordinary case |
+| `4263274102` | AM2R | **non-Steam** — the case under test |
+| `2788628389` | ActRaiser | non-Steam with **no captures** — the empty case |
+
+Always test a native game and a non-Steam one side by side. The whole ADR-0022
+finding came from noticing the store behaved *identically* for both and only
+the section list differed.
+
+### 5. Verify by screenshot, not by DOM query
+
+**A DOM probe can report success while the page looks wrong.** This happened
+here: `querySelector` found the summary and reported the placeholder gone,
+while the visible page still showed the grey box — the section set was correct
+but React had not re-rendered. Only the screenshot caught it.
+
+```python
+ws.send(json.dumps({"id":1,"method":"Page.captureScreenshot","params":{"format":"png"}}))
+```
+
+### 6. Clean up
+
+Patches and injected events mutate the running client. Revert them:
+
+```js
+window.__unpatchSections?.();
+Ri.GetOrCreateAppData(appid).m_session.ClearSessionEvents();
+```
+
+---
+
+## Inspecting Big Picture (Phase 6)
+
+Big Picture renders the same sections from the same stores, but as **tab
+sub-routes** rather than one scrolling page, and it needs controller focus
+([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
+The open question is how much of the desktop work carries over unchanged.
+
+Run the procedure above against Big Picture's window, then answer these in
+order. Each one is cheap and the first two may make the rest unnecessary.
+
+**1. Is it the same JS context?**
+
+Big Picture is a separate popup window (`PopupType.Gamepad`), not a separate
+sandbox. If it shares `SharedJSContext`, then `steam/modules.ts`,
+`steam/stores.ts` and `steam/summary.ts` already work there and only the
+section patch is in question. Check whether the stores are the same objects:
+
+```js
+// in SharedJSContext, after publishing for an appid
+Ri.GetOrCreateAppData(4263274102).m_session.GetSessionEvents().length
+```
+
+If Big Picture's page reflects that, the data layer is done.
+
+**2. Does it use the same section registry?**
+
+Find its sections component the same way (search for `#AppDetails_Tab_GameInfo`
+and the `Tab_` tokens listed above). Then check whether it is the **same class**
+we already patch — if so, the patch applies for free. If it is a different
+component with its own `GetSections`, extend `appDetailsSections()` in
+`steam/stores.ts` to resolve both rather than special-casing.
+
+**3. Which sections does it list for a shortcut?**
+
+Big Picture already filters `community` by `LAUNCHER_TYPE`. Dump its section
+set for a native game and a non-Steam one, exactly as in step 4 above, and diff
+them. That diff *is* the Phase 6 work list.
+
+**4. Are the class modules the same?**
+
+Expect not to need them — if the native component renders, we resolve nothing.
+Only if a clone turns out to be unavoidable does the class-module question
+arise, and then the one-probe-per-module rule applies as usual.
+
+**5. Does controller focus work without help?**
+
+The summary tiles are `Focusable` in Steam's own component, so focus should
+come for free. Verify with a controller rather than assuming — this is the
+most likely place the desktop assumption breaks.
+
+Record what you find here before writing code, the way this document was
+written. The point of the exercise is to discover that most of Phase 6 is
+already done.

@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
   "name": "non-steam-games-activity",
   "common_name": "Non-Steam Games Activity",
-  "description": "Brings the game activity page to non-Steam games, using the screenshots and recordings Steam already captured.",
+  "description": "Gives non-Steam games Steam's own app detail page, using the screenshots and recordings Steam already captured.",
   "version": "0.1.0",
   "useBackend": true,
   "backendType": "lua"

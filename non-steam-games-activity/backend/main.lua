@@ -1,7 +1,11 @@
 --- non-steam-games-activity - backend entry point.
 ---
---- Renders the game activity page Steam declines to build for non-Steam games,
---- using the screenshots and recordings Steam has already captured.
+--- Supplies the library grid with capture timestamps for non-Steam games.
+---
+--- The app detail page is not built here. Steam renders it from its own
+--- components once the frontend restores the section and feeds Steam's own
+--- store (ADR-0022), so the backend only supplies what Steam genuinely does
+--- not have: evidence a shortcut was played, from its screenshot index.
 
 local logger      = require("logger")
 local millennium  = require("millennium")
@@ -10,10 +14,7 @@ local steam_paths = require("steam_paths")
 local RPC = require("rpc")
 
 -- Millennium exposes globals to the frontend as callable methods.
-GetActivity     = RPC.GetActivity
 GetLibraryStats = RPC.GetLibraryStats
-GetAsset        = RPC.GetAsset
-GetAssets       = RPC.GetAssets
 GetDiagnostics  = RPC.GetDiagnostics
 
 local function on_load()

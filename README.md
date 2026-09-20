@@ -15,9 +15,15 @@ shows a single grey box:
 > Some detailed information on … is unavailable because it is a non-Steam game or
 > mod.
 
-That is misleading. Steam *has* captured screenshots and recordings for those
-games — it files them under a per-game id and then declines to build a page
-around them. This workspace builds that page, and makes it extensible.
+That is misleading twice over. Steam *has* captured screenshots and recordings
+for those games, filed under a per-game id. And Steam already has the UI to show
+them — it hides those sections from non-Steam games with a **one-line app-type
+filter** in its section registry, then renders the grey box instead.
+
+So this workspace does not rebuild that page. It restores the sections Steam
+already draws, feeds Steam's own stores, and lets Steam render
+([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+Then it makes that extensible.
 
 **One core plugin, plus optional providers:**
 

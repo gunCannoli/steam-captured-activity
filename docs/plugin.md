@@ -3,9 +3,9 @@
 How to add a plugin to this workspace, develop it, and publish it as a
 standalone public repo.
 
-For *what* the plugins do and why, see [docs/architecture.md](docs/architecture.md)
-and [docs/decisions.md](docs/decisions.md). For Millennium's SDK mechanics in
-detail, see [docs/knowledgebase.md](docs/knowledgebase.md) — this file is the
+For *what* the plugins do and why, see [docs/architecture.md](architecture.md)
+and [docs/decisions.md](decisions.md). For Millennium's SDK mechanics in
+detail, see [docs/knowledgebase.md](knowledgebase.md) — this file is the
 procedure, not the reference.
 
 ---
@@ -35,7 +35,7 @@ millennium-plugins/                 <- this repo (private)
 
 > A plugin must not `require` or import anything from `docs/` or another
 > plugin's folder. Providers talk to the core over the RPC contract
-> ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it)),
+> ([ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it)),
 > never by importing its code.
 
 ---
@@ -68,7 +68,7 @@ Notes that cost time to learn:
   reference the latter and it 404s.
 - `backendType: "lua"` is not in the published schema but every current plugin
   sets it. The docs' Python examples are legacy
-  ([ADR-0002](docs/decisions.md#adr-0002-luajit-backend-not-python)).
+  ([ADR-0002](decisions.md#adr-0002-luajit-backend-not-python)).
 
 Copy the vendored Lua type stubs from an installed plugin — they are `---@meta`
 declarations for Millennium's built-ins, not implementations:
@@ -165,7 +165,7 @@ export default async function OnPluginLoaded() { /* register watchers */ }
 **Never hardcode Steam's CSS classes** — they are build-hashed and change between
 client versions. Resolve them at runtime, and borrow Steam's own formatters and
 translations so the UI looks native
-([ADR-0005](docs/decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)):
+([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)):
 
 ```ts
 const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
@@ -173,57 +173,102 @@ const formatDuration = findModuleExport((e) => e?.toString?.()?.includes('"#Play
 Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_PlayTime');
 ```
 
-**Do not write custom CSS to approximate Steam's look.** Copy it instead. See
-[knowledgebase.md § Reusing Steam's native UI](knowledgebase.md#reusing-steams-native-ui-verified-reading-k0d13steam-non-steam-playtimes-at-commit-f2c14ec)
-for the full pattern; the one-paragraph version:
+### Build nothing Steam already builds
 
-1. **Clone Steam's exact DOM shape** for the element you're replacing — same
-   nesting, same classes (resolved via `findClassModule`, never hardcoded),
-   same `Panel` utility class. Not a lookalike; the literal same tree.
-2. **Hide Steam's original in that slot** with one scoped rule, and reveal only
-   your clone via a marker attribute:
-   ```tsx
-   <div data-mine="playtime" className={`${C.GameStat} ${C.Playtime} Panel`}>
-     <style>{`.${C.GameStat}.${C.Playtime}:not([data-mine]){display:none!important}`}</style>
-     {/* ...clone the rest of Steam's tree here... */}
-   </div>
-   ```
-   `:not([data-mine])` hides only Steam's unmarked original, never your clone,
-   and the rule is scoped by the same two classes so it cannot leak elsewhere.
-3. **Only render a clone when you have the data**, matching how Steam's own
-   container (usually a `flex` row) only shows populated stats. An unconditional
-   clone can show an empty box Steam itself would never render.
-4. **Before building any custom widget** (carousel, image placeholder,
-   button, text field, dialog, tabs, focus/hover wrapper), check whether
-   `@steambrew/client` already exports it — `Carousel`, `SuspensefulImage`,
-   `Focusable`/`FocusRing`, `Button`, `TextField`, `Panel`, `Tabs`, `Modal`,
-   `Dropdown`, `SliderField`, `ToggleField`, and more are all real, shipped
-   components. Reusing them means their focus, keyboard and (for `Focusable`)
-   gamepad behavior comes for free — reimplementing them with plain
-   `<div>`/CSS does not. Full list in the knowledgebase.
-5. **Resolve ONE `findClassModule` probe per CSS module, never per feature.**
-   Classes seen together in one captured `outerHTML` do **not** imply they
-   live in the same webpack module — a real UI element (Steam's own
-   Post-Game Summary) was split across **four** separate modules. Reusing one
-   probe for all of them made `findClassModule` silently return `undefined`
-   for the other three modules' keys, and React rendered those elements with
-   **no class at all** — no error, just a tile with `className="Panel"` and
-   none of its sizing/positioning CSS. If in doubt, verify co-membership by
-   walking Steam's module cache directly (snippet and full writeup in
-   [knowledgebase.md § Classes seen together are not necessarily one module](knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)),
-   and always sanity-check a resolved class map by dumping it whole
-   (`console.log(SomeClasses)`) rather than trusting a name "sounds right".
+Work down this ladder. **Stop at the first rung that applies** — every rung
+below is more code you own and more that can drift from native.
 
-If a project ends up with a dedicated stylesheet of hand-tuned colors/shadows/
-spacing meant to *look like* Steam, that is the signal something should have
-been cloned or reused instead.
+**1. Is Steam already rendering this, just not for your case?**
 
-Prefer patching Steam's **data** over its DOM where Steam already models the field
-([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
+This is the rung that matters most, and the one that is easiest to skip past.
+Steam hides whole features by **app type**, not by capability. A section that
+looks "missing" for a non-Steam game is usually present and filtered out:
+
+```js
+// Steam's app-details section registry
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+```
+
+Everything behind that filter worked fine with a shortcut's appid the whole
+time. Restoring the section name and feeding Steam's own store produced the
+real component — pager, day separators, date labels, media viewer — and let us
+delete ~1200 lines of careful, tested, *unnecessary* reimplementation
+([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+
+Before writing a component, go and look. The method is in
+[steam-components.md](steam-components.md); it takes minutes.
+
+**2. Can you put your data into Steam's store?**
+
+If Steam models the thing, write to Steam's model and let it render
+([ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
+Steam's stores are MobX singletons with ordinary public methods — the
+post-game summary is `CGamePlaySession.AddClip` /
+`BAddScreenshotNotification`, and the library grid is fields on `AppOverview`.
+
+**3. Can you render Steam's real component yourself?**
+
+Resolve it out of Steam's module cache and render it directly, even if
+`@steambrew/client` does not export it. Also check what the SDK *does* export
+first — `Carousel`, `SuspensefulImage`, `Focusable`/`FocusRing`, `Button`,
+`TextField`, `Panel`, `Tabs`, `Modal`, `Dropdown`, `SliderField`,
+`ToggleField` and more are real, shipped components. Reusing them means focus,
+keyboard and gamepad behaviour come for free.
+
+**4. Only then, clone Steam's DOM shape.**
+
+Last resort, for when no component is reachable. Clone the literal tree — same
+nesting, same classes resolved via `findClassModule`, same `Panel` utility
+class — and hide Steam's original in that slot with one scoped rule:
+
+```tsx
+<div data-mine="playtime" className={`${C.GameStat} ${C.Playtime} Panel`}>
+  <style>{`.${C.GameStat}.${C.Playtime}:not([data-mine]){display:none!important}`}</style>
+  {/* ...clone the rest of Steam's tree here... */}
+</div>
+```
+
+Only render a clone when you have the data, matching how Steam's own container
+only shows populated stats.
+
+> **A clone is a liability, not an achievement.** The Post-Game Summary was
+> cloned faithfully, passed testing, and was still discarded: it needed five
+> CSS modules resolved by probe key (one of them **ambiguous across two
+> different modules**, which silently reintroduced an already-fixed bug), and
+> Steam's own spacing misbehaved against content it was never measured for. If
+> you find yourself measuring pixels to match Steam, you are probably on the
+> wrong rung.
+
+### Rules that apply on every rung
+
+**Never hardcode Steam's CSS classes** — they are build-hashed
+([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)).
+And **never resolve anything by numeric module id**: ids reshuffle between
+builds. Resolve by a stable signature — real `prototype` method names, which
+survive minification — or a class-map probe key.
+
+**Resolve ONE `findClassModule` probe per CSS module, never per feature.**
+Classes seen together in one captured `outerHTML` do **not** imply they live in
+the same webpack module. Reusing one probe across modules makes
+`findClassModule` silently return `undefined` for the others' keys, and React
+renders those elements with **no class at all** — no error, just a tile with
+`className="Panel"` and none of its sizing. Verify co-membership by walking the
+module cache ([knowledgebase.md § Classes seen together are not necessarily one
+module](knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)),
+and sanity-check a resolved map by dumping it whole rather than trusting that a
+name "sounds right".
+
+**Always keep a graceful fallback.** Every lookup into Steam's internals can
+fail on a future build. A failed resolve must degrade the page to stock, never
+crash it.
+
+If a project ends up with a dedicated stylesheet of hand-tuned colors, shadows
+and spacing meant to *look like* Steam, that is the signal something should
+have been reused instead.
 
 Both the desktop client and Big Picture arrive through `onPopupCreate`; Big
 Picture is a separate popup window (`SP BPM_`), not a separate sandbox
-([ADR-0016](docs/decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
+([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
 
 ---
 
@@ -240,7 +285,7 @@ pnpm dev                   # build + deploy + restart Steam
 installed, and enables it in Millennium's `config.json`. **Take the Steam path as
 a parameter** — the reference plugin hardcodes `C:\Program Files (x86)\Steam` and
 silently deploys nowhere on a non-default install
-([ADR-0011](docs/decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)).
+([ADR-0011](decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)).
 
 A deployed plugin folder contains only `plugin.json`, `.millennium/Dist/` and
 `backend/`. Source `frontend/` is not deployed.
@@ -319,5 +364,5 @@ against Millennium's plugin database with the public repo URL.
 - [ ] `dev.ps1` takes the Steam path as a parameter
 - [ ] No hardcoded Steam CSS classes
 - [ ] `README.md` + `CHANGELOG.md` present
-- [ ] Added to the plugin table in the workspace [README](README.md)
+- [ ] Added to the plugin table in the workspace [README](../README.md)
 - [ ] Tests run outside Steam

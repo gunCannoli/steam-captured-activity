@@ -502,9 +502,21 @@ decision in [ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-
 - [x] `steam/gameid.ts` — BigInt appid ↔ gameid (Steam's own helper truncates
       to 32 bits, which is why non-Steam clips never appear natively)
 - [x] Deleted `components/` entirely, plus `assets.ts` and `steam-media.ts`
+- [x] **Backend cleanup** — removed what Steam's APIs replaced: `GetActivity`,
+      `GetAsset`, `GetAssets`, `timeline.lua`, `assets.lua`, and the
+      recordings/protobuf/sessions half of `captures.lua` (~700 lines), plus
+      their tests. `rpc.lua` is now two methods. Git history has the parsers if
+      the activity feed needs them back.
+- [x] Docs realigned so the next session cannot drift back to hand-building:
+      AGENTS.md leads with the "check whether Steam already builds it" ladder,
+      plugin.md's frontend section is ordered by that ladder, knowledgebase.md's
+      clone-the-DOM technique is framed as the last resort, and the cloning
+      method's own section now says so at the top.
 - [x] Verified from a clean Steam start: AM2R 7 tiles / placeholder gone,
       a capture-less shortcut keeps Steam's honest placeholder and shows no
-      empty panel, Divinity 2 (native) unaffected
+      empty panel, Divinity 2 (native) unaffected; backend answers
+      `GetDiagnostics` (223 shortcuts, 213 screenshots) and `GetLibraryStats`
+      (6 games) after the trim
 
 **Verified on this machine.** Screenshots and clips come from
 `GetScreenshotsInTimeRange` and the recording service, served by Steam over
@@ -520,14 +532,26 @@ decision in [ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-
       `GetParentalFeature`, `rtEventTime`), so a custom event class is the
       route — see steam-components.md § Activity feed.
 - [ ] Re-test whether the same approach covers Big Picture (Phase 6); the
-      stores are shared, so this may be mostly free.
+      stores are shared, so this may be mostly free. **Start with the
+      procedure in
+      [steam-components.md § Inspecting Big Picture](docs/steam-components.md#inspecting-big-picture-phase-6)**
+      — it lists the five questions to answer, in order, before writing code.
 
 ---
 
 ## Phase 6 — Big Picture (Gamepad UI)
 
+> **Start here:** run
+> [steam-components.md § Inspecting Big Picture](docs/steam-components.md#inspecting-big-picture-phase-6)
+> before writing any code. It lists five questions in order; the first two may
+> make the rest unnecessary, because Big Picture renders the same sections from
+> the same stores the desktop page does. Expect most of this phase to already
+> be done — find out, do not assume in either direction.
+
 **Investigated 2026-09-19** — no separate backend work is needed. Findings and
 rationale in [ADR-0016](docs/decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer).
+Note that ADR-0016 predates ADR-0022 and assumes a *separate renderer*; that
+assumption is now worth re-testing, since we no longer render anything.
 
 What is already settled:
 

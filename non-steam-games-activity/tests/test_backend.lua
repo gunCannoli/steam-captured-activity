@@ -107,7 +107,11 @@ if am2r then
 end
 
 -- ============ captures ============
-print("\n=== captures ===")
+-- Scope: the screenshot index only. The recording parsers (clip.pb protobuf,
+-- DASH manifests, session windows) and their tests were removed with ADR-0022 -
+-- the frontend reads clips from Steam's own APIs now. Git history has them.
+print("
+=== captures ===")
 local captures = require("captures")
 
 local counts = captures.non_steam_counts(paths)
@@ -116,72 +120,14 @@ for _, n in pairs(counts) do games = games + 1; total = total + n end
 fixture("non-steam games with media", games == FIXTURE.games_with_media, tostring(games))
 fixture("screenshots indexed", total == FIXTURE.screenshots, tostring(total))
 
-local am2r_shots = captures.screenshots_for(paths, FIXTURE.am2r_appid)
-fixture("AM2R screenshot count", #am2r_shots == FIXTURE.am2r_shots, "#" .. #am2r_shots)
-if #am2r_shots > 0 then
-  local s = am2r_shots[1]
-  check("screenshot has real path", require("fs").is_file(s.path), s.path)
-  check("screenshot has timestamp", s.taken_at > 1600000000, tostring(s.taken_at))
-  check("screenshot has dimensions", s.width > 0 and s.height > 0,
-        s.width .. "x" .. s.height)
-  check("newest first", am2r_shots[1].taken_at >= am2r_shots[#am2r_shots].taken_at)
-end
+fixture("AM2R screenshot count", counts[FIXTURE.am2r_appid] == FIXTURE.am2r_shots,
+        tostring(counts[FIXTURE.am2r_appid]))
+fixture("Super Metroid Vitality screenshot count",
+        counts[FIXTURE.vitality_appid] == FIXTURE.vitality_shots,
+        tostring(counts[FIXTURE.vitality_appid]))
 
-local vitality = captures.screenshots_for(paths, FIXTURE.vitality_appid)
-fixture("Super Metroid Vitality screenshot count", #vitality == FIXTURE.vitality_shots, "#" .. #vitality)
-
-check("unknown appid returns empty", #captures.screenshots_for(paths, 12345) == 0)
-
--- recordings: Steam stores clips as directories with a protobuf metadata file
-local clips = captures.recordings_for(paths, FIXTURE.am2r_appid)
-fixture("AM2R clip count", #clips == FIXTURE.am2r_clips, "#" .. #clips)
-if #clips > 0 then
-  local c = clips[1]
-  check("clip kind", c.kind == "clip", c.kind)
-  fixture("clip duration from clip.pb", c.duration_ms == FIXTURE.am2r_clip_ms,
-          tostring(c.duration_ms))
-  fixture("clip start time from clip.pb", c.started_at == FIXTURE.am2r_clip_at,
-          tostring(c.started_at))
-  check("clip timestamp is an integer", tostring(c.started_at):find("%.") == nil,
-        tostring(c.started_at))
-  check("clip has thumbnail", c.thumbnail ~= nil and require("fs").is_file(c.thumbnail),
-        tostring(c.thumbnail))
-  check("clip has DASH manifest", c.manifest ~= nil and require("fs").is_file(c.manifest),
-        tostring(c.manifest))
-  check("clip has dimensions", c.width > 0 and c.height > 0, c.width .. "x" .. c.height)
-end
-
-check("unknown appid has no recordings", #captures.recordings_for(paths, 12345) == 0)
-
--- sessions: gamerecording.pb indexes play sessions, and is the scope Steam's
--- own POST-GAME SUMMARY uses
-local sessions = captures.sessions_for(paths, FIXTURE.am2r_appid)
-fixture("AM2R has a session", #sessions > 0, "#" .. #sessions)
-if #sessions > 0 then
-  local sess = sessions[1]
-  check("session has start time", sess.started_at > 1600000000, tostring(sess.started_at))
-  check("session has duration", sess.duration_ms > 0, tostring(sess.duration_ms))
-  check("session end after start", sess.ended_at >= sess.started_at)
-  check("sessions newest first", sessions[1].started_at >= sessions[#sessions].started_at)
-end
-
--- Native Steam games live in the SAME store but key on the raw appid, not the
--- composed gameid. Regression guard: a plain appid must not be transformed.
-local native_recs = captures.recordings_for(paths, FIXTURE.native_appid)
-local native_sess = captures.sessions_for(paths, FIXTURE.native_appid)
-fixture("native game recording found", #native_recs > 0, "#" .. #native_recs)
-fixture("native game session found", #native_sess > 0, "#" .. #native_sess)
-
-check("no session for unknown appid", #captures.sessions_for(paths, 12345) == 0)
-
--- every indexed file must exist on disk
-local missing = 0
-for appid in pairs(counts) do
-  for _, s in ipairs(captures.screenshots_for(paths, appid)) do
-    if not require("fs").is_file(s.path) then missing = missing + 1 end
-  end
-end
-check("no missing files", missing == 0, tostring(missing) .. " missing")
+check("unknown appid is not counted", counts[12345] == nil)
+check("native Steam appid is not counted", counts[FIXTURE.native_appid] == nil)
 
 -- library_stats: feeds the grid with a last-played lower bound
 local lib = captures.library_stats(paths)
@@ -197,149 +143,30 @@ if stat then
           tostring(stat.screenshots))
   check("library_stats newest is a real timestamp", stat.newest > 1600000000,
         tostring(stat.newest))
-
-  -- newest must equal the newest screenshot's timestamp
-  local newest_shot = am2r_shots[1] and am2r_shots[1].taken_at or 0
-  check("library_stats newest matches newest screenshot", stat.newest == newest_shot,
-        stat.newest .. " vs " .. newest_shot)
 end
 
 check("library_stats excludes native Steam appids",
       lib[FIXTURE.native_appid] == nil)
 
--- ============ timeline ============
-print("\n=== timeline ===")
-local timeline = require("timeline")
-local entries_t = timeline.from_media(am2r_shots, clips)
-check("media -> entries", #entries_t == #am2r_shots + #clips,
-      #entries_t .. " vs " .. (#am2r_shots + #clips))
-
-local has_recording = false
-for _, e in ipairs(entries_t) do
-  if e.type == "recording" then has_recording = true end
-end
-fixture("recording reaches the timeline", has_recording)
-
-local days = timeline.group(entries_t)
-check("grouped into days", #days > 0, "#" .. #days)
-if #days > 0 then
-  check("date format YYYY-MM-DD", days[1].date:match("^%d%d%d%d%-%d%d%-%d%d$") ~= nil, days[1].date)
+-- every counted game must resolve back to a non-Steam appid
+for appid, n in pairs(counts) do
+  check("counted appid is non-Steam (" .. appid .. ")", appid >= 0x80000000)
+  check("counted appid has screenshots (" .. appid .. ")", n > 0)
 end
 
--- ordering: days descending, entries within a day descending
-local ordered = true
-for i = 2, #days do
-  if days[i - 1].date < days[i].date then ordered = false end
-end
-check("days newest first", ordered)
-
-check("drops zero timestamps", #timeline.group({ { type = "x", at = 0 } }) == 0)
-
--- post-game summary: scoped to the last SESSION, not the last calendar day
-local summary = timeline.post_game_summary(entries_t, sessions)
-fixture("summary built", summary ~= nil)
-if summary then
-  fixture("summary is session-scoped", summary.source == "session", summary.source)
-  check("summary has entries", #summary.entries > 0, "#" .. #summary.entries)
-  local within = true
-  for _, e in ipairs(summary.entries) do
-    if e.at < summary.started_at - 120 or e.at > summary.ended_at + 120 then
-      within = false
-    end
-  end
-  check("summary entries inside session window", within)
-end
-
--- With no session index, fall back to the newest day.
-local fallback = timeline.post_game_summary({
-  { type = "screenshot", at = 1761276095 },
-  { type = "screenshot", at = 1760533309 },
-}, {})
-check("summary falls back to newest day", fallback ~= nil and fallback.source == "day",
-      fallback and fallback.source)
-if fallback then
-  check("fallback picks one day only", #fallback.entries == 1, "#" .. #fallback.entries)
-end
-check("no summary without media", timeline.post_game_summary({}, {}) == nil)
-
--- multi-day grouping with a synthetic set
-local synth = timeline.group({
-  { type = "a", at = 1761276095 },
-  { type = "b", at = 1761276099 },
-  { type = "c", at = 1760533309 },
-})
-check("groups 3 entries into 2 days", #synth == 2, "#" .. #synth)
-if #synth == 2 then
-  check("first day has 2 entries", #synth[1].entries == 2, "#" .. #synth[1].entries)
-  check("entries within day newest first",
-        synth[1].entries[1].at >= synth[1].entries[2].at)
-end
-
--- ============ assets ============
-print("\n=== assets ===")
-local assets = require("assets")
-
--- Security boundary: only capture directories may be read. The frontend can
--- only echo back paths we gave it, but a bug must not become a file reader.
-local denied = {
-  [[C:\Windows\win.ini]],
-  [[C:\game\steam\config\loginusers.vdf]],
-  paths.screenshots_root .. [[\..\..\config\loginusers.vdf]],
-  [[\server\share\secret.jpg]],
-  "",
-}
-local all_denied = true
-for _, bad in ipairs(denied) do
-  local r = assets.read(bad, paths)
-  if r.ok then all_denied = false; print("      LEAK: " .. bad) end
-end
-check("rejects paths outside capture dirs", all_denied)
-check("rejects traversal", assets.read(
-  paths.screenshots_root .. [[\..\..\config\loginusers.vdf]], paths).ok == false)
-
--- Non-image inside an allowed root must still be refused.
-check("rejects non-image types",
-      assets.read(paths.recordings .. [[\gamerecording.pb]], paths).ok == false)
-
-if #am2r_shots > 0 and am2r_shots[1].thumb then
-  local r = assets.read(am2r_shots[1].thumb, paths)
-  check("reads a real thumbnail", r.ok == true, r.error)
-  if r.ok then
-    check("returns a jpeg data URI",
-          r.uri:sub(1, 23) == "data:image/jpeg;base64,", r.uri:sub(1, 30))
-    check("data URI has payload", #r.uri > 100, "#" .. #r.uri)
-    check("reports byte count", r.bytes > 0, tostring(r.bytes))
-  end
-
-  -- Batch read, used for a page of thumbnails.
-  local many = assets.read_many({ am2r_shots[1].thumb }, paths)
-  check("read_many returns per-path results", many[am2r_shots[1].thumb] ~= nil)
-  check("read_many entry ok", many[am2r_shots[1].thumb].ok == true)
-
-  -- A zero budget must refuse rather than silently serve.
-  local broke = assets.read_many({ am2r_shots[1].thumb }, paths, 0)
-  check("read_many honours the budget",
-        broke[am2r_shots[1].thumb].ok == false,
-        broke[am2r_shots[1].thumb].error)
-end
-
-check("missing file reports not found",
-      assets.read(paths.screenshots_root .. [[
-ope
-ope.jpg]], paths).ok == false)
 
 -- ============ rpc ============
-print("\n=== rpc (shape) ===")
+print("
+=== rpc (shape) ===")
 local RPC = require("rpc")
 local diag = RPC.GetDiagnostics("{}")
 check("GetDiagnostics returns json", type(diag) == "string" and diag:find("\"ok\""), diag)
 print("    " .. diag)
 
-if #am2r_shots > 0 and am2r_shots[1].thumb then
-  local asset_json = RPC.GetAsset('{"path":"' .. am2r_shots[1].thumb:gsub("\\", "\\\\") .. '"}')
-  check("GetAsset returns json with a data URI",
-        type(asset_json) == "string" and asset_json:find("data:image/jpeg;base64,", 1, true) ~= nil)
-end
+local stats_json = RPC.GetLibraryStats("{}")
+check("GetLibraryStats returns json",
+      type(stats_json) == "string" and stats_json:find("screenshots", 1, true) ~= nil)
 
-print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
+print("
+" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)
