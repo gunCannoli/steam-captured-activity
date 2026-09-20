@@ -24,6 +24,7 @@ The core must be useful alone and must never depend on a provider. See
 | [TASK.md](TASK.md) | **Start here** — current phase, what is next, the smoke test |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, provider sources, verified facts |
 | [docs/architecture.md](docs/architecture.md) | Core/provider split, the provider contract, data flow, RPC |
+| [docs/steam-components.md](docs/steam-components.md) | How Steam itself builds the app detail page — the section registry, the stores behind Post-Game Summary and Activity, and the event shapes to feed them |
 | [docs/steam-styles.md](docs/steam-styles.md) | Steam's measured styles — copy these, do not approximate |
 | [docs/decisions.md](docs/decisions.md) | ADRs — *why* things are the way they are |
 
@@ -122,6 +123,11 @@ it as a parameter.
   example, including one it replaced: a from-scratch reimplementation of Steam's
   scrolling carousel that worked, but was still discarded in favour of rendering
   the real `Pageable`/`Carousel` components once they were confirmed reachable.
+  [docs/steam-components.md](docs/steam-components.md) maps the whole app detail
+  page this way: Steam hides Post-Game Summary and Activity from non-Steam games
+  with a one-line app-type filter in its section registry, not because the data
+  is missing — both stores accept a shortcut's appid and render natively once
+  fed. Prefer feeding those stores over rebuilding their output.
 - **Prefer patching Steam's data over its DOM** ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
 - **Respect third-party APIs.** RetroAchievements is donation-funded: cache hard,
   never poll, send a descriptive `User-Agent` ([ADR-0007](docs/decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).

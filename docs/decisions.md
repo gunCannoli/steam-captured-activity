@@ -912,3 +912,84 @@ produced exact values immediately, and revealed two things a screenshot cannot:
   documents how to re-measure, which makes that cheap.
 - Cost: the bible must be kept honest — a value edited by eye and left
   unrecorded is worse than none, because it looks authoritative.
+
+---
+
+## ADR-0022: Render through Steam's own app detail sections instead of rebuilding them
+
+**Status:** accepted · supersedes the rendering half of
+[ADR-0020](#adr-0020-match-steams-measured-styles-open-media-through-client-apis)
+and [ADR-0021](#adr-0021-measure-steams-styles-from-the-live-client-and-keep-a-style-bible),
+and narrows [ADR-0017](#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)
+
+### Context
+
+The plugin hand-built the post-game summary: its own carousel, media cards,
+hover states, day grouping and date labels, styled from measured values and
+rendered into Steam's DOM with `data-nsga` markers and a stylesheet that hid
+Steam's placeholder.
+
+It worked, and it kept not quite matching. Each Steam detail rediscovered by
+hand was a thing that could drift: five separate CSS modules had to be resolved
+by probe key, one of which (`PostGameSummaryClip`) turned out to be **ambiguous
+across two different modules**, silently reintroducing a fixed bug with no code
+change. That is a permanent maintenance tax on a copy that can only ever
+approximate the original.
+
+A live read of Steam's module cache showed the copy was unnecessary. From
+`webpackChunksteamui`:
+
+```js
+// Steam's app-details section registry
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+```
+
+**Steam is not missing this UI for non-Steam games; it filters it out by app
+type.** Every component and store behind it accepts a shortcut's appid:
+
+- `CAppSpotlightStore.GetOrCreateAppData(appid)` → a real session object
+- `SteamClient.Apps.GetScreenshotsInTimeRange(appid, …)` → 4 real screenshots
+- the recording service's `GetClips({ game_id })` → 3 real clips
+
+The clips call needs the **64-bit gameid**; Steam's own helper truncates it to
+32 bits, which is the actual reason non-Steam clips never appear natively.
+
+Verified end to end: restoring the section name and pushing the captures into
+Steam's own session made Steam render its real summary — pager, day separators,
+`Today` label, clip badges, media viewer — with zero markup of ours.
+
+### Decision
+
+- **Do not build UI that Steam already builds.** Restore the section in Steam's
+  registry and feed Steam's store; let Steam render.
+- **Resolve Steam's internals by signature, never by numeric module id** —
+  prototype method names survive minification, module ids reshuffle per build.
+- **Remove Steam's `nonsteam` placeholder by dropping it from the section set**,
+  not by hiding the rendered node with CSS, and only once there is content to
+  replace it with.
+- **Expose a provider API** (`registerSummaryProvider`) so provider plugins
+  contribute events rather than markup, consistent with
+  [ADR-0012](#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins).
+- Delete the hand-built components rather than keep them as a fallback. A
+  second rendering path that is never exercised is a liability, and the graceful
+  degradation we need is "Steam's stock page", which costs nothing.
+
+### Consequences
+
+- ~800 lines of components, class maps and image plumbing deleted. The renderer
+  is ~60 lines of coordination.
+- The page cannot drift from native, because it *is* native. A Steam UI refresh
+  carries us along instead of breaking us.
+- No image crosses the RPC boundary for the detail page: Steam serves its own
+  captures over `steamloopback.host` and hands us absolute URLs. ADR-0017's
+  constraint still holds for files Steam does not index, but does not apply
+  here.
+- The style bible ([steam-styles.md](steam-styles.md)) is no longer needed to
+  *build* the summary. It is kept as reference for anything we do still draw.
+- Cost: we depend on Steam's internal shapes. Mitigated by signature-based
+  resolution and by degrading to the stock page whenever a lookup fails — a
+  Steam update makes the section disappear, not the client crash.
+- Cost: publishing is async, so the first render precedes the data. The section
+  patch tracks live component instances and forces a re-render, clearing
+  `m_setSectionsMemo` first because Steam compares that cache **by size alone**
+  and our change swaps one member for another.

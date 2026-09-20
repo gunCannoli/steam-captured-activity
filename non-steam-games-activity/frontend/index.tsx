@@ -1,10 +1,16 @@
 import { Steam } from 'steambrew-utils';
 import { onAppLaunch, onLocationChange, onPopupCreate, PopupType } from 'steambrew-utils/watchers';
-import { clearAssetCache } from './assets';
 import { logger } from './logger';
-import { patch as patchLibraryApp, refresh as refreshLibraryApp, unpatch as unpatchLibraryApp } from './renderers/library-app';
+import {
+  patch as patchLibraryApp,
+  refresh as refreshLibraryApp,
+  register as registerLibraryApp,
+  unpatch as unpatchLibraryApp,
+} from './renderers/library-app';
 import { refresh as refreshLibraryHome, register as registerLibraryHome } from './renderers/library-home';
-import { rpc } from './rpc';
+
+export { registerSummaryProvider } from './steam/summary';
+export type { SummaryContext, SummaryContribution, SummaryProvider } from './steam/summary';
 
 /**
  * Steam assigns non-Steam shortcuts appids at the top of the 32-bit range.
@@ -22,20 +28,12 @@ function appIdFromPath(pathname: string): number | undefined {
 }
 
 export default async function OnPluginLoaded() {
-  try {
-    const diagnostics = await rpc.getDiagnostics();
-    if (!diagnostics.ok) {
-      logger.error('Backend could not read Steam:', diagnostics.error);
-      return;
-    }
-    logger.info(
-      `Ready. ${diagnostics.shortcuts} shortcuts, ` +
-        `${diagnostics.screenshots} screenshots across ` +
-        `${diagnostics.games_with_media} non-Steam games.`,
-    );
-  } catch (error) {
-    logger.error('Failed to reach the backend:', error);
-    return;
+  // ===== Native sections =====
+  // Steam hides Post-Game Summary from shortcuts with an app-type filter in its
+  // section registry. Putting the name back is what makes the native component
+  // render at all, so nothing else matters if this fails.
+  if (!registerLibraryApp()) {
+    logger.error('Could not restore Steam\'s app detail sections; summaries are unavailable.');
   }
 
   // ===== Library grid =====
@@ -43,32 +41,35 @@ export default async function OnPluginLoaded() {
   await registerLibraryHome();
 
   // ===== App detail pages =====
-  // Each Steam window is its own document, so watch them individually.
+  // Publishing is keyed on the app, not the window: Steam's store is global, so
+  // one publish serves every window showing that game.
 
-  onPopupCreate((popup, type) => {
-    // Big Picture (PopupType.Gamepad) needs its own renderer and its own class
-    // modules; desktop ships first (ADR-0016).
+  onPopupCreate((_popup, type) => {
+    // Big Picture (PopupType.Gamepad) renders the same sections from the same
+    // stores, but needs its own verification pass first (ADR-0016).
     if (type !== PopupType.Desktop) return;
+
+    let current: number | undefined;
 
     const stopWatching = onLocationChange(
       () => Steam.MainWindowBrowserManager?.m_lastLocation,
       ({ pathname }) => {
-        const window = popup.window;
-        if (!window) return;
-
         const appid = appIdFromPath(pathname);
+
         if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
-          void patchLibraryApp(window, appid);
-        } else {
+          current = appid;
+          void patchLibraryApp(appid);
+        } else if (current !== undefined) {
           // Either a native Steam game, which we leave alone, or another page.
-          unpatchLibraryApp(window);
+          unpatchLibraryApp(current);
+          current = undefined;
         }
       },
     );
 
     return () => {
       stopWatching();
-      if (popup.window) unpatchLibraryApp(popup.window);
+      if (current !== undefined) unpatchLibraryApp(current);
     };
   });
 
@@ -81,9 +82,10 @@ export default async function OnPluginLoaded() {
 
     onQuit(() => {
       logger.info(`${app.display_name} closed; refreshing its activity.`);
-      clearAssetCache();
       void refreshLibraryApp(app.appid);
       void refreshLibraryHome();
     });
   });
+
+  logger.info('Ready. Non-Steam games now use Steam\'s own detail sections.');
 }

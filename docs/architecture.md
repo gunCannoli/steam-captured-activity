@@ -121,20 +121,24 @@ non-steam-games-activity/
 │  ├─ harness.lua         # stubs Millennium's modules            ✅
 │  └─ test_backend.lua    # runs real modules on real data        ✅
 └─ frontend/
-   ├─ index.tsx           # OnPluginLoaded — diagnostics only so far   ✅
-   ├─ rpc.ts              # typed client for the backend               ✅
-   ├─ assets.ts           # thumbnail / full-image cache               ✅
-   ├─ styles.ts           # scoped CSS on Steam's theme vars            ✅
-   ├─ renderers/
-   │  ├─ library-app.tsx  # the app detail page (desktop)               ✅
-   │  ├─ gamepad-app.tsx  # the app detail page (Big Picture)
-   │  └─ library-home.tsx # patch AppOverview so the grid shows stats  ✅
-   └─ components/
-      ├─ post-game-summary.tsx
-      ├─ timeline.tsx
-      ├─ media-grid.tsx      # screenshots + recordings
-      └─ provider-section.tsx # renders whatever a provider returned
+   ├─ index.tsx           # OnPluginLoaded + the provider API            ✅
+   ├─ rpc.ts              # typed client for the backend                 ✅
+   ├─ steam/              # bindings onto Steam's own internals
+   │  ├─ modules.ts       # webpack cache; resolve by signature          ✅
+   │  ├─ stores.ts        # typed store/service/payload shapes           ✅
+   │  ├─ sections.ts      # restore the sections Steam hides             ✅
+   │  ├─ summary.ts       # feed Steam's session + provider registry     ✅
+   │  └─ gameid.ts        # 32-bit appid ↔ 64-bit gameid (BigInt)        ✅
+   └─ renderers/
+      ├─ library-app.tsx  # coordinates publish/clear per app            ✅
+      ├─ gamepad-app.tsx  # Big Picture
+      └─ library-home.tsx # patch AppOverview so the grid shows stats    ✅
 ```
+
+There is no `components/` directory any more, and that is the point: the
+hand-built post-game summary, carousel, media cards and class-module maps were
+deleted once Steam's own components were confirmed reachable
+([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 
 `gameid.lua` was not in the original plan; the 64-bit conversion needed its own
 module because Lua numbers are doubles and cannot hold a gameid exactly. It does the
@@ -354,11 +358,30 @@ permanently static once fetched, so it never needs a refresh trigger beyond
 `minutes_playtime_forever` / `rt_last_time_played` onto non-Steam overviews so Steam's
 own sorting and grid work ([ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
 
-**App detail page** — `onPopupCreate` → `onLocationChange`; on `/library/app/<appid>`
-with `appid >= NON_STEAM_APP_APPID_MASK`, fetch and render into
-`.${PlayBarClasses.GameStatsSection}`. Each injected node carries a `data-nsga`
-attribute so re-renders replace rather than duplicate, and a scoped `<style>` hides
-Steam's empty placeholder.
+**App detail page** — we render nothing. Steam already has the components; it
+hides them from shortcuts and never loads their data, so the frontend only:
+
+1. **Restores the sections.** Steam's registry swaps the full section list for
+   `["nonsteam", "notes", "screenshots"]` when `BIsModOrShortcut()`. Patching
+   `GetSections` puts `postgamesummary` back and removes `nonsteam` (its grey
+   "information is unavailable" box) once we have something to show instead.
+2. **Feeds Steam's store.** `CGamePlaySession.BAddScreenshotNotification` /
+   `AddClip` take the captures; `m_postGameSummary` is the gate the component
+   reads. Steam renders the pager, day separators, date labels and media viewer.
+
+Both data sources are Steam's own and work unmodified for a shortcut:
+`SteamClient.Apps.GetScreenshotsInTimeRange(appid, …)` and the recording
+service's `GetClips({ game_id })`. The clips call needs the **64-bit gameid** —
+Steam's own helper truncates it to 32 bits, which is the actual reason non-Steam
+clips never appear natively.
+
+Because the publish is async, the first render has already happened by the time
+content arrives. The section patch tracks live component instances and
+`forceUpdate`s them (clearing `m_setSectionsMemo` first, since Steam compares
+that cache **by size alone** and our change swaps one member for another).
+
+See [steam-components.md](steam-components.md) for the full trace, and
+[ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
 
 **Big Picture** is the same plugin with a second renderer. It is a separate popup
 window (`SP BPM_`), which `onPopupCreate` already reports as `PopupType.Gamepad`, so
@@ -367,12 +390,21 @@ tab sub-routes (`/library/app/<appid>/tab/<Name>`), its own class modules, and
 controller focus. Desktop ships first
 ([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
 
-**Serving local images** is settled: `steamloopback.host` is jailed to
-`<Steam>/steamui/` and cannot reach `userdata/`, so capture images cross the RPC
-boundary as **base64 data URIs**. Thumbnails (~11 KB each) are batched with
-`GetAssets`; a full image (~1 MB) is fetched with `GetAsset` only when opened.
-`assets.lua` enforces a path allowlist so the RPC cannot become a file reader
-([ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)).
+**Serving local images** no longer needs base64 for the detail page. The
+constraint in [ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)
+was real — *our* plugin cannot serve files through `steamloopback.host` — but it
+does not apply here, because **Steam serves its own captures over that origin**
+and hands us absolute URLs:
+
+```
+https://steamloopback.host/screenshots/18310622842007322624/screenshots/20260920024456_1.jpg
+https://steamloopback.host/gamerecordings/clips/clip_1831…_20260919_163736/thumbnail.jpg
+```
+
+Verified live for a non-Steam game. Since we pass Steam's own objects straight
+back to Steam's own components, no image crosses the RPC boundary at all.
+`assets.lua` and the base64 pipeline remain only for anything that needs a file
+Steam does not already index.
 
 ---
 

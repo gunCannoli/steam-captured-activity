@@ -7,11 +7,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-The activity page renders in the live Steam client, replacing Steam's
-"information is unavailable" box for non-Steam games. Library grid, Big Picture
-and recording playback are still to come.
+Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
+of them. Library grid works; the per-day activity feed and Big Picture are still
+to come.
+
+### Changed
+
+- **The post-game summary is now rendered by Steam itself.** Steam was never
+  missing this UI for non-Steam games — it filters it out by app type in its
+  section registry (`BIsModOrShortcut() && (s = ["nonsteam", "notes",
+  "screenshots"])`). The plugin restores the section and feeds Steam's own
+  `CGamePlaySession`; Steam draws the pager, day separators, date labels
+  ("Today"/"Yesterday"/"Sep 20"), hover states and media viewer.
+  See [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)
+  and [steam-components.md](../docs/steam-components.md).
+- **Captures come from Steam's own APIs**, not the backend:
+  `SteamClient.Apps.GetScreenshotsInTimeRange` and the recording service's
+  `GetClips`. Both work unmodified for a shortcut. Clips need the **64-bit
+  gameid** — Steam's own helper truncates it to 32 bits, which is the actual
+  reason non-Steam clips never appear natively.
+- **No image crosses the RPC boundary** for the detail page. Steam serves its
+  own captures over `steamloopback.host` and hands back absolute URLs.
+- Steam's "information is unavailable" placeholder is removed by dropping it
+  from the section set rather than hiding the node with CSS, and only when
+  there is content to replace it with — a game with no captures keeps Steam's
+  honest explanation instead of gaining an empty panel.
+
+### Removed
+
+- `components/` (activity, carousel, media cards, hover, class maps),
+  `assets.ts` and `steam-media.ts` — roughly 800 lines of hand-built UI that
+  Steam now renders. A resolved Steam component cannot drift from native; a
+  hand-built copy can and did.
 
 ### Added
+
+- **Provider API** (`registerSummaryProvider`) — provider plugins contribute
+  summary *events*, not markup, and a failing provider is skipped rather than
+  taking the page down.
+- **Signature-based module resolution** (`steam/modules.ts`) — resolves Steam's
+  stores and components by prototype method names, never by numeric module id
+  (those reshuffle between builds).
 
 - **Steam path discovery** (`steam_paths.lua`) — resolves the Steam root via
   `millennium.steam_path()` and the active user from `loginusers.vdf`

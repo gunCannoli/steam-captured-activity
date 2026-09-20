@@ -237,7 +237,7 @@ Still open from that testing round:
 
 ---
 
-## Phase 5c — Rebuild the summary as real Steam components ✅ DONE (with follow-ups) ⬅ NEXT: items 3, 7 below
+## Phase 5c — Rebuild the summary as real Steam components ✅ DONE — superseded by Phase 5d
 
 The prior "carousel" was our own hand-rolled markup/CSS wearing Steam's class
 names as decoration, not a clone of Steam's real tree — visibly inconsistent
@@ -469,6 +469,58 @@ _3qlJ0L41KQFqUTzVQKFERC` — both native hashes present. Computed style
        either accept Steam's spacing as-is (if intentional) or override with an
        explicit smaller margin once the actual native day-to-day gap is measured
        in pixels rather than eyeballed.
+
+---
+
+## Phase 5d — Render through Steam's own sections ✅ DONE ⬅ CURRENT
+
+Phase 5c rebuilt the summary as a faithful *copy* of Steam's tree. It worked,
+and it still had to be maintained: five CSS modules resolved by probe key (one
+of them ambiguous across two modules, which silently reintroduced a fixed bug),
+plus Steam's own spacing applied to content it was never measured against — the
+open item at the end of 5c.
+
+A live read of Steam's module cache made the copy unnecessary.
+**Steam is not missing this UI for non-Steam games; it filters it out by app
+type**, in its section registry:
+
+```js
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+```
+
+Everything behind it accepts a shortcut's appid. Full trace in
+[docs/steam-components.md](docs/steam-components.md);
+decision in [ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
+
+- [x] Mapped the whole app detail page from the live client — section registry,
+      column layout, both stores, event payloads, separator/day-grouping rules
+- [x] `steam/modules.ts` — capture Steam's webpack require; resolve **by
+      prototype signature**, never by numeric module id
+- [x] `steam/sections.ts` — restore `postgamesummary`; drop Steam's `nonsteam`
+      placeholder once there is content to replace it with
+- [x] `steam/summary.ts` — feed `CGamePlaySession`, plus the provider API
+- [x] `steam/gameid.ts` — BigInt appid ↔ gameid (Steam's own helper truncates
+      to 32 bits, which is why non-Steam clips never appear natively)
+- [x] Deleted `components/` entirely, plus `assets.ts` and `steam-media.ts`
+- [x] Verified from a clean Steam start: AM2R 7 tiles / placeholder gone,
+      a capture-less shortcut keeps Steam's honest placeholder and shows no
+      empty panel, Divinity 2 (native) unaffected
+
+**Verified on this machine.** Screenshots and clips come from
+`GetScreenshotsInTimeRange` and the recording service, served by Steam over
+`steamloopback.host` — no image crosses the RPC boundary for this page.
+
+### Open
+
+- [ ] **Activity feed** (the per-day list below the summary) is still stock.
+      It is network-backed (`FetchLatestActivity`) and returns 0 days for a
+      shortcut, and Steam's own screenshot/video adders need a
+      `publishedfileid` that local captures do not have. `CActivityDay.AddEvent`
+      is an unguarded push with a small contract (`BIsValid`,
+      `GetParentalFeature`, `rtEventTime`), so a custom event class is the
+      route — see steam-components.md § Activity feed.
+- [ ] Re-test whether the same approach covers Big Picture (Phase 6); the
+      stores are shared, so this may be mostly free.
 
 ---
 
