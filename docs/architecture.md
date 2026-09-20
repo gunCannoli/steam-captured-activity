@@ -376,17 +376,19 @@ that cache **by size alone** and our change swaps one member for another).
 See [steam-components.md](steam-components.md) for the full trace, and
 [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
 
-**Big Picture** is a separate popup window (`SP BPM_`), which `onPopupCreate`
-reports as `PopupType.Gamepad`. It renders the same sections from the same
-stores, but as tab sub-routes (`/library/app/<appid>/tab/<Name>`) and with
-controller focus.
+**Big Picture** renders the same components from the same section registry as
+desktop — verified live: its "ACTIVITY" tab draws the identical Post-Game
+Summary component, gated by the identical `setSections.has("postgamesummary")`.
+Nothing needs to be built or cloned for its UI.
 
-[ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)
-planned a *second renderer* for it. **That assumption predates ADR-0022 and is
-now worth re-testing**, because we no longer render anything — if Big Picture
-shares the JS context and the section registry, most of this may already work.
-Answer that before writing code:
-[steam-components.md § Inspecting Big Picture](steam-components.md#inspecting-big-picture-phase-6).
+The open problem is different: Big Picture's window (`Steam Big Picture Mode`)
+runs a **separate bundle** with no `window.Millennium` and no shared module
+cache — this plugin's frontend never executes there at all, not a rendering
+gap. [ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)'s
+"second renderer" plan is superseded by
+[ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one),
+which has the full finding and the reusable test procedure
+([steam-components.md § Inspecting Big Picture](steam-components.md#inspecting-big-picture-phase-6-answered)).
 
 **Serving local images** no longer needs base64 for the detail page. The
 constraint in [ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)

@@ -87,7 +87,7 @@ pure map read and `BIsVisible()` a plain field, so an object built with
 live. What remains is wiring it through the plugin's existing re-render path,
 and deciding whether injecting into Steam's shared store cache is acceptable.
 
-Steps and the risk note are in [TASK.md](../TASK.md), Phase 5d.
+Steps and the risk note are in [TASK.md](../TASK.md).
 
 Until then the section stays off, and Steam's own "information is unavailable"
 box is left in place: it is accurate, and at normal window widths it is the only

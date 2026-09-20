@@ -247,9 +247,12 @@ Real payloads captured live:
 
 Note `strUrl` and `thumbnail_url` are **`steamloopback.host` URLs that Steam
 itself serves** from `userdata` and `gamerecordings`. This is a different route
-from the one [Phase 2](../TASK.md) rejected — worth re-testing whether a
-shortcut's own capture paths resolve through it, since that would remove the
-base64-over-RPC cost entirely.
+from the one an earlier base64-over-RPC design avoided
+([ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)):
+that ADR found *this plugin's own* paths unservable through
+`steamloopback.host`, but these are *Steam's own* objects with *Steam's own*
+URLs, already resolved this way — no base64, confirmed shipped in
+`steam/stores.ts`.
 
 ### Render algorithm
 
@@ -487,7 +490,7 @@ guard's hook for shortcut appids over poisoning the cache.
 headings with empty bodies. The Post-Game Summary already groups by day
 (`Today` / `Yesterday` / `Oct 24, 2025`), which covers much of the intent.
 
-Full plan in [TASK.md](../TASK.md), Phase 5d.
+Next steps: [TASK.md](../TASK.md).
 
 Achievements for non-Steam games are out of scope regardless; if they ever
 arrive (custom sets, RetroAchievements), they are a provider concern
@@ -651,10 +654,12 @@ without waiting for midnight.
   network call, and was, successfully. What remains is wiring it through the
   plugin's existing re-render path. See
   [§ The hard blocker](#the-hard-blocker-every-event-needs-a-store-record-verified-live)
-  and TASK.md Phase 5d for the step-by-step.
-- **Big Picture** — run the procedure in
-  [§ Inspecting Big Picture](#inspecting-big-picture-phase-6). The stores are
-  shared, so much of it may already work.
+  and [TASK.md](../TASK.md) for the step-by-step.
+- **Big Picture is answered, not blocked on unknowns any more** — see
+  [§ Inspecting Big Picture](#inspecting-big-picture-phase-6-answered) and
+  [ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one).
+  It reuses the same components; the open problem is getting this plugin's
+  code to run inside that window at all.
 
 Everything that reaches into Steam keeps a graceful fallback, so a Steam update
 degrades the page to stock instead of crashing it.
@@ -769,56 +774,111 @@ Ri.GetOrCreateAppData(appid).m_session.ClearSessionEvents();
 
 ---
 
-## Inspecting Big Picture (Phase 6)
+## Inspecting Big Picture (Phase 6) — answered
 
-Big Picture renders the same sections from the same stores, but as **tab
-sub-routes** rather than one scrolling page, and it needs controller focus
-([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
-The open question is how much of the desktop work carries over unchanged.
+The five questions this section used to pose are now answered. Summary: **the
+UI reuses the same components, but Millennium never loads our plugin into that
+window**, so nothing is missing on Steam's side — the patch simply never runs
+there yet. Decision recorded in
+[ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one),
+which supersedes ADR-0016's "second renderer" plan.
 
-Run the procedure above against Big Picture's window, then answer these in
-order. Each one is cheap and the first two may make the rest unnecessary.
-
-**1. Is it the same JS context?**
-
-Big Picture is a separate popup window (`PopupType.Gamepad`), not a separate
-sandbox. If it shares `SharedJSContext`, then `steam/modules.ts`,
-`steam/stores.ts` and `steam/summary.ts` already work there and only the
-section patch is in question. Check whether the stores are the same objects:
+### How to get into Big Picture for testing
 
 ```js
-// in SharedJSContext, after publishing for an appid
-Ri.GetOrCreateAppData(4263274102).m_session.GetSessionEvents().length
+// in SharedJSContext
+window.SteamClient.UI.SetUIMode(4);   // → Big Picture. GetUIMode() confirms: 7 = desktop.
+window.SteamClient.UI.SetUIMode(7);   // ← back to desktop when done
 ```
 
-If Big Picture's page reflects that, the data layer is done.
+A new devtools target appears: **`Steam Big Picture Mode`**. That window *is*
+the whole gamepad UI — there is no separate shared-context equivalent for it.
 
-**2. Does it use the same section registry?**
+### 1. Is it the same JS context? — **No.**
 
-Find its sections component the same way (search for `#AppDetails_Tab_GameInfo`
-and the `Tab_` tokens listed above). Then check whether it is the **same class**
-we already patch — if so, the patch applies for free. If it is a different
-component with its own `GetSections`, extend `appDetailsSections()` in
-`steam/stores.ts` to resolve both rather than special-casing.
+```js
+// evaluated inside the "Steam Big Picture Mode" target
+typeof window.webpackChunksteamui   // "undefined"
+typeof window.appStore              // "undefined"
+typeof window.Millennium            // "undefined"  ← the whole plugin loader
+typeof window.SteamClient           // "object"     ← only the native bridge
+```
 
-**3. Which sections does it list for a shortcut?**
+Big Picture is a **separate bundle with its own module cache**, not a popup
+sharing `SharedJSContext`'s modules. `onPopupCreate` (which the entry point
+already uses to reach desktop popup windows) reports it as `PopupType.Gamepad`,
+but that mechanism patches *into* a popup's DOM from outside — it does not run
+`OnPluginLoaded()` inside that window's own JS context, and nothing here does.
+**This is the actual reason the Activity tab was empty**, not a Big-Picture
+section-registry difference: our `steam/sections.ts` patch lives only in
+`SharedJSContext`, so Big Picture's own unpatched `GetSections()` returns the
+stock 3-item shortcut list.
 
-Big Picture already filters `community` by `LAUNCHER_TYPE`. Dump its section
-set for a native game and a non-Steam one, exactly as in step 4 above, and diff
-them. That diff *is* the Phase 6 work list.
+### 2. Does it use the same section registry? — **Yes**, verified from source.
 
-**4. Are the class modules the same?**
+Module `3375` (the same module desktop's page composition lives in) defines
+Big Picture's tabs. The `WhatsNew` tab (labelled `#AppDetails_Tab_Activity`,
+i.e. the on-screen "ACTIVITY" tab) renders:
 
-Expect not to need them — if the native component renders, we resolve nothing.
-Only if a clone turns out to be unavoidable does the class-module question
-arise, and then the one-probe-per-module rule applies as usual.
+```js
+function at(e) {
+  return <>
+    {e.setSections.has("friends") && <FriendsSpotlight ... />}
+    {e.setSections.has("postgamesummary") && <Ge.T details={e.details} />}  {/* ← same component as desktop */}
+    ...
+    {e.setSections.has("activity") && <ae.W appid={e.details.unAppID} />}
+    ...
+  </>;
+}
+```
 
-**5. Does controller focus work without help?**
+`Ge.T` is the **exact same Post-Game Summary component** (`53074`'s export `T`)
+the desktop page renders. `setSections` is passed down from the same
+`GetSections()` call desktop uses. So restoring `postgamesummary` for a
+shortcut in Big Picture's own `GetSections()` instance renders the real
+summary — no new component, no new styling, nothing to clone.
 
-The summary tiles are `Focusable` in Steam's own component, so focus should
-come for free. Verify with a controller rather than assuming — this is the
-most likely place the desktop assumption breaks.
+### 3. Which sections does it list for a shortcut? — not yet dumped live.
 
-Record what you find here before writing code, the way this document was
-written. The point of the exercise is to discover that most of Phase 6 is
-already done.
+Expected to be the same three (`nonsteam`, `notes`, `screenshots`) since it is
+the same class and the same `BIsModOrShortcut()` filter — confirm once the
+patch actually reaches this window (see below), by dumping
+`GetSections(overview, details)` the same way as desktop.
+
+### 4. Are the class modules the same? — not applicable.
+
+No cloning needed; `Ge.T` renders unchanged, using its own already-resolved
+class modules (`68854`, etc.) from module `3375`'s own closure over the same
+component tree.
+
+### 5. Does controller focus work without help? — not yet tested.
+
+Blocked on (1): nothing to focus until the summary renders. Revisit once the
+patch reaches the window.
+
+### What Phase 6 actually needs
+
+Not a new renderer, not new class-module work — **get the existing patch to
+run inside the Big Picture window's own JS context.** Concretely:
+
+- Find how Millennium (or `@steambrew/client`) exposes a hook into a Gamepad
+  popup's *own* `window`/module scope, if one exists — separate from
+  `onPopupCreate`, which only reaches the DOM from outside.
+- If no such hook exists, the patch needs to run some setup code inside that
+  window directly (e.g. via `popup.window.eval`-equivalent, or by having
+  Millennium load the frontend bundle a second time in that context).
+- Once the patch's `GetSections`/`CGamePlaySession` calls are reachable there,
+  no further UI work should be needed — `Ge.T` and `ae.W` (activity) already
+  read from the same `setSections` and `appid` this plugin already publishes
+  to in `SharedJSContext`. Confirm `CAppSpotlightStore` (`Ri`) is also a
+  *process-wide* singleton rather than one instantiated per bundle before
+  assuming this — check `Ri.GetOrCreateAppData` returns the same object
+  instance across both windows for the same appid.
+- Big Picture's own `ACTIVITY` tab includes the daily activity feed
+  (`ae.W`/`activity` section) in the *same* tab as the summary, not a
+  separate one — so the store-record blocker documented above
+  ([§ The store record can be faked](#the-store-record-can-be-faked-verified-not-yet-wired-up))
+  applies here too, once reachable.
+
+Record findings from step 3 onward here once the reachability question is
+solved.

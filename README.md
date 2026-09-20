@@ -44,7 +44,7 @@ for what each one needs and where its data comes from.
 
 | Plugin | Status | Public repo |
 | --- | --- | --- |
-| [non-steam-games-activity](non-steam-games-activity/) | 🚧 Phase 5c — core UI working, polish + Big Picture ahead | not yet published |
+| [non-steam-games-activity](non-steam-games-activity/) | 🚧 Post-Game Summary shipped; Activity feed + Big Picture ahead | not yet published |
 | `retroarch` | 📋 planned | — |
 | `retroachievements` | 📋 planned | — |
 | `guides-artwork` | 📋 planned | — |
@@ -54,7 +54,7 @@ for what each one needs and where its data comes from.
 
 | Doc | What it holds |
 | --- | --- |
-| [TASK.md](TASK.md) | Current phase, what is next, the smoke test |
+| [TASK.md](TASK.md) | Current status, what is next |
 | [docs/plugin.md](docs/plugin.md) | How to create a plugin, and how to publish one |
 | [AGENTS.md](AGENTS.md) | Conventions and environment facts for contributors and AI agents |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, verified facts |

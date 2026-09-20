@@ -8,19 +8,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works; Big Picture is still to come. The per-day activity
-feed is blocked by Steam itself — see below.
+of them. Library grid works; Big Picture and the per-day activity feed are in
+progress — see below.
 
 ### Known limits
 
-- **No per-day activity feed.** Steam's ACTIVITY section can be restored, and
-  its day headings render, but every event body comes back empty: the per-event
-  renderer requires a **store** record (`k_DataRequest_Assets`) that non-Steam
-  games do not have, and bails before touching event data. Verified live. The
-  Post-Game Summary groups by day instead.
+- **No per-day activity feed yet.** Steam's ACTIVITY section can be restored,
+  and its day headings render, but every event body comes back empty: the
+  per-event renderer requires a **store** record (`k_DataRequest_Assets`) that
+  non-Steam games do not have. That record can be faked with no network call
+  (verified live), but wiring it into the plugin's publish/re-render path is
+  not done. The Post-Game Summary groups by day in the meantime.
 - **Steam's "information is unavailable" box is left in place.** It is still
   accurate, and it is the only other thing in that column — removing it leaves
   the page blank under the summary.
+- **Big Picture does not show the summary yet.** Millennium never loads this
+  plugin's frontend into the Big Picture window — it runs in a separate CEF
+  bundle with no shared module cache, not merely a different renderer. Steam's
+  own components there (`Ge.T`, the same Post-Game Summary) would render for
+  free once the plugin's patch actually reaches that window; getting it there
+  is the open work ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
+- **"Last Played" stays blank for games Steam did not launch itself.** That
+  `AppOverview` field has a custom setter backed by protobuf state and cannot
+  be written safely; recent-activity ordering does reflect captures instead
+  ([ADR-0018](../docs/decisions.md#adr-0018-write-only-observable-appoverview-fields-and-patch-the-prototype)).
 
 ### Changed
 
@@ -50,6 +61,15 @@ feed is blocked by Steam itself — see below.
   `assets.ts` and `steam-media.ts` — roughly 800 lines of hand-built UI that
   Steam now renders. A resolved Steam component cannot drift from native; a
   hand-built copy can and did.
+- **Backend: `GetActivity`, `GetAsset`, `GetAssets`, `timeline.lua`,
+  `assets.lua`, and the recording/protobuf/session-window parsing half of
+  `captures.lua`** (~700 lines) — superseded by the `Added` entries above and
+  by reading captures straight from Steam's own client APIs. `captures.lua`
+  now only parses the screenshot index the library grid needs; `rpc.lua` is
+  down to `GetLibraryStats` and `GetDiagnostics`. Everything below this line in
+  `Added`/`Fixed` describes the pre-ADR-0022 backend for historical record —
+  most of it (recording parsing, the activity timeline, base64 image serving)
+  no longer exists in the shipped plugin.
 
 ### Added
 
@@ -154,13 +174,26 @@ Caught by the test suite before any of this ran inside Steam:
   games. The lookup now picks the id form by app type and anchors the match
   between underscores, so `435150` cannot match `4351501`.
 
-### Known limitations
+### Before release — smoke test
 
-- Recording playback is not implemented; clicking a clip logs its path.
-- The "Last Played" column stays blank for games Steam did not launch itself:
-  that field has a custom setter backed by protobuf state and cannot be written
-  safely. Recent-activity ordering does reflect captures.
-- Recordings are MPEG-DASH, so they cannot play in a plain `<video>` element.
-- Big Picture is not implemented (ADR-0016).
-- Only `clips/` has been observed; background `video/` recordings are handled by
-  the same code but unverified.
+Run against the live Steam client with the plugin installed; every row should
+pass before calling v1 done.
+
+| # | Scenario | Expected |
+| --- | --- | --- |
+| 1 | Open a non-Steam game with screenshots + a clip (e.g. AM2R) | Post-Game Summary shows them, grouped by day |
+| 2 | Open a non-Steam game with **no captures** | Steam's own placeholder shown; no empty panel |
+| 3 | Open a **native** Steam game | Plugin does not touch the page at all |
+| 4 | Click a screenshot / a clip in the summary | Opens Steam's real media viewer |
+| 5 | Play a game, quit, reopen its page | New captures appear without restarting Steam |
+| 6 | Library grid | Recent-activity timestamps visible; sorting still works |
+| 7 | Restart Steam | Plugin loads clean; no console errors |
+| 8 | Disable the plugin | Steam returns to its stock page with no leftovers |
+| 9 | **Big Picture** — open a non-Steam game's page | Summary renders (blocked today — see Known limits) |
+| 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state |
+
+Also confirm: no secrets in logs, and `GetDiagnostics` reports accurate counts
+for this install.
+
+Only `clips/` has been observed for recordings; background `video/` is handled
+by the same code path but unverified.

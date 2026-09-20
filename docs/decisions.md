@@ -544,7 +544,9 @@ Do not open a local HTTP server.
 
 ## ADR-0016: Support Big Picture through the same backend, with a separate renderer
 
-**Status:** Accepted · 2026-09-19
+**Status:** Accepted · 2026-09-19 · the "separate renderer" plan is superseded by
+[ADR-0023](#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one);
+the backend-sharing conclusion below still holds
 
 ### Context
 
@@ -993,3 +995,76 @@ Steam's own session made Steam render its real summary — pager, day separators
   patch tracks live component instances and forces a re-render, clearing
   `m_setSectionsMemo` first because Steam compares that cache **by size alone**
   and our change swaps one member for another.
+
+---
+
+## ADR-0023: Big Picture is a separate bundle, not a separate renderer within the same one
+
+**Status:** Accepted · 2026-09-21 · supersedes item 5 and the "second renderer"
+framing of [ADR-0016](#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)
+
+### Context
+
+ADR-0016 concluded Big Picture needed only "a second renderer" alongside the
+existing plugin, on the strength of: `onPopupCreate` already reports gamepad
+popups, routes are shared, and the known Millennium limitation (issue #754) was
+read as CSS-only, not JS.
+
+ADR-0022 then changed what "renderer" means for this plugin: there is no
+renderer any more. The frontend restores a section in Steam's own registry and
+feeds Steam's own store; Steam's own component draws the page. So the real
+question for Big Picture became narrower: **does that same patch reach the
+Big Picture window?**
+
+Verified live, 2026-09-21, by switching UI mode from `SharedJSContext`
+(`SteamClient.UI.SetUIMode(4)` → Big Picture, `(7)` → back) and inspecting the
+new `Steam Big Picture Mode` devtools target directly:
+
+```js
+typeof window.webpackChunksteamui   // "undefined"
+typeof window.appStore              // "undefined"
+typeof window.Millennium            // "undefined"  ← the plugin loader itself
+typeof window.SteamClient           // "object"     ← only the native bridge
+```
+
+Big Picture is not a popup sharing `SharedJSContext`'s module cache — it is a
+**separate bundle** with its own webpack instance. `window.Millennium` being
+absent means Millennium never runs `OnPluginLoaded()` there at all: not the
+frontend's DOM-patching code, not the `steam/` module that patches
+`GetSections`, nothing. This is a stronger and more specific finding than #754:
+it is not that injected CSS fails to reach the inner DOM, it is that **no
+plugin code of any kind executes in that window**.
+
+Reading Big Picture's own source (module `3375`, shared with desktop)
+confirmed the payoff for closing that gap is large: Big Picture's "ACTIVITY"
+tab already renders `Ge.T` — the identical Post-Game Summary component desktop
+uses — gated by the identical `setSections.has("postgamesummary")` check, fed
+by the identical `GetSections()` call. Nothing needs to be built or cloned for
+Big Picture's UI; the section patch and the store-feeding code in `steam/`
+would work unchanged the moment they run in that window.
+
+### Decision
+
+- **Big Picture needs a way to execute the existing `steam/` patches inside its
+  own JS context**, not a new renderer and not new components. This replaces
+  ADR-0016's "resolve gamepad class modules against the gamepad window, build
+  `gamepad-app.tsx`" plan — there is nothing to resolve or build once the
+  patch runs there, per ADR-0022's approach.
+- Until that reachability problem is solved, treat Big Picture as **not
+  started**, not "half-done." The backend-sharing conclusion of ADR-0016 still
+  holds (no backend work needed), but its renderer plan does not.
+- Investigate: how does Millennium load a plugin's frontend bundle into a
+  window in the first place, and can that be triggered a second time for a
+  Gamepad popup — versus some other injection mechanism (e.g. evaluating setup
+  code directly in that window once `onPopupCreate` reports it).
+
+### Consequences
+
+- Phase 6 is smaller in scope than ADR-0016 implied (no gamepad-specific UI
+  work) but blocked on a different, more fundamental problem (code reachability,
+  not rendering).
+- `docs/steam-components.md § Inspecting Big Picture` carries the full
+  verification detail and the reusable procedure
+  (`SetUIMode`/`GetUIMode`) for re-testing this.
+- If Millennium has no supported way to run plugin code inside a Gamepad
+  window, that is worth reporting upstream rather than working around blindly.

@@ -23,7 +23,7 @@ The core must be useful alone and must never depend on a provider. See
 
 | Doc | What it holds |
 | --- | --- |
-| [TASK.md](TASK.md) | **Start here** — current phase, what is next, the smoke test |
+| [TASK.md](TASK.md) | **Start here** — current status, what is next |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, provider sources, verified facts |
 | [docs/architecture.md](docs/architecture.md) | Core/provider split, the provider contract, data flow, RPC |
 | [docs/steam-components.md](docs/steam-components.md) | How Steam itself builds the app detail page — the section registry, the stores behind Post-Game Summary and Activity, and the event shapes to feed them |
