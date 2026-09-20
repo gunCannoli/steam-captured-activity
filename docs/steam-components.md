@@ -437,11 +437,57 @@ Two event types were checked specifically, in case one avoided the guard:
   `event.achievements`, needing no store data, so it *would* work if the outer
   guard let it through. It does not.
 
-**Conclusion:** `activity` stays off. Enabling it trades one empty region for
-another. This would need a way to make Steam hold a visible store record for a
-shortcut — a much larger and more invasive change than restoring a section — and
-is not worth it while the Post-Game Summary already groups by day
-(`Today` / `Yesterday` / `Oct 24, 2025`), which is most of what the feed offered.
+### The store record can be faked (**✅ verified**, not yet wired up)
+
+The guard is real but it is **not** the dead end an earlier pass of this
+document called it. Every piece it checks is plain data with no network path:
+
+```js
+GetStoreItem(id, type) { ... return map.get(id) }   // pure map read, no fetch
+BIsVisible()           { return this.m_bVisible }   // plain boolean field
+BHasStoreItem(id,t,r)  { return map.has(id) && map.get(id).BContainDataRequest(r) }
+```
+
+And the React hook only calls `QueueStoreItemRequest` when `BHasStoreItem` is
+false — so a record that satisfies it means **no request is ever made**.
+
+The class constructor takes a protobuf message, so build the record with
+`Object.create` on its prototype and set the fields directly:
+
+```js
+const fake = Object.create(Object.getPrototypeOf(templateApp));
+fake.m_unID = fake.m_unAppID = appid;
+fake.m_bVisible = true;
+fake.m_strName  = '<shortcut name>';
+fake.m_eItemType = tmpl.m_eItemType;  fake.m_eAppType = tmpl.m_eAppType;
+fake.m_rgStoreTags = []; fake.m_rgStoreTagIDs = [];
+fake.m_DataRequested = { include_assets: true, include_platforms: true,
+                         include_release: true, include_tag_count: 0 };
+storeItemStore.m_mapApps.set(appid, fake);
+```
+
+Verified live for AM2R: `BIsVisible() === true`, `BHasStoreItem(…) === true`,
+`BIsAppMissing() === false`, and no network request.
+
+**Where it stopped.** With the record in place and a real `CActivityDay` holding
+a valid event, the DOM still showed 0 days while the store reported
+`appActivityByDay.length === 1`. That is very likely the same stale-render
+problem already solved for the summary — the probe injected everything *after*
+the page rendered and did not force the re-render that `setHasContent()` does.
+Not retested with that wiring; it is the next step, not a new blocker.
+
+**Weigh the risk before shipping this.** Injecting into Steam's *store* cache is
+more invasive than anything else the plugin does: that cache is shared with the
+store UI, so a bogus entry could surface somewhere unintended. Scope it to
+non-Steam appids, only while an app page is open, remove on teardown, and check
+the library and store pages are unaffected. If it leaks, prefer patching the
+guard's hook for shortcut appids over poisoning the cache.
+
+**Meanwhile `activity` stays off**, because enabling it without this renders day
+headings with empty bodies. The Post-Game Summary already groups by day
+(`Today` / `Yesterday` / `Oct 24, 2025`), which covers much of the intent.
+
+Full plan in [TASK.md](../TASK.md), Phase 5d.
 
 Achievements for non-Steam games are out of scope regardless; if they ever
 arrive (custom sets, RetroAchievements), they are a provider concern
@@ -600,11 +646,12 @@ without waiting for midnight.
 
 **Left:**
 
-- **The Activity feed is blocked, not pending.** Every event renderer requires
-  a *store* record the game does not have, so the section renders day headings
-  with empty bodies whatever we feed it. Verified live; see
-  [§ The hard blocker](#the-hard-blocker-every-event-needs-a-store-record-verified-live).
-  The Post-Game Summary already groups by day, which covers most of the intent.
+- **The Activity feed is partially solved.** Every event renderer requires a
+  *store* record the game does not have — but that record can be faked with no
+  network call, and was, successfully. What remains is wiring it through the
+  plugin's existing re-render path. See
+  [§ The hard blocker](#the-hard-blocker-every-event-needs-a-store-record-verified-live)
+  and TASK.md Phase 5d for the step-by-step.
 - **Big Picture** — run the procedure in
   [§ Inspecting Big Picture](#inspecting-big-picture-phase-6). The stores are
   shared, so much of it may already work.

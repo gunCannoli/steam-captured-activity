@@ -524,18 +524,91 @@ decision in [ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-
 
 ### Open
 
-- [x] **Activity feed — investigated and ruled out (not a TODO).** Restoring
-      `activity` does produce Steam's real section with correct day headings
-      ("Yesterday", "Oct 24, 2025"), a rule and "Load More Activity" — but
-      every event body renders empty. Steam's per-event renderer opens with
+- [~] **Activity feed — partially solved, NOT ruled out.** An earlier pass in
+      this repo called it "blocked"; that was too strong and is corrected here.
+
+      **The blocker.** Steam's per-event renderer opens with
       `if (appid && (!storeApp || !storeApp.BIsVisible())) return null`, where
-      `storeApp` is a **store** record fetched with `k_DataRequest_Assets`. A
-      non-Steam game has none (verified: `GetApp(4263274102)` returns nothing;
-      a native appid returns a visible record), so the guard fires for every
-      event type regardless of the data we supply. Feeding the store cannot
-      fix it — the block is upstream of the event entirely. Section stays off;
-      full trace in
+      `storeApp` comes from the **store-item store** (`k_DataRequest_Assets`).
+      A non-Steam game has no such record — verified: `GetApp(4263274102)`
+      returns nothing, a native appid returns a visible one — so the guard
+      fires for every event type and the feed renders day headings with empty
+      bodies.
+
+      **The store record can be faked, and it needs no network.** Verified live:
+
+      ```js
+      GetStoreItem(id, type) { ... return map.get(id) }      // pure map read
+      BIsVisible()           { return this.m_bVisible }      // plain field
+      BHasStoreItem(id,t,r)  { return map.has(id) && item.BContainDataRequest(r) }
+      ```
+
+      The React hook only calls `QueueStoreItemRequest` when `BHasStoreItem`
+      is false, so a record satisfying it means **no request is ever made**.
+      The class constructor takes a protobuf, so build the record with
+      `Object.create(proto)` and set fields directly. This worked:
+
+      ```js
+      const fake = Object.create(Object.getPrototypeOf(templateApp));
+      fake.m_unID = fake.m_unAppID = appid;
+      fake.m_bVisible = true;
+      fake.m_strName  = '<shortcut name>';
+      fake.m_eItemType = tmpl.m_eItemType;  fake.m_eAppType = tmpl.m_eAppType;
+      fake.m_rgStoreTags = []; fake.m_rgStoreTagIDs = [];
+      fake.m_DataRequested = { include_assets: true, include_platforms: true,
+                               include_release: true, include_tag_count: 0 };
+      storeItemStore.m_mapApps.set(appid, fake);
+      ```
+
+      → `BIsVisible() === true`, `BHasStoreItem(...) === true`,
+      `BIsAppMissing() === false`, **no network call**.
+
+      **Where it stopped.** With the record in place and a real `CActivityDay`
+      holding a valid event, the section still rendered 0 days in the DOM
+      (`{"days":0}`) even though the store reported `appActivityByDay.length
+      === 1`. Almost certainly the same async/stale-render problem already
+      solved for the summary: the section list and the day data were injected
+      *after* the page had rendered, and this probe did not force the
+      re-render that `setHasContent()` does in `steam/sections.ts`. Not yet
+      retested with that wiring — that is the next step, not a new blocker.
+
+      **Next steps, in order:**
+      1. Insert the fake store record from `steam/` (new `store-item.ts`),
+         resolving the store by signature (`GetApp` + `BHasApp` +
+         `m_mapApps`), before publishing activity. Remove it on unpatch.
+      2. Re-run the render test going through `setHasContent()` /
+         `refreshInstances()` so the section list and data land before paint.
+         If days appear, the feature is unblocked.
+      3. Build day+event objects from our captures. `CActivityDay` and the
+         base event class are **not exported** — borrow their constructors
+         from a native game's populated activity (`FetchLatestActivity`), or
+         find a module export by signature. Prefer the latter if one exists.
+      4. Choose the event type. `PlayedGameFirstTime` also needs the store
+         record for its capsule (`ot`: `if (!r) return null`) so it should
+         work once (1) lands. Screenshot/video events are still unusable —
+         they resolve a `publishedfileid` local captures do not have.
+      5. **Per the user: drop the social chrome.** The "Say something about
+         this game to your friends…" box, comments and rating controls make
+         no sense for a non-Steam game. Check whether `showTextBox={false}`
+         on the activity section component is reachable, else hide that
+         subtree. Keep only the dated groups.
+      6. Achievements are **out of scope** — non-Steam games have none for
+         now. If custom sets or RetroAchievements arrive they are provider
+         work ([ADR-0012](docs/decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
+         Note the achievement renderer draws purely from `event.achievements`
+         with no store lookup, so it will work when a provider supplies them.
+
+      **Risk to weigh before shipping (1).** Injecting a fake record into
+      Steam's *store* cache is more invasive than anything else this plugin
+      does — that cache is shared with the store UI, and a bogus entry could
+      surface somewhere unintended. Scope it tightly: only non-Steam appids,
+      only while an app page is open, removed on teardown, and verify the
+      library/store pages are unaffected. If it proves leaky, prefer patching
+      the guard's hook for shortcut appids over poisoning the cache.
+
+      Full trace:
       [steam-components.md § The hard blocker](docs/steam-components.md#the-hard-blocker-every-event-needs-a-store-record-verified-live).
+
 - [x] **Bug from user testing:** removing Steam's `nonsteam` placeholder left a
       large blank region under the summary. At normal widths Steam nests the
       Spotlights block (which holds the summary) *inside* `LeftColumn`, and

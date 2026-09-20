@@ -66,31 +66,33 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 | `captures.lua` | Parse `screenshots.vdf` (grid counts) | ✅ tested |
 | `gameid.lua` | appid ↔ gameid, decimal limbs | ✅ tested |
 | `rpc.lua` | `GetLibraryStats`, `GetDiagnostics` | ✅ shape tested |
-| Activity feed (per-day list) | Blocked by Steam — see below | — |
+| Activity feed (per-day list) | In progress — see below | ⚠ |
 | Big Picture | Phase 6 | ❌ |
 
-### Why there is no per-day activity feed
+### The per-day activity feed (in progress)
 
-Steam's ACTIVITY section can be restored the same way the summary was, and it
-renders correctly — day headings ("Yesterday", "Oct 24, 2025"), a rule, "Load
-More Activity". Every **event body** inside it comes back empty, though, and
-that is not fixable by feeding better data. Steam's per-event renderer starts
-with:
+Steam's ACTIVITY section can be restored the same way the summary was, and its
+day headings render correctly ("Yesterday", "Oct 24, 2025"). Every **event
+body** comes back empty, because the per-event renderer starts with:
 
 ```js
 if (appid && (!storeApp || !storeApp.BIsVisible())) return null;
 ```
 
-`storeApp` is a **store** record. A non-Steam game has none — verified live,
-`GetApp(4263274102)` returns nothing while a native appid returns a visible
-record — so the guard fires for every event type no matter what we supply.
+`storeApp` is a **store** record, and a non-Steam game has none.
 
-So the section stays off: enabling it would trade one empty region for another.
-The Post-Game Summary already groups by day, which covers most of the intent.
+That record turns out to be fakeable with no network call — `GetStoreItem` is a
+pure map read and `BIsVisible()` a plain field, so an object built with
+`Object.create` and inserted into the store's map satisfies the guard. Verified
+live. What remains is wiring it through the plugin's existing re-render path,
+and deciding whether injecting into Steam's shared store cache is acceptable.
 
-For the same reason Steam's own "information is unavailable" box is left in
-place. It is accurate, and at normal window widths it is the only other thing
-in that column — removing it just leaves the page blank below the summary.
+Steps and the risk note are in [TASK.md](../TASK.md), Phase 5d.
+
+Until then the section stays off, and Steam's own "information is unavailable"
+box is left in place: it is accurate, and at normal window widths it is the only
+other thing in that column — removing it just leaves the page blank below the
+summary.
 
 ### Why the backend is small
 
