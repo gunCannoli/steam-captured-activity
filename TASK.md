@@ -506,7 +506,7 @@ decision in [ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-
       `GetAsset`, `GetAssets`, `timeline.lua`, `assets.lua`, and the
       recordings/protobuf/sessions half of `captures.lua` (~700 lines), plus
       their tests. `rpc.lua` is now two methods. Git history has the parsers if
-      the activity feed needs them back.
+      anything needs them back.
 - [x] Docs realigned so the next session cannot drift back to hand-building:
       AGENTS.md leads with the "check whether Steam already builds it" ladder,
       plugin.md's frontend section is ordered by that ladder, knowledgebase.md's
@@ -524,13 +524,25 @@ decision in [ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-
 
 ### Open
 
-- [ ] **Activity feed** (the per-day list below the summary) is still stock.
-      It is network-backed (`FetchLatestActivity`) and returns 0 days for a
-      shortcut, and Steam's own screenshot/video adders need a
-      `publishedfileid` that local captures do not have. `CActivityDay.AddEvent`
-      is an unguarded push with a small contract (`BIsValid`,
-      `GetParentalFeature`, `rtEventTime`), so a custom event class is the
-      route — see steam-components.md § Activity feed.
+- [x] **Activity feed — investigated and ruled out (not a TODO).** Restoring
+      `activity` does produce Steam's real section with correct day headings
+      ("Yesterday", "Oct 24, 2025"), a rule and "Load More Activity" — but
+      every event body renders empty. Steam's per-event renderer opens with
+      `if (appid && (!storeApp || !storeApp.BIsVisible())) return null`, where
+      `storeApp` is a **store** record fetched with `k_DataRequest_Assets`. A
+      non-Steam game has none (verified: `GetApp(4263274102)` returns nothing;
+      a native appid returns a visible record), so the guard fires for every
+      event type regardless of the data we supply. Feeding the store cannot
+      fix it — the block is upstream of the event entirely. Section stays off;
+      full trace in
+      [steam-components.md § The hard blocker](docs/steam-components.md#the-hard-blocker-every-event-needs-a-store-record-verified-live).
+- [x] **Bug from user testing:** removing Steam's `nonsteam` placeholder left a
+      large blank region under the summary. At normal widths Steam nests the
+      Spotlights block (which holds the summary) *inside* `LeftColumn`, and
+      `nonsteam` is the only other thing in that column for a shortcut, so
+      dropping it empties the page below the summary. The box is also still
+      accurate — Steam really has no store record for these games. Placeholder
+      restored; `REPLACED_SECTIONS` is now empty.
 - [ ] Re-test whether the same approach covers Big Picture (Phase 6); the
       stores are shared, so this may be mostly free. **Start with the
       procedure in

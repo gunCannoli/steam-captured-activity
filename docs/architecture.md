@@ -174,7 +174,7 @@ Deliberately small. The backend used to assemble the whole detail page —
 `gamerecording.pb`, and `GetAsset`/`GetAssets` shipped images as base64. Steam's
 own APIs replaced all of it (ADR-0022), so those methods, `timeline.lua`,
 `assets.lua` and the recording parsers were removed. Git history has them if the
-activity feed needs them back.
+anything needs them back.
 
 | Method | Returns |
 | --- | --- |

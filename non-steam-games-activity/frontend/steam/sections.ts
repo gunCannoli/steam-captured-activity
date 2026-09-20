@@ -10,16 +10,42 @@ import { appDetailsSections } from './stores';
  *   BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
  *
  * `postgamesummary` and `activity` are dropped *before* render - not because
- * the data is missing, but because the registry filters on app type. Every
- * component and store behind them works fine with a shortcut's appid.
+ * the data is missing, but because the registry filters on app type.
  *
- * So this is the whole fix: put the section names back. Steam renders the rest
- * (ADR-0009 - patch the data, not the DOM).
+ * For `postgamesummary` that is the whole fix: put the name back, feed Steam's
+ * store, and Steam renders the rest (ADR-0009 - patch the data, not the DOM).
+ *
+ * `activity` is a different story, and the constant below explains why: its
+ * components hit a *store* record a non-Steam game does not have, so the
+ * section renders headings with empty bodies. Restoring a section is only
+ * worth doing when what comes back is actually renderable - check, do not
+ * assume the filter is the only obstacle.
  *
  * See docs/steam-components.md for the full registry and how it was read.
  */
 
-/** Sections we re-enable, and why each one is safe to show. */
+/**
+ * Sections we re-enable, and why each one is safe to show.
+ *
+ * **`activity` is deliberately NOT here.** Restoring it does produce Steam's
+ * real ACTIVITY section, with correct day headings ("Yesterday", "Oct 24,
+ * 2025") - but every event inside it renders as nothing, whatever its type.
+ * Steam's event renderer opens with:
+ *
+ *   if (appid && (!storeApp || !storeApp.BIsVisible())) return null;
+ *
+ * where `storeApp` is a **store** record fetched with `k_DataRequest_Assets`.
+ * A non-Steam game has none (verified live: `GetApp(4263274102)` returns
+ * nothing, while a native appid returns a visible record), so the guard fires
+ * for every event and the feed renders a heading with an empty body.
+ *
+ * That is not something feeding the store can fix - it is upstream of the
+ * event data entirely. Enabling `activity` would trade one empty region for
+ * another, so it stays off until there is a way through that guard.
+ *
+ * The Post-Game Summary already covers multiple days ("Today", "Yesterday",
+ * "Oct 24, 2025"), which is most of what the feed would have shown.
+ */
 const RESTORED_SECTIONS = [
   // Fed by us via the spotlight store; renders screenshots and clips.
   'postgamesummary',
@@ -28,36 +54,38 @@ const RESTORED_SECTIONS = [
 /**
  * Sections we remove once we have something better to show.
  *
+ * Currently none - and that is a deliberate correction, not an oversight.
+ *
  * `nonsteam` is Steam's grey "detailed information is unavailable because it is
- * a non-Steam game or mod" box - the exact thing this plugin exists to replace.
+ * a non-Steam game or mod" box, and dropping it from the registry works
+ * perfectly. The problem is what it leaves behind: at normal window widths
+ * Steam nests the Spotlights block (which holds the Post-Game Summary) inside
+ * `LeftColumn`, and `nonsteam` is the only OTHER thing in that column for a
+ * shortcut. Removing it leaves a large empty region under the summary -
+ * reported from real use as "the warning is gone but nothing else shows up,
+ * it's just blank".
  *
- * Dropping it from the registry is how it *should* be removed: the previous
- * approach injected a stylesheet to `display: none` the rendered node, which
- * meant fighting Steam's re-renders and leaving a hidden element behind. Here
- * Steam simply never builds it.
+ * The box is also still telling the truth. Steam has no store record for a
+ * non-Steam game (verified: `GetApp(appid)` returns nothing), which is exactly
+ * why the detail sections below cannot render - see the note on `activity` in
+ * RESTORED_SECTIONS. Hiding an accurate explanation to leave blank space is a
+ * worse page, not a better one.
  *
- * Only removed when we actually published a summary, so a game with no captures
- * still gets Steam's honest explanation rather than a blank page.
+ * Revisit when something real fills that column.
  */
-const REPLACED_SECTIONS = ['nonsteam'] as const;
+const REPLACED_SECTIONS: readonly string[] = [];
 
 /** Apps for which we have content worth showing instead of the placeholder. */
 const appsWithContent = new Set<number>();
 
-/** Called whenever the set of apps-with-content changes. */
-const contentListeners = new Set<() => void>();
-
-/** Run `fn` whenever an app gains or loses content. Returns an unsubscribe. */
-export function onContentChanged(fn: () => void): () => void {
-  contentListeners.add(fn);
-  return () => contentListeners.delete(fn);
-}
-
 /**
- * Tell the section registry this app has a summary (or no longer does).
+ * Tell the section registry this app gained or lost a summary.
  *
- * Notifies listeners only on an actual change, so the re-render this triggers
- * does not fire on every navigation.
+ * The publish is async, so Steam has already rendered the page by the time it
+ * finishes. The component is a MobX observer of Steam's stores, not of ours,
+ * so nothing would otherwise tell it to re-run `GetSections` and pick up the
+ * section we added. Only fires on an actual change, so navigation alone does
+ * not force re-renders.
  */
 export function setHasContent(appid: number, hasContent: boolean): void {
   const had = appsWithContent.has(appid);
@@ -66,17 +94,7 @@ export function setHasContent(appid: number, hasContent: boolean): void {
   if (hasContent) appsWithContent.add(appid);
   else appsWithContent.delete(appid);
 
-  // Steam has already rendered this page by the time a publish finishes, so
-  // ask the live components to rebuild their section list.
   refreshInstances();
-
-  for (const listener of contentListeners) {
-    try {
-      listener();
-    } catch (error) {
-      logger.warn('A content listener failed:', error);
-    }
-  }
 }
 
 interface AppOverview {
@@ -181,9 +199,9 @@ export function patchSections(): boolean {
     try {
       for (const name of RESTORED_SECTIONS) sections.add(name);
 
-      // Only hide Steam's placeholder once we actually have something in its
-      // place; otherwise the page would just lose an explanation and gain
-      // nothing.
+      // Only drop a section once we have something in its place; otherwise the
+      // page loses an explanation and gains nothing. Empty today - see
+      // REPLACED_SECTIONS.
       const appid = (overview as AppOverview | undefined)?.appid;
       if (appid !== undefined && appsWithContent.has(appid)) {
         for (const name of REPLACED_SECTIONS) sections.delete(name);
@@ -214,5 +232,4 @@ export function unpatchSections(): void {
   appsWithContent.clear();
   refreshInstances();
   instances.clear();
-  contentListeners.clear();
 }

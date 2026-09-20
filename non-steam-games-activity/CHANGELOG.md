@@ -8,8 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works; the per-day activity feed and Big Picture are still
-to come.
+of them. Library grid works; Big Picture is still to come. The per-day activity
+feed is blocked by Steam itself — see below.
+
+### Known limits
+
+- **No per-day activity feed.** Steam's ACTIVITY section can be restored, and
+  its day headings render, but every event body comes back empty: the per-event
+  renderer requires a **store** record (`k_DataRequest_Assets`) that non-Steam
+  games do not have, and bails before touching event data. Verified live. The
+  Post-Game Summary groups by day instead.
+- **Steam's "information is unavailable" box is left in place.** It is still
+  accurate, and it is the only other thing in that column — removing it leaves
+  the page blank under the summary.
 
 ### Changed
 

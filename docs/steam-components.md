@@ -398,6 +398,55 @@ Subclasses seen live: achievements (`eEventType: 2`), partner events
 (`eEventType: 1002`), screenshots (`V`, valid iff `m_bIsValid`), videos (`H`),
 trading cards, recommendations, received/wishlisted games, user status.
 
+### The hard blocker: every event needs a store record (**✅ verified live**)
+
+Feeding this feed is not merely hard, it is **closed** for a non-Steam game, and
+the reason is upstream of the event data entirely.
+
+Steam's per-event renderer (module `80478`) opens with:
+
+```js
+const [p] = lt(i, D.A.k_DataRequest_Assets);   // i = event.appid
+...
+if (i && (!p || !p.BIsVisible())) return null;
+```
+
+`lt` is a direct **store** lookup — no fallback, no local path. A non-Steam game
+has no store record at all:
+
+| `GetApp(appid)` | Result |
+| --- | --- |
+| `692850` (Bloodstained) | record, `BIsVisible() === true` |
+| `4263274102` (AM2R) | **nothing** |
+
+So the guard fires for **every event type**, and no amount of correct event data
+gets past it.
+
+**Verified end to end.** Restoring `activity` and pushing a valid event into a
+real `CActivityDay` produced Steam's real ACTIVITY section, with a correct
+`Yesterday` heading, a `Rule` divider and `Load More Activity` — and an empty
+`<div></div>` where the event body belongs. The event itself was fine:
+`BIsValid() === true`, actor matching the current user, `day.events.length === 1`,
+`day.isValid === true`. It is the store lookup that kills it.
+
+Two event types were checked specifically, in case one avoided the guard:
+
+- `PlayedGameFirstTime` — also renders a game capsule (`ot`) whose first line is
+  `if (!r) return null` on the same store record. Doubly blocked.
+- `AchievementUnlocked` — its achievement list renders purely from
+  `event.achievements`, needing no store data, so it *would* work if the outer
+  guard let it through. It does not.
+
+**Conclusion:** `activity` stays off. Enabling it trades one empty region for
+another. This would need a way to make Steam hold a visible store record for a
+shortcut — a much larger and more invasive change than restoring a section — and
+is not worth it while the Post-Game Summary already groups by day
+(`Today` / `Yesterday` / `Oct 24, 2025`), which is most of what the feed offered.
+
+Achievements for non-Steam games are out of scope regardless; if they ever
+arrive (custom sets, RetroAchievements), they are a provider concern
+([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
+
 ### Why we cannot feed the *stock* screenshot/video events
 
 ```js
@@ -551,11 +600,11 @@ without waiting for midnight.
 
 **Left:**
 
-- **The Activity feed** needs a custom event class implementing the small
-  `BIsValid` / `GetParentalFeature` / `rtEventTime` contract, pushed through
-  `AddEvent`. The stock screenshot/video adders are unusable — they resolve a
-  `publishedfileid` that local captures do not have. See
-  [§ Activity feed](#activity-feed).
+- **The Activity feed is blocked, not pending.** Every event renderer requires
+  a *store* record the game does not have, so the section renders day headings
+  with empty bodies whatever we feed it. Verified live; see
+  [§ The hard blocker](#the-hard-blocker-every-event-needs-a-store-record-verified-live).
+  The Post-Game Summary already groups by day, which covers most of the intent.
 - **Big Picture** — run the procedure in
   [§ Inspecting Big Picture](#inspecting-big-picture-phase-6). The stores are
   shared, so much of it may already work.
