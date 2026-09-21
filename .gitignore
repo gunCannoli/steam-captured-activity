@@ -23,6 +23,11 @@ tools/lua/
 *.exe
 *.dll
 
+# Reference clones for research (e.g. the k0d13/steam-non-steam-playtimes
+# reference plugin cited throughout knowledgebase.md/plugin.md). Not our
+# code, not published with this repo - clone locally when needed.
+research/
+
 # Never commit secrets or captured user data.
 # retroarch.cfg holds cheevos_token / cheevos_password; Steam's userdata holds
 # screenshots and recordings. Neither belongs in this repo.

@@ -134,15 +134,20 @@ non-steam-games-activity/
    │  ├─ summary.ts       # feed Steam's session + provider registry     ✅
    │  └─ gameid.ts        # 32-bit appid ↔ 64-bit gameid (BigInt)        ✅
    └─ renderers/
-      ├─ library-app.tsx  # coordinates publish/clear per app            ✅
-      ├─ gamepad-app.tsx  # Big Picture
+      ├─ library-app.tsx  # coordinates publish/clear per app (desktop)  ✅
+      ├─ gamepad-app.tsx  # clone-and-hide summary strip (Big Picture)   🧪
       └─ library-home.tsx # patch AppOverview so the grid shows stats    ✅
 ```
 
-There is no `components/` directory any more, and that is the point: the
-hand-built post-game summary, carousel, media cards and class-module maps were
-deleted once Steam's own components were confirmed reachable
+There is no `components/` directory any more: the hand-built post-game
+summary, carousel, media cards and class-module maps were deleted once
+Steam's own components were confirmed reachable
 ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+`gamepad-app.tsx` is the one deliberate exception — Big Picture's own module
+cache is unreachable from this bundle, so there is no Steam component *to*
+feed there, and it clones a small piece of markup instead
+([ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)).
+It is contained to that one file and gated on `PopupType.Gamepad`.
 
 `gameid.lua` was not in the original plan; the 64-bit conversion needed its own
 module because Lua numbers are doubles and cannot hold a gameid exactly. It does the
@@ -376,23 +381,33 @@ that cache **by size alone** and our change swaps one member for another).
 See [steam-components.md](steam-components.md) for the full trace, and
 [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
 
-**Big Picture** renders the same components from the same section registry as
-desktop — verified live: its "ACTIVITY" tab draws the identical Post-Game
-Summary component, gated by the identical `setSections.has("postgamesummary")`.
-Nothing needs to be built or cloned for its UI.
+**Big Picture** runs the same page, drawn from the same section registry as
+desktop's — verified live: its "ACTIVITY" tab draws the identical Post-Game
+Summary component desktop uses, gated by the identical
+`setSections.has("postgamesummary")`. But that component and its store are
+objects living in **a separate webpack bundle**, with no `window.Millennium`
+and no shared module cache — confirmed from Millennium's own source: its
+plugin loader attaches to one CDP target by exact title match at startup and
+never looks again, so this plugin's frontend never executes inside Big
+Picture's window at all
+([ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
+So there is no Steam component to feed there.
 
-The open problem is different: Big Picture's window (`Steam Big Picture Mode`)
-runs a **separate bundle** with no `window.Millennium` and no shared module
-cache — this plugin's frontend never executes there at all, not a rendering
-gap. Confirmed from Millennium's own source, not just observation: its plugin
-loader attaches to one CDP target by exact title match at startup and never
-looks again, and its other injector explicitly excludes the host Big Picture's
-window shares. **Not fixable from this repo** — it needs a Millennium engine
-change. [ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)'s
-"second renderer" plan is superseded by
-[ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one),
-which has the full source-level finding and the reusable test procedure
-([steam-components.md § Inspecting Big Picture](steam-components.md#inspecting-big-picture-phase-6-answered)).
+There *is*, however, a live `Window`/`document` reference to that popup,
+reachable from `SharedJSContext` via `Steam.PopupManager` — no Millennium
+injection needed for that, only Steam's own JS API, confirmed live by
+appending a DOM node across windows and seeing it render on screen.
+`renderers/gamepad-app.tsx` uses exactly this to render a small clone of the
+summary, styled with real class names resolved from the desktop bundle (the
+CSS itself is one build-wide stylesheet shared by both). This corrects
+ADR-0023's "not fixable from this repo" conclusion — see
+[ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store),
+prompted by the reference plugin
+([k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes))
+already using this technique for its playtime feature.
+[ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)'s
+original "second renderer" framing turned out to be closer to right than
+ADR-0023 gave it credit for, just for a different reason than ADR-0016 stated.
 
 **Serving local images** no longer needs base64 for the detail page. The
 constraint in [ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)

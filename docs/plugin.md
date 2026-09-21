@@ -239,6 +239,22 @@ only shows populated stats.
 > you find yourself measuring pixels to match Steam, you are probably on the
 > wrong rung.
 
+**Special case: the DOM you need to reach is in a different window entirely.**
+Big Picture is a separate popup with its own webpack bundle — nothing in
+rungs 1–3 is reachable from a plugin's `SharedJSContext` code, because those
+rungs all need an object that lives in the *other* window's module cache.
+Rung 4 still works, with one addition: build the clone in `SharedJSContext`
+(`document.createElement`), resolve its class names from `SharedJSContext`'s
+own module cache (CSS is one build-wide stylesheet, so a hash resolved on one
+side is valid on the other), then reach the other window with
+`Steam.PopupManager` (`steambrew-utils`) — a live `Window`/`document`
+reference needing no Millennium injection — and `appendChild` the clone
+directly into its document. See
+[ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)
+and
+`non-steam-games-activity/frontend/renderers/gamepad-app.tsx` for the worked
+example.
+
 ### Rules that apply on every rung
 
 **Never hardcode Steam's CSS classes** — they are build-hashed

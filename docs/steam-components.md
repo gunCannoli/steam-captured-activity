@@ -1,9 +1,10 @@
 # Steam components — how the app detail page is really built
 
-Everything here was **read out of the live Steam client** over CEF devtools on
-2026-09-20: module factories pulled from `webpackChunksteamui`, stores poked
-with real appids, DOM verified on screen. No guessing, no inference from
-screenshots.
+Everything here was **read out of the live Steam client** over CEF devtools
+(2026-09-20, extended 2026-09-21 for Big Picture): module factories pulled
+from `webpackChunksteamui`, stores poked with real appids, DOM verified on
+screen, and — for Big Picture specifically — Millennium's own C++ source
+cloned and read directly. No guessing, no inference from screenshots.
 
 This document exists to answer one question: *what does Steam actually do, so
 that we can call it instead of imitating it?*
@@ -496,6 +497,81 @@ Achievements for non-Steam games are out of scope regardless; if they ever
 arrive (custom sets, RetroAchievements), they are a provider concern
 ([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
 
+### Comparison: `game-data-linker`'s different way around this same blocker
+
+The user pointed at
+[sydhufen/game-data-linker](https://github.com/sydhufen/game-data-linker), a
+published Millennium plugin that also makes non-Steam shortcuts show rich
+Steam-native detail pages (artwork, activity feed, achievements, news,
+friends). Read its README and source (`backend/main.lua`,
+`frontend/index.tsx`) via the GitHub raw API — not cloned locally. Worth
+recording because it looks like it solved exactly what we're blocked on, but
+on inspection it **sidesteps the blocker rather than clearing it**, by making
+a different product choice:
+
+**It links a shortcut to a *real* Steam appid (or Epic/Xbox), not a fake
+record for the shortcut's own non-existent one.** The user pastes a Steam
+AppID or store URL into the shortcut's Properties dialog; the plugin saves
+`{non_steam_id → steam_id}` in `mappings.json` and, from then on, reads and
+renders **that other, real game's** data:
+
+```ts
+const store = (window as any).appActivityStore;
+let activity = store.GetAppActivity(appid);   // appid = the LINKED real Steam game
+```
+
+```ts
+const cache = (window as any).appAchievementProgressCache;
+const e = cache?.m_achievementProgress?.mapCache?.get?.(appid);  // real game, real progress
+```
+
+No `Object.create`-on-prototype fabrication anywhere — it doesn't need our
+[§ The store record can be faked](#the-store-record-can-be-faked-verified-not-yet-wired-up)
+technique because `appid` here is never a shortcut's own id; it's Garry's Mod
+or whatever the user linked. `GetAppActivity`/`appAchievementProgressCache`
+already have a real backing record for a real appid — that's the whole reason
+it works with zero network calls to fetch activity/achievements themselves.
+Artwork is genuinely downloaded (Steam CDN / Epic / SteamGridDB) and applied
+via `SteamClient.Apps.SetCustomArtworkForApp`, which is the same real,
+documented API surface either plugin would use — nothing new there.
+
+**This is a different product, not a better solution to ours.** Our goal
+(AGENTS.md) is showing a shortcut's *own* real captured screenshots/clips —
+data Steam already has, for the actual thing the user ran, no linking step,
+no network. `game-data-linker`'s goal is showing a *linked* game's data
+(borrowed from a real Steam/Epic/Xbox listing) under a shortcut that may not
+even be that game (nothing stops linking `AM2R.exe` to Hollow Knight's
+appid — it's an intentional cosmetic/metadata overlay, not provenance). Our
+core plugin (`non-steam-games-activity`) could never adopt this approach
+without abandoning ADR-0012's "core reaches no network, needs no linking"
+premise; it does, however, validate that a **linking-based enrichment
+provider** is a legitimate, already-proven shape other developers ship — worth
+keeping in mind for the provider layer (Phase 8), completely optional and
+orthogonal to the core.
+
+**Two things it does confirm, both already known but now double-verified by
+an independent implementation:**
+- `SetCustomArtworkForApp(appid, base64, ext, imageType)` (types 0=portrait,
+  1=hero, 2=logo, 3=wide capsule) is the real, working API for shortcut
+  artwork — matches our own findings elsewhere in this doc.
+- `findClassModule`-based CSS resolution with a hardcoded fallback (their
+  `resolveClasses(predicate, fallback)`) is the same pattern
+  [ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)
+  already commits us to.
+
+**Nothing new on Big Picture.** No `PopupManager`/gamepad-window handling in
+its source at all — it targets desktop Properties/library dialogs only
+(`tryInjectPropertiesField(doc, popupTitle)`, invoked per-document from a
+caller not shown in the fetched excerpt, almost certainly Millennium's
+per-popup CSS/webkit injection rather than anything like our
+`g_PopupManager` cross-window trick). Its Properties-dialog injection is a
+same-kind problem to Big Picture's (reach a document that isn't
+`SharedJSContext`'s own) but a smaller one — Properties dialogs are ordinary
+webkit-injectable popups ADR-0023/0024's `allows_webkit_injection` loopback
+exclusion doesn't apply to, so it needed no `g_PopupManager`-style workaround
+at all. Doesn't change anything in [§ Inspecting Big
+Picture](#inspecting-big-picture-phase-6--answered) or ADR-0024.
+
 ### Why we cannot feed the *stock* screenshot/video events
 
 ```js
@@ -646,6 +722,11 @@ without waiting for midnight.
    not index.
 5. **`components/` deleted**, along with `assets.ts`, `steam-media.ts`,
    `timeline.lua`, `assets.lua` and the recording parsers.
+6. **Big Picture implemented** (ADR-0024) — not by feeding Steam's component
+   (genuinely unreachable, confirmed from Millennium's source, ADR-0023), but
+   by rendering a clone into the popup's DOM via a cross-window reference from
+   `Steam.PopupManager`. Awaiting the user's smoke test. See
+   [§ Inspecting Big Picture](#inspecting-big-picture-phase-6-answered).
 
 **Left:**
 
@@ -654,12 +735,8 @@ without waiting for midnight.
   network call, and was, successfully. What remains is wiring it through the
   plugin's existing re-render path. See
   [§ The hard blocker](#the-hard-blocker-every-event-needs-a-store-record-verified-live)
-  and [TASK.md](../TASK.md) for the step-by-step.
-- **Big Picture is answered, not blocked on unknowns any more** — see
-  [§ Inspecting Big Picture](#inspecting-big-picture-phase-6-answered) and
-  [ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one).
-  It reuses the same components; the open problem is getting this plugin's
-  code to run inside that window at all.
+  and [TASK.md](../TASK.md) for the step-by-step. This applies equally to Big
+  Picture's ACTIVITY tab, which shares the same blocker.
 
 Everything that reaches into Steam keeps a graceful fallback, so a Steam update
 degrades the page to stock instead of crashing it.
@@ -776,12 +853,10 @@ Ri.GetOrCreateAppData(appid).m_session.ClearSessionEvents();
 
 ## Inspecting Big Picture (Phase 6) — answered
 
-The five questions this section used to pose are now answered. Summary: **the
-UI reuses the same components, but Millennium never loads our plugin into that
-window**, so nothing is missing on Steam's side — the patch simply never runs
-there yet. Decision recorded in
-[ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one),
-which supersedes ADR-0016's "second renderer" plan.
+This section documents what turned out to be true, in the order it was
+found, including the correction — the earlier framing here concluded Big
+Picture was unreachable without a Millennium change, which was wrong on the
+reachability question even though right on the module-cache question.
 
 ### How to get into Big Picture for testing
 
@@ -794,7 +869,7 @@ window.SteamClient.UI.SetUIMode(7);   // ← back to desktop when done
 A new devtools target appears: **`Steam Big Picture Mode`**. That window *is*
 the whole gamepad UI — there is no separate shared-context equivalent for it.
 
-### 1. Is it the same JS context? — **No.**
+### 1. Same JS context as desktop? — **No.**
 
 ```js
 // evaluated inside the "Steam Big Picture Mode" target
@@ -804,17 +879,14 @@ typeof window.Millennium            // "undefined"  ← the whole plugin loader
 typeof window.SteamClient           // "object"     ← only the native bridge
 ```
 
-Big Picture is a **separate bundle with its own module cache**, not a popup
-sharing `SharedJSContext`'s modules. `onPopupCreate` (which the entry point
-already uses to reach desktop popup windows) reports it as `PopupType.Gamepad`,
-but that mechanism patches *into* a popup's DOM from outside — it does not run
-`OnPluginLoaded()` inside that window's own JS context, and nothing here does.
-**This is the actual reason the Activity tab was empty**, not a Big-Picture
-section-registry difference: our `steam/sections.ts` patch lives only in
-`SharedJSContext`, so Big Picture's own unpatched `GetSections()` returns the
-stock 3-item shortcut list.
+Big Picture is a **separate bundle with its own module cache and its own
+React tree** (confirmed: walking its DOM finds a `__reactFiber$…` key, a
+different instance from desktop's). `onPopupCreate` reports it as
+`PopupType.Gamepad`, but that only tells you the popup exists — it does not
+run `OnPluginLoaded()` inside that window's own JS context, and nothing in
+Millennium does either (see § Why the module cache is unreachable, below).
 
-### 2. Does it use the same section registry? — **Yes**, verified from source.
+### 2. Same section registry as desktop? — **Yes**, verified from source.
 
 Module `3375` (the same module desktop's page composition lives in) defines
 Big Picture's tabs. The `WhatsNew` tab (labelled `#AppDetails_Tab_Activity`,
@@ -833,37 +905,18 @@ function at(e) {
 ```
 
 `Ge.T` is the **exact same Post-Game Summary component** (`53074`'s export `T`)
-the desktop page renders. `setSections` is passed down from the same
-`GetSections()` call desktop uses. So restoring `postgamesummary` for a
-shortcut in Big Picture's own `GetSections()` instance renders the real
-summary — no new component, no new styling, nothing to clone.
+the desktop page renders, reading from the same `setSections`/`GetSections()`
+shape. This is real information even though it turned out not to be directly
+usable: it is why the *fix* is worth having, not why it was easy to reach.
 
-### 3. Which sections does it list for a shortcut? — not yet dumped live.
+### 3. Is Big Picture's own module cache reachable from `SharedJSContext`? — **No, confirmed twice.**
 
-Expected to be the same three (`nonsteam`, `notes`, `screenshots`) since it is
-the same class and the same `BIsModOrShortcut()` filter — confirm once the
-patch actually reaches this window (see below), by dumping
-`GetSections(overview, details)` the same way as desktop.
+First from behaviour (`window.webpackChunksteamui` is `undefined` inside the
+Big Picture target — see 1 above). Then from Millennium's own source, cloned
+and read directly rather than inferred further:
 
-### 4. Are the class modules the same? — not applicable.
-
-No cloning needed; `Ge.T` renders unchanged, using its own already-resolved
-class modules (`68854`, etc.) from module `3375`'s own closure over the same
-component tree.
-
-### 5. Does controller focus work without help? — not yet tested.
-
-Blocked on (1): nothing to focus until the summary renders. Revisit once the
-patch reaches the window.
-
-### Why the patch can't reach it — confirmed from Millennium's own source
-
-**This is not fixable from this plugin's code.** Cloned
-`SteamClientHomebrew/Millennium` and read the engine directly rather than
-speculating further. Two independent findings, both hard blocks:
-
-**1. The plugin frontend loader attaches to exactly one CDP target, by exact
-title match, once, at Steam startup — and never looks again:**
+**Millennium's plugin frontend loader attaches to exactly one CDP target, by
+exact title match, once, at Steam startup — and never looks again:**
 
 ```cpp
 // src/engine/plugin_loader.cc — plugin_loader::init_devtools()
@@ -879,43 +932,102 @@ m_cdp->set_shared_js_session_id(result.at("sessionId").get<std::string>());
 `Steam Big Picture Mode` has a different title and is never considered, ever,
 by anything that loads a plugin's `frontend/index.tsx`.
 
-**2. Millennium's other injector — `webkit_world_mgr`, the dynamic,
-multi-target one used for CSS themes and generic webkit hooks on arbitrary
-pages — excludes the exact host both windows share, unconditionally:**
+Millennium's *other* injector — `webkit_world_mgr`, the dynamic, multi-target
+one used for CSS themes and generic webkit hooks on arbitrary pages — also
+cannot reach it, for an unrelated reason: it excludes the exact host both
+windows share, unconditionally:
 
 ```cpp
 // src/engine/target_url.cc — target_url::allows_webkit_injection()
 if (m_host == k_steam_loopback) return false;   // "steamloopback.host"
 ```
 
-So even the general-purpose path would refuse Big Picture on host alone.
-Between the two mechanisms, nothing in the current engine reaches a Gamepad UI
-window. This confirms and sharpens
+So `CAppDetailsSections`, `CAppSpotlightStore`, and every other object desktop
+patches genuinely do not exist as reachable objects from `SharedJSContext`'s
+side — this part of the original finding holds. This confirms and sharpens
 [issue #754](https://github.com/SteamClientHomebrew/Millennium/issues/754)
 (closed, unfixed): its "isolated context / different WebKit view" description
-is correct — it is a different CDP *target*, source-confirmed.
+is correct, and now traceable to a specific function. Full writeup:
+[ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one).
 
-Full writeup: [ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one).
+### 4. Is the *window* reachable, even if the module cache isn't? — **Yes.** This was the missed question.
 
-**What this means for the work here:** nothing to build until Millennium
-changes. Once it does — whichever way — the rest of this document's finding
-still holds and needs no revisiting:
+The error in the original pass here was treating "our bundle never loads in
+that window" as "that window is unreachable." Those are different claims.
+Prompted by the user pointing at
+[k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes/tree/f2c14ecbc0cfcdff6bba5f1d703231ec6037588f)
+— its playtime feature already shows up in Big Picture, and needs no
+Millennium change to do it. Cloned it into `research/` (gitignored) and read
+`frontend/index.tsx` / `frontend/renderers/library-app.tsx`:
 
-- `Ge.T` (Post-Game Summary) and `ae.W` (activity) in Big Picture's `WhatsNew`
-  tab already read from the same `setSections`/`appid` shape this plugin
-  already publishes to in `SharedJSContext`. No new component, no new
-  class-module work, nothing to clone.
-- Confirm `CAppSpotlightStore` (`Ri`) is a *process-wide* singleton, not one
-  instantiated per bundle, before assuming the store side needs no extra work
-  either — check `Ri.GetOrCreateAppData` returns the same object instance
-  across both windows for the same appid, once there are two windows able to
-  ask it.
-- Big Picture's `ACTIVITY` tab includes the daily activity feed (`ae.W`) in
-  the *same* tab as the summary — so the store-record blocker documented above
-  ([§ The store record can be faked](#the-store-record-can-be-faked-verified-not-yet-wired-up))
-  applies here too, once reachable.
+```js
+// SharedJSContext — g_PopupManager is a real, live global here.
+// steambrew-utils' Steam.PopupManager is a thin wrapper over it.
+const pm = window.g_PopupManager;
+for (const p of pm.GetPopups()) {
+  if (p.window?.name?.startsWith('SP BPM_')) { bpm = p; break; }
+}
+bpm.window.document.body.appendChild(el);   // el created in SharedJSContext
+```
 
-### Re-checking this later
+Verified live, before writing any of our own code: `bpm.window.document` is
+fully readable and writable from `SharedJSContext` — same-process,
+same-origin, direct object reference, no CDP involved. A `<div>` created with
+`document.createElement` in `SharedJSContext` and appended into
+`bpm.window.document.body` rendered on screen inside the actual Big Picture
+window (confirmed by screenshot, then removed).
+
+**The two findings describe different resources, and are both true:**
+
+| Resource | Reachable from `SharedJSContext`? |
+| --- | --- |
+| Big Picture's `document` / DOM | **Yes** — `popup.window.document`, direct reference via `Steam.PopupManager` |
+| Big Picture's webpack module cache (`CAppDetailsSections`, `CAppSpotlightStore`, …) | **No** — separate bundle, confirmed `undefined` |
+| Big Picture's compiled CSS / class hashes | **Yes** — one build-wide stylesheet; a hash resolved from `SharedJSContext`'s own module cache is valid on a node rendered into Big Picture's DOM |
+
+So feeding Steam's own component (desktop's approach, ADR-0022) is still
+impossible for Big Picture — there is no reachable object to feed. But
+rendering our own markup into its DOM, styled with real class names resolved
+from `SharedJSContext`, works. This is rung 4 of the reuse ladder (AGENTS.md)
+— the *only* rung reachable here, not a relapse to guessing.
+
+### 5. Does controller focus work without help? — not yet tested.
+
+Awaiting the user's smoke test of the shipped implementation
+(`renderers/gamepad-app.tsx`). The rendered tiles are plain `<div>`s, not
+wrapped in `Focusable`, so controller navigation onto them is not expected to
+work yet — acceptable for a first pass (the strip is informational, not
+interactive), worth revisiting if that turns out to matter in practice.
+
+### What shipped
+
+`renderers/gamepad-app.tsx` — a small, non-interactive strip of recent
+screenshot/clip tiles, styled with class names resolved via
+`steam/modules.ts`'s new `resolveClassMap()` (Steam's `findClassModule`
+pattern, done against a live `req.m` walk rather than `@steambrew/client`'s
+pre-built cache — that cache is built once at import time and can miss a
+module whose chunk had not loaded yet). `index.tsx` handles
+`PopupType.Gamepad` alongside desktop, reading location from
+`popup.window.opener.location` (there is no `MainWindowBrowserManager`
+equivalent inside Big Picture's own bundle to read from — this matches
+`steambrew-utils`'s own convention for gamepad popups).
+
+Deliberately minimal: no carousel, no day grouping, no hover states — matching
+that ambition would mean rebuilding what ADR-0022 spent effort deleting, for
+the one surface where the real component cannot be fed. Full decision and
+trade-offs: [ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
+
+The daily activity feed (`ae.W`, `activity` section) shares Big Picture's
+ACTIVITY tab with the summary — its store-record blocker
+([§ The store record can be faked](#the-store-record-can-be-faked-verified-not-yet-wired-up))
+is a desktop-and-Big-Picture-equally problem, unrelated to the reachability
+question above.
+
+### Re-checking Millennium later
+
+The module-cache finding (§ 3) is worth re-confirming if Millennium's engine
+changes — it would mean feeding Steam's real component becomes possible for
+Big Picture too, the way ADR-0022 already does for desktop:
 
 ```bash
 git clone --depth 1 https://github.com/SteamClientHomebrew/Millennium.git
@@ -927,5 +1039,5 @@ If `plugin_loader.cc` gains a loop over multiple targets, or `target_url.cc`
 carves out Gamepad-titled targets from the loopback exclusion, re-run
 [§ How to get into Big Picture for testing](#how-to-get-into-big-picture-for-testing)
 above and confirm `window.Millennium` is defined inside `Steam Big Picture
-Mode`. If so, the rest of this document's finding should hold with no further
-investigation.
+Mode`. If so, `renderers/gamepad-app.tsx` could be replaced with the same
+store-feeding technique desktop uses.

@@ -10,9 +10,9 @@ on top of this.
 
 ## How it works
 
-**It does not build UI.** Steam has the components; it hides them from
-shortcuts and never loads their data. Steam's app-details section registry
-swaps the full section list for a three-item one:
+**On desktop, it does not build UI.** Steam has the components; it hides them
+from shortcuts and never loads their data. Steam's app-details section
+registry swaps the full section list for a three-item one:
 
 ```js
 e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
@@ -35,6 +35,16 @@ the RPC boundary** for this page.
 Full trace: [docs/steam-components.md](../docs/steam-components.md).
 Decision: [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
 
+**Big Picture is different, and does build its own UI.** It runs in a
+separate webpack bundle with its own module cache — the section-feeding
+technique above has no `CAppSpotlightStore` to reach from there. Instead,
+`renderers/gamepad-app.tsx` renders a small clone of the summary (styled with
+real Steam class names, resolved from the desktop bundle since the CSS itself
+is shared) and appends it directly into the Big Picture popup's document via
+`Steam.PopupManager` — a live cross-window `Window`/`document` reference that
+needs no Millennium injection. Decision:
+[ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
+
 ## Status
 
 Post-game summary and library grid work in the live client. Verified from a
@@ -54,12 +64,13 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 
 | Module | Does | State |
 | --- | --- | --- |
-| `steam/modules.ts` | Steam's webpack cache; resolve by signature | ✅ verified in Steam |
+| `steam/modules.ts` | Steam's webpack cache; resolve by signature, incl. class maps | ✅ verified in Steam |
 | `steam/sections.ts` | Restore the sections Steam hides | ✅ verified in Steam |
 | `steam/summary.ts` | Feed `CGamePlaySession`; provider API | ✅ verified in Steam |
 | `steam/stores.ts` | Typed store/service/payload shapes | ✅ verified in Steam |
 | `steam/gameid.ts` | appid ↔ 64-bit gameid (BigInt) | ✅ matches real folders |
-| `renderers/library-app.tsx` | Publish/clear per app | ✅ verified in Steam |
+| `renderers/library-app.tsx` | Publish/clear per app (desktop) | ✅ verified in Steam |
+| `renderers/gamepad-app.tsx` | Clone-and-hide summary strip (Big Picture) | 🧪 implemented, awaiting smoke test |
 | `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts | ✅ verified in Steam |
 | `steam_paths.lua` | Find Steam root + active user | ✅ tested |
 | `shortcuts.lua` | Parse binary `shortcuts.vdf` | ✅ tested |
@@ -67,7 +78,6 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 | `gameid.lua` | appid ↔ gameid, decimal limbs | ✅ tested |
 | `rpc.lua` | `GetLibraryStats`, `GetDiagnostics` | ✅ shape tested |
 | Activity feed (per-day list) | In progress — see below | ⚠ |
-| Big Picture | Phase 6 | ❌ |
 
 ### The per-day activity feed (in progress)
 

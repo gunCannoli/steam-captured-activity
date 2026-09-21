@@ -8,8 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works; the per-day activity feed is in progress. Big
-Picture is blocked on Millennium itself, not on this plugin — see below.
+of them. Library grid works; Big Picture now shows a summary too, pending user
+smoke test. The per-day activity feed is still in progress — see below.
 
 ### Known limits
 
@@ -19,17 +19,16 @@ Picture is blocked on Millennium itself, not on this plugin — see below.
   non-Steam games do not have. That record can be faked with no network call
   (verified live), but wiring it into the plugin's publish/re-render path is
   not done. The Post-Game Summary groups by day in the meantime.
-- **Steam's "information is unavailable" box is left in place.** It is still
-  accurate, and it is the only other thing in that column — removing it leaves
-  the page blank under the summary.
-- **Big Picture does not show the summary, and this plugin cannot fix that.**
-  Confirmed live (smoke test): AM2R's Big Picture "ACTIVITY" tab renders
-  completely blank. Root cause confirmed from Millennium's own source: its
-  plugin loader attaches to exactly one CDP target (`SharedJSContext`), once,
-  at startup, and its other injector explicitly excludes the host Big
-  Picture's window uses. Steam's own components there (`Ge.T`, the same
-  Post-Game Summary) would render for free the moment Millennium's engine can
-  reach that window — nothing to build on this plugin's side until then
+- **Steam's "information is unavailable" box is left in place** on desktop.
+  It is still accurate, and it is the only other thing in that column —
+  removing it leaves the page blank under the summary.
+- **Big Picture's summary is a clone, not Steam's real component**, and can
+  drift from it on a future Big Picture UI change — see the Added entry below
+  and [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
+  This is the opposite trade-off from desktop, and deliberate: Big Picture's
+  `CAppDetailsSections`/`CAppSpotlightStore` are objects in a webpack module
+  cache this plugin's `SharedJSContext` code cannot reach, confirmed from
+  Millennium's own source
   ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
 - **"Last Played" stays blank for games Steam did not launch itself.** That
   `AppOverview` field has a custom setter backed by protobuf state and cannot
@@ -76,12 +75,25 @@ Picture is blocked on Millennium itself, not on this plugin — see below.
 
 ### Added
 
+- **Big Picture support** (`renderers/gamepad-app.tsx`) — a compact Post-Game
+  Summary strip in the ACTIVITY tab. Unlike desktop, this *does* build its own
+  markup: Big Picture runs in a separate webpack bundle with its own module
+  cache (confirmed via Millennium's source, ADR-0023), so there is no Steam
+  component to feed. Instead it renders a small clone, styled with class names
+  resolved from the desktop bundle (one build-wide stylesheet, so the hashes
+  are valid across both), and appends it directly into the Big Picture popup's
+  document via `Steam.PopupManager` — no Millennium injection needed for that
+  part, confirmed live. Technique matched to what
+  [k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)
+  already does for its playtime feature. See
+  [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
 - **Provider API** (`registerSummaryProvider`) — provider plugins contribute
   summary *events*, not markup, and a failing provider is skipped rather than
   taking the page down.
 - **Signature-based module resolution** (`steam/modules.ts`) — resolves Steam's
   stores and components by prototype method names, never by numeric module id
-  (those reshuffle between builds).
+  (those reshuffle between builds). Extended with `resolveClassMap()` for Big
+  Picture's clone-and-hide fallback.
 
 - **Steam path discovery** (`steam_paths.lua`) — resolves the Steam root via
   `millennium.steam_path()` and the active user from `loginusers.vdf`
@@ -192,7 +204,7 @@ pass before calling v1 done.
 | 6 | Library grid | Recent-activity timestamps visible; sorting still works |
 | 7 | Restart Steam | Plugin loads clean; no console errors |
 | 8 | Disable the plugin | Steam returns to its stock page with no leftovers |
-| 9 | **Big Picture** — open a non-Steam game's page | Summary renders (blocked on Millennium — see Known limits) |
+| 9 | **Big Picture** — open a non-Steam game's page | Summary strip shows recent screenshots/clips in the ACTIVITY tab |
 | 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state |
 
 Also confirm: no secrets in logs, and `GetDiagnostics` reports accurate counts

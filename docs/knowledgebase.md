@@ -315,10 +315,12 @@ of anything hand-built:
   for an `<img>`. This is Steam's own answer to "what shows while an image
   loads", replacing a hand-written shimmer/skeleton placeholder.
 - **`Focusable`** / **`FocusRing`** — gamepad- and keyboard-navigable focus
-  wrapper (`onActivate`, `onCancel`, `focusClassName`). This is very likely
-  the missing piece for Big Picture / Gamepad UI support (ADR-0016): Steam's
-  own Focusable is what makes an element reachable by controller D-pad
-  navigation, which a plain `<div onClick>` is not.
+  wrapper (`onActivate`, `onCancel`, `focusClassName`). Steam's own Focusable
+  is what makes an element reachable by controller D-pad navigation, which a
+  plain `<div>` is not. `renderers/gamepad-app.tsx`'s summary tiles
+  (ADR-0024) do not use it yet — they are plain, unfocusable `<div>`s, a known
+  gap, not an oversight; see steam-components.md's "Inspecting Big Picture"
+  § 5.
 
 `Panel` (`PanelSection`, `PanelSectionRow`) is the generic titled-section
 container used throughout Settings and Quick Access; useful for any future

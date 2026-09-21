@@ -2,6 +2,11 @@ import { Steam } from 'steambrew-utils';
 import { onAppLaunch, onLocationChange, onPopupCreate, PopupType } from 'steambrew-utils/watchers';
 import { logger } from './logger';
 import {
+  patch as patchGamepadApp,
+  refresh as refreshGamepadApp,
+  unpatch as unpatchGamepadApp,
+} from './renderers/gamepad-app';
+import {
   patch as patchLibraryApp,
   refresh as refreshLibraryApp,
   register as registerLibraryApp,
@@ -44,33 +49,70 @@ export default async function OnPluginLoaded() {
   // Publishing is keyed on the app, not the window: Steam's store is global, so
   // one publish serves every window showing that game.
 
-  onPopupCreate((_popup, type) => {
-    // Big Picture (PopupType.Gamepad) renders the same sections from the same
-    // stores, but needs its own verification pass first (ADR-0016).
-    if (type !== PopupType.Desktop) return;
+  onPopupCreate((popup, type) => {
+    if (type === PopupType.Desktop) {
+      // Desktop feeds Steam's own store (steam/summary.ts) - Steam's own
+      // component renders in whichever window is open, so this is global,
+      // not per-window.
+      let current: number | undefined;
 
-    let current: number | undefined;
+      const stopWatching = onLocationChange(
+        () => Steam.MainWindowBrowserManager?.m_lastLocation,
+        ({ pathname }) => {
+          const appid = appIdFromPath(pathname);
 
-    const stopWatching = onLocationChange(
-      () => Steam.MainWindowBrowserManager?.m_lastLocation,
-      ({ pathname }) => {
-        const appid = appIdFromPath(pathname);
+          if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
+            current = appid;
+            void patchLibraryApp(appid);
+          } else if (current !== undefined) {
+            // Either a native Steam game, which we leave alone, or another page.
+            unpatchLibraryApp(current);
+            current = undefined;
+          }
+        },
+      );
 
-        if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
-          current = appid;
-          void patchLibraryApp(appid);
-        } else if (current !== undefined) {
-          // Either a native Steam game, which we leave alone, or another page.
-          unpatchLibraryApp(current);
-          current = undefined;
-        }
-      },
-    );
+      return () => {
+        stopWatching();
+        if (current !== undefined) unpatchLibraryApp(current);
+      };
+    }
 
-    return () => {
-      stopWatching();
-      if (current !== undefined) unpatchLibraryApp(current);
-    };
+    if (type === PopupType.Gamepad) {
+      // Big Picture cannot be fed the same way: it is a separate webpack
+      // bundle with its own module cache, so steam/summary.ts's patched
+      // CAppSpotlightStore instance is unreachable from there (ADR-0024).
+      // renderers/gamepad-app.tsx clones the summary's DOM shape instead,
+      // rendered here (in SharedJSContext) and appended into the popup's own
+      // document - the technique the reference plugin uses for playtime.
+      //
+      // Location comes from the popup's opener, per steambrew-utils's own
+      // convention for gamepad windows (there is no MainWindowBrowserManager
+      // equivalent inside Big Picture's own bundle to read from directly).
+      if (!popup.window) return;
+      const window = popup.window;
+
+      const stopWatching = onLocationChange(
+        () => window.opener?.location,
+        ({ pathname }) => {
+          const appid = appIdFromPath(pathname);
+
+          if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
+            void patchGamepadApp(window, appid);
+          } else {
+            unpatchGamepadApp(window);
+          }
+        },
+      );
+
+      return () => {
+        stopWatching();
+        unpatchGamepadApp(window);
+      };
+    }
+
+    // Modal, ContextMenu, Unknown: not a page we touch.
+    return undefined;
   });
 
   // ===== Refresh after play =====
@@ -83,6 +125,7 @@ export default async function OnPluginLoaded() {
     onQuit(() => {
       logger.info(`${app.display_name} closed; refreshing its activity.`);
       void refreshLibraryApp(app.appid);
+      void refreshGamepadApp(app.appid);
       void refreshLibraryHome();
     });
   });
