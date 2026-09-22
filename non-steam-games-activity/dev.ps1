@@ -94,7 +94,8 @@ function Set-PluginEnabled {
 
   if ($Enabled) {
     if ($plugins -notcontains $Name) { $plugins += $Name }
-  } else {
+  }
+  else {
     $plugins = @($plugins | Where-Object { $_ -ne $Name })
   }
 
@@ -136,18 +137,21 @@ try {
 
   if ($SkipBuild) {
     Write-Host 'Skipping build (-SkipBuild).'
-  } else {
+  }
+  else {
     $pnpmExe = Resolve-Pnpm -Explicit $Pnpm
     Push-Location $PSScriptRoot
     try {
       Write-Host "Building with $pnpmExe ..."
       & $pnpmExe millennium-ttc --build dev
       if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
-    } finally {
+    }
+    finally {
       Pop-Location
     }
   }
-} finally {
+}
+finally {
   # Always put the real manifest back, even if the build threw.
   [System.IO.File]::WriteAllText($manifestPath, $originalManifestText)
 }
@@ -192,6 +196,6 @@ Write-Host "Deployed $devName." -ForegroundColor Green
 
 if (-not $NoRestart) {
   Write-Host 'Starting Steam in dev mode...'
-  Start-Process -FilePath (Join-Path $steam 'steam.exe') -ArgumentList '-dev'
+  Start-Process -FilePath (Join-Path $steam 'steam.exe') -ArgumentList '-dev', '-cef-enable-debugging'
   Write-Host 'Devtools: http://localhost:8080' -ForegroundColor Cyan
 }

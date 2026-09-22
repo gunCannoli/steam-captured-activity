@@ -1,6 +1,6 @@
 # Decisions
 
-Architecture decision records. Each captures *why* a choice was made, what was
+Architecture decision records. Each captures _why_ a choice was made, what was
 rejected, and what it costs — so a future reader (human or agent) does not silently
 undo it.
 
@@ -114,7 +114,7 @@ Measured on this library: **210/210** shortcuts parsed, **100%** of screenshots 
   `retroarch` provider returns `unsupported` and the core still renders a full page.
 
 > **Scope note:** this ADR predates the core/provider split and originally made the ROM
-> path *the* foundation of the plugin. It now describes the `retroarch` provider only.
+> path _the_ foundation of the plugin. It now describes the `retroarch` provider only.
 > The core joins Steam to its own captures by exact arithmetic instead — see
 > [ADR-0012](#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins).
 
@@ -127,7 +127,7 @@ Measured on this library: **210/210** shortcuts parsed, **100%** of screenshots 
 ### Context
 
 The frontend runs in Chromium's sandbox — no filesystem, and cross-origin HTTP is
-constrained. It *could* still make some API calls directly, which would cut an RPC hop.
+constrained. It _could_ still make some API calls directly, which would cut an RPC hop.
 
 ### Decision
 
@@ -166,7 +166,9 @@ string. Borrow `Steam.LocalizationManager.LocalizeString` for all labels.
 
 ```ts
 const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
-const formatDuration = findModuleExport((e) => e?.toString?.()?.includes('"#Played_"'));
+const formatDuration = findModuleExport((e) =>
+    e?.toString?.()?.includes('"#Played_"'),
+);
 ```
 
 ### Consequences
@@ -207,7 +209,7 @@ bucketing `DateEarned` values locally.
 - The same response also gives locked achievements, badges, points and completion
   percentage — everything the achievements panel needs, from one call.
 - Client-side date bucketing means we control grouping and timezone handling.
-- Cost: a *cross-game* "everything I did on this date" view would need a different
+- Cost: a _cross-game_ "everything I did on this date" view would need a different
   source. Out of scope for v1; `GetAchievementsEarnedOnDay` remains available for it.
 
 ---
@@ -271,7 +273,7 @@ Anything resolved at step 3 or 4 is written back to the learned map.
 
 ### Consequences
 
-- High precision: matching against games the user has *actually played* on RA is a
+- High precision: matching against games the user has _actually played_ on RA is a
   small, relevant candidate set, not the whole database.
 - Self-improving — each manual link is permanent.
 - Honest failure: an unresolved game degrades visibly instead of showing wrong data.
@@ -325,7 +327,7 @@ The page draws on five sources: `shortcuts.vdf`, `retroarch.cfg`, runtime logs,
 screenshots, and the RA API. Any of them can be missing — no API key, offline,
 unresolved GameID, runtime logging disabled, RetroArch moved.
 
-The failure we are replacing is *the blank page*. Reproducing it on a partial failure
+The failure we are replacing is _the blank page_. Reproducing it on a partial failure
 would be a poor outcome.
 
 ### Decision
@@ -383,7 +385,7 @@ parameter or env var with the default only as a fallback.
 ### Context
 
 The original design made RetroArch and RetroAchievements structural: the plugin was
-*for* retro games, and a game we could not resolve to a ROM got nothing. Two problems
+_for_ retro games, and a game we could not resolve to a ROM got nothing. Two problems
 surfaced:
 
 1. **It excluded most of the library by construction.** AM2R — the game in the
@@ -402,7 +404,7 @@ games, 100% present, all timestamped — with no emulator and no network involve
 Split the system:
 
 - **Core (`non-steam-games-activity`)** — owns the page and everything derived from
-  Steam's own data. Works for *every* non-Steam game. Never touches the network.
+  Steam's own data. Works for _every_ non-Steam game. Never touches the network.
 - **Providers** — optional plugins that enrich games they recognise, via a fixed
   contract ([ADR-0013](#adr-0013-providers-return-data-the-core-renders-it)).
   `retroarch` and `retroachievements` become two providers among many.
@@ -525,6 +527,7 @@ Attempt **`steamloopback.host`** first and verify early — it is on the critica
 for the core's main feature, so prove or disprove it before building the media grid.
 
 Fall back to **base64 over RPC** if it does not work, with:
+
 - **thumbnails only** in the initial payload (Steam already generates them),
 - full images fetched on demand, one at a time, when the user opens one.
 
@@ -635,10 +638,10 @@ anything we own.
 
 That leaves base64 over the RPC channel. Measured on this machine:
 
-| | count | median | mean |
-| --- | --- | --- | --- |
-| Steam thumbnails | 615 | **11 KB** | 11 KB |
-| Full screenshots | 616 | **931 KB** | 1047 KB |
+|                  | count | median     | mean    |
+| ---------------- | ----- | ---------- | ------- |
+| Steam thumbnails | 615   | **11 KB**  | 11 KB   |
+| Full screenshots | 616   | **931 KB** | 1047 KB |
 
 Base64 adds ~33%. A real AM2R thumbnail is 14 KB raw → 18 KB encoded, so a
 20-thumbnail page costs ~0.4 MB of JSON. The same page of full-size images would be
@@ -683,7 +686,7 @@ Serve images as **base64 data URIs** over RPC, thumbnails first.
 
 ### Context
 
-The library grid should show *something* for non-Steam games that have clearly
+The library grid should show _something_ for non-Steam games that have clearly
 been played. Steam records playtime for shortcuts it launched itself, but plenty
 of entries sit at zero: on the dev machine, Breath of the Wild has 14
 screenshots from March 2026 and `rt_last_time_played = 0`. A screenshot is hard
@@ -694,15 +697,15 @@ Implementing it surfaced two traps, both of which fail **silently**:
 1. **Not every `AppOverview` field is a plain property.** Steam declares them
    with metadata (read from its own bundle):
 
-   ```js
-   rt_recent_activity_time: { observable: true },
-   rt_last_time_played:     { fnCustomSetter: (e, t) => e.SetLastTimePlayed(t),
-                              fnCustomComparator: …, observable: true },
-   ```
+    ```js
+    rt_recent_activity_time: { observable: true },
+    rt_last_time_played:     { fnCustomSetter: (e, t) => e.SetLastTimePlayed(t),
+                               fnCustomComparator: …, observable: true },
+    ```
 
-   Assigning `rt_last_time_played` bypasses `SetLastTimePlayed` and writes a
-   shadow property. It reads back correctly, so it looks like it worked — and is
-   then discarded on Steam's next sync.
+    Assigning `rt_last_time_played` bypasses `SetLastTimePlayed` and writes a
+    shadow property. It reads back correctly, so it looks like it worked — and is
+    then discarded on Steam's next sync.
 
 2. **`collectionStore` is a class instance**, so `OnAppOverviewChange` lives on
    its prototype. `afterPatch(store, …)` reports success and never fires.
@@ -825,14 +828,18 @@ side and found three problems:
    `?item=` query form was wrong) loads the page but renders nothing.
    Steam's own call site explains why:
 
-   ```js
-   Media.Screenshot({ state: { id: t.id,
-     filter: { listSource: { type: "app", gameid: t.strGameID } } } })
-   ```
+    ```js
+    Media.Screenshot({
+        state: {
+            id: t.id,
+            filter: { listSource: { type: "app", gameid: t.strGameID } },
+        },
+    });
+    ```
 
-   The viewer needs list state, passed as a navigator *state object*, that
-   `Navigate(url)` cannot express. The item id is also the media item's `id`,
-   which is not the same as `hHandle`.
+    The viewer needs list state, passed as a navigator _state object_, that
+    `Navigate(url)` cannot express. The item id is also the media item's `id`,
+    which is not the same as `hHandle`.
 
 2. **Double background.** Measuring the native page showed every summary
    container is transparent — `GamePlaySummaryContainer`,
@@ -879,7 +886,7 @@ side and found three problems:
 
 Matching Steam's look by eye took three rounds of user testing and still missed:
 wrong header weight and colour, a doubled background panel, then — after
-over-correcting — a *missing* panel, undersized tiles and no shadows.
+over-correcting — a _missing_ panel, undersized tiles and no shadows.
 
 The root cause was method, not care. Each round compared screenshots and
 adjusted by guess. One round of `getComputedStyle` against a native page
@@ -943,7 +950,7 @@ A live read of Steam's module cache showed the copy was unnecessary. From
 
 ```js
 // Steam's app-details section registry
-e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"]);
 ```
 
 **Steam is not missing this UI for non-Steam games; it filters it out by app
@@ -980,14 +987,14 @@ Steam's own session made Steam render its real summary — pager, day separators
 
 - ~800 lines of components, class maps and image plumbing deleted. The renderer
   is ~60 lines of coordination.
-- The page cannot drift from native, because it *is* native. A Steam UI refresh
+- The page cannot drift from native, because it _is_ native. A Steam UI refresh
   carries us along instead of breaking us.
 - No image crosses the RPC boundary for the detail page: Steam serves its own
   captures over `steamloopback.host` and hands us absolute URLs. ADR-0017's
   constraint still holds for files Steam does not index, but does not apply
   here.
 - The style bible ([steam-styles.md](steam-styles.md)) is no longer needed to
-  *build* the summary. It is kept as reference for anything we do still draw.
+  _build_ the summary. It is kept as reference for anything we do still draw.
 - Cost: we depend on Steam's internal shapes. Mitigated by signature-based
   resolution and by degrading to the stock page whenever a lookup fails — a
   Steam update makes the section disappear, not the client crash.
@@ -1024,10 +1031,10 @@ Verified live, 2026-09-21, by switching UI mode from `SharedJSContext`
 new `Steam Big Picture Mode` devtools target directly:
 
 ```js
-typeof window.webpackChunksteamui   // "undefined"
-typeof window.appStore              // "undefined"
-typeof window.Millennium            // "undefined"  ← the plugin loader itself
-typeof window.SteamClient           // "object"     ← only the native bridge
+typeof window.webpackChunksteamui; // "undefined"
+typeof window.appStore; // "undefined"
+typeof window.Millennium; // "undefined"  ← the plugin loader itself
+typeof window.SteamClient; // "object"     ← only the native bridge
 ```
 
 Big Picture is not a popup sharing `SharedJSContext`'s module cache — it is a
@@ -1095,26 +1102,26 @@ This matches [issue #754](https://github.com/SteamClientHomebrew/Millennium/issu
 description, "the modern Gamepad UI runs in a nested, isolated context or
 different WebKit view that Millennium's current injection methods do not
 penetrate," is correct, and now confirmed at the source level: it is a
-different CDP *target*, and the single-target-by-title design in
+different CDP _target_, and the single-target-by-title design in
 `plugin_loader.cc` is why "different injection methods" don't reach it either.
 
 ### Decision (superseded — see ADR-0024)
 
 > The original decision below concluded Big Picture "cannot be fixed from
 > inside this plugin." That conflated two different questions: whether
-> Millennium loads our *bundle* into that window (no, confirmed — the finding
-> above still stands) with whether that window is *reachable at all* from
+> Millennium loads our _bundle_ into that window (no, confirmed — the finding
+> above still stands) with whether that window is _reachable at all_ from
 > `SharedJSContext` (yes, it is, via `Steam.PopupManager`/`g_PopupManager`,
 > which needs no Millennium injection). [ADR-0024](#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)
 > has the corrected decision and the implementation. Left here for the record.
 
 - ~~This cannot be fixed from inside this plugin.~~ It cannot be fixed by
-  *feeding Steam's own component* — that part of the finding holds, because
+  _feeding Steam's own component_ — that part of the finding holds, because
   `CAppDetailsSections`/`CAppSpotlightStore` are objects in a module cache
   this bundle cannot reach. But the window's DOM is a different resource, and
   it is reachable. See ADR-0024.
 - **Still worth reporting upstream** independent of the above: #754 covers
-  CSS; source-level confirmation that plugin *JavaScript* never runs in a
+  CSS; source-level confirmation that plugin _JavaScript_ never runs in a
   Gamepad window either is new information Millennium's maintainers may want.
 
 ### Consequences
@@ -1129,7 +1136,7 @@ different CDP *target*, and the single-target-by-title design in
   re-confirming the module-cache finding, independent of the DOM-reachability
   correction.
 - Confirmed live, 2026-09-21: AM2R's Big Picture "ACTIVITY" tab rendered
-  completely blank *before* ADR-0024's fix (no summary, no Steam placeholder
+  completely blank _before_ ADR-0024's fix (no summary, no Steam placeholder
   either) — the visible symptom of `GetSections()` never being patched there.
   Screenshot on file.
 
@@ -1148,14 +1155,14 @@ exactly one CDP target (`SharedJSContext`), by title, once, at startup. That
 finding is still correct — it explains why `webpackChunksteamui`,
 `CAppSpotlightStore` and every other module-cache object are absent inside
 `Steam Big Picture Mode` (verified again live: `window.webpackChunksteamui`
-is `undefined` *inside that window*, and it has its own separate React fiber
+is `undefined` _inside that window_, and it has its own separate React fiber
 tree). None of that is wrong.
 
 What was wrong was treating "Millennium never injects our bundle into that
 window" as "we cannot reach that window at all." The user pointed at
 [k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes/tree/f2c14ecbc0cfcdff6bba5f1d703231ec6037588f)
 (cloned into `research/`, gitignored, for reference) — its playtime feature
-*does* show up in Big Picture, and it needs no Millennium change to do it.
+_does_ show up in Big Picture, and it needs no Millennium change to do it.
 
 Reading its `frontend/index.tsx` and `frontend/renderers/library-app.tsx`
 shows the mechanism, and it was verified live before writing any of our own
@@ -1165,9 +1172,12 @@ code:
 // SharedJSContext — g_PopupManager is a real, live global here
 const pm = window.g_PopupManager;
 for (const p of pm.GetPopups()) {
-  if (p.window?.name?.startsWith('SP BPM_')) { bpm = p; break; }
+    if (p.window?.name?.startsWith("SP BPM_")) {
+        bpm = p;
+        break;
+    }
 }
-bpm.window.document.body.appendChild(el);   // el created in SharedJSContext
+bpm.window.document.body.appendChild(el); // el created in SharedJSContext
 ```
 
 Verified: `bpm.window.document` is fully readable and writable from
@@ -1180,11 +1190,11 @@ this global.
 
 **The two findings are not in tension; they describe different resources:**
 
-| Resource | Reachable from SharedJSContext? |
-| --- | --- |
-| Big Picture's `document` / DOM | **Yes** — `popup.window.document`, direct reference |
-| Big Picture's webpack module cache (`CAppDetailsSections`, `CAppSpotlightStore`, …) | **No** — separate bundle, confirmed `undefined` |
-| Big Picture's compiled CSS / class hashes | **Yes** — one build-wide stylesheet; a hash resolved from `SharedJSContext`'s own module cache is valid to apply to a node rendered into Big Picture's DOM |
+| Resource                                                                            | Reachable from SharedJSContext?                                                                                                                            |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Big Picture's `document` / DOM                                                      | **Yes** — `popup.window.document`, direct reference                                                                                                        |
+| Big Picture's webpack module cache (`CAppDetailsSections`, `CAppSpotlightStore`, …) | **No** — separate bundle, confirmed `undefined`                                                                                                            |
+| Big Picture's compiled CSS / class hashes                                           | **Yes** — one build-wide stylesheet; a hash resolved from `SharedJSContext`'s own module cache is valid to apply to a node rendered into Big Picture's DOM |
 
 So feeding Steam's own component (the desktop approach, ADR-0022) is still
 impossible for Big Picture — there is no object to feed. But rendering our
@@ -1198,7 +1208,7 @@ ADR-0022's technique cannot reach.
   rung 4 of the reuse ladder (AGENTS.md) — clone Steam's DOM shape, styled
   with class names resolved from `SharedJSContext` via a new
   `resolveClassMap()` in `steam/modules.ts`. This is not a relapse to the
-  pre-ADR-0022 approach: it is the *only* rung available here, because rungs
+  pre-ADR-0022 approach: it is the _only_ rung available here, because rungs
   1–3 all require an object living in Big Picture's own bundle, and none of
   the ones we need are exported there.
 - **`index.tsx` handles `PopupType.Gamepad`** alongside `PopupType.Desktop`,
@@ -1243,7 +1253,7 @@ ADR-0022's technique cannot reach.
 
 The first live smoke test of Big Picture support (blocked on since ADR-0024 shipped;
 see [TASK.md](../TASK.md)) showed nothing in the ACTIVITY tab for a non-Steam game —
-not a broken render, an *absent* one. `gamepad-app.tsx`'s `patch()` never ran at all.
+not a broken render, an _absent_ one. `gamepad-app.tsx`'s `patch()` never ran at all.
 
 `index.tsx`'s `PopupType.Gamepad` branch watches
 `onLocationChange(() => window.opener?.location, …)`, where `window` is the Big
@@ -1254,7 +1264,7 @@ window before Sept 21 — Big Picture had never been smoke-tested until now, and
 `steambrew-utils`'s actual source (`dist/watchers/index.mjs`) contains no reference to
 `opener` at all: `onLocationChange` is a generic poller that takes any
 `() => Location | undefined` and diffs `pathname`/`search`/`hash`. There is no
-"gamepad convention" baked into the library; the choice of *which* location to poll
+"gamepad convention" baked into the library; the choice of _which_ location to poll
 was entirely this plugin's own, made once in ADR-0016 and never checked.
 
 **Verified live** (CEF devtools, `Steam` v2.x, this machine, 2026-09-21):
@@ -1297,8 +1307,10 @@ Watch the popup's own location instead:
 
 ```ts
 const stopWatching = onLocationChange(
-  () => window.location,   // `window` is `popup.window` — its own, not its opener's
-  ({ pathname }) => { /* unchanged */ },
+    () => window.location, // `window` is `popup.window` — its own, not its opener's
+    ({ pathname }) => {
+        /* unchanged */
+    },
 );
 ```
 
@@ -1340,7 +1352,7 @@ item 4
 ### Context
 
 ADR-0025's fix (watch `popup.window.location` instead of `popup.window.opener.location`)
-was verified working *mechanically*: a location change on the popup's own window now
+was verified working _mechanically_: a location change on the popup's own window now
 reliably triggers `patch()`. But finishing the smoke test — driving Big Picture through
 its **real** UI, not a synthetic `history.pushState` stand-in — surfaced a bigger problem
 underneath the one ADR-0025 fixed.
@@ -1363,15 +1375,15 @@ this session, immediately after ADR-0025's fix):
 Big Picture's app-details view, for at least this navigation path (browse Library →
 select a game), is an **in-place view-state swap**, not a route change. No `Location`
 object — not `opener`'s (ADR-0016/0024's original, wrong per ADR-0025), not the popup's
-own (ADR-0025's fix) — can ever reflect which game is currently shown, because *none of
-them change* when this navigation happens. ADR-0025's fix was still correct and necessary
+own (ADR-0025's fix) — can ever reflect which game is currently shown, because _none of
+them change_ when this navigation happens. ADR-0025's fix was still correct and necessary
 (the popup's own location is the only one that's even theoretically live), but the whole
 premise of "watch `location`, extract an appid from the pathname" does not hold for Big
 Picture, regardless of which window's `location` is polled.
 
 This directly contradicts ADR-0016 item 4's claim that "`/library/app/<appid>` appears in
 [both desktop and gamepad] modes," sourced from grepping `cef_log.txt` for that path
-pattern. That log *does* contain real entries for that pattern, including non-Steam
+pattern. That log _does_ contain real entries for that pattern, including non-Steam
 appids (e.g. `2726721891`) — but the log doesn't tag which UI mode was active when each
 line was written, and desktop is independently confirmed (shipped, ADR-0022) to use real
 routes via `Steam.MainWindowBrowserManager`. The simplest explanation consistent with
@@ -1488,16 +1500,16 @@ handler)` where `runtime` is the located `react/jsx-runtime` module).
 
 **This does not overturn ADR-0023.** `window.webpackChunksteamui` inside the Big Picture
 popup is still confirmed `undefined` (re-checked live, same result as ADR-0023/0024/0026)
-— Steam's *own* application code (the section registry, `CAppDetailsSections`,
+— Steam's _own_ application code (the section registry, `CAppDetailsSections`,
 `CAppSpotlightStore`, all of module `68854` and friends) is still genuinely compiled into
 a bundle-local module cache, unreachable from `SharedJSContext`. What's different is
 `react/jsx-runtime`: a generic vendor dependency, evidently loaded once and shared across
 both bundles rather than duplicated per-bundle (consistent with any normal webpack
 multi-entry build that dedupes common libraries into a shared chunk). ADR-0023's
 investigation only ever checked `webpackChunksteamui` for reachability; it never checked
-whether *any* module was shared, because nothing suggested looking for one. Rungs 2–3 of
+whether _any_ module was shared, because nothing suggested looking for one. Rungs 2–3 of
 the reuse ladder (feed Steam's store, render Steam's real component) still do not apply
-to Big Picture's *own* components for that reason — but intercepting React's own element
+to Big Picture's _own_ components for that reason — but intercepting React's own element
 creation turns out to be a viable rung of its own, sitting between "feed the store" and
 "clone the DOM."
 
@@ -1516,10 +1528,10 @@ Replace `gamepad-app.tsx`'s location-watching entirely with a `jsx`/`jsxs` patch
 3. On a match for a non-Steam appid, drives `gamepad-app.tsx`'s existing
    `patch()`/`unpatch()` — the render side (clone Steam's summary DOM shape, append into
    the popup's document) is unaffected by this ADR and stays exactly as ADR-0024 built
-   it. Only the *signal* that decides when to patch changes, from a `location` poll to a
+   it. Only the _signal_ that decides when to patch changes, from a `location` poll to a
    `jsx`-call interception.
 4. Optionally, further out: SteamHunter's technique goes beyond reading props — it also
-   *rewrites* the intercepted `(type, props)` before React uses them (adding a whole tab
+   _rewrites_ the intercepted `(type, props)` before React uses them (adding a whole tab
    to an existing tab array). That opens a path to rendering directly into Big Picture's
    own component tree — closer to rung 3 (render Steam's real component) in spirit —
    rather than `gamepad-app.tsx`'s clone-and-hide (rung 4). Left for a follow-up decision,
@@ -1532,7 +1544,7 @@ Replace `gamepad-app.tsx`'s location-watching entirely with a `jsx`/`jsxs` patch
   fragile text-landmark anchor, no shipping Big Picture inert.
 - **New risk class, distinct from the class-name risk already accepted elsewhere.**
   `beforePatch`ing a shared runtime function is a global, always-on interception of
-  *every* element Steam's UI creates anywhere (confirmed: 9,526 calls from a few
+  _every_ element Steam's UI creates anywhere (confirmed: 9,526 calls from a few
   keypresses). The filter in step 2 must be cheap and must fail closed — a bug here
   doesn't just skip our feature, it runs on every element Steam ever renders, desktop
   included. `AGENTS.md`'s "always keep a graceful fallback" rule applies with more force
@@ -1557,10 +1569,10 @@ branch's `onLocationChange` call in `index.tsx`; `gamepad-app.tsx`'s render side
 Array.isArray(props.rgSections)` — narrower than `'appid' in props' alone, which live
 testing showed matches a recommended-games carousel, a friends-currently-playing widget,
 and a page pager tracking `previousAppid`/`preloadAppid`, dozens of false positives per
-navigation. `rgSections` isolates the one component that receives the page's section
+navigation. `rgSections`isolates the one component that receives the page's section
 list alongside its appid; verified on two different non-Steam games, exactly one match
 per navigation, zero false positives while arrow-key-browsing the library grid. The
-intercepted function's own `.name` is deliberately not part of the filter — the same
+intercepted function's own`.name` is deliberately not part of the filter — the same
 one-letter minified name matched both the target component and an unrelated
 "friend + playtime" widget on different renders.
 
@@ -1578,7 +1590,7 @@ test:
    DOM, not the CSS-rendered text, so the exact-case match could never succeed,
    regardless of timing. Fixed to match case-insensitively.
 2. **A render-timing race the anchor search didn't account for.** Even after fixing (1),
-   an immediate anchor search still failed live, repeatedly, while the *exact same query*
+   an immediate anchor search still failed live, repeatedly, while the _exact same query_
    run by hand moments later succeeded. `watchGamepadAppid`'s signal fires from inside
    React's own `jsx()` call — before React commits that tree to the real DOM — and Big
    Picture's page transitions carry their own animation on top of that. `findAnchor()`
@@ -1633,18 +1645,20 @@ Summary for comparison, shows the Big Picture render is badly broken —
   thumbnail — not something `SummaryStrip` renders; almost certainly a native Steam
   UI element now colliding with our injected content in the same container.
 - Overall it reads as a debug strip glued onto the page, not a Steam-native section —
-  exactly the failure mode AGENTS.md's reuse ladder warns about: *"If you are measuring
-  pixels to match Steam, you are probably on the wrong rung."*
+  exactly the failure mode AGENTS.md's reuse ladder warns about: _"If you are measuring
+  pixels to match Steam, you are probably on the wrong rung."_
 
 **Root cause, found by re-reading `patch()`'s anchor logic against the screenshot
 (not yet re-verified live — this is a strong, specific hypothesis, not a repeated live
 observation the way ADR-0025–0027's findings were):**
 
 ```ts
-const tabStrip = [...window.document.querySelectorAll('*')].find(
-  (el) => el.childElementCount === 0 && el.textContent?.trim().toLowerCase() === 'activity',
+const tabStrip = [...window.document.querySelectorAll("*")].find(
+    (el) =>
+        el.childElementCount === 0 &&
+        el.textContent?.trim().toLowerCase() === "activity",
 );
-const anchor = tabStrip?.closest('[class]')?.parentElement;
+const anchor = tabStrip?.closest("[class]")?.parentElement;
 ```
 
 `tabStrip` is the leaf `<span class="TabTitle">Activity</span>`. `Element.closest()`
@@ -1653,7 +1667,7 @@ already has a `class` attribute — so `tabStrip.closest('[class]')` returns `ta
 not some ancestor content wrapper. `.parentElement` of that is therefore the **tab
 button** in the tab strip (confirmed live during ADR-0027's testing, though not
 recognized as a bug at the time: `_3eEbSktrstBdLk0dVpnKVI Tab ... Selected ...
-RightAddon Panel Focusable`), not the ACTIVITY tab's *content panel* below it. The
+RightAddon Panel Focusable`), not the ACTIVITY tab's _content panel_ below it. The
 entire multi-tile `SummaryStrip` is being appended **inside a small tab-button-sized
 UI element in the tab bar itself**, not into the page body. Every symptom in the
 screenshot is consistent with this: content clipped by the tab button's own height, no
@@ -1669,7 +1683,7 @@ distinct from the two `gamepad-app.tsx` bugs ADR-0027 already found and fixed
 
 A wrong anchor selector is a one-line fix. But it's not the real issue: even anchored
 correctly, `gamepad-app.tsx` is a **hand-built clone** (rung 4 of AGENTS.md's reuse
-ladder) with inline styles guessed to *look like* native — the exact pattern AGENTS.md
+ladder) with inline styles guessed to _look like_ native — the exact pattern AGENTS.md
 already warns is fragile and high-maintenance, backed by this same repo's own history
 (the desktop Post-Game Summary was cloned once, passed testing, and was still discarded
 for a resolved-real-component approach — ADR-0022). Getting the clone's spacing,
@@ -1681,19 +1695,19 @@ native on the next Big Picture UI refresh.
 out for Big Picture by ADR-0023 on the grounds that `webpackChunksteamui` — Steam's own
 application code, where `CAppDetailsSections`/`CAppSpotlightStore` live — is genuinely
 bundle-local and unreachable from `SharedJSContext`. That finding still holds; ADR-0027
-did not overturn it. But ADR-0023's investigation only ever checked *that one* module
+did not overturn it. But ADR-0023's investigation only ever checked _that one_ module
 for shared-ness, because nothing at the time suggested checking others. ADR-0027 found,
 by accident of investigating a completely different problem, that `react/jsx-runtime` —
 a generic vendor dependency — **is** shared across both bundles. That was not an
 isolated fact about React specifically; it's evidence that Big Picture's build shares
-*some* modules and not others, and the boundary was never mapped.
+_some_ modules and not others, and the boundary was never mapped.
 
 The question worth answering before writing more clone code: **do `@steambrew/client`'s
 own exported components** (`Panel`, `Tabs`, `Focusable`, `Carousel`, `SuspensefulImage`
 — the same building blocks desktop already prefers per `docs/plugin.md`'s reuse ladder)
 **also resolve to shared module instances reachable from Big Picture**, the same way
 `react/jsx-runtime` turned out to be? If so, `gamepad-app.tsx` could build its strip out
-of Steam's *real* React components — real spacing, real focus/keyboard behavior, no
+of Steam's _real_ React components — real spacing, real focus/keyboard behavior, no
 hand-tuned CSS to keep in sync — rather than a clone. That would take Big Picture from
 rung 4 to rung 3 of the ladder for the first time, closing exactly the gap this ADR's
 screenshot exposes, and durably: a resolved real component cannot visually drift the
@@ -1706,17 +1720,17 @@ more Big Picture UI code:
 
 1. **Fix the anchor bug** (`tabStrip.closest('[class]')` matching itself) — small,
    mechanical, no new investigation needed. Likely fix: walk up from `tabStrip` past
-   the tab button to the tab strip's own container, then find *its* sibling content
+   the tab button to the tab strip's own container, then find _its_ sibling content
    panel (needs a fresh live probe of the DOM around the tab strip to find the right
    landmark — not guessed from memory, per this codebase's own verification standard).
 2. **Investigate shared-module reachability for `@steambrew/client`'s own components**,
    the same way ADR-0027 investigated `react/jsx-runtime`: from `SharedJSContext`,
    resolve one of the SDK's exported components (or the module it comes from) and test
-   — with a live marker, not assumption — whether the *same instance* is what Big
+   — with a live marker, not assumption — whether the _same instance_ is what Big
    Picture's own bundle uses when it renders a `Tabs`/`Panel`/`Focusable`. If yes, this
    ADR converts to Accepted with a rung-3 rebuild of `gamepad-app.tsx`. If no (Steam's
    own component library turns out to be bundled per-entry rather than shared, unlike
-   raw React), the clone approach stands, but *at minimum* gets (1)'s fix and closer
+   raw React), the clone approach stands, but _at minimum_ gets (1)'s fix and closer
    attention to matching native spacing/grouping by measurement (steam-styles.md's
    existing "measure, don't guess" standard, ADR-0021) rather than the current
    placeholder styling.
@@ -1734,3 +1748,69 @@ more Big Picture UI code:
   a confirmed "no" is itself useful, permanent knowledge (matching how ADR-0023's
   original "unreachable" finding, though later narrowed by ADR-0027, was still correct
   and useful for the specific module it checked).
+
+---
+
+## ADR-0029: Big Picture runs in `SharedJSContext` via React Portal; native component rendering and store feeding supersede DOM cloning
+
+**Status:** Accepted · 2026-09-22 · supersedes [ADR-0023](#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one),
+[ADR-0024](#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store), and
+[ADR-0028](#adr-0028-big-pictures-clone-is-visually-broken-and-the-fix-is-to-go-looking-for-real-components-not-to-keep-patching-the-clone) ·
+validates the question raised in ADR-0028 (step 2) with a complete resolution
+
+### Context
+
+ADR-0023 concluded Big Picture was a separate bundle with an isolated module cache because evaluating
+`window.webpackChunksteamui` and `window.appStore` inside the `Steam Big Picture Mode` popup window returned
+`undefined`. ADR-0024 accepted that finding and introduced `renderers/gamepad-app.tsx` — a hand-built clone
+appended into the popup's document. ADR-0027 discovered `react/jsx-runtime` was surprisingly shared. ADR-0028
+then observed that the hand-built clone was visually broken (injected into a small tab-button element rather than
+the content panel, lacking native focus rings and spacing), and proposed investigating whether Steam's own
+components were shared across the boundary.
+
+**Verified live via CEF DevTools (2026-09-22):**
+
+1. **The popup window contains zero scripts.** `Steam Big Picture Mode` is an `about:blank` popup containing
+   only `<div id="popup_target"></div>`. The reason `webpackChunksteamui` was undefined there is not because
+   it is a separate bundle — it has **no bundle at all**.
+2. **Big Picture is rendered from `SharedJSContext` via `ReactDOM.createPortal`.** Steam's main runtime in
+   `SharedJSContext` mounts Gamepad UI directly into the popup's `#popup_target`.
+3. **The React Fiber trees are identical.** Comparing `#root` in `SharedJSContext` with `#popup_target` in
+   the Big Picture popup showed matching React Fiber instance IDs (`__reactContainer$2x6thximn4h` and
+   `__reactFiber$2x6thximn4h`). All Big Picture React components execute in `SharedJSContext`.
+4. **The section registry is shared.** Big Picture's tabbed page component consumes `CAppDetailsSectionsContext`
+   (`re.AC`), whose parent `Xd.kg` renders `T.N_` (`CAppDetailsSections`, module `59856`). Its `GetSections()`
+   method is the **exact same function** patched for Desktop in ADR-0022.
+5. **The native Post-Game Summary is already built into Big Picture.** Function `at(e)` in module `3375`
+   (the "ACTIVITY" tab renderer) contains:
+    ```jsx
+    {
+        e.setSections.has("postgamesummary") && <Ge.T details={e.details} />;
+    }
+    ```
+    `Ge.T` (module `53074.T`) is the **identical native Post-Game Summary component** that Desktop uses.
+    It reads directly from `window.appSpotlightStore.GetPostGameSummary(appid)`.
+6. **Populating `appSpotlightStore` makes Steam render natively in Big Picture.** Tested live on AM2R
+   (appid `4263274102`): restoring `postgamesummary` in `GetSections` and pushing capture events into
+   `appSpotlightStore` in `SharedJSContext` instantly caused Big Picture to render Steam's genuine native
+   `GamePlaySummaryContainer`, `FocusRingRoot`, `GamePlaySummaryHeader`, `PageableContainer`, and
+   `SummaryCarouselContainer`. Controller D-pad navigation, focus rings, and media clicks all functioned
+   natively. Tested clean degradation on ActRaiser (appid `2788628389`, no captures): `hasSummary: false`,
+   stock page with zero errors.
+
+### Decision
+
+- **Delete `renderers/gamepad-app.tsx` completely.** The hand-built clone (rung 4 of AGENTS.md's reuse ladder)
+  is retired.
+- **Feed Steam's store for Big Picture Mode using the exact same path as Desktop.** In `frontend/index.tsx`,
+  `PopupType.Gamepad` simply calls `patchLibraryApp(appid)` and `unpatchLibraryApp(appid)`.
+- **Rely on Steam's native component rendering.** Steam's `Ge.T` renders in Big Picture's "ACTIVITY" tab
+  automatically, with native focus highlights, controller navigation, date grouping, and responsive layout.
+
+### Consequences
+
+- **Deletes ~280 lines of hand-built clone code** and unnecessary CSS overrides.
+- Completely resolves the visual breakage and tab-button anchor collision diagnosed in ADR-0028.
+- Big Picture gains full controller support (focus rings, D-pad carousel scrolling, LB/RB navigation) with
+  zero ongoing maintenance or risk of UI drift.
+- Unifies the plugin architecture: a single store-feeding pipeline serves both Desktop and Big Picture Mode.

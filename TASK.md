@@ -22,6 +22,13 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Per-day Activity feed | 🔶 Blocked on a fakeable Steam store record; see below. |
 | Big Picture | 🟡 Renders (ADR-0025/0026/0027), but **visually broken** — wrong anchor, no native spacing (ADR-0028, not started). |
 | Provider contract | ⬜ Not started (Phase 8). |
+| Area                            | State                                                                                                                                                                                                                               |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Post-Game Summary (desktop)     | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`.                                                                                                                                                                       |
+| Library grid                    | ✅ Shipped.                                                                                                                                                                                                                         |
+| Post-Game Summary (Big Picture) | ✅ Shipped. Real Steam component via React Portal & store feeding ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)). |
+| Per-day Activity feed           | 🔶 Blocked on a fakeable Steam store record; see below.                                                                                                                                                                             |
+| Provider contract               | ⬜ Not started (Phase 8).                                                                                                                                                                                                           |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
 
@@ -30,9 +37,13 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 ## Next up
 
 ### 1. Big Picture — the appid-detection mechanism is done and verified live
+### 1. Big Picture — Resolved with native component rendering ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning))
 
 The smoke test (2026-09-21, live CEF devtools) found and fixed three real bugs, in
 order, each one only surfacing once the previous was fixed:
+The investigation into Big Picture's visual breakage ([ADR-0028](docs/decisions.md#adr-0028-big-pictures-clone-is-visually-broken-and-the-fix-is-to-go-looking-for-real-components-not-to-keep-patching-the-clone))
+led to a breakthrough: **Big Picture is not a separate bundle.** It runs inside `SharedJSContext`
+and renders into the popup window via `ReactDOM.createPortal`.
 
 1. **Wrong location source ([ADR-0025](docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers)):**
    the Gamepad branch watched `popup.window.opener.location`, proven live to be
@@ -50,11 +61,20 @@ order, each one only surfacing once the previous was fixed:
    friends-playing widget, and a page pager). Confirms `react/jsx-runtime` is a shared
    vendor module even though Steam's own app code (`webpackChunksteamui`) genuinely is
    not — ADR-0023's bundle-separation finding still holds, just not for every module.
+Because both Desktop and Big Picture run in the identical JavaScript environment:
 
 Getting the *signal* right didn't make the strip render on its own — two more,
 independent bugs in `gamepad-app.tsx` surfaced immediately after, both pre-existing and
 never caught before because nothing had ever driven `patch()` against real rendered
 content until this test:
+- The section registry (`GetSections()`, module `59856`) is identical.
+- Big Picture's "ACTIVITY" tab already contains Steam's native Post-Game Summary component (`Ge.T`, module `53074`).
+- Feeding `appSpotlightStore` in `SharedJSContext` makes Steam render its genuine native
+  `GamePlaySummaryContainer`, `FocusRingRoot`, `PageableContainer`, and `SummaryCarouselContainer`
+  in Big Picture automatically.
+- The hand-built clone (`renderers/gamepad-app.tsx`) has been deleted.
+- Full architectural details, component signatures, and gamepad navigation guides are documented in
+  [docs/steam-components.md](docs/steam-components.md#inspecting-big-picture-mode-bpm--gamepadui--the-complete-architecture).
 
 4. **Case-sensitive text match against the wrong case** — the real DOM text is
    `"Activity"` (title case); the visible "ACTIVITY" is CSS `text-transform: uppercase`.
@@ -63,6 +83,7 @@ content until this test:
    before React commits to the real DOM, and Big Picture's own page-transition animation
    adds more delay on top. `findAnchor()` now polls (~8s budget, retrying through
    transient query errors, not just DOM-absence) instead of looking once.
+### 2. Per-day Activity feed
 
 **Verified live, reproduced twice from a clean Steam restart**: browsed Big Picture's
 real Library → Non-Steam → a real non-Steam game (AM2R, appid `4263274102`) via genuine
@@ -112,6 +133,7 @@ was never checked for anything except React itself.
 ### 3. Per-day Activity feed
 
 Every event needs a Steam *store* record the game doesn't have — but that
+Every event needs a Steam _store_ record the game doesn't have — but that
 record is fakeable with no network call (verified live). What's left: wire it
 through the plugin's existing publish/re-render path, decide on the injection
 risk, then feed real day/event objects from our captures.
@@ -125,10 +147,12 @@ risk, then feed real day/event objects from our captures.
 - Researched [sydhufen/game-data-linker](https://github.com/sydhufen/game-data-linker)
   (does something that looks similar) — it avoids this blocker entirely by
   linking a shortcut to a *real* Steam/Epic/Xbox appid and reading that real
+  linking a shortcut to a _real_ Steam/Epic/Xbox appid and reading that real
   game's `appActivityStore`/`appAchievementProgressCache`, no faking needed.
   Different product (borrowed metadata overlay vs. our own-capture-only
   core); doesn't change our plan, but is a validated shape for a future
   *optional* linking provider. Full comparison:
+  _optional_ linking provider. Full comparison:
   [steam-components.md § Comparison: game-data-linker's different way around this same blocker](docs/steam-components.md#comparison-game-data-linkers-different-way-around-this-same-blocker).
 
 ### Later
