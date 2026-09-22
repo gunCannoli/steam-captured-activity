@@ -8,8 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works; Big Picture now shows a summary too, pending user
-smoke test. The per-day activity feed is still in progress — see below.
+of them. Library grid works. Big Picture is implemented but currently **inert**
+in normal use — see below. The per-day activity feed is still in progress —
+see below.
 
 ### Known limits
 
@@ -22,6 +23,17 @@ smoke test. The per-day activity feed is still in progress — see below.
 - **Steam's "information is unavailable" box is left in place** on desktop.
   It is still accurate, and it is the only other thing in that column —
   removing it leaves the page blank under the summary.
+- **Big Picture's summary strip cannot currently render under normal use.** A
+  smoke test (2026-09-21, live) found and fixed a real bug — the code watched
+  the wrong window's `location`
+  ([ADR-0025](../docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers))
+  — but the same test then found that Big Picture's real navigation (browsing
+  the Library, opening a game) does not change *any* window's `location` at
+  all; it is an in-place view swap, not routing
+  ([ADR-0026](../docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all),
+  **Proposed**, undecided). Until that is resolved, the strip is dead code in
+  practice: correctly built, correctly triggered in principle, never actually
+  triggered in the client.
 - **Big Picture's summary is a clone, not Steam's real component**, and can
   drift from it on a future Big Picture UI change — see the Added entry below
   and [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
@@ -30,6 +42,8 @@ smoke test. The per-day activity feed is still in progress — see below.
   cache this plugin's `SharedJSContext` code cannot reach, confirmed from
   Millennium's own source
   ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
+  This limit is unaffected by the routing problem above — it still applies
+  once the strip can render at all.
 - **"Last Played" stays blank for games Steam did not launch itself.** That
   `AppOverview` field has a custom setter backed by protobuf state and cannot
   be written safely; recent-activity ordering does reflect captures instead

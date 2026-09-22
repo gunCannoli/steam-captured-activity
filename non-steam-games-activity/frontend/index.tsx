@@ -86,14 +86,43 @@ export default async function OnPluginLoaded() {
       // rendered here (in SharedJSContext) and appended into the popup's own
       // document - the technique the reference plugin uses for playtime.
       //
-      // Location comes from the popup's opener, per steambrew-utils's own
-      // convention for gamepad windows (there is no MainWindowBrowserManager
-      // equivalent inside Big Picture's own bundle to read from directly).
+      // Read the popup's own `window.location`, not its opener's. Verified
+      // live (CEF devtools, 2026-09-21): `popup.window.opener` here IS
+      // SharedJSContext's own window - proven with a cross-window marker
+      // (`window.__x = 1` in SharedJSContext, read back as `opener.__x` from
+      // inside the BPM popup) - and SharedJSContext's own `location` never
+      // navigates; it stays fixed at its initial load URL for the life of
+      // the process, because it is the headless parent that spawns every
+      // visible window rather than one itself (matches the official "Big
+      // Picture is a separate popup with its own webpack bundle" framing,
+      // knowledgebase.md's "Development Quirks" summary). Watching
+      // `opener.location` therefore can never see a `/library/app/<appid>`
+      // path change - this was the actual cause of the empty ACTIVITY tab in
+      // Big Picture, not a rendering bug in gamepad-app.tsx.
+      //
+      // The popup's own `window.location` is a completely ordinary
+      // same-origin Location object, readable from SharedJSContext with no
+      // special API (confirmed live), and it updates the normal browser way
+      // whenever the popup itself navigates - the same guarantee the desktop
+      // branch above leans on for its own window. No
+      // MainWindowBrowserManager equivalent is needed inside Big Picture's
+      // bundle; `steambrew-utils`'s `onLocationChange` is a source-agnostic
+      // poller (confirmed by reading its source) - it has no opinion on
+      // which Location it's given, so pointing it at the right one is on us.
+      //
+      // This fix alone is NOT sufficient to make the summary render under
+      // normal use: live testing (real gamepad-style input, not synthetic
+      // navigation) showed Big Picture's own app-details view never changes
+      // ANY window's `location` at all - it is an in-place view swap, not a
+      // route. See ADR-0026 (docs/decisions.md) - still Proposed, not fixed
+      // here - for the confirmed-reachable alternative (an appid read off a
+      // React fiber prop, anchored on a stable DOM landmark) and the
+      // trade-off that needs deciding before building it.
       if (!popup.window) return;
       const window = popup.window;
 
       const stopWatching = onLocationChange(
-        () => window.opener?.location,
+        () => window.location,
         ({ pathname }) => {
           const appid = appIdFromPath(pathname);
 

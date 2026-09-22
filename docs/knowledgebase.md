@@ -799,6 +799,94 @@ A deployed plugin folder contains only: `plugin.json`, `.millennium/Dist/`, `bac
 The reference `dev.ps1` flow: stop Steam → rename plugin to `<name>-dev` → build →
 copy → disable the release plugin and enable the dev one → start Steam with `-dev`.
 
+### The official docs, read section by section (2026-09-21)
+
+Swept [docs.steambrew.app/plugins](https://docs.steambrew.app/plugins/) — Introduction,
+Development Quirks, Basic, Advanced (Hooking API, Configuration API), and the LuaJIT/TypeScript
+references — specifically checking each for anything about multi-window / Big Picture, since
+that's our open smoke-test item (see [TASK.md](../TASK.md#1-big-picture--smoke-test-needed)).
+Net result: **the official docs confirm the window model our ADRs already derived independently,
+but do not document the mechanism we actually use to reach Big Picture at all** — that part is
+entirely `steambrew-utils` territory, upstream of Millennium's own API surface.
+
+#### Multi-window model (confirms ADR-0016/ADR-0023/ADR-0024)
+
+[Development Quirks](https://docs.steambrew.app/plugins/introduction/environment) states the
+window architecture plainly, independent of our own reverse-engineering:
+
+> Opening developer tools reveals multiple devtool windows — one per Steam window (Main,
+> Settings, Properties, etc). Each has its own Chromium instance with separate DOM and devtools.
+>
+> **SharedJSContext** is a headless parent instance: contains all Steam UI/logic code, spawns
+> child windows (Main, Settings, Properties, etc) via `window.open`, passing its execution
+> context. Has no visual DOM of its own.
+>
+> To hook UI in the main window, patch SharedJSContext — not the child window — since that's
+> where the code actually lives.
+
+This is exactly the shape ADR-0024 found by testing (`Steam.PopupManager` from
+`SharedJSContext` gives a live `Window`/`document` for the Big Picture popup, no Millennium
+injection needed) — Big Picture is just another one of these spawned child windows ("SP BPM_"),
+with its DOM separate but no independent code of its own. Confirms this isn't a Big-Picture-
+specific quirk; it's how *every* Steam window relates to `SharedJSContext`, Big Picture included.
+
+#### `onPopupCreate` / `PopupType` / `Steam.PopupManager` are undocumented upstream
+
+Checked deliberately, because this is the exact API surface `index.tsx` and `gamepad-app.tsx`
+depend on: **none of `onPopupCreate`, `PopupType`, or `Steam.PopupManager` appear anywhere in
+the official plugin docs** (Hooking API, Configuration API, or the TypeScript `Millennium`
+reference). The official `Millennium` TS object exports only `AddWindowCreateHook` (deprecated
+as of the docs' June 2026 note, in favor of the Configuration API), `findElement` (deprecated),
+`exposeObj` (deprecated), and `openQuickAccess`.
+
+So the watcher API this plugin is built on (`import { onPopupCreate, PopupType } from
+'steambrew-utils/watchers'`, `Steam.PopupManager` from the same package) is a **third-party
+convenience layer on top of Millennium**, not part of Millennium's own documented surface. That
+matches what `steam-non-steam-playtimes` (our reference plugin) already showed by example, but
+it's worth stating explicitly: if `steambrew-utils` ever stops matching Millennium's internals,
+there is no upstream doc page to diff against — the only ground truth is
+`node_modules/steambrew-utils`'s own source and live verification, same as we've already been
+doing for `@steambrew/client`'s undocumented component exports (see above).
+
+#### `Focusable` and `FocusRing` are official, documented components — not something we invented
+
+[`Focusable`](https://docs.steambrew.app/plugins/ts/components/Focusable) is described as "the
+base building block for anything that should be navigable" by gamepad or keyboard, with props
+`children`, `flow-children`, `focusClassName`, `focusWithinClassName`, `noFocusRing`,
+`onActivate`, `onCancel`, plus standard `div` attributes. This is the piece flagged as a known
+gap in `gamepad-app.tsx`'s summary tiles (they're currently plain unfocusable `<div>`s — see
+§ Steam's own React components above and steam-components.md's "Inspecting Big Picture" § 5).
+
+[`FocusRing`](https://docs.steambrew.app/plugins/ts/components/FocusRing) is the paired component
+— it draws the focus outline around content, and its docs page is the one place upstream that
+names Big Picture explicitly: **"particularly useful in Big Picture Mode."** Props:
+`className`, `rootClassName`, `render`, `children`, and a `NavigationManager` prop not previously
+in our notes — worth investigating before wiring it in, since it suggests `FocusRing` may need
+(or accept) a reference to whatever manages gamepad focus state, not just wrap arbitrary content
+standalone. Both pages' code samples import from `'millennium'`
+(`import { Focusable } from 'millennium'`), which does not match either our code or
+`@steambrew/client`'s actual `.d.ts` export path (`@steambrew/client`) — likely a doc-generation
+artifact rather than a real second import path; **verify the working import against
+`@steambrew/client`'s `.d.ts` before using either component**, don't trust the docs' own snippet.
+
+Together this confirms `Focusable`+`FocusRing` are *the* sanctioned pairing for a controller-
+navigable Big Picture tile, not one option among several — worth prioritizing when
+`gamepad-app.tsx`'s smoke test surfaces navigation as a real gap rather than a theoretical one.
+Neither component is imported anywhere in this codebase yet (**✅ verified**, grepped
+`non-steam-games-activity/frontend`) — this is still open work, not something already tried.
+
+#### Nothing else Big-Picture-specific exists upstream
+
+Checked and came up empty, so future sessions don't re-check the same ground: the Hooking API
+page covers only server-side JS patching (regex `find`/`file`/`transforms` against served
+chunks) with no popup/window lifecycle content; the Configuration API page covers only the
+reactive config-sync system (`millennium.config.get/set/on_change` ↔ `usePluginConfig`), also
+with no window-targeting content; Quick Start is just the template-clone bootstrap. There is no
+official "Big Picture" or "gamepad mode" guide — everything usable for this plugin's Big Picture
+work is either in `@steambrew/client`'s component exports (`Focusable`, `FocusRing`) or in
+`steambrew-utils` (`onPopupCreate`, `PopupType`, `Steam.PopupManager`), both already in use, both
+already known to be undocumented upstream.
+
 ---
 
 ## Part 2 — Steam's own data (**✅ all verified on this machine**)
@@ -1193,6 +1281,13 @@ Remaining gap: ROM basename → RetroAchievements **GameID**. Arcade ROMs are te
 
 - [Millennium plugin docs](https://docs.steambrew.app/plugins/) ·
   [file structure](https://docs.steambrew.app/plugins/structure/file-structure) ·
+  [development quirks](https://docs.steambrew.app/plugins/introduction/environment) (multi-window
+  model, SharedJSContext) ·
+  [hooking API](https://docs.steambrew.app/plugins/advanced/hooking) ·
+  [configuration API](https://docs.steambrew.app/plugins/advanced/config) ·
+  [`Millennium` TS reference](https://docs.steambrew.app/plugins/ts/Millennium) ·
+  [`Focusable`](https://docs.steambrew.app/plugins/ts/components/Focusable) ·
+  [`FocusRing`](https://docs.steambrew.app/plugins/ts/components/FocusRing) components ·
   [Millennium repo](https://github.com/SteamClientHomebrew/Millennium)
 - [Reference plugin: k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes) ·
   [commit f2c14ec](https://github.com/k0d13/steam-non-steam-playtimes/tree/f2c14ecbc0cfcdff6bba5f1d703231ec6037588f)

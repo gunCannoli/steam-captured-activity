@@ -1229,3 +1229,202 @@ ADR-0022's technique cannot reach.
   DOM technique as a named option below "clone Steam's DOM," for the case
   (rare) where even the DOM is in a different window than the code resolving
   the classes.
+
+---
+
+## ADR-0025: Watch the Big Picture popup's own `location`, not its `opener`'s
+
+**Status:** Accepted · 2026-09-21 · corrects a claim made in
+[ADR-0016](#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)
+(item 3) and repeated in
+[ADR-0024](#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)
+
+### Context
+
+The first live smoke test of Big Picture support (blocked on since ADR-0024 shipped;
+see [TASK.md](../TASK.md)) showed nothing in the ACTIVITY tab for a non-Steam game —
+not a broken render, an *absent* one. `gamepad-app.tsx`'s `patch()` never ran at all.
+
+`index.tsx`'s `PopupType.Gamepad` branch watches
+`onLocationChange(() => window.opener?.location, …)`, where `window` is the Big
+Picture popup. ADR-0016 attributed this to "the reference plugin['s]" behavior and
+called it "`steambrew-utils`'s own convention for gamepad popups"; ADR-0024 repeated
+the claim without re-checking it. Neither was verified against a live Big Picture
+window before Sept 21 — Big Picture had never been smoke-tested until now, and
+`steambrew-utils`'s actual source (`dist/watchers/index.mjs`) contains no reference to
+`opener` at all: `onLocationChange` is a generic poller that takes any
+`() => Location | undefined` and diffs `pathname`/`search`/`hash`. There is no
+"gamepad convention" baked into the library; the choice of *which* location to poll
+was entirely this plugin's own, made once in ADR-0016 and never checked.
+
+**Verified live** (CEF devtools, `Steam` v2.x, this machine, 2026-09-21):
+
+1. `popup.window.opener` **is SharedJSContext's own `window`** — confirmed with a
+   cross-window marker (`window.__x = <value>` set from the `SharedJSContext` CDP
+   target, then read back as `opener.__x` from inside the `Steam Big Picture Mode`
+   target: same value, same object).
+2. **SharedJSContext's own `location.pathname` never changes.** It stayed at
+   `/routes/library/home` — its initial load URL — through repeated `SetUIMode`
+   switches between Desktop and Gamepad and repeated in-Big-Picture navigation.
+   This matches the "Development Quirks" doc's framing of SharedJSContext as
+   headless and DOM-less (see knowledgebase.md's official-docs section): it is the
+   parent that spawns every visible window, not one itself, so it has no route of
+   its own to reflect.
+3. **The popup's own `window.location` does update** on navigation — confirmed with
+   `history.pushState` inside the Big Picture target itself, which is ordinary,
+   engine-guaranteed browser behavior no app code can opt out of.
+4. **SharedJSContext can read the popup's own `window.location` cross-window with no
+   restriction** — same-origin (`steamloopback.host`), confirmed by evaluating
+   `popup.window.location.pathname` directly from the `SharedJSContext` target.
+
+So `window.opener?.location` was, structurally, always going to poll a value that
+can never become `/library/app/<appid>` — not a flaky signal, a permanently wrong
+one. This fully explains the empty ACTIVITY tab: the branch that calls `patchGamepadApp`
+was gated behind a condition that could never fire.
+
+Why this went unnoticed until now: ADR-0016's claim was written from reading the
+reference plugin, not from testing our own popup handle, and Big Picture was marked
+"implemented, awaiting smoke test" from the day `gamepad-app.tsx` shipped (ADR-0024)
+until this session. The reference plugin's playtime feature most likely doesn't need
+location tracking at all — playtime updates by patching `CollectionStore` reactively
+(rung 2 of the reuse ladder), which re-renders on every store notification regardless
+of which window or route is showing it, so it was never exercising this code path the
+way our per-route summary strip does.
+
+### Decision
+
+Watch the popup's own location instead:
+
+```ts
+const stopWatching = onLocationChange(
+  () => window.location,   // `window` is `popup.window` — its own, not its opener's
+  ({ pathname }) => { /* unchanged */ },
+);
+```
+
+No other change needed — `onLocationChange` already normalises `/routes` prefixes and
+diffs correctly regardless of source, and `window.location` is a completely ordinary
+`Location` object with no cross-origin restriction from `SharedJSContext`.
+
+### Consequences
+
+- Big Picture's summary strip can now actually render — this was a full blocker, not
+  a degradation; nothing downstream of the watcher could have worked.
+- **Correction to ADR-0016 and ADR-0024**: neither the reference plugin's behavior nor
+  `steambrew-utils` itself mandates reading `opener.location` on gamepad popups. Both
+  ADRs' text is left in place per this project's convention (don't rewrite history),
+  but a reader following either should come here first, not copy `opener.location`
+  forward into a future provider or renderer.
+- **Process note, same lesson as ADR-0023 → ADR-0024**: a claim about a third-party
+  library's "convention," made by reading example code rather than that library's own
+  source, is exactly the kind of thing "awaiting smoke test" is for. The fix, once
+  found, was a one-line change; the finding took a live CDP session because the wrong
+  assumption looked identical to a reasonable one until actually measured.
+- No change needed to `gamepad-app.tsx` itself, `resolveClassMap`, or the anchor-finding
+  logic in `patch()` — none of that was ever reached, so none of it is implicated by
+  this bug. It still needs its own verification once the watcher fix lets `patch()`
+  actually run for the first time.
+- **This fix is necessary but, per live testing, not sufficient** — continuing the same
+  smoke test past this fix surfaced a second, deeper problem with the same watcher's
+  premise. See [ADR-0026](#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all).
+
+---
+
+## ADR-0026: Big Picture's real navigation does not touch `location` at all
+
+**Status:** Proposed · 2026-09-21 · found while smoke-testing
+[ADR-0025](#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers)'s fix;
+further corrects [ADR-0016](#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)
+item 4
+
+### Context
+
+ADR-0025's fix (watch `popup.window.location` instead of `popup.window.opener.location`)
+was verified working *mechanically*: a location change on the popup's own window now
+reliably triggers `patch()`. But finishing the smoke test — driving Big Picture through
+its **real** UI, not a synthetic `history.pushState` stand-in — surfaced a bigger problem
+underneath the one ADR-0025 fixed.
+
+**Verified live** (CEF devtools, real gamepad-style input via `Input.dispatchKeyEvent`,
+this session, immediately after ADR-0025's fix):
+
+1. Focused a "Recent Games" tile, pressed Enter (a real activation, not a synthetic
+   navigation): the view swapped to a real game's app-details page — visible tab strip
+   "ACTIVITY / YOUR STUFF / COMMUNITY / GAME INFO", the real Play button, real last-played
+   text. `location.pathname` **stayed at `/routes/library/home`** throughout.
+   `history.length` stayed `0` — no entry was pushed.
+2. Repeated properly, ruling out "that was just a lightweight overlay shortcut": backed
+   out, opened the real Library section (`View more in your Library`), filtered to
+   **Non-Steam** (223 games), focused a real non-Steam tile ("1944: The Loop Master",
+   appid `4271101655`), pressed Enter. Same result: real app-details page rendered
+   (`Play / 1944: The Loop Master / ACTIVITY / YOUR STUFF / COMMUNITY / GAME INFO`),
+   `location.pathname` unchanged, `history.length` still `0`.
+
+Big Picture's app-details view, for at least this navigation path (browse Library →
+select a game), is an **in-place view-state swap**, not a route change. No `Location`
+object — not `opener`'s (ADR-0016/0024's original, wrong per ADR-0025), not the popup's
+own (ADR-0025's fix) — can ever reflect which game is currently shown, because *none of
+them change* when this navigation happens. ADR-0025's fix was still correct and necessary
+(the popup's own location is the only one that's even theoretically live), but the whole
+premise of "watch `location`, extract an appid from the pathname" does not hold for Big
+Picture, regardless of which window's `location` is polled.
+
+This directly contradicts ADR-0016 item 4's claim that "`/library/app/<appid>` appears in
+[both desktop and gamepad] modes," sourced from grepping `cef_log.txt` for that path
+pattern. That log *does* contain real entries for that pattern, including non-Steam
+appids (e.g. `2726721891`) — but the log doesn't tag which UI mode was active when each
+line was written, and desktop is independently confirmed (shipped, ADR-0022) to use real
+routes via `Steam.MainWindowBrowserManager`. The simplest explanation consistent with
+today's direct, repeated, live observation is that every one of those log lines came from
+desktop sessions, and ADR-0016's "appears in both modes" was an unverified inference from
+a mode-agnostic log — the same class of mistake ADR-0023 made and ADR-0024 corrected, now
+recurring one layer deeper.
+
+**A viable alternative signal exists and is confirmed reachable.** Big Picture's DOM is
+reachable from `SharedJSContext` (ADR-0024's whole premise), and so — one level further
+in than a plain DOM read — are individual elements' React fiber trees, which are ordinary
+object properties (`__reactFiber$…`, keyed by a random per-render suffix) sitting on the
+DOM nodes themselves. Verified live: anchored on the "Play" text (a stable landmark
+present on every app-details view), walking `fiber.return` a few levels and reading
+`fiber.memoizedProps` surfaced a `props.appid` field with the exact real appid
+(`4271101655`, matching "1944: The Loop Master") on both of the two different games
+tested. This reaches the same information the (unreachable) `CAppDetailsSections`/
+`CAppSpotlightStore` objects would have given directly (ADR-0023/0024), by going through
+the DOM's own fiber pointers instead of the module cache.
+
+### Decision
+
+**Not yet made — this ADR is Proposed, not Accepted.** Two real paths forward exist and
+the trade-off is a judgment call:
+
+1. **Fiber-prop extraction.** Replace the location watcher with a
+   `MutationObserver`/polling approach that looks for the "Play" (or similar) landmark
+   text in the popup's DOM, walks its fiber tree the same way just verified, and reads
+   `appid` off `memoizedProps`. More code, and reads a genuinely private React internal
+   (`memoizedProps` field names are not a React public API and carry no stability
+   guarantee across a Steam Chromium/React upgrade) — a real risk, but one already
+   somewhat priced in: this plugin already resolves Steam internals by signature
+   (`findClassModule`, prototype-method probes) rather than any public contract, and a
+   failed resolve degrades to "summary doesn't render" the same way a failed
+   `findClassModule` probe does elsewhere (AGENTS.md's fallback rule).
+2. **Leave Big Picture unsupported for now**, ship the ADR-0025 fix anyway (it is a real,
+   confirmed correctness improvement even if insufficient alone — a future Millennium or
+   Big Picture change could make `location` live again, and there's no reason to leave a
+   proven-wrong `opener` read in place while that's decided), and downgrade Big Picture in
+   TASK.md from "awaiting smoke test" to "blocked: real navigation is unobservable via
+   `location`," pending a decision on option 1.
+
+### Consequences (either direction)
+
+- Either way, ADR-0025's fix ships — it is strictly correct on its own terms.
+- If (1): another rung-4-adjacent technique joins the reuse ladder's last resort, and
+  `docs/plugin.md`/`steam-components.md` need a new documented pattern ("read live state
+  off a React fiber anchored on a stable text landmark, not off a Location") alongside
+  the existing "clone DOM across windows" one.
+- If (2): Big Picture support stays shipped-but-inert (the strip never renders under
+  normal use) until this is revisited — worth being honest about in any release notes
+  rather than claiming Big Picture support that doesn't actually activate.
+- Either way: **ADR-0016 item 4 is retracted.** Big Picture routes are not confirmed to
+  exist for the app-details view; only desktop's are. A future investigation should not
+  cite `cef_log.txt` alone for a "which UI mode" claim without also checking which window
+  was foregrounded when the relevant lines were written.

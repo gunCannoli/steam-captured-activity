@@ -20,7 +20,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop) | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`. |
 | Library grid | ✅ Shipped. |
 | Per-day Activity feed | 🔶 Blocked on a fakeable Steam store record; see below. |
-| Big Picture | 🧪 Implemented, **awaiting smoke test**. Own renderer, clone-and-hide (ADR-0024). |
+| Big Picture | 🔴 Smoke-tested; **blocked**. Location-watcher bug fixed (ADR-0025), but real navigation doesn't touch `location` at all (ADR-0026) — strip still can't render. |
 | Provider contract | ⬜ Not started (Phase 8). |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
@@ -29,30 +29,44 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Next up
 
-### 1. Big Picture — smoke test needed
+### 1. Big Picture — blocked on a real navigation signal (was: smoke test needed)
 
-Implemented, not yet user-verified. ADR-0023 concluded this was blocked on a
-Millennium engine change (its plugin loader only ever attaches to
-`SharedJSContext`). That conclusion was **too strong** — it conflated "our
-bundle never loads there" (true) with "that window is unreachable" (false).
-The user pointed at
-[k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)
-(its playtime feature already shows up in Big Picture); reading it showed
-`Steam.PopupManager` gives a direct `Window`/`document` reference to the Big
-Picture popup from `SharedJSContext`, no Millennium injection needed —
-verified live before writing any code (a test element appended from
-`SharedJSContext` rendered on screen inside the popup).
+The smoke test happened this session (2026-09-21, live CEF devtools) and found two bugs,
+one fixed and one still open:
 
-Shipped as `renderers/gamepad-app.tsx`: a small clone-and-hide summary strip
-(rung 4 of the reuse ladder — the only rung reachable here, since Big
-Picture's `CAppDetailsSections`/`CAppSpotlightStore` genuinely are unreachable
-objects in a separate module cache; that part of ADR-0023 still holds).
-`index.tsx` now handles `PopupType.Gamepad` alongside desktop.
+1. **Fixed ([ADR-0025](docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers)):**
+   the Gamepad branch watched `popup.window.opener.location` — proven live to be
+   `SharedJSContext`'s own window, whose `location` never changes. Now watches
+   `popup.window.location` instead. Verified working mechanically (a location change
+   correctly triggers `patch()`).
+2. **Still open ([ADR-0026](docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all),
+   Proposed, needs a direction chosen):** driving Big Picture through its *real* UI
+   (gamepad-style key input, not synthetic navigation) showed that opening a game's
+   app-details page — via "Recent Games" **or** the real Library grid, tested both, two
+   different games — never changes `location` at all (`history.length` stays `0`
+   throughout). No `Location` object, from any window, can reflect which game Big
+   Picture is currently showing. This also retracts ADR-0016 item 4's "routes are shared
+   between desktop and gamepad" claim — it was sourced from a UI-mode-agnostic log grep,
+   never independently verified for gamepad, and today's direct testing contradicts it
+   for at least the app-details view.
+   - A working alternative signal is already confirmed reachable: Big Picture's DOM
+     nodes carry React fiber pointers even though the module cache is separate
+     (ADR-0023/24's finding); walking a fiber anchored on a stable text landmark (e.g.
+     "Play") surfaced the real `appid` in `memoizedProps`, verified on two different
+     non-Steam games. Building this into `gamepad-app.tsx`'s watcher is unstarted —
+     ADR-0026 lays out the trade-off (more code, reads a private React internal, vs.
+     leaving Big Picture shipped-but-inert) but doesn't pick a side.
+   - **Next action: decide between ADR-0026's two options**, then either build the
+     fiber-based watcher or explicitly downgrade Big Picture to "not supported yet" in
+     release-facing docs rather than implying it works.
 
-- Full corrected finding: [ADR-0024](docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)
-- What's still true from the original investigation: [ADR-0023](docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)
-- **Needs a real smoke test**: open a non-Steam game in Big Picture, check the
-  ACTIVITY tab shows recent screenshots/clips, check nothing broke on desktop.
+Earlier history (ADR-0023's wrong "not fixable from this repo" conclusion, ADR-0024's
+correction reaching the popup via `Steam.PopupManager`, `gamepad-app.tsx`'s clone-and-hide
+summary strip) is unaffected by this — that part of the stack is sound; the
+`CAppDetailsSections`/`CAppSpotlightStore` unreachability finding still holds, and the
+strip itself has never actually been exercised end-to-end yet (nothing has reached
+`patch()`'s anchor-search step against a *real* rendered ACTIVITY tab), so it remains
+unverified in its own right once a real appid signal exists.
 
 ### 2. Per-day Activity feed
 
