@@ -80,7 +80,8 @@ function Test-CefDebugging {
     # Query 127.0.0.1 /json directly (avoiding IPv6 resolution and missing /json/version endpoint)
     $resp = Invoke-RestMethod -Uri "http://127.0.0.1:$DebugPort/json" -TimeoutSec 2 -ErrorAction Stop
     return $null -ne $resp
-  } catch {
+  }
+  catch {
     return $false
   }
 }
@@ -94,13 +95,14 @@ function Start-SteamProcess {
   try {
     # Launch detached via WMI so Steam survives script/job termination
     $res = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
-      CommandLine = "`"$ExePath`" $ArgumentString"
+      CommandLine      = "`"$ExePath`" $ArgumentString"
       CurrentDirectory = $WorkingDirectory
     } -ErrorAction Stop
     if ($res.ReturnValue -ne 0) {
       throw "WMI Win32_Process.Create returned $($res.ReturnValue)"
     }
-  } catch {
+  }
+  catch {
     # Fallback to Start-Process
     Start-Process -FilePath $ExePath -ArgumentList $ArgumentString -WorkingDirectory $WorkingDirectory
   }
@@ -120,7 +122,8 @@ if ($KillOnly) {
     $running | Stop-Process -Force
     Start-Sleep -Seconds 2
     Write-Host 'Steam stopped.' -ForegroundColor Green
-  } else {
+  }
+  else {
     Write-Host 'Steam is not running.' -ForegroundColor Gray
   }
   return
@@ -137,7 +140,8 @@ if ($needsRestart) {
     $running | Stop-Process -Force
     Start-Sleep -Seconds 3
   }
-} elseif ($running -and $portResponding) {
+}
+elseif ($running -and $portResponding) {
   Write-Host "Steam is already running with CEF debugging active on port $Port." -ForegroundColor Green
 }
 
@@ -148,7 +152,8 @@ if (-not $runningNow) {
   if ($BigPicture) {
     $argList += '-gamepadui'
     Write-Host "Starting Steam in Big Picture mode with debugging on port $Port..." -ForegroundColor Cyan
-  } else {
+  }
+  else {
     Write-Host "Starting Steam in dev mode with debugging on port $Port..." -ForegroundColor Cyan
   }
 
@@ -185,7 +190,8 @@ try {
       $marker = '  '
       if ($t.title -eq 'SharedJSContext') {
         $marker = '* ' # Main runtime context where stores, section patches, and portals live
-      } elseif ($t.title -match 'Big Picture') {
+      }
+      elseif ($t.title -match 'Big Picture') {
         $marker = '> '
       }
       Write-Host ("{0}[{1,-15}] {2}" -f $marker, $t.type, $t.title) -ForegroundColor White
@@ -195,7 +201,8 @@ try {
     Write-Host "`n(*) SharedJSContext: Single runtime where all stores and Big Picture portals run." -ForegroundColor DarkCyan
     Write-Host "See docs/steam-debug.md for target traps, console filters, and Big Picture quirks.`n" -ForegroundColor DarkGray
   }
-} catch {
+}
+catch {
   Write-Host "Could not query target list from http://localhost:$Port/json." -ForegroundColor DarkYellow
 }
 
@@ -203,3 +210,4 @@ if ($OpenBrowser) {
   Write-Host "Opening http://localhost:$Port/ in default browser..." -ForegroundColor Cyan
   Start-Process "http://localhost:$Port/"
 }
+

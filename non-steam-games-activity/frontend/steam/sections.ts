@@ -27,24 +27,11 @@ import { appDetailsSections } from "./stores";
 /**
  * Sections we re-enable, and why each one is safe to show.
  *
- * **`activity` is deliberately NOT here.** Restoring it does produce Steam's
- * real ACTIVITY section, with correct day headings ("Yesterday", "Oct 24,
- * 2025") - but every event inside it renders as nothing, whatever its type.
- * Steam's event renderer opens with:
- *
- *   if (appid && (!storeApp || !storeApp.BIsVisible())) return null;
- *
- * where `storeApp` is a **store** record fetched with `k_DataRequest_Assets`.
- * A non-Steam game has none (verified live: `GetApp(4263274102)` returns
- * nothing, while a native appid returns a visible record), so the guard fires
- * for every event and the feed renders a heading with an empty body.
- *
- * That is not something feeding the store can fix - it is upstream of the
- * event data entirely. Enabling `activity` would trade one empty region for
- * another, so it stays off until there is a way through that guard.
- *
- * The Post-Game Summary already covers multiple days ("Today", "Yesterday",
- * "Oct 24, 2025"), which is most of what the feed would have shown.
+ * - `postgamesummary`: Fed by us via CAppSpotlightStore; renders screenshots,
+ *   clips, and achievements in the hero banner.
+ * - `activity`: Fed by us via appActivityStore; renders chronological per-day
+ *   activity cards. (Previously blocked by storeApp.BIsVisible(), now solved via
+ *   StoreItemCache stubbing per ADR-0030).
  */
 const RESTORED_SECTIONS = [
     // Fed by us via the spotlight store; renders screenshots and clips.

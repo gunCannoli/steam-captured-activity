@@ -239,46 +239,13 @@ only shows populated stats.
 > you find yourself measuring pixels to match Steam, you are probably on the
 > wrong rung.
 
-**Special case: the DOM you need to reach is in a different window entirely.**
-Big Picture is a separate popup with its own webpack bundle — most of rungs
-1–3 are unreachable from a plugin's `SharedJSContext` code, because they need
-an object that lives in the *other* window's module cache (confirmed:
-`window.webpackChunksteamui` is `undefined` inside the Big Picture popup —
-Steam's own app code, the section registry, `CAppDetailsSections`,
-`CAppSpotlightStore`, is genuinely bundle-local). Two techniques reach across
-that boundary anyway, for different purposes:
-
-- **Clone the DOM shape (rung 4).** Build the clone in `SharedJSContext`
-  (`document.createElement`), resolve its class names from `SharedJSContext`'s
-  own module cache (CSS is one build-wide stylesheet, so a hash resolved on
-  one side is valid on the other), then reach the other window with
-  `Steam.PopupManager` (`steambrew-utils`) — a live `Window`/`document`
-  reference needing no Millennium injection — and `appendChild` the clone
-  directly into its document. See
-  [ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)
-  and `non-steam-games-activity/frontend/renderers/gamepad-app.tsx` for the
-  worked example. Use this for *rendering* content into the other window.
-
-- **Patch a shared vendor module (a distinct technique, not a ladder rung).**
-  Not every module is bundle-local — `webpackChunksteamui` is Steam's *own*
-  code and is duplicated per-bundle, but a generic dependency like
-  `react/jsx-runtime` is evidently loaded once and shared across both
-  bundles. Resolve it from `SharedJSContext` with `findModuleByExport`
-  (`@steambrew/client`) and wrap its `jsx`/`jsxs` exports with `beforePatch`:
-  the wrapped function then intercepts **every** element Steam's UI creates
-  anywhere, including inside the other window, letting you read (or rewrite)
-  `(type, props)` before React uses them — no DOM presence, class resolution,
-  or landmark text needed to extract live data (e.g. an `appid` prop) from a
-  view rendered in a window whose own module cache is otherwise unreachable.
-  Verified live: 9,500+ intercepted calls from Big Picture-only interaction,
-  and a target app's real `appid` read directly off captured props the
-  instant Big Picture rendered its detail page. This is a global,
-  always-on interception point across *all* of Steam's UI, not just the
-  target window, so the filter for "is this the element I care about" must
-  be cheap and fail closed — a broad or buggy filter runs on every element
-  Steam ever renders, desktop included. See
-  [ADR-0027](decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline)
-  (Proposed, not yet built into this plugin).
+**Big Picture Mode (Gamepad UI) uses the exact same store-feeding architecture (Rung 2).**
+Earlier investigations assumed Big Picture was a separate bundle with unreachable stores (ADR-0023/ADR-0024).
+Live inspection (ADR-0029) proved otherwise:
+- The `Steam Big Picture Mode` popup window contains **no scripts or module bundle**. It is a bare `about:blank` window with `<div id="popup_target"></div>`.
+- Big Picture is rendered directly from `SharedJSContext` via `ReactDOM.createPortal`. Both Desktop and Big Picture share the same React runtime, section registry (`CAppDetailsSections`), and MobX store singletons (`appSpotlightStore`, `appActivityStore`, `StoreItemCache`).
+- Feeding Steam's stores automatically renders Steam's real native components in Big Picture's "ACTIVITY" tab (`Ge.T` for summary, `ae.W` for activity), with full controller D-pad navigation, focus rings, and responsive layouts.
+- **Navigation detection via `react/jsx-runtime`:** Because Big Picture navigation is purely client-side React state and never touches `window.location` (ADR-0026), `watchGamepadAppid` in `steam/gamepad-appid.ts` wraps `react/jsx-runtime`'s `jsx`/`jsxs` exports via `beforePatch`, filtering on `{ appid, rgSections }` to detect app transitions reliably with zero DOM polling (ADR-0027).
 
 ### Rules that apply on every rung
 

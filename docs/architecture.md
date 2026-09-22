@@ -132,22 +132,19 @@ non-steam-games-activity/
    │  ├─ stores.ts        # typed store/service/payload shapes           ✅
    │  ├─ sections.ts      # restore the sections Steam hides             ✅
    │  ├─ summary.ts       # feed Steam's session + provider registry     ✅
+   │  ├─ activity.ts      # feed Steam's activity store + store cache    ✅
+   │  ├─ gamepad-appid.ts # detect Big Picture navigation via jsx patch  ✅
    │  └─ gameid.ts        # 32-bit appid ↔ 64-bit gameid (BigInt)        ✅
    └─ renderers/
-      ├─ library-app.tsx  # coordinates publish/clear per app (desktop)  ✅
-      ├─ gamepad-app.tsx  # clone-and-hide summary strip (Big Picture)   🧪
+      ├─ library-app.tsx  # coordinates publish/clear per app (Desktop & BPM) ✅
       └─ library-home.tsx # patch AppOverview so the grid shows stats    ✅
 ```
 
-There is no `components/` directory any more: the hand-built post-game
-summary, carousel, media cards and class-module maps were deleted once
-Steam's own components were confirmed reachable
-([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
-`gamepad-app.tsx` is the one deliberate exception — Big Picture's own module
-cache is unreachable from this bundle, so there is no Steam component *to*
-feed there, and it clones a small piece of markup instead
-([ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store)).
-It is contained to that one file and gated on `PopupType.Gamepad`.
+There is no `components/` directory: all UI is rendered by Steam's own components
+(`Ge.T` for Post-Game Summary, `ae.W` for Activity Feed).
+Earlier attempts to clone Big Picture's DOM (`gamepad-app.tsx`, ADR-0024) were completely
+deleted in ADR-0029 after confirming Gamepad UI runs in `SharedJSContext` via React Portal.
+Both Desktop and Big Picture Mode share the same store-feeding pipeline.
 
 `gameid.lua` was not in the original plan; the 64-bit conversion needed its own
 module because Lua numbers are doubles and cannot hold a gameid exactly. It does the
@@ -383,31 +380,13 @@ See [steam-components.md](steam-components.md) for the full trace, and
 
 **Big Picture** runs the same page, drawn from the same section registry as
 desktop's — verified live: its "ACTIVITY" tab draws the identical Post-Game
-Summary component desktop uses, gated by the identical
-`setSections.has("postgamesummary")`. But that component and its store are
-objects living in **a separate webpack bundle**, with no `window.Millennium`
-and no shared module cache — confirmed from Millennium's own source: its
-plugin loader attaches to one CDP target by exact title match at startup and
-never looks again, so this plugin's frontend never executes inside Big
-Picture's window at all
-([ADR-0023](decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
-So there is no Steam component to feed there.
-
-There *is*, however, a live `Window`/`document` reference to that popup,
-reachable from `SharedJSContext` via `Steam.PopupManager` — no Millennium
-injection needed for that, only Steam's own JS API, confirmed live by
-appending a DOM node across windows and seeing it render on screen.
-`renderers/gamepad-app.tsx` uses exactly this to render a small clone of the
-summary, styled with real class names resolved from the desktop bundle (the
-CSS itself is one build-wide stylesheet shared by both). This corrects
-ADR-0023's "not fixable from this repo" conclusion — see
-[ADR-0024](decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store),
-prompted by the reference plugin
-([k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes))
-already using this technique for its playtime feature.
-[ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)'s
-original "second renderer" framing turned out to be closer to right than
-ADR-0023 gave it credit for, just for a different reason than ADR-0016 stated.
+Summary component (`Ge.T`) and Activity Feed component (`ae.W`) desktop uses.
+Crucially, Big Picture is rendered directly from `SharedJSContext` via
+`ReactDOM.createPortal` into the popup window's `#popup_target` (ADR-0029).
+There is no separate bundle or isolated module cache: all stores
+(`appSpotlightStore`, `appActivityStore`, `StoreItemCache`) execute in
+`SharedJSContext`. Feeding them serves both Desktop and Big Picture Mode
+identically with full controller D-pad navigation, focus rings, and media carousels.
 
 **Serving local images** no longer needs base64 for the detail page. The
 constraint in [ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)

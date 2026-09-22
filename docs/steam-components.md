@@ -1455,3 +1455,85 @@ Always work down this hierarchy when extending Big Picture Mode:
     - Never hand-code controller event dispatchers when `<Focusable>` handles OK, Cancel, Secondary, and Options automatically.
 4. **Rung 4: Cloned DOM / CSS Injection (Last Resort Only)**
    Only for trivial styling tweaks or elements Steam cannot represent natively. Hand-built clones in Gamepad UI break focus rings, fail controller navigation, and drift on every Steam client update.
+
+---
+
+### 11. Native Achievements, Notifications, Game Recording & Artwork Subsystems
+
+Everything here was verified directly against Steam's live client runtime (`SharedJSContext`) and module definitions via CEF DevTools.
+
+#### A. Native Achievement UI & Backing Store
+
+Steam does not require custom HTML to show achievements. It already possesses a complete native achievements UI for both Desktop and Big Picture Mode:
+
+1. **Desktop Right-Column Section (`achievements`):**
+   - In `CAppDetailsSections.GetSections()`, the `"achievements"` key maps to `I.tm` (module `57665`, class `H`).
+   - Component `H.render()` calls `AppDetailsStore.GetAchievements(this.unAppID)` (module `78057`, export `H`).
+   - If `achievements.vecHighlight` and `achievements.nTotal > 0` are present, Steam renders the native achievement panel with percentage bar (`HighlightDiv`, `AllAchieved`), featured unlocked badges, and collapsible locked list.
+2. **Post-Game Summary Strip:**
+   - `CGamePlaySession.prototype.AddAchievement(achievement, unlockTimestamp)` in `CAppSpotlightStore` (module `74827`) pushes achievements directly into the session card strip alongside screenshots and clips.
+3. **Big Picture Play Bar Progress:**
+   - Big Picture reads `{ unlocked, total }` directly from `window.appAchievementProgressCache.m_achievementProgress.mapCache.get(appid)` to populate the quick stats bar under the Play button.
+
+#### B. Native Achievement Notifications (`NotificationStore`)
+
+Steam's notification engine can be instructed to emit genuine achievement toasts complete with sound, animation, and overlay integration:
+
+- **Dispatch Endpoint:** `window.NotificationStore.OnNotification(notificationId, NotificationType.Achievement, binaryPayload)`
+  - Enum value: `NotificationType.Achievement` (`u.uM.ok`).
+  - Payload Protobuf: `CAchievementNotification` (`u.R8.fromObject(...)`) with schema:
+    ```ts
+    interface AchievementPayload {
+      achievement_id: string;
+      appid: number;
+      name: string;
+      description: string;
+      image_url: string;
+      achieved: boolean;
+      rtime_unlocked: number; // unix seconds
+      current_progress?: number;
+      max_progress?: number;
+      global_achieved_pct?: number;
+    }
+    ```
+- **Sound & Customization:**
+  - `NotificationStore.ChooseSound(config, notification)` and `NotificationStore.PlayNotificationSound(notification)`.
+  - Plugins can intercept the sound decision or play custom audio assets (e.g. PlayStation trophy chime, Xbox rare achievement chime, RetroAchievements chime) alongside the dispatch.
+
+#### C. Native Game Recording RPCs & Timeline Markers
+
+Steam's 2024 Game Recording system (`CGameRecordingService`, webpack module `80026` / export `xM`) exposes structured RPCs through Steam's CM transport:
+
+1. **Golden Timeline Markers (`GameRecording.UserAddTimelineEntry#1`):**
+   - Request: `CGameRecording_UserAddTimelineEntry_Request` (`{ game_id, entry, clip_id }`).
+   - Inserts an icon marker directly onto Steam's active recording timeline at the exact timestamp.
+2. **Instant Replay Clips (`GameRecording.SaveClip#1`):**
+   - Request: `CGameRecording_SaveClip_Request` (`{ game_id, start, end, name, src_clip_id, temporary, force_thumbnail }`).
+   - Automatically cuts a clip (e.g., previous 15–30 seconds around an achievement event) into `gamerecordings/clips/`.
+3. **Capture Screenshot (`GameRecording.TakeScreenshot#1`):**
+   - Request: `CGameRecording_TakeScreenshot_Request` (`{ game_id, timeline_id, timeline_offset_ms, source_clip_id }`).
+   - Triggers native frame grab directly aligned with the recording timeline.
+
+#### D. Custom Artwork Injection API
+
+SteamClient provides a high-level API to assign custom artwork to any shortcut without manual file copying:
+
+```ts
+SteamClient.Apps.SetCustomArtworkForApp(appid, base64Data, extension, imageType);
+```
+
+- **`imageType 0`**: Tall portrait capsule (600 × 900)
+- **`imageType 1`**: Wide hero background banner (1920 × 620)
+- **`imageType 2`**: Transparent logo PNG
+- **`imageType 3`**: Wide library capsule (920 × 430)
+
+Clearing custom artwork: `SteamClient.Apps.ClearCustomArtworkForApp(appid, imageType)`.
+
+#### E. Game Info Tab & Metadata Enrichment
+
+The Big Picture `GameInfo` tab (`/library/app/<appid>/tab/GameInfo`) and desktop metadata panels query `CAppDetailsStore`:
+
+- `GetDescriptions(appid)`: Provides `strFullDescription`, `strSnippet`.
+- `GetAssociations(appid)`: Provides `rgDevelopers`, `rgPublishers`, `rgFranchises`.
+- `strManualURL`: Provides community guides / digital manual links.
+Feeding these in-memory stubs satisfies the native Game Info tab without modifying Steam's tab layout components.

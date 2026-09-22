@@ -317,10 +317,9 @@ of anything hand-built:
 - **`Focusable`** / **`FocusRing`** — gamepad- and keyboard-navigable focus
   wrapper (`onActivate`, `onCancel`, `focusClassName`). Steam's own Focusable
   is what makes an element reachable by controller D-pad navigation, which a
-  plain `<div>` is not. `renderers/gamepad-app.tsx`'s summary tiles
-  (ADR-0024) do not use it yet — they are plain, unfocusable `<div>`s, a known
-  gap, not an oversight; see steam-components.md's "Inspecting Big Picture"
-  § 5.
+  plain `<div>` is not. Because the plugin feeds Steam's stores and lets Steam
+  render its native components (`Ge.T`, `ae.W`), Big Picture automatically receives
+  these native focus rings and controller navigation without custom wrapping (ADR-0029).
 
 `Panel` (`PanelSection`, `PanelSectionRow`) is the generic titled-section
 container used throughout Settings and Quick Access; useful for any future
@@ -853,27 +852,17 @@ doing for `@steambrew/client`'s undocumented component exports (see above).
 [`Focusable`](https://docs.steambrew.app/plugins/ts/components/Focusable) is described as "the
 base building block for anything that should be navigable" by gamepad or keyboard, with props
 `children`, `flow-children`, `focusClassName`, `focusWithinClassName`, `noFocusRing`,
-`onActivate`, `onCancel`, plus standard `div` attributes. This is the piece flagged as a known
-gap in `gamepad-app.tsx`'s summary tiles (they're currently plain unfocusable `<div>`s — see
-§ Steam's own React components above and steam-components.md's "Inspecting Big Picture" § 5).
+`onActivate`, `onCancel`, plus standard `div` attributes.
 
 [`FocusRing`](https://docs.steambrew.app/plugins/ts/components/FocusRing) is the paired component
 — it draws the focus outline around content, and its docs page is the one place upstream that
-names Big Picture explicitly: **"particularly useful in Big Picture Mode."** Props:
-`className`, `rootClassName`, `render`, `children`, and a `NavigationManager` prop not previously
-in our notes — worth investigating before wiring it in, since it suggests `FocusRing` may need
-(or accept) a reference to whatever manages gamepad focus state, not just wrap arbitrary content
-standalone. Both pages' code samples import from `'millennium'`
-(`import { Focusable } from 'millennium'`), which does not match either our code or
-`@steambrew/client`'s actual `.d.ts` export path (`@steambrew/client`) — likely a doc-generation
-artifact rather than a real second import path; **verify the working import against
-`@steambrew/client`'s `.d.ts` before using either component**, don't trust the docs' own snippet.
+names Big Picture explicitly: **"particularly useful in Big Picture Mode."**
 
-Together this confirms `Focusable`+`FocusRing` are *the* sanctioned pairing for a controller-
-navigable Big Picture tile, not one option among several — worth prioritizing when
-`gamepad-app.tsx`'s smoke test surfaces navigation as a real gap rather than a theoretical one.
-Neither component is imported anywhere in this codebase yet (**✅ verified**, grepped
-`non-steam-games-activity/frontend`) — this is still open work, not something already tried.
+While early hand-built prototypes (`gamepad-app.tsx`, ADR-0024) struggled with gamepad navigation
+and focus outlines, moving to Steam's native components (`Ge.T` and `ae.W` via ADR-0029) resolved
+this completely: Steam's native components already wrap their carousels, buttons, and tiles in
+`FocusRingRoot` and `Focusable` internally. Any new custom UI components added by future plugins
+should reuse these primitives.
 
 #### Nothing else Big-Picture-specific exists upstream
 
