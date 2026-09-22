@@ -1428,3 +1428,119 @@ the trade-off is a judgment call:
   exist for the app-details view; only desktop's are. A future investigation should not
   cite `cef_log.txt` alone for a "which UI mode" claim without also checking which window
   was foregrounded when the relevant lines were written.
+
+---
+
+## ADR-0027: Patch `react/jsx-runtime` to reach Big Picture's real render pipeline
+
+**Status:** Proposed · 2026-09-21 · supersedes both options in
+[ADR-0026](#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all) with a
+third, and narrows (does not overturn) the "separate bundle" finding in
+[ADR-0023](#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)
+
+### Context
+
+ADR-0026 left two options on the table for reading which non-Steam game Big Picture is
+currently showing, both worse than what turned out to exist: build a fiber-prop walk
+anchored on a text landmark, or ship Big Picture inert. The user pointed at
+[BossSloth/SteamHunter-plugin](https://github.com/BossSloth/SteamHunter-plugin) (commit
+`3662d0f`), whose README claims full Big Picture / controller support for a feature
+(an added "Achievement Groups" tab) with no separate Big-Picture renderer file anywhere
+in its tree — worth checking whether the claim held up, rather than assuming it from a
+screenshot.
+
+Reading `frontend/createElementOverride.tsx`: it patches `react/jsx-runtime`'s `jsx` and
+`jsxs` exports directly via `beforePatch` (from `@steambrew/client`, the same package and
+version this repo already depends on — `^5.8.5`), found via `findModuleByExport`. No
+`onPopupCreate`, no `PopupType` branching, no popup awareness at all — `index.tsx` calls
+`installCreateElementPatches()` exactly once, unconditionally. The whole technique rests
+on intercepting **every** React element Steam's UI ever creates, anywhere, and reading or
+rewriting its `(type, props)` before React uses them
+(`frontend/createElementOverride.tsx#L60-79` in that repo — `beforePatch(runtime, prop,
+handler)` where `runtime` is the located `react/jsx-runtime` module).
+
+**Verified live** (CEF devtools, this session, immediately following ADR-0026's findings):
+
+1. From `SharedJSContext`, located `react/jsx-runtime` via the same module-cache walk
+   this repo already uses elsewhere (`resolveClassMap`'s technique, generalized) — found
+   at webpack module key `3326`, matching the number in SteamHunter's own code comment
+   exactly.
+2. Wrapped its `jsx`/`jsxs` with a call counter, reset it to 0, then interacted with the
+   Big Picture popup **only** (arrow-key focus navigation, no desktop interaction at all):
+   the counter reached **9,526**. Big Picture's own rendering measurably, heavily calls
+   through the exact module instance patched from `SharedJSContext`.
+3. Wrapped again to log any intercepted element whose `props` contained an `appid` key,
+   then opened a real game's app-details page inside Big Picture via genuine
+   `Input.dispatchKeyEvent` (not synthetic navigation — the same rigor ADR-0026 required
+   of itself). Captured repeated samples of the live `appid`, directly off intercepted
+   props, the instant Big Picture rendered that page — no DOM presence, no text-landmark
+   anchor, no fiber walk needed.
+4. `beforePatch` and `findModuleByExport` are confirmed present in this repo's own
+   installed `@steambrew/client@5.8.5` (`build/utils/patcher.d.ts`,
+   `build/webpack.d.ts`) — no SDK patch or newer version needed. SteamHunter's one vendored
+   patch (`patches/@steambrew%2Fclient@5.8.patch`) only removes duplicate global
+   `.d.ts` declarations (a compile-time conflict), and does not touch either function's
+   runtime implementation.
+
+**This does not overturn ADR-0023.** `window.webpackChunksteamui` inside the Big Picture
+popup is still confirmed `undefined` (re-checked live, same result as ADR-0023/0024/0026)
+— Steam's *own* application code (the section registry, `CAppDetailsSections`,
+`CAppSpotlightStore`, all of module `68854` and friends) is still genuinely compiled into
+a bundle-local module cache, unreachable from `SharedJSContext`. What's different is
+`react/jsx-runtime`: a generic vendor dependency, evidently loaded once and shared across
+both bundles rather than duplicated per-bundle (consistent with any normal webpack
+multi-entry build that dedupes common libraries into a shared chunk). ADR-0023's
+investigation only ever checked `webpackChunksteamui` for reachability; it never checked
+whether *any* module was shared, because nothing suggested looking for one. Rungs 2–3 of
+the reuse ladder (feed Steam's store, render Steam's real component) still do not apply
+to Big Picture's *own* components for that reason — but intercepting React's own element
+creation turns out to be a viable rung of its own, sitting between "feed the store" and
+"clone the DOM."
+
+### Decision
+
+Replace `gamepad-app.tsx`'s location-watching entirely with a `jsx`/`jsxs` patch that:
+
+1. Locates `react/jsx-runtime` once via `findModuleByExport`, the same signature-based
+   resolution this repo already uses for everything else (never a raw module id — ids
+   reshuffle between builds; `AGENTS.md`'s existing rule already covers this).
+2. Filters intercepted calls for the specific component shape that carries a non-Steam
+   `appid` in Big Picture's app-details view (needs a live probe, analogous to
+   `resolveClassMap`'s work, to find a stable filter — e.g. a prototype/displayName
+   check, not `'appid' in props` alone, which is too broad and will catch unrelated
+   components across all of Steam's UI).
+3. On a match for a non-Steam appid, drives `gamepad-app.tsx`'s existing
+   `patch()`/`unpatch()` — the render side (clone Steam's summary DOM shape, append into
+   the popup's document) is unaffected by this ADR and stays exactly as ADR-0024 built
+   it. Only the *signal* that decides when to patch changes, from a `location` poll to a
+   `jsx`-call interception.
+4. Optionally, further out: SteamHunter's technique goes beyond reading props — it also
+   *rewrites* the intercepted `(type, props)` before React uses them (adding a whole tab
+   to an existing tab array). That opens a path to rendering directly into Big Picture's
+   own component tree — closer to rung 3 (render Steam's real component) in spirit —
+   rather than `gamepad-app.tsx`'s clone-and-hide (rung 4). Left for a follow-up decision,
+   not bundled into this ADR: the appid-detection fix is independently valuable and
+   should not wait on deciding how far to push the render side.
+
+### Consequences
+
+- Resolves ADR-0026 with a strictly better mechanism than either option it left open: no
+  fragile text-landmark anchor, no shipping Big Picture inert.
+- **New risk class, distinct from the class-name risk already accepted elsewhere.**
+  `beforePatch`ing a shared runtime function is a global, always-on interception of
+  *every* element Steam's UI creates anywhere (confirmed: 9,526 calls from a few
+  keypresses). The filter in step 2 must be cheap and must fail closed — a bug here
+  doesn't just skip our feature, it runs on every element Steam ever renders, desktop
+  included. `AGENTS.md`'s "always keep a graceful fallback" rule applies with more force
+  here than to any other resolved-signature lookup in this codebase.
+- `setInterval`-based re-patch-if-swapped (SteamHunter's own pattern, `1000`ms) is worth
+  adopting verbatim: they note in comments this handles an observed unpatch/swap on first
+  game launch of a session — a real, previously-unknown Steam behavior worth carrying
+  into our own knowledgebase rather than rediscovering later.
+- `docs/plugin.md`'s reuse ladder gets a new named technique alongside "clone DOM across
+  windows" (ADR-0024) — this is not a replacement for that ladder's rungs, it's an
+  additional tool for the specific case for "a shared vendor module reaches a window
+  believed unreachable," worth checking before assuming a bundle boundary is a hard wall.
+- Desktop is unaffected — `steam/summary.ts`'s existing store-feeding approach
+  (ADR-0009/0022) remains preferred there; this ADR is scoped to Big Picture, where that
+  approach is confirmed unavailable (ADR-0023).

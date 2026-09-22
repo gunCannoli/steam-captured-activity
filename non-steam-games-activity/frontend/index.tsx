@@ -114,10 +114,11 @@ export default async function OnPluginLoaded() {
       // normal use: live testing (real gamepad-style input, not synthetic
       // navigation) showed Big Picture's own app-details view never changes
       // ANY window's `location` at all - it is an in-place view swap, not a
-      // route. See ADR-0026 (docs/decisions.md) - still Proposed, not fixed
-      // here - for the confirmed-reachable alternative (an appid read off a
-      // React fiber prop, anchored on a stable DOM landmark) and the
-      // trade-off that needs deciding before building it.
+      // route (ADR-0026, docs/decisions.md). The replacement signal - patch
+      // `react/jsx-runtime` from here and read the appid off intercepted
+      // element props - is verified live but not yet wired in (ADR-0027,
+      // Proposed). This watcher is currently dead in practice: it will not
+      // fire under normal Big Picture use until that lands.
       if (!popup.window) return;
       const window = popup.window;
 

@@ -20,7 +20,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop) | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`. |
 | Library grid | ✅ Shipped. |
 | Per-day Activity feed | 🔶 Blocked on a fakeable Steam store record; see below. |
-| Big Picture | 🔴 Smoke-tested; **blocked**. Location-watcher bug fixed (ADR-0025), but real navigation doesn't touch `location` at all (ADR-0026) — strip still can't render. |
+| Big Picture | 🟡 Smoke-tested; location bug fixed (ADR-0025). A better appid-signal is verified live (ADR-0027) but **not yet built into the plugin**. |
 | Provider contract | ⬜ Not started (Phase 8). |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
@@ -29,36 +29,41 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Next up
 
-### 1. Big Picture — blocked on a real navigation signal (was: smoke test needed)
+### 1. Big Picture — a working signal is verified, not yet wired in
 
-The smoke test happened this session (2026-09-21, live CEF devtools) and found two bugs,
-one fixed and one still open:
+The smoke test happened this session (2026-09-21, live CEF devtools) and went through
+three rounds:
 
 1. **Fixed ([ADR-0025](docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers)):**
    the Gamepad branch watched `popup.window.opener.location` — proven live to be
    `SharedJSContext`'s own window, whose `location` never changes. Now watches
-   `popup.window.location` instead. Verified working mechanically (a location change
-   correctly triggers `patch()`).
-2. **Still open ([ADR-0026](docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all),
-   Proposed, needs a direction chosen):** driving Big Picture through its *real* UI
-   (gamepad-style key input, not synthetic navigation) showed that opening a game's
-   app-details page — via "Recent Games" **or** the real Library grid, tested both, two
-   different games — never changes `location` at all (`history.length` stays `0`
-   throughout). No `Location` object, from any window, can reflect which game Big
-   Picture is currently showing. This also retracts ADR-0016 item 4's "routes are shared
-   between desktop and gamepad" claim — it was sourced from a UI-mode-agnostic log grep,
-   never independently verified for gamepad, and today's direct testing contradicts it
-   for at least the app-details view.
-   - A working alternative signal is already confirmed reachable: Big Picture's DOM
-     nodes carry React fiber pointers even though the module cache is separate
-     (ADR-0023/24's finding); walking a fiber anchored on a stable text landmark (e.g.
-     "Play") surfaced the real `appid` in `memoizedProps`, verified on two different
-     non-Steam games. Building this into `gamepad-app.tsx`'s watcher is unstarted —
-     ADR-0026 lays out the trade-off (more code, reads a private React internal, vs.
-     leaving Big Picture shipped-but-inert) but doesn't pick a side.
-   - **Next action: decide between ADR-0026's two options**, then either build the
-     fiber-based watcher or explicitly downgrade Big Picture to "not supported yet" in
-     release-facing docs rather than implying it works.
+   `popup.window.location` instead. Verified working mechanically.
+2. **Found a deeper problem ([ADR-0026](docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all)):**
+   driving Big Picture through its *real* UI (gamepad-style key input, not synthetic
+   navigation) showed opening a game's app-details page never changes `location` at all
+   (`history.length` stays `0`) — it's an in-place view swap, not routing. No `Location`
+   object, from any window, can reflect which game is showing. This also retracts
+   ADR-0016 item 4's "routes are shared between desktop and gamepad" claim.
+3. **Resolved with a better mechanism ([ADR-0027](docs/decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline),
+   Proposed):** the user pointed at
+   [BossSloth/SteamHunter-plugin](https://github.com/BossSloth/SteamHunter-plugin), which
+   reaches Big Picture with no separate renderer at all — it patches `react/jsx-runtime`'s
+   `jsx`/`jsxs` globally (`beforePatch` + `findModuleByExport`, both already in our
+   `@steambrew/client@5.8.5` dependency) and reads/rewrites every element's
+   `(type, props)` as React creates them. Verified live against our own Steam instance,
+   not taken on faith: patching from `SharedJSContext` measurably intercepts Big
+   Picture's own rendering (9,500+ calls from Big-Picture-only key input), and the real
+   `appid` came straight off intercepted `props` the instant a game's detail page
+   rendered — no DOM presence, class resolution, or fiber walk needed. This **does not**
+   overturn ADR-0023: `webpackChunksteamui` (Steam's own app code) is still confirmed
+   bundle-local; `react/jsx-runtime` just turns out to be a shared vendor module instead.
+
+**Next action:** build this into `gamepad-app.tsx` — replace the `onLocationChange`
+watcher with a `jsx`-patch that filters for the app-details component carrying a
+non-Steam `appid` (needs a live probe for a stable filter signature, not `'appid' in
+props` alone — see ADR-0027's Decision section) and drives the existing `patch()`/
+`unpatch()` unchanged. The render side (clone-and-hide, ADR-0024) is not affected by
+this and needs no rework; only the signal that triggers it changes.
 
 Earlier history (ADR-0023's wrong "not fixable from this repo" conclusion, ADR-0024's
 correction reaching the popup via `Steam.PopupManager`, `gamepad-app.tsx`'s clone-and-hide
