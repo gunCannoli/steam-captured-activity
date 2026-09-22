@@ -15,7 +15,7 @@ from shortcuts and never loads their data. Steam's app-details section
 registry swaps the full section list for a three-item one:
 
 ```js
-e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"]);
 ```
 
 So the plugin does two things and Steam does the rest:
@@ -50,11 +50,11 @@ native media carousels.
 Post-game summary, per-day activity feed, and library grid work in the live client.
 Verified from a clean Steam start:
 
-| Case | Result |
-| --- | --- |
-| AM2R (4 screenshots + 3 clips) | Native summary carousel + 2-day activity feed, placeholder gone |
-| A shortcut with no captures | Steam's own placeholder kept, zero errors |
-| Divinity: Original Sin 2 (native) | Unaffected |
+| Case                              | Result                                                          |
+| --------------------------------- | --------------------------------------------------------------- |
+| AM2R (4 screenshots + 3 clips)    | Native summary carousel + 2-day activity feed, placeholder gone |
+| A shortcut with no captures       | Steam's own placeholder kept, zero errors                       |
+| Divinity: Original Sin 2 (native) | Unaffected                                                      |
 
 On load the plugin logs:
 
@@ -62,21 +62,21 @@ On load the plugin logs:
 Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sections.
 ```
 
-| Module | Does | State |
-| --- | --- | --- |
-| `steam/modules.ts` | Steam's webpack cache; resolve by signature | ✅ verified in Steam |
-| `steam/sections.ts` | Restore sections (`postgamesummary`, `activity`) | ✅ verified in Steam |
-| `steam/summary.ts` | Feed `CGamePlaySession`; provider API | ✅ verified in Steam |
-| `steam/activity.ts` | Feed `CAppActivityStore`, stub `StoreItemCache`, workshop URLs | ✅ verified in Steam |
-| `steam/stores.ts` | Typed store/service/payload shapes & resolvers | ✅ verified in Steam |
-| `steam/gameid.ts` | appid ↔ 64-bit gameid (BigInt) | ✅ matches real folders |
-| `renderers/library-app.tsx` | Publish/clear per app (Desktop & Big Picture) | ✅ verified in Steam |
-| `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts | ✅ verified in Steam |
-| `steam_paths.lua` | Find Steam root + active user | ✅ tested |
-| `shortcuts.lua` | Parse binary `shortcuts.vdf` | ✅ tested |
-| `captures.lua` | Parse `screenshots.vdf` (grid counts) | ✅ tested |
-| `gameid.lua` | appid ↔ gameid, decimal limbs | ✅ tested |
-| `rpc.lua` | `GetLibraryStats`, `GetDiagnostics` | ✅ shape tested |
+| Module                       | Does                                                           | State                   |
+| ---------------------------- | -------------------------------------------------------------- | ----------------------- |
+| `steam/modules.ts`           | Steam's webpack cache; resolve by signature                    | ✅ verified in Steam    |
+| `steam/sections.ts`          | Restore sections (`postgamesummary`, `activity`)               | ✅ verified in Steam    |
+| `steam/summary.ts`           | Feed `CGamePlaySession`; provider API                          | ✅ verified in Steam    |
+| `steam/activity.ts`          | Feed `CAppActivityStore`, stub `StoreItemCache`, workshop URLs | ✅ verified in Steam    |
+| `steam/stores.ts`            | Typed store/service/payload shapes & resolvers                 | ✅ verified in Steam    |
+| `steam/gameid.ts`            | appid ↔ 64-bit gameid (BigInt)                                 | ✅ matches real folders |
+| `renderers/library-app.tsx`  | Publish/clear per app (Desktop & Big Picture)                  | ✅ verified in Steam    |
+| `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts                          | ✅ verified in Steam    |
+| `steam_paths.lua`            | Find Steam root + active user                                  | ✅ tested               |
+| `shortcuts.lua`              | Parse binary `shortcuts.vdf`                                   | ✅ tested               |
+| `captures.lua`               | Parse `screenshots.vdf` (grid counts)                          | ✅ tested               |
+| `gameid.lua`                 | appid ↔ gameid, decimal limbs                                  | ✅ tested               |
+| `rpc.lua`                    | `GetLibraryStats`, `GetDiagnostics`                            | ✅ shape tested         |
 
 ### The per-day activity feed
 
@@ -86,6 +86,7 @@ The per-event renderer (`module 80478`) requires a store record (`lt()`), 32-bit
 methods (`GetLatestEventTime`).
 
 `steam/activity.ts` satisfies these directly in memory without network access:
+
 - Injects an in-memory `StoreItem` stub into `StoreItemCache.m_mapApps`
 - Forces an exact 32-bit integer getter on `event.appid`
 - Implements `GetLatestEventTime()`, `SortEvents()`, and local midnight grouping on days
@@ -105,10 +106,10 @@ shortcut was played, for games Steam never launched itself.
 
 ## RPC methods
 
-| Method | Payload | Returns |
-| --- | --- | --- |
-| `GetLibraryStats` | `{}` | `{ "<appid>": { screenshots, newest } }` for the grid |
-| `GetDiagnostics` | `{}` | what the backend can see — use this first |
+| Method            | Payload | Returns                                               |
+| ----------------- | ------- | ----------------------------------------------------- |
+| `GetLibraryStats` | `{}`    | `{ "<appid>": { screenshots, newest } }` for the grid |
+| `GetDiagnostics`  | `{}`    | what the backend can see — use this first             |
 
 ## Develop
 
@@ -189,7 +190,7 @@ verified against the running client instead — see the Status table.
 - An RPC method must never return bare `nil` — Millennium tries to parse the
   result as an integer. Return `'null'`.
 - The plugin name is **baked into the bundle at build time** and Millennium
-  routes RPC by it, so a dev rename must happen *before* building. Renaming
+  routes RPC by it, so a dev rename must happen _before_ building. Renaming
   after leaves the frontend calling `<name>` while the backend is `<name>-dev`,
   and every call fails with "plugin not running".
 - Windows PowerShell's `-Encoding UTF8` writes a **BOM**, which breaks strict

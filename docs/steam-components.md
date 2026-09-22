@@ -494,29 +494,36 @@ The implementation in `frontend/steam/activity.ts` resolves four specific runtim
 1. **In-Memory Store Item Stubbing:**
    Constructed via `Object.create(Object.getPrototypeOf(templateApp))` (or fallback object),
    setting `m_unID = m_unAppID = appid`, `m_bVisible = true`, `m_strName = name`, and:
-   ```js
-   fake.m_DataRequested = {
-       include_assets: true,
-       include_platforms: true,
-       include_release: true,
-       include_tag_count: 0,
-   };
-   storeItemCache.m_mapApps.set(appid, fake);
-   ```
+
+    ```js
+    fake.m_DataRequested = {
+        include_assets: true,
+        include_platforms: true,
+        include_release: true,
+        include_tag_count: 0,
+    };
+    storeItemCache.m_mapApps.set(appid, fake);
+    ```
 
 2. **The AppID Bitwidth / IEEE 754 Precision Trap:**
    Event base class `E` (module `12750`) defines:
-   ```js
-   get appid() { return Number(this.gameid); }
-   ```
-   For a non-Steam game, `gameid` is 64-bit (`(appid << 32) | 0x02000000`). JavaScript `Number()`
-   loses integer precision above $2^{53} - 1$, turning e.g. AM2R's `18310622842007322624` into
-   `18310622842007323000`. When `lt()` queries `StoreItemCache` using that corrupted float, it
-   misses the cache and returns `undefined`.
-   **Fix:** Explicitly set `event.gameid = appid.toString()` and define an explicit property getter:
-   ```js
-   Object.defineProperty(event, 'appid', { get: () => appid, configurable: true });
-   ```
+
+    ```js
+    get appid() { return Number(this.gameid); }
+    ```
+
+    For a non-Steam game, `gameid` is 64-bit (`(appid << 32) | 0x02000000`). JavaScript `Number()`
+    loses integer precision above $2^{53} - 1$, turning e.g. AM2R's `18310622842007322624` into
+    `18310622842007323000`. When `lt()` queries `StoreItemCache` using that corrupted float, it
+    misses the cache and returns `undefined`.
+    **Fix:** Explicitly set `event.gameid = appid.toString()` and define an explicit property getter:
+
+    ```js
+    Object.defineProperty(event, "appid", {
+        get: () => appid,
+        configurable: true,
+    });
+    ```
 
 3. **The `GetLatestEventTime` Contract on `CActivityDay`:**
    Module `80478` (`st` / `Sr`) calls `day.GetLatestEventTime()` to build the React component key
@@ -531,6 +538,7 @@ The implementation in `frontend/steam/activity.ts` resolves four specific runtim
    supplies Steam's loopback screenshot URLs directly into the native viewer.
 
 **Verified end to end (Desktop & Big Picture Mode):**
+
 - AM2R (4 screenshots across 2 dates): Renders native cards `"cannoliGun shared 2 screenshots"` on
   Sep 20 and Oct 24, 2025, active loopback previews, carousel thumbnails, and "Load More Activity".
 - Controller D-pad navigation functions seamlessly in Big Picture Mode's "ACTIVITY" tab.
@@ -540,7 +548,6 @@ The implementation in `frontend/steam/activity.ts` resolves four specific runtim
 Achievements for non-Steam games are out of scope regardless; if they ever
 arrive (custom sets, RetroAchievements), they are a provider concern
 ([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
-
 
 ### Comparison: `game-data-linker`'s different way around this same blocker
 
@@ -925,10 +932,10 @@ When switched to Big Picture, Steam opens a new popup target named **`Steam Big 
 
 Steam's client uses a multi-window design centered around a single headless frame:
 
-| Window / Target | What it is | JavaScript Environment |
-| --- | --- | --- |
-| **`SharedJSContext`** | The client's central engine (`https://steamloopback.host/index.html`) | Runs the full JavaScript bundle: `library.js`, `sp.js` (chunk `3714`), MobX stores, React tree |
-| **`Steam Big Picture Mode`** | The visible gamepad window (`about:blank?createflags=...`) | An empty popup window containing only `<div id="popup_target"></div>`. **Loads zero scripts of its own.** |
+| Window / Target              | What it is                                                            | JavaScript Environment                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **`SharedJSContext`**        | The client's central engine (`https://steamloopback.host/index.html`) | Runs the full JavaScript bundle: `library.js`, `sp.js` (chunk `3714`), MobX stores, React tree            |
+| **`Steam Big Picture Mode`** | The visible gamepad window (`about:blank?createflags=...`)            | An empty popup window containing only `<div id="popup_target"></div>`. **Loads zero scripts of its own.** |
 
 #### The "Separate Bundle" Trap Explained
 
@@ -937,9 +944,9 @@ Inspecting the `Steam Big Picture Mode` target directly via DevTools initially s
 ```js
 // Evaluated inside the "Steam Big Picture Mode" target:
 typeof window.webpackChunksteamui; // "undefined"
-typeof window.appStore;            // "undefined"
-typeof window.Millennium;          // "undefined"
-typeof window.SteamClient;        // "object" (native Chromium bridge)
+typeof window.appStore; // "undefined"
+typeof window.Millennium; // "undefined"
+typeof window.SteamClient; // "object" (native Chromium bridge)
 ```
 
 This led an earlier pass (ADR-0023) to infer that Big Picture was a separate bundle with an isolated module cache. **That was an artifact of where the query was run.** The popup window has no `<script>` tags and defines no globals.
@@ -949,7 +956,7 @@ Instead, Steam's main React application running inside `SharedJSContext` opens t
 ```jsx
 ReactDOM.createPortal(
     <GamepadUIRoot />,
-    popupWindow.document.getElementById("popup_target")
+    popupWindow.document.getElementById("popup_target"),
 );
 ```
 
@@ -992,99 +999,110 @@ x.BV.Library.App.Root()  (/library/app/:appid, module 18057)
 
 1. **Route & Data Loading (Module `40478`):**
    When navigating to `/library/app/:appid`, component `L` mounts. It registers for app data and invokes:
-   ```js
-   A.Ri.EnterAppDetailsPage(this.props.appid); // Ri = CAppSpotlightStore
-   ```
-   When unmounting, it invokes:
-   ```js
-   A.Ri.ExitAppDetailsPage(this.props.appid);
-   ```
+
+    ```js
+    A.Ri.EnterAppDetailsPage(this.props.appid); // Ri = CAppSpotlightStore
+    ```
+
+    When unmounting, it invokes:
+
+    ```js
+    A.Ri.ExitAppDetailsPage(this.props.appid);
+    ```
 
 2. **Context Switching (`CAppDetailsSectionsContext`, Module `59856.AC`):**
    Module `3375` defines `Hp`:
-   ```js
-   function Hp(overview, details) {
-       return (
-           <re.AC.Provider value={Xe}>
-               <Xd.kg
-                   overview={overview}
-                   details={details}
-                   LaunchingDetails={Ju.rp}
-               />
-           </re.AC.Provider>
-       );
-   }
-   ```
-   `re.AC` is `CAppDetailsSectionsContext`.
-   - On **Desktop**, `re.AC` takes its default value: a renderer that outputs the Desktop three-column layout (`Spotlights`, `RightColumn`, `LeftColumn`).
-   - In **Big Picture**, `Hp` overrides `re.AC` with `value={Xe}` — the Big Picture Gamepad tab renderer!
+
+    ```js
+    function Hp(overview, details) {
+        return (
+            <re.AC.Provider value={Xe}>
+                <Xd.kg
+                    overview={overview}
+                    details={details}
+                    LaunchingDetails={Ju.rp}
+                />
+            </re.AC.Provider>
+        );
+    }
+    ```
+
+    `re.AC` is `CAppDetailsSectionsContext`.
+    - On **Desktop**, `re.AC` takes its default value: a renderer that outputs the Desktop three-column layout (`Spotlights`, `RightColumn`, `LeftColumn`).
+    - In **Big Picture**, `Hp` overrides `re.AC` with `value={Xe}` — the Big Picture Gamepad tab renderer!
 
 3. **The Shared Section Registry (Module `59856.N_`):**
    `Xd.kg` renders `T.N_`, which is `CAppDetailsSections` (`le` in module `59856`).
    In its `render()` method:
-   ```js
-   render() {
-     const sections = this.GetSections(this.props.overview, this.props.details);
-     return (
-       <div className={Container}>
-         ...
-         <de parentComponent={this} setSections={sections} ... />
-       </div>
-     );
-   }
-   ```
-   `de` simply consumes the context:
-   ```js
-   function de(props) {
-       const Renderer = useContext(ce); // ce = CAppDetailsSectionsContext
-       return <Renderer {...props} />;
-   }
-   ```
-   `GetSections()` is the **exact same method** that Desktop uses!
+
+    ```js
+    render() {
+      const sections = this.GetSections(this.props.overview, this.props.details);
+      return (
+        <div className={Container}>
+          ...
+          <de parentComponent={this} setSections={sections} ... />
+        </div>
+      );
+    }
+    ```
+
+    `de` simply consumes the context:
+
+    ```js
+    function de(props) {
+        const Renderer = useContext(ce); // ce = CAppDetailsSectionsContext
+        return <Renderer {...props} />;
+    }
+    ```
+
+    `GetSections()` is the **exact same method** that Desktop uses!
 
 4. **Big Picture Tab Composition (Module `3375`):**
    `Xe` renders `AppDetailsRoot` and passes `setSections` into `it(props)`.
    `it` builds the 4 gamepad tabs:
-   - **`WhatsNew` (Label: `#AppDetails_Tab_Activity`, on screen: "ACTIVITY"):**
-     Calls `at({ setSections, details, overview })`.
-     ```jsx
-     function at(e) {
-         return (
-             <>
-                 {e.setSections.has("friends") && (
-                     <ce.gr details={e.details} />
-                 )}
-                 {e.setSections.has("postgamesummary") && (
-                     <Ge.T details={e.details} />
-                 )} {/* Module 53074.T: Post-Game Summary */}
-                 {e.setSections.has("playtestinvites") && (
-                     <_e.aL overview={e.overview} />
-                 )}
-                 {e.setSections.has("spotlightdemo") && (
-                     <_e.Be overview={e.overview} details={e.details} />
-                 )}
-                 {e.setSections.has("spotlightreview") && (
-                     <_e.Cz parent={e.details} overview={e.overview} />
-                 )}
-                 {e.setSections.has("activity") && (
-                     <ae.W appid={e.details.unAppID} />
-                 )} {/* Module 80478: Activity Feed */}
-                 {e.setSections.has("timedtrialbanner") && (
-                     <ge.P overview={e.overview} details={e.details} />
-                 )}
-             </>
-         );
-     }
-     ```
-   - **`YourStuff` (Label: `#AppDetails_Tab_YourStuff`, on screen: "YOUR STUFF"):**
-     Calls `ot({ setSections, details, overview })`:
-     Renders `achievements`, `cards`, `dlc`, `workshop`, `screenshots`, `review`, and `notes`.
-   - **`Community` (Label: `#AppDetails_Tab_Community`, on screen: "COMMUNITY"):**
-     Calls `lt({ setSections, details, overview })`:
-     Renders `community`.
-   - **`GameInfo` (Label: `#AppDetails_Tab_GameInfo`, on screen: "GAME INFO"):**
-     Calls `ct({ setSections, details, overview })`:
-     Renders `info` (`GameInfoContainer`, `CollectionsHeader`, `GameInfoQuickLinks`).
+    - **`WhatsNew` (Label: `#AppDetails_Tab_Activity`, on screen: "ACTIVITY"):**
+      Calls `at({ setSections, details, overview })`.
+        ```jsx
+        function at(e) {
+            return (
+                <>
+                    {e.setSections.has("friends") && (
+                        <ce.gr details={e.details} />
+                    )}
+                    {e.setSections.has("postgamesummary") && (
+                        <Ge.T details={e.details} />
+                    )}{" "}
+                    {/* Module 53074.T: Post-Game Summary */}
+                    {e.setSections.has("playtestinvites") && (
+                        <_e.aL overview={e.overview} />
+                    )}
+                    {e.setSections.has("spotlightdemo") && (
+                        <_e.Be overview={e.overview} details={e.details} />
+                    )}
+                    {e.setSections.has("spotlightreview") && (
+                        <_e.Cz parent={e.details} overview={e.overview} />
+                    )}
+                    {e.setSections.has("activity") && (
+                        <ae.W appid={e.details.unAppID} />
+                    )}{" "}
+                    {/* Module 80478: Activity Feed */}
+                    {e.setSections.has("timedtrialbanner") && (
+                        <ge.P overview={e.overview} details={e.details} />
+                    )}
+                </>
+            );
+        }
+        ```
+    - **`YourStuff` (Label: `#AppDetails_Tab_YourStuff`, on screen: "YOUR STUFF"):**
+      Calls `ot({ setSections, details, overview })`:
+      Renders `achievements`, `cards`, `dlc`, `workshop`, `screenshots`, `review`, and `notes`.
+    - **`Community` (Label: `#AppDetails_Tab_Community`, on screen: "COMMUNITY"):**
+      Calls `lt({ setSections, details, overview })`:
+      Renders `community`.
+    - **`GameInfo` (Label: `#AppDetails_Tab_GameInfo`, on screen: "GAME INFO"):**
+      Calls `ct({ setSections, details, overview })`:
+      Renders `info` (`GameInfoContainer`, `CollectionsHeader`, `GameInfoQuickLinks`).
 
 ---
 
@@ -1093,11 +1111,12 @@ x.BV.Library.App.Root()  (/library/app/:appid, module 18057)
 For a shortcut or non-Steam game, Steam's `GetSections()` filters:
 
 ```js
-e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"]);
 ```
 
 `s` contains none of the sections checked by `at()` (`postgamesummary`, `activity`, `friends`, etc.).
 Furthermore:
+
 - `nonsteam` (the grey disclaimer box) is not rendered anywhere by Big Picture's tabs.
 - `notes` and `screenshots` are rendered in the `YourStuff` tab.
 
@@ -1112,31 +1131,32 @@ Because Big Picture evaluates `e.setSections.has("postgamesummary") && <Ge.T det
 **Restoring `postgamesummary` in `GetSections` and populating `CAppSpotlightStore` makes Steam render its native Post-Game Summary in Big Picture Mode automatically.**
 
 Verified live on AM2R (appid `4263274102`):
+
 - Pushed capture events into `appSpotlightStore.GetOrCreateAppData(4263274102).m_session`.
 - Restored `postgamesummary` in `GetSections`.
 - Navigated Big Picture to AM2R.
 - **Result:** Steam rendered its genuine, fully styled native component tree inside Big Picture's "ACTIVITY" tab:
-  - `_1OMmVJHDgNwOt0Wqn0hrf9 GamePlaySummaryContainer Panel`
-  - `_3FIjYetykQsFYR08l1v7Ls FocusRingRoot` (native controller focus highlight!)
-  - `P_gQ8X-yCsgXeXpP68KS0 GamePlaySummaryHeader` ("Post-Game Summary")
-  - `SMWMsB-gz3WbYRK2HOm7i PageableContainer Panel`
-  - `_3fiHsLeD_6rtm6bM9lHlVL BoxCarousel SummaryCarouselContainer`
-  - `_3CJctA7pLVdwHzNF5JmORE SummaryCarouselScrollingContainer`
-  - Relative date headers ("Today", "Yesterday")
-  - Individual capture cards with full controller D-pad/stick navigation and click-to-open media playback!
+    - `_1OMmVJHDgNwOt0Wqn0hrf9 GamePlaySummaryContainer Panel`
+    - `_3FIjYetykQsFYR08l1v7Ls FocusRingRoot` (native controller focus highlight!)
+    - `P_gQ8X-yCsgXeXpP68KS0 GamePlaySummaryHeader` ("Post-Game Summary")
+    - `SMWMsB-gz3WbYRK2HOm7i PageableContainer Panel`
+    - `_3fiHsLeD_6rtm6bM9lHlVL BoxCarousel SummaryCarouselContainer`
+    - `_3CJctA7pLVdwHzNF5JmORE SummaryCarouselScrollingContainer`
+    - Relative date headers ("Today", "Yesterday")
+    - Individual capture cards with full controller D-pad/stick navigation and click-to-open media playback!
 - Tested clean degradation on ActRaiser (`2788628389`, no captures): `hasSummary: false`, page renders stock without errors or empty boxes.
 
 #### Comparison: Native Summary vs Clone
 
-| Feature | Hand-built Clone (`gamepad-app.tsx`) | Steam's Real Component (`Ge.T` via `stores.ts`) |
-| --- | --- | --- |
-| **Lines of Plugin Code** | ~280 lines of React/CSS | **0 lines of UI markup** |
-| **Controller Focus & D-pad** | Broken (plain `div`s, no focus engine) | **Native** (`FocusRingRoot`, `BoxCarousel`) |
-| **Paging & Carousels** | None (overflow scroll) | **Native** (`PageableContainer`, auto-pagers) |
-| **Day Grouping & Headers** | None | **Native** ("Today", "Yesterday", date headers) |
-| **Media Playback on Click** | Custom hooks needed | **Native** (opens Steam's media viewer) |
-| **Visual Styling Drift** | High (must re-measure per Steam build) | **Zero** (updates automatically with Steam) |
-| **DOM Anchor Fragility** | High (broke inside tab button, ADR-0028) | **Zero** (Steam places its own component) |
+| Feature                      | Hand-built Clone (`gamepad-app.tsx`)     | Steam's Real Component (`Ge.T` via `stores.ts`) |
+| ---------------------------- | ---------------------------------------- | ----------------------------------------------- |
+| **Lines of Plugin Code**     | ~280 lines of React/CSS                  | **0 lines of UI markup**                        |
+| **Controller Focus & D-pad** | Broken (plain `div`s, no focus engine)   | **Native** (`FocusRingRoot`, `BoxCarousel`)     |
+| **Paging & Carousels**       | None (overflow scroll)                   | **Native** (`PageableContainer`, auto-pagers)   |
+| **Day Grouping & Headers**   | None                                     | **Native** ("Today", "Yesterday", date headers) |
+| **Media Playback on Click**  | Custom hooks needed                      | **Native** (opens Steam's media viewer)         |
+| **Visual Styling Drift**     | High (must re-measure per Steam build)   | **Zero** (updates automatically with Steam)     |
+| **DOM Anchor Fragility**     | High (broke inside tab button, ADR-0028) | **Zero** (Steam places its own component)       |
 
 ---
 
@@ -1151,15 +1171,15 @@ Steam's own app details container (`L` in module `40478`) calls these methods on
 ```ts
 const store = spotlightStore();
 const origEnter = store.EnterAppDetailsPage;
-store.EnterAppDetailsPage = function(appid: number) {
-  // User entered app detail page for appid (both Desktop and Big Picture!)
-  return origEnter.apply(this, arguments);
+store.EnterAppDetailsPage = function (appid: number) {
+    // User entered app detail page for appid (both Desktop and Big Picture!)
+    return origEnter.apply(this, arguments);
 };
 
 const origExit = store.ExitAppDetailsPage;
-store.ExitAppDetailsPage = function(appid: number) {
-  // User left app detail page
-  return origExit.apply(this, arguments);
+store.ExitAppDetailsPage = function (appid: number) {
+    // User left app detail page
+    return origExit.apply(this, arguments);
 };
 ```
 
@@ -1175,8 +1195,8 @@ To navigate Big Picture programmatically from `SharedJSContext`:
 
 ```js
 const navigator = window.__wreq(49171).z.GetNavigator();
-navigator.App(appid);       // Navigate to app details page
-navigator.Home();           // Navigate to library home
+navigator.App(appid); // Navigate to app details page
+navigator.Home(); // Navigate to library home
 ```
 
 ---
@@ -1191,44 +1211,44 @@ Big Picture Mode (GamepadUI) relies on a declarative spatial navigation system m
 
 ```tsx
 interface FocusableProps extends React.HTMLAttributes<HTMLDivElement> {
-  // Spatial layout of children
-  'flow-children'?: 'row' | 'column' | 'grid' | 'none';
+    // Spatial layout of children
+    "flow-children"?: "row" | "column" | "grid" | "none";
 
-  // Gamepad actions (automatically mapped to keyboard equivalents)
-  onActivate?: (e: Event) => void;         // (A) button / Enter key (sets onClick & onOKButton)
-  onCancel?: (e: Event) => void;           // (B) button / Escape key (sets onCancelButton)
-  onOKButton?: (e: Event) => void;         // (A) button
-  onCancelButton?: (e: Event) => void;     // (B) button
-  onSecondaryButton?: (e: Event) => void;  // (X) button
-  onOptionsButton?: (e: Event) => void;    // (Y) button
-  onMenuButton?: (e: Event) => void;       // Start / Menu button
+    // Gamepad actions (automatically mapped to keyboard equivalents)
+    onActivate?: (e: Event) => void; // (A) button / Enter key (sets onClick & onOKButton)
+    onCancel?: (e: Event) => void; // (B) button / Escape key (sets onCancelButton)
+    onOKButton?: (e: Event) => void; // (A) button
+    onCancelButton?: (e: Event) => void; // (B) button
+    onSecondaryButton?: (e: Event) => void; // (X) button
+    onOptionsButton?: (e: Event) => void; // (Y) button
+    onMenuButton?: (e: Event) => void; // Start / Menu button
 
-  // Directional navigation overrides
-  onMoveUp?: (e: Event) => boolean;
-  onMoveDown?: (e: Event) => boolean;
-  onMoveLeft?: (e: Event) => boolean;
-  onMoveRight?: (e: Event) => boolean;
+    // Directional navigation overrides
+    onMoveUp?: (e: Event) => boolean;
+    onMoveDown?: (e: Event) => boolean;
+    onMoveLeft?: (e: Event) => boolean;
+    onMoveRight?: (e: Event) => boolean;
 
-  // Focus configuration
-  focusable?: boolean;                     // Default: true if onOKButton / onActivate is provided
-  focusableIfEmpty?: boolean;
-  autoFocus?: boolean;                     // Take focus when tree mounts
-  fnCanTakeFocus?: () => boolean;          // Dynamic predicate
-  navKey?: string;                         // Explicit node key for restoration
-  navRef?: React.Ref<NavNode>;             // Access to internal NavNode
+    // Focus configuration
+    focusable?: boolean; // Default: true if onOKButton / onActivate is provided
+    focusableIfEmpty?: boolean;
+    autoFocus?: boolean; // Take focus when tree mounts
+    fnCanTakeFocus?: () => boolean; // Dynamic predicate
+    navKey?: string; // Explicit node key for restoration
+    navRef?: React.Ref<NavNode>; // Access to internal NavNode
 
-  // Styling & classes
-  focusClassName?: string;                 // Added when focused (merged with 'gpfocus')
-  focusWithinClassName?: string;           // Added when child has focus (merged with 'gpfocuswithin')
-  noFocusRing?: boolean;                   // Suppress the animated focus highlight
+    // Styling & classes
+    focusClassName?: string; // Added when focused (merged with 'gpfocus')
+    focusWithinClassName?: string; // Added when child has focus (merged with 'gpfocuswithin')
+    noFocusRing?: boolean; // Suppress the animated focus highlight
 
-  // Action Bar / Controller Legend integration
-  actionDescriptionMap?: Record<number, string>;
-  onOKActionDescription?: string;
-  onCancelActionDescription?: string;
-  onSecondaryActionDescription?: string;
-  onOptionsActionDescription?: string;
-  onMenuActionDescription?: string;
+    // Action Bar / Controller Legend integration
+    actionDescriptionMap?: Record<number, string>;
+    onOKActionDescription?: string;
+    onCancelActionDescription?: string;
+    onSecondaryActionDescription?: string;
+    onOptionsActionDescription?: string;
+    onMenuActionDescription?: string;
 }
 ```
 
@@ -1435,4 +1455,3 @@ Always work down this hierarchy when extending Big Picture Mode:
     - Never hand-code controller event dispatchers when `<Focusable>` handles OK, Cancel, Secondary, and Options automatically.
 4. **Rung 4: Cloned DOM / CSS Injection (Last Resort Only)**
    Only for trivial styling tweaks or elements Steam cannot represent natively. Hand-built clones in Gamepad UI break focus rings, fail controller navigation, and drift on every Steam client update.
-

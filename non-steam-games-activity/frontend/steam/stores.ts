@@ -1,4 +1,4 @@
-import { resolveClass, resolveService, resolveSingleton } from './modules';
+import { resolveClass, resolveService, resolveSingleton } from "./modules";
 
 /**
  * Typed bindings onto Steam's own stores and services.
@@ -16,158 +16,161 @@ import { resolveClass, resolveService, resolveSingleton } from './modules';
 
 /** One entry of `SteamClient.Apps.GetScreenshotsInTimeRange`. */
 export interface SteamScreenshot {
-  nAppID: number;
-  strGameID: string;
-  hHandle: number;
-  nWidth: number;
-  nHeight: number;
-  nCreated: number;
-  ePrivacy: number;
-  strCaption: string;
-  bSpoilers: boolean;
-  /** Absolute `https://steamloopback.host/...` URL. Steam serves this itself. */
-  strUrl: string;
-  bUploaded: boolean;
-  ugcHandle: string;
-  publishedFileID: string;
+    nAppID: number;
+    strGameID: string;
+    hHandle: number;
+    nWidth: number;
+    nHeight: number;
+    nCreated: number;
+    ePrivacy: number;
+    strCaption: string;
+    bSpoilers: boolean;
+    /** Absolute `https://steamloopback.host/...` URL. Steam serves this itself. */
+    strUrl: string;
+    bUploaded: boolean;
+    ugcHandle: string;
+    publishedFileID: string;
 }
 
 /** One clip, as `CGameRecordingService.GetClips` returns it. */
 export interface SteamClip {
-  clip_id: string;
-  game_id: string;
-  duration_ms: string;
-  date_recorded: number;
-  start_timeline_id: string;
-  start_offset_ms: string;
-  file_size: string;
-  date_clipped: number;
-  temporary: boolean;
-  thumbnail_url: string;
-  thumbnail_width: number;
-  thumbnail_height: number;
+    clip_id: string;
+    game_id: string;
+    duration_ms: string;
+    date_recorded: number;
+    start_timeline_id: string;
+    start_offset_ms: string;
+    file_size: string;
+    date_clipped: number;
+    temporary: boolean;
+    thumbnail_url: string;
+    thumbnail_width: number;
+    thumbnail_height: number;
 }
 
 /** A session event: exactly one key is populated. */
 export type SessionEvent =
-  | { m_screenshot: SteamScreenshot }
-  | { m_clip: SteamClip };
+    | { m_screenshot: SteamScreenshot }
+    | { m_clip: SteamClip };
 
 /** Steam's `CGamePlaySession`. */
 export interface GamePlaySession {
-  PushSessionEvent(event: SessionEvent): void;
-  BAddScreenshotNotification(notification: {
-    strOperation: 'written' | 'deleted';
-    unAppID: number;
-    hScreenshot: number;
-    details: SteamScreenshot;
-  }): boolean;
-  AddClip(clip: SteamClip): void;
-  RemoveClip(clipId: string): void;
-  GetSessionEvents(): SessionEvent[];
-  ClearSessionEvents(): SessionEvent[];
-  HasSessionEvents(): boolean;
+    PushSessionEvent(event: SessionEvent): void;
+    BAddScreenshotNotification(notification: {
+        strOperation: "written" | "deleted";
+        unAppID: number;
+        hScreenshot: number;
+        details: SteamScreenshot;
+    }): boolean;
+    AddClip(clip: SteamClip): void;
+    RemoveClip(clipId: string): void;
+    GetSessionEvents(): SessionEvent[];
+    ClearSessionEvents(): SessionEvent[];
+    HasSessionEvents(): boolean;
 }
 
 /** Steam's per-app spotlight state. */
 export interface SpotlightAppData {
-  m_unAppID: number;
-  m_session: GamePlaySession;
-  m_postGameSummary: GamePlaySession | null;
-  m_bLoadedPreviousSessionData: boolean;
+    m_unAppID: number;
+    m_session: GamePlaySession;
+    m_postGameSummary: GamePlaySession | null;
+    m_bLoadedPreviousSessionData: boolean;
 }
 
 /** Steam's `CAppSpotlightStore` singleton. */
 export interface AppSpotlightStore {
-  GetOrCreateAppData(appid: number): SpotlightAppData;
-  GetPostGameSummary(appid: number): GamePlaySession | null;
-  EnterAppDetailsPage(appid: number): void;
-  ExitAppDetailsPage(appid: number): void;
-  StopShowingGamePlaySpotlight(appid: number): void;
+    GetOrCreateAppData(appid: number): SpotlightAppData;
+    GetPostGameSummary(appid: number): GamePlaySession | null;
+    EnterAppDetailsPage(appid: number): void;
+    ExitAppDetailsPage(appid: number): void;
+    StopShowingGamePlaySpotlight(appid: number): void;
 }
 
 /** The section registry component that decides which sections a page shows. */
 export interface AppDetailsSections {
-  prototype: {
-    GetSections(overview: unknown, details: unknown): Set<string>;
-    m_setSectionsMemo?: Set<string>;
-  };
+    prototype: {
+        GetSections(overview: unknown, details: unknown): Set<string>;
+        m_setSectionsMemo?: Set<string>;
+    };
 }
 
 /** Steam's game-recording CM service. */
 interface GameRecordingService {
-  GetClips(request: { game_id: string; created_after: number }): Promise<{
-    Body(): { clip(): Array<{ toObject(): SteamClip }> | undefined };
-  }>;
+    GetClips(request: { game_id: string; created_after: number }): Promise<{
+        Body(): { clip(): Array<{ toObject(): SteamClip }> | undefined };
+    }>;
 }
 
 /** One day's worth of activity feed events. */
 export interface AppActivityDay {
-  m_rtDayBegin: number;
-  dayBegin: number;
-  m_rgEvents: any;
-  events: any[];
-  BHasEvents(): boolean;
-  isValid?: boolean;
-  GetLatestEventTime?(): number;
-  GetEarliestEventTime?(): number;
-  SortEvents?(): void;
-  AddEvent?(event: any): void;
+    m_rtDayBegin: number;
+    dayBegin: number;
+    m_rgEvents: any;
+    events: any[];
+    BHasEvents(): boolean;
+    isValid?: boolean;
+    GetLatestEventTime?(): number;
+    GetEarliestEventTime?(): number;
+    SortEvents?(): void;
+    AddEvent?(event: any): void;
 }
 
 /** Per-app activity state. */
 export interface AppActivity {
-  m_unAppID: number;
-  m_mapActivityByDay: Map<number, AppActivityDay>;
-  appActivityByDay: AppActivityDay[];
-  lastAddedEventType?: number;
-  lastAddedPartnerEvent?: any;
-  BHasEvents?(): boolean;
+    m_unAppID: number;
+    m_mapActivityByDay: Map<number, AppActivityDay>;
+    appActivityByDay: AppActivityDay[];
+    lastAddedEventType?: number;
+    lastAddedPartnerEvent?: any;
+    BHasEvents?(): boolean;
 }
 
 /** Steam's `CAppActivityStore` singleton. */
 export interface AppActivityStore {
-  m_mapAppActivity: Map<number, AppActivity>;
-  GetAppActivity(appid: number): AppActivity | undefined;
-  RestoreActivity(appid: number): Promise<void>;
+    m_mapAppActivity: Map<number, AppActivity>;
+    GetAppActivity(appid: number): AppActivity | undefined;
+    RestoreActivity(appid: number): Promise<void>;
 }
 
 /** Steam's in-memory `StoreItemCache` singleton. */
 export interface StoreItemCache {
-  m_mapApps: Map<number, any>;
-  GetStoreItemWithLegacyVisibilityCheck(appid: number, storeItemType: number): any;
+    m_mapApps: Map<number, any>;
+    GetStoreItemWithLegacyVisibilityCheck(
+        appid: number,
+        storeItemType: number,
+    ): any;
 }
 
 /** One published file record in Steam's workshop store. */
 export interface PublishedFileRecord {
-  publishedfileid: string;
-  file_url: string;
-  preview_url: string;
-  file_description: string;
-  visibility: number;
-  creator: string;
-  time_created?: number;
-  image_width?: number;
-  image_height?: number;
+    publishedfileid: string;
+    file_url: string;
+    preview_url: string;
+    file_description: string;
+    visibility: number;
+    creator: string;
+    time_created?: number;
+    image_width?: number;
+    image_height?: number;
 }
 
 /** Steam's `CWorkshopStore` singleton. */
 export interface WorkshopStore {
-  m_mapPublishedFiles: Map<string, { file?: PublishedFileRecord }>;
-  GetPublishedFiles(ids: string[]): Array<{ file?: PublishedFileRecord }>;
+    m_mapPublishedFiles: Map<string, { file?: PublishedFileRecord }>;
+    GetPublishedFiles(ids: string[]): Array<{ file?: PublishedFileRecord }>;
 }
 
 /** Steam's `CSteamID` shape. */
 export interface SteamID {
-  GetAccountID(): number;
-  ConvertTo64BitString(): string;
-  BIsValid(): boolean;
+    GetAccountID(): number;
+    ConvertTo64BitString(): string;
+    BIsValid(): boolean;
 }
 
 /** Steam's `CFriendStore` singleton. */
 export interface FriendStore {
-  currentUserSteamID?: SteamID;
-  GetFriendState?(steamid: SteamID): any;
+    currentUserSteamID?: SteamID;
+    GetFriendState?(steamid: SteamID): any;
 }
 
 // ---------------------------------------------------------------------------
@@ -179,11 +182,11 @@ export interface FriendStore {
  * else: the summary getter and the spotlight dismissal.
  */
 export function spotlightStore(): AppSpotlightStore | undefined {
-  return resolveSingleton<AppSpotlightStore>('CAppSpotlightStore', [
-    'GetPostGameSummary',
-    'StopShowingGamePlaySpotlight',
-    'GetOrCreateAppData',
-  ]);
+    return resolveSingleton<AppSpotlightStore>("CAppSpotlightStore", [
+        "GetPostGameSummary",
+        "StopShowingGamePlaySpotlight",
+        "GetOrCreateAppData",
+    ]);
 }
 
 /**
@@ -191,11 +194,11 @@ export function spotlightStore(): AppSpotlightStore | undefined {
  * pair it with the scroll-seek and registration methods it ships beside.
  */
 export function appDetailsSections(): AppDetailsSections | undefined {
-  return resolveClass<AppDetailsSections>('CAppDetailsSections', [
-    'GetSections',
-    'SeekToSection',
-    'RegisterSection',
-  ]);
+    return resolveClass<AppDetailsSections>("CAppDetailsSections", [
+        "GetSections",
+        "SeekToSection",
+        "RegisterSection",
+    ]);
 }
 
 /**
@@ -205,66 +208,74 @@ export function appDetailsSections(): AppDetailsSections | undefined {
  * `GetClips`, but only this service carries both.
  */
 function gameRecordingService(): GameRecordingService | undefined {
-  return resolveService<GameRecordingService>('CGameRecordingService', [
-    'GetClips',
-    'GetAndTrimPostGameHighlights',
-  ]);
+    return resolveService<GameRecordingService>("CGameRecordingService", [
+        "GetClips",
+        "GetAndTrimPostGameHighlights",
+    ]);
 }
 
 /**
  * `CAppActivityStore`. Resolved via global window object or by prototype methods.
  */
 export function appActivityStore(): AppActivityStore | undefined {
-  const globalStore = Reflect.get(globalThis, 'appActivityStore') as AppActivityStore | undefined;
-  if (globalStore) return globalStore;
-  return resolveSingleton<AppActivityStore>('CAppActivityStore', [
-    'GetAppActivity',
-    'RestoreActivity',
-  ]);
+    const globalStore = Reflect.get(globalThis, "appActivityStore") as
+        | AppActivityStore
+        | undefined;
+    if (globalStore) return globalStore;
+    return resolveSingleton<AppActivityStore>("CAppActivityStore", [
+        "GetAppActivity",
+        "RestoreActivity",
+    ]);
 }
 
 /**
  * `StoreItemCache`. Pure in-memory cache backing legacy store item visibility checks.
  */
 export function storeItemCache(): StoreItemCache | undefined {
-  const globalCache = Reflect.get(globalThis, 'StoreItemCache') as StoreItemCache | undefined;
-  if (globalCache) return globalCache;
-  return resolveSingleton<StoreItemCache>('StoreItemCache', [
-    'GetStoreItemWithLegacyVisibilityCheck',
-  ]);
+    const globalCache = Reflect.get(globalThis, "StoreItemCache") as
+        | StoreItemCache
+        | undefined;
+    if (globalCache) return globalCache;
+    return resolveSingleton<StoreItemCache>("StoreItemCache", [
+        "GetStoreItemWithLegacyVisibilityCheck",
+    ]);
 }
 
 /**
  * `CWorkshopStore`. Holds published file metadata for screenshots and videos.
  */
 export function workshopStore(): WorkshopStore | undefined {
-  const globalWs = Reflect.get(globalThis, 'workshopStore') as WorkshopStore | undefined;
-  if (globalWs) return globalWs;
-  return resolveSingleton<WorkshopStore>('CWorkshopStore', [
-    'GetPublishedFiles',
-  ]);
+    const globalWs = Reflect.get(globalThis, "workshopStore") as
+        | WorkshopStore
+        | undefined;
+    if (globalWs) return globalWs;
+    return resolveSingleton<WorkshopStore>("CWorkshopStore", [
+        "GetPublishedFiles",
+    ]);
 }
 
 /**
  * `CFriendStore`. Provides currentUserSteamID and friend states.
  */
 export function friendStore(): FriendStore | undefined {
-  const globalFs = Reflect.get(globalThis, 'friendStore') as FriendStore | undefined;
-  if (globalFs) return globalFs;
-  return resolveSingleton<FriendStore>('CFriendStore', [
-    'currentUserSteamID',
-    'GetFriendState',
-  ]);
+    const globalFs = Reflect.get(globalThis, "friendStore") as
+        | FriendStore
+        | undefined;
+    if (globalFs) return globalFs;
+    return resolveSingleton<FriendStore>("CFriendStore", [
+        "currentUserSteamID",
+        "GetFriendState",
+    ]);
 }
 
 /**
  * The constructor for Steam's native screenshot event class (`V` in module 12750).
  */
 export function screenshotEventClass(): any | undefined {
-  return resolveClass<any>('CScreenshotEvent', [
-    'AddScreenshot',
-    'GetCurrentPublishedFileID',
-  ]);
+    return resolveClass<any>("CScreenshotEvent", [
+        "AddScreenshot",
+        "GetCurrentPublishedFileID",
+    ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -272,11 +283,11 @@ export function screenshotEventClass(): any | undefined {
 // ---------------------------------------------------------------------------
 
 interface AppsApi {
-  GetScreenshotsInTimeRange?: (
-    appid: number,
-    start: number,
-    end: number,
-  ) => Promise<SteamScreenshot[]>;
+    GetScreenshotsInTimeRange?: (
+        appid: number,
+        start: number,
+        end: number,
+    ) => Promise<SteamScreenshot[]>;
 }
 
 /**
@@ -289,22 +300,25 @@ interface AppsApi {
  * This is why the plugin no longer needs base64 image transport for the
  * summary - Steam was always willing to serve these.
  */
-export async function screenshotsSince(appid: number, since: number): Promise<SteamScreenshot[]> {
-  // Cast through `unknown`: the SDK's own `Screenshot` type is narrower than
-  // what ships (it omits `publishedFileID` among others), and this is
-  // undocumented client surface that varies between builds regardless.
-  const client = Reflect.get(globalThis, 'SteamClient') as unknown as
-    | { Apps?: AppsApi }
-    | undefined;
-  const apps = client?.Apps;
-  const fn = apps?.GetScreenshotsInTimeRange;
-  if (typeof fn !== 'function') return [];
+export async function screenshotsSince(
+    appid: number,
+    since: number,
+): Promise<SteamScreenshot[]> {
+    // Cast through `unknown`: the SDK's own `Screenshot` type is narrower than
+    // what ships (it omits `publishedFileID` among others), and this is
+    // undocumented client surface that varies between builds regardless.
+    const client = Reflect.get(globalThis, "SteamClient") as unknown as
+        | { Apps?: AppsApi }
+        | undefined;
+    const apps = client?.Apps;
+    const fn = apps?.GetScreenshotsInTimeRange;
+    if (typeof fn !== "function") return [];
 
-  try {
-    return (await fn.call(apps, appid, since, 0)) ?? [];
-  } catch {
-    return [];
-  }
+    try {
+        return (await fn.call(apps, appid, since, 0)) ?? [];
+    } catch {
+        return [];
+    }
 }
 
 /**
@@ -315,14 +329,20 @@ export async function screenshotsSince(appid: number, since: number): Promise<St
  * clips for non-Steam games - the service itself is perfectly willing to return
  * them when asked correctly. Verified live: 3 clips for AM2R.
  */
-export async function clipsSince(gameid: string, since: number): Promise<SteamClip[]> {
-  const service = gameRecordingService();
-  if (!service) return [];
+export async function clipsSince(
+    gameid: string,
+    since: number,
+): Promise<SteamClip[]> {
+    const service = gameRecordingService();
+    if (!service) return [];
 
-  try {
-    const response = await service.GetClips({ game_id: gameid, created_after: since });
-    return (response.Body().clip() ?? []).map((c) => c.toObject());
-  } catch {
-    return [];
-  }
+    try {
+        const response = await service.GetClips({
+            game_id: gameid,
+            created_after: since,
+        });
+        return (response.Body().clip() ?? []).map((c) => c.toObject());
+    } catch {
+        return [];
+    }
 }

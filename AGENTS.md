@@ -21,14 +21,15 @@ The core must be useful alone and must never depend on a provider. See
 
 ## Read this before writing code
 
-| Doc | What it holds |
-| --- | --- |
-| [TASK.md](TASK.md) | **Start here** — current status, what is next |
-| [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, provider sources, verified facts |
-| [docs/architecture.md](docs/architecture.md) | Core/provider split, the provider contract, data flow, RPC |
+| Doc                                                  | What it holds                                                                                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [TASK.md](TASK.md)                                   | **Start here** — current status, what is next                                                                                                           |
+| [docs/steam-debug.md](docs/steam-debug.md)           | **CEF DevTools guide** — how to inspect `http://localhost:8080`, target topology, Desktop vs Big Picture quirks                                         |
+| [docs/knowledgebase.md](docs/knowledgebase.md)       | Millennium SDK, Steam's local data formats, provider sources, verified facts                                                                            |
+| [docs/architecture.md](docs/architecture.md)         | Core/provider split, the provider contract, data flow, RPC                                                                                              |
 | [docs/steam-components.md](docs/steam-components.md) | How Steam itself builds the app detail page — the section registry, the stores behind Post-Game Summary and Activity, and the event shapes to feed them |
-| [docs/steam-styles.md](docs/steam-styles.md) | Steam's measured styles — copy these, do not approximate |
-| [docs/decisions.md](docs/decisions.md) | ADRs — *why* things are the way they are |
+| [docs/steam-styles.md](docs/steam-styles.md)         | Steam's measured styles — copy these, do not approximate                                                                                                |
+| [docs/decisions.md](docs/decisions.md)               | ADRs — _why_ things are the way they are                                                                                                                |
 
 Do not re-derive facts already recorded there. Do not contradict an ADR without
 writing a new one that supersedes it.
@@ -37,10 +38,10 @@ writing a new one that supersedes it.
 
 This trips up everything. Steam uses **two different ids** for a non-Steam game:
 
-| Id | Width | Where it appears |
-| --- | --- | --- |
-| **appid** | 32-bit | `shortcuts.vdf`, library URLs (`/library/app/<appid>`), `AppOverview.appid` |
-| **gameid** | 64-bit | screenshot folders, `screenshots.vdf`, recordings |
+| Id         | Width  | Where it appears                                                            |
+| ---------- | ------ | --------------------------------------------------------------------------- |
+| **appid**  | 32-bit | `shortcuts.vdf`, library URLs (`/library/app/<appid>`), `AppOverview.appid` |
+| **gameid** | 64-bit | screenshot folders, `screenshots.vdf`, recordings                           |
 
 They convert exactly (**✅ verified**, 9/9 folders on this machine):
 
@@ -68,13 +69,13 @@ substring search for `435150` also matches `4351501` and any gameid containing i
 Non-default on this machine. Never hardcode standard paths — use
 `millennium.steam_path()` and discover the rest.
 
-| Thing | Value here | Default it is NOT |
-| --- | --- | --- |
-| Steam | `C:\game\steam` | `C:\Program Files (x86)\Steam` |
-| Plugins | `C:\game\steam\millennium\plugins` | — |
-| Millennium config | `C:\game\steam\millennium\config\config.json` | — |
-| Steam user id | `83513586` | — |
-| RetroArch | `C:\emu\RetroArch` (portable) | `%APPDATA%\RetroArch` |
+| Thing             | Value here                                    | Default it is NOT              |
+| ----------------- | --------------------------------------------- | ------------------------------ |
+| Steam             | `C:\game\steam`                               | `C:\Program Files (x86)\Steam` |
+| Plugins           | `C:\game\steam\millennium\plugins`            | —                              |
+| Millennium config | `C:\game\steam\millennium\config\config.json` | —                              |
+| Steam user id     | `83513586`                                    | —                              |
+| RetroArch         | `C:\emu\RetroArch` (portable)                 | `%APPDATA%\RetroArch`          |
 
 RetroArch is **portable**: `retroarch.cfg` uses `:\` to mean "the RetroArch install
 dir", so `screenshot_directory = ":\screenshots"` → `C:\emu\RetroArch\screenshots`.
@@ -115,27 +116,28 @@ it as a parameter.
   The inspection takes minutes and the method is written down:
   [docs/steam-components.md](docs/steam-components.md#reproducing-this-the-inspection-method).
   Work down this ladder and stop at the first rung that applies:
-  1. **Restore what Steam already renders** — is it filtered out, not missing?
-  2. **Feed Steam's own store** and let it render
-     ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
-  3. **Render Steam's real component**, resolved from its module cache even
-     when `@steambrew/client` does not export it.
-  4. **Only then clone Steam's DOM** — last resort.
+    1. **Restore what Steam already renders** — is it filtered out, not missing?
+    2. **Feed Steam's own store** and let it render
+       ([ADR-0009](docs/decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
+    3. **Render Steam's real component**, resolved from its module cache even
+       when `@steambrew/client` does not export it.
+    4. **Only then clone Steam's DOM** — last resort.
 
-  A resolved Steam component cannot drift from native (spacing tweaks,
-  animation changes, a future UI refresh); a hand-built copy can and will. The
-  Post-Game Summary was cloned faithfully, passed testing, and was still
-  discarded: it needed five CSS modules resolved by probe key — one of them
-  **ambiguous across two different modules**, which silently reintroduced an
-  already-fixed bug with no code change — and Steam's own spacing misbehaved
-  against content it was never measured for. **If you are measuring pixels to
-  match Steam, you are probably on the wrong rung.**
+    A resolved Steam component cannot drift from native (spacing tweaks,
+    animation changes, a future UI refresh); a hand-built copy can and will. The
+    Post-Game Summary was cloned faithfully, passed testing, and was still
+    discarded: it needed five CSS modules resolved by probe key — one of them
+    **ambiguous across two different modules**, which silently reintroduced an
+    already-fixed bug with no code change — and Steam's own spacing misbehaved
+    against content it was never measured for. **If you are measuring pixels to
+    match Steam, you are probably on the wrong rung.**
 
-  Resolve by a stable, minification-proof signature (real `prototype` method
-  names — these are not mangled, only variable/module bindings are — or a
-  class-map probe key), **never by a raw numeric module id**, which reshuffles
-  between Steam builds. Always keep a graceful fallback, so a Steam update
-  degrades the page instead of crashing it.
+    Resolve by a stable, minification-proof signature (real `prototype` method
+    names — these are not mangled, only variable/module bindings are — or a
+    class-map probe key), **never by a raw numeric module id**, which reshuffles
+    between Steam builds. Always keep a graceful fallback, so a Steam update
+    degrades the page instead of crashing it.
+
 - **If you do end up drawing something, match Steam by measuring, not by eye.**
   This applies only on the last rung above — reaching for it early is the
   mistake ADR-0022 corrected. Read `getComputedStyle` off a native element and
@@ -162,5 +164,20 @@ pnpm dev          # build + deploy to the live plugins dir + restart Steam
 
 `pnpm dev` deploys a parallel `-dev` copy so the released plugin stays installed.
 Backend changes need a Steam restart; frontend changes need only a reload (`Ctrl+R`
-in the Steam devtools). Steam must run with `-dev` to expose CEF devtools on
-`http://localhost:8080`.
+in the Steam devtools).
+
+### Debugging with CEF DevTools
+
+Steam must run with `-dev -cef-enable-debugging` to expose DevTools on
+`http://localhost:8080`. Use the root script:
+
+```powershell
+.\start-steam-dev.ps1               # Start Steam with DevTools enabled on http://localhost:8080
+.\start-steam-dev.ps1 -Restart      # Clean restart Steam into dev mode
+.\start-steam-dev.ps1 -BigPicture   # Launch directly into Big Picture Mode with DevTools
+.\start-steam-dev.ps1 -OpenBrowser  # Open http://localhost:8080/ in your browser
+```
+
+For target mapping (`SharedJSContext` vs Big Picture popup vs Desktop window),
+probing webpack modules, and Big Picture inspection traps, see
+[docs/steam-debug.md](docs/steam-debug.md).

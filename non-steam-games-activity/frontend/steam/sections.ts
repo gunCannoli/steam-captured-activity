@@ -1,5 +1,5 @@
-import { logger } from '../logger';
-import { appDetailsSections } from './stores';
+import { logger } from "../logger";
+import { appDetailsSections } from "./stores";
 
 /**
  * Re-enable the app detail sections Steam hides from non-Steam games.
@@ -47,10 +47,10 @@ import { appDetailsSections } from './stores';
  * "Oct 24, 2025"), which is most of what the feed would have shown.
  */
 const RESTORED_SECTIONS = [
-  // Fed by us via the spotlight store; renders screenshots and clips.
-  'postgamesummary',
-  // Fed by us via appActivityStore; renders chronological per-day activity cards.
-  'activity',
+    // Fed by us via the spotlight store; renders screenshots and clips.
+    "postgamesummary",
+    // Fed by us via appActivityStore; renders chronological per-day activity cards.
+    "activity",
 ] as const;
 
 /**
@@ -64,7 +64,7 @@ const RESTORED_SECTIONS = [
  * When an app has NO captures or content, `nonsteam` is kept so the user still
  * sees Steam's accurate explanation rather than an awkward blank void.
  */
-const REPLACED_SECTIONS: readonly string[] = ['nonsteam'];
+const REPLACED_SECTIONS: readonly string[] = ["nonsteam"];
 
 /** Apps for which we have content worth showing instead of the placeholder. */
 const appsWithContent = new Set<number>();
@@ -79,26 +79,26 @@ const appsWithContent = new Set<number>();
  * not force re-renders.
  */
 export function setHasContent(appid: number, hasContent: boolean): void {
-  const had = appsWithContent.has(appid);
-  if (had === hasContent) return;
+    const had = appsWithContent.has(appid);
+    if (had === hasContent) return;
 
-  if (hasContent) appsWithContent.add(appid);
-  else appsWithContent.delete(appid);
+    if (hasContent) appsWithContent.add(appid);
+    else appsWithContent.delete(appid);
 
-  refreshInstances();
+    refreshInstances();
 }
 
 interface AppOverview {
-  BIsModOrShortcut?: () => boolean;
-  appid?: number;
+    BIsModOrShortcut?: () => boolean;
+    appid?: number;
 }
 
 type GetSections = (overview: unknown, details: unknown) => Set<string>;
 
 /** React component instance, as far as we need it. */
 interface SectionsInstance {
-  m_setSectionsMemo?: Set<string>;
-  forceUpdate?: () => void;
+    m_setSectionsMemo?: Set<string>;
+    forceUpdate?: () => void;
 }
 
 let original: GetSections | undefined;
@@ -124,26 +124,26 @@ const instances = new Set<SectionsInstance>();
 
 /** Re-render every live sections component. */
 function refreshInstances(): void {
-  for (const instance of [...instances]) {
-    try {
-      // Drop the memo first: Steam returns the cached set when the size
-      // matches, and our change swaps one member for another.
-      instance.m_setSectionsMemo = undefined;
-      instance.forceUpdate?.();
-    } catch {
-      instances.delete(instance);
+    for (const instance of [...instances]) {
+        try {
+            // Drop the memo first: Steam returns the cached set when the size
+            // matches, and our change swaps one member for another.
+            instance.m_setSectionsMemo = undefined;
+            instance.forceUpdate?.();
+        } catch {
+            instances.delete(instance);
+        }
     }
-  }
 }
 
 /** True when `overview` is a non-Steam shortcut. */
 function isShortcut(overview: unknown): boolean {
-  const fn = (overview as AppOverview | undefined)?.BIsModOrShortcut;
-  try {
-    return typeof fn === 'function' && fn.call(overview) === true;
-  } catch {
-    return false;
-  }
+    const fn = (overview as AppOverview | undefined)?.BIsModOrShortcut;
+    try {
+        return typeof fn === "function" && fn.call(overview) === true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -153,74 +153,76 @@ function isShortcut(overview: unknown): boolean {
  * that moves it degrades the page to stock rather than crashing it.
  */
 export function patchSections(): boolean {
-  if (original) return true;
+    if (original) return true;
 
-  const component = appDetailsSections();
-  if (!component) return false;
+    const component = appDetailsSections();
+    if (!component) return false;
 
-  const proto = component.prototype as unknown as {
-    GetSections: GetSections;
-    m_setSectionsMemo?: Set<string>;
-  };
-  const base = proto.GetSections;
-  if (typeof base !== 'function') return false;
+    const proto = component.prototype as unknown as {
+        GetSections: GetSections;
+        m_setSectionsMemo?: Set<string>;
+    };
+    const base = proto.GetSections;
+    if (typeof base !== "function") return false;
 
-  proto.GetSections = function patchedGetSections(
-    this: SectionsInstance,
-    overview: unknown,
-    details: unknown,
-  ): Set<string> {
-    // Steam's own implementation RETURNS ITS MEMO, not the set it just built:
-    //
-    //   ... else this.m_setSectionsMemo = a;
-    //   return this.m_setSectionsMemo;
-    //
-    // so the returned object is sometimes a cached set from an earlier call.
-    // Mutating it in place is therefore the only reliable way to influence the
-    // result - editing a local copy gets silently discarded on a memo hit,
-    // which is exactly how an earlier version of this patch appeared to work
-    // (the summary showed) while the placeholder removal never took effect.
-    const sections = base.call(this, overview, details);
+    proto.GetSections = function patchedGetSections(
+        this: SectionsInstance,
+        overview: unknown,
+        details: unknown,
+    ): Set<string> {
+        // Steam's own implementation RETURNS ITS MEMO, not the set it just built:
+        //
+        //   ... else this.m_setSectionsMemo = a;
+        //   return this.m_setSectionsMemo;
+        //
+        // so the returned object is sometimes a cached set from an earlier call.
+        // Mutating it in place is therefore the only reliable way to influence the
+        // result - editing a local copy gets silently discarded on a memo hit,
+        // which is exactly how an earlier version of this patch appeared to work
+        // (the summary showed) while the placeholder removal never took effect.
+        const sections = base.call(this, overview, details);
 
-    if (!isShortcut(overview)) return sections;
+        if (!isShortcut(overview)) return sections;
 
-    // Remember this instance so a later publish can re-render it.
-    instances.add(this);
+        // Remember this instance so a later publish can re-render it.
+        instances.add(this);
 
-    try {
-      for (const name of RESTORED_SECTIONS) sections.add(name);
+        try {
+            for (const name of RESTORED_SECTIONS) sections.add(name);
 
-      // Only drop a section once we have something in its place; otherwise the
-      // page loses an explanation and gains nothing. Empty today - see
-      // REPLACED_SECTIONS.
-      const appid = (overview as AppOverview | undefined)?.appid;
-      if (appid !== undefined && appsWithContent.has(appid)) {
-        for (const name of REPLACED_SECTIONS) sections.delete(name);
-      }
+            // Only drop a section once we have something in its place; otherwise the
+            // page loses an explanation and gains nothing. Empty today - see
+            // REPLACED_SECTIONS.
+            const appid = (overview as AppOverview | undefined)?.appid;
+            if (appid !== undefined && appsWithContent.has(appid)) {
+                for (const name of REPLACED_SECTIONS) sections.delete(name);
+            }
 
-      // Keep the memo pointing at the object we just edited, so a later call
-      // that hits the cache sees our version.
-      this.m_setSectionsMemo = sections;
-    } catch (error) {
-      logger.warn('Could not adjust the section list:', error);
-    }
+            // Keep the memo pointing at the object we just edited, so a later call
+            // that hits the cache sees our version.
+            this.m_setSectionsMemo = sections;
+        } catch (error) {
+            logger.warn("Could not adjust the section list:", error);
+        }
 
-    return sections;
-  };
+        return sections;
+    };
 
-  original = base;
-  patchedProto = proto;
-  logger.info(`Restored sections for non-Steam games: ${RESTORED_SECTIONS.join(', ')}`);
-  return true;
+    original = base;
+    patchedProto = proto;
+    logger.info(
+        `Restored sections for non-Steam games: ${RESTORED_SECTIONS.join(", ")}`,
+    );
+    return true;
 }
 
 /** Put Steam's own implementation back. Disabling the plugin leaves no trace. */
 export function unpatchSections(): void {
-  if (patchedProto && original) patchedProto.GetSections = original;
-  original = undefined;
-  patchedProto = undefined;
+    if (patchedProto && original) patchedProto.GetSections = original;
+    original = undefined;
+    patchedProto = undefined;
 
-  appsWithContent.clear();
-  refreshInstances();
-  instances.clear();
+    appsWithContent.clear();
+    refreshInstances();
+    instances.clear();
 }

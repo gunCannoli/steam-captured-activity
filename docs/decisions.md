@@ -1833,12 +1833,12 @@ constraints:
 
 1. **The Store Visibility Guard (`lt` in module 80478):**
    Steam's per-event renderer starts with:
-   ```js
-   const [storeItem] = lt(event.appid, D.A.k_DataRequest_Assets);
-   if (event.appid && (!storeItem || !storeItem.BIsVisible())) return null;
-   ```
-   For a non-Steam game, Steam's `StoreItemCache` (`b.f4`) has no store entry, so `lt()` returns `undefined` and
-   the event body renders as an empty `<div></div>`.
+    ```js
+    const [storeItem] = lt(event.appid, D.A.k_DataRequest_Assets);
+    if (event.appid && (!storeItem || !storeItem.BIsVisible())) return null;
+    ```
+    For a non-Steam game, Steam's `StoreItemCache` (`b.f4`) has no store entry, so `lt()` returns `undefined` and
+    the event body renders as an empty `<div></div>`.
 2. **The AppID Bitwidth / IEEE 754 Precision Trap:**
    Event base class `E` (module 12750) computes its appid as `get appid() { return Number(this.gameid); }`.
    Non-Steam shortcuts use 64-bit composite gameids (`(appid << 32) | 0x02000000`). When converted to a

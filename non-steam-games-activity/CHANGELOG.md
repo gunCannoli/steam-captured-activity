@@ -27,7 +27,7 @@ Activity Feed all render natively using Steam's own components and stores.
 - **The post-game summary and activity feed are rendered by Steam itself.**
   Steam was never missing this UI for non-Steam games — it filters it out by
   app type in its section registry (`BIsModOrShortcut() && (s = ["nonsteam",
-  "notes", "screenshots"])`). The plugin restores `postgamesummary` and
+"notes", "screenshots"])`). The plugin restores `postgamesummary` and
   `activity`, feeds Steam's own stores, and lets Steam draw the carousels,
   day separators, date labels, hover states, and media viewers.
   See [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
@@ -79,7 +79,7 @@ Activity Feed all render natively using Steam's own components and stores.
   `react/jsx-runtime` element creation filtered on `{appid, rgSections}` to
   detect Big Picture navigation events reliably ([ADR-0027](../docs/decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline)).
 - **Provider API** (`registerSummaryProvider`) — provider plugins contribute
-  summary *events*, not markup, and a failing provider is skipped rather than
+  summary _events_, not markup, and a failing provider is skipped rather than
   taking the page down.
 - **Signature-based module resolution** (`steam/modules.ts`) — resolves Steam's
   stores and components by prototype method names, never by numeric module id
@@ -168,7 +168,7 @@ Caught by the test suite before any of this ran inside Steam:
   consumes the whole varint and returns nil for the value.
 - **Every RPC call failing with "plugin not running".** The builder bakes
   `plugin.json`'s `name` into the bundle and Millennium routes RPC by that baked
-  name, so renaming the manifest to `<name>-dev` *after* building left the
+  name, so renaming the manifest to `<name>-dev` _after_ building left the
   frontend calling one name and the backend registered under another. `dev.ps1`
   now renames before building and restores the source manifest afterwards.
 - **A BOM corrupting Millennium's config.** `dev.ps1` used PowerShell's
@@ -201,18 +201,18 @@ content, not the test suite:
 Run against the live Steam client with the plugin installed; every row should
 pass before calling v1 done.
 
-| # | Scenario | Expected |
-| --- | --- | --- |
-| 1 | Open a non-Steam game with screenshots + a clip (e.g. AM2R) | Post-Game Summary shows them, grouped by day |
-| 2 | Open a non-Steam game with **no captures** | Steam's own placeholder shown; no empty panel |
-| 3 | Open a **native** Steam game | Plugin does not touch the page at all |
-| 4 | Click a screenshot / a clip in the summary | Opens Steam's real media viewer |
-| 5 | Play a game, quit, reopen its page | New captures appear without restarting Steam |
-| 6 | Library grid | Recent-activity timestamps visible; sorting still works |
-| 7 | Restart Steam | Plugin loads clean; no console errors |
-| 8 | Disable the plugin | Steam returns to its stock page with no leftovers |
-| 9 | **Big Picture** — open a non-Steam game's page | Summary strip shows recent screenshots/clips in the ACTIVITY tab — 🟡 **functionally passed, visually failed, 2026-09-21**: real gamepad-style input, reproduced twice from a clean Steam restart (AM2R, appid `4263274102`), captures do render — but in the wrong container, with no header/spacing/grouping matching native (ADR-0028). Do not mark this row fully passed until ADR-0028 is resolved. |
-| 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state — not yet run |
+| #   | Scenario                                                    | Expected                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Open a non-Steam game with screenshots + a clip (e.g. AM2R) | Post-Game Summary shows them, grouped by day                                                                                                                                                                                                                                                                                                                                                             |
+| 2   | Open a non-Steam game with **no captures**                  | Steam's own placeholder shown; no empty panel                                                                                                                                                                                                                                                                                                                                                            |
+| 3   | Open a **native** Steam game                                | Plugin does not touch the page at all                                                                                                                                                                                                                                                                                                                                                                    |
+| 4   | Click a screenshot / a clip in the summary                  | Opens Steam's real media viewer                                                                                                                                                                                                                                                                                                                                                                          |
+| 5   | Play a game, quit, reopen its page                          | New captures appear without restarting Steam                                                                                                                                                                                                                                                                                                                                                             |
+| 6   | Library grid                                                | Recent-activity timestamps visible; sorting still works                                                                                                                                                                                                                                                                                                                                                  |
+| 7   | Restart Steam                                               | Plugin loads clean; no console errors                                                                                                                                                                                                                                                                                                                                                                    |
+| 8   | Disable the plugin                                          | Steam returns to its stock page with no leftovers                                                                                                                                                                                                                                                                                                                                                        |
+| 9   | **Big Picture** — open a non-Steam game's page              | Summary strip shows recent screenshots/clips in the ACTIVITY tab — 🟡 **functionally passed, visually failed, 2026-09-21**: real gamepad-style input, reproduced twice from a clean Steam restart (AM2R, appid `4263274102`), captures do render — but in the wrong container, with no header/spacing/grouping matching native (ADR-0028). Do not mark this row fully passed until ADR-0028 is resolved. |
+| 10  | Switch desktop → Big Picture → desktop                      | Both render correctly; no duplicate/orphaned state — not yet run                                                                                                                                                                                                                                                                                                                                         |
 
 Also confirm: no secrets in logs, and `GetDiagnostics` reports accurate counts
 for this install.
