@@ -1814,3 +1814,79 @@ components were shared across the boundary.
 - Big Picture gains full controller support (focus rings, D-pad carousel scrolling, LB/RB navigation) with
   zero ongoing maintenance or risk of UI drift.
 - Unifies the plugin architecture: a single store-feeding pipeline serves both Desktop and Big Picture Mode.
+
+---
+
+## ADR-0030: Native Activity Feed restored via `appActivityStore` injection and `StoreItemCache` stubbing
+
+**Status:** Accepted · 2026-09-22
+
+### Context
+
+Steam's app-details view contains an `activity` section (rendering chronological per-day activity: screenshots,
+recordings, status updates, partner announcements). Like `postgamesummary`, Steam disables it for non-Steam
+games by default in `CAppDetailsSections.GetSections()`:
+`e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])`.
+
+While restoring the section string `'activity'` was straightforward, feeding it was blocked by four deep runtime
+constraints:
+
+1. **The Store Visibility Guard (`lt` in module 80478):**
+   Steam's per-event renderer starts with:
+   ```js
+   const [storeItem] = lt(event.appid, D.A.k_DataRequest_Assets);
+   if (event.appid && (!storeItem || !storeItem.BIsVisible())) return null;
+   ```
+   For a non-Steam game, Steam's `StoreItemCache` (`b.f4`) has no store entry, so `lt()` returns `undefined` and
+   the event body renders as an empty `<div></div>`.
+2. **The AppID Bitwidth / IEEE 754 Precision Trap:**
+   Event base class `E` (module 12750) computes its appid as `get appid() { return Number(this.gameid); }`.
+   Non-Steam shortcuts use 64-bit composite gameids (`(appid << 32) | 0x02000000`). When converted to a
+   JavaScript IEEE 754 64-bit float via `Number()`, precision is lost above $2^{53} - 1$ (e.g. AM2R's gameid
+   `18310622842007322624` truncates to `18310622842007323000`). Any store lookup keyed by `event.appid` fails
+   to find the original 32-bit appid.
+3. **The `GetLatestEventTime` Contract on `CActivityDay`:**
+   Steam's day renderer `st` (module 80478) expects day instances to implement `day.GetLatestEventTime()` to format
+   the React key and the date headline (`V._l(day.GetLatestEventTime(), true)`). If missing from a custom day
+   object or fallback, React crashes with `TypeError: e.GetLatestEventTime is not a function`, caught by Steam's
+   error boundary.
+4. **Workshop Media Lookup:**
+   The native `FilePublished_Screenshot` component resolves thumbnail and full image URLs via
+   `workshopStore.GetPublishedFileRecord(publishedFileId)`. Without entries in `workshopStore.m_mapPublishedFiles`,
+   the image renders as a broken asset.
+
+### Decision
+
+Implement `publishActivity(appid, gameid)` in `frontend/steam/activity.ts` using Steam's own stores:
+
+1. **In-Memory StoreItem Stubbing:**
+   Inject a minimal, visible in-memory `StoreItem` stub into `StoreItemCache.m_mapApps.set(appid, stub)`.
+   The stub provides `BIsVisible: () => true`, `BContainDataRequest: () => true`, `appid`, and the shortcut name.
+   It makes zero network requests and is strictly scoped to non-Steam appids (`appid >= 0x8000_0000`).
+2. **Explicit 32-bit AppID Override:**
+   Instantiate the native screenshot event class `V` (from `appActivityStore.m_mapAppActivity`'s template event,
+   or fallback `FilePublished_Screenshot`, event type 13). Assign `event.gameid = appid.toString()` and define
+   an explicit property override `Object.defineProperty(event, 'appid', { get: () => appid })`. This guarantees
+   `event.appid` returns the exact 32-bit integer matching `StoreItemCache`.
+3. **Full `CActivityDay` Interface Contract:**
+   Ensure each day container provides `GetLatestEventTime()`, `GetEarliestEventTime()`, `SortEvents()`, and
+   `BHasEvents()`, grouped by local midnight (`getLocalMidnight()`).
+4. **Loopback Workshop Injection:**
+   Register each screenshot in `workshopStore.m_mapPublishedFiles.set(publishedFileId, record)` with
+   `m_strPreviewUrl = strUrl`, pointing to Steam's native loopback screenshot URL.
+5. **Single-Store Publishing & Teardown:**
+   Publish in parallel with `publishSummary()`. When navigating away or unmounting, `clearActivity(appid)` cleans
+   `appActivityStore.m_mapAppActivity`, `StoreItemCache.m_mapApps`, and `workshopStore.m_mapPublishedFiles`.
+6. **Clean Layout Hierarchy:**
+   Replace `'nonsteam'` (`REPLACED_SECTIONS = ['nonsteam']`) only when captures exist (`appsWithContent.has(appid)`).
+   When an app has captures, the stock "Information Unavailable" box is dropped, allowing the Left Column to cleanly
+   render Post-Game Summary followed by the per-day Activity Feed. Games with 0 captures cleanly retain the stock
+   disclaimer with zero errors.
+
+### Consequences
+
+- **Native Activity Feed renders on both Desktop and Big Picture Mode** with zero hand-built DOM.
+- Shows real dated cards ("cannoliGun shared 2 screenshots"), clickable carousel thumbnails, active image viewers,
+  and "Load More Activity" buttons.
+- Fully controller-navigable in Big Picture Mode's ACTIVITY tab.
+- In-memory store cache stubbing is temporary and completely isolated to non-Steam appids, with zero network side effects.

@@ -49,31 +49,22 @@ import { appDetailsSections } from './stores';
 const RESTORED_SECTIONS = [
   // Fed by us via the spotlight store; renders screenshots and clips.
   'postgamesummary',
+  // Fed by us via appActivityStore; renders chronological per-day activity cards.
+  'activity',
 ] as const;
 
 /**
  * Sections we remove once we have something better to show.
  *
- * Currently none - and that is a deliberate correction, not an oversight.
- *
  * `nonsteam` is Steam's grey "detailed information is unavailable because it is
- * a non-Steam game or mod" box, and dropping it from the registry works
- * perfectly. The problem is what it leaves behind: at normal window widths
- * Steam nests the Spotlights block (which holds the Post-Game Summary) inside
- * `LeftColumn`, and `nonsteam` is the only OTHER thing in that column for a
- * shortcut. Removing it leaves a large empty region under the summary -
- * reported from real use as "the warning is gone but nothing else shows up,
- * it's just blank".
+ * a non-Steam game or mod" box. Now that `activity` and `postgamesummary` fill
+ * `LeftColumn`, dropping `nonsteam` for games with content (`appsWithContent.has(appid)`)
+ * produces a clean, fully native app details page without the disclaimer.
  *
- * The box is also still telling the truth. Steam has no store record for a
- * non-Steam game (verified: `GetApp(appid)` returns nothing), which is exactly
- * why the detail sections below cannot render - see the note on `activity` in
- * RESTORED_SECTIONS. Hiding an accurate explanation to leave blank space is a
- * worse page, not a better one.
- *
- * Revisit when something real fills that column.
+ * When an app has NO captures or content, `nonsteam` is kept so the user still
+ * sees Steam's accurate explanation rather than an awkward blank void.
  */
-const REPLACED_SECTIONS: readonly string[] = [];
+const REPLACED_SECTIONS: readonly string[] = ['nonsteam'];
 
 /** Apps for which we have content worth showing instead of the placeholder. */
 const appsWithContent = new Set<number>();

@@ -1,4 +1,5 @@
 import { logger } from '../logger';
+import { clearActivity, publishActivity } from '../steam/activity';
 import { gameIdFromAppId } from '../steam/gameid';
 import { patchSections, setHasContent } from '../steam/sections';
 import { clearSummary, publishSummary } from '../steam/summary';
@@ -11,7 +12,7 @@ import { clearSummary, publishSummary } from '../steam/summary';
  * So we do exactly two things:
  *
  *   1. put the section names back into Steam's registry (steam/sections.ts)
- *   2. put events into Steam's own store            (steam/summary.ts)
+ *   2. put events into Steam's own stores           (steam/summary.ts & steam/activity.ts)
  *
  * Steam renders. That is the whole renderer.
  *
@@ -21,7 +22,7 @@ import { clearSummary, publishSummary } from '../steam/summary';
  * them can any more. See docs/steam-components.md.
  */
 
-/** Apps whose summary we have published, so a quitting game can refresh them. */
+/** Apps whose summary or activity we have published, so a quitting game can refresh them. */
 const published = new Set<number>();
 
 /** Set up the section patch once, at plugin load. */
@@ -30,7 +31,7 @@ export function register(): boolean {
 }
 
 /**
- * Publish this app's summary so Steam's own section can render it.
+ * Publish this app's summary and activity feed so Steam's own sections can render them.
  *
  * Callers must only pass a non-Steam appid; the caller owns that check because
  * it also decides when to clear.
@@ -39,14 +40,18 @@ export async function patch(appid: number): Promise<void> {
   const gameid = gameIdFromAppId(appid);
 
   try {
-    const count = await publishSummary(appid, gameid);
-    if (count > 0) published.add(appid);
+    const [summaryCount, activityCount] = await Promise.all([
+      publishSummary(appid, gameid),
+      publishActivity(appid, gameid),
+    ]);
+    const totalCount = summaryCount + activityCount;
+    if (totalCount > 0) published.add(appid);
 
     // Steam's "information is unavailable" placeholder is only worth removing
     // once we have something to show instead.
-    setHasContent(appid, count > 0);
+    setHasContent(appid, totalCount > 0);
   } catch (error) {
-    logger.error('Could not publish the summary for', appid, error);
+    logger.error('Could not publish summary or activity for', appid, error);
   }
 }
 
@@ -56,11 +61,12 @@ export async function refresh(appid: number): Promise<void> {
   await patch(appid);
 }
 
-/** Forget an app's summary. */
+/** Forget an app's summary and activity feed. */
 export function unpatch(appid: number): void {
   if (!published.delete(appid)) return;
   setHasContent(appid, false);
   clearSummary(appid);
+  clearActivity(appid);
 }
 
 /** Forget everything. Used when the plugin unloads. */

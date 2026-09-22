@@ -7,59 +7,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works. Big Picture's summary strip renders and is
-functionally correct, but is **not visually release-ready** — see below. The
-per-day activity feed is still in progress — see below.
+Non-Steam games now use **Steam's own app detail sections** on both Desktop and
+Big Picture Mode. Library grid, Post-Game Summary, and chronological per-day
+Activity Feed all render natively using Steam's own components and stores.
 
 ### Known limits
 
-- **No per-day activity feed yet.** Steam's ACTIVITY section can be restored,
-  and its day headings render, but every event body comes back empty: the
-  per-event renderer requires a **store** record (`k_DataRequest_Assets`) that
-  non-Steam games do not have. That record can be faked with no network call
-  (verified live), but wiring it into the plugin's publish/re-render path is
-  not done. The Post-Game Summary groups by day in the meantime.
-- **Steam's "information is unavailable" box is left in place** on desktop.
-  It is still accurate, and it is the only other thing in that column —
-  removing it leaves the page blank under the summary.
-- **Big Picture's summary strip renders in the wrong container and looks
-  broken.** `patch()`'s anchor search resolves to the ACTIVITY tab's own
-  *button* in the tab strip, not the content panel below it — the whole
-  multi-tile strip gets injected into a small tab-button-sized element.
-  Screenshot comparison against native: no "Post-Game Summary" header
-  visible, no day grouping, tiles with no spacing, and a native Steam icon
-  colliding with the tiles in the same row
-  ([ADR-0028](../docs/decisions.md#adr-0028-big-pictures-clone-is-visually-broken-and-the-fix-is-to-go-looking-for-real-components-not-to-keep-patching-the-clone),
-  **Proposed**, not fixed). Functionally verified (real captures, real appid
-  detection — ADR-0027) but not visually usable yet.
-- **Big Picture's summary is a clone, not Steam's real component**, and can
-  drift from it on a future Big Picture UI change — see the Added entry below
-  and [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
-  This is the opposite trade-off from desktop, and deliberate: Big Picture's
-  `CAppDetailsSections`/`CAppSpotlightStore` are objects in a webpack module
-  cache this plugin's `SharedJSContext` code cannot reach, confirmed from
-  Millennium's own source
-  ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
-  ADR-0027 narrowed this: `react/jsx-runtime` turns out to be shared between
-  the two bundles even though Steam's own app code is not, which is why
-  ADR-0028 proposes checking whether `@steambrew/client`'s own components are
-  shared too, before writing more hand-tuned clone CSS.
 - **"Last Played" stays blank for games Steam did not launch itself.** That
   `AppOverview` field has a custom setter backed by protobuf state and cannot
   be written safely; recent-activity ordering does reflect captures instead
   ([ADR-0018](../docs/decisions.md#adr-0018-write-only-observable-appoverview-fields-and-patch-the-prototype)).
+- **Social interaction chrome is omitted for non-Steam games.** Post comments,
+  ratings, and developer announcement feeds require Steam Community / store
+  backends that shortcuts lack. Only capture events (screenshots and clips)
+  are populated in the activity timeline.
 
 ### Changed
 
-- **The post-game summary is now rendered by Steam itself.** Steam was never
-  missing this UI for non-Steam games — it filters it out by app type in its
-  section registry (`BIsModOrShortcut() && (s = ["nonsteam", "notes",
-  "screenshots"])`). The plugin restores the section and feeds Steam's own
-  `CGamePlaySession`; Steam draws the pager, day separators, date labels
-  ("Today"/"Yesterday"/"Sep 20"), hover states and media viewer.
-  See [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)
-  and [steam-components.md](../docs/steam-components.md).
+- **The post-game summary and activity feed are rendered by Steam itself.**
+  Steam was never missing this UI for non-Steam games — it filters it out by
+  app type in its section registry (`BIsModOrShortcut() && (s = ["nonsteam",
+  "notes", "screenshots"])`). The plugin restores `postgamesummary` and
+  `activity`, feeds Steam's own stores, and lets Steam draw the carousels,
+  day separators, date labels, hover states, and media viewers.
+  See [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
+  [ADR-0029](../docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning),
+  and [ADR-0030](../docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing).
+- **Big Picture uses the exact same store-feeding pipeline as Desktop.** Big
+  Picture runs directly from `SharedJSContext` via React Portal. Native Post-Game
+  Summary (`Ge.T`) and Activity Feed (`ae.W`) render in the "ACTIVITY" tab with
+  native controller D-pad navigation, focus rings, and responsive layout.
 - **Captures come from Steam's own APIs**, not the backend:
   `SteamClient.Apps.GetScreenshotsInTimeRange` and the recording service's
   `GetClips`. Both work unmodified for a shortcut. Clips need the **64-bit
@@ -68,62 +45,45 @@ per-day activity feed is still in progress — see below.
 - **No image crosses the RPC boundary** for the detail page. Steam serves its
   own captures over `steamloopback.host` and hands back absolute URLs.
 - Steam's "information is unavailable" placeholder is removed by dropping it
-  from the section set rather than hiding the node with CSS, and only when
-  there is content to replace it with — a game with no captures keeps Steam's
+  from the section set (`REPLACED_SECTIONS = ['nonsteam']`) only when there
+  is content to replace it with — a game with no captures keeps Steam's
   honest explanation instead of gaining an empty panel.
 
 ### Removed
 
+- `renderers/gamepad-app.tsx` (~280 lines) — the hand-built Big Picture clone
+  is deleted. Native component rendering via `SharedJSContext` supersedes DOM
+  cloning completely ([ADR-0029](../docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)).
 - `components/` (activity, carousel, media cards, hover, class maps),
   `assets.ts` and `steam-media.ts` — roughly 800 lines of hand-built UI that
   Steam now renders. A resolved Steam component cannot drift from native; a
   hand-built copy can and did.
 - **Backend: `GetActivity`, `GetAsset`, `GetAssets`, `timeline.lua`,
   `assets.lua`, and the recording/protobuf/session-window parsing half of
-  `captures.lua`** (~700 lines) — superseded by the `Added` entries above and
-  by reading captures straight from Steam's own client APIs. `captures.lua`
-  now only parses the screenshot index the library grid needs; `rpc.lua` is
-  down to `GetLibraryStats` and `GetDiagnostics`. Everything below this line in
-  `Added`/`Fixed` describes the pre-ADR-0022 backend for historical record —
-  most of it (recording parsing, the activity timeline, base64 image serving)
-  no longer exists in the shipped plugin.
+  `captures.lua`** (~700 lines) — superseded by reading captures straight
+  from Steam's own client APIs. `captures.lua` now only parses the screenshot
+  index the library grid needs; `rpc.lua` is down to `GetLibraryStats` and
+  `GetDiagnostics`.
 
 ### Added
 
-- **Big Picture support** (`renderers/gamepad-app.tsx`) — a compact Post-Game
-  Summary strip in the ACTIVITY tab. Unlike desktop, this *does* build its own
-  markup: Big Picture runs in a separate webpack bundle with its own module
-  cache (confirmed via Millennium's source, ADR-0023), so there is no Steam
-  component to feed. Instead it renders a small clone, styled with class names
-  resolved from the desktop bundle (one build-wide stylesheet, so the hashes
-  are valid across both), and appends it directly into the Big Picture popup's
-  document via `Steam.PopupManager` — no Millennium injection needed for that
-  part, confirmed live. Technique matched to what
-  [k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)
-  already does for its playtime feature. See
-  [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
-- **Big Picture appid detection** (`steam/gamepad-appid.ts`) — knowing which
-  game Big Picture is currently showing took three tries (`popup.window.opener
-  .location`, wrong; `popup.window.location`, structurally right but Big
-  Picture's real navigation never touches any window's `location` at all;
-  finally, patching `react/jsx-runtime`'s `jsx`/`jsxs` exports globally via
-  `beforePatch` and reading the live `appid` off intercepted element props —
-  technique found in
-  [BossSloth/SteamHunter-plugin](https://github.com/BossSloth/SteamHunter-plugin)).
-  Filtered on `{appid, rgSections}`, verified live to be the one component
-  that fires once per navigation with no false positives (a bare `'appid' in
-  props` check matches a recommended-games carousel, a friends-playing
-  widget, and a page pager — all real, all wrong). See
-  [ADR-0025](../docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers),
-  [ADR-0026](../docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all),
-  [ADR-0027](../docs/decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline).
+- **Per-day Activity Feed** (`steam/activity.ts`) — publishes chronological
+  captures grouped by local midnight into `appActivityStore`. Stubs an in-memory
+  `StoreItem` in `StoreItemCache` to satisfy Steam's event visibility guard
+  without network requests, overrides `event.appid` with a 32-bit integer getter
+  to prevent IEEE 754 precision loss from 64-bit shortcut gameids, implements
+  `CActivityDay` container methods (`GetLatestEventTime`), and registers
+  loopback URLs into `workshopStore.m_mapPublishedFiles` for native screenshot
+  carousel thumbnails and full viewers ([ADR-0030](../docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)).
+- **Big Picture appid detection** (`steam/gamepad-appid.ts`) — watches
+  `react/jsx-runtime` element creation filtered on `{appid, rgSections}` to
+  detect Big Picture navigation events reliably ([ADR-0027](../docs/decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline)).
 - **Provider API** (`registerSummaryProvider`) — provider plugins contribute
   summary *events*, not markup, and a failing provider is skipped rather than
   taking the page down.
 - **Signature-based module resolution** (`steam/modules.ts`) — resolves Steam's
   stores and components by prototype method names, never by numeric module id
-  (those reshuffle between builds). Extended with `resolveClassMap()` for Big
-  Picture's clone-and-hide fallback.
+  (those reshuffle between builds).
 
 - **Steam path discovery** (`steam_paths.lua`) — resolves the Steam root via
   `millennium.steam_path()` and the active user from `loginusers.vdf`

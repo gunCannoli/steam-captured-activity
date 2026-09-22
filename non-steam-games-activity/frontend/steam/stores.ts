@@ -101,6 +101,75 @@ interface GameRecordingService {
   }>;
 }
 
+/** One day's worth of activity feed events. */
+export interface AppActivityDay {
+  m_rtDayBegin: number;
+  dayBegin: number;
+  m_rgEvents: any;
+  events: any[];
+  BHasEvents(): boolean;
+  isValid?: boolean;
+  GetLatestEventTime?(): number;
+  GetEarliestEventTime?(): number;
+  SortEvents?(): void;
+  AddEvent?(event: any): void;
+}
+
+/** Per-app activity state. */
+export interface AppActivity {
+  m_unAppID: number;
+  m_mapActivityByDay: Map<number, AppActivityDay>;
+  appActivityByDay: AppActivityDay[];
+  lastAddedEventType?: number;
+  lastAddedPartnerEvent?: any;
+  BHasEvents?(): boolean;
+}
+
+/** Steam's `CAppActivityStore` singleton. */
+export interface AppActivityStore {
+  m_mapAppActivity: Map<number, AppActivity>;
+  GetAppActivity(appid: number): AppActivity | undefined;
+  RestoreActivity(appid: number): Promise<void>;
+}
+
+/** Steam's in-memory `StoreItemCache` singleton. */
+export interface StoreItemCache {
+  m_mapApps: Map<number, any>;
+  GetStoreItemWithLegacyVisibilityCheck(appid: number, storeItemType: number): any;
+}
+
+/** One published file record in Steam's workshop store. */
+export interface PublishedFileRecord {
+  publishedfileid: string;
+  file_url: string;
+  preview_url: string;
+  file_description: string;
+  visibility: number;
+  creator: string;
+  time_created?: number;
+  image_width?: number;
+  image_height?: number;
+}
+
+/** Steam's `CWorkshopStore` singleton. */
+export interface WorkshopStore {
+  m_mapPublishedFiles: Map<string, { file?: PublishedFileRecord }>;
+  GetPublishedFiles(ids: string[]): Array<{ file?: PublishedFileRecord }>;
+}
+
+/** Steam's `CSteamID` shape. */
+export interface SteamID {
+  GetAccountID(): number;
+  ConvertTo64BitString(): string;
+  BIsValid(): boolean;
+}
+
+/** Steam's `CFriendStore` singleton. */
+export interface FriendStore {
+  currentUserSteamID?: SteamID;
+  GetFriendState?(steamid: SteamID): any;
+}
+
 // ---------------------------------------------------------------------------
 // Resolution — by prototype signature only, never by module id
 // ---------------------------------------------------------------------------
@@ -139,6 +208,62 @@ function gameRecordingService(): GameRecordingService | undefined {
   return resolveService<GameRecordingService>('CGameRecordingService', [
     'GetClips',
     'GetAndTrimPostGameHighlights',
+  ]);
+}
+
+/**
+ * `CAppActivityStore`. Resolved via global window object or by prototype methods.
+ */
+export function appActivityStore(): AppActivityStore | undefined {
+  const globalStore = Reflect.get(globalThis, 'appActivityStore') as AppActivityStore | undefined;
+  if (globalStore) return globalStore;
+  return resolveSingleton<AppActivityStore>('CAppActivityStore', [
+    'GetAppActivity',
+    'RestoreActivity',
+  ]);
+}
+
+/**
+ * `StoreItemCache`. Pure in-memory cache backing legacy store item visibility checks.
+ */
+export function storeItemCache(): StoreItemCache | undefined {
+  const globalCache = Reflect.get(globalThis, 'StoreItemCache') as StoreItemCache | undefined;
+  if (globalCache) return globalCache;
+  return resolveSingleton<StoreItemCache>('StoreItemCache', [
+    'GetStoreItemWithLegacyVisibilityCheck',
+  ]);
+}
+
+/**
+ * `CWorkshopStore`. Holds published file metadata for screenshots and videos.
+ */
+export function workshopStore(): WorkshopStore | undefined {
+  const globalWs = Reflect.get(globalThis, 'workshopStore') as WorkshopStore | undefined;
+  if (globalWs) return globalWs;
+  return resolveSingleton<WorkshopStore>('CWorkshopStore', [
+    'GetPublishedFiles',
+  ]);
+}
+
+/**
+ * `CFriendStore`. Provides currentUserSteamID and friend states.
+ */
+export function friendStore(): FriendStore | undefined {
+  const globalFs = Reflect.get(globalThis, 'friendStore') as FriendStore | undefined;
+  if (globalFs) return globalFs;
+  return resolveSingleton<FriendStore>('CFriendStore', [
+    'currentUserSteamID',
+    'GetFriendState',
+  ]);
+}
+
+/**
+ * The constructor for Steam's native screenshot event class (`V` in module 12750).
+ */
+export function screenshotEventClass(): any | undefined {
+  return resolveClass<any>('CScreenshotEvent', [
+    'AddScreenshot',
+    'GetCurrentPublishedFileID',
   ]);
 }
 

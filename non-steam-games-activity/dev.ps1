@@ -69,6 +69,9 @@ function Resolve-Pnpm {
   $onPath = Get-Command 'pnpm' -ErrorAction SilentlyContinue
   if ($onPath) { return $onPath.Source }
 
+  $corepack = Get-Command 'corepack' -ErrorAction SilentlyContinue
+  if ($corepack) { return $corepack.Source }
+
   throw "Could not find pnpm. Pass -Pnpm <path>, set `$env:PNPM_PATH, or install it (npm i -g pnpm)."
 }
 
@@ -143,7 +146,12 @@ try {
     Push-Location $PSScriptRoot
     try {
       Write-Host "Building with $pnpmExe ..."
-      & $pnpmExe millennium-ttc --build dev
+      if ($pnpmExe -match 'corepack') {
+        & $pnpmExe pnpm millennium-ttc --build dev
+      }
+      else {
+        & $pnpmExe millennium-ttc --build dev
+      }
       if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
     }
     finally {

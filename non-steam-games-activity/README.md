@@ -33,28 +33,28 @@ Captures come from Steam's own APIs, which work unmodified for a shortcut:
 the RPC boundary** for this page.
 
 Full trace: [docs/steam-components.md](../docs/steam-components.md).
-Decision: [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them).
+Decisions: [ADR-0022](../docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
+[ADR-0029](../docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning),
+and [ADR-0030](../docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing).
 
-**Big Picture is different, and does build its own UI.** It runs in a
-separate webpack bundle with its own module cache — the section-feeding
-technique above has no `CAppSpotlightStore` to reach from there. Instead,
-`renderers/gamepad-app.tsx` renders a small clone of the summary (styled with
-real Steam class names, resolved from the desktop bundle since the CSS itself
-is shared) and appends it directly into the Big Picture popup's document via
-`Steam.PopupManager` — a live cross-window `Window`/`document` reference that
-needs no Millennium injection. Decision:
-[ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
+**Big Picture uses the exact same store-feeding architecture.** Big Picture
+does not run in an isolated bundle — its popup window is mounted directly from
+`SharedJSContext` via `ReactDOM.createPortal`. The underlying section registry
+and stores (`appSpotlightStore`, `appActivityStore`, `StoreItemCache`) are identical.
+Feeding them automatically renders Steam's native components in Big Picture's
+"ACTIVITY" tab, complete with controller D-pad navigation, focus rings, and
+native media carousels.
 
 ## Status
 
-Post-game summary and library grid work in the live client. Verified from a
-clean Steam start:
+Post-game summary, per-day activity feed, and library grid work in the live client.
+Verified from a clean Steam start:
 
 | Case | Result |
 | --- | --- |
-| AM2R (4 screenshots + 3 clips) | 7 tiles, native panel, placeholder gone |
-| A shortcut with no captures | Steam's own placeholder kept, no empty panel |
-| Divinity: Original Sin 2 (native) | unaffected |
+| AM2R (4 screenshots + 3 clips) | Native summary carousel + 2-day activity feed, placeholder gone |
+| A shortcut with no captures | Steam's own placeholder kept, zero errors |
+| Divinity: Original Sin 2 (native) | Unaffected |
 
 On load the plugin logs:
 
@@ -64,45 +64,33 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 
 | Module | Does | State |
 | --- | --- | --- |
-| `steam/modules.ts` | Steam's webpack cache; resolve by signature, incl. class maps | ✅ verified in Steam |
-| `steam/sections.ts` | Restore the sections Steam hides | ✅ verified in Steam |
+| `steam/modules.ts` | Steam's webpack cache; resolve by signature | ✅ verified in Steam |
+| `steam/sections.ts` | Restore sections (`postgamesummary`, `activity`) | ✅ verified in Steam |
 | `steam/summary.ts` | Feed `CGamePlaySession`; provider API | ✅ verified in Steam |
-| `steam/stores.ts` | Typed store/service/payload shapes | ✅ verified in Steam |
+| `steam/activity.ts` | Feed `CAppActivityStore`, stub `StoreItemCache`, workshop URLs | ✅ verified in Steam |
+| `steam/stores.ts` | Typed store/service/payload shapes & resolvers | ✅ verified in Steam |
 | `steam/gameid.ts` | appid ↔ 64-bit gameid (BigInt) | ✅ matches real folders |
-| `renderers/library-app.tsx` | Publish/clear per app (desktop) | ✅ verified in Steam |
-| `renderers/gamepad-app.tsx` | Clone-and-hide summary strip (Big Picture) | 🧪 implemented, awaiting smoke test |
+| `renderers/library-app.tsx` | Publish/clear per app (Desktop & Big Picture) | ✅ verified in Steam |
 | `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts | ✅ verified in Steam |
 | `steam_paths.lua` | Find Steam root + active user | ✅ tested |
 | `shortcuts.lua` | Parse binary `shortcuts.vdf` | ✅ tested |
 | `captures.lua` | Parse `screenshots.vdf` (grid counts) | ✅ tested |
 | `gameid.lua` | appid ↔ gameid, decimal limbs | ✅ tested |
 | `rpc.lua` | `GetLibraryStats`, `GetDiagnostics` | ✅ shape tested |
-| Activity feed (per-day list) | In progress — see below | ⚠ |
 
-### The per-day activity feed (in progress)
+### The per-day activity feed
 
-Steam's ACTIVITY section can be restored the same way the summary was, and its
-day headings render correctly ("Yesterday", "Oct 24, 2025"). Every **event
-body** comes back empty, because the per-event renderer starts with:
+Steam's native `activity` section is restored alongside `postgamesummary`.
+The per-event renderer (`module 80478`) requires a store record (`lt()`), 32-bit
+`event.appid` resolution without float truncation, and `CActivityDay` container
+methods (`GetLatestEventTime`).
 
-```js
-if (appid && (!storeApp || !storeApp.BIsVisible())) return null;
-```
-
-`storeApp` is a **store** record, and a non-Steam game has none.
-
-That record turns out to be fakeable with no network call — `GetStoreItem` is a
-pure map read and `BIsVisible()` a plain field, so an object built with
-`Object.create` and inserted into the store's map satisfies the guard. Verified
-live. What remains is wiring it through the plugin's existing re-render path,
-and deciding whether injecting into Steam's shared store cache is acceptable.
-
-Steps and the risk note are in [TASK.md](../TASK.md).
-
-Until then the section stays off, and Steam's own "information is unavailable"
-box is left in place: it is accurate, and at normal window widths it is the only
-other thing in that column — removing it just leaves the page blank below the
-summary.
+`steam/activity.ts` satisfies these directly in memory without network access:
+- Injects an in-memory `StoreItem` stub into `StoreItemCache.m_mapApps`
+- Forces an exact 32-bit integer getter on `event.appid`
+- Implements `GetLatestEventTime()`, `SortEvents()`, and local midnight grouping on days
+- Registers loopback URLs into `workshopStore.m_mapPublishedFiles`
+- Drops the stock `nonsteam` placeholder box when captures exist (`REPLACED_SECTIONS`)
 
 ### Why the backend is small
 

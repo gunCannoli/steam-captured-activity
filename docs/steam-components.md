@@ -476,10 +476,9 @@ Two event types were checked specifically, in case one avoided the guard:
   `event.achievements`, needing no store data, so it _would_ work if the outer
   guard let it through. It does not.
 
-### The store record can be faked (**✅ verified**, not yet wired up)
+### How the blocker was cleared (**✅ verified live & shipped**)
 
-The guard is real but it is **not** the dead end an earlier pass of this
-document called it. Every piece it checks is plain data with no network path:
+The guard was cleared by satisfying Steam's store cache directly in memory, with no network path:
 
 ```js
 GetStoreItem(id, type) { ... return map.get(id) }   // pure map read, no fetch
@@ -487,56 +486,61 @@ BIsVisible()           { return this.m_bVisible }   // plain boolean field
 BHasStoreItem(id,t,r)  { return map.has(id) && map.get(id).BContainDataRequest(r) }
 ```
 
-And the React hook only calls `QueueStoreItemRequest` when `BHasStoreItem` is
-false — so a record that satisfies it means **no request is ever made**.
+And because the React hook only calls `QueueStoreItemRequest` when `BHasStoreItem` is
+false, an in-memory stub that satisfies it guarantees **no network request is ever made**.
 
-The class constructor takes a protobuf message, so build the record with
-`Object.create` on its prototype and set the fields directly:
+The implementation in `frontend/steam/activity.ts` resolves four specific runtime traps:
 
-```js
-const fake = Object.create(Object.getPrototypeOf(templateApp));
-fake.m_unID = fake.m_unAppID = appid;
-fake.m_bVisible = true;
-fake.m_strName = "<shortcut name>";
-fake.m_eItemType = tmpl.m_eItemType;
-fake.m_eAppType = tmpl.m_eAppType;
-fake.m_rgStoreTags = [];
-fake.m_rgStoreTagIDs = [];
-fake.m_DataRequested = {
-    include_assets: true,
-    include_platforms: true,
-    include_release: true,
-    include_tag_count: 0,
-};
-storeItemStore.m_mapApps.set(appid, fake);
-```
+1. **In-Memory Store Item Stubbing:**
+   Constructed via `Object.create(Object.getPrototypeOf(templateApp))` (or fallback object),
+   setting `m_unID = m_unAppID = appid`, `m_bVisible = true`, `m_strName = name`, and:
+   ```js
+   fake.m_DataRequested = {
+       include_assets: true,
+       include_platforms: true,
+       include_release: true,
+       include_tag_count: 0,
+   };
+   storeItemCache.m_mapApps.set(appid, fake);
+   ```
 
-Verified live for AM2R: `BIsVisible() === true`, `BHasStoreItem(…) === true`,
-`BIsAppMissing() === false`, and no network request.
+2. **The AppID Bitwidth / IEEE 754 Precision Trap:**
+   Event base class `E` (module `12750`) defines:
+   ```js
+   get appid() { return Number(this.gameid); }
+   ```
+   For a non-Steam game, `gameid` is 64-bit (`(appid << 32) | 0x02000000`). JavaScript `Number()`
+   loses integer precision above $2^{53} - 1$, turning e.g. AM2R's `18310622842007322624` into
+   `18310622842007323000`. When `lt()` queries `StoreItemCache` using that corrupted float, it
+   misses the cache and returns `undefined`.
+   **Fix:** Explicitly set `event.gameid = appid.toString()` and define an explicit property getter:
+   ```js
+   Object.defineProperty(event, 'appid', { get: () => appid, configurable: true });
+   ```
 
-**Where it stopped.** With the record in place and a real `CActivityDay` holding
-a valid event, the DOM still showed 0 days while the store reported
-`appActivityByDay.length === 1`. That is very likely the same stale-render
-problem already solved for the summary — the probe injected everything _after_
-the page rendered and did not force the re-render that `setHasContent()` does.
-Not retested with that wiring; it is the next step, not a new blocker.
+3. **The `GetLatestEventTime` Contract on `CActivityDay`:**
+   Module `80478` (`st` / `Sr`) calls `day.GetLatestEventTime()` to build the React component key
+   and header timestamp (`V._l(day.GetLatestEventTime(), true)`). If missing from a custom day
+   fallback, React crashes with `TypeError: e.GetLatestEventTime is not a function`.
+   **Fix:** Custom day objects must implement `GetLatestEventTime()`, `GetEarliestEventTime()`,
+   `SortEvents()`, and `BHasEvents()`.
 
-**Weigh the risk before shipping this.** Injecting into Steam's _store_ cache is
-more invasive than anything else the plugin does: that cache is shared with the
-store UI, so a bogus entry could surface somewhere unintended. Scope it to
-non-Steam appids, only while an app page is open, remove on teardown, and check
-the library and store pages are unaffected. If it leaks, prefer patching the
-guard's hook for shortcut appids over poisoning the cache.
+4. **Workshop Store Preview Resolution:**
+   The screenshot carousel component queries `workshopStore.GetPublishedFileRecord(publishedFileId)`.
+   Injecting records into `workshopStore.m_mapPublishedFiles` with `m_strPreviewUrl = strUrl`
+   supplies Steam's loopback screenshot URLs directly into the native viewer.
 
-**Meanwhile `activity` stays off**, because enabling it without this renders day
-headings with empty bodies. The Post-Game Summary already groups by day
-(`Today` / `Yesterday` / `Oct 24, 2025`), which covers much of the intent.
-
-Next steps: [TASK.md](../TASK.md).
+**Verified end to end (Desktop & Big Picture Mode):**
+- AM2R (4 screenshots across 2 dates): Renders native cards `"cannoliGun shared 2 screenshots"` on
+  Sep 20 and Oct 24, 2025, active loopback previews, carousel thumbnails, and "Load More Activity".
+- Controller D-pad navigation functions seamlessly in Big Picture Mode's "ACTIVITY" tab.
+- Empty case (ActRaiser, 0 captures): Keeps Steam's honest disclaimer box cleanly without errors.
+- Clean teardown: `clearActivity(appid)` purges all temporary in-memory records upon navigation away.
 
 Achievements for non-Steam games are out of scope regardless; if they ever
 arrive (custom sets, RetroAchievements), they are a provider concern
 ([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
+
 
 ### Comparison: `game-data-linker`'s different way around this same blocker
 

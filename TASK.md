@@ -15,13 +15,13 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Status
 
-| Area | State |
-| --- | --- |
-| Post-Game Summary (desktop) | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`. |
-| Library grid | ✅ Shipped. Last-played dates populated from captures. |
+| Area                            | State                                                                                                                                                                                                                               |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Post-Game Summary (desktop)     | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`.                                                                                                                                                                       |
+| Library grid                    | ✅ Shipped. Last-played dates populated from captures.                                                                                                                                                                              |
 | Post-Game Summary (Big Picture) | ✅ Shipped. Real Steam component via React Portal & store feeding ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)). |
-| Per-day Activity feed | 🔶 Blocked on a fakeable Steam store record; see below. |
-| Provider contract | ⬜ Not started (Phase 8). |
+| Per-day Activity feed           | ✅ Shipped. Real Steam component, fed via `steam/activity.ts` on Desktop and Big Picture ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)).      |
+| Provider contract               | ⬜ Not started (Phase 8).                                                                                                                                                                                                           |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
 
@@ -29,39 +29,22 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Next up
 
-### 1. Per-day Activity feed (Phase 3)
+### 1. Refresh & caching (Phase 7)
 
-Every event needs a Steam _store_ record the game doesn't have — but that
-record is fakeable with no network call (verified live). What's left: wire it
-through the plugin's existing publish/re-render path, decide on the injection
-risk, then feed real day/event objects from our captures.
+`onAppLaunch`→`onQuit` invalidation exists for the summary; extend mtime-keyed
+caching to `shortcuts.vdf` and captures index.
 
-- Working snippet, step-by-step, and the risk note:
-  [steam-components.md § The store record can be faked](docs/steam-components.md#the-store-record-can-be-faked-verified-not-yet-wired-up)
-- Also decided: drop the social chrome (post box, comments, ratings) for
-  non-Steam games — keep only the dated groups. Achievements are out of scope
-  for now; the achievement renderer needs no store record, so it'll work
-  whenever a provider supplies them.
-- Researched [sydhufen/game-data-linker](https://github.com/sydhufen/game-data-linker)
-  (does something that looks similar) — it avoids this blocker entirely by
-  linking a shortcut to a _real_ Steam/Epic/Xbox appid and reading that real
-  game's `appActivityStore`/`appAchievementProgressCache`, no faking needed.
-  Different product (borrowed metadata overlay vs. our own-capture-only
-  core); doesn't change our plan, but is a validated shape for a future
-  _optional_ linking provider. Full comparison:
-  [steam-components.md § Comparison: game-data-linker's different way around this same blocker](docs/steam-components.md#comparison-game-data-linkers-different-way-around-this-same-blocker).
+### 2. Provider contract (Phase 8)
 
-### Later
+Deferred until a real provider needs it — shape the contract from an actual
+consumer, not a guess. See
+[ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
+[ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently).
 
-- **Phase 7 — Refresh & caching.** `onAppLaunch`→`onQuit` invalidation exists
-  for the summary; extend mtime-keyed caching to `shortcuts.vdf`.
-- **Phase 8 — Provider contract.** Deferred until a real provider needs it —
-  shape the contract from an actual consumer, not a guess. See
-  [ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
-  [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently).
-- **Smoke test before v1.** Checklist lives in
-  [CHANGELOG.md](non-steam-games-activity/CHANGELOG.md); run it fully once
-  Big Picture is user-verified and the activity feed lands.
+### 3. Smoke test before v1
+
+Checklist lives in [CHANGELOG.md](non-steam-games-activity/CHANGELOG.md); run
+it fully once ready for release.
 
 ---
 
