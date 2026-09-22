@@ -3,7 +3,7 @@
 How to add a plugin to this workspace, develop it, and publish it as a
 standalone public repo.
 
-For *what* the plugins do and why, see [docs/architecture.md](architecture.md)
+For _what_ the plugins do and why, see [docs/architecture.md](architecture.md)
 and [docs/decisions.md](decisions.md). For Millennium's SDK mechanics in
 detail, see [docs/knowledgebase.md](knowledgebase.md) — this file is the
 procedure, not the reference.
@@ -50,13 +50,13 @@ mkdir -p <plugin-name>/{backend/_lib,frontend,tests}
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
-  "name": "<plugin-name>",
-  "common_name": "<Display Name>",
-  "description": "<one line>",
-  "version": "0.1.0",
-  "useBackend": true,
-  "backendType": "lua"
+    "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
+    "name": "<plugin-name>",
+    "common_name": "<Display Name>",
+    "description": "<one line>",
+    "version": "0.1.0",
+    "useBackend": true,
+    "backendType": "lua"
 }
 ```
 
@@ -138,28 +138,30 @@ Useful backend APIs: `millennium.steam_path()`, `millennium.get_user_settings()`
 
 ```json
 {
-  "scripts": {
-    "check": "tsc --noEmit",
-    "build": "millennium-ttc --build prod",
-    "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1"
-  },
-  "dependencies": {
-    "@steambrew/client": "^5.8.5",
-    "steambrew-utils": "0.0.0-beta-20260816131110"
-  },
-  "devDependencies": {
-    "@steambrew/ttc": "^2.8.7",
-    "typescript": "^5.9.3",
-    "oxfmt": "^0.53.0",
-    "oxlint": "^1.68.0"
-  }
+    "scripts": {
+        "check": "tsc --noEmit",
+        "build": "millennium-ttc --build prod",
+        "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1"
+    },
+    "dependencies": {
+        "@steambrew/client": "^5.8.5",
+        "steambrew-utils": "0.0.0-beta-20260816131110"
+    },
+    "devDependencies": {
+        "@steambrew/ttc": "^2.8.7",
+        "typescript": "^5.9.3",
+        "oxfmt": "^0.53.0",
+        "oxlint": "^1.68.0"
+    }
 }
 ```
 
 `frontend/index.tsx`'s default export is the load hook:
 
 ```tsx
-export default async function OnPluginLoaded() { /* register watchers */ }
+export default async function OnPluginLoaded() {
+    /* register watchers */
+}
 ```
 
 **Never hardcode Steam's CSS classes** — they are build-hashed and change between
@@ -169,8 +171,10 @@ translations so the UI looks native
 
 ```ts
 const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
-const formatDuration = findModuleExport((e) => e?.toString?.()?.includes('"#Played_"'));
-Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_PlayTime');
+const formatDuration = findModuleExport((e) =>
+    e?.toString?.()?.includes('"#Played_"'),
+);
+Steam.LocalizationManager.LocalizeString("#AppDetails_SectionTitle_PlayTime");
 ```
 
 ### Build nothing Steam already builds
@@ -186,13 +190,13 @@ looks "missing" for a non-Steam game is usually present and filtered out:
 
 ```js
 // Steam's app-details section registry
-e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"]);
 ```
 
 Everything behind that filter worked fine with a shortcut's appid the whole
 time. Restoring the section name and feeding Steam's own store produced the
 real component — pager, day separators, date labels, media viewer — and let us
-delete ~1200 lines of careful, tested, *unnecessary* reimplementation
+delete ~1200 lines of careful, tested, _unnecessary_ reimplementation
 ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 
 Before writing a component, go and look. The method is in
@@ -209,7 +213,7 @@ post-game summary is `CGamePlaySession.AddClip` /
 **3. Can you render Steam's real component yourself?**
 
 Resolve it out of Steam's module cache and render it directly, even if
-`@steambrew/client` does not export it. Also check what the SDK *does* export
+`@steambrew/client` does not export it. Also check what the SDK _does_ export
 first — `Carousel`, `SuspensefulImage`, `Focusable`/`FocusRing`, `Button`,
 `TextField`, `Panel`, `Tabs`, `Modal`, `Dropdown`, `SliderField`,
 `ToggleField` and more are real, shipped components. Reusing them means focus,
@@ -223,8 +227,8 @@ class — and hide Steam's original in that slot with one scoped rule:
 
 ```tsx
 <div data-mine="playtime" className={`${C.GameStat} ${C.Playtime} Panel`}>
-  <style>{`.${C.GameStat}.${C.Playtime}:not([data-mine]){display:none!important}`}</style>
-  {/* ...clone the rest of Steam's tree here... */}
+    <style>{`.${C.GameStat}.${C.Playtime}:not([data-mine]){display:none!important}`}</style>
+    {/* ...clone the rest of Steam's tree here... */}
 </div>
 ```
 
@@ -242,6 +246,7 @@ only shows populated stats.
 **Big Picture Mode (Gamepad UI) uses the exact same store-feeding architecture (Rung 2).**
 Earlier investigations assumed Big Picture was a separate bundle with unreachable stores (ADR-0023/ADR-0024).
 Live inspection (ADR-0029) proved otherwise:
+
 - The `Steam Big Picture Mode` popup window contains **no scripts or module bundle**. It is a bare `about:blank` window with `<div id="popup_target"></div>`.
 - Big Picture is rendered directly from `SharedJSContext` via `ReactDOM.createPortal`. Both Desktop and Big Picture share the same React runtime, section registry (`CAppDetailsSections`), and MobX store singletons (`appSpotlightStore`, `appActivityStore`, `StoreItemCache`).
 - Feeding Steam's stores automatically renders Steam's real native components in Big Picture's "ACTIVITY" tab (`Ge.T` for summary, `ae.W` for activity), with full controller D-pad navigation, focus rings, and responsive layouts.
@@ -271,7 +276,7 @@ fail on a future build. A failed resolve must degrade the page to stock, never
 crash it.
 
 If a project ends up with a dedicated stylesheet of hand-tuned colors, shadows
-and spacing meant to *look like* Steam, that is the signal something should
+and spacing meant to _look like_ Steam, that is the signal something should
 have been reused instead.
 
 Both the desktop client and Big Picture arrive through `onPopupCreate`; Big
@@ -331,7 +336,7 @@ repo documents a specific machine; the plugin folder does not.
 
 **Before the first publish:**
 
-- [ ] `README.md` written for *users* — what it does, install, configure. Not a
+- [ ] `README.md` written for _users_ — what it does, install, configure. Not a
       development log.
 - [ ] `CHANGELOG.md` has a real `[0.1.0]` entry with a date
 - [ ] `plugin.json` has `version`, `description`, and ideally `thumbnail`

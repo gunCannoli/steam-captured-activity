@@ -11,55 +11,77 @@ This repo is private and unversioned; entries are grouped by date.
 
 ### Added
 
+- **`docs/steam-architecture.md`** — Quick-reference directory and cheat sheet of
+  Steam's core webpack modules, backing stores (`appSpotlightStore`, `appActivityStore`,
+  `AppDetailsStore`, `StoreItemCache`), notification engine (`NotificationStore`),
+  game recording RPCs (`CGameRecordingService`), and high-level `SteamClient` APIs.
+- **`start-steam-dev.ps1`** — Root automation script to start Steam with CEF
+  debugging on port 8080, query active DevTools targets, and distinguish
+  `SharedJSContext` from popups.
+- **`docs/steam-debug.md`** — CEF DevTools guide covering target topology, console
+  filters, and Big Picture inspection traps.
+- **Native Achievement & Notification Research** — Verified live on port 8080:
+  - `AppDetailsStore.GetAchievements(appid)` (module `78057`) feeds the native
+    desktop achievements sidebar.
+  - `window.NotificationStore.OnNotification(id, NotificationType.Achievement, binaryPayload)`
+    dispatches genuine native achievement toasts with full sound and animation.
+  - `CGameRecordingService` (module `80026`) exposes `GameRecording.UserAddTimelineEntry#1`,
+    `GameRecording.SaveClip#1`, and `GameRecording.TakeScreenshot#1` for timeline markers,
+    instant highlight replays, and screenshot capture.
+  - `SteamClient.Apps.SetCustomArtworkForApp` sets portrait, hero, logo, and wide capsules.
+- **Reference Codebases Cloned** (`research/`):
+  - `research/game-data-linker`: Ingestion patterns for Epic/Xbox links, SteamGridDB artwork, and activity feeds.
+  - `research/PlayniteAchievements`: In-game monitoring architecture, rcheevos emulator log tailing, local RPCS3 trophy parsing (`TROPCONF.SFM`/`TROPUSR.DAT`), and sound customization.
+- **Native Activity Feed Restored** (ADR-0030) — In-memory `StoreItem` stubbing in
+  `StoreItemCache` satisfies Steam's `storeApp.BIsVisible()` event guard without network
+  calls. Unlocked chronological per-day activity feed cards on both Desktop and Big Picture.
+- **Big Picture React Portal Architecture** (ADR-0029) — Proved Big Picture runs
+  in the same `SharedJSContext` runtime as Desktop. Portals and store feeding supersede
+  DOM cloning completely.
+- **Section Registry Restoration** (ADR-0022) — Restoring `"postgamesummary"` and
+  `"activity"` in `CAppDetailsSections.prototype.GetSections` allowed deleting ~1200
+  lines of hand-built UI.
+
+### Changed
+
+- **`docs/steam-styles.md` purged & rewritten** — Deleted 150+ lines of obsolete
+  hand-measured pixel dimensions and gradients. The document now serves as a lean
+  guide reinforcing the rule: clone existing native blocks from CEF DevTools or reuse
+  native components; never author custom CSS to imitate Steam.
+- **`AGENTS.md` updated** — Incorporated `docs/steam-architecture.md` into the
+  required reading table, updated the styling agreement to forbid hand-written CSS,
+  and designated `CHANGELOG.md` as the repository's historical truth.
+- **`TASK.md` updated** — Expanded into a structured multi-session roadmap covering
+  Core Caching (Phase 4), Native Achievements (Phase 5), Achievement Notifications
+  (Phase 6), Auto-Captures & Timeline Markers (Phase 7), and Artwork/Metadata (Phase 8).
+- **`non-steam-games-activity/frontend/steam/sections.ts`** — Removed stale comments
+  claiming `activity` was disabled, documenting the ADR-0030 `StoreItemCache` solution.
+
+### Removed
+
+- Hand-built Big Picture clone (`renderers/gamepad-app.tsx`, ~280 lines) deleted.
+- Hand-built Desktop summary and carousel components (~800 lines) deleted.
+- Obsolete backend RPCs and timeline parsing (`timeline.lua`, `assets.lua`, ~700 lines) deleted.
+
+---
+
+## 2026-09-19
+
+### Added
+
 - **Workspace scaffolding** — `README.md`, `CHANGELOG.md`, `plugin.md`,
-  `.gitignore`, and per-plugin changelogs. Repo initialised and pushed to
-  GitHub as private.
-- **`plugin.md`** — how to create a plugin in this workspace and publish it as a
-  standalone public repo via `git subtree`. The split was dry-run verified: it
-  produces the plugin files at the repo root with no workspace docs and no
-  machine-specific data.
-- **`.gitattributes`** — LF in the repo for sources, CRLF for `.ps1`.
-- **`AGENTS.md`** — conventions, environment facts, and the two-identifier rule
-  that everything else depends on.
-- **`TASK.md`** — 9 phases through to a shipped first plugin, with a 15-row smoke
-  test and a definition of done.
+  `.gitignore`, and per-plugin changelogs.
 - **`docs/knowledgebase.md`** — Millennium SDK mechanics, Steam's local data
   formats (`shortcuts.vdf`, `screenshots.vdf`, `gamerecordings/`), and
-  RetroAchievements / RetroArch as provider sources. Facts marked ✅ were read
-  off a real install, not inferred from documentation.
-- **`docs/architecture.md`** — the core/provider split, data flow, module layout
-  and the provider contract.
-- **`docs/decisions.md`** — 17 ADRs.
+  RetroAchievements / RetroArch as provider sources.
+- **`docs/architecture.md`** — The core/provider split, data flow, module layout,
+  and provider contract.
+- **`docs/decisions.md`** — Initial set of architectural decisions (ADR-0001 through ADR-0017).
 
 ### Changed
 
 - **Restructured from a single retro-games plugin into a core plus providers**
-  (ADR-0012). The original design made RetroArch and RetroAchievements
-  structural, which excluded most of the library — including AM2R, the game that
-  motivated the project. Probing Steam's own capture store showed the core could
-  stand on exact arithmetic instead of fuzzy ROM matching, so providers became
-  optional enrichment.
-
-- **First live load.** The plugin builds, deploys and runs in Steam, reporting
-  223 shortcuts / 211 screenshots / 6 games with media — the same numbers the
-  test suite asserts offline.
-
-- **The first visible feature.** `non-steam-games-activity` now renders a real
-  activity page in Steam for non-Steam games, in place of the grey
-  "information is unavailable" placeholder.
-
-### Notes
-
-Key findings recorded during this period, all verified against a real install:
-
-- Steam stores non-Steam captures under a 64-bit `gameid`, derived from the
-  32-bit `appid` by `(appid << 32) | 0x02000000`. Verified on 9/9 folders.
-- **Recordings break that rule**: native Steam games key on the raw appid
-  (`clip_435150_…`) while non-Steam games use the composed gameid.
-- Recordings are MPEG-DASH (`session.mpd` + `.m4s` chunks), not mp4, but ship
-  with a ready-made `thumbnail.jpg`.
-- Big Picture is a separate popup window (`SP BPM_`), not a separate sandbox, so
-  it needs a second renderer but no backend changes (ADR-0016).
-- `steamloopback.host` is jailed to `<Steam>/steamui/` and cannot serve files
-  from `userdata/`, so capture images cross the RPC boundary as base64 data URIs
-  (ADR-0017 supersedes ADR-0015).
+  (ADR-0012). Probing Steam's own capture store showed the core could stand on exact
+  arithmetic instead of fuzzy ROM matching.
+- **First live load.** The plugin built, deployed, and ran in Steam, reporting 223
+  shortcuts and 211 screenshots.

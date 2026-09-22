@@ -1,6 +1,6 @@
 # Architecture
 
-How the plugin suite is put together. For *why*, see [decisions.md](decisions.md);
+How the plugin suite is put together. For _why_, see [decisions.md](decisions.md);
 for background facts, see [knowledgebase.md](knowledgebase.md).
 
 ---
@@ -178,16 +178,16 @@ own APIs replaced all of it (ADR-0022), so those methods, `timeline.lua`,
 `assets.lua` and the recording parsers were removed. Git history has them if the
 anything needs them back.
 
-| Method | Returns |
-| --- | --- |
+| Method              | Returns                                               |
+| ------------------- | ----------------------------------------------------- |
 | `GetLibraryStats()` | `{ "<appid>": { screenshots, newest } }` for the grid |
-| `GetDiagnostics()` | what the backend can see — check this first |
+| `GetDiagnostics()`  | what the backend can see — check this first           |
 
 What remains is the one thing Steam genuinely does not hold: evidence a shortcut
 was played, for games Steam never launched itself.
 
 The **provider** surface is separate and still to come (Phase 8); a provider
-contributes summary *events* through the frontend's `registerSummaryProvider`,
+contributes summary _events_ through the frontend's `registerSummaryProvider`,
 or data through its own RPC, and never renders markup
 ([ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it)).
 
@@ -210,27 +210,42 @@ The core passes everything it knows; the provider decides if it recognises the g
 ```jsonc
 // context — what the core gives every provider
 {
-  "appid": 2890139989,
-  "gameid": "12413045740871320064",
-  "name": "Zombies Ate My Neighbors",
-  "exe": "\"C:\\emu\\RetroArch\\retroarch.exe\" -L cores\\snes9x_libretro.dll \"C:\\emu\\roms\\snes\\Zombies Ate My Neighbors (USA).zip\"",
-  "launchOptions": "",
-  "tags": ["SNES"],
-  "since": 0
+    "appid": 2890139989,
+    "gameid": "12413045740871320064",
+    "name": "Zombies Ate My Neighbors",
+    "exe": "\"C:\\emu\\RetroArch\\retroarch.exe\" -L cores\\snes9x_libretro.dll \"C:\\emu\\roms\\snes\\Zombies Ate My Neighbors (USA).zip\"",
+    "launchOptions": "",
+    "tags": ["SNES"],
+    "since": 0,
 }
 ```
 
 ```jsonc
 // contribution — what a provider returns
 {
-  "status": "ok",              // ok | unsupported | needs-setup | error
-  "message": null,             // shown to the user when not "ok"
-  "stats":    [ { "label": "Play Time", "value": "2h 44m", "icon": "playtime" } ],
-  "timeline": [ { "type": "achievement", "at": 1766332001,
-                  "title": "Ridley's Lair", "icon": "https://…/Badge/12345.png",
-                  "image": "C:\\emu\\RetroArch\\screenshots\\…-cheevo-4620.png" } ],
-  "sections": [ { "id": "achievements", "title": "Achievements",
-                  "kind": "badge-grid", "order": 10, "data": { /* … */ } } ]
+    "status": "ok", // ok | unsupported | needs-setup | error
+    "message": null, // shown to the user when not "ok"
+    "stats": [{ "label": "Play Time", "value": "2h 44m", "icon": "playtime" }],
+    "timeline": [
+        {
+            "type": "achievement",
+            "at": 1766332001,
+            "title": "Ridley's Lair",
+            "icon": "https://…/Badge/12345.png",
+            "image": "C:\\emu\\RetroArch\\screenshots\\…-cheevo-4620.png",
+        },
+    ],
+    "sections": [
+        {
+            "id": "achievements",
+            "title": "Achievements",
+            "kind": "badge-grid",
+            "order": 10,
+            "data": {
+                /* … */
+            },
+        },
+    ],
 }
 ```
 
@@ -297,7 +312,7 @@ Community Hub content (there is no store page for a ROM). Two sources considered
   the exact hashes RetroArch playlists already carry
   ([knowledgebase.md](knowledgebase.md#playlists)), so no fuzzy name matching
   needed. Requires **two layers of credentials**: a developer id/password
-  (this plugin's own, requested once from screenscraper.fr) *and* an end
+  (this plugin's own, requested once from screenscraper.fr) _and_ an end
   user's own login (`ssid`/`sspassword`) — meaning **every user of this
   provider needs their own free ScreenScraper account**, not just an API key
   typed once. Rate limits scale with the user's contribution level to the
@@ -390,7 +405,7 @@ identically with full controller D-pad navigation, focus rings, and media carous
 
 **Serving local images** no longer needs base64 for the detail page. The
 constraint in [ADR-0017](decisions.md#adr-0017-serve-capture-images-as-base64-data-uris-thumbnails-first)
-was real — *our* plugin cannot serve files through `steamloopback.host` — but it
+was real — _our_ plugin cannot serve files through `steamloopback.host` — but it
 does not apply here, because **Steam serves its own captures over that origin**
 and hands us absolute URLs:
 
@@ -408,12 +423,12 @@ Steam does not already index.
 
 ## Caching & refresh
 
-| Data | Cached | Invalidated |
-| --- | --- | --- |
-| `shortcuts.vdf` parse | in-memory | file mtime |
-| `screenshots.vdf` parse | in-memory | file mtime |
-| Provider contributions | per appid, backend | on app quit, or TTL |
-| Provider network responses | provider's own disk cache | provider's policy |
+| Data                       | Cached                    | Invalidated         |
+| -------------------------- | ------------------------- | ------------------- |
+| `shortcuts.vdf` parse      | in-memory                 | file mtime          |
+| `screenshots.vdf` parse    | in-memory                 | file mtime          |
+| Provider contributions     | per appid, backend        | on app quit, or TTL |
+| Provider network responses | provider's own disk cache | provider's policy   |
 
 Primary refresh trigger is `onAppLaunch`'s `onQuit` — exactly when new screenshots and
 unlocks exist. No polling.
@@ -425,12 +440,12 @@ unlocks exist. No polling.
 The page degrades; it never blanks — that is the bug we are fixing
 ([ADR-0010](decisions.md#adr-0010-every-data-source-degrades-independently)).
 
-| Missing | Result |
-| --- | --- |
-| No providers installed | Steam screenshots, recordings, timeline — the core page |
-| Provider errors or hangs | Rendered without it; nothing user-visible |
-| Provider needs setup | Inline prompt in its own section only |
-| No captures for a game | Empty-state invitation, not Steam's grey box |
+| Missing                  | Result                                                  |
+| ------------------------ | ------------------------------------------------------- |
+| No providers installed   | Steam screenshots, recordings, timeline — the core page |
+| Provider errors or hangs | Rendered without it; nothing user-visible               |
+| Provider needs setup     | Inline prompt in its own section only                   |
+| No captures for a game   | Empty-state invitation, not Steam's grey box            |
 | Non-emulator game (AM2R) | Full core page; emulator providers return `unsupported` |
 
 ---

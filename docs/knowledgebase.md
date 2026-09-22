@@ -6,7 +6,7 @@ Reference material for building Millennium plugins, and the facts the
 upstream docs.
 
 - **Part 1 — Millennium**: the framework, SDK and plugin mechanics
-- **Part 2 — Steam's own data**: what the *core* plugin runs on
+- **Part 2 — Steam's own data**: what the _core_ plugin runs on
 - **Parts 3–5 — Provider sources**: RetroAchievements, RetroArch, and the join key
 
 ---
@@ -22,7 +22,7 @@ For a **non-Steam shortcut**, Steam shows a single grey box:
 > it is a non-Steam game or mod. Steam will still manage launching the game for you and
 > in most cases the in-game overlay will be available.
 
-The claim is misleading. Steam *does* have data for these apps — the same sidebar on
+The claim is misleading. Steam _does_ have data for these apps — the same sidebar on
 that very page lists "3 recordings and screenshots". Steam captured them, filed them
 under a per-game id, and then declined to build a page around them.
 
@@ -37,7 +37,7 @@ already has. Providers then enrich particular games on top of that.
 
 Millennium is an open-source framework that injects custom themes and plugins into
 the **desktop Steam Client**. Steam's UI is Chromium/CEF running a React app;
-Millennium hooks that runtime so plugin code executes *inside* Steam's UI with access
+Millennium hooks that runtime so plugin code executes _inside_ Steam's UI with access
 to Steam's own React instance, stores, and components.
 
 Installed version here: **v3.4.1** (`MillenniumInstaller-Windows.exe` in `C:\game`).
@@ -46,11 +46,11 @@ Installed version here: **v3.4.1** (`MillenniumInstaller-Windows.exe` in `C:\gam
 
 A plugin has up to three parts, each in a different sandbox:
 
-| Part | Runs in | Language | Can do |
-| --- | --- | --- | --- |
-| **backend** | Native process, LuaJIT | Lua | Full filesystem, HTTP, OS access |
-| **frontend** | Steam's UI (CEF) | TS + React | Steam React, stores, DOM of the client |
-| **webkit** | Steam's browser views (store, community) | Plain TS | DOM only, no React |
+| Part         | Runs in                                  | Language   | Can do                                 |
+| ------------ | ---------------------------------------- | ---------- | -------------------------------------- |
+| **backend**  | Native process, LuaJIT                   | Lua        | Full filesystem, HTTP, OS access       |
+| **frontend** | Steam's UI (CEF)                         | TS + React | Steam React, stores, DOM of the client |
+| **webkit**   | Steam's browser views (store, community) | Plain TS   | DOM only, no React                     |
 
 The frontend and webkit live in Chromium's sandbox, so **anything touching the disk
 or the network must go through the backend**. That single constraint drives most of
@@ -79,18 +79,18 @@ my-plugin/
 
 Fields, from the [official schema](https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json) (**✅ verified** — note the path is `src/system/`, not the `src/sys/` that published plugins reference in their `$schema` key; that URL 404s):
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `name` | string | **Required.** Internal unique id. Must not shadow another plugin. |
-| `common_name` | string | Display name in Settings → Plugins |
-| `description` | string | — |
-| `version` | string | — |
-| `useBackend` | boolean | If true, a `backend` folder must exist |
-| `backend` | string | Custom backend dir (default `backend`) |
-| `frontend` | string | Custom frontend dir (default `frontend`) |
-| `include` | string[] | Extra relative paths to bundle into the distribution |
-| `thumbnail` | string | 16:9, min 512×288, absolute URL |
-| `splash_image` | string | 16:9, min 1920×1080, absolute URL |
+| Field          | Type     | Notes                                                             |
+| -------------- | -------- | ----------------------------------------------------------------- |
+| `name`         | string   | **Required.** Internal unique id. Must not shadow another plugin. |
+| `common_name`  | string   | Display name in Settings → Plugins                                |
+| `description`  | string   | —                                                                 |
+| `version`      | string   | —                                                                 |
+| `useBackend`   | boolean  | If true, a `backend` folder must exist                            |
+| `backend`      | string   | Custom backend dir (default `backend`)                            |
+| `frontend`     | string   | Custom frontend dir (default `frontend`)                          |
+| `include`      | string[] | Extra relative paths to bundle into the distribution              |
+| `thumbnail`    | string   | 16:9, min 512×288, absolute URL                                   |
+| `splash_image` | string   | 16:9, min 1920×1080, absolute URL                                 |
 
 `backendType: "lua"` is **not in the published schema** but is used by every current
 plugin (**✅ verified** in the installed `achievement-groups` plugin and in the
@@ -137,9 +137,9 @@ The reference plugin's wrapper (**✅ verified**, `frontend/rpc.ts`):
 
 ```ts
 async function call<R>(route: `RPC.${string}`, payload: object): Promise<R> {
-  return Millennium.callServerMethod(route.slice(4), {
-    payload: JSON.stringify(payload),
-  }).then((r) => JSON.parse(r));
+    return Millennium.callServerMethod(route.slice(4), {
+        payload: JSON.stringify(payload),
+    }).then((r) => JSON.parse(r));
 }
 ```
 
@@ -184,7 +184,7 @@ Key exports used by this plugin:
 > valid only when no real component is reachable and Steam models no data you
 > can write to. Try, in order: restore a section Steam already renders but
 > filters out by app type → feed Steam's own store → render Steam's real
-> component from its module cache → *then* clone.
+> component from its module cache → _then_ clone.
 >
 > That ordering is not theoretical. The Post-Game Summary was built with the
 > technique below, cloned faithfully, passed testing — and was still deleted,
@@ -233,26 +233,33 @@ attribute:
 const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
 
 export function Playtime({ minutesForever }: { minutesForever: number }) {
-  return (
-    <div data-nsp="playtime" className={`${PlayBar.GameStat} ${PlayBar.Playtime} Panel`}>
-      {/* Hide Steam's REAL element (the one without data-nsp) in this exact
+    return (
+        <div
+            data-nsp="playtime"
+            className={`${PlayBar.GameStat} ${PlayBar.Playtime} Panel`}
+        >
+            {/* Hide Steam's REAL element (the one without data-nsp) in this exact
           slot; our clone (which HAS data-nsp) stays visible. */}
-      <style>{`.${PlayBar.GameStat}.${PlayBar.Playtime}:not([data-nsp]){display:none!important}`}</style>
-      <div className={`${PlayBar.GameStatIcon} ${PlayBar.PlaytimeIcon}`}>
-        <PlayTimeIcon />
-      </div>
-      <div className={PlayBar.GameStatRight}>
-        <div className={PlayBar.PlayBarLabel}>
-          {Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_PlayTime')}
+            <style>{`.${PlayBar.GameStat}.${PlayBar.Playtime}:not([data-nsp]){display:none!important}`}</style>
+            <div className={`${PlayBar.GameStatIcon} ${PlayBar.PlaytimeIcon}`}>
+                <PlayTimeIcon />
+            </div>
+            <div className={PlayBar.GameStatRight}>
+                <div className={PlayBar.PlayBarLabel}>
+                    {Steam.LocalizationManager.LocalizeString(
+                        "#AppDetails_SectionTitle_PlayTime",
+                    )}
+                </div>
+                <div className={PlayBar.PlayBarDetailLabel}>
+                    {formatDuration(minutesForever)}
+                </div>
+            </div>
         </div>
-        <div className={PlayBar.PlayBarDetailLabel}>{formatDuration(minutesForever)}</div>
-      </div>
-    </div>
-  );
+    );
 }
 ```
 
-The `:not([data-nsp])` selector is precise: it hides only the *unmarked*
+The `:not([data-nsp])` selector is precise: it hides only the _unmarked_
 element sharing the same two classes — Steam's real (and, for a non-Steam game,
 empty/hidden-by-Steam) node — never our own clone. Because the injected
 `<style>` is scoped by that same class pair, it cannot leak into unrelated parts
@@ -272,12 +279,16 @@ classes, not a custom icon.
 
 ```ts
 // Steam's own relative-date and duration formatters, found by source text
-const formatRelativeDate = findModuleExport((e) => e?.toString?.()?.includes('"#Time_Today"'));
-const formatDuration     = findModuleExport((e) => e?.toString?.()?.includes('"#Played_"'));
+const formatRelativeDate = findModuleExport((e) =>
+    e?.toString?.()?.includes('"#Time_Today"'),
+);
+const formatDuration = findModuleExport((e) =>
+    e?.toString?.()?.includes('"#Played_"'),
+);
 ```
 
 ```ts
-Steam.LocalizationManager.LocalizeString('#AppDetails_SectionTitle_LastPlayed')
+Steam.LocalizationManager.LocalizeString("#AppDetails_SectionTitle_LastPlayed");
 ```
 
 Using these means the plugin inherits Steam's fonts, spacing, colors, date formats,
@@ -417,7 +428,7 @@ Things this corrects versus a from-scratch guess:
 - Both tile types set `aspect-ratio: 1.77778 / 1` (16:9) as an inline style
   rather than fixed pixel `width`/`height` — sizing is fluid, not a hardcoded
   `224×126` box. (The `224×126` figure recorded elsewhere in this doc is one
-  observed *rendered* size at one window width, not the authored size.)
+  observed _rendered_ size at one window width, not the authored size.)
 - `TypeSeparator` and `ForcedCarouselPadding` are empty, presentation-only
   `div`s carrying `data-carousel="ignore"` (almost certainly a hint to Steam's
   own carousel/paging math to skip them when measuring item positions) — they
@@ -429,13 +440,13 @@ Things this corrects versus a from-scratch guess:
 Building against the tree above, every class name was resolved with **one**
 `findClassModule('SummaryCarouselContainer')` call, on the assumption that
 because `PostGameSummaryClip`, `PageableContainer`, `GamePlaySummaryHeader`,
-etc. all appear in the *same captured `outerHTML`*, they live in the same
+etc. all appear in the _same captured `outerHTML`_, they live in the same
 webpack CSS module and one probe key would resolve all of them.
 
 **That assumption is false, and it fails silently.** `findClassModule` returns
 `undefined` for a key not present in the module it found, React then renders
 that element with **no class attribute at all**, and the element loses every
-rule that class carried — `position`, sizing, everything. The *symptom* was a
+rule that class carried — `position`, sizing, everything. The _symptom_ was a
 clip tile rendering at the full width of its flex row instead of a contained
 16:9 thumbnail; `tile.className` in the live DOM was just `"Panel"`.
 
@@ -445,38 +456,44 @@ by walking Steam's own webpack module cache directly rather than guessing:
 ```js
 // From a CEF devtools console on SharedJSContext:
 let req;
-window.webpackChunksteamui.push([[Symbol()], {}, (r) => { req = r; }]);
+window.webpackChunksteamui.push([
+    [Symbol()],
+    {},
+    (r) => {
+        req = r;
+    },
+]);
 
 // Find every module factory whose SOURCE mentions a class name:
 const hits = [];
 for (const id in req.m) {
-  if (req.m[id].toString().includes('PostGameSummaryClip')) hits.push(id);
+    if (req.m[id].toString().includes("PostGameSummaryClip")) hits.push(id);
 }
 
 // Execute one and inspect its real exports:
 const exports = req(Number(hits[0]));
-Object.keys(exports.default ?? exports);   // the module's actual key set
+Object.keys(exports.default ?? exports); // the module's actual key set
 ```
 
 Result for this page:
 
-| Module (probe key that finds it) | Also exports |
-| --- | --- |
-| `SummaryCarouselContainer` | `SummaryCarouselScrollingContainer`, `GamePlaySummaryHeader`, `SummaryContainer`, `SummaryContainerChildren`, `SummaryScreenshot`, `EventHeaderBlock`, `TypeSeparator`, `ForcedCarouselPadding` |
-| `PageableContainer` | `HeaderPageControls`, `PageClickContainer`, `PageLeft`, `PageRight`, `PageableCloseButton`, `Disabled`, `Small` |
-| `PostGameSummaryClip` | `ClipThumbnail`, `CornerContent`, `DurationText` |
-| `ClickableScreenshotImg` | `ClickableScreenshot`, `ScreenshotShareIcon`, `UseWidth`, `UseHeight` |
+| Module (probe key that finds it) | Also exports                                                                                                                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SummaryCarouselContainer`       | `SummaryCarouselScrollingContainer`, `GamePlaySummaryHeader`, `SummaryContainer`, `SummaryContainerChildren`, `SummaryScreenshot`, `EventHeaderBlock`, `TypeSeparator`, `ForcedCarouselPadding` |
+| `PageableContainer`              | `HeaderPageControls`, `PageClickContainer`, `PageLeft`, `PageRight`, `PageableCloseButton`, `Disabled`, `Small`                                                                                 |
+| `PostGameSummaryClip`            | `ClipThumbnail`, `CornerContent`, `DurationText`                                                                                                                                                |
+| `ClickableScreenshotImg`         | `ClickableScreenshot`, `ScreenshotShareIcon`, `UseWidth`, `UseHeight`                                                                                                                           |
 
 Note in particular: `GamePlaySummaryHeader` is **only** in the first module —
-a second bug in the same session came from reading it off the *second* map
+a second bug in the same session came from reading it off the _second_ map
 (`PageableContainer`'s), which has no such key, silently rendering the header
 with an empty class. `HeaderPageControls` (the real parent, which DID resolve)
 absorbed the blame at first because a `textContent`-based debugging query
-matched the nearest *classed* ancestor of the now-classless header text.
+matched the nearest _classed_ ancestor of the now-classless header text.
 
 **The rule going forward:** resolve one `findClassModule` probe per module,
 never assume co-occurrence in a DOM capture implies co-membership, and when a
-resolved class's effect looks wrong, dump the *whole* object
+resolved class's effect looks wrong, dump the _whole_ object
 (`console.log(SomeClasses)` or the CDP snippet above) and check every name
 against it by exact match — do not trust that a name "sounds like" it belongs.
 
@@ -493,8 +510,8 @@ hash. Several are **two-token strings already**, e.g. (from `PageableClasses`,
 probe `PageableContainer`):
 
 ```js
-PageableClasses.Small               // "_3qlJ0L41KQFqUTzVQKFERC Small"
-PageableClasses.PageableCloseButton // "_2dB1oJFsqNThak1cFya2-q PageableCloseButton"
+PageableClasses.Small; // "_3qlJ0L41KQFqUTzVQKFERC Small"
+PageableClasses.PageableCloseButton; // "_2dB1oJFsqNThak1cFya2-q PageableCloseButton"
 ```
 
 Passing the literal string `'Small'` instead of `PageableClasses.Small` drops
@@ -535,7 +552,7 @@ rather than re-discovering:
    browser's smooth-scroll for this reason — it animates `scrollLeft` by hand
    via its own small animation helper
    (`new SomeAnimator(el, {scrollLeft}, {msDuration:500,
-   timing:"cubic-in-out"})`). `non-steam-games-activity` now does the same
+timing:"cubic-in-out"})`). `non-steam-games-activity` now does the same
    (`animateScrollLeft` in `frontend/components/carousel.tsx`): a plain
    `requestAnimationFrame` loop easing `scrollLeft` from its current value to
    the target over 500ms.
@@ -576,7 +593,7 @@ source text for `PageLeft`/`PageRight` co-occurrence, then for
   → `HeaderPageControls` (title, then `PageClickContainer` holding
   `PageLeft`/`PageRight`/`PageableCloseButton`) → `PageableContent`. Its
   `children` prop is a **render-prop function**, `(ref, fnUpdateArrows) =>
-  ReactNode`, not plain JSX children — it owns `bLeftArrowEnabled`/
+ReactNode`, not plain JSX children — it owns `bLeftArrowEnabled`/
   `bRightArrowEnabled` as internal state, computed from whatever calls the
   `fnUpdateArrows` it hands its render-prop, and **only renders the
   `PageLeft`/`PageRight` fragment in the tree at all when at least one is
@@ -587,7 +604,7 @@ source text for `PageLeft`/`PageRight` co-occurrence, then for
   re-checks overflow on any size change, `UpdateScrollArrows` computes
   `bLeftEnabled`/`bRightEnabled` from `scrollLeft`/`clientWidth`/
   `scrollWidth` (`scrollLeft >= 1` for left; `scrollLeft + clientWidth <
-  scrollWidth` for right) and reports them via `fnUpdateArrows`,
+scrollWidth` for right) and reports them via `fnUpdateArrows`,
   `ScrollLeft`/`ScrollRight` walk the DOM children to find the next/previous
   tile not already fully visible and scroll to its leading edge (not a fixed
   pixel amount, not a full page), and `componentDidUpdate` re-runs the
@@ -600,27 +617,29 @@ Real usage, decompiled from the actual Post-Game Summary component (module
 
 ```jsx
 <Pageable
-  name="Post-Game Summary"
-  bNoHeader={isShortSummary}       // false whenever any real tile exists
-  customheader={<div className={SummaryClasses.GamePlaySummaryHeader}>
-    Post-Game Summary
-  </div>}
-  bShowCloseButton={true}
-  onCloseButtonClicked={dismiss}
-  buttonSize="small"
-  headerPadding="0px 8px 0px 0px"
+    name="Post-Game Summary"
+    bNoHeader={isShortSummary} // false whenever any real tile exists
+    customheader={
+        <div className={SummaryClasses.GamePlaySummaryHeader}>
+            Post-Game Summary
+        </div>
+    }
+    bShowCloseButton={true}
+    onCloseButtonClicked={dismiss}
+    buttonSize="small"
+    headerPadding="0px 8px 0px 0px"
 >
-  {(ref, fnUpdateArrows) => (
-    <Carousel
-      className={SummaryClasses.SummaryCarouselContainer}
-      leftMargin={32}
-      ref={ref}
-      fnUpdateArrows={fnUpdateArrows}
-      edgeMask="none"
-    >
-      {tiles}
-    </Carousel>
-  )}
+    {(ref, fnUpdateArrows) => (
+        <Carousel
+            className={SummaryClasses.SummaryCarouselContainer}
+            leftMargin={32}
+            ref={ref}
+            fnUpdateArrows={fnUpdateArrows}
+            edgeMask="none"
+        >
+            {tiles}
+        </Carousel>
+    )}
 </Pageable>
 ```
 
@@ -635,7 +654,7 @@ this, both worth flagging for the next thing that renders it:
 - `bNoHeader` is not a "hide `Pageable`'s default header, still show my
   `customheader`" flag — reading `Pageable`'s own source
   (`!this.props.bNoHeader && <div className={HeaderPageControls}>{customheader
-  ? customheader : <defaultHeader/>}</div>`) shows it gates the **entire**
+? customheader : <defaultHeader/>}</div>`) shows it gates the **entire**
   header div, `customheader` included. The real caller only ever sets it
   `true` for a "short" summary made up entirely of multi-achievement groups
   (rendering that same header as a plain sibling above `Pageable` instead) —
@@ -660,17 +679,21 @@ not a hand-rolled webpack walk), filtered by a **stable signature over each
 component's real `prototype` method names**:
 
 ```js
-const RealPageable = findModuleExport((m) =>
-  typeof m === 'function' &&
-  typeof m.prototype?.OnUpdateArrows === 'function' &&
-  typeof m.prototype?.ScrollToFirstChild === 'function' &&
-  typeof m.prototype?.onCloseButtonClicked === 'function');
+const RealPageable = findModuleExport(
+    (m) =>
+        typeof m === "function" &&
+        typeof m.prototype?.OnUpdateArrows === "function" &&
+        typeof m.prototype?.ScrollToFirstChild === "function" &&
+        typeof m.prototype?.onCloseButtonClicked === "function",
+);
 
-const RealCarousel = findModuleExport((m) =>
-  typeof m === 'function' &&
-  typeof m.prototype?.BindScrollingContainer === 'function' &&
-  typeof m.prototype?.UpdateScrollArrows === 'function' &&
-  typeof m.prototype?.ScheduleUpdateScrollArrows === 'function');
+const RealCarousel = findModuleExport(
+    (m) =>
+        typeof m === "function" &&
+        typeof m.prototype?.BindScrollingContainer === "function" &&
+        typeof m.prototype?.UpdateScrollArrows === "function" &&
+        typeof m.prototype?.ScheduleUpdateScrollArrows === "function",
+);
 ```
 
 Real class method names are **not** mangled by Steam's minifier — only
@@ -686,18 +709,19 @@ update renames every method this filter checks — degraded, not crashed.
 The pager chevron itself (`PageLeft`/`PageRight`'s icon) was identified the
 same source-reading way — module `50376`, the function Steam calls with
 `singlearrow={true}`: passing that prop skips rendering the icon's second
-`<polyline>` (a double-chevron by default; Steam's *other* uses of the same
+`<polyline>` (a double-chevron by default; Steam's _other_ uses of the same
 icon component, e.g. a "skip to end" control, presumably want both).
 `angle={0}` / `angle={180}` rotate the same left-pointing path via an inline
 `transform: rotate(...)`, rather than two different paths for left vs right
+
 - moot for `non-steam-games-activity` now that the real `Pageable` supplies
-this icon itself, but worth recording for whatever eventually needs this
-same icon component directly (e.g. a "skip to end" control elsewhere).
+  this icon itself, but worth recording for whatever eventually needs this
+  same icon component directly (e.g. a "skip to end" control elsewhere).
 
 `CarouselClasses` (probe `BoxCarousel`) was the fifth resolved class module
 found while building that reimplementation. **All five are now gone**, along
 with `classes.ts` itself: Steam renders the summary, so nothing needs
-resolving. The finding is kept here because the *method* — verifying
+resolving. The finding is kept here because the _method_ — verifying
 co-membership by walking the module cache — remains correct, and because the
 count itself is the argument: five modules of fragile lookups to reproduce
 something Steam was already willing to draw.
@@ -717,7 +741,7 @@ game's data without complaint.
 section registry:
 
 ```js
-e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"])
+e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"]);
 ```
 
 Three sections instead of eighteen. Nothing behind the filter objects to a
@@ -728,8 +752,8 @@ shortcut's appid — the components and stores work, they are simply never asked
 a shortcut and return absolute `steamloopback.host` URLs Steam serves itself:
 
 ```js
-await SteamClient.Apps.GetScreenshotsInTimeRange(appid, since, 0)   // 32-bit appid
-await service.GetClips({ game_id: gameid, created_after: since })   // 64-bit gameid
+await SteamClient.Apps.GetScreenshotsInTimeRange(appid, since, 0); // 32-bit appid
+await service.GetClips({ game_id: gameid, created_after: since }); // 64-bit gameid
 ```
 
 **Steam's own gameid helper truncates to 32 bits.** `bY(4263274102)` returns
@@ -740,11 +764,11 @@ game. Compose the gameid yourself.
 **Three traps when patching a store or registry method:**
 
 1. **`GetSections` returns its memo, not the set it just built**, and compares
-   that cache **by size alone**. Mutate the returned set *in place*; a local
+   that cache **by size alone**. Mutate the returned set _in place_; a local
    copy is discarded on a cache hit, and a swap that keeps the count identical
    (one added, one removed) is ignored unless you refresh the memo.
 2. **Async data arrives after the first render.** Nothing tells a MobX observer
-   to re-run when *your* state changes, because it observes Steam's stores, not
+   to re-run when _your_ state changes, because it observes Steam's stores, not
    yours. Track the live component instances and `forceUpdate` them.
 3. **A DOM probe can report success while the page looks wrong.** Verify with a
    screenshot. This exact mismatch — correct section set, stale rendered page —
@@ -756,7 +780,7 @@ Steam assigns shortcuts very high app ids. The SDK exposes the boundary as
 `NON_STEAM_APP_APPID_MASK`; the idiom is:
 
 ```ts
-if (app.appid < NON_STEAM_APP_APPID_MASK) return;  // a real Steam game — skip
+if (app.appid < NON_STEAM_APP_APPID_MASK) return; // a real Steam game — skip
 ```
 
 ### Three integration points (all proven by the reference plugin)
@@ -764,7 +788,7 @@ if (app.appid < NON_STEAM_APP_APPID_MASK) return;  // a real Steam game — skip
 1. **Library home / grid** — `beforePatch(Steam.CollectionStore, 'OnAppOverviewChange')`,
    then write onto the app overview objects before Steam renders them. This is how the
    reference plugin makes non-Steam playtime appear in the library list. Patching the
-   *data* is far more robust than patching the DOM.
+   _data_ is far more robust than patching the DOM.
 
 2. **App detail page** — watch `/library/app/<appid>` via `onPopupCreate` +
    `onLocationChange`. **What you do next depends on whether Steam already has
@@ -825,9 +849,9 @@ window architecture plainly, independent of our own reverse-engineering:
 
 This is exactly the shape ADR-0024 found by testing (`Steam.PopupManager` from
 `SharedJSContext` gives a live `Window`/`document` for the Big Picture popup, no Millennium
-injection needed) — Big Picture is just another one of these spawned child windows ("SP BPM_"),
+injection needed) — Big Picture is just another one of these spawned child windows ("SP BPM\_"),
 with its DOM separate but no independent code of its own. Confirms this isn't a Big-Picture-
-specific quirk; it's how *every* Steam window relates to `SharedJSContext`, Big Picture included.
+specific quirk; it's how _every_ Steam window relates to `SharedJSContext`, Big Picture included.
 
 #### `onPopupCreate` / `PopupType` / `Steam.PopupManager` are undocumented upstream
 
@@ -888,10 +912,10 @@ needs no configuration.
 Steam uses **two different ids** for one non-Steam game, and mixing them up breaks
 everything:
 
-| Id | Width | Where it appears |
-| --- | --- | --- |
-| **appid** | 32-bit | `shortcuts.vdf`, library URL `/library/app/<appid>`, `AppOverview.appid` |
-| **gameid** | 64-bit | screenshot folder names, `screenshots.vdf`, recordings |
+| Id         | Width  | Where it appears                                                         |
+| ---------- | ------ | ------------------------------------------------------------------------ |
+| **appid**  | 32-bit | `shortcuts.vdf`, library URL `/library/app/<appid>`, `AppOverview.appid` |
+| **gameid** | 64-bit | screenshot folder names, `screenshots.vdf`, recordings                   |
 
 The conversion is exact:
 
@@ -905,14 +929,14 @@ appid  = gameid >> 32
 **✅ Verified** against all 9 non-Steam screenshot folders here — the low word was
 `33554432` in every single case, and the high word matched a shortcut appid:
 
-| Folder (gameid) | appid | Resolves to |
-| --- | --- | --- |
-| `18310622842007322624` | 4263274102 | AM2R - Another Metroid 2 Remake |
-| `18118536687461072896` | 4218550559 | Super Metroid Vitality |
-| `13849926725288329216` | 3224687354 | Hyper Metroid |
-| `13910469344501956608` | 3238783531 | Metroid Prime Trilogy |
+| Folder (gameid)        | appid      | Resolves to                             |
+| ---------------------- | ---------- | --------------------------------------- |
+| `18310622842007322624` | 4263274102 | AM2R - Another Metroid 2 Remake         |
+| `18118536687461072896` | 4218550559 | Super Metroid Vitality                  |
+| `13849926725288329216` | 3224687354 | Hyper Metroid                           |
+| `13910469344501956608` | 3238783531 | Metroid Prime Trilogy                   |
 | `13646487632148955136` | 3177320499 | The Legend of Zelda: Breath of the Wild |
-| 4 others | — | removed from library since |
+| 4 others               | —          | removed from library since              |
 
 Folders for removed shortcuts persist, so **always tolerate a gameid with no matching
 shortcut** — show it, or skip it, but do not crash.
@@ -956,8 +980,8 @@ userdata/<userid>/760/
 `creation` is **unix seconds** — the activity timeline needs nothing else. `filename`
 and `thumbnail` are relative to `userdata/<userid>/760/remote/`.
 
-> **Parser trap (cost us a real bug).** What distinguishes a *game* key from a
-> *screenshot index* key is **nesting depth**, not the key's appearance. A Steam
+> **Parser trap (cost us a real bug).** What distinguishes a _game_ key from a
+> _screenshot index_ key is **nesting depth**, not the key's appearance. A Steam
 > appid (`"238960"`) is the same shape as a screenshot index (`"0"`), so any
 > digit-length heuristic misclassifies it and silently merges one game's
 > screenshots into the previously-open game. Track brace depth: game keys sit at
@@ -966,12 +990,12 @@ and `thumbnail` are relative to `userdata/<userid>/760/remote/`.
 
 Measured here:
 
-| Metric | Value |
-| --- | --- |
-| Games in `screenshots.vdf` | 33 (27 Steam, **6 non-Steam**) |
-| Non-Steam screenshots indexed | **211** |
-| Present on disk | **211 / 211 (100%)** |
-| Date range | 2025-10-15 → 2026-06-24 |
+| Metric                        | Value                          |
+| ----------------------------- | ------------------------------ |
+| Games in `screenshots.vdf`    | 33 (27 Steam, **6 non-Steam**) |
+| Non-Steam screenshots indexed | **211**                        |
+| Present on disk               | **211 / 211 (100%)**           |
+| Date range                    | 2025-10-15 → 2026-06-24        |
 
 Note: an index entry can outlive its file, so **stat before listing**. It happened to
 be 100% here; that is not a guarantee.
@@ -1030,9 +1054,10 @@ field 13 varint  height            1080
 ```
 
 Prefer `session.field 3` for "when this was played"; top-level `field 3` is when the
-clip was *saved*, a few seconds later.
+clip was _saved_, a few seconds later.
 
 > **Protobuf parsing traps** (both hit during implementation):
+>
 > - A length-delimited field is a **string or a nested message** — the wire format
 >   does not say which. Recursing into every one of them misreads a string's bytes as
 >   field tags. Re-parse only fields you know are messages (here: 1, and 5 within it).
@@ -1044,12 +1069,23 @@ clip was *saved*, a few seconds later.
 `starttime`, `endtime` (ms) and an `entries` array of markers:
 
 ```json
-{ "daterecorded": "1789835832", "starttime": "0", "endtime": "28064",
-  "entries": [ { "id": "1", "time": "19803", "type": "usermarker",
-                 "icon": "steam_marker", "possible_clip": 2 } ] }
+{
+    "daterecorded": "1789835832",
+    "starttime": "0",
+    "endtime": "28064",
+    "entries": [
+        {
+            "id": "1",
+            "time": "19803",
+            "type": "usermarker",
+            "icon": "steam_marker",
+            "possible_clip": 2
+        }
+    ]
+}
 ```
 
-Markers are a natural future timeline source (a user marker *is* an activity event),
+Markers are a natural future timeline source (a user marker _is_ an activity event),
 but v1 does not use them.
 
 ### Shortcuts (`shortcuts.vdf`) (**✅ verified**)
@@ -1070,7 +1106,7 @@ implementation is unnecessary; scanning for the type markers is enough.
 
 ## Part 3 — RetroAchievements
 
-*Source for the `retroachievements` provider.*
+_Source for the `retroachievements` provider._
 
 ### API basics
 
@@ -1083,11 +1119,11 @@ It is a free, donation-funded community service. Cache; do not hammer it.
 
 ### Endpoints the provider uses
 
-| Endpoint | Params | Gives us |
-| --- | --- | --- |
-| `API_GetUserRecentlyPlayedGames.php` | `u`, `c` (≤50), `o` | Recently played games + per-game `NumAchieved`, `LastPlayed`, box art |
-| `API_GetGameInfoAndUserProgress.php` | `u`, `g` (game id) | Full achievement list with `DateEarned` / `DateEarnedHardcore` per achievement |
-| `API_GetAchievementsEarnedOnDay.php` | `u`, `d` (`YYYY-MM-DD`) | Every unlock on one date, across all games |
+| Endpoint                             | Params                  | Gives us                                                                       |
+| ------------------------------------ | ----------------------- | ------------------------------------------------------------------------------ |
+| `API_GetUserRecentlyPlayedGames.php` | `u`, `c` (≤50), `o`     | Recently played games + per-game `NumAchieved`, `LastPlayed`, box art          |
+| `API_GetGameInfoAndUserProgress.php` | `u`, `g` (game id)      | Full achievement list with `DateEarned` / `DateEarnedHardcore` per achievement |
+| `API_GetAchievementsEarnedOnDay.php` | `u`, `d` (`YYYY-MM-DD`) | Every unlock on one date, across all games                                     |
 
 **`GetGameInfoAndUserProgress` is the workhorse.** Per-achievement fields:
 `ID`, `Title`, `Description`, `Points`, `TrueRatio`, `BadgeName`, `type`
@@ -1136,7 +1172,7 @@ token or password.
 
 ## Part 4 — RetroArch local data (**✅ all verified on this machine**)
 
-*Source for the `retroarch` provider.*
+_Source for the `retroarch` provider._
 
 RetroArch install: `C:\emu\RetroArch`, portable mode. In `retroarch.cfg` the prefix
 `:\` means "the RetroArch directory", so `":\screenshots"` → `C:\emu\RetroArch\screenshots`.
@@ -1184,11 +1220,11 @@ With `content_runtime_log = "true"`, RetroArch writes one file per game:
 
 ```json
 {
-  "version": "1.0",
-  "runtime": "0:02:44",
-  "last_played": "2025-12-21 16:02:29",
-  "play_count": "1",
-  "state_slot": "0"
+    "version": "1.0",
+    "runtime": "0:02:44",
+    "last_played": "2025-12-21 16:02:29",
+    "play_count": "1",
+    "state_slot": "0"
 }
 ```
 
@@ -1204,12 +1240,12 @@ tracking needed. 22 such logs exist here across cores `Snes9x`, `mGBA`, `FinalBu
 
 ```json
 {
-  "path": "C:\\emu\\roms\\snes\\ActRaiser (USA).zip",
-  "label": "ActRaiser (USA)",
-  "core_path": "DETECT",
-  "core_name": "DETECT",
-  "crc32": "00000000|crc",
-  "db_name": "Nintendo - Super Nintendo Entertainment System.lpl"
+    "path": "C:\\emu\\roms\\snes\\ActRaiser (USA).zip",
+    "label": "ActRaiser (USA)",
+    "core_path": "DETECT",
+    "core_name": "DETECT",
+    "crc32": "00000000|crc",
+    "db_name": "Nintendo - Super Nintendo Entertainment System.lpl"
 }
 ```
 
@@ -1225,7 +1261,7 @@ tracking needed. 22 such logs exist here across cores `Snes9x`, `mGBA`, `FinalBu
 
 ## Part 5 — The ROM join key (**✅ verified, measured**)
 
-*Used by the `retroarch` and `retroachievements` providers. The core does not need this — it uses the exact appid↔gameid conversion in Part 2 instead.*
+_Used by the `retroarch` and `retroachievements` providers. The core does not need this — it uses the exact appid↔gameid conversion in Part 2 instead._
 
 This is the linchpin of the whole design. Steam knows a shortcut by its `AppName`;
 RetroArch knows everything by ROM filename. They are joined through the shortcut's
@@ -1244,19 +1280,19 @@ playlist labels.
 
 Measured on this library:
 
-| Check | Result |
-| --- | --- |
-| RetroArch shortcuts in `shortcuts.vdf` | 210 |
-| Parsed a core + ROM path successfully | **210 / 210 (100%)** |
-| Cores in use | `snes9x` ×139, `mgba` ×36, `fbneo` ×35 |
-| Screenshots joining to a shortcut | **7 / 7 distinct names (100%)** |
-| Runtime logs joining to a shortcut | 21 / 22 |
+| Check                                  | Result                                 |
+| -------------------------------------- | -------------------------------------- |
+| RetroArch shortcuts in `shortcuts.vdf` | 210                                    |
+| Parsed a core + ROM path successfully  | **210 / 210 (100%)**                   |
+| Cores in use                           | `snes9x` ×139, `mgba` ×36, `fbneo` ×35 |
+| Screenshots joining to a shortcut      | **7 / 7 distinct names (100%)**        |
+| Runtime logs joining to a shortcut     | 21 / 22                                |
 
 The single unjoined runtime log is `The Legend of Zelda - A Link to the Past (USA)`,
 a naming variant of the shortcut's `Legend of Zelda, The - A Link to the Past (USA)` —
 a stale log from before a rename, not a parser failure.
 
-Also note the Steam `AppName` ("Zombies Ate My Neighbors") is a *cleaned* title and
+Also note the Steam `AppName` ("Zombies Ate My Neighbors") is a _cleaned_ title and
 does **not** equal the ROM basename ("Zombies Ate My Neighbors (USA)"). Join on the
 parsed ROM path, never on the display name.
 
