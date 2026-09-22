@@ -13,6 +13,7 @@ import {
   unpatch as unpatchLibraryApp,
 } from './renderers/library-app';
 import { refresh as refreshLibraryHome, register as registerLibraryHome } from './renderers/library-home';
+import { watchGamepadAppid } from './steam/gamepad-appid';
 
 export { registerSummaryProvider } from './steam/summary';
 export type { SummaryContext, SummaryContribution, SummaryProvider } from './steam/summary';
@@ -86,54 +87,27 @@ export default async function OnPluginLoaded() {
       // rendered here (in SharedJSContext) and appended into the popup's own
       // document - the technique the reference plugin uses for playtime.
       //
-      // Read the popup's own `window.location`, not its opener's. Verified
-      // live (CEF devtools, 2026-09-21): `popup.window.opener` here IS
-      // SharedJSContext's own window - proven with a cross-window marker
-      // (`window.__x = 1` in SharedJSContext, read back as `opener.__x` from
-      // inside the BPM popup) - and SharedJSContext's own `location` never
-      // navigates; it stays fixed at its initial load URL for the life of
-      // the process, because it is the headless parent that spawns every
-      // visible window rather than one itself (matches the official "Big
-      // Picture is a separate popup with its own webpack bundle" framing,
-      // knowledgebase.md's "Development Quirks" summary). Watching
-      // `opener.location` therefore can never see a `/library/app/<appid>`
-      // path change - this was the actual cause of the empty ACTIVITY tab in
-      // Big Picture, not a rendering bug in gamepad-app.tsx.
-      //
-      // The popup's own `window.location` is a completely ordinary
-      // same-origin Location object, readable from SharedJSContext with no
-      // special API (confirmed live), and it updates the normal browser way
-      // whenever the popup itself navigates - the same guarantee the desktop
-      // branch above leans on for its own window. No
-      // MainWindowBrowserManager equivalent is needed inside Big Picture's
-      // bundle; `steambrew-utils`'s `onLocationChange` is a source-agnostic
-      // poller (confirmed by reading its source) - it has no opinion on
-      // which Location it's given, so pointing it at the right one is on us.
-      //
-      // This fix alone is NOT sufficient to make the summary render under
-      // normal use: live testing (real gamepad-style input, not synthetic
-      // navigation) showed Big Picture's own app-details view never changes
-      // ANY window's `location` at all - it is an in-place view swap, not a
-      // route (ADR-0026, docs/decisions.md). The replacement signal - patch
-      // `react/jsx-runtime` from here and read the appid off intercepted
-      // element props - is verified live but not yet wired in (ADR-0027,
-      // Proposed). This watcher is currently dead in practice: it will not
-      // fire under normal Big Picture use until that lands.
+      // Knowing WHICH app is showing took three tries, in order:
+      // `popup.window.opener.location` (wrong - proven live to be
+      // SharedJSContext's own window, whose location never navigates) ->
+      // `popup.window.location` (structurally correct, but Big Picture's
+      // real navigation - verified with genuine gamepad-style input, not
+      // synthetic - never touches ANY window's `location`; it's an in-place
+      // view swap, not routing) -> `watchGamepadAppid` (steam/gamepad-appid.ts),
+      // which reads the live appid off Big Picture's own React elements as
+      // they're created, verified live on two different non-Steam games.
+      // See ADR-0025, ADR-0026, ADR-0027 (docs/decisions.md) for the full
+      // history and evidence; only the last of the three ships.
       if (!popup.window) return;
       const window = popup.window;
 
-      const stopWatching = onLocationChange(
-        () => window.location,
-        ({ pathname }) => {
-          const appid = appIdFromPath(pathname);
-
-          if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
-            void patchGamepadApp(window, appid);
-          } else {
-            unpatchGamepadApp(window);
-          }
-        },
-      );
+      const stopWatching = watchGamepadAppid((appid) => {
+        if (appid >= NON_STEAM_APPID_MIN) {
+          void patchGamepadApp(window, appid);
+        } else {
+          unpatchGamepadApp(window);
+        }
+      });
 
       return () => {
         stopWatching();

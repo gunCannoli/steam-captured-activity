@@ -1433,10 +1433,14 @@ the trade-off is a judgment call:
 
 ## ADR-0027: Patch `react/jsx-runtime` to reach Big Picture's real render pipeline
 
-**Status:** Proposed · 2026-09-21 · supersedes both options in
+**Status:** Accepted · 2026-09-21 · supersedes both options in
 [ADR-0026](#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all) with a
 third, and narrows (does not overturn) the "separate bundle" finding in
-[ADR-0023](#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)
+[ADR-0023](#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one).
+Implemented in `steam/gamepad-appid.ts`, wired into `index.tsx`'s Gamepad branch. Verified
+working end-to-end, live: Big Picture's real summary strip (real clip/screenshot URLs, real
+durations) rendered inside the real ACTIVITY tab for a real non-Steam game (AM2R, appid
+`4263274102`), reproduced twice from a clean Steam restart. See "Verification" below.
 
 ### Context
 
@@ -1544,3 +1548,63 @@ Replace `gamepad-app.tsx`'s location-watching entirely with a `jsx`/`jsxs` patch
 - Desktop is unaffected — `steam/summary.ts`'s existing store-feeding approach
   (ADR-0009/0022) remains preferred there; this ADR is scoped to Big Picture, where that
   approach is confirmed unavailable (ADR-0023).
+
+### Verification
+
+Implemented as `watchGamepadAppid()` in `steam/gamepad-appid.ts`, replacing the Gamepad
+branch's `onLocationChange` call in `index.tsx`; `gamepad-app.tsx`'s render side
+(clone-and-hide, ADR-0024) is unchanged. Filter used: `typeof props.appid === 'number' &&
+Array.isArray(props.rgSections)` — narrower than `'appid' in props' alone, which live
+testing showed matches a recommended-games carousel, a friends-currently-playing widget,
+and a page pager tracking `previousAppid`/`preloadAppid`, dozens of false positives per
+navigation. `rgSections` isolates the one component that receives the page's section
+list alongside its appid; verified on two different non-Steam games, exactly one match
+per navigation, zero false positives while arrow-key-browsing the library grid. The
+intercepted function's own `.name` is deliberately not part of the filter — the same
+one-letter minified name matched both the target component and an unrelated
+"friend + playtime" widget on different renders.
+
+Getting from "the signal fires with the right appid" to "the strip actually renders"
+surfaced two more, separate, pre-existing bugs in `gamepad-app.tsx` — both real,
+independent of this ADR's own mechanism, and never caught earlier because nothing had
+ever driven `patch()` against genuinely rendered Big Picture content before this smoke
+test:
+
+1. **Case-sensitive text match, matched against the wrong case.** `patch()`'s anchor
+   search looked for `el.textContent?.trim() === 'ACTIVITY'`. Live inspection found the
+   real DOM text is `"Activity"` (title case) on a `TabTitle`-classed span with
+   `text-transform: uppercase` applied — the same pattern already documented for
+   desktop's Post-Game Summary header (steam-components.md). `textContent` reflects the
+   DOM, not the CSS-rendered text, so the exact-case match could never succeed,
+   regardless of timing. Fixed to match case-insensitively.
+2. **A render-timing race the anchor search didn't account for.** Even after fixing (1),
+   an immediate anchor search still failed live, repeatedly, while the *exact same query*
+   run by hand moments later succeeded. `watchGamepadAppid`'s signal fires from inside
+   React's own `jsx()` call — before React commits that tree to the real DOM — and Big
+   Picture's page transitions carry their own animation on top of that. `findAnchor()`
+   now polls (starting at 200ms, up to ~8s total — an initial ~1.5s budget was verified
+   live to still be too short) instead of looking once. Its retry loop also does not
+   abort on the first exception: an earlier version did, and that alone explained every
+   observed failure during this fix's own testing — each one logged within about one
+   retry interval of the navigation event, nowhere near the actual multi-second budget,
+   because a single transient DOM-query error (plausible mid-transition) discarded the
+   whole retry budget on attempt one. It now retries through ordinary errors and only
+   stops early if `window.closed` is genuinely true.
+
+**Live verification, reproduced twice from a clean Steam restart**: entered Big Picture,
+browsed Library → Non-Steam → a real non-Steam game (AM2R, appid `4263274102`, confirmed
+to have 4 real screenshots + clips beforehand) via genuine `Input.dispatchKeyEvent`
+input, not synthetic navigation. The real summary strip rendered inside the real
+ACTIVITY tab, with real clip/screenshot URLs (`gamerecordings/clips/clip_1831062284...`,
+matching AM2R's real gameid) and real clip durations (0:23, 0:03, 0:15) visible in the
+live DOM.
+
+One methodological note worth keeping: several apparent failures during this session's
+debugging turned out to be artifacts of repeated `SetUIMode` toggling and popup
+open/close cycles corrupting live state between test runs (stale `window` references,
+a popup that reports itself open via `UIMode` but has no reachable window), not bugs in
+the code under test — resolved each time by a full Steam restart rather than continued
+toggling. `Runtime.enable` on a fresh CDP connection was also observed replaying
+buffered console history from earlier in the session, which briefly produced a false
+impression of a persistent bug; live DOM/state queries (not console log timestamps) were
+the reliable signal throughout.

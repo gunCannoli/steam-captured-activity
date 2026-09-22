@@ -153,6 +153,48 @@ function SummaryStrip({ tiles }: { tiles: SummaryTile[] }) {
   );
 }
 
+const ANCHOR_RETRY_INTERVAL_MS = 200;
+const ANCHOR_RETRY_ATTEMPTS = 40; // ~8s total. A first attempt at ~1.5s was verified live to be too
+// short - the same query that failed from here kept succeeding when run by hand seconds later, most
+// likely losing a race against Big Picture's own page-transition animation, not React's commit alone.
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Find the ACTIVITY tab strip's content wrapper, polling briefly if it
+ * isn't there yet. See the call site's comment (`patch()`) for why a single
+ * immediate lookup isn't reliable here.
+ *
+ * A query attempt that throws does NOT give up immediately - verified live:
+ * an earlier version returned on the first error, and that alone explained
+ * every observed failure (each one logged within ~1 retry interval of the
+ * navigation event, not anywhere near the intended multi-second budget).
+ * Big Picture is mid-transition-animation exactly when this runs; a
+ * transient DOM query hiccup there is an ordinary thing to retry past, not
+ * a reason to stop. The one case that *should* stop early - the window
+ * itself is gone - is checked explicitly, separately from any other error.
+ */
+async function findAnchor(window: Window): Promise<Element | null> {
+  for (let attempt = 0; attempt < ANCHOR_RETRY_ATTEMPTS; attempt++) {
+    if (window.closed) return null;
+
+    try {
+      const tabStrip = [...window.document.querySelectorAll('*')].find(
+        (el) => el.childElementCount === 0 && el.textContent?.trim().toLowerCase() === 'activity',
+      );
+      const anchor = tabStrip?.closest('[class]')?.parentElement;
+      if (anchor) return anchor;
+    } catch {
+      // Transient - the DOM can genuinely be mid-update here. Fall through
+      // to the retry below rather than giving up on the first hiccup.
+    }
+    await sleep(ANCHOR_RETRY_INTERVAL_MS);
+  }
+  return null;
+}
+
 /** Windows currently showing a patched app, so a quitting game can refresh them. */
 const activeViews = new Map<Window, number>();
 
@@ -203,16 +245,32 @@ export async function patch(window: Window, appid: number): Promise<void> {
   // unresolved on purpose (it carries no useful probe key of its own); we
   // anchor on the tab strip instead, which we know is present because we can
   // already see "ACTIVITY"/"YOUR STUFF"/"GAME INFO" text there live.
-  let anchor: Element | null = null;
-  try {
-    const tabStrip = [...window.document.querySelectorAll('*')].find(
-      (el) => el.childElementCount === 0 && el.textContent?.trim() === 'ACTIVITY',
-    );
-    anchor = tabStrip?.closest('[class]')?.parentElement ?? null;
-  } catch (error) {
-    logger.warn('Could not find the Big Picture activity tab:', error);
-    return;
-  }
+  //
+  // Match case-insensitively (verified live, ADR-0027's smoke test): the raw
+  // DOM text is "Activity" (title case) - the visible all-caps "ACTIVITY" is
+  // CSS `text-transform: uppercase` on a `TabTitle`-classed span, same
+  // pattern as the desktop Post-Game Summary header (steam-components.md).
+  // `el.textContent` reflects the DOM, not the rendered/CSS-transformed
+  // text, so a case-sensitive match against the visible string can never
+  // succeed. English-only is a separate, still-open, pre-existing limitation
+  // (no localization handling here at all) - this fix only addresses the
+  // case mismatch.
+  //
+  // Retry, don't just look once: `watchGamepadAppid` (steam/gamepad-appid.ts)
+  // signals from *inside* React's own element-creation call, which happens
+  // before React commits that tree to the real DOM - so an immediate query
+  // can genuinely run before the tab strip exists yet, even though the
+  // capture fetch just above already adds some delay. Verified live, twice:
+  // a short (~1.5s) retry window still lost the race - the same query kept
+  // failing from here while succeeding when run by hand a few seconds
+  // later, most likely against Big Picture's own page-transition animation,
+  // not just React's commit. `findAnchor`'s window is wide (~8s) for that
+  // reason; a poll is simpler and more robust than guessing a fixed delay.
+  const anchor = await findAnchor(window);
+
+  // Another await above (retrying up to ~8s); re-check staleness the same
+  // way as after the capture fetch.
+  if (activeViews.get(window) !== appid) return;
 
   if (!anchor) {
     logger.warn('Could not find an anchor for the Big Picture summary; skipping.');

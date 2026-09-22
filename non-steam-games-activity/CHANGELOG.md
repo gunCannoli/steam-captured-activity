@@ -8,9 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works. Big Picture is implemented but currently **inert**
-in normal use — see below. The per-day activity feed is still in progress —
-see below.
+of them. Library grid works. Big Picture works too, verified live — see below.
+The per-day activity feed is still in progress — see below.
 
 ### Known limits
 
@@ -23,17 +22,6 @@ see below.
 - **Steam's "information is unavailable" box is left in place** on desktop.
   It is still accurate, and it is the only other thing in that column —
   removing it leaves the page blank under the summary.
-- **Big Picture's summary strip cannot currently render under normal use.** A
-  smoke test (2026-09-21, live) found and fixed a real bug — the code watched
-  the wrong window's `location`
-  ([ADR-0025](../docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers))
-  — but the same test then found that Big Picture's real navigation (browsing
-  the Library, opening a game) does not change *any* window's `location` at
-  all; it is an in-place view swap, not routing
-  ([ADR-0026](../docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all),
-  **Proposed**, undecided). Until that is resolved, the strip is dead code in
-  practice: correctly built, correctly triggered in principle, never actually
-  triggered in the client.
 - **Big Picture's summary is a clone, not Steam's real component**, and can
   drift from it on a future Big Picture UI change — see the Added entry below
   and [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
@@ -42,8 +30,6 @@ see below.
   cache this plugin's `SharedJSContext` code cannot reach, confirmed from
   Millennium's own source
   ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
-  This limit is unaffected by the routing problem above — it still applies
-  once the strip can render at all.
 - **"Last Played" stays blank for games Steam did not launch itself.** That
   `AppOverview` field has a custom setter backed by protobuf state and cannot
   be written safely; recent-activity ordering does reflect captures instead
@@ -101,6 +87,21 @@ see below.
   [k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)
   already does for its playtime feature. See
   [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
+- **Big Picture appid detection** (`steam/gamepad-appid.ts`) — knowing which
+  game Big Picture is currently showing took three tries (`popup.window.opener
+  .location`, wrong; `popup.window.location`, structurally right but Big
+  Picture's real navigation never touches any window's `location` at all;
+  finally, patching `react/jsx-runtime`'s `jsx`/`jsxs` exports globally via
+  `beforePatch` and reading the live `appid` off intercepted element props —
+  technique found in
+  [BossSloth/SteamHunter-plugin](https://github.com/BossSloth/SteamHunter-plugin)).
+  Filtered on `{appid, rgSections}`, verified live to be the one component
+  that fires once per navigation with no false positives (a bare `'appid' in
+  props` check matches a recommended-games carousel, a friends-playing
+  widget, and a page pager — all real, all wrong). See
+  [ADR-0025](../docs/decisions.md#adr-0025-watch-the-big-picture-popups-own-location-not-its-openers),
+  [ADR-0026](../docs/decisions.md#adr-0026-big-pictures-real-navigation-does-not-touch-location-at-all),
+  [ADR-0027](../docs/decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline).
 - **Provider API** (`registerSummaryProvider`) — provider plugins contribute
   summary *events*, not markup, and a failing provider is skipped rather than
   taking the page down.
@@ -203,6 +204,23 @@ Caught by the test suite before any of this ran inside Steam:
   games. The lookup now picks the id form by app type and anchors the match
   between underscores, so `435150` cannot match `4351501`.
 
+Caught live, driving Big Picture through real gamepad-style input (2026-09-21) — the
+first time anything had actually exercised these code paths against genuinely rendered
+content, not the test suite:
+
+- **Big Picture's ACTIVITY tab anchor never matched.** `patch()` searched for DOM text
+  exactly equal to `'ACTIVITY'`, but the real DOM text is `"Activity"` (title case) —
+  the visible all-caps is CSS `text-transform: uppercase`, so a case-sensitive match
+  could never succeed regardless of anything else being correct. Now matches
+  case-insensitively.
+- **The same anchor search also lost a timing race.** `watchGamepadAppid`'s signal
+  fires from inside React's own element-creation call, before React commits to the real
+  DOM, and Big Picture's page-transition animation adds more delay on top. A single
+  immediate lookup — and, in an earlier fix attempt, a lookup that gave up on its first
+  transient query error rather than retrying — both failed live even though the exact
+  same query succeeded when run by hand moments later. `findAnchor()` now polls (~8s
+  budget) and only stops early if the window itself is genuinely closed.
+
 ### Before release — smoke test
 
 Run against the live Steam client with the plugin installed; every row should
@@ -218,8 +236,8 @@ pass before calling v1 done.
 | 6 | Library grid | Recent-activity timestamps visible; sorting still works |
 | 7 | Restart Steam | Plugin loads clean; no console errors |
 | 8 | Disable the plugin | Steam returns to its stock page with no leftovers |
-| 9 | **Big Picture** — open a non-Steam game's page | Summary strip shows recent screenshots/clips in the ACTIVITY tab |
-| 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state |
+| 9 | **Big Picture** — open a non-Steam game's page | Summary strip shows recent screenshots/clips in the ACTIVITY tab — ✅ **passed 2026-09-21**, real gamepad-style input, reproduced twice from a clean Steam restart (AM2R, appid `4263274102`) |
+| 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state — not yet run |
 
 Also confirm: no secrets in logs, and `GetDiagnostics` reports accurate counts
 for this install.
