@@ -8,8 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ## [Unreleased]
 
 Non-Steam games now use **Steam's own app detail sections**, not a rebuilt copy
-of them. Library grid works. Big Picture works too, verified live — see below.
-The per-day activity feed is still in progress — see below.
+of them. Library grid works. Big Picture's summary strip renders and is
+functionally correct, but is **not visually release-ready** — see below. The
+per-day activity feed is still in progress — see below.
 
 ### Known limits
 
@@ -22,6 +23,16 @@ The per-day activity feed is still in progress — see below.
 - **Steam's "information is unavailable" box is left in place** on desktop.
   It is still accurate, and it is the only other thing in that column —
   removing it leaves the page blank under the summary.
+- **Big Picture's summary strip renders in the wrong container and looks
+  broken.** `patch()`'s anchor search resolves to the ACTIVITY tab's own
+  *button* in the tab strip, not the content panel below it — the whole
+  multi-tile strip gets injected into a small tab-button-sized element.
+  Screenshot comparison against native: no "Post-Game Summary" header
+  visible, no day grouping, tiles with no spacing, and a native Steam icon
+  colliding with the tiles in the same row
+  ([ADR-0028](../docs/decisions.md#adr-0028-big-pictures-clone-is-visually-broken-and-the-fix-is-to-go-looking-for-real-components-not-to-keep-patching-the-clone),
+  **Proposed**, not fixed). Functionally verified (real captures, real appid
+  detection — ADR-0027) but not visually usable yet.
 - **Big Picture's summary is a clone, not Steam's real component**, and can
   drift from it on a future Big Picture UI change — see the Added entry below
   and [ADR-0024](../docs/decisions.md#adr-0024-reach-big-picture-by-cloning-dom-across-windows-not-by-feeding-its-store).
@@ -30,6 +41,10 @@ The per-day activity feed is still in progress — see below.
   cache this plugin's `SharedJSContext` code cannot reach, confirmed from
   Millennium's own source
   ([ADR-0023](../docs/decisions.md#adr-0023-big-picture-is-a-separate-bundle-not-a-separate-renderer-within-the-same-one)).
+  ADR-0027 narrowed this: `react/jsx-runtime` turns out to be shared between
+  the two bundles even though Steam's own app code is not, which is why
+  ADR-0028 proposes checking whether `@steambrew/client`'s own components are
+  shared too, before writing more hand-tuned clone CSS.
 - **"Last Played" stays blank for games Steam did not launch itself.** That
   `AppOverview` field has a custom setter backed by protobuf state and cannot
   be written safely; recent-activity ordering does reflect captures instead
@@ -236,7 +251,7 @@ pass before calling v1 done.
 | 6 | Library grid | Recent-activity timestamps visible; sorting still works |
 | 7 | Restart Steam | Plugin loads clean; no console errors |
 | 8 | Disable the plugin | Steam returns to its stock page with no leftovers |
-| 9 | **Big Picture** — open a non-Steam game's page | Summary strip shows recent screenshots/clips in the ACTIVITY tab — ✅ **passed 2026-09-21**, real gamepad-style input, reproduced twice from a clean Steam restart (AM2R, appid `4263274102`) |
+| 9 | **Big Picture** — open a non-Steam game's page | Summary strip shows recent screenshots/clips in the ACTIVITY tab — 🟡 **functionally passed, visually failed, 2026-09-21**: real gamepad-style input, reproduced twice from a clean Steam restart (AM2R, appid `4263274102`), captures do render — but in the wrong container, with no header/spacing/grouping matching native (ADR-0028). Do not mark this row fully passed until ADR-0028 is resolved. |
 | 10 | Switch desktop → Big Picture → desktop | Both render correctly; no duplicate/orphaned state — not yet run |
 
 Also confirm: no secrets in logs, and `GetDiagnostics` reports accurate counts

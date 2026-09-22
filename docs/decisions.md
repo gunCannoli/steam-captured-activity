@@ -1608,3 +1608,129 @@ toggling. `Runtime.enable` on a fresh CDP connection was also observed replaying
 buffered console history from earlier in the session, which briefly produced a false
 impression of a persistent bug; live DOM/state queries (not console log timestamps) were
 the reliable signal throughout.
+
+---
+
+## ADR-0028: Big Picture's clone is visually broken, and the fix is to go looking for real components, not to keep patching the clone
+
+**Status:** Proposed · 2026-09-21 · found by the user inspecting ADR-0027's verified
+render on real hardware; a fix is deliberately **not** included in this ADR — see
+Decision
+
+### Context
+
+ADR-0027 got the summary strip rendering in Big Picture's real ACTIVITY tab, verified by
+DOM inspection. Live inspection is not the same as looking at it: the user's own
+screenshot of the rendered result, next to a screenshot of desktop's native Post-Game
+Summary for comparison, shows the Big Picture render is badly broken —
+
+- **No "Post-Game Summary" header text visible at all** (the code does render one — see
+  below for why it doesn't show).
+- **No day grouping** ("Yesterday"), unlike native.
+- **Tiles sit flush against each other with no spacing or consistent rounding**,
+  unlike native's clearly separated, evenly-rounded cards.
+- **A raw Xbox-controller glyph sits inline in the tile row** as if it were a capture
+  thumbnail — not something `SummaryStrip` renders; almost certainly a native Steam
+  UI element now colliding with our injected content in the same container.
+- Overall it reads as a debug strip glued onto the page, not a Steam-native section —
+  exactly the failure mode AGENTS.md's reuse ladder warns about: *"If you are measuring
+  pixels to match Steam, you are probably on the wrong rung."*
+
+**Root cause, found by re-reading `patch()`'s anchor logic against the screenshot
+(not yet re-verified live — this is a strong, specific hypothesis, not a repeated live
+observation the way ADR-0025–0027's findings were):**
+
+```ts
+const tabStrip = [...window.document.querySelectorAll('*')].find(
+  (el) => el.childElementCount === 0 && el.textContent?.trim().toLowerCase() === 'activity',
+);
+const anchor = tabStrip?.closest('[class]')?.parentElement;
+```
+
+`tabStrip` is the leaf `<span class="TabTitle">Activity</span>`. `Element.closest()`
+matches the starting element itself if it satisfies the selector — and `tabStrip`
+already has a `class` attribute — so `tabStrip.closest('[class]')` returns `tabStrip`,
+not some ancestor content wrapper. `.parentElement` of that is therefore the **tab
+button** in the tab strip (confirmed live during ADR-0027's testing, though not
+recognized as a bug at the time: `_3eEbSktrstBdLk0dVpnKVI Tab ... Selected ...
+RightAddon Panel Focusable`), not the ACTIVITY tab's *content panel* below it. The
+entire multi-tile `SummaryStrip` is being appended **inside a small tab-button-sized
+UI element in the tab bar itself**, not into the page body. Every symptom in the
+screenshot is consistent with this: content clipped by the tab button's own height, no
+room for the header, and a real Steam icon from that same row now sharing space with
+our injected tiles.
+
+This is a real, independent, pre-existing bug in the anchor logic (present since
+ADR-0024, never visible before ADR-0027 because nothing had ever rendered into it) —
+distinct from the two `gamepad-app.tsx` bugs ADR-0027 already found and fixed
+(case-sensitive text match, retry timing).
+
+### The bigger question this raises
+
+A wrong anchor selector is a one-line fix. But it's not the real issue: even anchored
+correctly, `gamepad-app.tsx` is a **hand-built clone** (rung 4 of AGENTS.md's reuse
+ladder) with inline styles guessed to *look like* native — the exact pattern AGENTS.md
+already warns is fragile and high-maintenance, backed by this same repo's own history
+(the desktop Post-Game Summary was cloned once, passed testing, and was still discarded
+for a resolved-real-component approach — ADR-0022). Getting the clone's spacing,
+grouping, and header right by hand is real, ongoing work, and it will still drift from
+native on the next Big Picture UI refresh.
+
+**ADR-0027 changes what's worth trying before committing to more clone work.** Rungs
+2–3 of the reuse ladder (feed Steam's store, render Steam's real component) were ruled
+out for Big Picture by ADR-0023 on the grounds that `webpackChunksteamui` — Steam's own
+application code, where `CAppDetailsSections`/`CAppSpotlightStore` live — is genuinely
+bundle-local and unreachable from `SharedJSContext`. That finding still holds; ADR-0027
+did not overturn it. But ADR-0023's investigation only ever checked *that one* module
+for shared-ness, because nothing at the time suggested checking others. ADR-0027 found,
+by accident of investigating a completely different problem, that `react/jsx-runtime` —
+a generic vendor dependency — **is** shared across both bundles. That was not an
+isolated fact about React specifically; it's evidence that Big Picture's build shares
+*some* modules and not others, and the boundary was never mapped.
+
+The question worth answering before writing more clone code: **do `@steambrew/client`'s
+own exported components** (`Panel`, `Tabs`, `Focusable`, `Carousel`, `SuspensefulImage`
+— the same building blocks desktop already prefers per `docs/plugin.md`'s reuse ladder)
+**also resolve to shared module instances reachable from Big Picture**, the same way
+`react/jsx-runtime` turned out to be? If so, `gamepad-app.tsx` could build its strip out
+of Steam's *real* React components — real spacing, real focus/keyboard behavior, no
+hand-tuned CSS to keep in sync — rather than a clone. That would take Big Picture from
+rung 4 to rung 3 of the ladder for the first time, closing exactly the gap this ADR's
+screenshot exposes, and durably: a resolved real component cannot visually drift the
+way a clone can.
+
+### Decision
+
+**Proposed, not decided or built.** Two things need doing, in order, before writing any
+more Big Picture UI code:
+
+1. **Fix the anchor bug** (`tabStrip.closest('[class]')` matching itself) — small,
+   mechanical, no new investigation needed. Likely fix: walk up from `tabStrip` past
+   the tab button to the tab strip's own container, then find *its* sibling content
+   panel (needs a fresh live probe of the DOM around the tab strip to find the right
+   landmark — not guessed from memory, per this codebase's own verification standard).
+2. **Investigate shared-module reachability for `@steambrew/client`'s own components**,
+   the same way ADR-0027 investigated `react/jsx-runtime`: from `SharedJSContext`,
+   resolve one of the SDK's exported components (or the module it comes from) and test
+   — with a live marker, not assumption — whether the *same instance* is what Big
+   Picture's own bundle uses when it renders a `Tabs`/`Panel`/`Focusable`. If yes, this
+   ADR converts to Accepted with a rung-3 rebuild of `gamepad-app.tsx`. If no (Steam's
+   own component library turns out to be bundled per-entry rather than shared, unlike
+   raw React), the clone approach stands, but *at minimum* gets (1)'s fix and closer
+   attention to matching native spacing/grouping by measurement (steam-styles.md's
+   existing "measure, don't guess" standard, ADR-0021) rather than the current
+   placeholder styling.
+
+### Consequences
+
+- Until either is done, Big Picture's summary strip should be treated as **functionally
+  verified, visually not release-ready** — TASK.md and CHANGELOG.md should say so
+  plainly rather than imply the ADR-0027 milestone means the feature looks native.
+- If (2) succeeds, it's a second instance of the same lesson ADR-0027 taught: a bundle
+  boundary believed absolute (ADR-0023) can hide exceptions worth checking for, and the
+  method (a live cross-window marker test) is now established and repeatable, not a
+  one-off trick.
+- If (2) fails, no time is lost — the clone was always going to need this attention, and
+  a confirmed "no" is itself useful, permanent knowledge (matching how ADR-0023's
+  original "unreachable" finding, though later narrowed by ADR-0027, was still correct
+  and useful for the specific module it checked).

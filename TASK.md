@@ -20,7 +20,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop) | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`. |
 | Library grid | ✅ Shipped. |
 | Per-day Activity feed | 🔶 Blocked on a fakeable Steam store record; see below. |
-| Big Picture | ✅ Shipped and verified live (ADR-0025/0026/0027). Summary strip renders in the real ACTIVITY tab. |
+| Big Picture | 🟡 Renders (ADR-0025/0026/0027), but **visually broken** — wrong anchor, no native spacing (ADR-0028, not started). |
 | Provider contract | ⬜ Not started (Phase 8). |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
@@ -29,7 +29,7 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Next up
 
-### 1. Big Picture — done, verified live (was the top item for several sessions)
+### 1. Big Picture — the appid-detection mechanism is done and verified live
 
 The smoke test (2026-09-21, live CEF devtools) found and fixed three real bugs, in
 order, each one only surfacing once the previous was fixed:
@@ -75,7 +75,41 @@ section.
 Desktop is unaffected — none of this touched `steam/summary.ts` or the Desktop branch of
 `index.tsx`.
 
-### 2. Per-day Activity feed
+### 2. Big Picture — renders, but looks broken; fix the anchor, then go looking for real components
+
+The user's own screenshot of the live render (next to desktop's native summary for
+comparison) shows the strip is functional but visually wrong: no "Post-Game Summary"
+header visible, no day grouping, tiles with no spacing/rounding, and a stray native
+Steam icon (an Xbox-controller glyph) colliding with our tiles in the same row.
+
+**Root cause, diagnosed but not yet fixed or re-verified live**
+([ADR-0028](docs/decisions.md#adr-0028-big-pictures-clone-is-visually-broken-and-the-fix-is-to-go-looking-for-real-components-not-to-keep-patching-the-clone)):
+`patch()`'s anchor search does `tabStrip.closest('[class]')` — but `tabStrip` (the
+`Activity` label span) already has a class, so `closest()` matches itself, and
+`.parentElement` of that is the **tab button** in the tab strip, not the content panel
+below it. The whole multi-tile strip is being injected inside a small tab-button-sized
+element, which explains every symptom in the screenshot.
+
+That's a one-line-scale fix, but it's not really the point. `gamepad-app.tsx` is a
+hand-built clone (rung 4 of AGENTS.md's reuse ladder) — the same pattern the desktop
+Post-Game Summary tried once and abandoned for a resolved-real-component approach
+(ADR-0022), because a clone's spacing/grouping has to be hand-matched and will drift on
+the next Big Picture UI change. **ADR-0027 changes what's worth trying first**: it found
+`react/jsx-runtime` is a *shared* module between `SharedJSContext` and Big Picture's
+bundle, even though Steam's own app code (`webpackChunksteamui`) genuinely is not. That
+was never checked for anything except React itself.
+
+**Next action, two steps, in order:**
+1. Fix the anchor bug (small, needs a fresh live DOM probe to find the real content-panel
+   landmark — don't guess it from this description).
+2. Before writing more clone styling: check, live, whether `@steambrew/client`'s own
+   exported components (`Panel`, `Tabs`, `Focusable`, `Carousel`) also resolve to shared
+   module instances reachable from Big Picture, the same way `react/jsx-runtime` did. If
+   so, rebuild `gamepad-app.tsx` on rung 3 (real components) instead of rung 4 (clone) —
+   closes this gap durably instead of hand-tuning CSS to chase native. See ADR-0028's
+   Decision section for the full investigation plan; it is Proposed, not started.
+
+### 3. Per-day Activity feed
 
 Every event needs a Steam *store* record the game doesn't have — but that
 record is fakeable with no network call (verified live). What's left: wire it
