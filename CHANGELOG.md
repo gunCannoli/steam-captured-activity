@@ -11,7 +11,11 @@ This repo is private and unversioned; entries are grouped by date.
 
 ### Added
 
-- **Game Info & Metadata Enrichment Provider (`library_metadata.json` + IGDB)** (Phase 8):
+- **Daily Activity Feed BPM Thumbnail Sizing & Headline Refinement (Phase 3b):**
+    - **Big Picture Mode Thumbnail Sizing:** Injected scoped CSS into the Gamepad popup document (`[class*="CarouselThumb"]`) enforcing Steam's native 16:9 thumbnail dimensions (320×180px with `object-fit: cover`), preventing raw high-resolution (1440p/4K) captures from stretching across the entire screen.
+    - **Unified Ingestion of Recordings & Screenshots:** `publishActivity` in `activity.ts` now collects both `screenshotsSince(appid, 0)` and `clipsSince(gameid, 0)` in parallel, registering clip thumbnails and screenshots together in `workshopStore` under chronological daily buckets.
+    - **Action Headline Phrasing (`{Username} recorded`):** Intercepted `react/jsx-runtime` (`jsx` and `jsxs`) for non-Steam events (`event.bIsNonSteam` / `event.appid >= NON_STEAM_APPID_MIN`), transforming community UGC text (`"{Username} shared X screenshots"`) into Steam's concise native action convention (`"{Username} recorded"`, mirroring `"{Username} achieved"`).
+- **Game Info & Metadata Enrichment Provider (`library_metadata.json` + IGDB)** (Phase 8 & 8b):
     - **Single Source of Truth (`library_metadata.json`):** Consolidated, human-readable JSON database stored in Steam's root directory (`C:\game\steam\library_metadata.json`). Formatted with clean 2-space indentation so users can directly tweak titles, summaries, descriptions, credits, or categories in any text editor. Preserves manual edits via `custom_override`.
     - **Twitch OAuth & IGDB v4 Backend:** Automatic client-credentials token caching and APICalypse queries (`igdb.lua`) extracting storylines, developer and publisher credits, franchises, genres, and release timestamps.
     - **Native Game Modes & Category Flags:** Translates IGDB `game_modes` into Steam category badges (`m_setStoreCategories`): Single-player (2), Multi-player (1), Co-op (9), Shared/Split Screen (24), and Full Controller Support (28).

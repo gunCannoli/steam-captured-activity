@@ -1,6 +1,7 @@
 import { logger } from "../logger";
 import {
     appActivityStore,
+    clipsSince,
     friendStore,
     screenshotsSince,
     screenshotEventClass,
@@ -8,7 +9,6 @@ import {
     workshopStore,
     type AppActivity,
     type AppActivityDay,
-    type SteamScreenshot,
 } from "./stores";
 
 /**
@@ -43,17 +43,30 @@ function getLocalMidnight(timestamp: number): number {
     return Math.floor(d.getTime() / 1000);
 }
 
+interface MediaItem {
+    id: string;
+    url: string;
+    caption: string;
+    timestamp: number;
+    width: number;
+    height: number;
+    isClip: boolean;
+}
+
 /**
  * Publish an app's captures into Steam's Activity Feed.
  *
- * Returns the number of events/screenshots published.
+ * Returns the number of events/captures published.
  */
 export async function publishActivity(
     appid: number,
-    _gameid: string,
+    gameid: string,
 ): Promise<number> {
-    const screenshots = await screenshotsSince(appid, 0);
-    if (screenshots.length === 0) return 0;
+    const [screenshots, clips] = await Promise.all([
+        screenshotsSince(appid, 0),
+        clipsSince(gameid, 0),
+    ]);
+    if (screenshots.length === 0 && clips.length === 0) return 0;
 
     const actStore = appActivityStore();
     const storeCache = storeItemCache();
@@ -138,16 +151,37 @@ export async function publishActivity(
     }
     if (!appActivity) return 0;
 
-    // 4. Group screenshots by local midnight
-    const byDay = new Map<number, SteamScreenshot[]>();
-    for (const s of screenshots) {
-        const day = getLocalMidnight(s.nCreated);
+    // 4. Combine and group captures by local midnight
+    const mediaItems: MediaItem[] = [
+        ...screenshots.map((s): MediaItem => ({
+            id: `nonsteam_${appid}_${s.hHandle || s.nCreated}`,
+            url: s.strUrl,
+            caption: s.strCaption || "",
+            timestamp: s.nCreated,
+            width: s.nWidth,
+            height: s.nHeight,
+            isClip: false,
+        })),
+        ...clips.map((c): MediaItem => ({
+            id: `nonsteam_${appid}_clip_${c.clip_id}`,
+            url: c.thumbnail_url,
+            caption: "Clip",
+            timestamp: c.date_clipped || c.date_recorded,
+            width: c.thumbnail_width || 1920,
+            height: c.thumbnail_height || 1080,
+            isClip: true,
+        })),
+    ].sort((a, b) => b.timestamp - a.timestamp);
+
+    const byDay = new Map<number, MediaItem[]>();
+    for (const item of mediaItems) {
+        const day = getLocalMidnight(item.timestamp);
         let list = byDay.get(day);
         if (!list) {
             list = [];
             byDay.set(day, list);
         }
-        list.push(s);
+        list.push(item);
     }
 
     appActivity.m_mapActivityByDay.clear();
@@ -157,7 +191,7 @@ export async function publishActivity(
         | undefined;
     const fileIdsForApp: string[] = [];
 
-    for (const [dayBegin, dayShots] of byDay.entries()) {
+    for (const [dayBegin, dayMedia] of byDay.entries()) {
         let day: AppActivityDay | undefined =
             appActivity.m_mapActivityByDay.get(dayBegin);
         if (!day) {
@@ -212,22 +246,21 @@ export async function publishActivity(
         if (!day) continue;
 
         const dayFileIds: string[] = [];
-        for (const s of dayShots) {
-            const fileId = `nonsteam_${appid}_${s.hHandle || s.nCreated}`;
-            dayFileIds.push(fileId);
-            fileIdsForApp.push(fileId);
+        for (const item of dayMedia) {
+            dayFileIds.push(item.id);
+            fileIdsForApp.push(item.id);
 
-            wsStore.m_mapPublishedFiles.set(fileId, {
+            wsStore.m_mapPublishedFiles.set(item.id, {
                 file: {
-                    publishedfileid: fileId,
-                    file_url: s.strUrl,
-                    preview_url: s.strUrl,
-                    file_description: s.strCaption || "",
+                    publishedfileid: item.id,
+                    file_url: item.url,
+                    preview_url: item.url,
+                    file_description: item.caption,
                     visibility: 0,
                     creator: currentSteamID.ConvertTo64BitString(),
-                    time_created: s.nCreated,
-                    image_width: s.nWidth,
-                    image_height: s.nHeight,
+                    time_created: item.timestamp,
+                    image_width: item.width,
+                    image_height: item.height,
                 },
             });
         }
@@ -237,11 +270,12 @@ export async function publishActivity(
         fakeEvent.m_rgScreenshots = dayFileIds;
         fakeEvent.m_bIsValid = true;
         fakeEvent.unUniqueID = dayFileIds[0];
-        fakeEvent.rtEventTime = dayShots[0]?.nCreated ?? 0;
+        fakeEvent.rtEventTime = dayMedia[0]?.timestamp ?? 0;
         fakeEvent.steamIDActor = currentSteamID;
         fakeEvent.steamIDTarget = currentSteamID;
         fakeEvent.eEventType = 13; // FilePublished_Screenshot
         fakeEvent.bIsGameActivity = false;
+        fakeEvent.bIsNonSteam = true;
         fakeEvent.commentThreads = [];
         fakeEvent.activeThread = 0;
         // Base class getter defines Number(this.gameid), which overflows for 64-bit shortcut ids.
@@ -271,9 +305,9 @@ export async function publishActivity(
 
     registeredFilesByApp.set(appid, fileIdsForApp);
     logger.info(
-        `Published ${screenshots.length} screenshot(s) across ${byDay.size} day(s) in activity feed for ${appid}.`,
+        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)) across ${byDay.size} day(s) in activity feed for ${appid}.`,
     );
-    return screenshots.length;
+    return mediaItems.length;
 }
 
 /** Drop an app's activity feed entries and associated fake store/workshop records. */

@@ -9,6 +9,7 @@ import {
 } from './renderers/library-app';
 import { refresh as refreshLibraryHome, register as registerLibraryHome } from './renderers/library-home';
 import { watchGamepadAppid } from './steam/gamepad-appid';
+import { installHeadlinePatch } from './steam/headline-patch';
 
 export { registerSummaryProvider } from './steam/summary';
 export type { SummaryContext, SummaryContribution, SummaryProvider } from './steam/summary';
@@ -37,6 +38,11 @@ export default async function OnPluginLoaded() {
     logger.error('Could not restore Steam\'s app detail sections; summaries are unavailable.');
   }
 
+  // ===== Headline phrasing =====
+  // Replaces community UGC string ("cannoliGun shared 2 screenshots") with native action
+  // phrasing ("cannoliGun recorded") for non-Steam captures.
+  installHeadlinePatch();
+
   // ===== Library grid =====
   // Fills in last-played dates Steam does not have, from capture timestamps.
   await registerLibraryHome();
@@ -45,7 +51,7 @@ export default async function OnPluginLoaded() {
   // Publishing is keyed on the app, not the window: Steam's store is global, so
   // one publish serves every window showing that game.
 
-  onPopupCreate((_popup, type) => {
+  onPopupCreate((popup, type) => {
     if (type === PopupType.Desktop) {
       // Desktop feeds Steam's own store (steam/summary.ts) - Steam's own
       // component renders in whichever window is open, so this is global,
@@ -83,6 +89,44 @@ export default async function OnPluginLoaded() {
       // "ACTIVITY" tab, feeding appSpotlightStore via patchLibraryApp(appid)
       // makes Steam render its genuine native GamePlaySummaryContainer with
       // controller focus rings and carousel scrolling automatically.
+
+      // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
+      const doc = popup.window?.document;
+      let styleEl: HTMLStyleElement | null = null;
+      if (doc) {
+        styleEl = doc.createElement('style');
+        styleEl.id = 'nsga-bpm-activity-thumbs';
+        styleEl.textContent = `
+          [class*="CarouselThumbs"] {
+            display: flex !important;
+            flex-direction: row !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            gap: 16px !important;
+          }
+          [class*="CarouselThumb"] {
+            width: 320px !important;
+            height: 180px !important;
+            max-width: 320px !important;
+            max-height: 180px !important;
+            flex: 0 0 320px !important;
+            border-radius: 4px !important;
+            overflow: hidden !important;
+          }
+          [class*="CarouselThumb"] [class*="ImageWrapper"] {
+            width: 100% !important;
+            height: 100% !important;
+          }
+          [class*="CarouselThumb"] img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+          }
+        `;
+        doc.head?.appendChild(styleEl);
+      }
+
       let current: number | undefined;
 
       const stopWatching = watchGamepadAppid((appid) => {
@@ -101,6 +145,9 @@ export default async function OnPluginLoaded() {
       return () => {
         stopWatching();
         if (current !== undefined) unpatchLibraryApp(current);
+        if (styleEl && styleEl.parentNode) {
+          styleEl.parentNode.removeChild(styleEl);
+        }
       };
     }
 
