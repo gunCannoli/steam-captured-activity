@@ -8,7 +8,11 @@ import { logger } from "./logger";
 import { rpc } from "./rpc";
 import { watchGamepadAppid } from "./steam/gamepad-appid";
 import { enrichGameDetails } from "./steam/metadata";
-import { patchGameInfoComponent } from "./steam/game-info-patch";
+import {
+    patchGameInfoComponent,
+    setAppViewTrigger,
+    setCachedStores,
+} from "./steam/game-info-patch";
 
 const NON_STEAM_APPID_MIN = 0x8000_0000;
 
@@ -94,8 +98,44 @@ export default async function OnPluginLoaded() {
         );
     }
 
+    // Cache SharedJSContext singletons for stores before portals render
+    setCachedStores((window as any).appDetailsStore, (window as any).appStore);
+    setAppViewTrigger((appid: number) => {
+        void handleAppView(appid);
+    });
+
     // Bypass Big Picture native shortcut filter on Game Info tab
     patchGameInfoComponent();
+
+    // Preload all cached metadata into appDetailsStore immediately
+    try {
+        const all = await rpc.getAllMetadata();
+        if (all?.success && all.library) {
+            let count = 0;
+            for (const [key, meta] of Object.entries(all.library)) {
+                const appid = Number(key);
+                if (Number.isFinite(appid) && appid >= NON_STEAM_APPID_MIN) {
+                    if (enrichGameDetails(appid, meta)) {
+                        count++;
+                    }
+                }
+            }
+            logger.info(
+                `Preloaded Game Info for ${count} non-Steam game(s) from local database.`,
+            );
+        }
+    } catch (err) {
+        logger.warn("Could not preload library metadata cache:", err);
+    }
+
+    // ===== Big Picture Navigation =====
+    // Big Picture renders through a SharedJSContext portal; react/jsx-runtime interception
+    // captures the active appid without depending on window popups.
+    watchGamepadAppid((appid) => {
+        if (appid >= NON_STEAM_APPID_MIN) {
+            void handleAppView(appid);
+        }
+    });
 
     // ===== Desktop Window Navigation =====
     onPopupCreate((_popup, type) => {
@@ -109,17 +149,6 @@ export default async function OnPluginLoaded() {
                     }
                 },
             );
-
-            return () => stopWatching();
-        }
-
-        // ===== Big Picture Navigation =====
-        if (type === PopupType.Gamepad) {
-            const stopWatching = watchGamepadAppid((appid) => {
-                if (appid >= NON_STEAM_APPID_MIN) {
-                    void handleAppView(appid);
-                }
-            });
 
             return () => stopWatching();
         }

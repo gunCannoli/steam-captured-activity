@@ -73,10 +73,25 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 - **Native Game Modes & Categories:** Maps IGDB `game_modes` into native Steam category badges (`Single-player: 2`, `Multiplayer: 1`, `Co-op: 9`, `Shared/Split Screen: 24`, `Full Controller Support: 28`) injected into `appStore.GetAppOverviewByAppID(appid).m_setStoreCategories`.
 - **Custom Artwork:** Deferred per requirements to prioritize metadata accuracy and game info richness.
 
-### Phase 8b: Big Picture Game Info Filter Bypass & Short Description (✅ Complete)
+### Phase 8b: Big Picture Game Info Filter Bypass & Enriched Metadata Display (✅ Complete)
 
-- **Bypass Big Picture Shortcut Filter:** In module `15448` (component `k` / `b`), Steam checks `this.props.overview.BIsModOrShortcut()`; if `true`, it suppresses descriptions, developer/publisher credits, and release dates. Hook or shadow this check when `library_metadata.json` contains enriched data so Steam's native Game Info renders.
-- **`short_description` Field:** Introduce `short_description` in `library_metadata.json` and map it to `appData.descriptionsData.strSnippet` (leaving full story/plot in `strFullDescription`). Extract clean snippets automatically from IGDB summaries.
+- **Bypass Big Picture Shortcut Filter:** Steam's inner Game Info component (`k` in module `15448`) tests `this.props.overview.BIsModOrShortcut()`; if `true`, it suppresses descriptions, developer/publisher credits, and release dates, rendering `#AppDetails_Shortcut_Explanation`.
+- **Targeted Prototype Interception:** Hooked `AppOverview.prototype.BIsModOrShortcut` when invoked from `k.render` to return `false` if `appDetailsStore` contains enriched descriptions or developer credits for the shortcut.
+- **64-bit GameID Integrity Preserved:** Leaves all other callers (such as `GetGameID()`) completely untouched, ensuring 64-bit shortcut identifiers (`m_gameid: 18310622842007322624`) continue working seamlessly for screenshot and recording lookups.
+- **Multi-Window Reactive Refresh:** Implemented cross-window fiber traversal via `g_PopupManager` (module `41433`/`75380`) in `refreshGameInfoInstances()`, automatically triggering `forceUpdate()` on mounted `k` components across both Desktop and Big Picture popup windows.
+- **Verified Live in Big Picture Mode:** Verified on AM2R (`4263274102`) that Game Info cleanly renders native description snippet, developer (`DoctorM64`), publisher (`DoctorM64`), controller/single-player badges, and user collections with zero shortcut explanation warnings.
+
+### Side Task 1: Activity Feed Native Post-Game Summary Component Reuse & Media Player Integration
+
+- **Native Summary Card Structure:** For daily grouped activity items (e.g. September 20 with 2 screenshots and 2 recordings), replace custom CSS metric cards with Steam's native `SummaryContainer` / `PostGameSummaryCard` component structures.
+- **Unified Media Interaction:** Retain native hover and click handlers so clicking video clips opens Steam's native media player rather than static images.
+- **Heterogeneous Event Aggregation:** Properly aggregate all 4 items for AM2R's September 20 session (2 recordings + 2 screenshots) and prepare for future achievement unlock cards in the same daily bucket.
+
+### Side Task 2: IGDB Metadata Schema Simplification & Disambiguation Refinement
+
+- **Schema Consolidation:** Simplify `library_metadata.json` schema to retain a single canonical `description` field, removing redundant `short_description` and `summary` fields.
+- **Disambiguation & Main Game Priority:** Improve search and ranking logic in `igdb.lua` to prioritize parent/main game entries over port editions, remakes, or DLCs (e.g., ensuring *Battletoads & Double Dragon* matches the full game overview rather than a 16-bit port summary).
+- **Franchise & Brand Ownership:** Refine franchise parsing to reflect IP/brand ownership semantics rather than generic series tags where appropriate.
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 

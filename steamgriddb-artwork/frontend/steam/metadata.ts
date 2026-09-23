@@ -1,6 +1,10 @@
 import { logger } from "../logger";
 import type { ConsolidatedMetadata } from "../rpc";
-import { refreshGameInfoInstances } from "./game-info-patch";
+import {
+    getAppDetailsStore,
+    getAppStore,
+    refreshGameInfoInstances,
+} from "./game-info-patch";
 
 /**
  * Standard Steam Store Category IDs:
@@ -47,7 +51,7 @@ export function enrichGameDetails(
         const franchises = toArray<string>(meta.franchises);
 
         // 1. Populate appDetailsStore (Big Picture Game Info tab & details)
-        const detailsStore = (window as any).appDetailsStore;
+        const detailsStore = getAppDetailsStore();
         if (detailsStore?.GetAppData) {
             const appData = detailsStore.GetAppData(appid);
             if (appData) {
@@ -97,7 +101,7 @@ export function enrichGameDetails(
         }
 
         // 2. Populate appStore AppOverview (Categories, Game Modes, Controller Support, Release Date)
-        const appStore = (window as any).appStore;
+        const appStore = getAppStore();
         if (appStore?.GetAppOverviewByAppID) {
             const overview = appStore.GetAppOverviewByAppID(appid);
             if (overview) {
