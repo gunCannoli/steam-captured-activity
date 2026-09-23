@@ -128,20 +128,37 @@ local function query_igdb(apicalypse_query)
   return data
 end
 
---- Extract a clean 1-2 sentence snippet (up to ~250 chars) from summary/description
-local function extract_snippet(text)
-  if not text or text == "" then return "" end
-  local s = text:match("^%s*(.-)%s*$")
-  local sentence = s:match("^(.-[.!?])%s") or s:match("^(.-[.!?])$")
-  if sentence and #sentence >= 20 and #sentence <= 250 then
-    return sentence
+--- Score an IGDB candidate to prioritize main games and rich descriptions over ports
+local function score_candidate(cand, clean_lower)
+  local score = 0
+  local cat = cand.category or 0
+  if cat == 0 then
+    score = score + 100 -- main_game
+  elseif cat == 8 or cat == 9 or cat == 10 then
+    score = score + 80  -- remake, remaster, expanded_game
+  elseif cat == 11 then
+    score = score + 30  -- port
+  else
+    score = score + 10
   end
-  if #s > 220 then
-    local cut = s:sub(1, 220)
-    local last_space = cut:match("^(.*)%s")
-    return (last_space or cut) .. "..."
+
+  local cand_name = tostring(cand.name or ""):lower():gsub("[^%w%s]", "")
+  local clean_norm = clean_lower:gsub("[^%w%s]", "")
+  if cand_name == clean_norm then
+    score = score + 60
+  elseif cand_name:find(clean_norm, 1, true) or clean_norm:find(cand_name, 1, true) then
+    score = score + 30
   end
-  return s
+
+  local summary = cand.summary or ""
+  if #summary > 120 then
+    score = score + 25
+  end
+  if summary:lower():find("port of") then
+    score = score - 30
+  end
+
+  return score
 end
 
 --- Search for a game on IGDB and convert into consolidated metadata
@@ -154,31 +171,40 @@ function igdb.fetch_game_metadata(appid, raw_title)
 
   logger:info("Searching IGDB for: '" .. clean .. "' (raw: '" .. raw_title .. "')")
 
-  local fields = "fields name, summary, storyline, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchises.name, game_modes.name, genres.name, themes.name; "
-  local query = fields .. 'search "' .. escape_query(clean) .. '"; limit 1;'
+  local fields = "fields name, summary, storyline, category, parent_game.name, parent_game.summary, first_release_date, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise.name, franchises.name, game_modes.name, genres.name, themes.name; "
+  local query = fields .. 'search "' .. escape_query(clean) .. '"; limit 10;'
 
   local results = query_igdb(query)
-  local game = (results and #results > 0) and results[1] or nil
 
-  -- Fallback: if no match and title has a colon/dash, try prefix
-  if not game then
+  -- Fallback: if no matches and title has a colon/dash, try prefix
+  if not results or #results == 0 then
     local prefix = clean:match("^(.-)%s*[:%-]")
     if prefix and #prefix >= 3 then
       logger:info("Retrying IGDB search with title prefix: '" .. prefix .. "'")
-      local pquery = fields .. 'search "' .. escape_query(prefix) .. '"; limit 1;'
-      local presults = query_igdb(pquery)
-      if presults and #presults > 0 then
-        game = presults[1]
-      end
+      local pquery = fields .. 'search "' .. escape_query(prefix) .. '"; limit 10;'
+      results = query_igdb(pquery)
     end
   end
 
-  if not game then
+  if not results or #results == 0 then
     logger:info("No IGDB match found for '" .. clean .. "'")
     return nil
   end
 
-  logger:info("Matched IGDB game: '" .. tostring(game.name) .. "' (ID: " .. tostring(game.id) .. ")")
+  local clean_lower = clean:lower()
+  local best_game = results[1]
+  local best_score = -9999
+
+  for _, cand in ipairs(results) do
+    local sc = score_candidate(cand, clean_lower)
+    if sc > best_score then
+      best_score = sc
+      best_game = cand
+    end
+  end
+
+  local game = best_game
+  logger:info("Matched IGDB game: '" .. tostring(game.name) .. "' (ID: " .. tostring(game.id) .. ", category: " .. tostring(game.category) .. ", score: " .. tostring(best_score) .. ")")
 
   -- Developers & Publishers
   local devs = {}
@@ -193,11 +219,22 @@ function igdb.fetch_game_metadata(appid, raw_title)
     end
   end
 
-  -- Franchises
+  -- Franchises (check both singular franchise and plural franchises)
   local franchises = {}
+  local seen_franchises = {}
+  local function add_franchise(fn)
+    if fn and fn ~= "" and not seen_franchises[fn] then
+      seen_franchises[fn] = true
+      franchises[#franchises + 1] = fn
+    end
+  end
+
+  if type(game.franchise) == "table" and game.franchise.name then
+    add_franchise(game.franchise.name)
+  end
   if type(game.franchises) == "table" then
     for _, f in ipairs(game.franchises) do
-      if f.name then franchises[#franchises + 1] = f.name end
+      if f.name then add_franchise(f.name) end
     end
   end
 
@@ -228,16 +265,20 @@ function igdb.fetch_game_metadata(appid, raw_title)
     single_player = true
   end
 
-  local main_desc = (game.summary and #game.summary > 0) and game.summary or (game.storyline or "")
-  local snippet = extract_snippet(main_desc)
+  -- Description: use summary, or fallback to parent_game summary if port, or storyline
+  local main_desc = (game.summary and #game.summary > 0) and game.summary or ""
+  if (main_desc == "" or main_desc:lower():find("port of")) and game.parent_game and game.parent_game.summary and #game.parent_game.summary > 0 then
+    main_desc = game.parent_game.summary
+  end
+  if main_desc == "" and game.storyline and #game.storyline > 0 then
+    main_desc = game.storyline
+  end
 
   return {
     appid = appid,
     title = raw_title,
     igdb_id = game.id,
     matched_title = game.name,
-    short_description = snippet,
-    summary = game.summary or "",
     description = main_desc,
     developers = devs,
     publishers = pubs,

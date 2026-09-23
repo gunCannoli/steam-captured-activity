@@ -49,9 +49,19 @@ local function load_db()
         db = data
         local migrated = false
         for _, rec in pairs(db) do
-          if type(rec) == "table" and (not rec.short_description or rec.short_description == "") then
-            rec.short_description = extract_snippet(rec.summary or rec.description or "")
-            migrated = true
+          if type(rec) == "table" then
+            if (not rec.description or rec.description == "") and rec.summary and rec.summary ~= "" then
+              rec.description = rec.summary
+              migrated = true
+            end
+            if rec.short_description ~= nil then
+              rec.short_description = nil
+              migrated = true
+            end
+            if rec.summary ~= nil then
+              rec.summary = nil
+              migrated = true
+            end
           end
         end
         if migrated then
@@ -153,18 +163,15 @@ function metadata_db.set(appid, new_data, force)
     return existing
   end
 
-  -- If existing had custom edits but no explicit override flag, preserve manual categories/text
+  -- If existing had custom edits but no explicit override flag, preserve manual description
   if existing and not force then
-    if existing.short_description and existing.short_description ~= "" and (not new_data.short_description or new_data.short_description == "") then
-      new_data.short_description = existing.short_description
-    end
-    if existing.summary and existing.summary ~= "" and (not new_data.summary or new_data.summary == "") then
-      new_data.summary = existing.summary
-    end
     if existing.description and existing.description ~= "" and (not new_data.description or new_data.description == "") then
       new_data.description = existing.description
     end
   end
+
+  new_data.short_description = nil
+  new_data.summary = nil
 
   d[key] = new_data
   metadata_db.save()

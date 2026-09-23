@@ -5,7 +5,7 @@ import {
     PopupType,
 } from "steambrew-utils/watchers";
 import { logger } from "./logger";
-import { rpc } from "./rpc";
+import { rpc, type ConsolidatedMetadata } from "./rpc";
 import { watchGamepadAppid } from "./steam/gamepad-appid";
 import { enrichGameDetails } from "./steam/metadata";
 import {
@@ -15,6 +15,9 @@ import {
 } from "./steam/game-info-patch";
 
 const NON_STEAM_APPID_MIN = 0x8000_0000;
+
+/** In-memory cache of library metadata */
+const libraryCache = new Map<number, ConsolidatedMetadata>();
 
 /** Set of appids we have already enriched this session */
 const processedApps = new Set<number>();
@@ -45,8 +48,12 @@ function resolveShortcutTitle(appid: number): string | undefined {
 
 async function handleAppView(appid: number): Promise<void> {
     if (appid < NON_STEAM_APPID_MIN) return;
-    if (processedApps.has(appid)) return;
 
+    if (libraryCache.has(appid)) {
+        enrichGameDetails(appid, libraryCache.get(appid)!);
+    }
+
+    if (processedApps.has(appid)) return;
     processedApps.add(appid);
 
     const title = resolveShortcutTitle(appid);
@@ -69,6 +76,7 @@ async function handleAppView(appid: number): Promise<void> {
             return;
         }
 
+        libraryCache.set(appid, res.metadata);
         const applied = enrichGameDetails(appid, res.metadata);
         if (applied) {
             logger.info(
@@ -115,6 +123,7 @@ export default async function OnPluginLoaded() {
             for (const [key, meta] of Object.entries(all.library)) {
                 const appid = Number(key);
                 if (Number.isFinite(appid) && appid >= NON_STEAM_APPID_MIN) {
+                    libraryCache.set(appid, meta);
                     if (enrichGameDetails(appid, meta)) {
                         count++;
                     }

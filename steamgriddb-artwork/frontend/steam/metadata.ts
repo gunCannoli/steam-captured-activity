@@ -1,6 +1,7 @@
 import { logger } from "../logger";
 import type { ConsolidatedMetadata } from "../rpc";
 import {
+    ensureAppOverviewHooked,
     getAppDetailsStore,
     getAppStore,
     refreshGameInfoInstances,
@@ -60,16 +61,11 @@ export function enrichGameDetails(
         if (detailsStore?.GetAppData) {
             const appData = detailsStore.GetAppData(appid);
             if (appData) {
-                // Descriptions (snippet for sidebar/header, full for Game Info body)
-                const snippet =
-                    meta.short_description ||
-                    meta.summary ||
-                    meta.description ||
-                    "";
-                const fullDesc = meta.description || meta.summary || "";
+                // Descriptions (canonical description for snippet and full description)
+                const desc = meta.description || "";
                 appData.descriptionsData = {
-                    strSnippet: snippet,
-                    strFullDescription: fullDesc,
+                    strSnippet: desc,
+                    strFullDescription: desc,
                 };
 
                 // Associations (Developers, Publishers, Franchises)
@@ -134,6 +130,8 @@ export function enrichGameDetails(
         if (appStore?.GetAppOverviewByAppID) {
             const overview = appStore.GetAppOverviewByAppID(appid);
             if (overview) {
+                ensureAppOverviewHooked(overview);
+
                 // Ensure m_setStoreCategories is an active Set
                 if (
                     !overview.m_setStoreCategories ||
@@ -147,6 +145,8 @@ export function enrichGameDetails(
                 }
 
                 if (cats.full_controller !== false) {
+                    overview.xbox_controller_support = 2;
+                } else if (cats.partial_controller) {
                     overview.xbox_controller_support = 1;
                 }
 

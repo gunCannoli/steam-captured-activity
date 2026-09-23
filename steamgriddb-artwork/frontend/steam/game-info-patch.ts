@@ -119,6 +119,25 @@ export function refreshGameInfoInstances(): void {
     const docs: Document[] = [];
     if (typeof document !== "undefined") docs.push(document);
 
+    try {
+        const popupMgr =
+            (window as any).g_PopupManager || (globalThis as any).g_PopupManager;
+        const bpmPopup = popupMgr?.GetExistingPopup?.("SP BPM_uid0");
+        const bpmDoc = bpmPopup?.window?.document;
+        if (bpmDoc && !docs.includes(bpmDoc)) {
+            docs.push(bpmDoc);
+        }
+        if (popupMgr?.m_mapPopups) {
+            for (const popup of popupMgr.m_mapPopups.values()) {
+                const doc =
+                    popup?.m_popup?.window?.document || popup?.window?.document;
+                if (doc && !docs.includes(doc)) {
+                    docs.push(doc);
+                }
+            }
+        }
+    } catch {}
+
     const req = getSteamRequire();
     if (req?.m) {
         for (const id of Object.keys(req.m)) {
@@ -127,7 +146,9 @@ export function refreshGameInfoInstances(): void {
                 for (const k of Object.keys(mod || {})) {
                     if (mod[k]?.m_mapPopups) {
                         for (const popup of mod[k].m_mapPopups.values()) {
-                            const doc = popup?.m_popup?.window?.document;
+                            const doc =
+                                popup?.m_popup?.window?.document ||
+                                popup?.window?.document;
                             if (doc && !docs.includes(doc)) {
                                 docs.push(doc);
                             }
@@ -142,7 +163,7 @@ export function refreshGameInfoInstances(): void {
     for (const doc of docs) {
         try {
             const el = doc.querySelector(
-                '[class*="Shortcut"], [class*="GameInfoContainer"], [class*="InnerContainer"]',
+                '[class*="Shortcut"], [class*="GameInfoContainer"], [class*="InnerContainer"], [class*="FeaturesList"]',
             );
             if (!el) continue;
             const key = Object.keys(el).find(
@@ -157,7 +178,8 @@ export function refreshGameInfoInstances(): void {
                     fiber.type &&
                     (fiber.type.name === "k" ||
                         fiber.type.name === "G" ||
-                        fiber.type.name === "ct")
+                        fiber.type.name === "ct" ||
+                        typeof fiber.type === "function")
                 ) {
                     fiber.stateNode?.forceUpdate?.();
                 }
@@ -200,29 +222,50 @@ export function getCachedCategoriesForApp(
 }
 
 /**
- * Hook AppOverview prototypes:
+ * Hook AppOverview prototype chain:
  * 1. BIsModOrShortcut: Returns false within k.render / GameInfo when metadata exists.
  * 2. BHasStoreCategory: Consults appCategoriesCache to dynamically return category flags
- *    (Single-player, Multi-player, Co-op, Full Controller, Achievements, Remote Play Together)
- *    even before or if Steam's native m_setStoreCategories is initialized.
+ *    (Single-player, Multi-player, Co-op, Full Controller, Achievements, Remote Play Together).
  */
-function hookAppOverviewBIsModOrShortcut(): boolean {
-    try {
-        const appStore = getAppStore();
-        const sample =
-            appStore?.allApps?.[0] ||
-            appStore?.GetAppOverviewByAppID?.(4263274102);
-
-        // 1. Direct prototype has BHasStoreCategory
-        const directProto = sample ? Object.getPrototypeOf(sample) : undefined;
+export function ensureAppOverviewHooked(overview: any): boolean {
+    if (!overview) return false;
+    let hookedAny = false;
+    let curr: any = overview;
+    while (curr && curr !== Object.prototype) {
         if (
-            directProto &&
-            typeof directProto.BHasStoreCategory === "function" &&
-            !directProto.__nsga_bhascat_hooked
+            typeof curr.BIsModOrShortcut === "function" &&
+            !curr.__nsga_bismod_hooked
         ) {
-            directProto.__nsga_bhascat_hooked = true;
-            const origBHasStoreCategory = directProto.BHasStoreCategory;
-            directProto.BHasStoreCategory = function (catId: number) {
+            curr.__nsga_bismod_hooked = true;
+            const origBIsMod = curr.BIsModOrShortcut;
+            curr.BIsModOrShortcut = function () {
+                const stack = new Error().stack || "";
+                if (stack.includes("k.render") || stack.includes("GameInfo")) {
+                    const store = getAppDetailsStore();
+                    const appData = store?.GetAppData?.(this.appid);
+                    const hasMetadata = Boolean(
+                        appData?.descriptionsData?.strSnippet ||
+                            appData?.descriptionsData?.strFullDescription ||
+                            appData?.associationData?.rgDevelopers?.length ||
+                            appData?.associationData?.rgPublishers?.length ||
+                            appData?.associationData?.rgFranchises?.length,
+                    );
+                    if (hasMetadata) {
+                        return false;
+                    }
+                }
+                return origBIsMod.apply(this, arguments);
+            };
+            hookedAny = true;
+        }
+
+        if (
+            typeof curr.BHasStoreCategory === "function" &&
+            !curr.__nsga_bhascat_hooked
+        ) {
+            curr.__nsga_bhascat_hooked = true;
+            const origBHasStoreCategory = curr.BHasStoreCategory;
+            curr.BHasStoreCategory = function (catId: number) {
                 if (
                     this.m_setStoreCategories &&
                     this.m_setStoreCategories.has(catId)
@@ -237,72 +280,49 @@ function hookAppOverviewBIsModOrShortcut(): boolean {
                     ? origBHasStoreCategory.call(this, catId)
                     : false;
             };
+            hookedAny = true;
+        }
+
+        curr = Object.getPrototypeOf(curr);
+    }
+    return hookedAny;
+}
+
+function hookAppOverviewBIsModOrShortcut(): boolean {
+    try {
+        const appStore = getAppStore();
+        const sample =
+            appStore?.allApps?.[0] ||
+            appStore?.GetAppOverviewByAppID?.(4263274102) ||
+            appStore?.GetAppOverviewByAppID?.(3586085683);
+
+        if (sample && ensureAppOverviewHooked(sample)) {
             logger.info(
-                "Successfully hooked AppOverview.prototype.BHasStoreCategory for native category badges.",
+                "Successfully hooked AppOverview prototype methods via sample overview.",
             );
+            return true;
         }
 
-        // 2. Base prototype (proto2) has BIsModOrShortcut
-        let proto = directProto;
-        while (
-            proto &&
-            !Object.prototype.hasOwnProperty.call(proto, "BIsModOrShortcut")
-        ) {
-            proto = Object.getPrototypeOf(proto);
-        }
-
-        if (!proto) {
-            const req = getSteamRequire();
-            if (req?.m) {
-                for (const id of Object.keys(req.m)) {
-                    try {
-                        const exp = req(id);
-                        for (const k of Object.keys(exp || {})) {
-                            const candidate = exp[k];
-                            if (
-                                candidate?.prototype &&
-                                typeof candidate.prototype.BIsModOrShortcut ===
-                                    "function"
-                            ) {
-                                proto = candidate.prototype;
-                                break;
-                            }
+        const req = getSteamRequire();
+        if (req?.m) {
+            for (const id of Object.keys(req.m)) {
+                try {
+                    const exp = req(id);
+                    for (const k of Object.keys(exp || {})) {
+                        const candidate = exp[k];
+                        if (
+                            candidate?.prototype &&
+                            (typeof candidate.prototype.BIsModOrShortcut ===
+                                "function" ||
+                                typeof candidate.prototype
+                                    .BHasStoreCategory === "function")
+                        ) {
+                            ensureAppOverviewHooked(candidate.prototype);
                         }
-                        if (proto) break;
-                    } catch {}
-                }
+                    }
+                } catch {}
             }
         }
-
-        if (!proto) {
-            logger.warn("Could not find AppOverview prototype with BIsModOrShortcut.");
-            return false;
-        }
-
-        if (proto.__nsga_bismod_hooked) return true;
-        proto.__nsga_bismod_hooked = true;
-
-        const origBIsMod = proto.BIsModOrShortcut;
-        proto.BIsModOrShortcut = function () {
-            const stack = new Error().stack || "";
-            if (stack.includes("k.render") || stack.includes("GameInfo")) {
-                const store = getAppDetailsStore();
-                const appData = store?.GetAppData?.(this.appid);
-                const hasMetadata = Boolean(
-                    appData?.descriptionsData?.strSnippet ||
-                        appData?.descriptionsData?.strFullDescription ||
-                        appData?.associationData?.rgDevelopers?.length,
-                );
-                if (hasMetadata) {
-                    return false;
-                }
-            }
-            return origBIsMod.apply(this, arguments);
-        };
-
-        logger.info(
-            "Successfully hooked AppOverview.prototype.BIsModOrShortcut for Game Info.",
-        );
         return true;
     } catch (err) {
         logger.warn("Failed to hook AppOverview BIsModOrShortcut:", err);
@@ -333,6 +353,9 @@ function patchKComponent(k: any): boolean {
     k.prototype.render = function () {
         liveInstances.add(this);
         const overview = this.props?.overview;
+        if (overview) {
+            ensureAppOverviewHooked(overview);
+        }
         if (
             overview &&
             typeof overview.BIsModOrShortcut === "function" &&
@@ -343,7 +366,9 @@ function patchKComponent(k: any): boolean {
             const hasMetadata = Boolean(
                 appData?.descriptionsData?.strSnippet ||
                     appData?.descriptionsData?.strFullDescription ||
-                    appData?.associationData?.rgDevelopers?.length,
+                    appData?.associationData?.rgDevelopers?.length ||
+                    appData?.associationData?.rgPublishers?.length ||
+                    appData?.associationData?.rgFranchises?.length,
             );
 
             if (hasMetadata) {
@@ -447,6 +472,9 @@ export function patchGameInfoComponent(): boolean {
             targetG.prototype.render = function () {
                 liveInstances.add(this);
                 const overview = this.props?.overview;
+                if (overview) {
+                    ensureAppOverviewHooked(overview);
+                }
                 if (
                     overview &&
                     typeof overview.BIsModOrShortcut === "function" &&
@@ -458,8 +486,10 @@ export function patchGameInfoComponent(): boolean {
                     const appData = store?.GetAppData?.(overview.appid);
                     const hasMetadata = Boolean(
                         appData?.descriptionsData?.strSnippet ||
-                        appData?.descriptionsData?.strFullDescription ||
-                        appData?.associationData?.rgDevelopers?.length,
+                            appData?.descriptionsData?.strFullDescription ||
+                            appData?.associationData?.rgDevelopers?.length ||
+                            appData?.associationData?.rgPublishers?.length ||
+                            appData?.associationData?.rgFranchises?.length,
                     );
 
                     if (hasMetadata) {

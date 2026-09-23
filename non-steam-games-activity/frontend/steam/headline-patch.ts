@@ -47,8 +47,8 @@ function handleHeadlineIntercept(args: unknown[]): void {
   if (props.event.bIsNonSteam || (typeof appid === 'number' && appid >= NON_STEAM_APPID_MIN)) {
     // Steam's EventHeadline renders:
     // <span className="ActorName">{persona}</span><span className="HeaderChildren">{children}</span>
-    // Replacing UGC string (" shared X screenshots") with " recorded" aligns with native phrasing (" achieved").
-    args[1] = { ...props, children: ' recorded' };
+    // Replacing UGC string (" shared X screenshots") with " captured" aligns with native phrasing (" achieved").
+    args[1] = { ...props, children: ' captured' };
   }
 }
 
@@ -56,7 +56,7 @@ function handleHeadlineIntercept(args: unknown[]): void {
  * Patch react/jsx-runtime to refine the Activity Feed headline for non-Steam games.
  *
  * Replaces community UGC phrasing ("cannoliGun shared 2 screenshots") with native action phrasing
- * ("cannoliGun recorded").
+ * ("cannoliGun captured").
  */
 export function installHeadlinePatch(): void {
   if (isInstalled) return;
@@ -70,5 +70,5 @@ export function installHeadlinePatch(): void {
   beforePatch(runtime, 'jsx', (args) => handleHeadlineIntercept(args));
   beforePatch(runtime, 'jsxs', (args) => handleHeadlineIntercept(args));
   isInstalled = true;
-  logger.info('Installed Activity Feed headline patch ("{Username} recorded").');
+  logger.info('Installed Activity Feed headline patch ("{Username} captured").');
 }

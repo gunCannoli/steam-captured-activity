@@ -9,6 +9,8 @@ import {
     workshopStore,
     type AppActivity,
     type AppActivityDay,
+    type SteamClip,
+    type SteamScreenshot,
 } from "./stores";
 
 /**
@@ -43,7 +45,7 @@ function getLocalMidnight(timestamp: number): number {
     return Math.floor(d.getTime() / 1000);
 }
 
-interface MediaItem {
+export interface MediaItem {
     id: string;
     url: string;
     caption: string;
@@ -51,6 +53,8 @@ interface MediaItem {
     width: number;
     height: number;
     isClip: boolean;
+    rawScreenshot?: SteamScreenshot;
+    rawClip?: SteamClip;
 }
 
 /**
@@ -161,6 +165,7 @@ export async function publishActivity(
             width: s.nWidth,
             height: s.nHeight,
             isClip: false,
+            rawScreenshot: s,
         })),
         ...clips.map((c): MediaItem => ({
             id: `nonsteam_${appid}_clip_${c.clip_id}`,
@@ -170,6 +175,7 @@ export async function publishActivity(
             width: c.thumbnail_width || 1920,
             height: c.thumbnail_height || 1080,
             isClip: true,
+            rawClip: c,
         })),
     ].sort((a, b) => b.timestamp - a.timestamp);
 
@@ -276,6 +282,7 @@ export async function publishActivity(
         fakeEvent.eEventType = 13; // FilePublished_Screenshot
         fakeEvent.bIsGameActivity = false;
         fakeEvent.bIsNonSteam = true;
+        fakeEvent.m_mediaItems = dayMedia;
         fakeEvent.commentThreads = [];
         fakeEvent.activeThread = 0;
         // Base class getter defines Number(this.gameid), which overflows for 64-bit shortcut ids.

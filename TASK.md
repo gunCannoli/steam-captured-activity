@@ -35,17 +35,23 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Multi-Session Roadmap
 
-### Phase 3b: Daily Activity Feed BPM Thumbnail Sizing & Headline Refinement (✅ Complete)
+### Active Side Tasks (Next Session)
 
-- **BPM Thumbnail Metrics:** Constrain `.CarouselThumb` and `.ImageWrapper img` in Big Picture Mode to Steam's native 16:9 thumbnail dimensions (320×180px), preventing 1440p/4K raw screenshots from stretching to 2560px/3840px and blowing out the container.
-- **Headline Wording:** Intercept the headline renderer for non-Steam captures to display `"{Username} recorded"` instead of the community UGC string `"{Username} shared X screenshots"`, aligning with Steam's native achievement headline convention (`"{Username} achieved"`).
-- **Clips & Screenshots Integration:** Ingest recordings alongside screenshots into the chronological day list so all captures appear in a unified feed.
-
-### Phase 4: Core Refresh & Caching Hardening (✅ Complete)
-
-- Complete `onAppLaunch` → `onQuit` lifecycle invalidation for active shortcuts.
-- Add mtime-keyed caching to `shortcuts.vdf` and captures index backend readers.
-- Keep core completely zero-network and self-contained ([ADR-0012](docs/decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
+- **Side Task 3: AM2R Achievements Category Badge Verification:**
+    - AM2R does not have native achievements, but was showing the "Achievements" badge in the right-hand FeaturesList panel.
+    - Confirm how `categories.achievements` is populated (e.g., query RetroAchievements provider / emulator log vs defaulting to `false` when no achievements exist).
+- **Side Task 4: Daily Activity Headline Phrasing (`{Username} captured`):**
+    - ✅ Complete in code: Replaced `{Username} recorded` with `{Username} captured` in `headline-patch.ts`, matching native gaming terminology for combined screenshots and video clips.
+- **Side Task 5: Game Info Release Date Display on AM2R:**
+    - On AM2R's "Game Info" stats section, `Release Date:` was not showing alongside developer and publisher credits.
+    - IGDB returns `2016-8-6 - Full Release` (`first_release_date: 1470441600`). Verify whether `overview.rt_original_release_date`, `rt_steam_release_date`, or `GetCanonicalReleaseDate()` requires specific epoch handling or prototype hooking.
+- **Side Task 6: Smarter Scraper & Disambiguation Logic (Platform & Reference Prioritization):**
+    - Multi-release titles currently risk matching modern ports instead of original releases (e.g. SNES Chrono Trigger matching the 2018 PC re-release `chrono-trigger--3` rather than original `chrono-trigger`).
+    - Parse shortcut command lines and launch targets (`"C:\emu\RetroArch\retroarch.exe" -L cores\snes9x_libretro.dll "C:\emu\roms\snes\Chrono Trigger (USA).zip"`) to extract core and platform clues (SNES, Genesis, NES, GBA, etc.).
+    - When a candidate summary is very brief (e.g. Game Gear port of "Battletoads"), prioritize top canonical main-game references (e.g. `battletoads-slash-double-dragon` over `battletoads-slash-double-dragon--1`).
+- **Side Task 7: Description vs Storyline Priority & Smart Sentence Truncation:**
+    - Prioritize `summary` / description over `storyline` for the metadata `description` field unless summary is empty. (E.g. on AM2R, use the summary describing the game and release history rather than in-game plot/storyline details).
+    - Implement a smart max character length cutoff that breaks cleanly at sentence boundaries (period + space) with leeway based on remaining characters to the next dot.
 
 ### Phase 5: Native Achievement Integration (Desktop & Big Picture)
 
@@ -65,33 +71,6 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 - **Auto-Screenshot:** Trigger native screenshot capture via `GameRecording.TakeScreenshot#1` or `SteamClient.Screenshots`, automatically saving and cataloging the screenshot into the shortcut's screenshot directory so it instantly appears in the Activity feed.
 - **Timeline Achievement Markers:** Invoke `GameRecording.UserAddTimelineEntry#1` to place a golden achievement icon marker onto Steam's active game recording timeline at the exact moment of unlock.
 - **Instant Replay Clip:** Call `GameRecording.SaveClip#1` to cut an automated highlight clip (e.g. preceding 15–30 seconds) into `gamerecordings/clips/` when an achievement triggers.
-
-### Phase 8: Game Info & Metadata Enrichment (Optional Provider) (✅ Complete)
-
-- **Consolidated Local JSON Database (`library_metadata.json`):** Single, human-readable file mapping non-Steam game metadata. Supports manual tweaks and `custom_override` flag so user edits are never clobbered.
-- **IGDB & Twitch OAuth2 Backend:** Automatically requests and caches Twitch access tokens, queries IGDB v4 APICalypse games endpoint, and extracts descriptions, developer/publisher credits, franchises, and release dates.
-- **Native Game Modes & Categories:** Maps IGDB `game_modes` into native Steam category badges (`Single-player: 2`, `Multiplayer: 1`, `Co-op: 9`, `Shared/Split Screen: 24`, `Full Controller Support: 28`) injected into `appStore.GetAppOverviewByAppID(appid).m_setStoreCategories`.
-- **Custom Artwork:** Deferred per requirements to prioritize metadata accuracy and game info richness.
-
-### Phase 8b: Big Picture Game Info Filter Bypass & Enriched Metadata Display (✅ Complete)
-
-- **Bypass Big Picture Shortcut Filter:** Steam's inner Game Info component (`k` in module `15448`) tests `this.props.overview.BIsModOrShortcut()`; if `true`, it suppresses descriptions, developer/publisher credits, and release dates, rendering `#AppDetails_Shortcut_Explanation`.
-- **Targeted Prototype Interception:** Hooked `AppOverview.prototype.BIsModOrShortcut` when invoked from `k.render` to return `false` if `appDetailsStore` contains enriched descriptions or developer credits for the shortcut.
-- **64-bit GameID Integrity Preserved:** Leaves all other callers (such as `GetGameID()`) completely untouched, ensuring 64-bit shortcut identifiers (`m_gameid: 18310622842007322624`) continue working seamlessly for screenshot and recording lookups.
-- **Multi-Window Reactive Refresh:** Implemented cross-window fiber traversal via `g_PopupManager` (module `41433`/`75380`) in `refreshGameInfoInstances()`, automatically triggering `forceUpdate()` on mounted `k` components across both Desktop and Big Picture popup windows.
-- **Verified Live in Big Picture Mode:** Verified on AM2R (`4263274102`) that Game Info cleanly renders native description snippet, developer (`DoctorM64`), publisher (`DoctorM64`), controller/single-player badges, and user collections with zero shortcut explanation warnings.
-
-### Side Task 1: Activity Feed Native Post-Game Summary Component Reuse & Media Player Integration
-
-- **Native Summary Card Structure:** For daily grouped activity items (e.g. September 20 with 2 screenshots and 2 recordings), replace custom CSS metric cards with Steam's native `SummaryContainer` / `PostGameSummaryCard` component structures.
-- **Unified Media Interaction:** Retain native hover and click handlers so clicking video clips opens Steam's native media player rather than static images.
-- **Heterogeneous Event Aggregation:** Properly aggregate all 4 items for AM2R's September 20 session (2 recordings + 2 screenshots) and prepare for future achievement unlock cards in the same daily bucket.
-
-### Side Task 2: IGDB Metadata Schema Simplification & Disambiguation Refinement
-
-- **Schema Consolidation:** Simplify `library_metadata.json` schema to retain a single canonical `description` field, removing redundant `short_description` and `summary` fields.
-- **Disambiguation & Main Game Priority:** Improve search and ranking logic in `igdb.lua` to prioritize parent/main game entries over port editions, remakes, or DLCs (e.g., ensuring _Battletoads & Double Dragon_ matches the full game overview rather than a 16-bit port summary).
-- **Franchise & Brand Ownership:** Refine franchise parsing to reflect IP/brand ownership semantics rather than generic series tags where appropriate.
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 

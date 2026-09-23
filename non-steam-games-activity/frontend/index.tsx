@@ -10,6 +10,7 @@ import {
 import { refresh as refreshLibraryHome, register as registerLibraryHome } from './renderers/library-home';
 import { watchGamepadAppid } from './steam/gamepad-appid';
 import { installHeadlinePatch } from './steam/headline-patch';
+import { installActivityCardsPatch } from './steam/activity-cards-patch';
 
 export { registerSummaryProvider } from './steam/summary';
 export type { SummaryContext, SummaryContribution, SummaryProvider } from './steam/summary';
@@ -40,8 +41,13 @@ export default async function OnPluginLoaded() {
 
   // ===== Headline phrasing =====
   // Replaces community UGC string ("cannoliGun shared 2 screenshots") with native action
-  // phrasing ("cannoliGun recorded") for non-Steam captures.
+  // phrasing ("cannoliGun captured") for non-Steam captures.
   installHeadlinePatch();
+
+  // ===== Native Activity Cards =====
+  // Replaces community screenshot viewer with genuine Post-Game Summary cards
+  // (PostGameSummaryClip and SummaryScreenshot) with hover video scrubbers and native playback.
+  installActivityCardsPatch();
 
   // ===== Library grid =====
   // Fills in last-played dates Steam does not have, from capture timestamps.
@@ -92,9 +98,8 @@ export default async function OnPluginLoaded() {
 
       // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
       const doc = popup.window?.document;
-      let styleEl: HTMLStyleElement | null = null;
-      if (doc) {
-        styleEl = doc.createElement('style');
+      let styleEl: HTMLStyleElement | null = doc ? doc.createElement('style') : null;
+      if (styleEl && doc) {
         styleEl.id = 'nsga-bpm-activity-thumbs';
         styleEl.textContent = `
           [class*="CarouselThumbs"] {
