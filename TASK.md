@@ -20,12 +20,12 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop)        | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`.                                                                                                                                                                                        |
 | Library grid                       | ✅ Shipped. Last-played dates populated from captures.                                                                                                                                                                                               |
 | Post-Game Summary (Big Picture)    | ✅ Shipped. Real Steam component via React Portal & store feeding ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)).                  |
-| Per-day Activity feed              | ✅ Shipped ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)); Phase 3b shipped (BPM 16:9 thumbnail sizing, native headline '{Username} recorded', unified captures). |
+| Per-day Activity feed              | ✅ Shipped ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)); Phase 3b shipped (BPM 16:9 thumbnail sizing, native headline '{Username} captured', single-pass module pre-cache, container selector fix). |
 | Core Refresh & Caching             | ✅ Shipped. `onAppLaunch` lifecycle invalidation + mtime caching in `shortcuts.vdf` & `screenshots.vdf`.                                                                                                                                             |
 | Native Achievements                | 🔬 Verified in Steam client. Next implementation phase (Phase 5).                                                                                                                                                                                    |
 | Achievement Notifications & Toasts | 🔬 Verified in Steam client. `NotificationStore.OnNotification` mapped.                                                                                                                                                                              |
 | Game Recording & Auto-Captures     | 🔬 Verified in Steam client. RPCs & timeline markers mapped (`80026`).                                                                                                                                                                               |
-| Game Info & Metadata Enrichment    | ✅ Complete. Phase 8 & 8b shipped (`library_metadata.json`, IGDB, short description, BPM filter bypass).                                                                                                                                             |
+| Game Info & Metadata Enrichment    | ✅ Complete. Phase 8 & 8b shipped; Side Tasks 1 & 2 completed (performance pre-caching, AM2R achievements badge fix, crash prevention).                                                                                                              |
 | Docs Housekeeping & Architecture   | ✅ Shipped. Purged `steam-styles.md`, added `docs/steam-architecture.md`, updated `CHANGELOG.md`.                                                                                                                                                    |
 | Provider contract                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                                                                                                                                              |
 
@@ -37,19 +37,14 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ### Active Side Tasks (Next Session)
 
-- **Side Task 3: AM2R Achievements Category Badge Verification:**
-    - AM2R does not have native achievements, but was showing the "Achievements" badge in the right-hand FeaturesList panel.
-    - Confirm how `categories.achievements` is populated (e.g., query RetroAchievements provider / emulator log vs defaulting to `false` when no achievements exist).
-- **Side Task 4: Daily Activity Headline Phrasing (`{Username} captured`):**
-    - ✅ Complete in code: Replaced `{Username} recorded` with `{Username} captured` in `headline-patch.ts`, matching native gaming terminology for combined screenshots and video clips.
-- **Side Task 5: Game Info Release Date Display on AM2R:**
-    - On AM2R's "Game Info" stats section, `Release Date:` was not showing alongside developer and publisher credits.
-    - IGDB returns `2016-8-6 - Full Release` (`first_release_date: 1470441600`). Verify whether `overview.rt_original_release_date`, `rt_steam_release_date`, or `GetCanonicalReleaseDate()` requires specific epoch handling or prototype hooking.
-- **Side Task 6: Smarter Scraper & Disambiguation Logic (Platform & Reference Prioritization):**
+- **Side Task 3: Game Info Release Date Display & Epoch Verification:**
+    - Verify release date display across non-Steam shortcuts in Big Picture and Desktop mode.
+    - Check IGDB unix timestamp parsing vs Steam's expected epoch format (`rt_original_release_date`, `rt_steam_release_date`, or `GetCanonicalReleaseDate()`), ensuring dates format properly (e.g. `Aug 5, 2016` on AM2R).
+- **Side Task 4: Smarter Scraper Logic (Platform & Core Disambiguation, Top Reference Priority):**
     - Multi-release titles currently risk matching modern ports instead of original releases (e.g. SNES Chrono Trigger matching the 2018 PC re-release `chrono-trigger--3` rather than original `chrono-trigger`).
     - Parse shortcut command lines and launch targets (`"C:\emu\RetroArch\retroarch.exe" -L cores\snes9x_libretro.dll "C:\emu\roms\snes\Chrono Trigger (USA).zip"`) to extract core and platform clues (SNES, Genesis, NES, GBA, etc.).
-    - When a candidate summary is very brief (e.g. Game Gear port of "Battletoads"), prioritize top canonical main-game references (e.g. `battletoads-slash-double-dragon` over `battletoads-slash-double-dragon--1`).
-- **Side Task 7: Description vs Storyline Priority & Smart Sentence Truncation:**
+    - When candidate summaries are very brief (e.g. Game Gear port of "Battletoads"), prioritize top canonical main-game references (e.g. `battletoads-slash-double-dragon` over `battletoads-slash-double-dragon--1`).
+- **Side Task 5: Description vs Storyline Priority & Smart Sentence Truncation:**
     - Prioritize `summary` / description over `storyline` for the metadata `description` field unless summary is empty. (E.g. on AM2R, use the summary describing the game and release history rather than in-game plot/storyline details).
     - Implement a smart max character length cutoff that breaks cleanly at sentence boundaries (period + space) with leeway based on remaining characters to the next dot.
 

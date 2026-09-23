@@ -11,6 +11,13 @@ This repo is private and unversioned; entries are grouped by date.
 
 ### Added
 
+- **Activity Card Cutout & Big Picture Performance Fix (Side Task 1):**
+    - **Single-Pass Module Scan Pre-caching:** Replaced dynamic on-render scans of `req.m` (80,000+ modules calling `factory.toString()`) with a single-pass `initCardComponents()` executed once at plugin load, eliminating 100% of UI stutter and multi-second freezes during Big Picture Mode navigation.
+    - **Container Selector Disambiguation:** Disambiguated CSS attribute selectors by scoping card widths to `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` and adding `NonSteamActivityCardsRow` with `width: 100% !important`, preventing parent flex rows from clipping cards down into ~80px cutouts.
+- **Game Info Achievements Badge & Category Cache Fix (Side Task 2):**
+    - **AM2R Achievements Category Removal:** Corrected AM2R (`4263274102`) in `library_metadata.json` so `categories.achievements` is `false`, ensuring non-achievement games do not display false achievement badges.
+    - **Category Cache Invalidation:** `enrichGameDetails` now purges previously tracked `STEAM_CATEGORIES` from `overview.m_setStoreCategories` before applying new ones, preventing stale badges from persisting in memory.
+    - **AppDetails Crash Prevention:** Removed synthetic assignment of `appData.details = {}` in `enrichGameDetails`, preventing native `GameStatsSection` crashes caused by missing store-only fields (`vecChildConfigApps`, `unEntitledContentApp`). All developer, publisher, franchise, and description metadata are cleanly served through `appData.associationData` and `appData.descriptionsData`.
 - **Daily Activity Feed BPM Thumbnail Sizing & Headline Refinement (Phase 3b):**
     - **Big Picture Mode Thumbnail Sizing:** Injected scoped CSS into the Gamepad popup document (`[class*="CarouselThumb"]`) enforcing Steam's native 16:9 thumbnail dimensions (320×180px with `object-fit: cover`), preventing raw high-resolution (1440p/4K) captures from stretching across the entire screen.
     - **Unified Ingestion of Recordings & Screenshots:** `publishActivity` in `activity.ts` now collects both `screenshotsSince(appid, 0)` and `clipsSince(gameid, 0)` in parallel, registering clip thumbnails and screenshots together in `workshopStore` under chronological daily buckets.

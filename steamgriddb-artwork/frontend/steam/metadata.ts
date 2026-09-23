@@ -84,13 +84,6 @@ export function enrichGameDetails(
                     })),
                 };
 
-                if (!appData.details) {
-                    appData.details = {};
-                }
-                if (developers.length > 0) {
-                    appData.details.strDeveloperName = developers[0];
-                }
-
                 // Notify mobx observers if available
                 if (typeof detailsStore.AppDetailsChanged === "function") {
                     try {
@@ -132,12 +125,16 @@ export function enrichGameDetails(
             if (overview) {
                 ensureAppOverviewHooked(overview);
 
-                // Ensure m_setStoreCategories is an active Set
+                // Ensure m_setStoreCategories is an active Set and clear previous managed categories
                 if (
                     !overview.m_setStoreCategories ||
                     typeof overview.m_setStoreCategories.add !== "function"
                 ) {
                     overview.m_setStoreCategories = new Set<number>();
+                } else {
+                    for (const catId of Object.values(STEAM_CATEGORIES)) {
+                        overview.m_setStoreCategories.delete(catId);
+                    }
                 }
 
                 for (const catId of catSet) {
