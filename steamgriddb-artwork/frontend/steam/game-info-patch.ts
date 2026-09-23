@@ -101,6 +101,7 @@ export function getAppStore(): any {
 const liveInstances = new Set<any>();
 
 /**
+ * Re-render all mounted Game Info container and overview components.
  * Re-render all mounted Game Info container and overview components across all windows.
  * Called when metadata is loaded or updated asynchronously so Steam's UI
  * reflects newly injected descriptions and credits immediately.
@@ -186,14 +187,24 @@ function createPatchedOverview(overview: any): any {
     });
 }
 
+const appCategoriesCache = new Map<number, Set<number>>();
+
+export function setAppCategories(appid: number, categories: Set<number>): void {
+    appCategoriesCache.set(appid, categories);
+}
+
+export function getCachedCategoriesForApp(
+    appid: number,
+): Set<number> | undefined {
+    return appCategoriesCache.get(appid);
+}
+
 /**
- * Hook AppOverview.prototype.BIsModOrShortcut so that when the inner Game Info
- * component (k.render) checks if the app is a shortcut/mod, it returns false
- * if enriched metadata is present.
- *
- * This cleanly unblocks Steam's native GameDescription, Stats (developer/publisher),
- * and FeaturesList in Big Picture Mode without altering GetGameID() or affecting
- * other subsystems.
+ * Hook AppOverview prototypes:
+ * 1. BIsModOrShortcut: Returns false within k.render / GameInfo when metadata exists.
+ * 2. BHasStoreCategory: Consults appCategoriesCache to dynamically return category flags
+ *    (Single-player, Multi-player, Co-op, Full Controller, Achievements, Remote Play Together)
+ *    even before or if Steam's native m_setStoreCategories is initialized.
  */
 function hookAppOverviewBIsModOrShortcut(): boolean {
     try {
@@ -202,7 +213,37 @@ function hookAppOverviewBIsModOrShortcut(): boolean {
             appStore?.allApps?.[0] ||
             appStore?.GetAppOverviewByAppID?.(4263274102);
 
-        let proto = sample ? Object.getPrototypeOf(sample) : undefined;
+        // 1. Direct prototype has BHasStoreCategory
+        const directProto = sample ? Object.getPrototypeOf(sample) : undefined;
+        if (
+            directProto &&
+            typeof directProto.BHasStoreCategory === "function" &&
+            !directProto.__nsga_bhascat_hooked
+        ) {
+            directProto.__nsga_bhascat_hooked = true;
+            const origBHasStoreCategory = directProto.BHasStoreCategory;
+            directProto.BHasStoreCategory = function (catId: number) {
+                if (
+                    this.m_setStoreCategories &&
+                    this.m_setStoreCategories.has(catId)
+                ) {
+                    return true;
+                }
+                const cached = appCategoriesCache.get(this.appid);
+                if (cached && cached.has(catId)) {
+                    return true;
+                }
+                return origBHasStoreCategory
+                    ? origBHasStoreCategory.call(this, catId)
+                    : false;
+            };
+            logger.info(
+                "Successfully hooked AppOverview.prototype.BHasStoreCategory for native category badges.",
+            );
+        }
+
+        // 2. Base prototype (proto2) has BIsModOrShortcut
+        let proto = directProto;
         while (
             proto &&
             !Object.prototype.hasOwnProperty.call(proto, "BIsModOrShortcut")

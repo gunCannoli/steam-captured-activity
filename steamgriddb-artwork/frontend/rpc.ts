@@ -13,7 +13,9 @@ export interface GameCategories {
     coop?: boolean;
     split_screen?: boolean;
     full_controller?: boolean;
+    partial_controller?: boolean;
     achievements?: boolean;
+    remote_play_together?: boolean;
 }
 
 export interface ConsolidatedMetadata {

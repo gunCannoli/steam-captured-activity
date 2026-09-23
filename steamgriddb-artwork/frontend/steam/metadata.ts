@@ -4,6 +4,7 @@ import {
     getAppDetailsStore,
     getAppStore,
     refreshGameInfoInstances,
+    setAppCategories,
 } from "./game-info-patch";
 
 /**
@@ -11,19 +12,23 @@ import {
  * 1: Multi-player
  * 2: Single-player
  * 9: Co-op
+ * 18: Partial Controller Support
  * 22: Steam Achievements
  * 24: Shared/Split Screen
  * 28: Full Controller Support
  * 37: Shared/Split Screen Co-op
+ * 44: Remote Play Together
  */
 export const STEAM_CATEGORIES = {
     MULTIPLAYER: 1,
     SINGLE_PLAYER: 2,
     COOP: 9,
+    PARTIAL_CONTROLLER: 18,
     ACHIEVEMENTS: 22,
     SPLIT_SCREEN: 24,
     FULL_CONTROLLER: 28,
     SPLIT_SCREEN_COOP: 37,
+    REMOTE_PLAY_TOGETHER: 44,
 } as const;
 
 function toArray<T>(val: unknown): T[] {
@@ -100,7 +105,31 @@ export function enrichGameDetails(
             }
         }
 
-        // 2. Populate appStore AppOverview (Categories, Game Modes, Controller Support, Release Date)
+        // 2. Populate appCategoriesCache and AppOverview (Categories, Game Modes, Controller Support, Release Date)
+        const cats = meta.categories || {};
+        const catSet = new Set<number>();
+        if (cats.single_player) catSet.add(STEAM_CATEGORIES.SINGLE_PLAYER);
+        if (cats.multiplayer) catSet.add(STEAM_CATEGORIES.MULTIPLAYER);
+        if (cats.coop) catSet.add(STEAM_CATEGORIES.COOP);
+        if (cats.split_screen) {
+            catSet.add(STEAM_CATEGORIES.SPLIT_SCREEN);
+            if (cats.coop) catSet.add(STEAM_CATEGORIES.SPLIT_SCREEN_COOP);
+        }
+        if (cats.full_controller !== false) {
+            catSet.add(STEAM_CATEGORIES.FULL_CONTROLLER);
+        }
+        if (cats.partial_controller) {
+            catSet.add(STEAM_CATEGORIES.PARTIAL_CONTROLLER);
+        }
+        if (cats.achievements) {
+            catSet.add(STEAM_CATEGORIES.ACHIEVEMENTS);
+        }
+        if (cats.remote_play_together) {
+            catSet.add(STEAM_CATEGORIES.REMOTE_PLAY_TOGETHER);
+        }
+
+        setAppCategories(appid, catSet);
+
         const appStore = getAppStore();
         if (appStore?.GetAppOverviewByAppID) {
             const overview = appStore.GetAppOverviewByAppID(appid);
@@ -113,35 +142,12 @@ export function enrichGameDetails(
                     overview.m_setStoreCategories = new Set<number>();
                 }
 
-                const cats = meta.categories || {};
-                if (cats.single_player)
-                    overview.m_setStoreCategories.add(
-                        STEAM_CATEGORIES.SINGLE_PLAYER,
-                    );
-                if (cats.multiplayer)
-                    overview.m_setStoreCategories.add(
-                        STEAM_CATEGORIES.MULTIPLAYER,
-                    );
-                if (cats.coop)
-                    overview.m_setStoreCategories.add(STEAM_CATEGORIES.COOP);
-                if (cats.split_screen) {
-                    overview.m_setStoreCategories.add(
-                        STEAM_CATEGORIES.SPLIT_SCREEN,
-                    );
-                    if (cats.coop)
-                        overview.m_setStoreCategories.add(
-                            STEAM_CATEGORIES.SPLIT_SCREEN_COOP,
-                        );
+                for (const catId of catSet) {
+                    overview.m_setStoreCategories.add(catId);
                 }
+
                 if (cats.full_controller !== false) {
-                    overview.m_setStoreCategories.add(
-                        STEAM_CATEGORIES.FULL_CONTROLLER,
-                    );
-                }
-                if (cats.achievements) {
-                    overview.m_setStoreCategories.add(
-                        STEAM_CATEGORIES.ACHIEVEMENTS,
-                    );
+                    overview.xbox_controller_support = 1;
                 }
 
                 // Release Date
