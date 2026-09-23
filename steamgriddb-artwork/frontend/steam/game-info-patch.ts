@@ -41,6 +41,23 @@ function getSteamRequire(): WebpackRequire | undefined {
     return cachedRequire;
 }
 
+const liveInstances = new Set<any>();
+
+/**
+ * Re-render all mounted Game Info container and overview components.
+ * Called when metadata is loaded or updated asynchronously so Steam's UI
+ * reflects newly injected descriptions and credits immediately.
+ */
+export function refreshGameInfoInstances(): void {
+    for (const inst of [...liveInstances]) {
+        try {
+            inst.forceUpdate?.();
+        } catch {
+            liveInstances.delete(inst);
+        }
+    }
+}
+
 /**
  * Patch the inner GameInfo component (k) inside module 15448.
  *
@@ -62,6 +79,7 @@ function patchKComponent(k: any): boolean {
     if (typeof origKRender !== "function") return false;
 
     k.prototype.render = function () {
+        liveInstances.add(this);
         const overview = this.props?.overview;
         if (
             overview &&
@@ -177,6 +195,7 @@ export function patchGameInfoComponent(): boolean {
             targetG.__nsga_g_patched = true;
             const origGRender = targetG.prototype.render;
             targetG.prototype.render = function () {
+                liveInstances.add(this);
                 const vdom = origGRender.apply(this, arguments);
                 const kChild = vdom?.props?.children?.[0]?.type;
                 if (kChild) {

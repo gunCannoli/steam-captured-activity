@@ -20,12 +20,12 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop)        | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`.                                                                                                                                                                       |
 | Library grid                       | ✅ Shipped. Last-played dates populated from captures.                                                                                                                                                                              |
 | Post-Game Summary (Big Picture)    | ✅ Shipped. Real Steam component via React Portal & store feeding ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)). |
-| Per-day Activity feed              | ✅ Shipped. Real Steam component, fed via `steam/activity.ts` on Desktop and Big Picture ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)).         |
+| Per-day Activity feed              | ✅ Shipped ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)); Phase 3b planned (BPM thumbnail sizing & headline refinement). |
 | Core Refresh & Caching             | ✅ Shipped. `onAppLaunch` lifecycle invalidation + mtime caching in `shortcuts.vdf` & `screenshots.vdf`.                                                                                                                            |
 | Native Achievements                | 🔬 Verified in Steam client. Next implementation phase.                                                                                                                                                                             |
 | Achievement Notifications & Toasts | 🔬 Verified in Steam client. `NotificationStore.OnNotification` mapped.                                                                                                                                                             |
 | Game Recording & Auto-Captures     | 🔬 Verified in Steam client. RPCs & timeline markers mapped (`80026`).                                                                                                                                                              |
-| Game Info & Metadata Enrichment    | 🔬 Phase 8 complete (`library_metadata.json`, IGDB, categories); Phase 8b planned (bypass BPM shortcut filter & short description).                                                                                                 |
+| Game Info & Metadata Enrichment    | 🔬 Phase 8 complete (`library_metadata.json`, IGDB, categories); Phase 8b executing (BPM filter bypass & short description auto-refresh).                                                           |
 | Docs Housekeeping & Architecture   | ✅ Shipped. Purged `steam-styles.md`, added `docs/steam-architecture.md`, updated `CHANGELOG.md`.                                                                                                                                   |
 | Provider contract                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                                                                                                                             |
 
@@ -34,6 +34,12 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 ---
 
 ## Multi-Session Roadmap
+
+### Phase 3b: Daily Activity Feed BPM Thumbnail Sizing & Headline Refinement (🔬 Planned)
+
+- **BPM Thumbnail Metrics:** Constrain `.CarouselThumb` and `.ImageWrapper img` in Big Picture Mode to Steam's native 16:9 thumbnail dimensions (320×180px), preventing 1440p/4K raw screenshots from stretching to 2560px/3840px and blowing out the container.
+- **Headline Wording:** Intercept the headline renderer for non-Steam captures to display `"{Username} recorded"` instead of the community UGC string `"{Username} shared X screenshots"`, aligning with Steam's native achievement headline convention (`"{Username} achieved"`).
+- **Clips & Screenshots Integration:** Ingest recordings alongside screenshots into the chronological day list so all captures appear in a unified feed.
 
 ### Phase 4: Core Refresh & Caching Hardening (✅ Complete)
 

@@ -1,5 +1,6 @@
 import { logger } from "../logger";
 import type { ConsolidatedMetadata } from "../rpc";
+import { refreshGameInfoInstances } from "./game-info-patch";
 
 /**
  * Standard Steam Store Category IDs:
@@ -150,6 +151,7 @@ export function enrichGameDetails(
         }
 
         if (touched) {
+            refreshGameInfoInstances();
             logger.info(
                 `Enriched native Game Info & Categories for ${appid} ("${meta.title}"): ` +
                     `[Dev: ${(meta.developers || []).join(", ") || "none"}, ` +
