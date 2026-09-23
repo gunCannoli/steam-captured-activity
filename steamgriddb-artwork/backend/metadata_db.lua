@@ -21,6 +21,21 @@ end
 
 local db = nil
 
+local function extract_snippet(text)
+  if not text or text == "" then return "" end
+  local s = text:match("^%s*(.-)%s*$")
+  local sentence = s:match("^(.-[.!?])%s") or s:match("^(.-[.!?])$")
+  if sentence and #sentence >= 20 and #sentence <= 250 then
+    return sentence
+  end
+  if #s > 220 then
+    local cut = s:sub(1, 220)
+    local last_space = cut:match("^(.*)%s")
+    return (last_space or cut) .. "..."
+  end
+  return s
+end
+
 --- Load database from JSON file
 local function load_db()
   if db then return db end
@@ -32,6 +47,16 @@ local function load_db()
       local ok, data = pcall(json.decode, content)
       if ok and type(data) == "table" then
         db = data
+        local migrated = false
+        for _, rec in pairs(db) do
+          if type(rec) == "table" and (not rec.short_description or rec.short_description == "") then
+            rec.short_description = extract_snippet(rec.summary or rec.description or "")
+            migrated = true
+          end
+        end
+        if migrated then
+          metadata_db.save()
+        end
         logger:info("Loaded " .. tostring(metadata_db.count()) .. " game metadata record(s) from " .. path)
         return db
       end
@@ -130,6 +155,9 @@ function metadata_db.set(appid, new_data, force)
 
   -- If existing had custom edits but no explicit override flag, preserve manual categories/text
   if existing and not force then
+    if existing.short_description and existing.short_description ~= "" and (not new_data.short_description or new_data.short_description == "") then
+      new_data.short_description = existing.short_description
+    end
     if existing.summary and existing.summary ~= "" and (not new_data.summary or new_data.summary == "") then
       new_data.summary = existing.summary
     end

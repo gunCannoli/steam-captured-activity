@@ -25,7 +25,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Native Achievements                | 🔬 Verified in Steam client. Next implementation phase.                                                                                                                                                                             |
 | Achievement Notifications & Toasts | 🔬 Verified in Steam client. `NotificationStore.OnNotification` mapped.                                                                                                                                                             |
 | Game Recording & Auto-Captures     | 🔬 Verified in Steam client. RPCs & timeline markers mapped (`80026`).                                                                                                                                                              |
-| Game Info & Metadata Enrichment   | ✅ Shipped (Phase 8). IGDB + Twitch OAuth2, consolidated `library_metadata.json`, native Game Info & categories. |
+| Game Info & Metadata Enrichment    | 🔬 Phase 8 complete (`library_metadata.json`, IGDB, categories); Phase 8b planned (bypass BPM shortcut filter & short description).                                                                                                 |
 | Docs Housekeeping & Architecture   | ✅ Shipped. Purged `steam-styles.md`, added `docs/steam-architecture.md`, updated `CHANGELOG.md`.                                                                                                                                   |
 | Provider contract                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                                                                                                                             |
 
@@ -65,8 +65,12 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 - **Consolidated Local JSON Database (`library_metadata.json`):** Single, human-readable file mapping non-Steam game metadata. Supports manual tweaks and `custom_override` flag so user edits are never clobbered.
 - **IGDB & Twitch OAuth2 Backend:** Automatically requests and caches Twitch access tokens, queries IGDB v4 APICalypse games endpoint, and extracts descriptions, developer/publisher credits, franchises, and release dates.
 - **Native Game Modes & Categories:** Maps IGDB `game_modes` into native Steam category badges (`Single-player: 2`, `Multiplayer: 1`, `Co-op: 9`, `Shared/Split Screen: 24`, `Full Controller Support: 28`) injected into `appStore.GetAppOverviewByAppID(appid).m_setStoreCategories`.
-- **Native Game Info Tab:** Feeds `CAppDetailsStore.GetAppData(appid)` (`descriptionsData` and `associationData`) to populate Big Picture's native **Game Info** tab without DOM hacking or UI reimplementation.
 - **Custom Artwork:** Deferred per requirements to prioritize metadata accuracy and game info richness.
+
+### Phase 8b: Big Picture Game Info Filter Bypass & Short Description (🔬 Planned)
+
+- **Bypass Big Picture Shortcut Filter:** In module `15448` (component `k` / `b`), Steam checks `this.props.overview.BIsModOrShortcut()`; if `true`, it suppresses descriptions, developer/publisher credits, and release dates. Hook or shadow this check when `library_metadata.json` contains enriched data so Steam's native Game Info renders.
+- **`short_description` Field:** Introduce `short_description` in `library_metadata.json` and map it to `appData.descriptionsData.strSnippet` (leaving full story/plot in `strFullDescription`). Extract clean snippets automatically from IGDB summaries.
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 

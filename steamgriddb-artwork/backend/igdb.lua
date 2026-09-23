@@ -128,6 +128,22 @@ local function query_igdb(apicalypse_query)
   return data
 end
 
+--- Extract a clean 1-2 sentence snippet (up to ~250 chars) from summary/description
+local function extract_snippet(text)
+  if not text or text == "" then return "" end
+  local s = text:match("^%s*(.-)%s*$")
+  local sentence = s:match("^(.-[.!?])%s") or s:match("^(.-[.!?])$")
+  if sentence and #sentence >= 20 and #sentence <= 250 then
+    return sentence
+  end
+  if #s > 220 then
+    local cut = s:sub(1, 220)
+    local last_space = cut:match("^(.*)%s")
+    return (last_space or cut) .. "..."
+  end
+  return s
+end
+
 --- Search for a game on IGDB and convert into consolidated metadata
 ---@param appid number
 ---@param raw_title string
@@ -212,13 +228,17 @@ function igdb.fetch_game_metadata(appid, raw_title)
     single_player = true
   end
 
+  local main_desc = (game.summary and #game.summary > 0) and game.summary or (game.storyline or "")
+  local snippet = extract_snippet(main_desc)
+
   return {
     appid = appid,
     title = raw_title,
     igdb_id = game.id,
     matched_title = game.name,
+    short_description = snippet,
     summary = game.summary or "",
-    description = (game.storyline and #game.storyline > 0) and game.storyline or (game.summary or ""),
+    description = main_desc,
     developers = devs,
     publishers = pubs,
     franchises = franchises,
