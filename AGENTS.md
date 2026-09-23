@@ -21,17 +21,17 @@ The core must be useful alone and must never depend on a provider. See
 
 ## Read this before writing code
 
-| Doc                                                    | What it holds                                                                                                                                           |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [TASK.md](TASK.md)                                     | **Start here** — current status, multi-session roadmap, what is next                                                                                    |
-| [CHANGELOG.md](CHANGELOG.md)                           | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean                                                   |
-| [docs/steam-architecture.md](docs/steam-architecture.md)| **Steam architecture directory** — cheat sheet of modules, stores, RPCs, and APIs for plugin developers                                                  |
-| [docs/steam-debug.md](docs/steam-debug.md)             | **CEF DevTools guide** — how to inspect `http://localhost:8080`, target topology, Desktop vs Big Picture quirks                                         |
-| [docs/knowledgebase.md](docs/knowledgebase.md)         | Millennium SDK, Steam's local data formats, provider sources, verified facts                                                                            |
-| [docs/architecture.md](docs/architecture.md)           | Core/provider split, data flow, IPC, and provider contracts                                                                                             |
-| [docs/steam-components.md](docs/steam-components.md)   | **Deep reference** — section registry, stores, event shapes, achievements, notifications, recording RPCs, inspection method                             |
-| [docs/steam-styles.md](docs/steam-styles.md)           | UI styling guidance — why hand-measuring pixels was superseded by component reuse and native block cloning                                              |
-| [docs/decisions.md](docs/decisions.md)                 | ADRs — _why_ things are the way they are                                                                                                                |
+| Doc                                                      | What it holds                                                                                                               |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [TASK.md](TASK.md)                                       | **Start here** — current status, multi-session roadmap, what is next                                                        |
+| [CHANGELOG.md](CHANGELOG.md)                             | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean                      |
+| [docs/steam-architecture.md](docs/steam-architecture.md) | **Steam architecture directory** — cheat sheet of modules, stores, RPCs, and APIs for plugin developers                     |
+| [docs/steam-debug.md](docs/steam-debug.md)               | **CEF DevTools guide** — how to inspect `http://localhost:8080`, target topology, Desktop vs Big Picture quirks             |
+| [docs/knowledgebase.md](docs/knowledgebase.md)           | Millennium SDK, Steam's local data formats, provider sources, verified facts                                                |
+| [docs/architecture.md](docs/architecture.md)             | Core/provider split, data flow, IPC, and provider contracts                                                                 |
+| [docs/steam-components.md](docs/steam-components.md)     | **Deep reference** — section registry, stores, event shapes, achievements, notifications, recording RPCs, inspection method |
+| [docs/steam-styles.md](docs/steam-styles.md)             | UI styling guidance — why hand-measuring pixels was superseded by component reuse and native block cloning                  |
+| [docs/decisions.md](docs/decisions.md)                   | ADRs — _why_ things are the way they are                                                                                    |
 
 Do not re-derive facts already recorded there. Do not contradict an ADR without
 writing a new one that supersedes it.

@@ -40,3 +40,5 @@ retroarch.cfg
 *.vdf
 *.pb
 cache/
+library_metadata.json
+sgdb_key.txt

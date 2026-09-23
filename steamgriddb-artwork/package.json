@@ -1,0 +1,23 @@
+{
+  "name": "steamgriddb-artwork",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SteamGridDB Artwork and Metadata Provider for Millennium",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "millennium-ttc --build prod",
+    "build:dev": "millennium-ttc --build dev",
+    "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1"
+  },
+  "dependencies": {
+    "@steambrew/client": "^5.8.5",
+    "steambrew-utils": "0.0.0-beta-20260816131110"
+  },
+  "devDependencies": {
+    "@steambrew/ttc": "^2.8.7",
+    "@types/react": "19.1.1",
+    "@types/react-dom": "19.1.1",
+    "typescript": "^5.9.3"
+  }
+}
+

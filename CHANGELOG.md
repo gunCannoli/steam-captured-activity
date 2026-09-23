@@ -11,6 +11,11 @@ This repo is private and unversioned; entries are grouped by date.
 
 ### Added
 
+- **Game Info & Metadata Enrichment Provider (`library_metadata.json` + IGDB)** (Phase 8):
+    - **Single Source of Truth (`library_metadata.json`):** Consolidated, human-readable JSON database stored in Steam's root directory (`C:\game\steam\library_metadata.json`). Formatted with clean 2-space indentation so users can directly tweak titles, summaries, descriptions, credits, or categories in any text editor. Preserves manual edits via `custom_override`.
+    - **Twitch OAuth & IGDB v4 Backend:** Automatic client-credentials token caching and APICalypse queries (`igdb.lua`) extracting storylines, developer and publisher credits, franchises, genres, and release timestamps.
+    - **Native Game Modes & Category Flags:** Translates IGDB `game_modes` into Steam category badges (`m_setStoreCategories`): Single-player (2), Multi-player (1), Co-op (9), Shared/Split Screen (24), and Full Controller Support (28).
+    - **Native Big Picture "Game Info" Tab Ingestion:** Directly feeds `CAppDetailsStore.GetAppData(appid).descriptionsData` (`strSnippet`, `strFullDescription`) and `associationData` (`rgDevelopers`, `rgPublishers`, `rgFranchises`).
 - **`docs/steam-architecture.md`** — Quick-reference directory and cheat sheet of
   Steam's core webpack modules, backing stores (`appSpotlightStore`, `appActivityStore`,
   `AppDetailsStore`, `StoreItemCache`), notification engine (`NotificationStore`),
@@ -21,17 +26,17 @@ This repo is private and unversioned; entries are grouped by date.
 - **`docs/steam-debug.md`** — CEF DevTools guide covering target topology, console
   filters, and Big Picture inspection traps.
 - **Native Achievement & Notification Research** — Verified live on port 8080:
-  - `AppDetailsStore.GetAchievements(appid)` (module `78057`) feeds the native
-    desktop achievements sidebar.
-  - `window.NotificationStore.OnNotification(id, NotificationType.Achievement, binaryPayload)`
-    dispatches genuine native achievement toasts with full sound and animation.
-  - `CGameRecordingService` (module `80026`) exposes `GameRecording.UserAddTimelineEntry#1`,
-    `GameRecording.SaveClip#1`, and `GameRecording.TakeScreenshot#1` for timeline markers,
-    instant highlight replays, and screenshot capture.
-  - `SteamClient.Apps.SetCustomArtworkForApp` sets portrait, hero, logo, and wide capsules.
+    - `AppDetailsStore.GetAchievements(appid)` (module `78057`) feeds the native
+      desktop achievements sidebar.
+    - `window.NotificationStore.OnNotification(id, NotificationType.Achievement, binaryPayload)`
+      dispatches genuine native achievement toasts with full sound and animation.
+    - `CGameRecordingService` (module `80026`) exposes `GameRecording.UserAddTimelineEntry#1`,
+      `GameRecording.SaveClip#1`, and `GameRecording.TakeScreenshot#1` for timeline markers,
+      instant highlight replays, and screenshot capture.
+    - `SteamClient.Apps.SetCustomArtworkForApp` sets portrait, hero, logo, and wide capsules.
 - **Reference Codebases Cloned** (`research/`):
-  - `research/game-data-linker`: Ingestion patterns for Epic/Xbox links, SteamGridDB artwork, and activity feeds.
-  - `research/PlayniteAchievements`: In-game monitoring architecture, rcheevos emulator log tailing, local RPCS3 trophy parsing (`TROPCONF.SFM`/`TROPUSR.DAT`), and sound customization.
+    - `research/game-data-linker`: Ingestion patterns for Epic/Xbox links, SteamGridDB artwork, and activity feeds.
+    - `research/PlayniteAchievements`: In-game monitoring architecture, rcheevos emulator log tailing, local RPCS3 trophy parsing (`TROPCONF.SFM`/`TROPUSR.DAT`), and sound customization.
 - **Native Activity Feed Restored** (ADR-0030) — In-memory `StoreItem` stubbing in
   `StoreItemCache` satisfies Steam's `storeApp.BIsVisible()` event guard without network
   calls. Unlocked chronological per-day activity feed cards on both Desktop and Big Picture.

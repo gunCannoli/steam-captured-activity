@@ -21,10 +21,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Library grid                       | ✅ Shipped. Last-played dates populated from captures.                                                                                                                                                                              |
 | Post-Game Summary (Big Picture)    | ✅ Shipped. Real Steam component via React Portal & store feeding ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)). |
 | Per-day Activity feed              | ✅ Shipped. Real Steam component, fed via `steam/activity.ts` on Desktop and Big Picture ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)).         |
+| Core Refresh & Caching             | ✅ Shipped. `onAppLaunch` lifecycle invalidation + mtime caching in `shortcuts.vdf` & `screenshots.vdf`.                                                                                                                            |
 | Native Achievements                | 🔬 Verified in Steam client. Next implementation phase.                                                                                                                                                                             |
 | Achievement Notifications & Toasts | 🔬 Verified in Steam client. `NotificationStore.OnNotification` mapped.                                                                                                                                                             |
 | Game Recording & Auto-Captures     | 🔬 Verified in Steam client. RPCs & timeline markers mapped (`80026`).                                                                                                                                                              |
-| Custom Artwork & Metadata          | 🔬 Verified in Steam client. `SetCustomArtworkForApp` mapped.                                                                                                                                                                       |
+| Game Info & Metadata Enrichment   | ✅ Shipped (Phase 8). IGDB + Twitch OAuth2, consolidated `library_metadata.json`, native Game Info & categories. |
 | Docs Housekeeping & Architecture   | ✅ Shipped. Purged `steam-styles.md`, added `docs/steam-architecture.md`, updated `CHANGELOG.md`.                                                                                                                                   |
 | Provider contract                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                                                                                                                             |
 
@@ -34,7 +35,7 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Multi-Session Roadmap
 
-### Phase 4: Core Refresh & Caching Hardening
+### Phase 4: Core Refresh & Caching Hardening (✅ Complete)
 
 - Complete `onAppLaunch` → `onQuit` lifecycle invalidation for active shortcuts.
 - Add mtime-keyed caching to `shortcuts.vdf` and captures index backend readers.
@@ -59,10 +60,13 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 - **Timeline Achievement Markers:** Invoke `GameRecording.UserAddTimelineEntry#1` to place a golden achievement icon marker onto Steam's active game recording timeline at the exact moment of unlock.
 - **Instant Replay Clip:** Call `GameRecording.SaveClip#1` to cut an automated highlight clip (e.g. preceding 15–30 seconds) into `gamerecordings/clips/` when an achievement triggers.
 
-### Phase 8: Metadata, Artwork & Game Info Enrichment (Optional Provider)
+### Phase 8: Game Info & Metadata Enrichment (Optional Provider) (✅ Complete)
 
-- **Automatic Artwork:** Ingest artwork (portrait capsule, hero banner, logo, wide capsule) via SteamGridDB / provider API and apply cleanly via `SteamClient.Apps.SetCustomArtworkForApp`.
-- **Native Game Info Tab:** Feed `CAppDetailsStore.GetDescriptions` and `GetAssociations` to populate developer, publisher, release year, and community guide links in Big Picture's `GameInfo` tab and desktop metadata panels without UI hacking.
+- **Consolidated Local JSON Database (`library_metadata.json`):** Single, human-readable file mapping non-Steam game metadata. Supports manual tweaks and `custom_override` flag so user edits are never clobbered.
+- **IGDB & Twitch OAuth2 Backend:** Automatically requests and caches Twitch access tokens, queries IGDB v4 APICalypse games endpoint, and extracts descriptions, developer/publisher credits, franchises, and release dates.
+- **Native Game Modes & Categories:** Maps IGDB `game_modes` into native Steam category badges (`Single-player: 2`, `Multiplayer: 1`, `Co-op: 9`, `Shared/Split Screen: 24`, `Full Controller Support: 28`) injected into `appStore.GetAppOverviewByAppID(appid).m_setStoreCategories`.
+- **Native Game Info Tab:** Feeds `CAppDetailsStore.GetAppData(appid)` (`descriptionsData` and `associationData`) to populate Big Picture's native **Game Info** tab without DOM hacking or UI reimplementation.
+- **Custom Artwork:** Deferred per requirements to prioritize metadata accuracy and game info richness.
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 

@@ -42,6 +42,8 @@ local function read_int32(data, offset)
   return b1 + b2 * 0x100 + b3 * 0x10000 + b4 * 0x1000000
 end
 
+local cache = { mtime = -1, entries = nil } ---@type table
+
 --- Parse every shortcut entry in the file.
 ---@param path string Path to shortcuts.vdf
 ---@return table[]|nil entries
@@ -50,6 +52,11 @@ function shortcuts.parse(path)
   if not fs.is_file(path) then
     -- A user with no non-Steam games simply has no file. Not an error.
     return {}
+  end
+
+  local mtime = fs.last_write_time(path) or 0
+  if cache.entries and cache.mtime == mtime then
+    return cache.entries
   end
 
   local data, err = utils.read_file(path)
@@ -112,6 +119,8 @@ function shortcuts.parse(path)
     end
   end
 
+  cache.mtime = mtime
+  cache.entries = cleaned
   return cleaned
 end
 

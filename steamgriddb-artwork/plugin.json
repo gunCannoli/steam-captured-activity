@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
+  "name": "steamgriddb-artwork",
+  "common_name": "SteamGridDB Artwork",
+  "description": "Automatically enriches non-Steam games with custom artwork (capsule, hero, logo) and metadata from SteamGridDB.",
+  "version": "0.1.0",
+  "useBackend": true,
+  "backendType": "lua"
+}
+
