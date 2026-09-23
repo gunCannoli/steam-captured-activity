@@ -1,5 +1,7 @@
 import { logger } from "../logger";
 
+export const enrichedAppIds = new Set<number>();
+
 interface WebpackRequire {
     (id: string): any;
     m: Record<string, unknown>;
@@ -60,18 +62,6 @@ export function getAppDetailsStore(): any {
         cachedDetailsStore = (window as any).appDetailsStore;
         return cachedDetailsStore;
     }
-    const req = getSteamRequire();
-    if (req?.m) {
-        for (const id of Object.keys(req.m)) {
-            try {
-                const exp = req(id);
-                if (exp?.H?.GetDescriptions && exp?.H?.GetAssociations) {
-                    cachedDetailsStore = exp.H;
-                    return cachedDetailsStore;
-                }
-            } catch {}
-        }
-    }
     return undefined;
 }
 
@@ -81,27 +71,12 @@ export function getAppStore(): any {
         cachedAppStore = (window as any).appStore;
         return cachedAppStore;
     }
-    const req = getSteamRequire();
-    if (req?.m) {
-        for (const id of Object.keys(req.m)) {
-            try {
-                const exp = req(id);
-                for (const k of Object.keys(exp || {})) {
-                    if (exp[k]?.GetAppOverviewByAppID) {
-                        cachedAppStore = exp[k];
-                        return cachedAppStore;
-                    }
-                }
-            } catch {}
-        }
-    }
     return undefined;
 }
 
 const liveInstances = new Set<any>();
 
 /**
- * Re-render all mounted Game Info container and overview components.
  * Re-render all mounted Game Info container and overview components across all windows.
  * Called when metadata is loaded or updated asynchronously so Steam's UI
  * reflects newly injected descriptions and credits immediately.
@@ -115,7 +90,7 @@ export function refreshGameInfoInstances(): void {
         }
     }
 
-    // Discover all active DOM documents (Desktop main window + Big Picture popup windows)
+    // Discover active DOM documents (Desktop main window + Big Picture popup windows)
     const docs: Document[] = [];
     if (typeof document !== "undefined") docs.push(document);
 
@@ -137,27 +112,6 @@ export function refreshGameInfoInstances(): void {
             }
         }
     } catch {}
-
-    const req = getSteamRequire();
-    if (req?.m) {
-        for (const id of Object.keys(req.m)) {
-            try {
-                const mod = req(id);
-                for (const k of Object.keys(mod || {})) {
-                    if (mod[k]?.m_mapPopups) {
-                        for (const popup of mod[k].m_mapPopups.values()) {
-                            const doc =
-                                popup?.m_popup?.window?.document ||
-                                popup?.window?.document;
-                            if (doc && !docs.includes(doc)) {
-                                docs.push(doc);
-                            }
-                        }
-                    }
-                }
-            } catch {}
-        }
-    }
 
     // In each document, locate mounted Game Info / Shortcut components and force update
     for (const doc of docs) {
@@ -223,9 +177,8 @@ export function getCachedCategoriesForApp(
 
 /**
  * Hook AppOverview prototype chain:
- * 1. BIsModOrShortcut: Returns false within k.render / GameInfo when metadata exists.
- * 2. BHasStoreCategory: Consults appCategoriesCache to dynamically return category flags
- *    (Single-player, Multi-player, Co-op, Full Controller, Achievements, Remote Play Together).
+ * BHasStoreCategory: Consults appCategoriesCache to dynamically return category flags
+ * (Single-player, Multi-player, Co-op, Full Controller, Achievements, Remote Play Together).
  */
 export function ensureAppOverviewHooked(overview: any): boolean {
     if (!overview) return false;
@@ -239,20 +192,8 @@ export function ensureAppOverviewHooked(overview: any): boolean {
             curr.__nsga_bismod_hooked = true;
             const origBIsMod = curr.BIsModOrShortcut;
             curr.BIsModOrShortcut = function () {
-                const stack = new Error().stack || "";
-                if (stack.includes("k.render") || stack.includes("GameInfo")) {
-                    const store = getAppDetailsStore();
-                    const appData = store?.GetAppData?.(this.appid);
-                    const hasMetadata = Boolean(
-                        appData?.descriptionsData?.strSnippet ||
-                            appData?.descriptionsData?.strFullDescription ||
-                            appData?.associationData?.rgDevelopers?.length ||
-                            appData?.associationData?.rgPublishers?.length ||
-                            appData?.associationData?.rgFranchises?.length,
-                    );
-                    if (hasMetadata) {
-                        return false;
-                    }
+                if (enrichedAppIds.has(this.appid)) {
+                    return false;
                 }
                 return origBIsMod.apply(this, arguments);
             };
@@ -288,48 +229,6 @@ export function ensureAppOverviewHooked(overview: any): boolean {
     return hookedAny;
 }
 
-function hookAppOverviewBIsModOrShortcut(): boolean {
-    try {
-        const appStore = getAppStore();
-        const sample =
-            appStore?.allApps?.[0] ||
-            appStore?.GetAppOverviewByAppID?.(4263274102) ||
-            appStore?.GetAppOverviewByAppID?.(3586085683);
-
-        if (sample && ensureAppOverviewHooked(sample)) {
-            logger.info(
-                "Successfully hooked AppOverview prototype methods via sample overview.",
-            );
-            return true;
-        }
-
-        const req = getSteamRequire();
-        if (req?.m) {
-            for (const id of Object.keys(req.m)) {
-                try {
-                    const exp = req(id);
-                    for (const k of Object.keys(exp || {})) {
-                        const candidate = exp[k];
-                        if (
-                            candidate?.prototype &&
-                            (typeof candidate.prototype.BIsModOrShortcut ===
-                                "function" ||
-                                typeof candidate.prototype
-                                    .BHasStoreCategory === "function")
-                        ) {
-                            ensureAppOverviewHooked(candidate.prototype);
-                        }
-                    }
-                } catch {}
-            }
-        }
-        return true;
-    } catch (err) {
-        logger.warn("Failed to hook AppOverview BIsModOrShortcut:", err);
-        return false;
-    }
-}
-
 /**
  * Patch the inner GameInfo component (k) inside module 15448.
  *
@@ -363,13 +262,15 @@ function patchKComponent(k: any): boolean {
         ) {
             const store = getAppDetailsStore();
             const appData = store?.GetAppData?.(overview.appid);
-            const hasMetadata = Boolean(
-                appData?.descriptionsData?.strSnippet ||
-                    appData?.descriptionsData?.strFullDescription ||
-                    appData?.associationData?.rgDevelopers?.length ||
-                    appData?.associationData?.rgPublishers?.length ||
-                    appData?.associationData?.rgFranchises?.length,
-            );
+            const hasMetadata =
+                enrichedAppIds.has(overview.appid) ||
+                Boolean(
+                    appData?.descriptionsData?.strSnippet ||
+                        appData?.descriptionsData?.strFullDescription ||
+                        appData?.associationData?.rgDevelopers?.length ||
+                        appData?.associationData?.rgPublishers?.length ||
+                        appData?.associationData?.rgFranchises?.length,
+                );
 
             if (hasMetadata) {
                 this.props = {
@@ -388,14 +289,16 @@ function patchKComponent(k: any): boolean {
     return true;
 }
 
+let hasPatchedGameInfo = false;
+
 /**
  * Find Game Info container component G by stable prototype methods
  * (onCollapseStarted, onCollapseComplete, setBoxHeight) and patch its inner renderer.
  */
 export function patchGameInfoComponent(): boolean {
-    try {
-        hookAppOverviewBIsModOrShortcut();
+    if (hasPatchedGameInfo) return true;
 
+    try {
         const req = getSteamRequire();
         if (!req?.m) {
             logger.warn(
@@ -484,13 +387,15 @@ export function patchGameInfoComponent(): boolean {
 
                     const store = getAppDetailsStore();
                     const appData = store?.GetAppData?.(overview.appid);
-                    const hasMetadata = Boolean(
-                        appData?.descriptionsData?.strSnippet ||
-                            appData?.descriptionsData?.strFullDescription ||
-                            appData?.associationData?.rgDevelopers?.length ||
-                            appData?.associationData?.rgPublishers?.length ||
-                            appData?.associationData?.rgFranchises?.length,
-                    );
+                    const hasMetadata =
+                        enrichedAppIds.has(overview.appid) ||
+                        Boolean(
+                            appData?.descriptionsData?.strSnippet ||
+                                appData?.descriptionsData?.strFullDescription ||
+                                appData?.associationData?.rgDevelopers?.length ||
+                                appData?.associationData?.rgPublishers?.length ||
+                                appData?.associationData?.rgFranchises?.length,
+                        );
 
                     if (hasMetadata) {
                         this.props = {
@@ -509,6 +414,7 @@ export function patchGameInfoComponent(): boolean {
             };
         }
 
+        hasPatchedGameInfo = true;
         logger.info(
             "Game Info native shortcut filter bypass hooked successfully.",
         );

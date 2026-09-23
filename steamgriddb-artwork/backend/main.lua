@@ -6,6 +6,18 @@ local config = require("config")
 local sgdb = require("sgdb")
 local igdb = require("igdb")
 local metadata_db = require("metadata_db")
+local steam_paths = require("steam_paths")
+local shortcuts = require("shortcuts")
+
+local function get_shortcut_info(appid)
+  local ok_paths, paths = pcall(steam_paths.resolve)
+  if ok_paths and paths and paths.shortcuts then
+    local entries = shortcuts.parse(paths.shortcuts) or {}
+    local by_id = shortcuts.by_appid(entries)
+    return by_id[appid]
+  end
+  return nil
+end
 
 --- Check status of providers (Twitch/IGDB & SteamGridDB)
 function GetStatus()
@@ -44,8 +56,9 @@ function GetGameMetadata(payload_json)
   end
 
   -- 2. Query IGDB if not in local database
+  local shortcut_info = get_shortcut_info(appid)
   logger:info("Querying IGDB metadata for shortcut " .. tostring(appid) .. " ('" .. tostring(title) .. "')")
-  local meta = igdb.fetch_game_metadata(appid, title)
+  local meta = igdb.fetch_game_metadata(appid, title, shortcut_info)
   if meta then
     metadata_db.set(appid, meta)
     return json.encode({
@@ -84,6 +97,25 @@ function GetGameMetadata(payload_json)
     source = "fallback",
     metadata = fallback,
   })
+end
+
+--- Force refresh / re-query metadata from IGDB, updating the local database
+---@param payload_json string JSON string with { appid = number, title = string }
+function RefreshGameMetadata(payload_json)
+  local ok, req = pcall(json.decode, payload_json)
+  if not ok or type(req) ~= "table" or not req.appid then
+    return json.encode({ error = "invalid_payload" })
+  end
+  local appid = tonumber(req.appid)
+  local title = req.title or ""
+  local shortcut_info = get_shortcut_info(appid)
+  logger:info("Force refreshing IGDB metadata for shortcut " .. tostring(appid) .. " ('" .. tostring(title) .. "')")
+  local meta = igdb.fetch_game_metadata(appid, title, shortcut_info)
+  if meta then
+    metadata_db.set(appid, meta, true) -- force update
+    return json.encode({ success = true, metadata = meta })
+  end
+  return json.encode({ error = "not_found" })
 end
 
 --- Retrieve the entire consolidated library metadata database

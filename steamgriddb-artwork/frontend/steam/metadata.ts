@@ -1,6 +1,7 @@
 import { logger } from "../logger";
 import type { ConsolidatedMetadata } from "../rpc";
 import {
+    enrichedAppIds,
     ensureAppOverviewHooked,
     getAppDetailsStore,
     getAppStore,
@@ -51,6 +52,7 @@ export function enrichGameDetails(
 ): boolean {
     try {
         let touched = false;
+        enrichedAppIds.add(appid);
 
         const developers = toArray<string>(meta.developers);
         const publishers = toArray<string>(meta.publishers);

@@ -1,4 +1,3 @@
-import { Millennium } from "@steambrew/client";
 
 export interface ProviderStatus {
     has_twitch: boolean;
@@ -76,10 +75,27 @@ export interface GameArtworkResponse {
 }
 
 async function call<R>(name: string, payload: object = {}): Promise<R> {
-    const raw = await Millennium.callServerMethod(name, {
-        payload: JSON.stringify(payload),
-    });
-    return JSON.parse(raw as string) as R;
+    const millennium = (window as any)["Millennium"];
+    const callFn = millennium ? millennium["callServerMethod"] : undefined;
+    const candidatePlugins = ["steamgriddb-artwork-dev", "steamgriddb-artwork"];
+    let lastError: any;
+    for (const plugin of candidatePlugins) {
+        try {
+            if (typeof callFn === "function") {
+                const raw = await callFn.call(millennium, plugin, name, {
+                    payload: JSON.stringify(payload),
+                });
+                return JSON.parse(raw as string) as R;
+            }
+        } catch (err: any) {
+            lastError = err;
+            if (String(err).includes("plugin not running")) {
+                continue;
+            }
+            throw err;
+        }
+    }
+    throw lastError;
 }
 
 export const rpc = {

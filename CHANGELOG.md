@@ -11,8 +11,20 @@ This repo is private and unversioned; entries are grouped by date.
 
 ### Added
 
+- **Smarter Scraper Logic & Canonical Platform Disambiguation (Side Task 4):**
+    - **Launch Command & Core Ingestion:** Ingested shortcut launch targets, emulator cores (`snes9x`, `genesis_plus_gx`, `fceumm`, `duckstation`, etc.), and ROM file paths directly from `shortcuts.vdf` via backend `shortcuts.lua` and `steam_paths.lua`.
+    - **Platform Clue Detection:** Mapped command lines and tags to retro platform hints (SNES, NES, Genesis, GBA, GB, N64, PS1, PSP, Arcade).
+    - **Canonical Reference Scoring:** Scored IGDB candidates to favor canonical primary releases (boosting clean slugs like `chrono-trigger` and `battletoads-slash-double-dragon` while penalizing re-release variant slugs `--<num>`), matching platforms (boosting SNES Chrono Trigger `1802` from 1995 over 2018 PC port `206320`), and prioritizing top entries over brief port stubs (boosting Battletoads `7776` over `242267`).
+- **Description vs Storyline Priority & Smart Sentence Truncation (Side Task 5):**
+    - **Summary-Over-Storyline Priority:** Enforced strict priority of `summary` > `parent_game.summary` > `storyline` for the `description` field, preventing in-game plot/storyline walkthroughs from replacing general game overviews (verified on AM2R `4263274102`).
+    - **Smart Sentence Boundary Truncation:** Implemented `truncate_smart` in `igdb.lua` cutting cleanly at sentence-ending punctuation (`.`, `!`, `?`) targeting ~400 characters with leeway, ensuring full complete thoughts without overflowing Steam's Game Info box.
+- **Native Release Date Display Verification (Side Task 3):**
+    - Verified live in Big Picture Mode that `overview.rt_original_release_date = meta.release_date` natively triggers Steam's `div.Release > div.Date` component, displaying `Aug 5, 2016` on AM2R and `Mar 11, 1995` on Chrono Trigger without custom UI injection.
+- **Big Picture Navigation Performance & RPC Recovery (Smoke Test Fixes):**
+    - **Eliminated Call-Stack Overhead in `BIsModOrShortcut`:** Replaced expensive `new Error().stack` inspection inside `AppOverview.prototype.BIsModOrShortcut` with an instantaneous $O(1)$ set lookup (`enrichedAppIds.has(this.appid)`), reducing BPM navigation freeze from 30+ seconds down to 27 milliseconds.
+    - **Single-Pass Module Scan Pre-caching:** Cleaned up card component resolution in `activity-cards-patch.ts`, executing `initCardComponents()` once on plugin startup rather than iterating Webpack's module registry on every render.
+    - **Dynamic RPC Bracket Access:** Replaced AST-rewritten `Millennium.callServerMethod` with `(window as any)['Millennium']['callServerMethod']`, resolving `-dev` suffix failures and restoring metadata population across all non-Steam shortcuts.
 - **Activity Card Cutout & Big Picture Performance Fix (Side Task 1):**
-    - **Single-Pass Module Scan Pre-caching:** Replaced dynamic on-render scans of `req.m` (80,000+ modules calling `factory.toString()`) with a single-pass `initCardComponents()` executed once at plugin load, eliminating 100% of UI stutter and multi-second freezes during Big Picture Mode navigation.
     - **Container Selector Disambiguation:** Disambiguated CSS attribute selectors by scoping card widths to `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` and adding `NonSteamActivityCardsRow` with `width: 100% !important`, preventing parent flex rows from clipping cards down into ~80px cutouts.
 - **Game Info Achievements Badge & Category Cache Fix (Side Task 2):**
     - **AM2R Achievements Category Removal:** Corrected AM2R (`4263274102`) in `library_metadata.json` so `categories.achievements` is `false`, ensuring non-achievement games do not display false achievement badges.
