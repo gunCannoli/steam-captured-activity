@@ -116,8 +116,8 @@ Two buckets decide **where a game's info comes from**:
   settings, not silently resolved.
 - Example from the request: exclude all retro collections from **Steam Store**, include them
   only in **Web Scraping**.
-- Suggested default: `default = steam-store`, plus a built-in guess that shortcuts whose exe
-  is a known emulator start in **Web Scraping**.
+- **Decided:** shortcuts in no listed collection are **ignored** (`default = none`); the plugin
+  touches only games the user has put in a bucket. No automatic emulator guessing.
 
 **Config shape** (`config.json`, read through the Millennium config API; keep the
 workaround from Blocked-upstream #903 in one `settings.ts`):
@@ -125,7 +125,7 @@ workaround from Blocked-upstream #903 in one `settings.ts`):
 ```jsonc
 {
   "buckets": {
-    "default": "steam-store",
+    "default": "none",
     "steamStore": { "collections": ["My Epic Games"] },
     "webScraping": { "collections": ["Retro", "SNES", "GBA"] },
     "overrides": { "2890139989": "web-scraping" }
@@ -153,7 +153,7 @@ and `appAchievementProgressCache` (Big Picture).
 | **RetroAchievements** | Web Scraping bucket, RetroArch games | ROM → RA GameID (existing ADR-0008 logic), `API_GetGameInfoAndUserProgress`; icons from RA `Badge` CDN. Credentials from `retroarch.cfg` (`cheevos_*`), read at runtime, never copied to repo/logs |
 | _(later)_ Local emulator files | Goldberg/CODEX/RUNE ini, RPCS3 `TROPUSR.DAT` | Reference: Playnite-LocalAchievements `Readers/`. **Not in v1** |
 
-Steam-native achievement schema is **not** the same as the user's unlocks for a shortcut:
+Decision 2 above applies. Steam-native achievement schema is **not** the same as the user's unlocks for a shortcut:
 document clearly in UI that a Steam Store game not owned on Steam shows locked-only state.
 
 ### 5.2 Internal provider shape
@@ -346,11 +346,14 @@ achievements, user-created achievements.
 | Steam Web API key requirement for schema | Prefer client stores; key optional |
 | IGDB creds burden | Already optional; Steam Store bucket needs none |
 
-**Open questions for the user**
+**Decisions (user)**
 
-1. Should `default` bucket for uncollected shortcuts be Steam Store or Neither?
-2. Steam achievements for a game the user does **not** own: show locked list, or nothing?
-3. Keep `enhanced-*` separate long term, or fold them in later?
+1. Apps in no collection are ignored (`default = none`).
+2. A Steam-listed game added from another store (e.g. Xbox) shows Steam's achievement list
+   **locked-only**, labelled "no unlock tracking": Steam has no unlock state for a copy it does
+   not own, and Xbox unlocks would need Xbox sign-in (parked, "Later").
+3. `enhanced-achievements` / `enhanced-notifications` (existing toast-theming plugins) stay
+   separate; unrelated to this merger.
 
 ---
 
