@@ -6,7 +6,7 @@
 // doing so can make the main Steam window load its in-app route
 // (/routes/library/home) as a document, which CEF treats as a file download and
 // answers with a blocking "Save as" dialog (confirmed 2026-09-24 12:35; see
-// docs/knowledgebase.md). Deploy frontend changes with a full `dev.ps1` restart.
+// docs/plugins.md § 4). Deploy frontend changes with a full `dev.ps1` restart.
 import { connect } from './cdp.mjs';
 
 const PLUGIN = process.env.EN_PLUGIN ?? 'enhanced-notifications-dev';

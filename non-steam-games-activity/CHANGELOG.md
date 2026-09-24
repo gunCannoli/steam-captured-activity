@@ -77,7 +77,7 @@ Activity Feed all render natively using Steam's own components and stores.
   carousel thumbnails and full viewers ([ADR-0030](../docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)).
 - **Big Picture appid detection** (`steam/gamepad-appid.ts`) — watches
   `react/jsx-runtime` element creation filtered on `{appid, rgSections}` to
-  detect Big Picture navigation events reliably ([ADR-0027](../docs/decisions.md#adr-0027-patch-react-jsx-runtime-to-reach-big-pictures-real-render-pipeline)).
+  detect Big Picture navigation events reliably ([ADR-0027](../docs/decisions.md#adr-0027-patch-reactjsx-runtime-to-reach-big-pictures-real-render-pipeline)).
 - **Provider API** (`registerSummaryProvider`) — provider plugins contribute
   summary _events_, not markup, and a failing provider is skipped rather than
   taking the page down.

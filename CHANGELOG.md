@@ -9,7 +9,34 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
-- **Docs: architecture.md is now the agent doc-routing hub; steam-debug.md gets a
+- **Docs housekeeping: one job per doc, no repeated content.** Each doc now opens
+  with a "This doc's job" line and points elsewhere for the rest.
+  - `docs/architecture.md` renamed to **`docs/millennium-architecture.md`** (it is
+    about our suite, not Steam); its doc map is now a table, and its regression index
+    links to the numbered guardrails instead of repeating them.
+  - **`plugins.md`** owns every rule for plugin code: knowledgebase's Traps 1–10 were
+    merged into the guardrails (new 10 registry memo, 11 re-render every window,
+    12 popup hooks miss BrowserView popups; 1–9 keep their numbers), plus the CSS
+    module / `cx()` pitfalls, frontend RPC wrapper, formatters and deploy/"Save as"
+    notes. Fixed stale advice: npm (not pnpm), always a graceful restart (never
+    `Ctrl+R`), `127.0.0.1:8080`.
+  - **`steam-architecture.md`** is the map: topology, store table with deep-dive
+    links, and the single table of stable signatures (taken from the shipped
+    resolvers, which disagreed with two older doc copies). Its ladder copy was removed.
+  - **`steam-components.md`** keeps only Steam internals. Gained the rendered summary
+    DOM, the four-CSS-module split, the real `Pageable`/`Carousel` contract and the
+    capture APIs (from knowledgebase). Lost the stale "what is left" list, its
+    ladder copy, the signature table and the inspection method (→ steam-debug).
+    Corrected: `clearActivity` keeps the `StoreItemCache` stub.
+  - **`steam-debug.md`** gained the inspection method (search terms, test appids,
+    mode switching, clean-up), the toast targets and Trap 7 (check the UI mode).
+  - **`knowledgebase.md`** (1504 → 733 lines) keeps SDK, config API, CEF quirks,
+    file formats, provider sources, and a new Prior art part (reference plugin,
+    game-data-linker). Verification badges moved out of headings so anchors are stable.
+  - Root `plugins.md` stub deleted. Broken anchors across the repo fixed; code
+    comments that cited moved sections updated.
+
+- **Docs: architecture.md (now millennium-architecture.md) is the agent doc-routing hub; steam-debug.md gets a
   cost-efficient debugging section.** Added a "Where to look (doc map)" section near
   the top of `docs/architecture.md`, organized by situation (live debugging, new
   feature/internals investigation, plugin work, styling, data formats/traps, ADRs,
@@ -64,20 +91,20 @@ This repo is private and unversioned; entries are grouped by date.
 - **Millennium Configuration API bug root-caused and reported ([Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)):**
     - **Version corrected:** we run Millennium **v3.4.1** (latest, commit `18b89e1`). The `1.1.2` recorded earlier is `MILLENNIUM_FRONTEND_LIB_VERSION`, the bundled frontend library.
     - **Root cause** in v3.4.1 source (still on `main`): `src/engine/ffi_binder.cc` records FFI metrics *after* `process_message` succeeds, reading `data.value("methodName", std::string{})`. Config calls carry a numeric `methodName`, so nlohmann throws `type_error.302` and the catch replaces the successful result with the error. The issue includes a repro and a proposed patch (type-safe read; recorder wrapped in its own try).
-    - **Change events:** `plugin_config::notify_change` intentionally skips the frontend for frontend-origin writes. This is by design, not part of the bug. Recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585).
+    - **Change events:** `plugin_config::notify_change` intentionally skips the frontend for frontend-origin writes. This is by design, not part of the bug. Recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api).
 - **`enhanced-achievements` settings panel:** the tier previews are now a "Preview a tier" section, one row per tier. Each row describes when that tier applies for the active theme (e.g. "10% or fewer players have it"), and all four were verified live. The user themes path now uses native separators. The smoke test waits for the first toast window after a Steam start.
 
 - **`enhanced-achievements` Phase 6 built and verified live (banner, sound, settings):**
     - **Plugin scaffolded** ([`enhanced-achievements/`](enhanced-achievements/)): Lua backend (`ListThemes` / `LoadTheme` / `LoadAssets` / `OpenThemesFolder`; assets restricted to image/audio types, 8 MB max), TypeScript frontend, npm-based `dev.ps1` that also deploys `themes/`, user themes folder `<steam>/millennium/config/enhanced-achievements/themes/`. User-facing [README](enhanced-achievements/README.md) and [CHANGELOG](enhanced-achievements/CHANGELOG.md).
-    - **Step 0 findings** (signatures in [`docs/steam-components.md § 11B`](docs/steam-components.md#b-native-achievement-notifications-notificationstore)): the achievement renderer is not exported but its dispatcher is, created through `react/jsx-runtime`, so the banner is an identity-compare jsx swap. `ProcessNotification` cannot be wrapped, so `display_time_ms` goes through the type config's `toastDurationMS`. The achievement `eType` is discovered via a stand-in `PlayNotificationSound` call, not hardcoded. The progress cache is only refreshed after the toast, which gives a deterministic 100% (`exceptional`) test. The desktop toast frame is a fixed 284×71, so `position` follows Steam's own setting.
-    - **Millennium bug found (v3.4.1):** the Configuration API's writes persist but reject, and reads fail. See the follow-up entry above. Worked around in `settings.ts` (FFI `PluginConfig_GetAll` read, read-back after writes, own listeners) and recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585).
+    - **Step 0 findings** (signatures in [`docs/steam-components.md § 11B`](docs/steam-components.md#achievement-notifications-notificationstore)): the achievement renderer is not exported but its dispatcher is, created through `react/jsx-runtime`, so the banner is an identity-compare jsx swap. `ProcessNotification` cannot be wrapped, so `display_time_ms` goes through the type config's `toastDurationMS`. The achievement `eType` is discovered via a stand-in `PlayNotificationSound` call, not hardcoded. The progress cache is only refreshed after the toast, which gives a deterministic 100% (`exceptional`) test. The desktop toast frame is a fixed 284×71, so `position` follows Steam's own setting.
+    - **Millennium bug found (v3.4.1):** the Configuration API's writes persist but reject, and reads fail. See the follow-up entry above. Worked around in `settings.ts` (FFI `PluginConfig_GetAll` read, read-back after writes, own listeners) and recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api).
     - **Verification:** 10 logic tests (`npm test`). Live CDP suites in `enhanced-achievements/tests/`: tiers (normal/magic/rare/no-data/exceptional), sound replacement and Steam mute, `display_time_ms`, settings round-trips, fallbacks (sound off, banner off, missing theme), Big Picture banner without focus theft, non-achievement toasts unchanged.
     - **Core regression (Routines 1–2) with both plugins enabled:** added the missing `scratch/test_nav_cycle.js` (desktop A → B → A: Post-Game Summary, 8 media, 3 activity days intact) and `scratch/check_all_tabs.js` (Big Picture: Post-Game Summary, 3 "captured" cards, Your Stuff 8 items, Game Info without shortcut warning, A → B → A intact). All pass.
     - **Not yet verified:** the in-game overlay with a real unlock (same code path).
 
 - **`enhanced-achievements` settings move to Millennium's Configuration API:**
     - **Decision:** Default settings ship inside the plugin (`settings.json`, bundled into the frontend). Users change them in the plugin's settings panel in Millennium's sidebar (`definePlugin({ content })`), and Millennium stores the values. No settings file is written at runtime, so updates never overwrite user choices, and new defaults still reach users who never changed that setting.
-    - **Verified API facts** (installed Millennium + `@steambrew/client` 5.8.5), recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585): `pluginConfig.get/set/getAll`, `usePluginConfig`, `subscribePluginConfig`; Lua `millennium.config.get/set/on_change`; no way to declare defaults; 256 keys and 256 KB per value; the SDK build ships stubs that Millennium replaces at runtime.
+    - **Verified API facts** (installed Millennium + `@steambrew/client` 5.8.5), recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api): `pluginConfig.get/set/getAll`, `usePluginConfig`, `subscribePluginConfig`; Lua `millennium.config.get/set/on_change`; no way to declare defaults; 256 keys and 256 KB per value; the SDK build ships stubs that Millennium replaces at runtime.
     - **No theme builder:** Themes stay hand-edited JSON (one file plus assets is what users share). The panel instead offers per-tier Preview, Reload themes and Open themes folder.
     - [`docs/plans/enhanced-achievements-plan.md`](docs/plans/enhanced-achievements-plan.md) now has a Settings step with the key/control/default table (steps renumbered 0–6). `themes.md` and `TASK.md` were updated to match.
 
@@ -90,7 +117,7 @@ This repo is private and unversioned; entries are grouped by date.
     - **`TASK.md` pruned:** Shipped work (Phase 4b, shipped status rows) moved out; `TASK.md` now lists open phases only.
 
 - **Documentation Streamlining & Lean `AGENTS.md` Refactor:**
-    - **Consolidated Plugin Guide & Guardrails into `docs/plugins.md`:** Moved all 9 mandatory regression guardrails, failure traps, the 4-rung UI modification ladder, and plugin creation scaffolding guidelines into [`docs/plugins.md`](docs/plugins.md), keeping root [`plugins.md`](plugins.md) as a direct entry pointer.
+    - **Consolidated Plugin Guide & Guardrails into `docs/plugins.md`:** Moved all 9 mandatory regression guardrails, failure traps, the 4-rung UI modification ladder, and plugin creation scaffolding guidelines into [`docs/plugins.md`](docs/plugins.md), keeping root [`plugins.md`](docs/plugins.md) as a direct entry pointer.
     - **Lean `AGENTS.md`:** Streamlined [`AGENTS.md`](AGENTS.md) down from 317 lines to 160 lines, focusing strictly on core non-Steam identifiers (`appid` vs composed `gameid`), environment facts, and 5 standard agent operating routines (Multi-Tab Smoke Verification, Two-Way Navigation Lifecycle, Automated CDP Suite, Build & Run, End-of-Session Prune/Sync/Auto-Push).
     - **Cross-Reference Hygiene:** Updated all workspace documentation (`README.md`, `TASK.md`, `docs/decisions.md`, `docs/architecture.md`) to point cleanly to `docs/plugins.md`.
 

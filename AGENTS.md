@@ -17,26 +17,26 @@ The product is a **core plugin plus optional provider plugins**:
   `retroachievements`, `retroarch`, guides, artwork, and so on.
 
 The core must be useful alone and must never depend on a provider. See
-[docs/architecture.md](docs/architecture.md).
+[docs/millennium-architecture.md](docs/millennium-architecture.md).
 
 ## Read this before writing code
 
-| Doc                                                      | What it holds                                                                                                               |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| [TASK.md](TASK.md)                                       | **Start here** — current status, multi-session roadmap, what is next                                                        |
-| [CHANGELOG.md](CHANGELOG.md)                             | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean                      |
-| [docs/plugins.md](docs/plugins.md)                       | **Plugin creation & guardrails** — scaffolding, 4-rung reuse ladder, and all 9 mandatory regression guardrails              |
-| [docs/steam-architecture.md](docs/steam-architecture.md) | **Steam architecture directory** — cheat sheet of modules, stores, RPCs, and APIs for plugin developers                     |
-| [docs/steam-debug.md](docs/steam-debug.md)               | **CEF DevTools guide** — how to inspect `http://localhost:8080`, target topology, Desktop vs Big Picture quirks             |
-| [docs/knowledgebase.md](docs/knowledgebase.md)           | Millennium SDK, Steam's local data formats, provider sources, verified facts, and detailed failure traps                    |
-| [docs/architecture.md](docs/architecture.md)             | Core/provider split, data flow, IPC, and provider contracts                                                                 |
-| [docs/steam-components.md](docs/steam-components.md)     | **Deep reference** — section registry, stores, event shapes, achievements, notifications, recording RPCs, inspection method |
-| [docs/steam-styles.md](docs/steam-styles.md)             | UI styling guidance — why hand-measuring pixels was superseded by component reuse and native block cloning                  |
-| [docs/decisions.md](docs/decisions.md)                   | ADRs — _why_ things are the way they are                                                                                    |
-| [docs/plans/](docs/plans/)                               | Per-feature and per-bugfix plans (e.g. `enhanced-notifications-plan.md`)                                                    |
+| Doc | Its one job |
+| --- | --- |
+| [TASK.md](TASK.md) | **Start here** — current status, multi-session roadmap, what is next |
+| [CHANGELOG.md](CHANGELOG.md) | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean |
+| [docs/millennium-architecture.md](docs/millennium-architecture.md) | Our suite: core/provider split, data flow, RPC, provider contract — **and the doc map** |
+| [docs/plugins.md](docs/plugins.md) | **How to build a plugin & every regression guardrail** — scaffold, reuse ladder, guardrails, develop/deploy, test, publish |
+| [docs/steam-architecture.md](docs/steam-architecture.md) | **Map of Steam's internals** — runtime topology, stores/modules, every stable resolution signature |
+| [docs/steam-components.md](docs/steam-components.md) | **Deep reference** — verified traces: section registry, summary/activity stores, Big Picture, notifications, recording, artwork |
+| [docs/steam-debug.md](docs/steam-debug.md) | **Inspecting the live client** — CDP targets, the inspection method, Big Picture traps, cost-efficient debugging |
+| [docs/knowledgebase.md](docs/knowledgebase.md) | Facts outside Steam's UI code — Millennium SDK & config API, CEF quirks, Steam's file formats, provider sources, prior art |
+| [docs/steam-styles.md](docs/steam-styles.md) | UI styling guidance — why hand-measuring pixels was superseded by component reuse |
+| [docs/decisions.md](docs/decisions.md) | ADRs — _why_ things are the way they are |
+| [docs/plans/](docs/plans/) | Per-feature and per-bugfix plans (e.g. `enhanced-notifications-plan.md`) |
 
 For a situation-based map of these docs (e.g. "I'm debugging live" or "I'm
-writing a plugin"), see [docs/architecture.md](docs/architecture.md#where-to-look-doc-map).
+writing a plugin"), see [docs/millennium-architecture.md](docs/millennium-architecture.md#where-to-look-doc-map).
 
 Do not re-derive facts already recorded there. Do not contradict an ADR without
 writing a new one that supersedes it. For all plugin development rules and guardrails,
@@ -157,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File dev.ps1             # Deploy + restart 
 Backend and frontend changes both need a graceful Steam restart (`dev.ps1` without
 `-NoRestart`). **Do not reload SharedJSContext** (`Ctrl+R` / `location.reload()`): it
 can open a blocking "Save as" dialog for `/routes/library/home` (see
-[knowledgebase.md](docs/knowledgebase.md), Deploying a plugin).
+[plugins.md § 4 Develop](docs/plugins.md#4-develop)).
 
 To start Steam with DevTools:
 

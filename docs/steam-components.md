@@ -1,18 +1,23 @@
-# Steam components — how the app detail page is really built
+# Steam components — how Steam's UI is really built
+
+**This doc's job:** the deep reference for what Steam's client actually does —
+the app detail page's section registry, the Post-Game Summary and Activity
+stores, Big Picture's portal architecture, and the achievement, notification,
+recording and artwork subsystems. It answers one question: _what does Steam
+already do, so that we can call it instead of imitating it?_
 
 Everything here was **read out of the live Steam client** over CEF devtools
-(2026-09-20, extended 2026-09-21 for Big Picture): module factories pulled
-from `webpackChunksteamui`, stores poked with real appids, DOM verified on
-screen, and — for Big Picture specifically — Millennium's own C++ source
-cloned and read directly. No guessing, no inference from screenshots.
+(from 2026-09-20): module factories pulled from `webpackChunksteamui`, stores
+poked with real appids, DOM verified on screen. No inference from screenshots.
 
-This document exists to answer one question: _what does Steam actually do, so
-that we can call it instead of imitating it?_
+Not here: the one-page map and every stable resolution signature
+([steam-architecture.md](steam-architecture.md) — start there); how to inspect
+the client yourself ([steam-debug.md](steam-debug.md)); the rules for plugin
+code that touches any of this ([plugins.md](plugins.md)).
 
-> **Read this before building any UI.** It is the reference behind
-> [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
-> which the plugin now implements. The inspection procedure at the end is
-> reusable for anything not yet mapped — start there for Big Picture.
+> **Numeric module ids and minified names in this doc are one build's
+> breadcrumbs** — how the code was read, not how to resolve it. Production code
+> resolves by signature ([steam-architecture.md § 3](steam-architecture.md#3-stable-resolution-signatures)).
 
 ---
 
@@ -57,50 +62,6 @@ not
 ```
 our backend data  ─►  our components that look like Steam's
 ```
-
----
-
-## The problem this solved
-
-The renderer used to reimplement Steam's summary and day list by hand. That is
-why it kept not looking right: every spacing value, separator rule, date label
-and hover behaviour had to be rediscovered, and would drift on the next Steam
-build. [AGENTS.md](../AGENTS.md) already said _"reuse Steam's real components
-over recreating them"_, and
-[ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)
-already said prefer patching data over DOM. The section filter was the missing
-piece that made both achievable.
-
-**This is now implemented** — the hand-built components are deleted. The value
-of this document from here on is (a) the reference below, for the parts not yet
-wired up, and (b) the method at the end, for everything still unmapped.
-
----
-
-## How to get at any of this
-
-Steam exposes its webpack require by pushing a probe chunk:
-
-```js
-let req = null;
-window.webpackChunksteamui.push([
-    ["probe_" + Date.now()],
-    {
-        probe_mod: (m, e, r) => {
-            req = r;
-        },
-    },
-    (r) => {
-        r((r.s = "probe_mod"));
-    },
-]);
-// req.m  = 2573 module factories (source readable via Function.prototype.toString)
-// req(id) = evaluated module exports
-```
-
-**Numeric module ids reshuffle between Steam builds.** They are used throughout
-this document because they are how the code was read, but production code must
-resolve by signature — see [§ Stable resolution](#stable-resolution).
 
 ---
 
@@ -372,6 +333,108 @@ ForcedCarouselPadding     EventHeaderBlock       EventDaySeparator
 SummaryCarouselContainer  SummaryCarouselScrollingContainer
 ```
 
+
+### Reading captures through Steam's own APIs
+
+Steam already indexes non-Steam captures. Both calls work unmodified for a
+shortcut and return absolute `steamloopback.host` URLs Steam serves itself, so no
+image crosses the RPC boundary:
+
+```js
+await SteamClient.Apps.GetScreenshotsInTimeRange(appid, since, 0); // 32-bit appid
+await service.GetClips({ game_id: gameid, created_after: since }); // 64-bit gameid
+```
+
+**Steam's own gameid helper truncates to 32 bits.** `bY(4263274102)` returns
+`1861238`, not `18310622842007322624`. That single bug is why non-Steam clips
+never appear natively — the service is willing, Steam just asks about the wrong
+game. Compose the gameid yourself
+([knowledgebase.md § The two identifiers](knowledgebase.md#the-two-identifiers)).
+
+The core feeds `m_session` via `BAddScreenshotNotification` / `AddClip`, oldest
+first, then sets `m_postGameSummary`; Steam renders the rest.
+
+### Rendered DOM and CSS modules
+
+Captured with `outerHTML` on native pages (Divinity: Original Sin 2, `435150`;
+Fields of Mistria for the pager). Readable halves of the class pairs only —
+Steam ships e.g. `KniunRMLsSnzOWTG-tq81 PostGameSummaryClip Panel`.
+
+```
+PageableContainer.Panel
+├─ HeaderPageControls
+│  ├─ GamePlaySummaryHeader              -- "Post-Game Summary" (CSS uppercases it)
+│  └─ PageClickContainer
+│     ├─ PageLeft.Small [.Disabled]      -- arrow SVG, scaleX(-1)
+│     ├─ PageRight.Small [.Disabled]
+│     └─ PageableCloseButton.Small       -- the "X"
+└─ BoxCarousel.SummaryCarouselContainer
+   └─ BoxCarouselContents.SummaryCarouselScrollingContainer   -- display:flex, row
+      └─ [role=list] (display:contents)
+         ├─ [role=listitem].SummaryContainer        -- ONE per tile, not per day
+         │  ├─ EventHeaderBlock                     -- "Today" on a day's first tile only
+         │  └─ SummaryContainerChildren             -- exactly one tile
+         │     └─ [role=button].PostGameSummaryClip.Panel  style="aspect-ratio: 1.77778 / 1"
+         │        ├─ img.ClipThumbnail
+         │        └─ CornerContent > DurationText.Clip  (Steam's clip SVG + "0:06")
+         ├─ div.TypeSeparator.SpaceOnly [data-carousel="ignore"]
+         ├─ [role=listitem].SummaryContainer
+         │  └─ … [role=button].SummaryScreenshot.ClickableScreenshot.Panel
+         │        ├─ img.ClickableScreenshotImg.UseHeight
+         │        └─ ScreenshotShareIcon (hover)
+         └─ … ForcedCarouselPadding [data-carousel="ignore"]
+```
+
+- Header, pager arrows and close button share one `HeaderPageControls` row,
+  sibling of the carousel inside one `PageableContainer`.
+- Tiles size fluidly by inline `aspect-ratio` (16:9), not fixed pixels.
+- `.Disabled` on the arrows is a class Steam toggles from scroll position.
+
+The page's classes come from **four separate CSS modules** — found by searching
+the module cache for each class name, not guessed:
+
+| Probe key                  | Also exports                                                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SummaryCarouselContainer` | `SummaryCarouselScrollingContainer`, `GamePlaySummaryHeader`, `SummaryContainer`, `SummaryContainerChildren`, `SummaryScreenshot`, `EventHeaderBlock`, `TypeSeparator`, `ForcedCarouselPadding` |
+| `PageableContainer`        | `HeaderPageControls`, `PageClickContainer`, `PageLeft`, `PageRight`, `PageableCloseButton`, `Disabled`, `Small`                                                                                 |
+| `PostGameSummaryClip`      | `ClipThumbnail`, `CornerContent`, `DurationText`                                                                                                                                                |
+| `ClickableScreenshotImg`   | `ClickableScreenshot`, `ScreenshotShareIcon`, `UseWidth`, `UseHeight`                                                                                                                           |
+
+Several values are already two-token strings (`PageableContainer.Small ===
+"_3qlJ0L41KQFqUTzVQKFERC Small"`). Why both facts matter for plugin code:
+[plugins.md § Rules that apply on every rung](plugins.md#rules-that-apply-on-every-rung).
+
+### Pageable and Carousel — the real summary pager
+
+`@steambrew/client`'s exported `Carousel` is a virtualizer and is **not** what the
+summary uses. The real pair is unexported:
+
+- **`Pageable`** (module `4584`, export `C`) renders `PageableContainer` →
+  `HeaderPageControls` → `PageableContent`. Its `children` is a **render-prop**,
+  `(ref, fnUpdateArrows) => ReactNode`. It owns `bLeftArrowEnabled` /
+  `bRightArrowEnabled` and renders the arrows **only when at least one is true** —
+  which is why a one-row summary shows no arrows at all.
+- **`Carousel`** (module `26271`, export `Q`) — a `ResizeObserver` re-checks
+  overflow; `UpdateScrollArrows` computes left (`scrollLeft >= 1`) and right
+  (`scrollLeft + clientWidth < scrollWidth`) and reports via `fnUpdateArrows`;
+  `ScrollLeft`/`ScrollRight` scroll to the next tile not fully visible (not a
+  fixed amount); children with `data-carousel="ignore"` are skipped; it animates
+  `scrollLeft` by hand ([knowledgebase.md § CEF no-ops](knowledgebase.md#steams-embedded-cef-two-silent-no-ops)).
+
+Two easy misreadings of `Pageable`'s props:
+
+- `name` alone (no `customheader`) renders Pageable's own generic `Name`+`Rule`
+  header, not the summary's `GamePlaySummaryHeader` div. Native always passes
+  `customheader`.
+- `bNoHeader` gates the **entire** header div, `customheader` included. Native
+  sets it only for an achievements-only ("short") summary. Media-tile content
+  always wants `bNoHeader={false}`.
+
+The pager chevron (module `50376`) takes `singlearrow` (skips the second
+`<polyline>` of its default double chevron) and `angle={0|180}`.
+
+The usage is the [element tree](#element-tree) above.
+
 ---
 
 ## Activity feed
@@ -437,7 +500,9 @@ Subclasses seen live: achievements (`eEventType: 2`), partner events
 (`eEventType: 1002`), screenshots (`V`, valid iff `m_bIsValid`), videos (`H`),
 trading cards, recommendations, received/wishlisted games, user status.
 
-### The hard blocker: every event needs a store record (**✅ verified live**)
+### The store-record blocker
+
+**✅ Verified live.** Every event needs a store record.
 
 Feeding this feed is not merely hard, it is **closed** for a non-Steam game, and
 the reason is upstream of the event data entirely.
@@ -476,7 +541,9 @@ Two event types were checked specifically, in case one avoided the guard:
   `event.achievements`, needing no store data, so it _would_ work if the outer
   guard let it through. It does not.
 
-### How the blocker was cleared (**✅ verified live & shipped**)
+### How the store-record blocker was cleared
+
+**✅ Verified live & shipped.**
 
 The guard was cleared by satisfying Steam's store cache directly in memory, with no network path:
 
@@ -543,87 +610,11 @@ The implementation in `frontend/steam/activity.ts` resolves four specific runtim
   Sep 20 and Oct 24, 2025, active loopback previews, carousel thumbnails, and "Load More Activity".
 - Controller D-pad navigation functions seamlessly in Big Picture Mode's "ACTIVITY" tab.
 - Empty case (ActRaiser, 0 captures): Keeps Steam's honest disclaimer box cleanly without errors.
-- Clean teardown: `clearActivity(appid)` purges all temporary in-memory records upon navigation away.
+- Teardown: `clearActivity(appid)` clears the day records on navigation away but **keeps** the `StoreItemCache` stub — deleting it poisons Steam's negative cache ([plugins.md guardrail 5](plugins.md#5-persistent-in-memory-stubs--negative-cache-immunization)).
 
-Achievements for non-Steam games are out of scope regardless; if they ever
-arrive (custom sets, RetroAchievements), they are a provider concern
-([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)).
-
-### Comparison: `game-data-linker`'s different way around this same blocker
-
-The user pointed at
-[sydhufen/game-data-linker](https://github.com/sydhufen/game-data-linker), a
-published Millennium plugin that also makes non-Steam shortcuts show rich
-Steam-native detail pages (artwork, activity feed, achievements, news,
-friends). Read its README and source (`backend/main.lua`,
-`frontend/index.tsx`) via the GitHub raw API — not cloned locally. Worth
-recording because it looks like it solved exactly what we're blocked on, but
-on inspection it **sidesteps the blocker rather than clearing it**, by making
-a different product choice:
-
-**It links a shortcut to a _real_ Steam appid (or Epic/Xbox), not a fake
-record for the shortcut's own non-existent one.** The user pastes a Steam
-AppID or store URL into the shortcut's Properties dialog; the plugin saves
-`{non_steam_id → steam_id}` in `mappings.json` and, from then on, reads and
-renders **that other, real game's** data:
-
-```ts
-const store = (window as any).appActivityStore;
-let activity = store.GetAppActivity(appid); // appid = the LINKED real Steam game
-```
-
-```ts
-const cache = (window as any).appAchievementProgressCache;
-const e = cache?.m_achievementProgress?.mapCache?.get?.(appid); // real game, real progress
-```
-
-No `Object.create`-on-prototype fabrication anywhere — it doesn't need our
-[§ The store record can be faked](#the-store-record-can-be-faked-verified-not-yet-wired-up)
-technique because `appid` here is never a shortcut's own id; it's Garry's Mod
-or whatever the user linked. `GetAppActivity`/`appAchievementProgressCache`
-already have a real backing record for a real appid — that's the whole reason
-it works with zero network calls to fetch activity/achievements themselves.
-Artwork is genuinely downloaded (Steam CDN / Epic / SteamGridDB) and applied
-via `SteamClient.Apps.SetCustomArtworkForApp`, which is the same real,
-documented API surface either plugin would use — nothing new there.
-
-**This is a different product, not a better solution to ours.** Our goal
-(AGENTS.md) is showing a shortcut's _own_ real captured screenshots/clips —
-data Steam already has, for the actual thing the user ran, no linking step,
-no network. `game-data-linker`'s goal is showing a _linked_ game's data
-(borrowed from a real Steam/Epic/Xbox listing) under a shortcut that may not
-even be that game (nothing stops linking `AM2R.exe` to Hollow Knight's
-appid — it's an intentional cosmetic/metadata overlay, not provenance). Our
-core plugin (`non-steam-games-activity`) could never adopt this approach
-without abandoning ADR-0012's "core reaches no network, needs no linking"
-premise; it does, however, validate that a **linking-based enrichment
-provider** is a legitimate, already-proven shape other developers ship — worth
-keeping in mind for the provider layer (Phase 8), completely optional and
-orthogonal to the core.
-
-**Two things it does confirm, both already known but now double-verified by
-an independent implementation:**
-
-- `SetCustomArtworkForApp(appid, base64, ext, imageType)` (types 0=portrait,
-  1=hero, 2=logo, 3=wide capsule) is the real, working API for shortcut
-  artwork — matches our own findings elsewhere in this doc.
-- `findClassModule`-based CSS resolution with a hardcoded fallback (their
-  `resolveClasses(predicate, fallback)`) is the same pattern
-  [ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)
-  already commits us to.
-
-**Nothing new on Big Picture.** No `PopupManager`/gamepad-window handling in
-its source at all — it targets desktop Properties/library dialogs only
-(`tryInjectPropertiesField(doc, popupTitle)`, invoked per-document from a
-caller not shown in the fetched excerpt, almost certainly Millennium's
-per-popup CSS/webkit injection rather than anything like our
-`g_PopupManager` cross-window trick). Its Properties-dialog injection is a
-same-kind problem to Big Picture's (reach a document that isn't
-`SharedJSContext`'s own) but a smaller one — Properties dialogs are ordinary
-webkit-injectable popups ADR-0023/0024's `allows_webkit_injection` loopback
-exclusion doesn't apply to, so it needed no `g_PopupManager`-style workaround
-at all. Doesn't change anything in [§ Inspecting Big
-Picture](#inspecting-big-picture-phase-6--answered) or ADR-0024.
+Achievement data for non-Steam games comes from providers
+([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)); where Steam renders it is
+[§ Achievements, notifications, recording & artwork](#achievements-notifications-recording--artwork).
 
 ### Why we cannot feed the _stock_ screenshot/video events
 
@@ -715,31 +706,6 @@ Workshop  YourStuff
 
 ---
 
-## Stable resolution
-
-Numeric ids in this document are **for reading only**. Resolve at runtime by
-signature, per
-[ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)
-and the AGENTS.md reuse rule.
-
-| Target                   | Stable signature                                                                                     |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| Post-Game Summary styles | class-map probe key `GamePlaySummaryContainer`                                                       |
-| Activity feed styles     | class-map probe key `AppActivityDay` / `AppActivityDate`                                             |
-| `CAppSpotlightStore`     | export whose object has prototype method `GetPostGameSummary` **and** `StopShowingGamePlaySpotlight` |
-| `CAppActivityStore`      | export with prototype `GetAppActivity` + `FetchLatestActivity`                                       |
-| Sections component       | export whose `prototype` has `GetSections` + `SeekToSection` + `RegisterSection`                     |
-| Carousel                 | `prototype` has `ScrollToElement` + `UpdateScrollArrows` + `BindScrollingContainer`                  |
-| Collapsible section      | `prototype` has `OnHeaderClick` + `onCloseButtonClicked` + `ScrollToFirstChild`                      |
-
-Prototype method names survive minification; module bindings and numeric ids do
-not.
-
-The store singletons are also reachable without webpack spelunking once found —
-they are long-lived MobX singletons, so resolve once and cache.
-
----
-
 ## The simulate hooks
 
 `CAppSpotlightStore` ships test affordances, useful for development:
@@ -755,180 +721,13 @@ without waiting for midnight.
 
 ---
 
-## What was done, and what is left
-
-**Done** (ADR-0022, verified in the live client):
-
-1. **`GetSections` patched** to re-add `postgamesummary` for
-   `BIsModOrShortcut()` apps, and to drop `nonsteam` once there is content to
-   replace it with. The memo is refreshed explicitly — it compares by size
-   only, and this change swaps one member for another.
-2. **`m_session` fed** via `BAddScreenshotNotification` / `AddClip`, oldest
-   first, then `m_postGameSummary` set. Steam renders the rest.
-3. **Captures read from Steam's own APIs** —
-   `SteamClient.Apps.GetScreenshotsInTimeRange` and the recording service's
-   `GetClips`. Both work for a shortcut; the clips call needs the full 64-bit
-   gameid, since Steam's own helper truncates it to 32 bits.
-4. **`steamloopback.host` question answered:** Steam serves its _own_ captures
-   over that origin and hands back absolute URLs, so no image crosses the RPC
-   boundary for this page. ADR-0017's jail still applies to files Steam does
-   not index.
-5. **`components/` deleted**, along with `assets.ts`, `steam-media.ts`,
-   `timeline.lua`, `assets.lua` and the recording parsers.
-6. **Big Picture implemented** (ADR-0024) — not by feeding Steam's component
-   (genuinely unreachable, confirmed from Millennium's source, ADR-0023), but
-   by rendering a clone into the popup's DOM via a cross-window reference from
-   `Steam.PopupManager`. Awaiting the user's smoke test. See
-   [§ Inspecting Big Picture](#inspecting-big-picture-phase-6-answered).
-
-**Left:**
-
-- **The Activity feed is partially solved.** Every event renderer requires a
-  _store_ record the game does not have — but that record can be faked with no
-  network call, and was, successfully. What remains is wiring it through the
-  plugin's existing re-render path. See
-  [§ The hard blocker](#the-hard-blocker-every-event-needs-a-store-record-verified-live)
-  and [TASK.md](../TASK.md) for the step-by-step. This applies equally to Big
-  Picture's ACTIVITY tab, which shares the same blocker.
-
-Everything that reaches into Steam keeps a graceful fallback, so a Steam update
-degrades the page to stock instead of crashing it.
-
----
-
-## Reproducing this — the inspection method
-
-This is the procedure to run **before building any component**, and the one
-Phase 6 (Big Picture) should start from. It takes minutes and has repeatedly
-turned "we need to build X" into "Steam already has X".
-
-### 1. Attach
-
-Steam must run with `-dev` to expose CEF devtools on `http://localhost:8080`.
-
-```bash
-curl -s http://localhost:8080/json/list
-```
-
-**There are several targets and they are not interchangeable:**
-
-| Target                               | What it is                                      | Use it for                                 |
-| ------------------------------------ | ----------------------------------------------- | ------------------------------------------ |
-| `SharedJSContext`                    | the JS context: stores, modules, `SteamUIStore` | evaluating code, navigating, poking stores |
-| `Steam` (`minwidth=1010` in its URL) | the rendered desktop window                     | reading the DOM, screenshots               |
-| `SP BPM_…` / Gamepad popup           | Big Picture's window                            | the same, for Big Picture                  |
-| `… Supernav`, `… Menu`               | chrome fragments                                | nothing — they match naive title filters   |
-
-Two traps, both hit this session:
-
-- **Match the main window by URL, not title.** Several targets are titled
-  `Steam`; filtering on the title alone picks a menu popup and you read an
-  empty DOM. Filter on `'minwidth=1010' in url`.
-- **Navigate from `SharedJSContext`, read the DOM from the window.** They are
-  separate JS contexts. `window.SteamUIStore` exists only in the former;
-  `document` for the page you care about lives in the latter.
-
-Do not `location.reload()` the SharedJSContext to pick up a plugin change — it
-tears down the render window and leaves you with no DOM target. Restart Steam.
-
-### 2. Capture Steam's module require
-
-```js
-let req = null;
-window.webpackChunksteamui.push([
-    ["probe_" + Date.now()],
-    {
-        probe_mod: (m, e, r) => {
-            req = r;
-        },
-    },
-    (r) => {
-        r((r.s = "probe_mod"));
-    },
-]);
-window.__wreq = req; // req.m = ~2600 factories; req(id) = evaluated exports
-```
-
-`__wreq` does not survive a Steam restart — re-run this after each one.
-
-### 3. Find the thing
-
-Search factory **source text** for a distinctive string, then read it:
-
-```js
-for (const id of Object.keys(req.m)) {
-    const src = Function.prototype.toString.call(req.m[id]);
-    if (src.includes("PostGameSummary")) console.log(id, src.length);
-}
-```
-
-Best search terms, in order of usefulness:
-
-1. **Localization tokens** (`#AppDetails_SectionTitle_`, `#AppActivity_`) —
-   these name features exactly and are not minified.
-2. **Store method names** (`GetPostGameSummary`) — property names survive.
-3. Class-map keys (`GamePlaySummaryContainer`).
-
-Pipe the factory through `prettier --parser babel` before reading it; minified
-Steam code is unreadable otherwise and perfectly clear after.
-
-### 4. Confirm against the live client
-
-Never conclude from source alone. Poke the real stores with real appids:
-
-| appid        | Game                     | Why it is useful                                |
-| ------------ | ------------------------ | ----------------------------------------------- |
-| `692850`     | Bloodstained             | biggest summary — 14 events                     |
-| `435150`     | Divinity: Original Sin 2 | screenshots **and** a clip                      |
-| `2142790`    | Fields of Mistria        | small, ordinary case                            |
-| `4263274102` | AM2R                     | **non-Steam** — the case under test             |
-| `2788628389` | ActRaiser                | non-Steam with **no captures** — the empty case |
-
-Always test a native game and a non-Steam one side by side. The whole ADR-0022
-finding came from noticing the store behaved _identically_ for both and only
-the section list differed.
-
-### 5. Verify by screenshot, not by DOM query
-
-**A DOM probe can report success while the page looks wrong.** This happened
-here: `querySelector` found the summary and reported the placeholder gone,
-while the visible page still showed the grey box — the section set was correct
-but React had not re-rendered. Only the screenshot caught it.
-
-```python
-ws.send(json.dumps({"id":1,"method":"Page.captureScreenshot","params":{"format":"png"}}))
-```
-
-### 6. Clean up
-
-Patches and injected events mutate the running client. Revert them:
-
-```js
-window.__unpatchSections?.();
-Ri.GetOrCreateAppData(appid).m_session.ClearSessionEvents();
-```
-
----
-
-### Inspecting Big Picture Mode (BPM / GamepadUI) — The Complete Architecture
-
-This section documents the ground truth of how Steam's Big Picture Mode (GamepadUI / Steam Deck UI) is constructed, verified live via CEF DevTools on 2026-09-22.
+## Big Picture Mode
 
 The earlier assumption (ADR-0023, ADR-0024) that Big Picture runs as a separate JavaScript bundle with an unreachable module cache and store was **proven false** (ADR-0029). Big Picture runs in the **exact same JavaScript runtime as Desktop (`SharedJSContext`)**, rendering through a multi-window React Portal. As a result, **the exact same store-feeding and section-restoration technique used on Desktop (ADR-0022) works out of the box in Big Picture Mode** — no hand-built clone markup or DOM injection needed.
 
-### How to enter Big Picture for testing
+How to switch modes and inspect the Big Picture target: [steam-debug.md](steam-debug.md#4-big-picture-mode-gamepad-ui-quirks--traps).
 
-```js
-// In SharedJSContext via CEF DevTools:
-window.SteamClient.UI.SetUIMode(4); // Switch to Big Picture Mode (GamepadUI)
-window.SteamClient.UI.SetUIMode(7); // Switch back to Desktop mode
-```
-
-When switched to Big Picture, Steam opens a new popup target named **`Steam Big Picture Mode`**.
-
----
-
-### 1. The Multi-Window React Portal Architecture
+### The multi-window React portal architecture
 
 Steam's client uses a multi-window design centered around a single headless frame:
 
@@ -960,7 +759,9 @@ ReactDOM.createPortal(
 );
 ```
 
-#### The Fiber Proof (**✅ Verified Live**)
+#### The fiber proof
+
+**✅ Verified live.**
 
 Comparing the React Fiber root in `SharedJSContext` with the rendered elements inside the Big Picture popup proved they are the **same React tree**:
 
@@ -973,7 +774,7 @@ Webpack chunk `3714` (`sp.js`, the Big Picture entry point) pushes directly into
 
 ---
 
-### 2. How Big Picture Builds the App Detail Page
+### How Big Picture builds the app detail page
 
 Big Picture's app detail page is composed of several layered components spanning modules `18057`, `40478`, `59856`, and `3375`:
 
@@ -1106,7 +907,7 @@ x.BV.Library.App.Root()  (/library/app/:appid, module 18057)
 
 ---
 
-### 3. Why Non-Steam Games Were Blank in Big Picture
+### Why non-Steam games were blank in Big Picture
 
 For a shortcut or non-Steam game, Steam's `GetSections()` filters:
 
@@ -1124,7 +925,9 @@ Consequently, `at()` receives a set with zero matching entries and renders an em
 
 ---
 
-### 4. Native Post-Game Summary in Big Picture (**✅ Verified Live**)
+### Native Post-Game Summary in Big Picture
+
+**✅ Verified live.**
 
 Because Big Picture evaluates `e.setSections.has("postgamesummary") && <Ge.T details={e.details} />`, and `Ge.T` (module `53074`) reads from `window.appSpotlightStore.GetPostGameSummary(appid)`:
 
@@ -1160,7 +963,7 @@ Verified live on AM2R (appid `4263274102`):
 
 ---
 
-### 5. Universal Navigation & Lifecycle Signals
+### Navigation & lifecycle signals
 
 In Big Picture Mode, routing does not update `window.location` (it uses React Router / in-place view state transitions). However, two robust signals exist to detect app detail navigation:
 
@@ -1201,7 +1004,7 @@ navigator.Home(); // Navigate to library home
 
 ---
 
-### 6. Steam's Gamepad Navigation System & Architecture
+### Gamepad navigation system
 
 Big Picture Mode (GamepadUI) relies on a declarative spatial navigation system managed by `GamepadNavigationManager` (module `41433` / `SteamUIStore.m_GamepadNavigationManager`). Because Big Picture executes in `SharedJSContext`, all navigation components and trees live in the same runtime.
 
@@ -1309,7 +1112,7 @@ When focus enters this element, Steam's footer automatically displays the contro
 
 ---
 
-### 7. Native Dialogs and Modals in Big Picture Mode
+### Native dialogs and modals
 
 Plugins do not need custom modal overlays in Big Picture Mode. Steam provides a complete, controller-navigable dialog system in `SharedJSContext` that renders directly into the Big Picture window.
 
@@ -1352,7 +1155,7 @@ Modals opened this way automatically receive:
 
 ---
 
-### 8. Tab Construction & Custom Tab Injection in Big Picture Mode
+### Tab construction & custom tab injection
 
 #### A. How Steam Constructs Tabs (Module `3375`)
 
@@ -1423,7 +1226,7 @@ Steam's `GamepadTabbedPage` handles all tab button layout, controller bumper tab
 
 ---
 
-### 9. Media Playback & Native Fullscreen Viewers
+### Media playback & fullscreen viewers
 
 When a user selects a screenshot or clip in the native Post-Game Summary in Big Picture Mode:
 
@@ -1433,36 +1236,11 @@ When a user selects a screenshot or clip in the native Post-Game Summary in Big 
 
 ---
 
-### 10. The Homebrew Developer's Guide to Big Picture Mode
-
-#### The Big Picture Reuse Ladder
-
-Always work down this hierarchy when extending Big Picture Mode:
-
-1. **Rung 1: Restore Sections & Feed Stores (Best)**
-   If Steam already has the UI (Post-Game Summary, Activity feed, Screenshots):
-    - Add the section name in `CAppDetailsSections.prototype.GetSections`.
-    - Feed the store in `SharedJSContext` (`appSpotlightStore`, `appActivityStore`).
-    - Steam renders its genuine native Big Picture components with zero custom UI code.
-2. **Rung 2: Inject Custom Tabs**
-   If you have a whole new feature set (e.g. RetroAchievements, Game Manuals):
-    - Intercept `GamepadTabbedPage` via `jsx`/`jsxs` and append a tab to `props.tabs`.
-    - Let Steam build the tab button, header, transitions, and focus rings.
-3. **Rung 3: Render Real Steam Gamepad Components**
-   When writing custom tab or panel content:
-    - Use `<Focusable>` with `flow-children` and `actionDescriptionMap`.
-    - Use Steam's native `DialogButton`, `Carousel`, and `showModal`.
-    - Never hand-code controller event dispatchers when `<Focusable>` handles OK, Cancel, Secondary, and Options automatically.
-4. **Rung 4: Cloned DOM / CSS Injection (Last Resort Only)**
-   Only for trivial styling tweaks or elements Steam cannot represent natively. Hand-built clones in Gamepad UI break focus rings, fail controller navigation, and drift on every Steam client update.
-
----
-
-### 11. Native Achievements, Notifications, Game Recording & Artwork Subsystems
+## Achievements, notifications, recording & artwork
 
 Everything here was verified directly against Steam's live client runtime (`SharedJSContext`) and module definitions via CEF DevTools.
 
-#### A. Native Achievement UI & Backing Store
+### Native achievement UI & backing store
 
 Steam does not require custom HTML to show achievements. It already possesses a complete native achievements UI for both Desktop and Big Picture Mode:
 
@@ -1475,7 +1253,7 @@ Steam does not require custom HTML to show achievements. It already possesses a 
 3. **Big Picture Play Bar Progress:**
     - Big Picture reads `{ unlocked, total }` directly from `window.appAchievementProgressCache.m_achievementProgress.mapCache.get(appid)` to populate the quick stats bar under the Play button.
 
-#### B. Native Achievement Notifications (`NotificationStore`)
+### Achievement notifications (`NotificationStore`)
 
 Steam's notification engine can be instructed to emit genuine achievement toasts complete with sound, animation, and overlay integration:
 
@@ -1500,7 +1278,9 @@ Steam's notification engine can be instructed to emit genuine achievement toasts
     - `NotificationStore.ChooseSound(config, notification)` and `NotificationStore.PlayNotificationSound(notification)`.
     - Plugins can intercept the sound decision or play custom audio assets (e.g. PlayStation trophy chime, Xbox rare achievement chime, RetroAchievements chime) alongside the dispatch.
 
-##### Resolution signatures (**✅ verified live 2026-09-24**, `enhanced-achievements` Step 0)
+#### Resolution signatures & toast windows
+
+**✅ Verified live 2026-09-24** (`enhanced-achievements` Step 0; toast-window rows updated by the Big Picture toast fix).
 
 Module ids and minified names are one build's breadcrumbs; these are the stable
 handles `enhanced-achievements` resolves by. Probes: `enhanced-achievements/tests/probes/`.
@@ -1516,7 +1296,7 @@ handles `enhanced-achievements` resolves by. Probes: `enhanced-achievements/test
 | Completion | `window.appAchievementProgressCache.m_achievementProgress.mapCache.get(appid)` → `{ unlocked, total, all_unlocked }` | On an achievement notification Steam only **queues** a refresh (`OnAchievementNotification → QueueCacheUpdate`), so at toast time the entry is the pre-unlock state: `!all_unlocked && unlocked + 1 >= total` means this unlock completes the game. |
 | Test toast | `NotificationStore.TestAchievement(appid)` | Async (awaits `RequestAppDetails`). Always sends `global_achieved_pct: 10`. For other rarities, build the payload with `Q[type].proto.fromObject({...}).serializeBinary()` and call `OnNotification(id, type, bytes)`. |
 
-#### C. Native Game Recording RPCs & Timeline Markers
+### Game Recording RPCs & timeline markers
 
 Steam's 2024 Game Recording system (`CGameRecordingService`, webpack module `80026` / export `xM`) exposes structured RPCs through Steam's CM transport:
 
@@ -1530,7 +1310,7 @@ Steam's 2024 Game Recording system (`CGameRecordingService`, webpack module `800
     - Request: `CGameRecording_TakeScreenshot_Request` (`{ game_id, timeline_id, timeline_offset_ms, source_clip_id }`).
     - Triggers native frame grab directly aligned with the recording timeline.
 
-#### D. Custom Artwork Injection API
+### Custom artwork API
 
 SteamClient provides a high-level API to assign custom artwork to any shortcut without manual file copying:
 
@@ -1550,7 +1330,7 @@ SteamClient.Apps.SetCustomArtworkForApp(
 
 Clearing custom artwork: `SteamClient.Apps.ClearCustomArtworkForApp(appid, imageType)`.
 
-#### E. Game Info Tab & Metadata Enrichment
+### Game Info tab & metadata
 
 The Big Picture `GameInfo` tab (`/library/app/<appid>/tab/GameInfo`) and desktop metadata panels query `CAppDetailsStore`:
 

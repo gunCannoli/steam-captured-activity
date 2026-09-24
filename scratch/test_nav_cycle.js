@@ -13,7 +13,7 @@
 //   - Activity feed day sections (month-day headers) and capture thumbnails
 //     served from steamloopback.host (hasEvent)
 // and that the second visit to A matches the first (no negative-cache blanking,
-// knowledgebase.md Trap 8). Desktop routes in memory, so location.href never
+// plugins.md guardrail 5). Desktop routes in memory, so location.href never
 // changes; navigation is steam://nav/games/details and readiness is read from content.
 
 const PORT = process.env.CDP_PORT ?? '8080';

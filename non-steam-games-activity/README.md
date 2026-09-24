@@ -5,7 +5,7 @@ knows how to draw — using the screenshots and recordings Steam has already
 captured.
 
 No emulator, no API key, no network. Providers
-([architecture](../docs/architecture.md)) add achievements, playtime and artwork
+([architecture](../docs/millennium-architecture.md)) add achievements, playtime and artwork
 on top of this.
 
 ## How it works
@@ -132,7 +132,7 @@ Backend changes need a Steam restart. Run Steam with `-dev` for CEF devtools on
 
 Before writing any component, check whether Steam already has one. The method,
 the CDP harness and the traps are in
-[docs/steam-components.md § Reproducing this](../docs/steam-components.md#reproducing-this-the-inspection-method).
+[docs/steam-debug.md § 3 The inspection method](../docs/steam-debug.md#3-the-inspection-method).
 
 ## Tests
 

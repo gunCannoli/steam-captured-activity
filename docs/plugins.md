@@ -1,11 +1,16 @@
-# Millennium Plugins: Guide, Architecture & Guardrails
+# Millennium Plugins: Guide & Guardrails
 
-How to add a plugin to this workspace, develop it, maintain regression-free UI/store hooks, and publish it as a
-standalone public repo.
+**This doc's job:** how to build, change, deploy, test and publish a plugin in
+this workspace, and every rule that keeps a change from regressing Steam's UI.
+If you are writing or fixing plugin code, the rules are here and nowhere else.
 
-For _what_ the plugins do and why, see [docs/architecture.md](architecture.md)
-and [docs/decisions.md](decisions.md). For Millennium's SDK mechanics in
-detail, see [docs/knowledgebase.md](knowledgebase.md).
+Not here: _what_ the plugins do and why
+([millennium-architecture.md](millennium-architecture.md),
+[decisions.md](decisions.md)); what Steam's internals look like
+([steam-architecture.md](steam-architecture.md) →
+[steam-components.md](steam-components.md)); SDK reference and data formats
+([knowledgebase.md](knowledgebase.md)); inspecting the live client
+([steam-debug.md](steam-debug.md)).
 
 ---
 
@@ -16,7 +21,7 @@ imported, because that folder is what gets published:
 
 ```
 millennium-plugins/                 <- this repo (private)
-├─ README.md · CHANGELOG.md · plugins.md · AGENTS.md · TASK.md
+├─ README.md · CHANGELOG.md · AGENTS.md · TASK.md
 ├─ docs/                            <- workspace-wide docs, NOT published
 └─ <plugin-name>/                   <- published as its own public repo
    ├─ plugin.json                   <- manifest (required)
@@ -35,7 +40,8 @@ millennium-plugins/                 <- this repo (private)
 > A plugin must not `require` or import anything from `docs/` or another
 > plugin's folder. Providers talk to the core over the RPC contract
 > ([ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it)),
-> never by importing its code.
+> never by importing its code. Code shared between plugins (e.g.
+> `steam/jsx-hook.ts`) is copied identically into each one.
 
 ---
 
@@ -45,7 +51,8 @@ millennium-plugins/                 <- this repo (private)
 mkdir -p <plugin-name>/{backend/_lib,frontend,tests}
 ```
 
-`plugin.json` is the only required file:
+`plugin.json` is the only required file (full field table:
+[knowledgebase.md § plugin.json](knowledgebase.md#pluginjson)):
 
 ```json
 {
@@ -102,7 +109,10 @@ return {
 }
 ```
 
-RPC crosses the boundary as **strings**, so JSON-encode both ways:
+Frontend and webkit code run in Chromium's sandbox, so **anything touching the
+disk or the network goes through the backend**.
+
+RPC crosses the boundary as **strings**, so JSON-encode both ways. Lua side:
 
 ```lua
 local function method(name, func)
@@ -121,25 +131,38 @@ local function method(name, func)
 end
 ```
 
+Frontend side (`Millennium.callServerMethod` is the only channel):
+
+```ts
+async function call<R>(route: `RPC.${string}`, payload: object): Promise<R> {
+    return Millennium.callServerMethod(route.slice(4), {
+        payload: JSON.stringify(payload),
+    }).then((r) => JSON.parse(r));
+}
+```
+
 > **Returning bare `nil` crashes Millennium** — it tries to parse the result as
 > an integer. Always return the string `'null'`.
 
 Useful backend APIs: `millennium.steam_path()`, `millennium.get_user_settings()`,
 `millennium.set_user_settings_key()`, `millennium.version()`,
-`utils.base64_encode()`, `fs.*`, `http.get/post`.
+`utils.base64_encode()`, `fs.*`, `http.get/post`. For per-plugin settings use
+the Configuration API — and read the v3.4.1 bug note first
+([knowledgebase.md § Configuration API](knowledgebase.md#plugin-settings--the-configuration-api)).
 
 ---
 
 ## 3. Frontend (TypeScript + Steam's React)
 
-`package.json` — mirror the reference plugin
-([k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)):
+`package.json` — mirror the existing plugins (originally the reference plugin
+[k0d13/steam-non-steam-playtimes](https://github.com/k0d13/steam-non-steam-playtimes)):
 
 ```json
 {
     "scripts": {
         "check": "tsc --noEmit",
         "build": "millennium-ttc --build prod",
+        "build:dev": "millennium-ttc --build dev",
         "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1"
     },
     "dependencies": {
@@ -163,13 +186,17 @@ export default async function OnPluginLoaded() {
 }
 ```
 
-**Never hardcode Steam's CSS classes** — they are build-hashed and change between
-client versions. Resolve them at runtime, and borrow Steam's own formatters and
-translations so the UI looks native
-([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)):
+Identify a shortcut with `if (app.appid < NON_STEAM_APP_APPID_MASK) return;`
+(`steambrew-utils`), and convert between its 32-bit appid and 64-bit gameid
+explicitly ([knowledgebase.md § The two identifiers](knowledgebase.md#the-two-identifiers)).
+
+**Borrow Steam's formatters and strings; never hand-format.** The plugin then
+inherits Steam's dates, durations and translations, and follows any restyle:
 
 ```ts
-const PlayBar = findClassModule((m) => m.GameStat) as Record<string, string>;
+const formatRelativeDate = findModuleExport((e) =>
+    e?.toString?.()?.includes('"#Time_Today"'),
+);
 const formatDuration = findModuleExport((e) =>
     e?.toString?.()?.includes('"#Played_"'),
 );
@@ -179,7 +206,9 @@ Steam.LocalizationManager.LocalizeString("#AppDetails_SectionTitle_PlayTime");
 ### Build nothing Steam already builds
 
 Work down this ladder. **Stop at the first rung that applies** — every rung
-below is more code you own and more that can drift from native.
+below is more code you own and more that can drift from native. Desktop and Big
+Picture share one runtime, so the same ladder applies to both
+([ADR-0029](decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)).
 
 **1. Is Steam already rendering this, just not for your case?**
 
@@ -194,35 +223,42 @@ e.BIsModOrShortcut() && (s = ["nonsteam", "notes", "screenshots"]);
 
 Everything behind that filter worked fine with a shortcut's appid the whole
 time. Restoring the section name and feeding Steam's own store produced the
-real component — pager, day separators, date labels, media viewer — and let us
-delete ~1200 lines of careful, tested, _unnecessary_ reimplementation
+real component — pager, day separators, date labels, media viewer, and in Big
+Picture the controller focus rings — and let us delete ~1200 lines of careful,
+tested, _unnecessary_ reimplementation
 ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 
-Before writing a component, go and look. The method is in
-[steam-components.md](steam-components.md); it takes minutes.
+Before writing a component, go and look: [steam-architecture.md](steam-architecture.md)
+for the map, [steam-debug.md § 3](steam-debug.md#3-the-inspection-method) for the
+method. It takes minutes.
 
 **2. Can you put your data into Steam's store?**
 
 If Steam models the thing, write to Steam's model and let it render
 ([ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
-Steam's stores are MobX singletons with ordinary public methods — the
-post-game summary is `CGamePlaySession.AddClip` /
-`BAddScreenshotNotification`, and the library grid is fields on `AppOverview`.
+Steam's stores are MobX singletons with ordinary public methods that do not
+validate app type — the post-game summary is `CGamePlaySession.AddClip` /
+`BAddScreenshotNotification`, and the library grid is fields on `AppOverview`
+(store map: [steam-architecture.md § 2](steam-architecture.md#2-core-stores--modules)).
 
 **3. Can you render Steam's real component yourself?**
 
 Resolve it out of Steam's module cache and render it directly, even if
-`@steambrew/client` does not export it. Also check what the SDK _does_ export
-first — `Carousel`, `SuspensefulImage`, `Focusable`/`FocusRing`, `Button`,
-`TextField`, `Panel`, `Tabs`, `Modal`, `Dropdown`, `SliderField`,
-`ToggleField` and more are real, shipped components. Reusing them means focus,
-keyboard and gamepad behaviour come for free.
+`@steambrew/client` does not export it. Check what the SDK _does_ export first
+([knowledgebase.md § Frontend SDK](knowledgebase.md#frontend-sdk--steambrewclient-and-steambrew-utils))
+— reusing those means focus, keyboard and gamepad behaviour come for free. In Big
+Picture, a whole new feature set goes in as an extra tab on Steam's own
+`GamepadTabbedPage` rather than a hand-built page
+([steam-components.md § Tabs](steam-components.md#tab-construction--custom-tab-injection)).
 
 **4. Only then, clone Steam's DOM shape.**
 
-Last resort, for when no component is reachable. Clone the literal tree — same
-nesting, same classes resolved via `findClassModule`, same `Panel` utility
-class — and hide Steam's original in that slot with one scoped rule:
+Last resort, for when no component is reachable and Steam models no data you
+can write to (e.g. the reference plugin's play-bar playtime: there is no
+per-shortcut playtime stat to feed). Clone the literal tree — same nesting, same
+classes resolved via `findClassModule`, same `Panel` utility class, Steam's own
+SVG path data — mount it as a sibling of Steam's element, and hide Steam's
+original in that slot with one scoped rule:
 
 ```tsx
 <div data-mine="playtime" className={`${C.GameStat} ${C.Playtime} Panel`}>
@@ -231,8 +267,10 @@ class — and hide Steam's original in that slot with one scoped rule:
 </div>
 ```
 
-Only render a clone when you have the data, matching how Steam's own container
-only shows populated stats.
+`:not([data-mine])` hides only Steam's unmarked element sharing that class pair,
+never the clone, and cannot leak elsewhere. Only render a clone when you have the
+data, matching how Steam's own container only shows populated stats. On
+refresh, `replaceWith` a previously mounted clone instead of appending a second.
 
 > **A clone is a liability, not an achievement.** The Post-Game Summary was
 > cloned faithfully, passed testing, and was still discarded: it needed five
@@ -240,16 +278,7 @@ only shows populated stats.
 > different modules**, which silently reintroduced an already-fixed bug), and
 > Steam's own spacing misbehaved against content it was never measured for. If
 > you find yourself measuring pixels to match Steam, you are probably on the
-> wrong rung.
-
-**Big Picture Mode (Gamepad UI) uses the exact same store-feeding architecture (Rung 2).**
-Earlier investigations assumed Big Picture was a separate bundle with unreachable stores (ADR-0023/ADR-0024).
-Live inspection (ADR-0029) proved otherwise:
-
-- The `Steam Big Picture Mode` popup window contains **no scripts or module bundle**. It is a bare `about:blank` window with `<div id="popup_target"></div>`.
-- Big Picture is rendered directly from `SharedJSContext` via `ReactDOM.createPortal`. Both Desktop and Big Picture share the same React runtime, section registry (`CAppDetailsSections`), and MobX store singletons (`appSpotlightStore`, `appActivityStore`, `StoreItemCache`).
-- Feeding Steam's stores automatically renders Steam's real native components in Big Picture's "ACTIVITY" tab (`Ge.T` for summary, `ae.W` for activity), with full controller D-pad navigation, focus rings, and responsive layouts.
-- **Navigation detection via `react/jsx-runtime`:** Because Big Picture navigation is purely client-side React state and never touches `window.location` (ADR-0026), `watchGamepadAppid` in `steam/gamepad-appid.ts` wraps `react/jsx-runtime`'s `jsx`/`jsxs` exports via `beforePatch`, filtering on `{ appid, rgSections }` to detect app transitions reliably with zero DOM polling (ADR-0027).
+> wrong rung. See [steam-styles.md](steam-styles.md).
 
 ### Rules that apply on every rung
 
@@ -257,18 +286,24 @@ Live inspection (ADR-0029) proved otherwise:
 ([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)).
 And **never resolve anything by numeric module id**: ids reshuffle between
 builds. Resolve by a stable signature — real `prototype` method names, which
-survive minification — or a class-map probe key.
+survive minification — or a class-map probe key
+([steam-architecture.md § 3](steam-architecture.md#3-stable-resolution-signatures)).
 
 **Resolve ONE `findClassModule` probe per CSS module, never per feature.**
 Classes seen together in one captured `outerHTML` do **not** imply they live in
-the same webpack module. Reusing one probe across modules makes
-`findClassModule` silently return `undefined` for the others' keys, and React
-renders those elements with **no class at all** — no error, just a tile with
-`className="Panel"` and none of its sizing. Verify co-membership by walking the
-module cache ([knowledgebase.md § Classes seen together are not necessarily one
-module](knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)),
-and sanity-check a resolved map by dumping it whole rather than trusting that a
-name "sounds right".
+the same webpack module — the Post-Game Summary alone spans four. Reusing one
+probe across modules makes `findClassModule` return `undefined` for the others'
+keys, and React renders those elements with **no class at all** — no error, just
+a tile with `className="Panel"` and none of its sizing. Verify co-membership by
+searching the module cache for the class name
+([steam-debug.md § 3](steam-debug.md#3-the-inspection-method)), and sanity-check a
+resolved map by dumping it whole rather than trusting that a name "sounds right".
+
+**Never pass a class modifier as a literal string.** `cx(M.DurationText, 'Clip')`
+compiles, but many class values are already two-token strings
+(`M.Small === "_3qlJ0L41KQFqUTzVQKFERC Small"`), so the literal drops the hash and
+every rule scoped to it — twice this rendered the wrong size or colour with no
+error. Always `cx(M.DurationText, M.Clip)`.
 
 **Always keep a graceful fallback.** Every lookup into Steam's internals can
 fail on a future build. A failed resolve must degrade the page to stock, never
@@ -277,10 +312,6 @@ crash it.
 If a project ends up with a dedicated stylesheet of hand-tuned colors, shadows
 and spacing meant to _look like_ Steam, that is the signal something should
 have been reused instead.
-
-Both the desktop client and Big Picture arrive through `onPopupCreate`; Big
-Picture is a separate popup window (`SP BPM_`), not a separate sandbox
-([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
 
 ### Sharing the jsx runtime between plugins
 
@@ -307,14 +338,11 @@ Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
 
 - **The core never reaches the network.** Network access is a provider concern.
   See [ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins).
-- **Steam's DOM is not a public API.** Class names are hashed and change between
-  builds. Resolve via `findClassModule` at runtime; never hardcode a hashed class.
-  See [ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules).
+- **Steam's DOM is not a public API.** Resolve via `findClassModule` at runtime;
+  never hardcode a hashed class
+  ([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)).
 - **Prefer patching Steam's data over its DOM** ([ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
-- **Never author custom CSS to imitate Steam.** Hand-written styles break across Steam builds
-  and fail controller navigation. If custom UI is strictly necessary, clone existing native
-  block structures from CEF DevTools and use resolved CSS module classes or
-  Steam's `<Focusable>` components. See [docs/steam-styles.md](steam-styles.md).
+- **Never author custom CSS to imitate Steam** ([steam-styles.md](steam-styles.md)).
 - **Respect third-party APIs.** Cache hard, never poll, send a descriptive `User-Agent`
   ([ADR-0007](decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).
 
@@ -323,7 +351,8 @@ Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
 ## Guardrails & Regression Prevention (MUST READ BEFORE WRITING CODE)
 
 These rules are drawn directly from real, hard-won regression debugging across Steam's
-Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-facing breaks.
+Activity, Game Info, Your Stuff and toast windows. Violating them causes immediate
+user-facing breaks. Numbers are stable — code comments cite them.
 
 ### 1. Prototype Hook Coupling (`BIsModOrShortcut` vs `GetGameID`)
 
@@ -331,14 +360,17 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
     ```javascript
     GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
     ```
-    If you hook or proxy `BIsModOrShortcut()` to return `false` (e.g. to allow the Game Info
-    tab to render descriptions and credits without `#AppDetails_Shortcut_Explanation`),
-    `GetGameID()` will evaluate to `this.appid.toString()` (`"4263274102"`).
+    Game Info (inner component `k`, module `15448`) drops descriptions and credits
+    and renders `#AppDetails_Shortcut_Explanation` whenever
+    `overview.BIsModOrShortcut()` is true. Hooking it to return `false` for
+    enriched shortcuts makes `GetGameID()` evaluate to `this.appid.toString()`
+    (`"4263274102"`).
 - **The Ripple Effect:** The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`)
-  queries captures using `overview.gameid` (which delegates to `GetGameID()`). Shortcut
-  captures in `screenshots.vdf` and `window.g_GRS` are stored under the composed 64-bit ID
-  (`"18310622842007322624"`). Querying by `appid.toString()` returns 0 items, silently wiping
-  the "YOUR STUFF" tab into an empty placeholder!
+  queries captures with `listSource: { type: "app", gameid: overview.gameid }`, and
+  `overview.gameid` delegates to `GetGameID()`. Shortcut captures in `screenshots.vdf`
+  and `window.g_GRS` are stored under the composed 64-bit ID (`"18310622842007322624"`).
+  Querying by `appid.toString()` returns 0 items, silently wiping the "YOUR STUFF" tab
+  into its empty placeholder.
 - **The Mandatory Guardrail:** Whenever hooking or proxying `BIsModOrShortcut`, you **MUST**
   also hook `GetGameID` on `AppOverview.prototype` so that it returns `this.m_gameid` whenever
   present:
@@ -358,13 +390,14 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
   are called hundreds of times per second by React renders, MobX reactions, and controller navigations.
 - **The Ripple Effect:** Running `new Error().stack` inside `BIsModOrShortcut` froze Steam Big Picture
   navigation for 30+ seconds.
-- **The Mandatory Guardrail:** All prototype hooks must run in $O(1)$ constant time (e.g.
-  `enrichedAppIds.has(this.appid)`). Never generate error stacks, never execute regexes,
-  and never perform DOM queries inside high-frequency prototype hooks.
+- **The Mandatory Guardrail:** All prototype hooks (and `jsx` handlers) must run in $O(1)$
+  constant time (e.g. `enrichedAppIds.has(this.appid)`). Never generate error stacks, never
+  execute regexes, and never perform DOM queries inside high-frequency hooks.
 
 ### 3. Single-Pass Webpack Module Pre-Caching
 
 - **The Trap:** Webpack's module registry (`req.m`) contains thousands of modules.
+  Re-scanning it inside card render paths made the activity feed stutter and freeze.
 - **The Mandatory Guardrail:** Scan Webpack modules **once** at plugin startup (`initCardComponents()`),
   storing component references in module-scoped variables. Never iterate `req.m` inside component
   render paths, React elements, or recurring callbacks — doing so creates an $O(N^2)$ choke on the UI.
@@ -379,22 +412,32 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
     2. **Activity Feed:** Daily bucketed cards render with 16:9 thumbnails and `{Username} captured` headline.
     3. **Your Stuff Tab:** Media section displays captures, duration badges, and item count (not the empty placeholder).
     4. **Game Info Tab:** Capsule, description, developer/publisher credits, release date, and category badges render without the grey shortcut warning.
+- **A DOM probe can report success while the page looks wrong** — `querySelector` once found
+  the summary while the screen still showed the grey box, because React had not re-rendered.
+  For a genuinely visual claim, confirm on Desktop and Big Picture with one clipped, low-quality
+  screenshot ([steam-debug.md § 7](steam-debug.md#7-cost-efficient-debugging)).
 
 ### 5. Persistent In-Memory Stubs & Negative Cache Immunization
 
-- **The Trap:** Aggressively deleting in-memory stubs (`storeCache.m_mapApps.delete(appid)`) from
+- **Why stubs exist:** Steam's activity-event renderer (`dt`, module `80478`) returns `null` unless
+  `StoreItemCache` has a visible record for the app. Shortcuts have none, so the core stubs
+  `StoreItemCache.m_mapApps.set(appid, stub)` with `BIsVisible() → true` and a satisfied
+  `m_DataRequested`, which also guarantees no store request is ever sent
+  ([ADR-0030](decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing);
+  mechanism in [steam-components.md § Activity feed](steam-components.md#how-the-store-record-blocker-was-cleared)).
+- **The Trap:** Aggressively deleting those stubs (`storeCache.m_mapApps.delete(appid)`) from
   shared singletons inside view unmount / unpatch hooks (`clearActivity`).
-- **The Ripple Effect:** React components unmounting asynchronously detect a cache miss and call
-  `QueueStoreItemRequest`. Because non-Steam shortcuts have no store entry, Steam's backend returns 404,
-  permanently adding the appid to `StoreItemCache.m_setUnavailableApps` (Steam's internal negative blacklist).
-  When the user returns to the game, `useStoreItemCache` checks `BIsStoreItemMissing()` (which tests
-  `m_setUnavailableApps.has(appid)`), evaluates to `true`, and returns `undefined`. The event renderer
-  (`dt` in module 80478) then returns `null`, wiping out all daily activity events into an empty `<div></div>`!
+- **The Ripple Effect:** React components unmounting asynchronously (`useStoreItemCache`, module
+  `82594`) detect a cache miss and call `QueueStoreItemRequest`. Because non-Steam shortcuts have
+  no store entry, Steam's backend returns 404, permanently adding the appid to
+  `StoreItemCache.m_setUnavailableApps` (Steam's internal negative blacklist). When the user
+  returns to the game, `BIsStoreItemMissing()` is `true`, the hook returns `undefined`, and the
+  event renderer returns `null`, wiping all daily activity events into an empty `<div></div>`.
 - **The Mandatory Guardrails:**
     1. **Never delete shortcut stubs from `StoreItemCache.m_mapApps`** on view unpatch. They cost trivial RAM (~150 bytes) and keep Steam's store cache satisfied indefinitely.
     2. **Always purge negative caches on ingestion:** In `publishActivity`, call `storeCache.m_setUnavailableApps.delete(appid)`.
     3. **Immunize via Prototype Hook:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
-- **Reference:** Full live trace and specification in [knowledgebase.md § Trap 8](knowledgebase.md#trap-8-negative-cache-poisoning--stub-lifetime-in-storeitemcache).
+    4. **Scope card thumbnail CSS precisely:** `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` with `width: 100% !important`, or parent flex rows squash cards into ~80px cutouts.
 
 ### 6. Two-Way Navigation Lifecycle Smoke Verification (Game A ➔ Game B ➔ Game A)
 
@@ -431,34 +474,90 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
 ### 9. Automated CDP Verification Suite
 
 Before concluding any work, run the automated diagnostic scripts in `scratch/`:
+
 ```powershell
 node scratch/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
 node scratch/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
 ```
 
+Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categories.mjs`).
+
+### 10. Section Registry Memo Mutation
+
+- **The Trap:** `CAppDetailsSections.prototype.GetSections` returns its memoized set
+  (`this.m_setSectionsMemo`), not a new one, and compares memos **by size only** — so a patch that
+  swaps one section for another is silently ignored.
+- **The Mandatory Guardrail:** Mutate the set in place, and clear
+  `instance.m_setSectionsMemo = undefined` before calling `instance.forceUpdate()`.
+
+### 11. Asynchronous Data Must Re-Render Every Window
+
+- **The Trap:** MobX observers in Steam react only to changes in Steam's own stores, not to plugin
+  state. When captures or metadata arrive asynchronously, the page has already rendered without them.
+- **The Mandatory Guardrail:** Write the data into Steam's store, then find every mounted instance
+  across **all** documents (Desktop and the Big Picture popup, e.g.
+  `g_PopupManager.GetExistingPopup("SP BPM_uid0")`), locate its fiber (`__reactFiber$…`) and
+  `forceUpdate()` it.
+
+### 12. Popup Hooks Do Not See Every Window
+
+- **The Trap:** Some Steam popups are opened with `SteamClient.BrowserView.CreatePopup` +
+  `window.open` and never registered with `g_PopupManager` — `QuickAccess`, `MainMenu`, and Big
+  Picture's single persistent toast window. `Millennium.AddWindowCreateHook` (a thin wrapper over
+  `g_PopupManager`), `onPopupCreate` and `g_PopupManager.GetPopups()` never see them. Desktop's
+  per-toast popups _are_ registered — one popup type's behaviour says nothing about another's.
+- **The Mandatory Guardrail:** Before relying on a popup hook, confirm the target window is
+  registered. For an unregistered BrowserView popup, find a handle in a registered window's React
+  tree (e.g. the `GamepadToastPlaceholder` element) and walk its fiber to a hook holding the popup
+  object, duck-typed on its methods (`GetViewWindow()`) — never a minified name. Reference:
+  `enhanced-notifications/frontend/style/injector.ts` and
+  [plans/enhanced-notifications-toast-window-bugfix.md](plans/enhanced-notifications-toast-window-bugfix.md).
+  Check the UI mode before trusting a live test ([steam-debug.md § 4](steam-debug.md#4-big-picture-mode-gamepad-ui-quirks--traps)).
+
 ---
 
 ## 4. Develop
 
-```bash
-pnpm install
-pnpm check                 # tsc --noEmit
-pnpm build                 # millennium-ttc --build prod
-pnpm dev                   # build + deploy + restart Steam
+Run inside the plugin directory:
+
+```powershell
+npm install
+npm run check                                                  # tsc --noEmit
+npm run build                                                  # millennium-ttc --build prod
+powershell -ExecutionPolicy Bypass -File dev.ps1               # build + deploy + graceful Steam restart
+powershell -ExecutionPolicy Bypass -File dev.ps1 -NoRestart    # deploy only
 ```
 
-`dev.ps1` deploys a parallel `<name>-dev` copy so the released plugin stays
-installed, and enables it in Millennium's `config.json`. **Take the Steam path as
-a parameter** — the reference plugin hardcodes `C:\Program Files (x86)\Steam` and
-silently deploys nowhere on a non-default install
+`dev.ps1 [-SteamPath <dir>] [-NoRestart] [-SkipBuild]` deploys a parallel
+`<name>-dev` copy so the released plugin stays installed, and enables it in
+Millennium's `config.json` (`plugins.enabledPlugins`). **It takes the Steam path
+as a parameter** — the reference plugin hardcodes `C:\Program Files (x86)\Steam`
+and silently deploys nowhere on a non-default install
 ([ADR-0011](decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)).
-
 A deployed plugin folder contains only `plugin.json`, `.millennium/Dist/` and
-`backend/`. Source `frontend/` is not deployed.
+`backend/`; source `frontend/` is not deployed.
 
-- Backend changes need a **Steam restart**.
-- Frontend changes need only a reload (`Ctrl+R` in the Steam devtools).
-- Run Steam with `-dev` to expose CEF devtools at `http://localhost:8080`.
+| Change                              | Action                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| Backend (`backend/*.lua`, `plugin.json`) | `dev.ps1` (graceful restart)                                             |
+| Frontend (`frontend/**`)            | `dev.ps1` (graceful restart) — **never** a SharedJSContext reload             |
+| Section-registry patch only, already deployed | Navigate away from the app page and back to re-run `GetSections()` |
+
+**Do not reload SharedJSContext** (`location.reload()`, `Page.reload`, or `Ctrl+R`
+in its devtools). It can make the main window load its in-app route
+(`https://steamloopback.host/routes/library/home`) as a document; CEF treats that
+as a download and opens a blocking **"Save as" dialog for a file named `home`**,
+with Steam's UI stuck behind it. It is intermittent (confirmed 2026-09-24). CEF
+also replays its list of rejected route "downloads" about 2 s after every start
+(`cef_log.txt`: `Rejected download of .../routes/...`) — that burst is history,
+not a new dialog.
+
+**Stop Steam gracefully.** The scripts run `steam.exe -shutdown` and wait for
+every `steamwebhelper` to exit (about 6 s), force-killing only as a fallback.
+Killing just `steam.exe` left webhelper windows running into the next start.
+
+Start Steam with DevTools (`http://127.0.0.1:8080`) via `.\start-steam-dev.ps1`;
+see [steam-debug.md](steam-debug.md).
 
 ---
 
@@ -479,6 +578,10 @@ NSGA_STEAM_ROOT="C:\game\steam" lua tests/test_backend.lua
 Keep machine-specific expectations in one `FIXTURE` table with a skip flag, so
 the suite still runs on another install. This caught three real bugs that would
 have been hard to spot as wrong-looking output inside Steam.
+
+Frontend plugins run pure-logic tests with `npm test`
+(`node --experimental-strip-types --test tests/*.test.ts`) and live checks as
+CDP scripts in `tests/*.mjs` against the running client.
 
 ---
 
@@ -528,13 +631,13 @@ against Millennium's plugin database with the public repo URL.
 - [ ] `backend/main.lua` calls `millennium.ready()`
 - [ ] RPC methods never return bare `nil`
 - [ ] `dev.ps1` takes the Steam path as a parameter
-- [ ] No hardcoded Steam CSS classes (resolve via `findClassModule`)
+- [ ] No hardcoded Steam CSS classes (resolve via `findClassModule`, one probe per module)
 - [ ] Prototype hooks are strictly $O(1)$ (no stack traces, regexes, or DOM queries)
 - [ ] If hooking `BIsModOrShortcut`, also hook `GetGameID` returning `this.m_gameid`
 - [ ] Store stubs retained in memory across unmounts (`StoreItemCache.m_mapApps`)
+- [ ] Popup hooks confirmed to see the target window (guardrail 12)
 - [ ] Multi-tab verification passed (Summary, Activity, Your Stuff, Game Info)
 - [ ] Two-way navigation lifecycle verified (`node scratch/test_nav_cycle.js`)
 - [ ] `README.md` + `CHANGELOG.md` present
 - [ ] Added to the plugin table in the workspace [README](../README.md)
 - [ ] Tests run outside Steam
-

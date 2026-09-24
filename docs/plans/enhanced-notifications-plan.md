@@ -27,7 +27,7 @@ Each plugin works alone. Neither imports the other ([plugins.md § Layout](../pl
   these names, never by number. About 20 server-item types (`Comment`,
   `TradeOffer`, `Wishlist`, …) have no protobuf class but do have enum names.
 - **Per-type config:** the stand-in `PlayNotificationSound` trick
-  ([steam-components.md § 11B](../steam-components.md#b-native-achievement-notifications-notificationstore))
+  ([steam-components.md § 11B](../steam-components.md#achievement-notifications-notificationstore))
   yields each type's config (`sound`, `playSound`, `toastDurationMS`, `showToast`).
 - **Toast DOM (desktop):** `DesktopToastPopup` (gradient background) >
   `DesktopToastBackground` (Steam-logo watermark) + the dispatcher's output:
@@ -40,7 +40,7 @@ Each plugin works alone. Neither imports the other ([plugins.md § Layout](../pl
   different modules. `DesktopToastPopup` and `GamepadToastPopup` are two more
   modules. So the plugin collects each key's classes from **every** module that
   has it and targets `:is(...)` of all of them. Never one probe, never a
-  hardcoded hash ([knowledgebase.md § classes seen together](../knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)).
+  hardcoded hash ([knowledgebase.md § classes seen together](../plugins.md#rules-that-apply-on-every-rung)).
 
 ## 3. How it works (as built)
 

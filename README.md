@@ -37,7 +37,7 @@ non-steam-games-activity  (core)      Steam's own screenshots + recordings
 
 The core works with **zero providers** — no emulator, no API key, no network.
 Providers enrich games they recognise and fail silently for the rest. See
-[docs/architecture.md § Providers planned](docs/architecture.md#providers-planned)
+[docs/millennium-architecture.md § Providers planned](docs/millennium-architecture.md#providers-planned)
 for what each one needs and where its data comes from.
 
 ## Plugins
@@ -57,10 +57,10 @@ for what each one needs and where its data comes from.
 | Doc | What it holds |
 | --- | --- |
 | [TASK.md](TASK.md) | Current status, what is next |
-| [docs/plugins.md](docs/plugins.md) | Millennium plugin creation guide, architecture & guardrails |
+| [docs/plugins.md](docs/plugins.md) | How to build a plugin, and every regression guardrail |
 | [AGENTS.md](AGENTS.md) | Conventions and environment facts for contributors and AI agents |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, verified facts |
-| [docs/architecture.md](docs/architecture.md) | Core/provider split, data flow, the provider contract |
+| [docs/millennium-architecture.md](docs/millennium-architecture.md) | Core/provider split, data flow, the provider contract |
 | [docs/decisions.md](docs/decisions.md) | ADRs — why things are the way they are |
 | [CHANGELOG.md](CHANGELOG.md) | Workspace-level history |
 

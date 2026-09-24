@@ -89,7 +89,7 @@ function Set-PluginEnabled {
 # next Steam start. CEF keeps a list of in-app routes (/routes/library/...) it
 # treated as file downloads and re-rejects them at every start (cef_log.txt,
 # "Rejected download of ..."), which is suspected to relate to the occasional
-# "Save as" dialog (not reproduced; see docs/knowledgebase.md). Force-kill only
+# "Save as" dialog (not reproduced; see docs/plugins.md § 4). Force-kill only
 # as a fallback, helpers included.
 function Stop-Steam {
   param([string] $SteamExe, [int] $TimeoutSeconds = 30)

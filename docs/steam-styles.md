@@ -11,13 +11,13 @@
 
 ## The Golden Rule: Clone Native Blocks, Don't Author CSS
 
-When building custom panels or tabs for homebrew plugins (Rungs 2 & 3 of the ladder in [AGENTS.md](../AGENTS.md)):
+When building custom panels or tabs for homebrew plugins (rungs 3 & 4 of the ladder in [plugins.md](plugins.md#build-nothing-steam-already-builds)):
 
 1. **Never hand-code custom CSS to imitate Steam.** Steam's CSS modules use hashed class names (`_1OMmVJ… GamePlaySummaryContainer`) that change across client builds. Hand-written styles break on client updates, miss responsive breakpoints, and fail Big Picture controller navigation.
 2. **Resolve existing Steam components or clone existing block structures:**
     - On Desktop: mount Steam's native components or use resolved CSS module classes via `findClassModule`.
     - On Big Picture: use Steam's native `<Focusable>` components, `DialogButton`, `Carousel`, and modal containers. Controller focus rings, D-pad navigation, and sound effects are handled automatically.
-3. **If injecting custom markup, mirror existing native elements verbatim:** Inspect the native element in CEF DevTools (`http://localhost:8080`), copy the DOM hierarchy, and apply Steam's resolved classes directly.
+3. **If injecting custom markup, mirror existing native elements verbatim:** Inspect the native element in CEF DevTools (`http://127.0.0.1:8080`), copy the DOM hierarchy, and apply Steam's resolved classes directly.
 
 ---
 

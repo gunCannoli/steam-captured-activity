@@ -29,7 +29,7 @@ frontend plugins).
 | Achievement Banner & Sound (Phase 6)         | ✅ Desktop + Big Picture verified live; in-game overlay still to verify. |
 | Enhanced Notifications (all toast types)     | ✅ Desktop and Big Picture verified live; friends/messages depend on Steam's Friends notification settings; overlay to verify. |
 | Auto-Captures on Unlock (Phase 7)            | 🔬 Game Recording RPCs mapped; not implemented.                                                                               |
-| Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                        |
+| Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md)).                                                        |
 
 Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
 
@@ -104,4 +104,4 @@ Check whether Steam already builds it — the ladder is in
 a from-scratch rebuild by ~1200 lines once already
 ([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 The inspection method (CDP harness, traps, how to verify) is in
-[steam-components.md § Reproducing this](docs/steam-components.md#reproducing-this-the-inspection-method).
+[steam-debug.md § 3 The inspection method](docs/steam-debug.md#3-the-inspection-method).

@@ -7,9 +7,10 @@ import type { Category } from '../theme/theme';
 /**
  * NotificationStore hooks for every notification type: sound per type and
  * display time. Same verified mechanics as enhanced-achievements
- * (docs/steam-components.md § 11B): `PlayNotificationSound` is a plain
- * prototype method that asks `this.ChooseSound(config, n)`, and each type's
- * config (with `toastDurationMS`) is reachable through a stand-in call.
+ * (docs/steam-components.md § Resolution signatures & toast windows):
+ * `PlayNotificationSound` is a plain prototype method that asks
+ * `this.ChooseSound(config, n)`, and each type's config (with
+ * `toastDurationMS`) is reachable through a stand-in call.
  *
  * Type names come from the SDK's `EClientNotificationType`, verified 1:1 with
  * `notification.eType`, so themes never use numbers.

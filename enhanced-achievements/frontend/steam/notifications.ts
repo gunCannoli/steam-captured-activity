@@ -7,7 +7,8 @@ import { completesGame, selectTier, type Tier } from '../theme/theme';
  * Hooks into Steam's NotificationStore: the achievement sound, the toast
  * duration, and the per-notification rarity tier.
  *
- * Verified live (docs/steam-components.md § 11B):
+ * Verified live (docs/steam-components.md § Resolution signatures & toast
+ * windows):
  * - `PlayNotificationSound(n)` is a plain prototype method: it looks up the
  *   per-type config and asks `this.ChooseSound(config, n)`, which already
  *   honours Steam's "play sound on toast" setting.

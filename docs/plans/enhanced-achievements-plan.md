@@ -174,7 +174,7 @@ enhanced-achievements/
 
 > **Status (2026-09-24): implemented and verified live** on desktop and Big
 > Picture, except the in-game overlay with a real unlock (code path shared,
-> untested). Step 0 signatures are in [steam-components.md § 11B](../steam-components.md#b-native-achievement-notifications-notificationstore).
+> untested). Step 0 signatures are in [steam-components.md § 11B](../steam-components.md#achievement-notifications-notificationstore).
 > Deviations from this plan, found live:
 > - `ProcessNotification` cannot be wrapped (bound, non-writable). `display_time_ms`
 >   is applied through the achievement type's config `toastDurationMS` instead.
@@ -184,7 +184,7 @@ enhanced-achievements/
 >   error, reads fail: [Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)),
 >   and frontend writes raise no change events by design. Settings use a workaround instead of
 >   `subscribePluginConfig` / `usePluginConfig`
->   ([knowledgebase.md](../knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)).
+>   ([knowledgebase.md](../knowledgebase.md#plugin-settings--the-configuration-api)).
 > - Tests: `npm test` (logic), `tests/*.mjs` (live CDP), `scratch/test_nav_cycle.js`
 >   and `scratch/check_all_tabs.js` (core regression, Routines 1–2).
 
@@ -211,7 +211,7 @@ same store singletons, so a careless hook here breaks the core's views.
 
 The findings in § 2 come from one CDP session. Re-verify against the running
 client before writing hooks, and record the **signatures** (not ids) in
-[steam-components.md § 11B](../steam-components.md#b-native-achievement-notifications-notificationstore):
+[steam-components.md § 11B](../steam-components.md#achievement-notifications-notificationstore):
 
 | Target | Resolve by (signature) | To confirm |
 | --- | --- | --- |
@@ -245,7 +245,7 @@ Per [plugins.md § 1](../plugins.md#1-scaffold) and its checklist.
 
 Defaults ship **in the plugin**; the user changes them from the plugin's
 settings panel in Millennium's sidebar. No settings file is written or read at
-runtime. API facts: [knowledgebase.md § Plugin settings](../knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585).
+runtime. API facts: [knowledgebase.md § Plugin settings](../knowledgebase.md#plugin-settings--the-configuration-api).
 
 - **Defaults:** [`settings.json`](../../enhanced-achievements/settings.json) is imported
   into the frontend bundle (`resolveJsonModule`). If `millennium-ttc` will not bundle

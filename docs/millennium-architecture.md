@@ -1,43 +1,37 @@
-# Architecture
+# Millennium Plugin Suite Architecture
 
-How the plugin suite is put together. For _why_, see [decisions.md](decisions.md);
-for background facts, see [knowledgebase.md](knowledgebase.md).
+**This doc's job:** how _our_ plugin suite is put together — the core/provider
+split, data flow, module layout, RPC surface and provider contract — and the map
+of every other doc. For _why_, see [decisions.md](decisions.md).
 
 ---
 
 ## Where to look (doc map)
 
-Several agents work this repo (architect, implementer, verifier). Find the right
-doc by situation, not by filename:
+Several agents work this repo (architect, implementer, verifier). Each doc has
+one job; find the right one by situation:
 
-- **Live-debugging the running Steam client** (CDP, DevTools, targets) →
-  [steam-debug.md](steam-debug.md) — also has a cost-efficient-debugging section
-  for cheap CDP probes before screenshots.
-- **Investigating a new feature or Steam internals** → start with
-  [steam-architecture.md](steam-architecture.md) (cheat sheet: modules, stores,
-  RPCs), then go deep in [steam-components.md](steam-components.md) (full
-  reverse-engineering traces, verified inspection sessions).
-- **Creating a plugin, or fixing a bug in one** → [plugins.md](plugins.md)
-  (scaffolding, the 4-rung reuse ladder, all 9 mandatory regression guardrails).
-- **UI styling** → [steam-styles.md](steam-styles.md) (reuse Steam's own
-  components/stores instead of hand-measuring pixels).
-- **Data formats, SDK mechanics, or known traps** →
-  [knowledgebase.md](knowledgebase.md) (Millennium SDK, Steam's local data
-  formats, provider sources, verified facts, failure traps).
-- **Why something is the way it is** → [decisions.md](decisions.md) (ADRs).
-- **Current work** → [TASK.md](../TASK.md). **Repo history** →
-  [CHANGELOG.md](../CHANGELOG.md). **Feature/bugfix plans** →
-  [docs/plans/](plans/).
+| Situation                                              | Doc                                                                                   | Its job                                                                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Investigating a feature or Steam internals             | [steam-architecture.md](steam-architecture.md), then [steam-components.md](steam-components.md) | Map of Steam's stores/modules + **every stable resolution signature**; then the deep, verified traces |
+| Creating a plugin, or fixing a bug in one              | [plugins.md](plugins.md)                                                              | Scaffold → reuse ladder → **all regression guardrails** → develop/deploy → test → publish              |
+| Live-debugging the running client (CDP, DevTools)      | [steam-debug.md](steam-debug.md)                                                      | Targets, the inspection method, Big Picture traps, **cheap probes before screenshots** (§ 7)          |
+| Millennium SDK / config API, file formats, provider APIs | [knowledgebase.md](knowledgebase.md)                                                | Verified facts outside Steam's UI code: SDK, CEF quirks, `screenshots.vdf`/clips/shortcuts, RetroArch, RA, prior art |
+| UI styling                                             | [steam-styles.md](steam-styles.md)                                                    | Why we reuse Steam's components instead of authoring CSS                                               |
+| Why something is the way it is                         | [decisions.md](decisions.md)                                                          | ADRs                                                                                                   |
+| What the suite is and how data flows                   | this doc                                                                              | Core/provider split, modules, RPC, provider contract                                                   |
+| Current work · history · plans                         | [TASK.md](../TASK.md) · [CHANGELOG.md](../CHANGELOG.md) · [plans/](plans/)            | Open work only · all history · feature and bugfix plans                                                |
 
 Orchestrator roles, mapped:
 
 - **architect** (diagnosis, planning) — [steam-debug.md](steam-debug.md) +
-  [steam-components.md](steam-components.md) for root-causing, then write or
-  update a plan in [docs/plans/](plans/).
-- **implementer** — [plugins.md](plugins.md) guardrails are non-negotiable
+  [steam-architecture.md](steam-architecture.md) → [steam-components.md](steam-components.md)
+  for root-causing, then write or update a plan in [plans/](plans/).
+- **implementer** — the [plugins.md](plugins.md) guardrails are non-negotiable
   before touching plugin code.
 - **verifier** — Routines 1–3 in [AGENTS.md](../AGENTS.md) (smoke tests, nav
-  lifecycle, automated CDP suite) plus the relevant plugin's `tests/`.
+  lifecycle, automated CDP suite) plus the relevant plugin's `tests/`, using
+  [steam-debug.md § 7](steam-debug.md#7-cost-efficient-debugging).
 
 ---
 
@@ -83,17 +77,26 @@ the other.
 
 ## Regression Prevention & Pre-Modification Review Index
 
-Before modifying, creating, or refactoring features in this repository, **consult this index**.
-Because Steam shares store singletons, prototypes, and class modules across all detail tabs,
-a change in one feature area can silently cause a ripple effect and break another.
+Before modifying a feature area, **read the guardrails it touches**. Steam shares
+store singletons, prototypes, and class modules across all detail tabs, so a
+change in one area can silently break another. The rules themselves live in
+[plugins.md § Guardrails](plugins.md#guardrails--regression-prevention-must-read-before-writing-code);
+this table only routes you to them.
 
-| When adding/modifying...                                         | Docs to Review First                                                                                                                                                                                                                                                                                                                                                                                                   | Source Files Involved                                                                                                                                                          | Critical Hazards & Invariants                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| :--------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Game Info** (Descriptions, Credits, Release Dates, Categories) | • [knowledgebase.md § Trap 1: AppOverview ID Coupling](knowledgebase.md#trap-1-the-appoverview-id-coupling-trap-bismodorshortcut-vs-getgameid)<br>• [knowledgebase.md § Trap 2: O(1) Performance Choke](knowledgebase.md#trap-2-the-o1-performance-choke-in-prototype-hooks)<br>• [steam-architecture.md § 2: Core Stores](steam-architecture.md#2-core-stores--modules-quick-reference)                               | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`steamgriddb-artwork/frontend/steam/metadata.ts`<br>`steamgriddb-artwork/backend/metadata.py`                       | 1. **Do not decouple `GetGameID`:** Overriding `BIsModOrShortcut() => false` causes native `GetGameID()` to evaluate to `this.appid.toString()`. `GetGameID` MUST also be hooked to return `this.m_gameid`, or the **Your Stuff** media tab breaks immediately!<br>2. **$O(1)$ strictly enforced:** Never generate `new Error().stack` or regex inside prototype hooks.<br>3. **Clear stale categories:** Delete previous `STEAM_CATEGORIES` before adding new ones.<br>4. **Release date:** Write unix seconds to `overview.rt_original_release_date`. |
-| **Your Stuff** (Media, Screenshots, Video Clips)                 | • [knowledgebase.md § The Two Identifiers](knowledgebase.md#the-two-identifiers)<br>• [knowledgebase.md § Trap 1: AppOverview ID Coupling](knowledgebase.md#trap-1-the-appoverview-id-coupling-trap-bismodorshortcut-vs-getgameid)<br>• [steam-components.md § Screenshots & Media](steam-components.md)                                                                                                               | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts`                                                               | 1. **64-bit composed ID:** Media queries in module `57150` (`Ae.E`) query by `overview.gameid`. Verify `overview.gameid` returns `this.m_gameid` (`18310622842007322624`) and NOT 32-bit `appid.toString()`.<br>2. **Section recognition:** `isShortcut(overview)` must check `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()`. |
-| **Activity Feed** (Chronological Per-Day Cards)                  | • [decisions.md#adr-0030](decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)<br>• [knowledgebase.md § Trap 3: Single-Pass Webpack Cache](knowledgebase.md#trap-3-the-single-pass-webpack-cache-choke)<br>• [knowledgebase.md § Trap 6: Activity Feed StoreItemCache Stubbing](knowledgebase.md#trap-6-activity-feed-storeitemcache-stubbing--css-scoping)<br>• [knowledgebase.md § Trap 8: Negative Cache Poisoning](knowledgebase.md#trap-8-negative-cache-poisoning--stub-lifetime-in-storeitemcache) | `non-steam-games-activity/frontend/steam/activity.ts`<br>`non-steam-games-activity/frontend/steam/day.ts`<br>`non-steam-games-activity/frontend/steam/activity-cards-patch.ts` | 1. **`StoreItemCache` stubbing:** Retain in-memory stubs across unmounts; never delete them.<br>2. **Negative cache immunization:** Purge `m_setUnavailableApps` in `publishActivity` and ensure `StoreItemCache.prototype.BIsAppMissing` returns `false` for `appid >= 0x8000_0000`.<br>3. **Single-pass module resolution:** Call `initCardComponents()` once at plugin startup ($O(N^2)$ choke prevention).<br>4. **CSS disambiguation:** Scope thumbnail rules to `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` with `width: 100% !important`. |
-| **Post-Game Summary** (Top Hero Card Strip)                      | • [decisions.md#adr-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)<br>• [decisions.md#adr-0029](decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)<br>• [knowledgebase.md § Trap 4: Section Registry Memo](knowledgebase.md#trap-4-section-registry-memo-mutation)  | `non-steam-games-activity/frontend/steam/summary.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts`                                                                  | 1. **Registry memo:** Mutate `m_setSectionsMemo` in place and clear it before `forceUpdate()`.<br>2. **Re-render live instances:** Track instances and forceUpdate on async capture arrival.<br>3. **Zero hand-built DOM:** Use Steam's real `Ge.T` component via `CAppSpotlightStore`.                                                                                                                                                                                                                                                                 |
-| **Achievements & Notifications** (Phase 5/6)                     | • [steam-architecture.md § 2: Core Stores](steam-architecture.md#2-core-stores--modules-quick-reference)<br>• [steam-components.md § Achievements](steam-components.md#native-achievements-inspection-verified)<br>• [TASK.md § Phase 5](TASK.md#phase-5-native-achievement-integration-desktop--big-picture)                                                                                                          | `enhanced-achievements/`<br>`AppDetailsStore`<br>`window.NotificationStore`                                                                                                    | 1. **No false achievement tags:** Only set `categories.achievements` if real achievements exist (`achieved > 0` or schema present).<br>2. **Coordinate with Play Bar:** Feed `appAchievementProgressCache.m_achievementProgress.mapCache` alongside `AppDetailsStore`.<br>3. **Native notifications:** Use `NotificationStore.OnNotification` protobuf dispatch; do not inject custom toast DOM.                                                                                                                                                        |
+| When adding/modifying...                                         | Guardrails ([plugins.md](plugins.md))                                                                                                                                                                                                                              | Steam reference                                                                                                                  | Source Files Involved                                                                                                                                                          |
+| :--------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Game Info** (Descriptions, Credits, Release Dates, Categories) | [1 ID coupling](plugins.md#1-prototype-hook-coupling-bismodorshortcut-vs-getgameid), [2 O(1) hooks](plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [7 categories](plugins.md#7-safe-category-cache-invalidation), [8 details](plugins.md#8-dedicated-metadata-association-never-overwrite-appdatadetails) | [Game Info tab](steam-components.md#game-info-tab--metadata)                                                                     | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`steamgriddb-artwork/frontend/steam/metadata.ts`<br>`steamgriddb-artwork/backend/metadata.py`                       |
+| **Your Stuff** (Media, Screenshots, Video Clips)                 | [1 ID coupling](plugins.md#1-prototype-hook-coupling-bismodorshortcut-vs-getgameid)                                                                                                                                                                                 | [The two identifiers](knowledgebase.md#the-two-identifiers)                                                                      | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts`                                                               |
+| **Activity Feed** (Chronological Per-Day Cards)                  | [3 single-pass](plugins.md#3-single-pass-webpack-module-pre-caching), [5 stubs & negative cache](plugins.md#5-persistent-in-memory-stubs--negative-cache-immunization), [6 two-way nav](plugins.md#6-two-way-navigation-lifecycle-smoke-verification-game-a--game-b--game-a) | [Activity feed](steam-components.md#activity-feed), [ADR-0030](decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing) | `non-steam-games-activity/frontend/steam/activity.ts`<br>`non-steam-games-activity/frontend/steam/day.ts`<br>`non-steam-games-activity/frontend/steam/activity-cards-patch.ts` |
+| **Post-Game Summary** (Top Hero Card Strip)                      | [10 registry memo](plugins.md#10-section-registry-memo-mutation), [11 re-render every window](plugins.md#11-asynchronous-data-must-re-render-every-window)                                                                                                          | [Post-Game Summary](steam-components.md#post-game-summary), [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them) | `non-steam-games-activity/frontend/steam/summary.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts`                                                                  |
+| **Achievements & Notifications** (Phase 5/6)                     | [2 O(1) hooks](plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) (jsx handlers), [12 popup hooks](plugins.md#12-popup-hooks-do-not-see-every-window), [jsx sharing](plugins.md#sharing-the-jsx-runtime-between-plugins)          | [Achievements, notifications…](steam-components.md#achievements-notifications-recording--artwork)                                 | `enhanced-achievements/`<br>`enhanced-notifications/`                                                                                                                          |
+
+Area-specific invariants not covered by a numbered guardrail:
+
+- **Game Info release date:** write unix seconds to `overview.rt_original_release_date`.
+- **Achievements:** only set `categories.achievements` when real achievements exist;
+  feed `appAchievementProgressCache` alongside `AppDetailsStore`; dispatch real
+  toasts through `NotificationStore.OnNotification`, never custom toast DOM.
 
 ---
 
@@ -109,7 +112,7 @@ The core removes that filter and feeds Steam's own stores; Steam renders
 
 Verified on this machine: **211 non-Steam screenshots across 6 games, 100% present on
 disk**, every one carrying a creation timestamp. See
-[knowledgebase.md § Steam's own capture store](knowledgebase.md#steams-own-capture-store-verified).
+[knowledgebase.md § Steam's own capture store](knowledgebase.md#steams-own-capture-store).
 
 ### The id conversion
 
@@ -351,7 +354,7 @@ The strongest signal it adds: RetroArch's `cheevos_auto_screenshot` names captur
 `<rom>-cheevo-<id>.png`, linking an image directly to an unlock
 ([ADR-0006](decisions.md#adr-0006-build-the-timeline-from-dateearned-not-per-day-queries)).
 
-Full API reference in [knowledgebase.md](knowledgebase.md#part-3-retroachievements) —
+Full API reference in [knowledgebase.md](knowledgebase.md#part-3--retroachievements) —
 already written, this provider mostly assembles pieces already documented there.
 
 ### 3. `guides-artwork`
