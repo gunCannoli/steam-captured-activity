@@ -89,9 +89,9 @@ Open themes folder, Reset. User themes live in
 ## 6. Guardrails
 
 Same table as [enhanced-achievements-plan.md § 5](enhanced-achievements-plan.md#regression-guardrails-for-this-plugin),
-plus: **CSS is generated only from resolved class maps and only under
-`.en-root` / `:has(> .en-root…)`**, so no rule can match an unstyled Steam
-element.
+plus: **CSS is generated only from resolved class maps, and every rule starts
+with `body[data-en-type="<Type>"]`**, so no rule can match a toast window that
+is not currently showing a styled type, or any non-toast window.
 
 ## 7. Verification
 
