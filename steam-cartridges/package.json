@@ -8,7 +8,9 @@
     "build": "millennium-ttc --build prod",
     "build:dev": "millennium-ttc --build dev",
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
-    "test": "lua tests/test_backend.lua"
+    "test:ts": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:lua": "lua tests/test_backend.lua",
+    "test": "npm run test:ts && npm run test:lua"
   },
   "dependencies": {
     "@steambrew/client": "^5.8.5",
