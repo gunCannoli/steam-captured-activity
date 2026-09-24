@@ -37,7 +37,7 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ### Phase 4b (CRITICAL BLOCKER): Lifecycle Cache Hardening & Navigation Resilience
 
-> **Specification & Audit Trace:** See [docs/regression_hardening.md](docs/regression_hardening.md) (and [regression_hardening.md](regression_hardening.md)).
+> **Specification & Audit Trace:** See [docs/regression_hardening.md](docs/regression_hardening.md).
 
 - **Eliminate Cache Deletion on Unpatch:** Remove `storeCache.m_mapApps.delete(appid)` from `clearActivity(appid)` in `frontend/steam/activity.ts`. Stubs must persist in memory permanently across view navigations to prevent concurrent React unmount hooks from triggering 404 store queries.
 - **Purge Negative Cache on Ingestion:** Add explicit `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity(appid, gameid)` before rendering.
