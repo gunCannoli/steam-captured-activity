@@ -210,8 +210,31 @@ Facts confirmed in the installed binaries and core bundle:
 - The `@steambrew/client` build exports **stubs** (`get` resolves `undefined`); the
   real implementation is injected by Millennium at runtime. Outside Steam
   (tests), the stubs are what you get.
-- Each call is an IPC round trip. Cache values in memory and update them from
-  `subscribePluginConfig`; do not call `get` on a hot path.
+- Each call is an IPC round trip. Cache values in memory; do not call `get` on a hot path.
+- **The runtime also takes the plugin name first:** `pluginConfig.set(plugin, key, value)`,
+  `get(plugin, key)`, `delete(plugin, key)`, `getAll(plugin)`. The one-argument
+  forms send an empty plugin name. It is exposed as `window.MILLENNIUM_API.pluginConfig`.
+- **A plugin's named exports appear on `window.PLUGIN_LIST[<plugin>]`.** That is
+  how a CDP test can call into a plugin (e.g. `PLUGIN_LIST['x-dev'].setSetting(...)`).
+
+> **⚠️ Bug on the installed Millennium (1.1.2, loader 2026-08-18), verified live
+> 2026-09-24.** The frontend library sends the config operation as a number
+> (`methodName: 0` for GET, `1` for SET, …) and the backend expects a string, so
+> **every** `pluginConfig` call rejects with
+> `[json.exception.type_error.302] type must be string, but is number`. However:
+>
+> - `set` / `delete` **do persist**; only the reply fails.
+> - `get` / `getAll` never return a value, so `usePluginConfig` stays `undefined`
+>   and its setter throws before updating local state.
+> - **No change events** reach `subscribePluginConfig`.
+> - Reading works through Millennium's own FFI:
+>   `MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(plugin)` (and
+>   `PluginConfig_DeleteAll`), the calls its settings UI uses.
+>
+> Workaround in `enhanced-achievements/frontend/settings/settings.ts`: read via
+> `getAll`, falling back to that FFI; write with `set`/`delete`, tolerating that
+> exact error and confirming by reading back; keep an in-memory copy and notify
+> listeners ourselves; do not use `usePluginConfig`. Re-test after Millennium updates.
 
 ### Reusing Steam's native UI (**✅ verified**, reading `k0d13/steam-non-steam-playtimes` at commit `f2c14ec`)
 

@@ -45,6 +45,7 @@ for what each one needs and where its data comes from.
 | Plugin | Status | Public repo |
 | --- | --- | --- |
 | [non-steam-games-activity](non-steam-games-activity/) | 🚧 Post-Game Summary shipped; Activity feed + Big Picture ahead | not yet published |
+| [enhanced-achievements](enhanced-achievements/) | 🚧 Themed achievement banner + sound shipped (desktop, Big Picture); auto-captures ahead | not yet published |
 | `retroarch` | 📋 planned | — |
 | `retroachievements` | 📋 planned | — |
 | `guides-artwork` | 📋 planned | — |

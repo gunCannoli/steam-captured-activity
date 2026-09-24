@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
+  "name": "enhanced-achievements",
+  "common_name": "Enhanced Achievements",
+  "description": "Themes Steam's achievement notifications: custom banners and sounds per rarity tier, from shareable JSON themes.",
+  "version": "0.1.0",
+  "useBackend": true,
+  "backendType": "lua"
+}

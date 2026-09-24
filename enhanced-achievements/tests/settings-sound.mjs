@@ -1,0 +1,125 @@
+// Live test: sound replacement, display time, and settings round-trips through
+// Millennium's Configuration API (the same store the settings panel writes).
+// Leaves every setting as it found it (deletes the keys it set).
+import { connect } from './cdp.mjs';
+
+const PLUGIN = process.env.EA_PLUGIN ?? 'enhanced-achievements-dev';
+const cdp = await connect();
+let failed = false;
+const check = (label, ok, detail = '') => {
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
+    if (!ok) failed = true;
+};
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Drive settings through the plugin's own exports (what the settings panel calls).
+const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
+const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
+
+// Record sounds: WebAudio buffers started in SharedJSContext (ours), and every
+// PlayNavSound request (Steam's own chime; it dispatches to a native player, so
+// the request itself is the reliable signal).
+const instrumented = await cdp.evaluate(`(() => {
+    // Idempotent: always wrap the saved originals, so re-running never stacks wrappers.
+    window.__eaSounds = [];
+    const proto = AudioBufferSourceNode.prototype;
+    window.__eaOrigStart ??= proto.start;
+    const start = window.__eaOrigStart;
+    proto.start = function (...a) {
+        window.__eaSounds.push({ kind: 'webaudio', seconds: +(this.buffer?.duration ?? 0).toFixed(2) });
+        return start.apply(this, a);
+    };
+    let req;
+    const key = '__ea_probe_' + Date.now();
+    window.webpackChunksteamui.push([[key], { [key]: (m, e, r) => (req = r) }, (r) => r(key)]);
+    for (const id of Object.keys(req.m)) {
+        if (!req.m[id].toString().includes('m_fnCallbackOnPlaySound')) continue;
+        for (const v of Object.values(req(id))) {
+            if (v && typeof v.PlayNavSound === 'function' && v.m_fnCallbackOnPlaySound) {
+                v.__eaOrigPlayNavSound ??= v.PlayNavSound;
+                const orig = v.__eaOrigPlayNavSound;
+                v.PlayNavSound = function (...a) { window.__eaSounds.push({ kind: 'steam', id: a[0] }); return orig.apply(this, a); };
+                return 'ok';
+            }
+        }
+    }
+    return 'PlayNavSound not found';
+})()`);
+if (instrumented !== 'ok') throw new Error(`Sound instrumentation failed: ${instrumented}`);
+
+async function fire() {
+    await cdp.evaluate(`(async () => { window.__eaSounds.length = 0; await window.NotificationStore.TestAchievement(480); return true; })()`);
+    await wait(1500);
+    const sounds = JSON.parse(await cdp.evaluate(`JSON.stringify(window.__eaSounds)`));
+    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
+    const toast = targets.find((t) => /notificationtoasts/i.test(t.title));
+    let banner = null;
+    if (toast) {
+        const win = await connect(toast.title);
+        banner = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
+        win.close();
+    }
+    await wait(5500);
+    return { sounds, banner };
+}
+
+try {
+    const duration = await cdp.evaluate(`(() => {
+        const proto = Object.getPrototypeOf(window.NotificationStore);
+        let cfg, found;
+        for (let t = 0; t < 256 && !found; t++) {
+            proto.PlayNotificationSound.call({ ChooseSound(c) { cfg = c; return null; } }, { eType: t });
+            try { if (cfg?.proto && new cfg.proto().getClassName() === 'CClientNotificationAchievement') found = cfg; } catch {}
+        }
+        return found?.toastDurationMS;
+    })()`);
+    check('display_time_ms applied to Steam achievement toast config', duration === 4000, `toastDurationMS=${duration}`);
+
+    // First toast may find the AudioContext suspended (then Steam's chime plays once); warm it up.
+    await fire();
+    let r = await fire();
+    const ours = r.sounds.filter((s) => s.kind === 'webaudio');
+    const steam = r.sounds.filter((s) => s.kind === 'steam');
+    check('themed sound played', ours.length === 1, JSON.stringify(r.sounds));
+    check("Steam's chime suppressed", steam.length === 0);
+
+    await plugin(`setSetting('sound.enabled', false)`);
+    check('setSetting persisted to Millennium config', (await stored())['sound.enabled'] === false);
+    await wait(300);
+    r = await fire();
+    check('sound.enabled=false -> no themed sound', !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
+    check('sound.enabled=false -> Steam chime plays', r.sounds.some((s) => s.kind === 'steam'));
+    check('sound.enabled=false -> banner still themed', !!r.banner);
+    await plugin(`setSetting('sound.enabled', true)`);
+
+    await plugin(`setSetting('banner.enabled', false)`);
+    await wait(300);
+    r = await fire();
+    check('banner.enabled=false -> stock Steam toast', r.banner === null);
+    const stockDuration = await cdp.evaluate(`(() => {
+        const proto = Object.getPrototypeOf(window.NotificationStore);
+        let cfg, found;
+        for (let t = 0; t < 256 && !found; t++) {
+            proto.PlayNotificationSound.call({ ChooseSound(c) { cfg = c; return null; } }, { eType: t });
+            try { if (cfg?.proto && new cfg.proto().getClassName() === 'CClientNotificationAchievement') found = cfg; } catch {}
+        }
+        return found?.toastDurationMS ?? 'default';
+    })()`);
+    check('banner.enabled=false -> Steam duration restored', stockDuration !== 4000, `toastDurationMS=${stockDuration}`);
+    await plugin(`setSetting('banner.enabled', true)`);
+
+    await plugin(`setSetting('theme', 'does_not_exist')`);
+    await wait(1000);
+    r = await fire();
+    check('missing theme -> stock toast', r.banner === null);
+    check('missing theme -> Steam chime', r.sounds.some((s) => s.kind === 'steam') && !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
+    await plugin(`resetSettings()`);
+    await wait(1500);
+
+    r = await fire();
+    check('defaults restored -> themed again', !!r.banner && r.sounds.some((s) => s.kind === 'webaudio'));
+    const left = await stored();
+    check('setting a default / reset leaves nothing stored', left && Object.keys(left).length === 0, JSON.stringify(left));
+} finally {
+    cdp.close();
+}
+process.exitCode = failed ? 1 : 0;

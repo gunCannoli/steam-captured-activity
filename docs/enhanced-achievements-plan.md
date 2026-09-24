@@ -172,6 +172,21 @@ enhanced-achievements/
 
 ## 5. Phase 6 Execution Plan — Themed Banner & Sound
 
+> **Status (2026-09-24): implemented and verified live** on desktop and Big
+> Picture, except the in-game overlay with a real unlock (code path shared,
+> untested). Step 0 signatures are in [steam-components.md § 11B](steam-components.md#b-native-achievement-notifications-notificationstore).
+> Deviations from this plan, found live:
+> - `ProcessNotification` cannot be wrapped (bound, non-writable). `display_time_ms`
+>   is applied through the achievement type's config `toastDurationMS` instead.
+> - `position` is not applied: Steam places the toast window from its own setting.
+>   The desktop frame is a fixed 284×71, so `scale` enlarges content, capped to the frame.
+> - Millennium 1.1.2's Configuration API is partly broken (writes persist but
+>   error, reads fail, no events). Settings use a workaround instead of
+>   `subscribePluginConfig` / `usePluginConfig`
+>   ([knowledgebase.md](knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)).
+> - Tests: `npm test` (logic), `tests/*.mjs` (live CDP), `scratch/test_nav_cycle.js`
+>   and `scratch/check_all_tabs.js` (core regression, Routines 1–2).
+
 Phase 6 ships the banner and the sound. Captures (screenshot, clip, timeline
 marker) are Phase 7 and reuse this phase's dispatch hook, config loader and
 tier resolver.
@@ -375,13 +390,11 @@ queueing, timing, click-to-open and dismissal.
 
 ### Open decisions
 
-- **User themes folder.** Settings are solved (Configuration API), but user theme
-  files cannot live in the plugin folder, because updates and `dev.ps1` replace it.
-  Recommendation: `<steam>/millennium/config/enhanced-achievements/themes/`, found
-  via `millennium.steam_path()` and created on first load. The panel's
-  "Open themes folder" button makes it discoverable.
-- **In-game overlay support**, if Step 0 shows overlay toasts are not rendered
-  from `SharedJSContext`.
+- ~~**User themes folder.**~~ Decided and shipped:
+  `<steam>/millennium/config/enhanced-achievements/themes/`, created on first load.
+- **In-game overlay:** Step 0 showed overlay toasts use the same dispatcher from
+  `SharedJSContext`, so they should be themed. Still to verify with a real
+  in-game unlock.
 
 ---
 

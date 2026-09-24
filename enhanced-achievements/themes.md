@@ -20,6 +20,8 @@ Display behaviour for this theme's banners.
     - `"compact_pill"`: Slim horizontal bar with icon and title.
     - `"custom"`: Reserved for template slots (not in the first release).
 - **`position`**: Screen anchor: `"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`.
+  *Not applied yet:* Steam places the toast window itself, from its own
+  notification position setting (Steam Settings → Notifications).
 - **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
 - **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
 
@@ -60,6 +62,8 @@ Global unlock percentage cutoff for `magic` and `rare`.
 Geometry, colours, border and glow of the banner.
 
 - **`scale`**: `[width_pct, height_pct]` — size relative to the default (`[100, 100]` = standard, `[150, 150]` = 1.5×).
+  Steam sizes the toast window (284×71 on the desktop client), so scale enlarges
+  the text and icons inside it, capped to fit; the window itself does not grow.
 - **`background_color`**: `["#hex", ...]` — one colour is solid; two or more make a gradient.
 - **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
 - **`border`**: `[width_px, "#hex", radius_px]` — `width_px` `0` disables the stroke; `radius_px` `0` is square, `25` is a capsule.
@@ -117,6 +121,9 @@ Example: keep recording off in the plugin settings and enable it only on `rare` 
   non-portable.
 - The frontend cannot read local files directly; the backend loads each asset
   once when the theme is (re)loaded, never per unlock.
+- Allowed types: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.mp3`, `.wav`,
+  `.ogg`, up to 8 MB each. Anything else is ignored, so a shared theme cannot
+  read other files from your disk.
 
 ---
 
@@ -147,6 +154,11 @@ you never need to edit it.
 
 The panel also has **Preview** buttons (one per tier), **Reload themes** and
 **Open themes folder**, so the theme workflow is: edit the JSON → Reload → Preview.
+
+Themes load from two folders; a user theme with the same name wins:
+
+- `<Steam>/millennium/config/enhanced-achievements/themes/` (yours; survives updates)
+- `<plugin>/themes/` (bundled; replaced on update)
 
 ## Sharing themes
 

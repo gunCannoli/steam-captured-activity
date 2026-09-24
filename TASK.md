@@ -25,7 +25,7 @@ housekeeping.
 | Area                                         | State                                                                                                                         |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Native Achievements (Phase 5)                | 🔬 Hook points verified in Steam client; not implemented.                                                                     |
-| Achievement Banner & Sound (Phase 6)         | 📝 Planned — [docs/enhanced-achievements-plan.md § 5](docs/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound). Not scaffolded. |
+| Achievement Banner & Sound (Phase 6)         | ✅ Desktop + Big Picture verified live; in-game overlay still to verify. |
 | Auto-Captures on Unlock (Phase 7)            | 🔬 Game Recording RPCs mapped; not implemented.                                                                               |
 | Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                        |
 
@@ -42,23 +42,14 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 - **Big Picture Play Bar:** Feed `appAchievementProgressCache.m_achievementProgress.mapCache` with `{ unlocked, total }` so quick stats display under the Play button.
 - **Data Adapters:** Ingest schemas and unlocks from local emulator sources (RPCS3 `TROPCONF.SFM`/`TROPUSR.DAT`, RetroArch/rcheevos logs, DuckStation, PCSX2) and generic JSON.
 
-### Phase 6: Achievement Banner & Sound (`enhanced-achievements`) — NEXT
+### Phase 6: Achievement Banner & Sound (`enhanced-achievements`) — remaining
 
-> **Plan:** [docs/enhanced-achievements-plan.md § 5](docs/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound).
-> **Schema:** [themes.md](enhanced-achievements/themes.md) · themes like [steam_ps_exemple.json](enhanced-achievements/steam_ps_exemple.json) · shipped setting defaults [settings.json](enhanced-achievements/settings.json).
+Shipped and verified on desktop and Big Picture (see [CHANGELOG.md](CHANGELOG.md),
+[plan § 5 status](docs/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound)).
 
-- [ ] **Step 0 — Live re-verify (no code).** Resolve every hook point by signature, not module id: `NotificationStore`, the achievement `eType`, the toast renderer, the toast container, completion data for `exceptional`, and **which window paints in-game overlay toasts**. Record the signatures in `steam-components.md § 11B`.
-- [ ] **Step 1 — Scaffold** per [plugins.md § 1](docs/plugins.md#1-scaffold): `plugin.json`, `_lib`, `main.lua` with `millennium.ready()`, parameterised `dev.ps1` that also deploys `themes/`. Move example themes into `themes/`; keep `research/` out of the published folder.
-- [ ] **Step 2 — Settings** via Millennium's Configuration API: `settings.json` defaults bundled into the frontend, `stored ?? default`, cached in memory and kept current with `subscribePluginConfig`. Panel through `definePlugin({ content })` using `ToggleField` / `Dropdown` / `SliderField`, plus Preview-per-tier, Reload themes and Open themes folder. No theme builder: themes stay shareable JSON.
-- [ ] **Step 3 — Themes.** Backend RPCs `ListThemes` / `LoadTheme` (bundled + user folder, assets as data URLs, loaded once). Frontend resolves the four tiers once per load. Tests for tier selection + inheritance outside Steam.
-- [ ] **Step 4 — Sound hook** on `PlayNotificationSound`: achievements only, O(1), falls through to Steam's chime on any failure, respects Steam's own mute.
-- [ ] **Step 5 — Banner** replaces only the inner toast (Steam keeps container, queue, timing, click/dismiss). Renderer resolved once; `jsx` patch is an identity compare; error boundary renders Steam's original.
-- [ ] **Step 6 — Verify** Desktop, Big Picture, overlay; live settings changes; fallbacks (missing sound, broken theme, plugin off); non-achievement toasts unchanged; **core Routines 1–3 with both plugins enabled**; new `scratch/test_achievement_toast.js`.
-- [ ] **Confirm:** user themes folder (recommended `<steam>/millennium/config/enhanced-achievements/themes/`; plan § Open decisions).
-
-**Guardrails for this plugin:** never touch `AppOverview`, `StoreItemCache`,
-`CAppDetailsSections` or the activity/spotlight stores; no imports from the core
-plugin; no per-toast disk/RPC/network work. Full table in the plan.
+- [ ] **In-game overlay:** verify with a real unlock in a running game (same dispatcher, code-verified only).
+- [ ] **Millennium Configuration API bug:** report upstream (numeric `methodName`; [knowledgebase.md](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)). Drop the workaround in `settings.ts` once fixed.
+- [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
 
 ### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)
 

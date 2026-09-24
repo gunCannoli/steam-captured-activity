@@ -1500,6 +1500,22 @@ Steam's notification engine can be instructed to emit genuine achievement toasts
     - `NotificationStore.ChooseSound(config, notification)` and `NotificationStore.PlayNotificationSound(notification)`.
     - Plugins can intercept the sound decision or play custom audio assets (e.g. PlayStation trophy chime, Xbox rare achievement chime, RetroAchievements chime) alongside the dispatch.
 
+##### Resolution signatures (**✅ verified live 2026-09-24**, `enhanced-achievements` Step 0)
+
+Module ids and minified names are one build's breadcrumbs; these are the stable
+handles `enhanced-achievements` resolves by. Probes: `enhanced-achievements/tests/probes/`.
+
+| Target | Stable signature | Verified facts |
+| --- | --- | --- |
+| `NotificationStore` | `window.NotificationStore` | `PlayNotificationSound(n)` is a plain prototype method: `const r = Q[n.eType]; const i = this.ChooseSound(r, n); i && PlayNavSound(i)`. `ProcessNotification` is a **bound, non-writable, non-configurable own property**, so it cannot be wrapped. |
+| Achievement type | `n.data.getClassName() === "CClientNotificationAchievement"` | `eType` is `5` on this build. Discover it by calling the original `PlayNotificationSound` on a stand-in `{ ChooseSound(cfg) { … } }` for each eType: it hands back each type's config `Q[eType]` (with `.proto`, `.toastDurationMS`) without playing anything. |
+| Sound mute | `ChooseSound(config, n)` | Already honours Steam's `play_sound_on_toast` setting (and `bCritical`). Steam's chime goes `PlayNavSound(id)` → `m_fnCallbackOnPlaySound.Dispatch` to a native player (id `5` = toast achievement), not WebAudio in SharedJSContext. |
+| Toast duration | `Q[achievementType].toastDurationMS` | Read by both `ProcessNotification` (`t.nToastDurationMS = e.toastDurationMS \|\| 5e3`) and the in-game overlay path (`AddAppOverlayNotification`). Setting it on the config applies to every later toast. |
+| Toast dispatcher | Exported function whose source has `switch(e){case` and `group`, in the module containing `global_achieved_pct()` and `"Missing activate function"` | The achievement renderer (`ht`) is **not exported**; its dispatcher (`Tm`/`Ke`) is. Created as `jsx(dispatcher, { location, group: { eType, notifications: [n] }, onDismiss })` inside the toast container. `react/jsx-runtime`'s `jsx` is a writable export (ADR-0027). |
+| Toast windows | CDP titles `notificationtoasts_<n>_desktop`, `notificationtoasts_uid<n>` (Big Picture) | All `about:blank` portals rendered from SharedJSContext. Desktop frame: fixed **284×71** (DPR 1.25). Big Picture frame: **300×80**. In-game overlay toasts use the same dispatcher via `ge("notificationtoasts", …, appid)` (code-verified; not yet verified with a real in-game unlock). |
+| Completion | `window.appAchievementProgressCache.m_achievementProgress.mapCache.get(appid)` → `{ unlocked, total, all_unlocked }` | On an achievement notification Steam only **queues** a refresh (`OnAchievementNotification → QueueCacheUpdate`), so at toast time the entry is the pre-unlock state: `!all_unlocked && unlocked + 1 >= total` means this unlock completes the game. |
+| Test toast | `NotificationStore.TestAchievement(appid)` | Async (awaits `RequestAppDetails`). Always sends `global_achieved_pct: 10`. For other rarities, build the payload with `Q[type].proto.fromObject({...}).serializeBinary()` and call `OnNotification(id, type, bytes)`. |
+
 #### C. Native Game Recording RPCs & Timeline Markers
 
 Steam's 2024 Game Recording system (`CGameRecordingService`, webpack module `80026` / export `xM`) exposes structured RPCs through Steam's CM transport:
