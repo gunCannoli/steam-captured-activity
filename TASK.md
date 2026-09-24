@@ -20,7 +20,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 | Post-Game Summary (desktop)        | ✅ Shipped. Real Steam component, fed via `steam/summary.ts`.                                                                                                                                                                                                                                   |
 | Library grid                       | ✅ Shipped. Last-played dates populated from captures.                                                                                                                                                                                                                                          |
 | Post-Game Summary (Big Picture)    | ✅ Shipped. Real Steam component via React Portal & store feeding ([ADR-0029](docs/decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)).                                                             |
-| Per-day Activity feed              | ✅ Shipped ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)); Phase 3b shipped (BPM 16:9 thumbnail sizing, native headline '{Username} captured', single-pass module pre-cache, container selector fix).        |
+| Per-day Activity feed              | ✅ Shipped ([ADR-0030](docs/decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)); Phase 3b shipped; Phase 4b shipped (lifecycle cache hardening, permanent in-memory store stubs, `BIsAppMissing` shortcut immunity hook, negative cache purge). |
 | Core Refresh & Caching             | ✅ Shipped. `onAppLaunch` lifecycle invalidation + mtime caching in `shortcuts.vdf` & `screenshots.vdf`.                                                                                                                                                                                        |
 | Native Achievements                | 🔬 Verified in Steam client. Next implementation phase (Phase 5).                                                                                                                                                                                                                               |
 | Achievement Notifications & Toasts | 🔬 Verified in Steam client. `NotificationStore.OnNotification` mapped.                                                                                                                                                                                                                         |
@@ -35,14 +35,14 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Multi-Session Roadmap
 
-### Phase 4b (CRITICAL BLOCKER): Lifecycle Cache Hardening & Navigation Resilience
+### Phase 4b: Lifecycle Cache Hardening & Navigation Resilience (✅ Shipped)
 
 > **Specification & Audit Trace:** See [docs/regression_hardening.md](docs/regression_hardening.md).
 
-- **Eliminate Cache Deletion on Unpatch:** Remove `storeCache.m_mapApps.delete(appid)` from `clearActivity(appid)` in `frontend/steam/activity.ts`. Stubs must persist in memory permanently across view navigations to prevent concurrent React unmount hooks from triggering 404 store queries.
-- **Purge Negative Cache on Ingestion:** Add explicit `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity(appid, gameid)` before rendering.
-- **Install Safety Hook on `BIsAppMissing`:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`, providing permanent immunity against negative cache poisoning.
-- **Mandatory Lifecycle Verification:** Execute two-way navigation test (`AM2R -> Bloodstained / Library -> AM2R`) verifying all daily buckets, headlines, and media cards remain 100% intact.
+- **Eliminate Cache Deletion on Unpatch:** Removed `storeCache.m_mapApps.delete(appid)` from `clearActivity(appid)` in `frontend/steam/activity.ts`. Stubs persist indefinitely to prevent asynchronous 404 store queries on view unmount.
+- **Purge Negative Cache on Ingestion:** Added explicit `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity(appid, gameid)` before rendering.
+- **Install Safety Hook on `BIsAppMissing`:** Hooked `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`, providing permanent immunity against negative cache poisoning.
+- **Two-Way Lifecycle Verification:** Verified two-way navigation loop (`AM2R -> Bloodstained -> AM2R`) via automated CDP harness, confirming `hasEvent: true` across all daily buckets, and verified all 4 core views (Post-Game Summary, Activity, Your Stuff, Game Info) live in Big Picture Mode.
 
 ### Phase 5: Native Achievement Integration (Desktop & Big Picture)
 

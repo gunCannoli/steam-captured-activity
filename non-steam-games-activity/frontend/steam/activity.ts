@@ -45,6 +45,37 @@ function getLocalMidnight(timestamp: number): number {
     return Math.floor(d.getTime() / 1000);
 }
 
+let isStoreCacheHooked = false;
+
+/**
+ * Hook StoreItemCache.prototype.BIsAppMissing to ensure non-Steam shortcut appids
+ * (>= 0x8000_0000) are never treated as missing/unavailable store items.
+ *
+ * This provides permanent immunity against negative-cache poisoning
+ * (StoreItemCache.m_setUnavailableApps) caused by asynchronous React unmount hooks
+ * issuing 404 store requests when navigating between shortcuts and native games.
+ */
+export function ensureStoreCacheHooked(): boolean {
+    if (isStoreCacheHooked) return true;
+    const storeCache = storeItemCache();
+    if (!storeCache) return false;
+
+    const proto = Object.getPrototypeOf(storeCache);
+    if (!proto || typeof proto.BIsAppMissing !== "function") return false;
+
+    isStoreCacheHooked = true;
+    const origBIsAppMissing = proto.BIsAppMissing;
+
+    proto.BIsAppMissing = function (appid: number) {
+        if (typeof appid === "number" && appid >= 0x8000_0000) {
+            return false;
+        }
+        return origBIsAppMissing.apply(this, arguments);
+    };
+    logger.info("Installed StoreItemCache.BIsAppMissing shortcut immunity hook.");
+    return true;
+}
+
 export interface MediaItem {
     id: string;
     url: string;
@@ -82,6 +113,12 @@ export async function publishActivity(
         logger.warn("Activity feed stores or SteamID not available for", appid);
         return 0;
     }
+
+    // Guarantee that any past negative-cache blacklist entry is purged
+    if (storeCache.m_setUnavailableApps?.has(appid)) {
+        storeCache.m_setUnavailableApps.delete(appid);
+    }
+    ensureStoreCacheHooked();
 
     // 1. Ensure fake StoreItem exists in StoreItemCache so dt's visibility guard passes
     if (!storeCache.m_mapApps.has(appid)) {
@@ -324,12 +361,11 @@ export function clearActivity(appid: number): void {
         actStore.m_mapAppActivity.delete(appid);
     }
 
-    if (injectedStoreApps.delete(appid)) {
-        const storeCache = storeItemCache();
-        if (storeCache) {
-            storeCache.m_mapApps.delete(appid);
-        }
-    }
+    // Retain in-memory stub in StoreItemCache.m_mapApps!
+    // In-memory stubs consume negligible RAM (~150 bytes) and must persist indefinitely.
+    // Deleting them triggers asynchronous 404 store requests from unmounting hooks,
+    // permanently blacklisting the appid in StoreItemCache.m_setUnavailableApps.
+    injectedStoreApps.delete(appid);
 
     const fileIds = registeredFilesByApp.get(appid);
     if (fileIds) {

@@ -19,6 +19,7 @@ import {
 import { watchGamepadAppid } from "./steam/gamepad-appid";
 import { installHeadlinePatch } from "./steam/headline-patch";
 import { installActivityCardsPatch } from "./steam/activity-cards-patch";
+import { ensureStoreCacheHooked } from "./steam/activity";
 
 export { registerSummaryProvider } from "./steam/summary";
 export type {
@@ -52,6 +53,10 @@ export default async function OnPluginLoaded() {
             "Could not restore Steam's app detail sections; summaries are unavailable.",
         );
     }
+
+    // ===== Store Cache Immunity Hook =====
+    // Permanently immunizes non-Steam shortcuts from StoreItemCache negative blacklist
+    ensureStoreCacheHooked();
 
     // ===== Headline phrasing =====
     // Replaces community UGC string ("cannoliGun shared 2 screenshots") with native action

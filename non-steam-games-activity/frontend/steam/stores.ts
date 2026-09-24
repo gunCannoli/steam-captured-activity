@@ -135,6 +135,8 @@ export interface AppActivityStore {
 /** Steam's in-memory `StoreItemCache` singleton. */
 export interface StoreItemCache {
     m_mapApps: Map<number, any>;
+    m_setUnavailableApps?: Set<number>;
+    BIsAppMissing?(appid: number): boolean;
     GetStoreItemWithLegacyVisibilityCheck(
         appid: number,
         storeItemType: number,

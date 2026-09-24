@@ -9,7 +9,11 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
-### Added
+- **Lifecycle Cache Hardening & Navigation Resilience (Phase 4b Shipped):**
+    - **Eliminated Cache Deletion on Unpatch:** Removed `storeCache.m_mapApps.delete(appid)` from `clearActivity` in `activity.ts`. In-memory StoreItem stubs now persist indefinitely across navigations (~150 bytes), preventing asynchronous 404 store requests from unmounting React hooks.
+    - **Negative Cache Purging on Ingestion:** Explicitly delete `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity` to purge any historical negative-cache poisoning prior to rendering.
+    - **`StoreItemCache.prototype.BIsAppMissing` Shortcut Immunity Hook:** Hooked `BIsAppMissing` on `StoreItemCache.prototype` to return `false` whenever `appid >= 0x8000_0000`. This permanently immunizes non-Steam shortcuts from being treated as missing or unavailable store items.
+    - **Two-Way Navigation Lifecycle Verification:** Verified two-way navigation loop (`AM2R -> Bloodstained -> AM2R`) via automated CDP test harness (`scratch/test_nav_cycle.js`), confirming `hasEvent: true` across all daily buckets. Verified all 4 core views (Post-Game Summary, Activity Feed, Your Stuff, Game Info) live in Big Picture Mode with zero regressions.
 
 - **Regression Audit & Phase 4b Hardening Plan (`docs/regression_hardening.md`):**
     - **Live CDP Reproduction:** Traced the Big Picture blank Activity feed bug occurring on return navigation (`AM2R -> Bloodstained -> AM2R`), finding that the Day Headers rendered with an empty `<div></div>` body (`hasEvent: false`).
