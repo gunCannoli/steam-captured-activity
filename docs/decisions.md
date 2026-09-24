@@ -1235,7 +1235,7 @@ ADR-0022's technique cannot reach.
   if Millennium ever gains a supported way to inject a plugin bundle into a
   Gamepad popup (the ADR-0023 root cause) — that would let this be replaced
   with the same feed-Steam's-store technique desktop uses.
-- `docs/steam-components.md` and `docs/plugin.md` updated with the cross-window
+- `docs/steam-components.md` and `docs/plugins.md` updated with the cross-window
   DOM technique as a named option below "clone Steam's DOM," for the case
   (rare) where even the DOM is in a different window than the code resolving
   the classes.
@@ -1430,7 +1430,7 @@ the trade-off is a judgment call:
 
 - Either way, ADR-0025's fix ships — it is strictly correct on its own terms.
 - If (1): another rung-4-adjacent technique joins the reuse ladder's last resort, and
-  `docs/plugin.md`/`steam-components.md` need a new documented pattern ("read live state
+  `docs/plugins.md`/`steam-components.md` need a new documented pattern ("read live state
   off a React fiber anchored on a stable text landmark, not off a Location") alongside
   the existing "clone DOM across windows" one.
 - If (2): Big Picture support stays shipped-but-inert (the strip never renders under
@@ -1553,7 +1553,7 @@ Replace `gamepad-app.tsx`'s location-watching entirely with a `jsx`/`jsxs` patch
   adopting verbatim: they note in comments this handles an observed unpatch/swap on first
   game launch of a session — a real, previously-unknown Steam behavior worth carrying
   into our own knowledgebase rather than rediscovering later.
-- `docs/plugin.md`'s reuse ladder gets a new named technique alongside "clone DOM across
+- `docs/plugins.md`'s reuse ladder gets a new named technique alongside "clone DOM across
   windows" (ADR-0024) — this is not a replacement for that ladder's rungs, it's an
   additional tool for the specific case for "a shared vendor module reaches a window
   believed unreachable," worth checking before assuming a bundle boundary is a hard wall.
@@ -1704,7 +1704,7 @@ _some_ modules and not others, and the boundary was never mapped.
 
 The question worth answering before writing more clone code: **do `@steambrew/client`'s
 own exported components** (`Panel`, `Tabs`, `Focusable`, `Carousel`, `SuspensefulImage`
-— the same building blocks desktop already prefers per `docs/plugin.md`'s reuse ladder)
+— the same building blocks desktop already prefers per `docs/plugins.md`'s reuse ladder)
 **also resolve to shared module instances reachable from Big Picture**, the same way
 `react/jsx-runtime` turned out to be? If so, `gamepad-app.tsx` could build its strip out
 of Steam's _real_ React components — real spacing, real focus/keyboard behavior, no

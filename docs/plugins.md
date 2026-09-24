@@ -1,12 +1,11 @@
-# Creating a plugin
+# Millennium Plugins: Guide, Architecture & Guardrails
 
-How to add a plugin to this workspace, develop it, and publish it as a
+How to add a plugin to this workspace, develop it, maintain regression-free UI/store hooks, and publish it as a
 standalone public repo.
 
 For _what_ the plugins do and why, see [docs/architecture.md](architecture.md)
 and [docs/decisions.md](decisions.md). For Millennium's SDK mechanics in
-detail, see [docs/knowledgebase.md](knowledgebase.md) — this file is the
-procedure, not the reference.
+detail, see [docs/knowledgebase.md](knowledgebase.md).
 
 ---
 
@@ -17,7 +16,7 @@ imported, because that folder is what gets published:
 
 ```
 millennium-plugins/                 <- this repo (private)
-├─ README.md · CHANGELOG.md · plugin.md · AGENTS.md · TASK.md
+├─ README.md · CHANGELOG.md · plugins.md · AGENTS.md · TASK.md
 ├─ docs/                            <- workspace-wide docs, NOT published
 └─ <plugin-name>/                   <- published as its own public repo
    ├─ plugin.json                   <- manifest (required)
@@ -283,6 +282,139 @@ Both the desktop client and Big Picture arrive through `onPopupCreate`; Big
 Picture is a separate popup window (`SP BPM_`), not a separate sandbox
 ([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
 
+### Core architectural principles
+
+- **The core never reaches the network.** Network access is a provider concern.
+  See [ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins).
+- **Steam's DOM is not a public API.** Class names are hashed and change between
+  builds. Resolve via `findClassModule` at runtime; never hardcode a hashed class.
+  See [ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules).
+- **Prefer patching Steam's data over its DOM** ([ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
+- **Never author custom CSS to imitate Steam.** Hand-written styles break across Steam builds
+  and fail controller navigation. If custom UI is strictly necessary, clone existing native
+  block structures from CEF DevTools and use resolved CSS module classes or
+  Steam's `<Focusable>` components. See [docs/steam-styles.md](steam-styles.md).
+- **Respect third-party APIs.** Cache hard, never poll, send a descriptive `User-Agent`
+  ([ADR-0007](decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).
+
+---
+
+## Guardrails & Regression Prevention (MUST READ BEFORE WRITING CODE)
+
+These rules are drawn directly from real, hard-won regression debugging across Steam's
+Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-facing breaks.
+
+### 1. Prototype Hook Coupling (`BIsModOrShortcut` vs `GetGameID`)
+
+- **The Trap:** Steam's native `AppOverview.prototype.GetGameID()` implementation is:
+    ```javascript
+    GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
+    ```
+    If you hook or proxy `BIsModOrShortcut()` to return `false` (e.g. to allow the Game Info
+    tab to render descriptions and credits without `#AppDetails_Shortcut_Explanation`),
+    `GetGameID()` will evaluate to `this.appid.toString()` (`"4263274102"`).
+- **The Ripple Effect:** The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`)
+  queries captures using `overview.gameid` (which delegates to `GetGameID()`). Shortcut
+  captures in `screenshots.vdf` and `window.g_GRS` are stored under the composed 64-bit ID
+  (`"18310622842007322624"`). Querying by `appid.toString()` returns 0 items, silently wiping
+  the "YOUR STUFF" tab into an empty placeholder!
+- **The Mandatory Guardrail:** Whenever hooking or proxying `BIsModOrShortcut`, you **MUST**
+  also hook `GetGameID` on `AppOverview.prototype` so that it returns `this.m_gameid` whenever
+  present:
+    ```typescript
+    curr.GetGameID = function () {
+        if (this.m_gameid) return this.m_gameid;
+        return origGetGameID.apply(this, arguments);
+    };
+    ```
+- **Section Registry Safeguard:** In `sections.ts`, never rely solely on `BIsModOrShortcut()`.
+  Always test `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()` so shortcut
+  section restoration is never suppressed when metadata hooks are active.
+
+### 2. Zero Expensive Operations in Hot Prototype Methods ($O(1)$ Strictly Enforced)
+
+- **The Trap:** `AppOverview` prototype methods (`BIsModOrShortcut`, `GetGameID`, `BHasStoreCategory`)
+  are called hundreds of times per second by React renders, MobX reactions, and controller navigations.
+- **The Ripple Effect:** Running `new Error().stack` inside `BIsModOrShortcut` froze Steam Big Picture
+  navigation for 30+ seconds.
+- **The Mandatory Guardrail:** All prototype hooks must run in $O(1)$ constant time (e.g.
+  `enrichedAppIds.has(this.appid)`). Never generate error stacks, never execute regexes,
+  and never perform DOM queries inside high-frequency prototype hooks.
+
+### 3. Single-Pass Webpack Module Pre-Caching
+
+- **The Trap:** Webpack's module registry (`req.m`) contains thousands of modules.
+- **The Mandatory Guardrail:** Scan Webpack modules **once** at plugin startup (`initCardComponents()`),
+  storing component references in module-scoped variables. Never iterate `req.m` inside component
+  render paths, React elements, or recurring callbacks — doing so creates an $O(N^2)$ choke on the UI.
+
+### 4. Multi-Tab Smoke Verification Requirement
+
+- **The Trap:** Verifying only the tab you are working on creates invisible regressions on other tabs
+  (e.g. Game Info fixes breaking Your Stuff; Activity styling breaking Big Picture layout).
+- **The Mandatory Guardrail:** Before declaring any UI or data change complete, verify ALL four core
+  views for a non-Steam shortcut:
+    1. **Post-Game Summary / Hero:** Top card renders screenshots, clips, and play evidence.
+    2. **Activity Feed:** Daily bucketed cards render with 16:9 thumbnails and `{Username} captured` headline.
+    3. **Your Stuff Tab:** Media section displays captures, duration badges, and item count (not the empty placeholder).
+    4. **Game Info Tab:** Capsule, description, developer/publisher credits, release date, and category badges render without the grey shortcut warning.
+
+### 5. Persistent In-Memory Stubs & Negative Cache Immunization
+
+- **The Trap:** Aggressively deleting in-memory stubs (`storeCache.m_mapApps.delete(appid)`) from
+  shared singletons inside view unmount / unpatch hooks (`clearActivity`).
+- **The Ripple Effect:** React components unmounting asynchronously detect a cache miss and call
+  `QueueStoreItemRequest`. Because non-Steam shortcuts have no store entry, Steam's backend returns 404,
+  permanently adding the appid to `StoreItemCache.m_setUnavailableApps` (Steam's internal negative blacklist).
+  When the user returns to the game, `useStoreItemCache` checks `BIsStoreItemMissing()` (which tests
+  `m_setUnavailableApps.has(appid)`), evaluates to `true`, and returns `undefined`. The event renderer
+  (`dt` in module 80478) then returns `null`, wiping out all daily activity events into an empty `<div></div>`!
+- **The Mandatory Guardrails:**
+    1. **Never delete shortcut stubs from `StoreItemCache.m_mapApps`** on view unpatch. They cost trivial RAM (~150 bytes) and keep Steam's store cache satisfied indefinitely.
+    2. **Always purge negative caches on ingestion:** In `publishActivity`, call `storeCache.m_setUnavailableApps.delete(appid)`.
+    3. **Immunize via Prototype Hook:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
+- **Reference:** Full live trace and specification in [knowledgebase.md § Trap 8](knowledgebase.md#trap-8-negative-cache-poisoning--stub-lifetime-in-storeitemcache).
+
+### 6. Two-Way Navigation Lifecycle Smoke Verification (Game A ➔ Game B ➔ Game A)
+
+- **The Trap:** Testing only a single "clean restart ➔ open game" navigation path. Single-pass testing
+  never exercises asynchronous unmount hooks, negative cache blacklisting, or route transition race conditions.
+- **The Mandatory Guardrail:** Every UI or store verification MUST execute a two-way navigation lifecycle loop:
+    1. Open Non-Steam Shortcut A (verify all sections render).
+    2. Navigate to Native Game B (or Library Home).
+    3. Navigate back to Non-Steam Shortcut A (verify all sections, daily buckets, and cards remain 100% intact).
+
+### 7. Safe Category Cache Invalidation
+
+- **The Trap:** Adding categories directly to `overview.m_setStoreCategories.add(catId)` without clearing
+  previously assigned managed categories.
+- **The Ripple Effect:** When switching between titles or re-enriching, categories accumulate in memory,
+  causing false badges (e.g. false "Achievements" or "Controller Support" badges on titles that lack them).
+- **The Mandatory Guardrail:** Before adding categories, always purge managed category IDs:
+    ```typescript
+    for (const catId of Object.values(STEAM_CATEGORIES)) {
+        overview.m_setStoreCategories.delete(catId);
+    }
+    ```
+
+### 8. Dedicated Metadata Association (Never Overwrite `appData.details`)
+
+- **The Trap:** Initializing synthetic `appData.details = {}` to feed developer/publisher credits.
+- **The Ripple Effect:** Native Steam components (`GameStatsSection`) expect internal store-only arrays
+  (`vecChildConfigApps`, `unEntitledContentApp`). Overwriting `details` with an empty object throws unhandled
+  TypeErrors and crashes the Game Info view.
+- **The Mandatory Guardrail:** Never overwrite `appData.details`. Exclusively feed Steam's dedicated data channels:
+    - Descriptions: `appData.descriptionsData = { strSnippet, strFullDescription }`
+    - Credits: `appData.associationData = { rgDevelopers, rgPublishers, rgFranchises }`
+
+### 9. Automated CDP Verification Suite
+
+Before concluding any work, run the automated diagnostic scripts in `scratch/`:
+```powershell
+node scratch/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
+node scratch/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
+```
+
 ---
 
 ## 4. Develop
@@ -375,7 +507,13 @@ against Millennium's plugin database with the public repo URL.
 - [ ] `backend/main.lua` calls `millennium.ready()`
 - [ ] RPC methods never return bare `nil`
 - [ ] `dev.ps1` takes the Steam path as a parameter
-- [ ] No hardcoded Steam CSS classes
+- [ ] No hardcoded Steam CSS classes (resolve via `findClassModule`)
+- [ ] Prototype hooks are strictly $O(1)$ (no stack traces, regexes, or DOM queries)
+- [ ] If hooking `BIsModOrShortcut`, also hook `GetGameID` returning `this.m_gameid`
+- [ ] Store stubs retained in memory across unmounts (`StoreItemCache.m_mapApps`)
+- [ ] Multi-tab verification passed (Summary, Activity, Your Stuff, Game Info)
+- [ ] Two-way navigation lifecycle verified (`node scratch/test_nav_cycle.js`)
 - [ ] `README.md` + `CHANGELOG.md` present
 - [ ] Added to the plugin table in the workspace [README](../README.md)
 - [ ] Tests run outside Steam
+

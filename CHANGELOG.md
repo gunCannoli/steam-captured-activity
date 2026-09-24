@@ -9,6 +9,18 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **Documentation Streamlining & Lean `AGENTS.md` Refactor:**
+    - **Consolidated Plugin Guide & Guardrails into `docs/plugins.md`:** Moved all 9 mandatory regression guardrails, failure traps, the 4-rung UI modification ladder, and plugin creation scaffolding guidelines into [`docs/plugins.md`](docs/plugins.md), keeping root [`plugins.md`](plugins.md) as a direct entry pointer.
+    - **Lean `AGENTS.md`:** Streamlined [`AGENTS.md`](AGENTS.md) down from 317 lines to 160 lines, focusing strictly on core non-Steam identifiers (`appid` vs composed `gameid`), environment facts, and 5 standard agent operating routines (Multi-Tab Smoke Verification, Two-Way Navigation Lifecycle, Automated CDP Suite, Build & Run, End-of-Session Prune/Sync/Auto-Push).
+    - **Cross-Reference Hygiene:** Updated all workspace documentation (`README.md`, `TASK.md`, `docs/decisions.md`, `docs/architecture.md`) to point cleanly to `docs/plugins.md`.
+
+- **Enhanced Achievements Architecture & Investigation Plan (Phase 6 & 7):**
+    - **Live Steam Client Reverse-Engineering:** Used CDP probing against `SharedJSContext` (`127.0.0.1:8080`) to map the entire native notification engine (`NotificationStore` in module `60917`), sound playback interception (`PlayNotificationSound`, `ChooseSound`), and toast rendering (`function ht` in module `11374`).
+    - **Sound & Banner Interception Hooks:** Confirmed that hooking `PlayNotificationSound` cleanly silences the default Steam chime (`j.PN.ToastAchievement`) and triggers custom audio playback via HTML5 `AudioContext` with per-tier volume control, while patching `ht` allows rendering themed banners with zero UI drift.
+    - **Steam Game Recording & Capture RPCs Mapped:** Identified `CGameRecordingService` (module `80026`, export `xM`) RPCs: `UserAddTimelineEntry` (golden trophy timeline markers), `SaveClip` (instant replay buffer extraction), and `TakeScreenshot`.
+    - **Schema & Theme Specification:** Updated [`enhanced-achievements/themes.md`](enhanced-achievements/themes.md) and [`enhanced-achievements/steam_ps_exemple.json`](enhanced-achievements/steam_ps_exemple.json) to incorporate auto-screenshot delay (`screenshot.delay_ms`), auto-recording duration/delay (`recording.duration_s`, `recording.delay_ms`), and timeline markers across rarity tiers (`normal`, `magic`, `rare`, `exceptional`).
+    - **Authored Comprehensive Implementation Plan:** Created [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) detailing plugin structure, hook points, theme inheritance rules, and phase-by-phase execution roadmap.
+
 - **Lifecycle Cache Hardening & Navigation Resilience (Phase 4b Shipped):**
     - **Eliminated Cache Deletion on Unpatch:** Removed `storeCache.m_mapApps.delete(appid)` from `clearActivity` in `activity.ts`. In-memory StoreItem stubs now persist indefinitely across navigations (~150 bytes), preventing asynchronous 404 store requests from unmounting React hooks.
     - **Negative Cache Purging on Ingestion:** Explicitly delete `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity` to purge any historical negative-cache poisoning prior to rendering.

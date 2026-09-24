@@ -51,17 +51,19 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 - **Big Picture Play Bar:** Feed `appAchievementProgressCache.m_achievementProgress.mapCache` with `{ unlocked, total }` so quick stats display under the Play button.
 - **Data Adapters:** Ingest schemas and unlocks from local emulator sources (RPCS3 `TROPCONF.SFM`/`TROPUSR.DAT`, RetroArch/rcheevos logs, DuckStation, PCSX2) and generic JSON.
 
-### Phase 6: Achievement Notifications & Audio Customization
+### Phase 6: Achievement Notifications & Audio Customization (`enhanced-achievements`)
 
-- **Native Toast Triggering:** Synthesize achievement popups using `window.NotificationStore.OnNotification(id, NotificationType.Achievement, binaryPayload)` (`CAchievementNotification` protobuf).
-- **Sound System Customization:** Hook `NotificationStore.ChooseSound` / `PlayNotificationSound` or trigger custom audio chimes (PlayStation trophy chime, Xbox rare achievement chime, RetroAchievements chime, Steam classic).
-- **Toast Styling & Badging:** Leverage Steam's native toast rendering (no hand-built DOM) with optional CSS accenting.
+> **Architecture & Plan:** See [docs/enhanced-achievements-plan.md](docs/enhanced-achievements-plan.md), [themes.md](enhanced-achievements/themes.md), and [steam_ps_exemple.json](enhanced-achievements/steam_ps_exemple.json).
 
-### Phase 7: Native Auto-Captures on Achievement Unlock
+- **Themed Banner Replacement:** Intercept native achievement toast rendering (module `11374`, component `ht`) to apply JSON-defined themes (PlayStation, Xbox, Retro) with custom layouts, borders, glows, and animations.
+- **Sound Interception:** Hook `NotificationStore.prototype.PlayNotificationSound` to silence the default Steam chime and play custom, high-fidelity audio assets per rarity tier (`normal`, `magic`, `rare`, `exceptional`) with volume control.
+- **Easy Theme Creation:** Declarative JSON theme schema documented in `enhanced-achievements/themes.md` with inheritance.
 
-- **Auto-Screenshot:** Trigger native screenshot capture via `GameRecording.TakeScreenshot#1` or `SteamClient.Screenshots`, automatically saving and cataloging the screenshot into the shortcut's screenshot directory so it instantly appears in the Activity feed.
-- **Timeline Achievement Markers:** Invoke `GameRecording.UserAddTimelineEntry#1` to place a golden achievement icon marker onto Steam's active game recording timeline at the exact moment of unlock.
-- **Instant Replay Clip:** Call `GameRecording.SaveClip#1` to cut an automated highlight clip (e.g. preceding 15–30 seconds) into `gamerecordings/clips/` when an achievement triggers.
+### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)
+
+- **Delayed Auto-Screenshot:** Configurable delay (`screenshot.delay_ms`) before triggering frame capture via `GameRecording.TakeScreenshot#1` or `SteamClient.Screenshots`, ensuring clean in-game capture without toast occlusion.
+- **Instant Replay Clip:** Configurable duration (`recording.duration_s`) and delay (`recording.delay_ms`) saving a video clip around the unlock moment via `GameRecording.SaveClip#1`.
+- **Timeline Achievement Markers:** Place golden achievement icon markers onto Steam's active game recording timeline at the exact moment of unlock via `GameRecording.UserAddTimelineEntry#1`.
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 
@@ -72,7 +74,7 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 ## Before writing any UI
 
 Check whether Steam already builds it — the ladder is in
-[AGENTS.md](AGENTS.md#working-agreements). Restoring a filtered-out section beat
+[docs/plugins.md](docs/plugins.md#build-nothing-steam-already-builds). Restoring a filtered-out section beat
 a from-scratch rebuild by ~1200 lines once already
 ([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 The inspection method (CDP harness, traps, how to verify) is in

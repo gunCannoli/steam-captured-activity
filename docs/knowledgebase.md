@@ -831,9 +831,9 @@ GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toStri
 - **The Problem:** Deleting stubs from `StoreItemCache.m_mapApps` inside unmount / unpatch hooks (`clearActivity`) triggers asynchronous 404 store requests from unmounting React hooks (`useStoreItemCache` in module `82594`).
 - **The Breakdown Chain:** Steam permanently blacklists the shortcut appid in `StoreItemCache.m_setUnavailableApps`. On returning to the game, `BIsStoreItemMissing(appid)` evaluates to `true`, returning `undefined` to event renderer `dt` (module `80478`), which returns `null` and wipes out all daily activity events into an empty `<div></div>`.
 - **The Defense:**
-  1. Never delete shortcut stubs from `StoreItemCache.m_mapApps` on view unmount (they cost negligible memory: ~150 bytes).
-  2. Always purge `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity`.
-  3. Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
+    1. Never delete shortcut stubs from `StoreItemCache.m_mapApps` on view unmount (they cost negligible memory: ~150 bytes).
+    2. Always purge `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity`.
+    3. Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
 
 #### Trap 9: Synthetic `appData.details` Overwrite Mutating Store Objects
 
