@@ -215,3 +215,49 @@ const WebSocket = require('ws');
 | **Frontend TypeScript / CSS** | `frontend/*.ts`, `*.tsx`       | Build with `pnpm build:dev`, then press **`Ctrl+R`** in CEF DevTools or switch library pages in Steam. **No Steam restart needed.** |
 | **Backend Lua**               | `backend/*.lua`, `plugin.json` | Requires restarting Steam: `.\start-steam-dev.ps1 -Restart` or `pnpm dev`.                                                          |
 | **Section Registry Patches**  | `sections.ts`                  | Navigating away from and back to the app page re-evaluates `GetSections()`.                                                         |
+
+---
+
+## 7. Cost-Efficient Debugging
+
+Screenshots and full DOM/console dumps burn a lot of tokens. Answer the question
+with the cheapest method that actually answers it, in this order:
+
+1. **Targeted `Runtime.evaluate`, `returnByValue: true`.** Ask for the smallest
+   value that settles the question: a selector's existence (`!!document.querySelector(...)`),
+   a `data-*` attribute, 1–3 `getComputedStyle` properties, an element count, or a
+   single store field (see § 5 for the WebSocket one-liner pattern). Trim or
+   `.slice()` any string before returning it.
+2. **Reuse existing scripts before writing new ones.** `scratch/test_nav_cycle.js`
+   and `scratch/check_all_tabs.js` (Routine 3 in [AGENTS.md](../AGENTS.md)), plus
+   plugin `tests/`, e.g. `enhanced-notifications/tests/categories.mjs`,
+   `enhanced-achievements/tests/smoke.mjs`. Run them and report only PASS/FAIL,
+   not their raw output.
+3. **Structural checks over pixels.** `getBoundingClientRect()` for sizes/position,
+   a short `textContent` snippet, a `classList.contains(...)` check — these answer
+   layout and state questions without a screenshot.
+4. **Filtered reads over full dumps.** Grep or `.slice()` console output client-side
+   in the `Runtime.evaluate` expression itself (e.g. filter `console` messages or a
+   store's keys before returning them) rather than pulling the whole object or log
+   across the wire.
+5. **Screenshots last, and only for genuinely visual questions** (does the theme
+   actually look right). Even then, use CDP `Page.captureScreenshot` with a `clip`
+   region, `format: 'jpeg'`, and a low `quality`, save it to a file, and only view
+   it if the structural checks above couldn't settle the question. Never capture
+   full-window PNGs, and never loop screenshots.
+
+**Reuse the target.** Resolve the right CDP target (`SharedJSContext` vs. the
+Big Picture GamepadUI target, per § 2) once per session and keep using it, instead
+of re-querying `/json` per probe.
+
+Anti-patterns:
+
+- Dumping `document.body.outerHTML` — always query a specific element.
+- Uncapped probe output — cap string/array length in the expression before it
+  returns, not after.
+- Re-deriving a fact already on this page (target topology, Big Picture traps in
+  § 4) by re-probing instead of reading it.
+- Screenshotting to check something `getComputedStyle` or a class check already
+  answers.
+- Writing a new one-off script when a `scratch/` or plugin `tests/` script already
+  covers the same check.

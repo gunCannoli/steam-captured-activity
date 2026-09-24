@@ -5,6 +5,42 @@ for background facts, see [knowledgebase.md](knowledgebase.md).
 
 ---
 
+## Where to look (doc map)
+
+Several agents work this repo (architect, implementer, verifier). Find the right
+doc by situation, not by filename:
+
+- **Live-debugging the running Steam client** (CDP, DevTools, targets) →
+  [steam-debug.md](steam-debug.md) — also has a cost-efficient-debugging section
+  for cheap CDP probes before screenshots.
+- **Investigating a new feature or Steam internals** → start with
+  [steam-architecture.md](steam-architecture.md) (cheat sheet: modules, stores,
+  RPCs), then go deep in [steam-components.md](steam-components.md) (full
+  reverse-engineering traces, verified inspection sessions).
+- **Creating a plugin, or fixing a bug in one** → [plugins.md](plugins.md)
+  (scaffolding, the 4-rung reuse ladder, all 9 mandatory regression guardrails).
+- **UI styling** → [steam-styles.md](steam-styles.md) (reuse Steam's own
+  components/stores instead of hand-measuring pixels).
+- **Data formats, SDK mechanics, or known traps** →
+  [knowledgebase.md](knowledgebase.md) (Millennium SDK, Steam's local data
+  formats, provider sources, verified facts, failure traps).
+- **Why something is the way it is** → [decisions.md](decisions.md) (ADRs).
+- **Current work** → [TASK.md](../TASK.md). **Repo history** →
+  [CHANGELOG.md](../CHANGELOG.md). **Feature/bugfix plans** →
+  [docs/plans/](plans/).
+
+Orchestrator roles, mapped:
+
+- **architect** (diagnosis, planning) — [steam-debug.md](steam-debug.md) +
+  [steam-components.md](steam-components.md) for root-causing, then write or
+  update a plan in [docs/plans/](plans/).
+- **implementer** — [plugins.md](plugins.md) guardrails are non-negotiable
+  before touching plugin code.
+- **verifier** — Routines 1–3 in [AGENTS.md](../AGENTS.md) (smoke tests, nav
+  lifecycle, automated CDP suite) plus the relevant plugin's `tests/`.
+
+---
+
 ## Shape of the system
 
 One **core** plugin, plus optional **provider** plugins. The core owns the page and

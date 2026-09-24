@@ -33,6 +33,10 @@ The core must be useful alone and must never depend on a provider. See
 | [docs/steam-components.md](docs/steam-components.md)     | **Deep reference** — section registry, stores, event shapes, achievements, notifications, recording RPCs, inspection method |
 | [docs/steam-styles.md](docs/steam-styles.md)             | UI styling guidance — why hand-measuring pixels was superseded by component reuse and native block cloning                  |
 | [docs/decisions.md](docs/decisions.md)                   | ADRs — _why_ things are the way they are                                                                                    |
+| [docs/plans/](docs/plans/)                               | Per-feature and per-bugfix plans (e.g. `enhanced-notifications-plan.md`)                                                    |
+
+For a situation-based map of these docs (e.g. "I'm debugging live" or "I'm
+writing a plugin"), see [docs/architecture.md](docs/architecture.md#where-to-look-doc-map).
 
 Do not re-derive facts already recorded there. Do not contradict an ADR without
 writing a new one that supersedes it. For all plugin development rules and guardrails,
@@ -133,6 +137,9 @@ Run automated diagnostic scripts in `scratch/` against the running Steam client 
 node scratch/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
 node scratch/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
 ```
+
+For cheap ways to answer a debugging question (cheapest method first, screenshots
+last), see [steam-debug.md § Cost-Efficient Debugging](docs/steam-debug.md#7-cost-efficient-debugging).
 
 ### Routine 4: Build & Run
 

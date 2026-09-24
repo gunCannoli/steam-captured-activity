@@ -9,6 +9,17 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **Docs: architecture.md is now the agent doc-routing hub; steam-debug.md gets a
+  cost-efficient debugging section.** Added a "Where to look (doc map)" section near
+  the top of `docs/architecture.md`, organized by situation (live debugging, new
+  feature/internals investigation, plugin work, styling, data formats/traps, ADRs,
+  current work/history/plans) with an architect/implementer/verifier role map.
+  Added `docs/plans/` as a row in AGENTS.md's doc table. Added
+  `docs/steam-debug.md § 7 Cost-Efficient Debugging`: cheapest-first method ordering
+  (targeted `Runtime.evaluate` → reuse `scratch/`/plugin `tests/` scripts →
+  structural checks → filtered reads → clipped low-quality screenshots as last
+  resort) plus anti-patterns, linked from AGENTS.md Routine 3.
+
 - **`enhanced-notifications`: Big Picture toast window fixed (corrects the entry below).**
   The 2026-09-24 entry below said "friends/messages/downloads/recording/system toasts
   never get `data-en-type`... on **both** popup-tracking APIs" — that live check was run
