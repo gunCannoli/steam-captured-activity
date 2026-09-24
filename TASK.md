@@ -35,6 +35,15 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 
 ## Multi-Session Roadmap
 
+### Phase 4b (CRITICAL BLOCKER): Lifecycle Cache Hardening & Navigation Resilience
+
+> **Specification & Audit Trace:** See [docs/regression_hardening.md](docs/regression_hardening.md) (and [regression_hardening.md](regression_hardening.md)).
+
+- **Eliminate Cache Deletion on Unpatch:** Remove `storeCache.m_mapApps.delete(appid)` from `clearActivity(appid)` in `frontend/steam/activity.ts`. Stubs must persist in memory permanently across view navigations to prevent concurrent React unmount hooks from triggering 404 store queries.
+- **Purge Negative Cache on Ingestion:** Add explicit `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity(appid, gameid)` before rendering.
+- **Install Safety Hook on `BIsAppMissing`:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`, providing permanent immunity against negative cache poisoning.
+- **Mandatory Lifecycle Verification:** Execute two-way navigation test (`AM2R -> Bloodstained / Library -> AM2R`) verifying all daily buckets, headlines, and media cards remain 100% intact.
+
 ### Phase 5: Native Achievement Integration (Desktop & Big Picture)
 
 - **Desktop Sidebar:** Re-enable `"achievements"` in `CAppDetailsSections.GetSections()` and feed `AppDetailsStore.GetAchievements(appid)` (module `78057` / `57665`) with `{ nAchieved, nTotal, vecHighlight, vecUnachieved }`.

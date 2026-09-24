@@ -1908,14 +1908,16 @@ To bypass this suppression and render enriched metadata, `AppOverview.prototype.
 
 1. **The "YOUR STUFF" Tab Media Regression (Cross-Tab Prototype Coupling):**
    Steam's native `AppOverview.prototype.GetGameID()` implementation delegates directly to `BIsModOrShortcut()`:
-   ```javascript
-   GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
-   ```
-   When `BIsModOrShortcut()` returned `false`, `GetGameID()` fell back to `this.appid.toString()` (`"4263274102"`).
-   The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`) queries captures via
-   `overview.gameid` (which invokes `GetGameID()`). Because shortcut screenshots (`screenshots.vdf`) and clips
-   (`window.g_GRS`) are indexed by the 64-bit composed ID (`"18310622842007322624"`), querying by `appid.toString()`
-   returned 0 items, collapsing the Media section into the empty "You can take a screenshot..." placeholder.
+
+    ```javascript
+    GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
+    ```
+
+    When `BIsModOrShortcut()` returned `false`, `GetGameID()` fell back to `this.appid.toString()` (`"4263274102"`).
+    The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`) queries captures via
+    `overview.gameid` (which invokes `GetGameID()`). Because shortcut screenshots (`screenshots.vdf`) and clips
+    (`window.g_GRS`) are indexed by the 64-bit composed ID (`"18310622842007322624"`), querying by `appid.toString()`
+    returned 0 items, collapsing the Media section into the empty "You can take a screenshot..." placeholder.
 
 2. **The 30-Second Big Picture Navigation Freeze ($O(N)$ Stack Inspection in Hot Prototype Paths):**
    An earlier attempt to detect whether `BIsModOrShortcut()` was being called by the Game Info component inspected
@@ -1928,14 +1930,14 @@ To bypass this suppression and render enriched metadata, `AppOverview.prototype.
 1. **Decouple `GetGameID` on `AppOverview.prototype`:**
    In `steamgriddb-artwork/frontend/steam/game-info-patch.ts`, walk the prototype chain (`ensureAppOverviewHooked`)
    and hook `GetGameID` alongside `BIsModOrShortcut`:
-   ```typescript
-   curr.GetGameID = function () {
-       if (this.m_gameid) return this.m_gameid;
-       return origGetGameID.apply(this, arguments);
-   };
-   ```
-   Whenever an AppOverview has `m_gameid` (which shortcuts always do), `GetGameID()` is guaranteed to return the
-   64-bit composed ID regardless of the value returned by `BIsModOrShortcut()`.
+    ```typescript
+    curr.GetGameID = function () {
+        if (this.m_gameid) return this.m_gameid;
+        return origGetGameID.apply(this, arguments);
+    };
+    ```
+    Whenever an AppOverview has `m_gameid` (which shortcuts always do), `GetGameID()` is guaranteed to return the
+    64-bit composed ID regardless of the value returned by `BIsModOrShortcut()`.
 2. **Enforce Instant $O(1)$ Prototype Set Lookups:**
    Replace all call stack inspections with an in-memory `Set<number>` lookup (`enrichedAppIds.has(this.appid)`).
    Hooks on prototype methods must strictly execute in constant time ($O(1)$) with zero stack evaluation, regex parsing,

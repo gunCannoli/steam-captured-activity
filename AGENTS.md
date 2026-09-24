@@ -104,13 +104,14 @@ These rules are drawn directly from real, hard-won regression debugging across S
 Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-facing breaks.
 
 ### 1. Prototype Hook Coupling (`BIsModOrShortcut` vs `GetGameID`)
+
 - **The Trap:** Steam's native `AppOverview.prototype.GetGameID()` implementation is:
-  ```javascript
-  GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
-  ```
-  If you hook or proxy `BIsModOrShortcut()` to return `false` (e.g. to allow the Game Info
-  tab to render descriptions and credits without `#AppDetails_Shortcut_Explanation`),
-  `GetGameID()` will evaluate to `this.appid.toString()` (`"4263274102"`).
+    ```javascript
+    GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
+    ```
+    If you hook or proxy `BIsModOrShortcut()` to return `false` (e.g. to allow the Game Info
+    tab to render descriptions and credits without `#AppDetails_Shortcut_Explanation`),
+    `GetGameID()` will evaluate to `this.appid.toString()` (`"4263274102"`).
 - **The Ripple Effect:** The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`)
   queries captures using `overview.gameid` (which delegates to `GetGameID()`). Shortcut
   captures in `screenshots.vdf` and `window.g_GRS` are stored under the composed 64-bit ID
@@ -119,17 +120,18 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
 - **The Mandatory Guardrail:** Whenever hooking or proxying `BIsModOrShortcut`, you **MUST**
   also hook `GetGameID` on `AppOverview.prototype` so that it returns `this.m_gameid` whenever
   present:
-  ```typescript
-  curr.GetGameID = function () {
-      if (this.m_gameid) return this.m_gameid;
-      return origGetGameID.apply(this, arguments);
-  };
-  ```
+    ```typescript
+    curr.GetGameID = function () {
+        if (this.m_gameid) return this.m_gameid;
+        return origGetGameID.apply(this, arguments);
+    };
+    ```
 - **Section Registry Safeguard:** In `sections.ts`, never rely solely on `BIsModOrShortcut()`.
   Always test `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()` so shortcut
   section restoration is never suppressed when metadata hooks are active.
 
 ### 2. Zero Expensive Operations in Hot Prototype Methods ($O(1)$ Strictly Enforced)
+
 - **The Trap:** `AppOverview` prototype methods (`BIsModOrShortcut`, `GetGameID`, `BHasStoreCategory`)
   are called hundreds of times per second by React renders, MobX reactions, and controller navigations.
 - **The Ripple Effect:** Running `new Error().stack` inside `BIsModOrShortcut` froze Steam Big Picture
@@ -139,22 +141,54 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
   and never perform DOM queries inside high-frequency prototype hooks.
 
 ### 3. Single-Pass Webpack Module Pre-Caching
+
 - **The Trap:** Webpack's module registry (`req.m`) contains thousands of modules.
 - **The Mandatory Guardrail:** Scan Webpack modules **once** at plugin startup (`initCardComponents()`),
   storing component references in module-scoped variables. Never iterate `req.m` inside component
   render paths, React elements, or recurring callbacks — doing so creates an $O(N^2)$ choke on the UI.
 
 ### 4. Multi-Tab Smoke Verification Requirement
+
 - **The Trap:** Verifying only the tab you are working on creates invisible regressions on other tabs
   (e.g. Game Info fixes breaking Your Stuff; Activity styling breaking Big Picture layout).
 - **The Mandatory Guardrail:** Before declaring any UI or data change complete, verify ALL four core
   views for a non-Steam shortcut:
-  1. **Post-Game Summary / Hero:** Top card renders screenshots, clips, and play evidence.
-  2. **Activity Feed:** Daily bucketed cards render with 16:9 thumbnails and `{Username} captured` headline.
-  3. **Your Stuff Tab:** Media section displays captures, duration badges, and item count (not the empty placeholder).
-  4. **Game Info Tab:** Capsule, description, developer/publisher credits, release date, and category badges render without the grey shortcut warning.
+    1. **Post-Game Summary / Hero:** Top card renders screenshots, clips, and play evidence.
+    2. **Activity Feed:** Daily bucketed cards render with 16:9 thumbnails and `{Username} captured` headline.
+    3. **Your Stuff Tab:** Media section displays captures, duration badges, and item count (not the empty placeholder).
+    4. **Game Info Tab:** Capsule, description, developer/publisher credits, release date, and category badges render without the grey shortcut warning.
+
+### 5. Persistent In-Memory Stubs & Negative Cache Immunization
+
+- **The Trap:** Aggressively deleting in-memory stubs (`storeCache.m_mapApps.delete(appid)`) from
+  shared singletons inside view unmount / unpatch hooks (`clearActivity`).
+- **The Ripple Effect:** React components unmounting asynchronously detect a cache miss and call
+  `QueueStoreItemRequest`. Because non-Steam shortcuts have no store entry, Steam's backend returns 404,
+  permanently adding the appid to `StoreItemCache.m_setUnavailableApps` (Steam's internal negative blacklist).
+  When the user returns to the game, `useStoreItemCache` checks `BIsStoreItemMissing()` (which tests
+  `m_setUnavailableApps.has(appid)`), evaluates to `true`, and returns `undefined`. The event renderer
+  (`dt` in module 80478) then returns `null`, wiping out all daily activity events into an empty `<div></div>`!
+- **The Mandatory Guardrails:**
+    1. **Never delete shortcut stubs from `StoreItemCache.m_mapApps`** on view unpatch. They cost trivial RAM (~150 bytes) and keep Steam's store cache satisfied indefinitely.
+    2. **Always purge negative caches on ingestion:** In `publishActivity`, call `storeCache.m_setUnavailableApps.delete(appid)`.
+    3. **Immunize via Prototype Hook:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
+- **Reference:** Full live trace and specification in [docs/regression_hardening.md](docs/regression_hardening.md).
+
+### 6. Two-Way Navigation Lifecycle Smoke Verification (Game A ➔ Game B ➔ Game A)
+
+- **The Trap:** Testing only a single "clean restart ➔ open game" navigation path. Single-pass testing
+  never exercises asynchronous unmount hooks, negative cache blacklisting, or route transition race conditions.
+- **The Mandatory Guardrail:** Every UI or store verification MUST execute a two-way navigation lifecycle loop:
+    1. Open Non-Steam Shortcut A (verify all sections render).
+    2. Navigate to Native Game B (or Library Home).
+    3. Navigate back to Non-Steam Shortcut A (verify all sections, daily buckets, and cards remain 100% intact).
 
 ## Working agreements
+
+- **End-of-Session Prune, Sync & Auto-Push:** At the end of every session, update
+  [CHANGELOG.md](CHANGELOG.md), clear up completed tasks from [TASK.md](TASK.md)
+  (so history lives in CHANGELOG and TASK stays lean), commit all changes, and
+  push to `origin/main` on GitHub. Don't wait to be asked.
 
 - **Verify against real local data before asserting.** These docs were built by reading
   this machine's actual `shortcuts.vdf`, `screenshots.vdf`, `retroarch.cfg` and

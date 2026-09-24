@@ -767,54 +767,63 @@ Every one of these traps caused a real regression during development across the 
 Game Info, or Your Stuff tabs. Review them before modifying any store or prototype hook.
 
 #### Trap 1: The `AppOverview` ID Coupling Trap (`BIsModOrShortcut` vs `GetGameID`)
+
 Steam's native `AppOverview.prototype.GetGameID()` is implemented as:
+
 ```javascript
 GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
 ```
+
 - **The Breakdown Chain:**
-  1. Steam hides rich metadata (descriptions, developers, publishers, release dates, categories) from the Game Info tab (inner component `k` in module `15448`) with `r = this.props.overview.BIsModOrShortcut()`. If `r === true`, Steam drops the metadata and renders `#AppDetails_Shortcut_Explanation`.
-  2. To allow Game Info to render, `BIsModOrShortcut()` is hooked to return `false` for enriched shortcuts.
-  3. But `GetGameID()` calls `this.BIsModOrShortcut()`. When that returns `false`, `GetGameID()` evaluates to `this.appid.toString()` (`"4263274102"`).
-  4. The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`) queries captures:
-     `(0, B.MZ)({ listSource: { type: "app", gameid: e.overview.gameid } })`
-     where `overview.gameid` is a getter calling `GetGameID()`.
-  5. Shortcut screenshots (`screenshots.vdf`) and clips (`window.g_GRS`) are keyed by the composed 64-bit ID (`"18310622842007322624"`).
-  6. Querying by `appid.toString()` returns 0 items (`S.length === 0`), collapsing the entire "YOUR STUFF" tab into the empty placeholder *"You can take a screenshot..."*!
+    1. Steam hides rich metadata (descriptions, developers, publishers, release dates, categories) from the Game Info tab (inner component `k` in module `15448`) with `r = this.props.overview.BIsModOrShortcut()`. If `r === true`, Steam drops the metadata and renders `#AppDetails_Shortcut_Explanation`.
+    2. To allow Game Info to render, `BIsModOrShortcut()` is hooked to return `false` for enriched shortcuts.
+    3. But `GetGameID()` calls `this.BIsModOrShortcut()`. When that returns `false`, `GetGameID()` evaluates to `this.appid.toString()` (`"4263274102"`).
+    4. The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`) queries captures:
+       `(0, B.MZ)({ listSource: { type: "app", gameid: e.overview.gameid } })`
+       where `overview.gameid` is a getter calling `GetGameID()`.
+    5. Shortcut screenshots (`screenshots.vdf`) and clips (`window.g_GRS`) are keyed by the composed 64-bit ID (`"18310622842007322624"`).
+    6. Querying by `appid.toString()` returns 0 items (`S.length === 0`), collapsing the entire "YOUR STUFF" tab into the empty placeholder _"You can take a screenshot..."_!
 - **The Mandated Architecture:**
-  - In `ensureAppOverviewHooked`, `GetGameID` MUST be hooked on `AppOverview.prototype`:
-    ```typescript
-    curr.GetGameID = function () {
-        if (this.m_gameid) return this.m_gameid;
-        return origGetGameID.apply(this, arguments);
-    };
-    ```
-    This completely decouples 64-bit shortcut identification from the shortcut flag.
-  - In `non-steam-games-activity/frontend/steam/sections.ts`, `isShortcut` must check `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()` so shortcut sections (`postgamesummary`, `activity`) are never suppressed when `BIsModOrShortcut` is bypassed.
+    - In `ensureAppOverviewHooked`, `GetGameID` MUST be hooked on `AppOverview.prototype`:
+        ```typescript
+        curr.GetGameID = function () {
+            if (this.m_gameid) return this.m_gameid;
+            return origGetGameID.apply(this, arguments);
+        };
+        ```
+        This completely decouples 64-bit shortcut identification from the shortcut flag.
+    - In `non-steam-games-activity/frontend/steam/sections.ts`, `isShortcut` must check `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()` so shortcut sections (`postgamesummary`, `activity`) are never suppressed when `BIsModOrShortcut` is bypassed.
 
 #### Trap 2: The $O(1)$ Performance Choke in Prototype Hooks
+
 - **What happened:** Inspecting the call stack (`new Error().stack`) inside `AppOverview.prototype.BIsModOrShortcut` froze Big Picture navigation for 30+ seconds.
 - **Why:** `BIsModOrShortcut()` is a hot method called hundreds of times per second by React render cycles, MobX reactions, and controller focus updates. Generating stack traces in V8 is extraordinarily slow.
 - **The Rule:** Prototype hooks must run in $O(1)$ time using clean set lookups (`enrichedAppIds.has(this.appid)`). Never evaluate error stacks, regexes, or DOM selectors in prototype hooks.
 
 #### Trap 3: The Single-Pass Webpack Cache Choke
+
 - **What happened:** Re-scanning Webpack's module registry (`req.m`) inside card render paths created an $O(N^2)$ execution choke, causing the activity feed to stutter and freeze.
 - **The Rule:** Scan Webpack modules **once** during plugin initialization (`initCardComponents()`) and store resolved components in module-scoped variables. Never iterate `req.m` inside component render functions or callbacks.
 
 #### Trap 4: Section Registry Memo Mutation
+
 - Steam's `CAppDetailsSections.prototype.GetSections` returns its memoized set (`this.m_setSectionsMemo`), not a new set, and compares it by size alone.
 - Mutate the set in-place, and clear `instance.m_setSectionsMemo = undefined` before calling `instance.forceUpdate()`.
 
 #### Trap 5: Asynchronous Data Arrival & Multi-Window Reactivity
+
 - MobX observers in Steam only react to changes in Steam's native stores, not plugin-internal state or caches.
 - When metadata or activity loads asynchronously, the page has already rendered.
 - You must discover all active documents (Desktop + Big Picture popup via `window.g_PopupManager.GetExistingPopup("SP BPM_uid0")`), locate mounted component fibers (`__reactFiber$`), and invoke `forceUpdate()`.
 
 #### Trap 6: Activity Feed StoreItemCache Stubbing & CSS Scoping
+
 - Steam's activity cards check `storeApp.BIsVisible()`. For non-Steam games, `StoreItemCache` has no record, causing cards to render blank.
 - ADR-0030 stubs `StoreItemCache.m_mapApps.set(appid, stubApp)` with `{ BIsVisible: () => true }`.
 - Scoping card thumbnail CSS requires `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` with `width: 100% !important` to prevent parent flex rows from squashing cards into ~80px cutouts.
 
 #### Trap 7: A DOM probe can report success while the page looks wrong
+
 - Always verify with a real CEF screenshot across both Desktop and Big Picture Mode before declaring a feature complete. Stale rendered DOM or z-index/portal clipping can hide defects from plain querySelector checks.
 
 ### Identifying non-Steam apps
