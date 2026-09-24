@@ -64,6 +64,36 @@ function Set-PluginEnabled {
   Write-JsonFile -Path $ConfigPath -Object $json
 }
 
+# Stop Steam cleanly: ask it to exit, then wait for every steamwebhelper too.
+# Force-killing only steam.exe leaves its webhelper windows running into the
+# next Steam start. CEF keeps a list of in-app routes (/routes/library/...) it
+# treated as file downloads and re-rejects them at every start (cef_log.txt,
+# "Rejected download of ..."), which is suspected to relate to the occasional
+# "Save as" dialog (not reproduced; see docs/knowledgebase.md). Force-kill only
+# as a fallback, helpers included.
+function Stop-Steam {
+  param([string] $SteamExe, [int] $TimeoutSeconds = 30)
+
+  if (-not (Get-Process -Name 'steam', 'steamwebhelper' -ErrorAction SilentlyContinue)) { return }
+
+  Write-Host 'Shutting Steam down...'
+  if (Get-Process -Name 'steam' -ErrorAction SilentlyContinue) {
+    Start-Process -FilePath $SteamExe -ArgumentList '-shutdown'
+  }
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Process -Name 'steam', 'steamwebhelper' -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 500
+  }
+
+  $left = Get-Process -Name 'steam', 'steamwebhelper' -ErrorAction SilentlyContinue
+  if ($left) {
+    Write-Warning "Steam did not exit within $TimeoutSeconds s; force-stopping it."
+    $left | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+  }
+}
+
 # --- resolve paths -----------------------------------------------------------
 
 $steam = Resolve-SteamPath -Explicit $SteamPath
@@ -115,12 +145,7 @@ if (-not (Test-Path "$PSScriptRoot\.millennium\Dist\index.js")) {
 # --- stop Steam --------------------------------------------------------------
 
 if (-not $NoRestart) {
-  $running = Get-Process -Name 'steam' -ErrorAction SilentlyContinue
-  if ($running) {
-    Write-Host 'Stopping Steam...'
-    $running | Stop-Process -Force
-    Start-Sleep -Seconds 3
-  }
+  Stop-Steam -SteamExe (Join-Path $steam 'steam.exe')
 }
 
 # --- deploy ------------------------------------------------------------------

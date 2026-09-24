@@ -9,6 +9,11 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **Upstream fix and dev-script hygiene:**
+    - **PR opened:** [Millennium#904](https://github.com/SteamClientHomebrew/Millennium/pull/904) fixes [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903). `ffi_binder.cc` reads `methodName` type-safely, and the FFI recorder is wrapped so it can never fail a call it only observes. Not compiled locally; the PR says so.
+    - **Graceful Steam shutdown** in `start-steam-dev.ps1` and all three `dev.ps1`: `steam.exe -shutdown`, wait for every `steamwebhelper`, force-kill only as a fallback. Previously only `steam.exe` was force-killed.
+    - **"Save as" dialog investigated, not reproduced:** CEF's persisted list of in-app routes treated as downloads is replayed as "Rejected download" at every start. Ruled out: SharedJSContext reload, `steam://nav`, `Navigation.Navigate`, and Big Picture open/close/tab navigation. What to capture next time is in [`docs/knowledgebase.md`](docs/knowledgebase.md) (Deploying a plugin).
+
 - **Millennium Configuration API bug root-caused and reported ([Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)):**
     - **Version corrected:** we run Millennium **v3.4.1** (latest, commit `18b89e1`). The `1.1.2` recorded earlier is `MILLENNIUM_FRONTEND_LIB_VERSION`, the bundled frontend library.
     - **Root cause** in v3.4.1 source (still on `main`): `src/engine/ffi_binder.cc` records FFI metrics *after* `process_message` succeeds, reading `data.value("methodName", std::string{})`. Config calls carry a numeric `methodName`, so nlohmann throws `type_error.302` and the catch replaces the successful result with the error. The issue includes a repro and a proposed patch (type-safe read; recorder wrapped in its own try).

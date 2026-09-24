@@ -956,6 +956,32 @@ A deployed plugin folder contains only: `plugin.json`, `.millennium/Dist/`, `bac
 The reference `dev.ps1` flow: stop Steam → rename plugin to `<name>-dev` → build →
 copy → disable the release plugin and enable the dev one → start Steam with `-dev`.
 
+**Stop Steam gracefully, not with `Stop-Process -Force`.** Our scripts now run
+`steam.exe -shutdown` and wait for every `steamwebhelper` to exit (about 6 s),
+force-killing only as a fallback. Killing just `steam.exe` left webhelper
+windows running into the next start.
+
+#### The occasional "Save as" dialog (🔬 open, not reproduced — 2026-09-24)
+
+A Windows "Save as" dialog sometimes appears while developing. What is known:
+
+- CEF keeps a persisted list of **in-app routes it treated as file downloads**
+  (`https://steamloopback.host/routes/library/app/<id>`, `…/tab/GameInfo`,
+  `…/tab/YourStuff`, `/routes/library/home`). Routes are not documents a window
+  can load, so a window that loads one directly gets a download and the dialog.
+- The list is re-rejected at every Steam start. `cef_log.txt` then shows a burst of
+  `download_manager_delegate_impl.cc … Rejected download of …/routes/…` in the same
+  millisecond, about 2 s after launch. That burst is replayed history, **not** a new dialog.
+- **Not** triggers, tested live: reloading SharedJSContext, desktop `steam://nav`,
+  `Navigation.Navigate`, opening/closing Big Picture, Big Picture tab navigation.
+- Suspected: a window reloading its own route URL (e.g. `Ctrl+R` in the devtools of
+  the `Steam` or Big Picture window rather than `SharedJSContext`), or the
+  force-kill restarts the scripts used to do.
+
+When it happens: note the time and what was just done (which window had focus,
+which devtools were open), then check `logs/cef_log.txt` and `logs/webhelper.txt`
+for lines at that timestamp.
+
 ### The official docs, read section by section (2026-09-21)
 
 Swept [docs.steambrew.app/plugins](https://docs.steambrew.app/plugins/) — Introduction,
