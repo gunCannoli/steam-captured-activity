@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem } from '@steambrew/client';
+import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, TextField } from '@steambrew/client';
 import { useSetting } from './settings';
+import { rpc, type StoreState } from '../rpc';
+import {
+    acceptSteamStoreSuggestion,
+    clearSteamStore,
+    rejectSteamStoreSuggestion,
+    setSteamStoreMapping,
+} from '../features/steam-store';
+import { refreshKnownApps } from '../features/steam-store/known-apps';
 import { bucketReport, listCollections, listShortcuts, shortcutName, type Bucket, type BucketsConfig } from '../features/buckets';
 
 /**
@@ -101,6 +109,82 @@ function Overrides({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig)
     );
 }
 
+function SteamStore() {
+    const [state, setState] = useState<StoreState | null>(null);
+    const [manual, setManual] = useState<Record<number, string>>({});
+    const [error, setError] = useState<string | null>(null);
+    const reload = () => {
+        rpc.steamStoreGetState().then(setState).catch((e) => setError(String(e)));
+    };
+    useEffect(() => {
+        refreshKnownApps();
+        reload();
+    }, []);
+
+    const games = Object.entries(bucketReport().games).filter(([, g]) => g.bucket === 'steam-store').map(([id]) => Number(id));
+    const run = (fn: () => Promise<unknown>) => () => {
+        setError(null);
+        fn().then(reload).catch((e) => setError(String(e)));
+    };
+
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Steam Store</DialogControlsSectionHeader>
+            {error && <div>{error}</div>}
+            {games.length === 0 && <div>No games are in the Steam Store bucket.</div>}
+            {games.map((appid) => {
+                const key = String(appid);
+                const mapping = state?.mappings[key];
+                const suggestions = state?.suggestions[key] ?? [];
+                const typed = manual[appid] ?? '';
+                return (
+                    <div key={appid}>
+                        <div>
+                            {shortcutName(appid)}:{' '}
+                            {mapping ? `${mapping.name || 'Steam app'} (${mapping.steam_appid}, ${mapping.source})` : 'no match'}
+                        </div>
+                        {mapping && (
+                            <ButtonItem label="Clear this match and its artwork; it will not be applied again" onClick={run(() => clearSteamStore(appid, true))}>
+                                Clear
+                            </ButtonItem>
+                        )}
+                        {suggestions.map((s) => (
+                            <div key={s.steam_appid}>
+                                <ButtonItem
+                                    label={`Suggestion (${s.reason}): ${s.name} (${s.steam_appid})`}
+                                    onClick={run(() => acceptSteamStoreSuggestion(appid, s.steam_appid, s.name))}
+                                >
+                                    Accept
+                                </ButtonItem>
+                                <ButtonItem label="Never suggest this one" onClick={run(() => rejectSteamStoreSuggestion(appid, s.steam_appid))}>
+                                    Reject
+                                </ButtonItem>
+                            </div>
+                        ))}
+                        <TextField
+                            label="Steam appid"
+                            mustBeNumeric
+                            value={typed}
+                            onChange={(e) => setManual({ ...manual, [appid]: e.target.value })}
+                        />
+                        <ButtonItem
+                            label="Use this Steam game"
+                            disabled={!/^\d+$/.test(typed)}
+                            onClick={run(async () => {
+                                const res = await setSteamStoreMapping(appid, Number(typed));
+                                if (res.error) throw new Error(res.error);
+                                setManual({ ...manual, [appid]: '' });
+                            })}
+                        >
+                            Set
+                        </ButtonItem>
+                    </div>
+                );
+            })}
+        </DialogControlsSection>
+    );
+}
+
 function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) => void }) {
     const report = bucketReport();
     const nameOf = (id: string) => report.collections.find((c) => c.id === id)?.name ?? id;
@@ -147,6 +231,7 @@ export function SettingsPanel() {
         <>
             <Buckets cfg={cfg} save={save} />
             <Overrides cfg={cfg} save={save} />
+            <SteamStore />
             <Warnings cfg={cfg} save={save} />
         </>
     );

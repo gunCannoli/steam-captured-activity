@@ -84,6 +84,11 @@ RPC.SteamStoreClearMapping = method("SteamStoreClearMapping", function(data)
   return store.clear(need(data, "appid"), data.reject and true or false)
 end)
 
+RPC.SteamStoreRejectSuggestion = method("SteamStoreRejectSuggestion", function(data)
+  store.reject(need(data, "appid"), need(data, "steam_appid"))
+  return { ok = true }
+end)
+
 RPC.SteamStoreGetAppDetails = method("SteamStoreGetAppDetails", function(data)
   local d, err, cached = appdetails.fetch(need(data, "steam_appid"), nil, { force = data.force and true or false })
   if not d then return { error = err } end

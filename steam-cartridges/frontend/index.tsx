@@ -23,11 +23,17 @@ import { installActivityCardsPatch } from "./steam/activity-cards-patch";
 import { ensureStoreCacheHooked } from "./steam/activity";
 import { NON_STEAM_APPID_MIN, appIdFromPath } from "./steam/route";
 import { initGameInfo } from "./features/game-info";
+import { initSourceView } from "./features/source-view";
 import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 
 export { setSetting, resetSettings };
 export { bucketReport } from "./features/buckets";
+export {
+    clearSteamStore,
+    setSteamStoreMapping,
+    steamStoreState,
+} from "./features/steam-store";
 
 export { registerSummaryProvider } from "./steam/summary";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
@@ -92,6 +98,7 @@ async function init() {
     // ===== Game Info (ex steamgriddb-artwork) =====
     // Not awaited: the two halves load independently, as the two plugins did
     // (ADR-0010), and a failure here must not affect activity.
+    initSourceView();
     void initGameInfo().catch((e) =>
         logger.error("Game Info feature failed; activity is unaffected.", e),
     );

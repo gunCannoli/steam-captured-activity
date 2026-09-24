@@ -286,9 +286,9 @@ package.loaded["rpc"] = package.loaded["rpc"] or { method = function(_, f)
   end
 end }
 local RPC = require("steam_store_rpc")
-check("all nine RPCs exist", (function()
+check("all ten RPCs exist", (function()
   for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreSaveKnownMatch",
-    "SteamStoreSearch", "SteamStoreClearMapping", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork", "SteamStoreDownloadImage" }) do
+    "SteamStoreSearch", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork", "SteamStoreDownloadImage" }) do
     if type(RPC[n]) ~= "function" then return false, n end
   end
   return true
@@ -306,6 +306,10 @@ out = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = EMU, reject =
 check("clear via RPC returns steam_appid", out.steam_appid == 99)
 out = json.decode(RPC.SteamStoreGetMapping(json.encode({ appid = EMU })))
 check("GetMapping reports the rejection", out.mapping == nil and out.rejected[1] == 99)
+store.add_suggestions(EMU, { { steam_appid = 55, name = "S", reason = "near" } })
+RPC.SteamStoreRejectSuggestion(json.encode({ appid = EMU, steam_appid = 55 }))
+out = json.decode(RPC.SteamStoreGetMapping(json.encode({ appid = EMU })))
+check("rejecting a suggestion removes it and remembers it", #store.get(EMU).suggestions == 0 and store.is_rejected(EMU, 55))
 out = json.decode(RPC.SteamStoreDownloadImage(json.encode({ url = "https://evil.example/x.jpg" })))
 check("DownloadImage enforces the allowlist", out.error ~= nil)
 

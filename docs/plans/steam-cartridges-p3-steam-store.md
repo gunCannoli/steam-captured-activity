@@ -35,9 +35,9 @@ ppsspp, yuzu, ryujinx, xemu, xenia, mame, mednafen, flycast, melonds, citra,
 vita3k). This is a guard against wrong matches, not bucket guessing. Any appid in
 `rejected[shortcut]` is never auto-applied again.
 
-## 2. Data files (in `<steam>/millennium/config/steam-cartridges/`, ADR-0032)
+## 2. Data files (via `data_dir.file(name)`, ADR-0032)
 
-`steam_store.json`, which is user state and must never be auto-deleted:
+`steam_store.json`, which is user state and must never be auto-deleted. It holds **only non-Steam shortcut facts**; `store.lua` refuses any appid below `0x80000000`, so native Steam data is never persisted:
 
 ```jsonc
 {
@@ -45,25 +45,24 @@ vita3k). This is a guard against wrong matches, not bucket guessing. Any appid i
   "mappings":    { "<shortcutAppid>": { "steam_appid": 435150, "name": "…", "source": "manual|owned|search", "at": 1790000000 } },
   "suggestions": { "<shortcutAppid>": [ { "steam_appid": 1, "name": "…", "reason": "edition|near" } ] },
   "rejected":    { "<shortcutAppid>": [ 1234 ] },
-  "applied_artwork": { "<shortcutAppid>": { "steam_appid": 435150, "slots": [0, 1, 2, 3], "at": 1790000000 } },
+  "applied_artwork": { "<shortcutAppid>": { "steam_appid": 435150, "slots": [0, 1, 2, 3], "at": 1790000000 } },   // only slots this plugin wrote
   "negative":    { "<normalised title>": 1790000000 }      // no store hit; retry after 7 days
 }
 ```
 
-`appdetails_cache.json` is disposable: `{ "<steamAppid>": { "at": epoch, "metadata": ConsolidatedMetadata } }`
-with a 7-day TTL.
+There is **no** `appdetails_cache.json`: the appdetails cache (7-day TTL) is in memory only, because it would be native Steam data.
 
-## 3. Backend (flat `backend/steam_store_*.lua`; P0 T5 dotted require unverified)
+## 3. Backend (flat `backend/steam_store_*.lua`, no subfolders; P0 T5 dotted require unverified)
 
 | File | Contents |
 | --- | --- |
-| `normalize.lua` | `normalize(s)`: lowercase; strip `™®©`; strip bracketed tags (`(USA)`, `[!]`, `(v1.1)`); non-alphanumerics → space; collapse. `classify(query, name)` → `"exact"` \| `"edition"` \| `"none"`. Edition = the query followed only by edition words, a 4-digit year or roman numerals (linker rule). |
-| `emulators.lua` | `is_emulator(exe)`: basename without extension, lowercased, in the list above. |
-| `store.lua` | Load/save both files (atomic: write `*.tmp`, then rename). `get(appid)`, `set_mapping(appid, steam_appid, name, source)` (clears that shortcut's suggestions), `clear(appid, reject)` → returns `{ steam_appid, slots }`, `add_suggestions`, `record_artwork`, `is_rejected`, negative-cache helpers. |
-| `search.lua` | `search(title, http_get?)`: `https://store.steampowered.com/api/storesearch/?term=…&cc=us&l=english`. Injectable `http_get` for tests. Checks the negative cache. Returns `{ exact = {appid,name}?, suggestions = {…} }`. |
-| `appdetails.lua` | `fetch(steam_appid, http_get?)`: `…/api/appdetails?appids=<id>&l=english&cc=us`, TTL cache. `to_metadata(data)` → `ConsolidatedMetadata`: `title=name`, `description = strip_html(short_description)`, `developers`, `publishers`, `franchises = {}`, `release_date` parsed from `release_date.date` ("13 Sep, 2017" / "Sep 13, 2017"; unknown → 0), `genres` from descriptions. Categories map to the `GameCategories` flags (2 → single_player; 1/36/49 → multiplayer; 9/38 → coop; 24/37/39 → split_screen; 28 → full_controller; 18 → partial_controller; 44 → remote_play_together). **`achievements` is always false** (P5 owns achievements). Adds `source = "steam-store"` and `steam_appid`. |
-| `throttle.lua` | One global gate: at most 1 request/second to `store.steampowered.com`, serial. `User-Agent: steam-cartridges (Millennium plugin)`. |
-| `rpc.lua` | Handlers below, wrapped with core `rpc.lua`'s `method()`. Export it as `RPC.method` (do not assign it as a global). |
+| `steam_store_normalize.lua` | `normalize(s)`: lowercase; strip `™®©`; strip bracketed tags (`(USA)`, `[!]`, `(v1.1)`); non-alphanumerics → space; collapse. `classify(query, name)` → `"exact"` \| `"edition"` \| `"none"`. Edition = the query followed only by edition words, a 4-digit year or roman numerals (linker rule). |
+| `steam_store_emulators.lua` | `is_emulator(exe)`: basename without extension, lowercased, in the list above. |
+| `steam_store_store.lua` | Load/save both files (atomic: write `*.tmp`, then rename). Uses `data_dir.file`. `get(appid)`, `set_mapping(appid, steam_appid, name, source)` (clears that shortcut's suggestions), `clear(appid, reject)` → returns `{ steam_appid, slots }`, `add_suggestions`, `reject`, `record_artwork`, `is_rejected`, negative-cache helpers. |
+| `steam_store_search.lua` | `search(title, http_get?)`: `https://store.steampowered.com/api/storesearch/?term=…&cc=us&l=english`. Injectable `http_get` for tests. Checks the negative cache. Returns `{ exact = {appid,name}?, suggestions = {…} }`. |
+| `steam_store_appdetails.lua` | `fetch(steam_appid, http_get?)`: `…/api/appdetails?appids=<id>&l=english&cc=us`, TTL cache. `to_metadata(data)` → `ConsolidatedMetadata`: `title=name`, `description = strip_html(short_description)`, `developers`, `publishers`, `franchises = {}`, `release_date` parsed from `release_date.date` ("13 Sep, 2017" / "Sep 13, 2017"; unknown → 0), `genres` from descriptions. Categories map to the `GameCategories` flags (2 → single_player; 1/36/49 → multiplayer; 9/38 → coop; 24/37/39 → split_screen; 28 → full_controller; 18 → partial_controller; 44 → remote_play_together). **`achievements` is always false** (P5 owns achievements). Adds `source = "steam-store"` and `steam_appid`. |
+| `steam_store_throttle.lua` | One global gate: at most 1 request/second to `store.steampowered.com`, serial. `User-Agent: steam-cartridges (Millennium plugin)`. |
+| `steam_store_rpc.lua` | Handlers below, wrapped with core `rpc.lua`'s `method()`. `rpc.lua` exports it as `RPC.method` (not a global). |
 
 **RPCs** (payload JSON → JSON; all names new, prefixed to avoid generic globals):
 
@@ -74,12 +73,13 @@ with a 7-day TTL.
 | `SteamStoreSetMapping` | `{ appid, steam_appid, name? }` | `{ mapping }` (manual; removes `steam_appid` from `rejected`) |
 | `SteamStoreSaveKnownMatch` | `{ appid, steam_appid, name }` | `{ mapping }` (source `owned`; refused if rejected) |
 | `SteamStoreSearch` | `{ appid, title }` | `{ mapping }` \| `{ suggestions }` \| `{ skipped: "emulator" \| "negative" \| "rejected" }`. It reads the exe via `shortcuts.parse` for the emulator guard |
+| `SteamStoreRejectSuggestion` | `{ appid, steam_appid }` | `{ ok: true }` (removes the suggestion, remembers the rejection) |
 | `SteamStoreClearMapping` | `{ appid, reject }` | `{ steam_appid, slots }` (the slots the frontend must clear) |
 | `SteamStoreGetAppDetails` | `{ steam_appid, force? }` | `{ metadata, cached }` \| `{ error }` |
 | `SteamStoreRecordArtwork` | `{ appid, steam_appid, slots }` | `{ ok: true }` |
 | `SteamStoreDownloadImage` | `{ url }` | `{ base64, ext }`. **Not needed for CDN paths (P0 T2: frontend fetch works); keep only as a fallback.** URL allowlist: `^https://[%w%.]*steamstatic%.com/` |
 
-Register them as globals in `main.lua`.
+Registered as globals in `main.lua`. `SaveKnownMatch` and `Search` both apply the emulator guard backend-side.
 
 **P0 T3 result (confirmed):** `StoreItemCache` returns name, description, credits, date and
 categories for unowned apps through Steam's own transport; build
@@ -93,6 +93,7 @@ use it **before** `SteamStoreGetAppDetails` (the ADR-0009 ladder). Keep
 | --- | --- |
 | `frontend/steam/shortcut.ts` | **NEW.** Move `resolveShortcutTitle` out of `features/game-info/index.ts` (both features need it). |
 | `frontend/features/source-view.ts` | **NEW.** Move the desktop `onPopupCreate`/`onLocationChange` and `watchGamepadAppid` wiring out of `features/game-info/index.ts`. `onSourceView(appid)`: `getBucket(appid)`. **web-scraping** → the game-info handler (unchanged). **steam-store** → `handleSteamStoreView`. **none** → `revertGameDetails` if enriched. Dedupe concurrent calls per appid (desktop and Big Picture can both fire). |
+| `frontend/features/steam-store/store-item.ts`, `enriched.ts` | **NEW.** `StoreItemCache` metadata/asset adapter; `storeEnrichedAppIds` (leaf module shared with game-info's bucket-change handler). |
 | `frontend/features/steam-store/resolve.ts` | **NEW, pure** (only `import type`): `normalizeTitle` (mirrors `normalize.lua`), `matchKnownApp(title, apps)` (unique exact match or undefined), `cdnArtworkUrls(steam_appid)` → `{ portrait, hero, logo, wide }` (unhashed CDN paths fetch fine for existing apps; prefer hashed URLs from `StoreItemCache` `GetAssets()` for newer apps). |
 | `frontend/features/steam-store/known-apps.ts` | **NEW.** Native app list from `appStore` (`appStore.allApps`, `display_name`); `appid < 0x8000_0000`, games only. Normalised index built once, lazily; `refreshKnownApps()` rebuilds it when the settings panel opens. |
 | `frontend/features/steam-store/index.ts` | **NEW.** `handleSteamStoreView(appid)`: (1) `SteamStoreGetMapping`; (2) none → `matchKnownApp` → `SteamStoreSaveKnownMatch`, else `SteamStoreSearch` (suggestions only → stop); (3) metadata → `enrichGameDetails(appid, metadata)` (same originals/revert as P2); (4) if `applied?.steam_appid !== mapping.steam_appid` → `applyCustomArtworkFromUrls(appid, cdnArtworkUrls(...))` → `SteamStoreRecordArtwork` with only the slots that succeeded (change `applyCustomArtworkFromUrls` to return them). User art in a slot is not detectable (P0 T2 q5): record and clear only slots this plugin wrote. `clearSteamStore(appid, reject)`: RPC, then `SteamClient.Apps.ClearCustomArtworkForApp(appid, slot)` per returned slot (called on `SteamClient.Apps`, never extracted), then `revertGameDetails`. One session-level `processed` set, as in the web path. |

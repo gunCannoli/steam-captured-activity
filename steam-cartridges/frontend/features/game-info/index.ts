@@ -1,13 +1,8 @@
-import { Steam } from "steambrew-utils";
-import {
-    onLocationChange,
-    onPopupCreate,
-    PopupType,
-} from "steambrew-utils/watchers";
 import { logger } from "../../logger";
 import { rpc, type ConsolidatedMetadata } from "../../rpc";
-import { watchGamepadAppid } from "../../steam/gamepad-appid";
-import { NON_STEAM_APPID_MIN, appIdFromPath } from "../../steam/route";
+import { NON_STEAM_APPID_MIN } from "../../steam/route";
+import { resolveShortcutTitle } from "../../steam/shortcut";
+import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
 import {
     getBucket,
@@ -18,7 +13,6 @@ import {
 } from "../buckets";
 import {
     patchGameInfoComponent,
-    setAppViewTrigger,
     setCachedStores,
     enrichedAppIds,
 } from "./game-info-patch";
@@ -29,29 +23,14 @@ const libraryCache = new Map<number, ConsolidatedMetadata>();
 /** Set of appids we have already enriched this session */
 const processedApps = new Set<number>();
 
-function resolveShortcutTitle(appid: number): string | undefined {
-    try {
-        const overview = (window as any).appStore?.GetAppOverviewByAppID?.(
-            appid,
-        );
-        if (overview?.display_name) return overview.display_name;
-
-        const shortcut = (window as any).SteamClient?.Apps?.GetShortcutData?.(
-            appid,
-        );
-        if (shortcut?.strAppName) return shortcut.strAppName;
-    } catch (err) {
-        logger.warn(`Could not read shortcut title for ${appid}:`, err);
-    }
-    return undefined;
-}
-
-async function handleAppView(appid: number): Promise<void> {
+/** Web-scraping source for one shortcut view (dispatched by features/source-view.ts). */
+export async function handleWebScrapingView(appid: number): Promise<void> {
     if (appid < NON_STEAM_APPID_MIN) return;
 
     // Buckets gate the web source (ADR-0033): only web-scraping games are enriched.
-    if (getBucket(appid).bucket !== "web-scraping") {
-        if (enrichedAppIds.has(appid)) revertGameDetails(appid);
+    const bucket = getBucket(appid).bucket;
+    if (bucket !== "web-scraping") {
+        if (bucket !== "steam-store" && enrichedAppIds.has(appid)) revertGameDetails(appid);
         return;
     }
 
@@ -114,9 +93,6 @@ export async function initGameInfo(): Promise<void> {
 
     // Cache SharedJSContext singletons for stores before portals render
     setCachedStores((window as any).appDetailsStore, (window as any).appStore);
-    setAppViewTrigger((appid: number) => {
-        void handleAppView(appid);
-    });
 
     // Bypass Big Picture native shortcut filter on Game Info tab
     patchGameInfoComponent();
@@ -163,8 +139,13 @@ export async function initGameInfo(): Promise<void> {
     onBucketsChanged(() => {
         invalidateMembership();
         for (const appid of [...enrichedAppIds]) {
-            if (getBucket(appid).bucket !== "web-scraping") {
+            const bucket = getBucket(appid).bucket;
+            // steam-store games keep their enrichment (its view handler owns it);
+            // anything else, or a game that left steam-store, is reverted.
+            if (bucket === "steam-store") continue;
+            if (bucket !== "web-scraping" || storeEnrichedAppIds.has(appid)) {
                 revertGameDetails(appid);
+                storeEnrichedAppIds.delete(appid);
             }
         }
         for (const [appid, meta] of libraryCache) {
@@ -175,34 +156,6 @@ export async function initGameInfo(): Promise<void> {
                 enrichGameDetails(appid, meta);
             }
         }
-    });
-
-    // ===== Big Picture Navigation =====
-    // Big Picture renders through a SharedJSContext portal; react/jsx-runtime interception
-    // captures the active appid without depending on window popups.
-    watchGamepadAppid((appid) => {
-        if (appid >= NON_STEAM_APPID_MIN) {
-            void handleAppView(appid);
-        }
-    });
-
-    // ===== Desktop Window Navigation =====
-    onPopupCreate((_popup, type) => {
-        if (type === PopupType.Desktop) {
-            const stopWatching = onLocationChange(
-                () => Steam.MainWindowBrowserManager?.m_lastLocation,
-                ({ pathname }) => {
-                    const appid = appIdFromPath(pathname);
-                    if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
-                        void handleAppView(appid);
-                    }
-                },
-            );
-
-            return () => stopWatching();
-        }
-
-        return undefined;
     });
 
     logger.info("Game Metadata Provider ready.");

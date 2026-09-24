@@ -1,0 +1,66 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { cdnArtworkUrls, matchKnownApp, normalizeTitle } from '../frontend/features/steam-store/resolve.ts';
+import { categoryIds, metadataFromStoreItem } from '../frontend/features/steam-store/store-item.ts';
+
+// Shared with tests/test_steam_store.lua so the two normalisers cannot drift.
+const cases: { normalize: [string, string][] } = JSON.parse(
+    readFileSync(new URL('./fixtures/normalize-cases.json', import.meta.url), 'utf8'),
+);
+
+test('normalize parity with the Lua backend (shared fixture)', () => {
+    for (const [input, expected] of cases.normalize) {
+        assert.equal(normalizeTitle(input), expected, `normalizeTitle(${JSON.stringify(input)})`);
+    }
+});
+
+test('matchKnownApp needs a unique exact normalised match', () => {
+    const apps = [
+        { appid: 435150, name: 'Divinity: Original Sin 2' },
+        { appid: 1, name: 'Doom' },
+        { appid: 2, name: 'DOOM (2016)' },
+        { appid: 3, name: 'Doom Eternal' },
+    ];
+    assert.equal(matchKnownApp('divinity original sin 2', apps)?.appid, 435150);
+    assert.equal(matchKnownApp('Doom', apps), undefined, 'two natives share one normalised name');
+    assert.equal(matchKnownApp('Doom Eternal', apps)?.appid, 3);
+    assert.equal(matchKnownApp('Quake', apps), undefined);
+    assert.equal(matchKnownApp('(only tag)', apps), undefined, 'an empty normalised title never matches');
+});
+
+test('duplicate entries for one appid are not ambiguous', () => {
+    const apps = [{ appid: 7, name: 'Foo' }, { appid: 7, name: 'FOO' }];
+    assert.equal(matchKnownApp('foo', apps)?.appid, 7);
+});
+
+test('cdnArtworkUrls', () => {
+    const u = cdnArtworkUrls(435150);
+    assert.equal(u.portrait, 'https://cdn.akamai.steamstatic.com/steam/apps/435150/library_600x900.jpg');
+    assert.equal(u.hero, 'https://cdn.akamai.steamstatic.com/steam/apps/435150/library_hero.jpg');
+    assert.equal(u.logo, 'https://cdn.akamai.steamstatic.com/steam/apps/435150/logo.png');
+    assert.equal(u.wide, 'https://cdn.akamai.steamstatic.com/steam/apps/435150/header.jpg');
+});
+
+test('StoreItemCache item -> metadata', () => {
+    assert.deepEqual(categoryIds({ supported_player_categoryids: [2, 1], feature_categoryids: [{ categoryid: 28 }] }), [2, 1, 28]);
+    const meta = metadataFromStoreItem(
+        {
+            m_strName: 'Jotunnslayer: Hordes of Hel',
+            m_BasicInfo: { short_description: 'Slay.', developers: [{ name: 'Dev' }], publishers: ['Pub'] },
+            m_ReleaseInfo: { steam_release_date: 1700000000 },
+            m_StoreCategories: { supported_player_categoryids: [2], feature_categoryids: [22, 28] },
+        },
+        2820820,
+        4000000000,
+    );
+    assert.equal(meta?.title, 'Jotunnslayer: Hordes of Hel');
+    assert.deepEqual(meta?.developers, ['Dev']);
+    assert.deepEqual(meta?.publishers, ['Pub']);
+    assert.equal(meta?.release_date, 1700000000);
+    assert.equal(meta?.categories?.single_player, true);
+    assert.equal(meta?.categories?.full_controller, true);
+    assert.equal(meta?.categories?.achievements, false, 'achievements belong to P5');
+    assert.equal(meta?.categories?.multiplayer, false);
+    assert.equal(metadataFromStoreItem({}, 1, 2), null);
+});

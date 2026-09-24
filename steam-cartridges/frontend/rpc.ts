@@ -79,6 +79,9 @@ export interface ConsolidatedMetadata {
     genres?: string[];
     categories?: GameCategories;
     custom_override?: boolean;
+    /** Set by the Steam Store bucket. */
+    source?: string;
+    steam_appid?: number;
 }
 
 export interface MetadataResponse {
@@ -121,6 +124,32 @@ export interface GameArtworkResponse {
     artwork?: ArtworkBundle;
 }
 
+// ---- Steam Store bucket (P3) ----
+
+export type StoreSource = "manual" | "owned" | "search";
+export interface StoreMapping {
+    steam_appid: number;
+    name: string;
+    source: StoreSource;
+    at?: number;
+}
+export interface StoreSuggestion {
+    steam_appid: number;
+    name: string;
+    reason: "edition" | "near";
+}
+export interface StoreApplied {
+    steam_appid: number;
+    slots: number[];
+    at?: number;
+}
+export interface StoreState {
+    mappings: Record<string, StoreMapping>;
+    suggestions: Record<string, StoreSuggestion[]>;
+    rejected: Record<string, number[]>;
+    applied_artwork: Record<string, StoreApplied>;
+}
+
 // ---------------------------------------------------------------------------
 
 export const rpc = {
@@ -146,4 +175,38 @@ export const rpc = {
             title,
             steam_appid: steamAppId,
         }),
+
+    steamStoreGetState: () => call<StoreState>("SteamStoreGetState"),
+    steamStoreGetMapping: (appid: number) =>
+        call<{ mapping: StoreMapping | null; rejected: number[]; applied: StoreApplied | null }>(
+            "SteamStoreGetMapping",
+            { appid },
+        ),
+    steamStoreSetMapping: (appid: number, steam_appid: number, name?: string) =>
+        call<{ mapping?: StoreMapping; error?: string }>("SteamStoreSetMapping", { appid, steam_appid, name }),
+    steamStoreSaveKnownMatch: (appid: number, steam_appid: number, name: string) =>
+        call<{ mapping?: StoreMapping; skipped?: string; error?: string }>("SteamStoreSaveKnownMatch", {
+            appid,
+            steam_appid,
+            name,
+        }),
+    steamStoreSearch: (appid: number, title: string) =>
+        call<{ mapping?: StoreMapping; suggestions?: StoreSuggestion[]; skipped?: string; error?: string }>(
+            "SteamStoreSearch",
+            { appid, title },
+        ),
+    steamStoreClearMapping: (appid: number, reject: boolean) =>
+        call<{ steam_appid?: number; slots: number[]; error?: string }>("SteamStoreClearMapping", { appid, reject }),
+    steamStoreRejectSuggestion: (appid: number, steam_appid: number) =>
+        call<{ ok?: boolean; error?: string }>("SteamStoreRejectSuggestion", { appid, steam_appid }),
+    steamStoreGetAppDetails: (steam_appid: number, appid?: number, force?: boolean) =>
+        call<{ metadata?: ConsolidatedMetadata; cached?: boolean; error?: string }>("SteamStoreGetAppDetails", {
+            steam_appid,
+            appid,
+            force,
+        }),
+    steamStoreRecordArtwork: (appid: number, steam_appid: number, slots: number[]) =>
+        call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots }),
+    steamStoreDownloadImage: (url: string) =>
+        call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url }),
 };

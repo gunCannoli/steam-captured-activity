@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import type { ArtworkBundle, ArtworkUrls } from "../../rpc";
+import { rpc, type ArtworkBundle, type ArtworkUrls } from "../../rpc";
 
 /**
  * Steam custom artwork slot types:
@@ -45,6 +45,16 @@ export async function fetchImageAsBase64(
         blob = await attempt(proxied);
     }
 
+    // Steam CDN only: the backend fetch is the fallback (never a third-party proxy).
+    if (!blob && /^https:\/\/[\w.-]*steamstatic\.com\//.test(url)) {
+        try {
+            const res = await rpc.steamStoreDownloadImage(url);
+            if (res?.base64) {
+                return { base64: res.base64, ext: forcePng ? "png" : res.ext || "jpg" };
+            }
+        } catch {}
+    }
+
     if (!blob) return null;
 
     const base64 = await new Promise<string | null>((resolve) => {
@@ -78,16 +88,17 @@ export async function fetchImageAsBase64(
     return { base64, ext };
 }
 
+/** Returns the slots that were actually written (callers record them). */
 export async function applyCustomArtworkFromUrls(
     appid: number,
     urls: ArtworkUrls,
-): Promise<number> {
+): Promise<number[]> {
     const sc = (window as any).SteamClient;
     if (!sc?.Apps?.SetCustomArtworkForApp) {
         logger.warn(
             "SteamClient.Apps.SetCustomArtworkForApp is not available.",
         );
-        return 0;
+        return [];
     }
 
     const tasks: [string | undefined, number, string, boolean][] = [
@@ -111,7 +122,7 @@ export async function applyCustomArtworkFromUrls(
         }),
     );
 
-    let appliedCount = 0;
+    const appliedSlots: number[] = [];
     for (const item of downloaded) {
         if (!item) continue;
         const { asset, slot, label } = item;
@@ -128,7 +139,7 @@ export async function applyCustomArtworkFromUrls(
                 asset.ext,
                 slot,
             );
-            appliedCount++;
+            appliedSlots.push(slot);
             logger.info(`Set custom ${label} artwork for appid ${appid}`);
         } catch (err) {
             logger.warn(
@@ -138,7 +149,7 @@ export async function applyCustomArtworkFromUrls(
         }
     }
 
-    return appliedCount;
+    return appliedSlots;
 }
 
 export async function applyCustomArtwork(

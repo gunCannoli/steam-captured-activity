@@ -59,6 +59,10 @@ native media carousels.
 
 Game Info (web metadata) now runs only for games in a collection you assign to **Web Scraping** in the plugin's settings panel (Millennium sidebar). **Upgrade note:** until you assign a collection, no game gets Game Info; everything unassigned is bucket `none`. Precedence is the list order; per-game overrides win. Captures, activity and summaries ignore buckets. Design: ADR-0033.
 
+## Steam Store bucket
+
+Games in a collection assigned to **Steam Store** borrow Steam's own data: the shortcut title is matched (exact, normalised, unique) against native games Steam already knows, then against Steam's store search. Near matches (edition words, contained titles) are only **suggestions** you accept in settings. A match brings the native portrait, hero, logo and wide art (set as custom artwork on the shortcut, **replacing** any art you set in those slots) and native Game Info. **Clear** in settings removes the match, clears only the art slots this plugin wrote, and remembers the rejection. Shortcuts that launch a known emulator are never auto-matched; a manual appid always works. Requests only happen for Steam Store games, at most one per second. Only your shortcut mappings are stored (`steam_store.json`); native Steam data is never written to disk.
+
 ## Status
 
 Post-game summary, per-day activity feed, and library grid work in the live client.
@@ -124,6 +128,7 @@ shortcut was played, for games Steam never launched itself.
 | ----------------- | ------- | ----------------------------------------------------- |
 | `GetLibraryStats` | `{}`    | `{ "<appid>": { screenshots, newest } }` for the grid |
 | `GetDiagnostics`  | `{}`    | what the backend can see — use this first             |
+| `SteamStore*`     | see plan | Steam Store bucket: `GetState`, `GetMapping`, `SetMapping`, `SaveKnownMatch`, `Search`, `ClearMapping`, `RejectSuggestion`, `GetAppDetails`, `RecordArtwork`, `DownloadImage` ([P3 plan](../docs/plans/steam-cartridges-p3-steam-store.md)) |
 
 ## Develop
 
@@ -155,6 +160,7 @@ Millennium does not ship a standalone Lua, so get one from
 
 ```bash
 NSGA_STEAM_ROOT="C:\game\steam" lua tests/test_backend.lua
+lua tests/test_steam_store.lua   # hermetic: fixtures + injected http, no Steam, no network
 ```
 
 The suite stubs Millennium's `fs`/`utils`/`logger`/`millennium` modules

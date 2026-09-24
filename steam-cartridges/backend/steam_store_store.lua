@@ -152,6 +152,16 @@ function M.remove_suggestion(appid, steam_appid)
   save()
 end
 
+--- Reject a suggested (or any) match for a shortcut: it is never applied again.
+function M.reject(appid, steam_appid)
+  local s, k = load(), key(appid)
+  if not M.is_rejected(appid, steam_appid) then
+    s.rejected[k] = s.rejected[k] or {}
+    table.insert(s.rejected[k], tonumber(steam_appid))
+  end
+  M.remove_suggestion(appid, steam_appid) -- saves
+end
+
 function M.record_artwork(appid, steam_appid, slots, now)
   local s, k = load(), key(appid)
   s.applied_artwork[k] = { steam_appid = tonumber(steam_appid), slots = slots or {}, at = now or os.time() }

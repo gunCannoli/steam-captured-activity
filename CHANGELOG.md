@@ -9,6 +9,7 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`steam-cartridges` P3 built offline** (Steam Store bucket): flat `steam_store_*.lua` backend (10 RPCs, throttle, emulator guard, in-memory appdetails cache, non-Steam-only `steam_store.json`), `features/source-view.ts` dispatcher, `steam-store/` (known-app match, `StoreItemCache` first, CDN art recording only written slots), settings section, Lua/TS tests on hand-shaped fixtures. Plan reconciled (no appdetails disk cache). Live CDP and Routines 1-3 pending; consolidated list in TASK.md.
 - **`steam-cartridges` P2 built offline** (resolver + 6 unit tests, `settings.ts` (#903 port), `collections.ts`, panel, Game Info gate with `revertGameDetails`). ADR-0033 reconciled: config persists only the collection list and shortcut overrides, never native data or membership. Live CDP (`tests/buckets.mjs`) and Routines 1-3 pending; Lua tests not runnable here (no `lua`).
 - **`steam-cartridges` P0 research closed** (docs and `scratch/cartridges/` probes; no plugin code). `collectionStore` and `StoreItemCache` (loads unowned apps) recorded; frontend fetch of the Steam CDN works; keyless achievement schema is store `appdetails` (ADR-0034 now Accepted). Not live-verified, to be self-checked in P1/P3: dotted Lua `require` (flat files chosen), Lua cwd, `SetCustomArtworkForApp` size limits. User-art detection is not possible, so P3 clears only slots it wrote. Fixtures are read-only (existing Jotunnslayer shortcut).
 

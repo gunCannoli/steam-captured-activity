@@ -78,9 +78,21 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
     - [x] Gate IGDB/Game Info to web-scraping; `revertGameDetails` on leave; live re-resolve without restart
     - [ ] `tests/buckets.mjs` CDP written, not run; Routines 1–3 pending live verification
 - [ ] **P3 Steam Store bucket**: [plan](docs/plans/steam-cartridges-p3-steam-store.md)
-    - [ ] `backend/steam_store/*` (normalize, store, search, appdetails, throttle, 9 RPCs) + Lua tests on captured fixtures
-    - [ ] `source-view.ts` dispatcher, `known-apps.ts`, `steam-store/index.ts`, CDN art via `SetCustomArtworkForApp`
-    - [ ] Mappings/suggestions/clear in the settings panel; `tests/steam-store.mjs` + Routines 1–3
+    - [x] Flat `backend/steam_store_*.lua` (normalize, store, search, appdetails, throttle, emulators, 10 RPCs) + hermetic Lua tests (`tests/test_steam_store.lua`, hand-shaped fixtures)
+    - [x] `source-view.ts` dispatcher, `known-apps.ts`, `store-item.ts`, `steam-store/index.ts`, CDN art via `SetCustomArtworkForApp` (records written slots only)
+    - [x] Settings panel section; `tests/steam-store.test.ts` (normalize parity); `tests/steam-store.mjs` written, not run
+    - [ ] Live verification: see "Live verification pending" below
+
+### Live verification pending (P1-P3; nothing below has run against Steam)
+
+Deploy is a user action (`dev.ps1`). Then:
+
+- **P1:** deploy `-dev`, legacy plugins retired; check the P1 self-check log line (`package.path`, cwd, `data_dir`); Routines 1-3 (plan section 4 steps 3-8); `migrate.run` copies `.env` / `library_metadata.json` into `<steam>/millennium/config/steam-cartridges` on real data; old-plugin RPC names still resolve.
+- **P2:** `node tests/buckets.mjs`; Routines 1-3; bucket changes re-resolve live with no restart; Game Info absent for `none` games; `waitForCollections` timing at startup; a real collection reorder/conflict in the panel.
+- **P3:** `node tests/steam-store.mjs` (owned, unowned, retro, clear/reject/restore); Routines 1-3 on desktop and Big Picture for `SC_STEAM_OWNED` and `SC_RETRO_A`, `test_nav_cycle.js <SC_STEAM_OWNED> 435150`, AM2R capture views unchanged.
+- **P3 unverified assumptions:** `StoreItemCache` item field names in `store-item.ts` (`m_StoreCategories` shape, `GetAssets()` method names, portrait via `GetLibraryCapsuleURL_2x`); `SetCustomArtworkForApp` size limits (a failed slot is skipped and unrecorded); `ClearCustomArtworkForApp` really clears a written slot; Millennium's `json.encode` of empty tables in `steam_store.json`; `os.rename` overwrite semantics in Millennium's Lua (store removes the target first, falls back to a direct write); real `storesearch`/`appdetails` shapes against the hand-shaped fixtures (re-record with curl); the throttle busy-wait is acceptable on the backend thread; settings panel `TextField`/buttons render and refresh; desktop and Big Picture both fire `onSourceView` without a double-apply.
+- **Logs:** no store request for `none` or web-scraping games; requests throttled to 1/s.
+
 - [ ] **P4** hardening · [ ] **P5** achievements (Steam native, RetroAchievements) · [ ] **P6** optional SteamGridDB rules (plans written when P3 lands)
 
 Phase 5 below is superseded by P5 there.

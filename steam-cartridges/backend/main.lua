@@ -39,6 +39,7 @@ SteamStoreSetMapping     = STORE_RPC.SteamStoreSetMapping
 SteamStoreSaveKnownMatch = STORE_RPC.SteamStoreSaveKnownMatch
 SteamStoreSearch         = STORE_RPC.SteamStoreSearch
 SteamStoreClearMapping   = STORE_RPC.SteamStoreClearMapping
+SteamStoreRejectSuggestion = STORE_RPC.SteamStoreRejectSuggestion
 SteamStoreGetAppDetails  = STORE_RPC.SteamStoreGetAppDetails
 SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
 SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
