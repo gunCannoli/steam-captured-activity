@@ -18,6 +18,7 @@ local metadata_db = require("web_metadata_db")
 
 local RPC     = require("rpc")
 local WEB_RPC = require("web_rpc")
+local STORE_RPC = require("steam_store_rpc")
 
 -- Millennium exposes globals to the frontend as callable methods.
 GetLibraryStats = RPC.GetLibraryStats
@@ -30,6 +31,17 @@ RefreshGameMetadata  = WEB_RPC.RefreshGameMetadata
 GetAllMetadata       = WEB_RPC.GetAllMetadata
 SaveGameMetadata     = WEB_RPC.SaveGameMetadata
 GetArtworkForGame    = WEB_RPC.GetArtworkForGame
+
+-- Steam Store bucket (P3). Flat files, prefixed names.
+SteamStoreGetState       = STORE_RPC.SteamStoreGetState
+SteamStoreGetMapping     = STORE_RPC.SteamStoreGetMapping
+SteamStoreSetMapping     = STORE_RPC.SteamStoreSetMapping
+SteamStoreSaveKnownMatch = STORE_RPC.SteamStoreSaveKnownMatch
+SteamStoreSearch         = STORE_RPC.SteamStoreSearch
+SteamStoreClearMapping   = STORE_RPC.SteamStoreClearMapping
+SteamStoreGetAppDetails  = STORE_RPC.SteamStoreGetAppDetails
+SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
+SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

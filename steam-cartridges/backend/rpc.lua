@@ -45,6 +45,9 @@ local function method(name, func)
   end
 end
 
+--- Exported so other RPC modules (steam_store_rpc) share one wrapper.
+RPC.method = method
+
 --- Batched counts for the library grid.
 RPC.GetLibraryStats = method("GetLibraryStats", function(_)
   local paths, err = steam_paths.resolve()

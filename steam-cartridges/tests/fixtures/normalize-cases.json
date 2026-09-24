@@ -1,0 +1,15 @@
+{
+  "normalize": [
+    ["Jotunnslayer: Hordes of Hel", "jotunnslayer hordes of hel"],
+    ["  DOOM (2016)  ", "doom"],
+    ["Super Mario World (USA) [!]", "super mario world"],
+    ["Game (v1.1 (beta)) Final", "game final"],
+    ["Half-Life™ 2®", "half life 2"],
+    ["Alan  Wake_2", "alan wake 2"],
+    ["Unclosed (paren Title", "unclosed paren title"],
+    ["[Tag] Name [x", "name x"],
+    ["Divinity: Original Sin 2", "divinity original sin 2"],
+    ["", ""],
+    ["(only tag)", ""]
+  ]
+}
