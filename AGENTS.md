@@ -172,7 +172,7 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
     1. **Never delete shortcut stubs from `StoreItemCache.m_mapApps`** on view unpatch. They cost trivial RAM (~150 bytes) and keep Steam's store cache satisfied indefinitely.
     2. **Always purge negative caches on ingestion:** In `publishActivity`, call `storeCache.m_setUnavailableApps.delete(appid)`.
     3. **Immunize via Prototype Hook:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
-- **Reference:** Full live trace and specification in [docs/regression_hardening.md](docs/regression_hardening.md).
+- **Reference:** Full live trace and specification in [docs/knowledgebase.md § Trap 8](docs/knowledgebase.md#trap-8-negative-cache-poisoning--stub-lifetime-in-storeitemcache).
 
 ### 6. Two-Way Navigation Lifecycle Smoke Verification (Game A ➔ Game B ➔ Game A)
 
@@ -182,6 +182,37 @@ Activity, Game Info, and Your Stuff tabs. Violating them causes immediate user-f
     1. Open Non-Steam Shortcut A (verify all sections render).
     2. Navigate to Native Game B (or Library Home).
     3. Navigate back to Non-Steam Shortcut A (verify all sections, daily buckets, and cards remain 100% intact).
+
+### 7. Safe Category Cache Invalidation
+
+- **The Trap:** Adding categories directly to `overview.m_setStoreCategories.add(catId)` without clearing
+  previously assigned managed categories.
+- **The Ripple Effect:** When switching between titles or re-enriching, categories accumulate in memory,
+  causing false badges (e.g. false "Achievements" or "Controller Support" badges on titles that lack them).
+- **The Mandatory Guardrail:** Before adding categories, always purge managed category IDs:
+    ```typescript
+    for (const catId of Object.values(STEAM_CATEGORIES)) {
+        overview.m_setStoreCategories.delete(catId);
+    }
+    ```
+
+### 8. Dedicated Metadata Association (Never Overwrite `appData.details`)
+
+- **The Trap:** Initializing synthetic `appData.details = {}` to feed developer/publisher credits.
+- **The Ripple Effect:** Native Steam components (`GameStatsSection`) expect internal store-only arrays
+  (`vecChildConfigApps`, `unEntitledContentApp`). Overwriting `details` with an empty object throws unhandled
+  TypeErrors and crashes the Game Info view.
+- **The Mandatory Guardrail:** Never overwrite `appData.details`. Exclusively feed Steam's dedicated data channels:
+  - Descriptions: `appData.descriptionsData = { strSnippet, strFullDescription }`
+  - Credits: `appData.associationData = { rgDevelopers, rgPublishers, rgFranchises }`
+
+### 9. Automated CDP Verification Suite
+
+Before concluding any work, run the automated diagnostic scripts in `scratch/`:
+```powershell
+node scratch/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
+node scratch/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
+```
 
 ## Working agreements
 

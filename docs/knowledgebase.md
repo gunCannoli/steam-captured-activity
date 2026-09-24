@@ -826,6 +826,20 @@ GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toStri
 
 - Always verify with a real CEF screenshot across both Desktop and Big Picture Mode before declaring a feature complete. Stale rendered DOM or z-index/portal clipping can hide defects from plain querySelector checks.
 
+#### Trap 8: Negative Cache Poisoning & Stub Lifetime in `StoreItemCache`
+
+- **The Problem:** Deleting stubs from `StoreItemCache.m_mapApps` inside unmount / unpatch hooks (`clearActivity`) triggers asynchronous 404 store requests from unmounting React hooks (`useStoreItemCache` in module `82594`).
+- **The Breakdown Chain:** Steam permanently blacklists the shortcut appid in `StoreItemCache.m_setUnavailableApps`. On returning to the game, `BIsStoreItemMissing(appid)` evaluates to `true`, returning `undefined` to event renderer `dt` (module `80478`), which returns `null` and wipes out all daily activity events into an empty `<div></div>`.
+- **The Defense:**
+  1. Never delete shortcut stubs from `StoreItemCache.m_mapApps` on view unmount (they cost negligible memory: ~150 bytes).
+  2. Always purge `storeCache.m_setUnavailableApps?.delete(appid)` in `publishActivity`.
+  3. Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
+
+#### Trap 9: Synthetic `appData.details` Overwrite Mutating Store Objects
+
+- **The Problem:** Setting `appData.details = {}` to feed descriptions or developer credits crashes native `GameStatsSection` components because internal arrays (`vecChildConfigApps`, `unEntitledContentApp`) are missing.
+- **The Defense:** Never overwrite `appData.details`. Exclusively feed Steam's dedicated channels: `appData.descriptionsData` (`strSnippet`, `strFullDescription`) and `appData.associationData` (`rgDevelopers`, `rgPublishers`, `rgFranchises`).
+
 ### Identifying non-Steam apps
 
 Steam assigns shortcuts very high app ids. The SDK exposes the boundary as
