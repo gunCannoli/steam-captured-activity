@@ -9,6 +9,7 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **Planned `steam-cartridges`** (docs only): merge `non-steam-games-activity` + `steamgriddb-artwork`, exclusive Steam Store / Web Scraping buckets per collection, Steam-native + RetroAchievements achievements, optional SGDB rule-based artwork last. Linker's Epic/Xbox/news/community features dropped. See [docs/steam-cartridges.md](docs/steam-cartridges.md).
 - **`enhanced-achievements` Phase 7 (auto-captures on unlock) + alpha readiness for both toast plugins.**
   Spec: [docs/plans/phase7-and-alpha-plan.md](docs/plans/phase7-and-alpha-plan.md).
   - Phase 7: an optional screenshot, clip and timeline marker on achievement

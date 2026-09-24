@@ -51,6 +51,14 @@ and each plugin's README ("How to test").
 
 ## Roadmap
 
+### steam-cartridges (merger + buckets + achievements)
+
+Plan only, no code yet: [docs/steam-cartridges.md](docs/steam-cartridges.md). Phases:
+
+- [ ] **P0** research closure + ADRs · [ ] **P1** merge `non-steam-games-activity` + `steamgriddb-artwork` · [ ] **P2** exclusive bucket engine · [ ] **P3** Steam Store bucket · [ ] **P4** hardening · [ ] **P5** achievements (Steam native, RetroAchievements) · [ ] **P6** optional SteamGridDB rules
+
+Phase 5 below is superseded by P5 there.
+
 ### Phase 5: Native Achievement Integration (Desktop & Big Picture)
 
 - **Desktop Sidebar:** Re-enable `"achievements"` in `CAppDetailsSections.GetSections()` and feed `AppDetailsStore.GetAchievements(appid)` with `{ nAchieved, nTotal, vecHighlight, vecUnachieved }`.
