@@ -4,6 +4,7 @@ A private workspace for building [Millennium](https://steambrew.app/) plugins â€
 mods for the desktop Steam Client.
 
 Plugins are developed here as subfolders and published individually as public
+repositories once they are ready for release. See [docs/plugin.md](docs/plugin.md).
 repositories once they are ready for release. See [docs/plugins.md](docs/plugins.md).
 
 ## The idea
@@ -55,6 +56,7 @@ for what each one needs and where its data comes from.
 | Doc | What it holds |
 | --- | --- |
 | [TASK.md](TASK.md) | Current status, what is next |
+| [docs/plugin.md](docs/plugin.md) | How to create a plugin, and how to publish one |
 | [docs/plugins.md](docs/plugins.md) | Millennium plugin creation guide, architecture & guardrails |
 | [AGENTS.md](AGENTS.md) | Conventions and environment facts for contributors and AI agents |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, verified facts |

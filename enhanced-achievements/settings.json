@@ -1,0 +1,12 @@
+{
+    "screenshot": {
+        "enabled": true,
+        "delay_ms": 500
+    },
+    "recording": {
+        "enabled": true,
+        "duration_s": 15,
+        "delay_ms": 0,
+        "add_timeline_marker": true
+    }
+}

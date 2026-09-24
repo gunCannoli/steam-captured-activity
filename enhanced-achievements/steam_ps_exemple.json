@@ -3,17 +3,7 @@
         "layout": "default_system_right",
         "position": "topright",
         "display_time_ms": 4000,
-        "animation": "slide",
-        "screenshot": {
-            "enabled": true,
-            "delay_ms": 500
-        },
-        "recording": {
-            "enabled": true,
-            "duration_s": 15,
-            "delay_ms": 1000,
-            "add_timeline_marker": true
-        }
+        "animation": "slide"
     },
     "themes": {
         "normal": {
