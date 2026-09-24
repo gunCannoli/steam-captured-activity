@@ -5,6 +5,7 @@ import { activeTheme } from '../theme/active-theme';
 import { ThemedToast, setSteamToast } from '../banner/themed-toast';
 import { isAchievementUnlock, type SteamNotification } from './notifications';
 import { findExports } from './webpack';
+import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
 
 /**
  * Swaps Steam's notification-toast dispatcher for our themed toast, for
@@ -33,9 +34,7 @@ interface ToastProps {
 
 let runtime: JsxRuntime | null = null;
 let dispatcher: unknown = null;
-const originals: Partial<Record<'jsx' | 'jsxs', JsxRuntime['jsx']>> = {};
-const installed: Partial<Record<'jsx' | 'jsxs', unknown>> = {};
-let timer: number | undefined;
+let hook: ReturnType<typeof keepJsxPatched> | null = null;
 
 function resolveDispatcher(): unknown {
     const hits = findExports(
@@ -66,23 +65,14 @@ function shouldTheme(props: ToastProps | undefined): boolean {
     return isAchievementUnlock(n) && setting('banner.enabled') && activeTheme() !== null;
 }
 
-function patch(name: 'jsx' | 'jsxs'): void {
-    if (!runtime || runtime[name] === installed[name]) return;
-    const original = runtime[name];
-    originals[name] = original;
-    const wrapped = function (this: unknown, type: unknown, props: unknown, key?: unknown) {
-        if (type === dispatcher && shouldTheme(props as ToastProps)) {
-            return original.call(this, ThemedToast, props, key);
-        }
-        return original.call(this, type, props, key);
-    };
-    runtime[name] = wrapped;
-    installed[name] = wrapped;
-}
-
 /** True once the banner patch is live (used by claims() for enhanced-notifications). */
 export function toastPatchInstalled(): boolean {
-    return !!runtime && runtime.jsx === installed.jsx;
+    return !!hook && hook.diagnostics().every((d) => d.live);
+}
+
+/** Chain health, for tests (window.PLUGIN_LIST[...].jsxDiagnostics()). */
+export function jsxDiagnostics(): JsxHookDiagnostics[] {
+    return hook?.diagnostics() ?? [];
 }
 
 export function initToastPatch(): boolean {
@@ -93,23 +83,17 @@ export function initToastPatch(): boolean {
         return false;
     }
     setSteamToast(dispatcher);
-    patch('jsx');
-    patch('jsxs');
-    // Steam has been seen to swap a patched runtime reference around the first
-    // game launch (non-steam-games-activity, ADR-0027). Re-checking two
-    // references is cheap, so a slow poll is fine.
-    timer = window.setInterval(() => {
-        patch('jsx');
-        patch('jsxs');
-    }, 5000);
+    // Self-healing SDK patch shared safely with other plugins (steam/jsx-hook.ts):
+    // it re-installs only when it is no longer anywhere in the chain.
+    hook = keepJsxPatched(runtime, {
+        label: 'enhanced-achievements',
+        replaceType: (type, props) => (type === dispatcher && shouldTheme(props as ToastProps) ? ThemedToast : undefined),
+    });
     logger.info('Achievement toast patch installed.');
     return true;
 }
 
 export function disposeToastPatch(): void {
-    if (timer !== undefined) window.clearInterval(timer);
-    if (!runtime) return;
-    for (const name of ['jsx', 'jsxs'] as const) {
-        if (runtime[name] === installed[name] && originals[name]) runtime[name] = originals[name]!;
-    }
+    hook?.dispose();
+    hook = null;
 }

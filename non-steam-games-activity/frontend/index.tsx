@@ -22,6 +22,7 @@ import { installActivityCardsPatch } from "./steam/activity-cards-patch";
 import { ensureStoreCacheHooked } from "./steam/activity";
 
 export { registerSummaryProvider } from "./steam/summary";
+export { jsxDiagnostics } from "./steam/gamepad-appid";
 export type {
     SummaryContext,
     SummaryContribution,

@@ -282,6 +282,27 @@ Both the desktop client and Big Picture arrive through `onPopupCreate`; Big
 Picture is a separate popup window (`SP BPM_`), not a separate sandbox
 ([ADR-0016](decisions.md#adr-0016-support-big-picture-through-the-same-backend-with-a-separate-renderer)).
 
+### Sharing the jsx runtime between plugins
+
+Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
+`non-steam-games-activity` (Big Picture appid detection) and
+`enhanced-achievements` (achievement banner). Rules:
+
+- **Use `steam/jsx-hook.ts` (`keepJsxPatched`)**, a file copied identically into each
+  plugin. It patches through the SDK patcher (`beforePatch` / `replacePatch`), so
+  every wrapper links to the next via `fn.__millenniumPatch.original` and
+  `unpatch()` works through the whole chain.
+- **Never re-patch because "`runtime.jsx` is not my function".** Another plugin's
+  patch on top makes that true forever, and two plugins doing it grow the chain
+  every poll. `keepJsxPatched` re-installs only when its patch is not anywhere in
+  the chain (walk the SDK links; if a foreign non-SDK wrapper hides the rest,
+  call `runtime.jsx(SENTINEL, {})` and see whether the handler receives it).
+- **Never hand-roll a wrapper** (`runtime.jsx = function…`): it has no
+  `__millenniumPatch` link, so it breaks both the chain walk and the SDK's `unpatch()`.
+- Handlers run for every element: O(1) only (guardrail 2).
+- Verify with `node scratch/jsx_chain.js`: steady depth, foreign wrapper on top,
+  dropped reference, and a banner still rendering.
+
 ### Core architectural principles
 
 - **The core never reaches the network.** Network access is a provider concern.

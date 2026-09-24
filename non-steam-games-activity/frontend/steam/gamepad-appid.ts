@@ -1,4 +1,5 @@
-import { beforePatch, findModuleByExport } from '@steambrew/client';
+import { findModuleByExport } from '@steambrew/client';
+import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
 import { logger } from '../logger';
 
 /**
@@ -91,40 +92,33 @@ function handleIntercepted(props: unknown): void {
   notify(props.appid);
 }
 
-let runtime: JsxRuntimeModule | undefined;
-let patchedJsx: unknown;
-let patchedJsxs: unknown;
+let hook: ReturnType<typeof keepJsxPatched> | undefined;
 
 /**
- * Install (or re-install) the interception. Idempotent per current runtime
- * reference; re-checked on a slow interval because Steam has been observed
- * (by a third-party plugin using this same technique on desktop, not yet
- * independently confirmed on this codebase's own build) to occasionally
- * swap or drop a patched reference around the first game launch of a
- * session. Re-detecting is cheap — it only re-reads two already-resolved
- * function references, not a full module-cache rescan — so polling for it
- * is not worth avoiding.
+ * Install the interception once. It is self-healing and shared safely with the
+ * other plugins that hook jsx (steam/jsx-hook.ts): it re-installs only when it
+ * is no longer anywhere in the chain. The old check ("is runtime.jsx still my
+ * function?") re-wrapped every 5 s whenever another plugin's patch sat on top,
+ * growing the chain without bound. Steam swapping or dropping the reference
+ * around the first game launch is still covered.
  */
 function ensurePatched(): void {
+  if (hook) return;
+  const runtime = findJsxRuntime();
   if (!runtime) {
-    runtime = findJsxRuntime();
-    if (!runtime) {
-      logger.warn('Could not find react/jsx-runtime; Big Picture appid detection is unavailable.');
-      return;
-    }
+    logger.warn('Could not find react/jsx-runtime; Big Picture appid detection is unavailable.');
+    return;
   }
-
-  if (runtime.jsx !== patchedJsx) {
-    beforePatch(runtime, 'jsx', (args) => handleIntercepted(args[1]));
-    patchedJsx = runtime.jsx;
-  }
-  if (runtime.jsxs !== patchedJsxs) {
-    beforePatch(runtime, 'jsxs', (args) => handleIntercepted(args[1]));
-    patchedJsxs = runtime.jsxs;
-  }
+  hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
+    label: 'non-steam-games-activity',
+    observe: (_type, props) => handleIntercepted(props),
+  });
 }
 
-let watchdog: ReturnType<typeof setInterval> | undefined;
+/** Chain health, for tests (window.PLUGIN_LIST[...].jsxDiagnostics()). */
+export function jsxDiagnostics(): JsxHookDiagnostics[] {
+  return hook?.diagnostics() ?? [];
+}
 
 /**
  * Notify `onAppid` whenever Big Picture's app-details view renders with a
@@ -134,16 +128,8 @@ let watchdog: ReturnType<typeof setInterval> | undefined;
  */
 export function watchGamepadAppid(onAppid: (appid: number) => void): () => void {
   ensurePatched();
-  if (watchdog === undefined) {
-    watchdog = setInterval(ensurePatched, 5000);
-  }
-
   listeners.add(onAppid);
   return () => {
     listeners.delete(onAppid);
-    if (listeners.size === 0 && watchdog !== undefined) {
-      clearInterval(watchdog);
-      watchdog = undefined;
-    }
   };
 }

@@ -59,7 +59,47 @@ Built and verified on desktop (see [CHANGELOG.md](CHANGELOG.md), [plan](docs/enh
 - [ ] **Friend/message toasts:** enable Steam's Friends notifications and verify.
 - [ ] **In-game overlay:** verify both plugins with a real game.
 - [ ] **Core regression** (Routines 1–2, `scratch/`) with all three plugins enabled.
-- [ ] **Latent:** `enhanced-achievements` re-wraps `jsx` every 5 s whenever something else is on top; if another plugin does the same, the chain grows. Mark wrappers so a re-patch only happens when ours is gone.
+- [ ] **Shared jsx patch (code done 2026-09-24, NOT yet tested)**: fixes the latent chain growth. Details below.
+
+### Shared jsx runtime patch — verify next session
+
+**Problem:** `non-steam-games-activity` (SDK `beforePatch` + 5 s watchdog) and
+`enhanced-achievements` (hand-rolled wrapper + 5 s re-wrap) both re-patched
+whenever `runtime.jsx` was not their own function. With both loaded, each saw
+the other on top and wrapped again every 5 s, so the chain could grow without
+bound. The hand-rolled wrapper also had no `__millenniumPatch` link, so the
+SDK's `unpatch()` would throw walking through it.
+
+**Step 0 finding (SDK source, `@steambrew/client/build/utils/patcher.js`):** the
+SDK patcher is not a shared registry; each patch stacks a wrapper, but every
+wrapper links to the next via `fn.__millenniumPatch.original`. No Millennium
+change is needed.
+
+**Done (committed, deployed as `-dev`, untested):**
+- `steam/jsx-hook.ts` (`keepJsxPatched`), identical copies in
+  `non-steam-games-activity` and `enhanced-achievements`: SDK
+  `replacePatch`/`beforePatch`; liveness = walk SDK links for our patch, else a
+  sentinel probe (`runtime.jsx(SENTINEL, {})`); re-install only if not found;
+  `diagnostics()` = installs / live / chainDepth / probed.
+- `enhanced-achievements/frontend/steam/toast-patch.ts` uses it (`replaceType`);
+  exports `jsxDiagnostics`.
+- `non-steam-games-activity/frontend/steam/gamepad-appid.ts` uses it (`observe`);
+  old watchdog removed; exports `jsxDiagnostics`. Its `dev.ps1` now builds with `npx`.
+- `scratch/jsx_chain.js`: one-run diagnosis of 4 scenarios.
+- Rules: [docs/plugins.md § Sharing the jsx runtime between plugins](docs/plugins.md#sharing-the-jsx-runtime-between-plugins).
+
+**Verify (one pass, read the PASS/FAIL pointers):**
+1. `node scratch/jsx_chain.js` (Steam already restarted with both builds):
+   - **1 steady:** depth stable, installs 1 each, all live. FAIL "no jsxDiagnostics export" means a plugin isn't deployed/loaded.
+   - **2 foreign wrapper:** live via probe, no re-install. FAIL: probe not reaching handler (check `replacePatch` `callOriginal` path for SENTINEL).
+   - **3 dropped reference:** each re-installs once, same depth. FAIL: `ensure()` interval not running, or walk found a stale patch.
+   - **4 banner:** `.ea-banner` renders. FAIL here with 1–3 passing means the `replaceType` swap regressed (compare with the old hand-rolled wrapper in git history).
+2. `cd enhanced-achievements && node tests/smoke.mjs && node tests/tiers.mjs && node tests/settings-sound.mjs`.
+3. `node scratch/test_nav_cycle.js` and `node scratch/check_all_tabs.js` (the core plugin's appid detection in Big Picture now runs through the new hook: check "A -> B -> A" in check_all_tabs).
+4. `cd enhanced-notifications && node tests/categories.mjs` (coexistence; `claims('banner')` depends on `toastPatchInstalled()`, now `diagnostics().every(live)`).
+5. If all pass: update CHANGELOG, then consider retrying the jsx approach in `enhanced-notifications` through `keepJsxPatched` (its earlier mystery may have been chain churn).
+
+**Reminder:** never reload SharedJSContext to test; redeploy with a graceful `dev.ps1` restart.
 - [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
 
 ### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)

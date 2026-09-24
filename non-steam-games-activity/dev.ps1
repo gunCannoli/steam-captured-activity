@@ -19,23 +19,17 @@
   Build and deploy without stopping or starting Steam. Useful for frontend-only
   changes, which need just a reload (Ctrl+R in the Steam devtools).
 
-.PARAMETER Pnpm
-  Path to pnpm. Defaults to whatever is on PATH, then $env:PNPM_PATH. Useful
-  when pnpm is installed locally rather than globally (corepack needs admin
-  rights on some machines).
-
 .PARAMETER SkipBuild
   Deploy whatever is already in .millennium/Dist without rebuilding.
 
 .EXAMPLE
-  pnpm dev
+  npm run dev
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File dev.ps1 -SteamPath "C:\game\steam"
 #>
 [CmdletBinding()]
 param(
   [string] $SteamPath,
-  [string] $Pnpm,
   [switch] $NoRestart,
   [switch] $SkipBuild
 )
@@ -57,22 +51,6 @@ function Resolve-SteamPath {
   }
 
   throw "Could not find Steam. Pass -SteamPath or set `$env:STEAM_PATH."
-}
-
-function Resolve-Pnpm {
-  param([string] $Explicit)
-
-  foreach ($candidate in @($Explicit, $env:PNPM_PATH)) {
-    if ($candidate -and (Test-Path $candidate)) { return (Resolve-Path $candidate).Path }
-  }
-
-  $onPath = Get-Command 'pnpm' -ErrorAction SilentlyContinue
-  if ($onPath) { return $onPath.Source }
-
-  $corepack = Get-Command 'corepack' -ErrorAction SilentlyContinue
-  if ($corepack) { return $corepack.Source }
-
-  throw "Could not find pnpm. Pass -Pnpm <path>, set `$env:PNPM_PATH, or install it (npm i -g pnpm)."
 }
 
 # Windows PowerShell's -Encoding UTF8 writes a BOM, which breaks strict JSON
@@ -172,16 +150,10 @@ try {
     Write-Host 'Skipping build (-SkipBuild).'
   }
   else {
-    $pnpmExe = Resolve-Pnpm -Explicit $Pnpm
     Push-Location $PSScriptRoot
     try {
-      Write-Host "Building with $pnpmExe ..."
-      if ($pnpmExe -match 'corepack') {
-        & $pnpmExe pnpm millennium-ttc --build dev
-      }
-      else {
-        & $pnpmExe millennium-ttc --build dev
-      }
+      Write-Host 'Building with npx millennium-ttc ...'
+      & npx millennium-ttc --build dev
       if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
     }
     finally {
