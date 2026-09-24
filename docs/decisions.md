@@ -1953,3 +1953,174 @@ To bypass this suppression and render enriched metadata, `AppOverview.prototype.
 - "YOUR STUFF" displays all screenshots and clips with duration badges and item counts.
 - "GAME INFO" displays capsule art, smart summary descriptions, developer/publisher credits, release date, and category badges.
 - Big Picture navigation latency dropped from 30+ seconds down to 27 milliseconds.
+
+---
+
+## ADR-0032: Merge `non-steam-games-activity` and `steamgriddb-artwork` into `steam-cartridges`
+
+**Status:** Accepted · 2026-09-24 · **Supersedes [ADR-0012](#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins) in part** (the scope of the core plugin; the provider split for third-party plugins stands)
+
+### Context
+
+Two of our plugins patch the same app-detail page for the same shortcuts and
+already depend on each other's behaviour at runtime: `steamgriddb-artwork` hooks
+`AppOverview.prototype.BIsModOrShortcut`/`GetGameID`, and
+`non-steam-games-activity/frontend/steam/sections.ts` had to add an
+`appid >= 0x8000_0000` guard to survive that hook
+([ADR-0031](#adr-0031-decouple-getgameid-from-bismodorshortcut-on-appoverviewprototype-and-enforce-o1-prototype-lookups)).
+They also ship five byte-identical files (`backend/_lib/*`, `steam_paths.lua`,
+`frontend/steam/jsx-hook.ts`), one near-identical one (`gamepad-appid.ts`, only
+its jsx label differs) and a diverged one (`shortcuts.lua`; the artwork copy also
+parses shortcut `tags`). Each plugin installs its own jsx wrapper for the same
+Big Picture appid signal. The planned Steam Store and achievements features
+(docs/steam-cartridges.md) need both halves at once.
+
+ADR-0012 says the core never reaches the network. The artwork half does
+(IGDB, SteamGridDB), and the Steam Store bucket will (store search, `appdetails`,
+CDN).
+
+### Decision
+
+- One plugin, `steam-cartridges` ("Steam Cartridges"), built from
+  `non-steam-games-activity` as the base. The artwork plugin's modules move in
+  unchanged; duplicates collapse to one copy. The merge (P1) is refactor-only.
+- **The network rule is restated, not dropped:** the capture features (sections,
+  summary, activity, library grid) stay zero-network and apply to every
+  shortcut. Network modules run **only for games the user has placed in a source
+  bucket** ([ADR-0033](#adr-0033-exclusive-source-buckets-resolved-in-the-frontend-from-steams-collections)),
+  and the default bucket is `none`. A fresh install with no configuration makes
+  no network request.
+- Persistent plugin data lives in `<steam>/millennium/config/steam-cartridges/`
+  (precedent: `enhanced-achievements` themes), never in the plugin folder, which
+  `dev.ps1` deletes on every deploy. The folder name is the base name, so the
+  `-dev` copy and the release share data. Settings use the Millennium
+  Configuration API through one `settings.ts` carrying the #903 workaround.
+- Secrets (SteamGridDB key, Twitch credentials) are read from that data folder
+  at runtime, are never logged, and never enter the repo. A one-time migration
+  copies them and `library_metadata.json` from the legacy locations.
+- `non-steam-games-activity` and `steamgriddb-artwork` are retired: `dev.ps1`
+  disables both (released and `-dev`) and removes their `-dev` folders. They
+  must never run beside `steam-cartridges`: the section registry, store stubs
+  and prototype hooks would be installed twice.
+- The external provider contract ([ADR-0013](#adr-0013-providers-return-data-the-core-renders-it),
+  [ADR-0014](#adr-0014-providers-are-isolated-and-fail-silently)) is unchanged for
+  third-party plugins. Internal source modules follow ADR-0014's status
+  semantics (`unsupported` is silent).
+
+### Consequences
+
+- One jsx wrapper instead of two for the Big Picture appid signal; one settings
+  page; one backend.
+- The plugin is no longer "the core that never touches the network". The
+  guarantee users get instead: no bucket, no network.
+- Rolling back means re-enabling the two old plugins; their data is copied, not
+  moved, so it is still in place.
+- Cost: one larger plugin to regression-test. Mitigated by P1 changing no
+  behaviour and by Routines 1–3.
+
+---
+
+## ADR-0033: Exclusive source buckets, resolved in the frontend from Steam's collections
+
+**Status:** Accepted · 2026-09-24
+
+### Context
+
+Each shortcut needs one answer to "where do its metadata and artwork come from":
+Steam's own data for a game that is on Steam (**Steam Store**), or web scrapers
+for everything else (**Web Scraping**). Users already group shortcuts into Steam
+collections (`Retro`, `SNES`, `My Epic Games`), so collections are the natural
+unit. The user decided (docs/steam-cartridges.md § 9): games in no assigned
+collection are ignored, and no emulator guessing.
+
+Collection membership exists only in Steam's frontend (`collectionStore`); the
+Lua backend cannot see it.
+
+### Decision
+
+- Buckets: `steam-store`, `web-scraping`, `none`. The fallback is fixed at
+  `none` (user decision 1) and is not a setting.
+- Config is **one ordered list of collection assignments**
+  (`[{ id, name, bucket }]`) plus per-game overrides. A collection appears at
+  most once, so a collection cannot sit in both buckets by construction. The
+  list order is the precedence order. Collections are keyed by Steam's
+  collection **id**; `name` is kept for display and to re-find a renamed or
+  re-created collection.
+- Resolution for a shortcut: per-game override, else the first assignment in list
+  order whose collection contains the game, else `none`. A game in collections
+  assigned to different buckets is a **conflict**: it still resolves by that
+  order, and the settings page lists it.
+- Only shortcuts (`appid >= 0x8000_0000`) are ever bucketed. Native apps inside
+  a collection are skipped.
+- Resolution runs in the frontend (`features/buckets/`), lazily when an app page
+  is viewed and once at startup for the metadata preload. It is a pure function
+  over (config, membership), not a hot-path hook. The backend never decides a
+  bucket; the doc's `backend/buckets.lua` is dropped.
+- Buckets gate only the **source features** (metadata, artwork, later
+  achievements). The capture features apply to every shortcut regardless.
+- Leaving a bucket reverts that game's in-memory enrichment on its next view.
+  Persisted artwork is removed only by the explicit per-game clear/undo
+  (P3), and only artwork the plugin recorded as its own.
+
+### Consequences
+
+- "Changing a collection reflects without restart" comes for free: the next
+  view re-resolves. No collection observer is needed for correctness.
+- Upgrading from `steamgriddb-artwork` hides existing Game Info enrichment until
+  the user assigns collections. That follows from decision 1; the settings page
+  says how many games have cached metadata but no bucket.
+- Cost: the backend trusts the frontend to call web sources only for
+  web-scraping games. Acceptable: both run in the same plugin.
+- Reversal would need a new ADR if membership ever has to be known in Lua (for
+  example to prefetch while Steam is closed).
+
+---
+
+## ADR-0034: Achievement sourcing per bucket; locked-only for unowned Steam games
+
+**Status:** Proposed · 2026-09-24 · becomes Accepted when P0 trace T4
+(docs/plans/steam-cartridges-p0-research.md) has named the keyless schema source
+
+### Context
+
+Phase 5 of docs/steam-cartridges.md shows achievements for shortcuts through
+Steam's own UI (the `achievements` section, `AppDetailsStore.GetAchievements`,
+`CGamePlaySession.AddAchievement`, `appAchievementProgressCache`;
+steam-components.md § Native achievement UI). Sources differ by game: a Steam
+Store bucket game has a native appid whose schema Steam knows; a RetroArch game
+has RetroAchievements; most other games have nothing. Unlock state for a Steam
+game exists only if the user owns it on Steam (user decision 2).
+
+Licenses of the references (checked 2026-09-24): `PlayniteAchievements` MIT,
+`game-data-linker` MIT, `Playnite-LocalAchievements-Plugin` GPLv3.
+
+### Decision
+
+- Source by bucket and identity: Steam Store game with a resolved native appid →
+  **Steam native**; Web Scraping game launched through RetroArch with a resolved
+  RA GameID ([ADR-0008](#adr-0008-resolve-romgameid-by-cached-history-first-manual-override-last))
+  → **RetroAchievements**; anything else → no source, and nothing is rendered
+  (no section, no empty state, no error).
+- Steam native schema: Steam's client stores first (keyless). Then keyless public
+  endpoints. A Steam Web API key is optional and only extends coverage. P0 T4
+  names the exact store and endpoint.
+- Unlock state: only from Steam's own per-user caches for an **owned** native
+  appid. Otherwise the list renders locked-only, labelled "no unlock tracking"
+  (decision 2). Unlocks are never inferred.
+- RetroAchievements credentials come from `retroarch.cfg` (`cheevos_*`) at
+  runtime and are never stored, copied or logged. Responses are cached on disk
+  ([ADR-0007](#adr-0007-cache-retroachievements-responses-on-disk)).
+- Sources are **internal modules** behind one registry
+  (`{ id, supports(ctx), load(ctx) }`), not plugins discovered at runtime. Whether
+  RA is later exposed via the external `Collect()` contract gets its own ADR.
+- Ideas may be ported from the MIT references with attribution. No code from the
+  GPLv3 LocalAchievements plugin.
+
+### Consequences
+
+- A user with no RA account and no Steam copy sees no achievements, which is
+  correct rather than broken.
+- An unowned Steam Store game shows a full but locked list. That is honest, and
+  the label explains it.
+- Cost: two schema paths (client store vs. endpoint) to maintain until P0 shows
+  one is enough.

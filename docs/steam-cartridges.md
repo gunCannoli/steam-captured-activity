@@ -3,6 +3,11 @@
 **Status:** 📝 Plan only. No code written. Implementation tasks move into
 [TASK.md](../TASK.md) one phase at a time; decisions get ADRs in
 [decisions.md](decisions.md) when a phase starts.
+Phase plans: [P0](plans/steam-cartridges-p0-research.md) ·
+[P1](plans/steam-cartridges-p1-merger.md) · [P2](plans/steam-cartridges-p2-buckets.md) ·
+[P3](plans/steam-cartridges-p3-steam-store.md). ADRs 0032–0034 are written; where
+they refine this doc (config shape, frontend-only bucket resolution, data folder),
+the ADRs win.
 
 `steam-cartridges` merges [`non-steam-games-activity`](../non-steam-games-activity/)
 and [`steamgriddb-artwork`](../steamgriddb-artwork/) into one plugin that owns

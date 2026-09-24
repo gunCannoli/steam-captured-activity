@@ -53,9 +53,34 @@ and each plugin's README ("How to test").
 
 ### steam-cartridges (merger + buckets + achievements)
 
-Plan only, no code yet: [docs/steam-cartridges.md](docs/steam-cartridges.md). Phases:
+Plan only, no code yet: [docs/steam-cartridges.md](docs/steam-cartridges.md).
+ADRs [0032–0034](docs/decisions.md#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)
+written (0034 Proposed until P0 T4). Run phases in order; each plan lists its exit criteria.
 
-- [ ] **P0** research closure + ADRs · [ ] **P1** merge `non-steam-games-activity` + `steamgriddb-artwork` · [ ] **P2** exclusive bucket engine · [ ] **P3** Steam Store bucket · [ ] **P4** hardening · [ ] **P5** achievements (Steam native, RetroAchievements) · [ ] **P6** optional SteamGridDB rules
+- [ ] **P0 research closure**: [plan](docs/plans/steam-cartridges-p0-research.md)
+    - [ ] T1 collections (`collectionStore` enumeration, ids, membership, change signal) → steam-components.md
+    - [ ] T2 CDN artwork + `SetCustomArtworkForApp` limits, user-art detection → steam-components.md
+    - [ ] T3 native-app knowledge (`appStore.allApps`, `StoreItemCache` for unowned) → steam-components.md
+    - [ ] T4 keyless achievement schema → knowledgebase.md; flip ADR-0034 to Accepted
+    - [ ] T5 Lua dotted `require`, cwd, `millennium.config` → knowledgebase.md
+    - [ ] T6 fixtures (`SC Test Steam` / `SC Test Retro`, throwaway shortcuts; needs user OK)
+    - [ ] Replace every **P0-gated** note in the P1–P3 plans
+- [ ] **P1 plugin merger (refactor-only)**: [plan](docs/plans/steam-cartridges-p1-merger.md)
+    - [ ] `git mv` core → `steam-cartridges/`; move artwork `web/*.lua`, `features/game-info`, `features/artwork`; drop duplicates
+    - [ ] Merged `main.lua` (8 RPC globals, no renames), `data_dir.lua`, `migrate.lua` (secrets never logged)
+    - [ ] One `rpc.ts`/`logger.ts`, `steam/route.ts`, `initGameInfo()` not awaited, legacy-plugin guard
+    - [ ] Harness `http`/`fs`/`utils` stubs + invariant tests; `dev.ps1` retires the old plugins
+    - [ ] Docs renamed (AGENTS, README, architecture, plugins.md, `scratch/jsx_chain.js`); Routines 1–3
+- [ ] **P2 exclusive bucket engine**: [plan](docs/plans/steam-cartridges-p2-buckets.md)
+    - [ ] `features/buckets/resolve.ts` (pure) + `tests/buckets.test.ts` (two-collection fixture)
+    - [ ] `settings/settings.ts` (#903 workaround port), `collections.ts`, `buckets/index.ts`, `definePlugin` panel
+    - [ ] Gate IGDB/Game Info to web-scraping; `revertGameDetails` on leave; live re-resolve without restart
+    - [ ] `tests/buckets.mjs` CDP + Routines 1–3
+- [ ] **P3 Steam Store bucket**: [plan](docs/plans/steam-cartridges-p3-steam-store.md)
+    - [ ] `backend/steam_store/*` (normalize, store, search, appdetails, throttle, 9 RPCs) + Lua tests on captured fixtures
+    - [ ] `source-view.ts` dispatcher, `known-apps.ts`, `steam-store/index.ts`, CDN art via `SetCustomArtworkForApp`
+    - [ ] Mappings/suggestions/clear in the settings panel; `tests/steam-store.mjs` + Routines 1–3
+- [ ] **P4** hardening · [ ] **P5** achievements (Steam native, RetroAchievements) · [ ] **P6** optional SteamGridDB rules (plans written when P3 lands)
 
 Phase 5 below is superseded by P5 there.
 
