@@ -85,7 +85,13 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
 
 ## Active Failures & Blockers
 
-Render-error fix (docs/plans/steam-cartridges-render-bugfix.md) implemented offline; awaiting restart + live verification (check_all_tabs.js, test_nav_cycle.js, tests/buckets.mjs).
+Render-error fix re-verified live 2026-09-24 (dev deploy OK, no popup/load failure). Offline: check, build, test:ts (15), Lua via lupa (NSGA_SKIP_FIXTURES=1) all pass.
+
+- VERIFIED: desktop test_nav_cycle.js 5/6 runs all PASS; check_all_tabs.js (Big Picture) PASS on rerun; collectionStore health OK.
+- FLAKY: nav_cycle run 3: FAIL "A (return visit): same activity days" (activityDays 1 vs 2 on return; likely render timing). check_all_tabs first run after mode switch: FAIL "3. Your Stuff: media items (0)"; passed (8) on rerun.
+- BLOCKED: tests/buckets.mjs and tests/steam-store.mjs throw "fixture collections/apps not found" (no SC_STEAM/SC_RETRO collections, no SC_* shortcuts). Not created (user data).
+- Ad hoc Steam Store on 'Jotunnslayer: Hordes of Hel' (shortcut 2315502503, override -> steam-store): search mapping to 2820820, art slots 0-3 applied, clear removed both, settings reset; config restored to empty.
+- Attempt Count: +1
 
 ### Live verification pending (P1-P3; nothing below has run against Steam)
 
