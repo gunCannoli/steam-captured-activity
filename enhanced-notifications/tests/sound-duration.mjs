@@ -1,19 +1,55 @@
 // Live test: per-type sound (replace + mute), display time, and fallbacks, using a
 // temporary theme written to the user themes folder. Restores settings and deletes
-// the theme afterwards. Optional: EN_TEST_SOUND=<absolute .mp3> (else replacement is skipped).
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
-import { connect } from './cdp.mjs';
+// the theme afterwards. Optional: EN_TEST_SOUND=<absolute .mp3>; otherwise a
+// generated 0.3s 440Hz WAV in os.tmpdir() is used (deleted afterwards), so the
+// test needs no machine-specific asset.
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { connect, resolvePluginName } from './cdp.mjs';
 
-const PLUGIN = process.env.EN_PLUGIN ?? 'enhanced-notifications-dev';
-const SOUND = process.env.EN_TEST_SOUND ?? 'C:/auto/res/sfx/ps5_trophy.mp3';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const cdp = await connect();
+const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
 let failed = false;
 const check = (label, ok, detail = '') => {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
     if (!ok) failed = true;
 };
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
+
+/** A minimal, self-contained 0.3s 440Hz mono 16-bit PCM WAV: no bundled asset needed. */
+function generateTestWav() {
+    const sampleRate = 8000;
+    const seconds = 0.3;
+    const n = Math.floor(sampleRate * seconds);
+    const data = Buffer.alloc(n * 2);
+    for (let i = 0; i < n; i++) {
+        const sample = Math.round(Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 32767 * 0.5);
+        data.writeInt16LE(sample, i * 2);
+    }
+    const header = Buffer.alloc(44);
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + data.length, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20); // PCM
+    header.writeUInt16LE(1, 22); // mono
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(sampleRate * 2, 28);
+    header.writeUInt16LE(2, 32);
+    header.writeUInt16LE(16, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(data.length, 40);
+    const dir = mkdtempSync(join(tmpdir(), 'en-test-sound-'));
+    const path = join(dir, 'test.wav');
+    writeFileSync(path, Buffer.concat([header, data]));
+    return path;
+}
+
+const generatedSound = process.env.EN_TEST_SOUND ? null : generateTestWav();
+const SOUND = process.env.EN_TEST_SOUND ?? generatedSound;
 
 const userDir = JSON.parse(await cdp.evaluate(`window.Millennium.callServerMethod('${PLUGIN}', 'ListThemes', { payload: '{}' })`)).userDir;
 const themePath = `${userDir}/en_test.json`;
@@ -92,6 +128,7 @@ try {
 } finally {
     await plugin(`resetSettings()`);
     rmSync(themePath, { force: true });
+    if (generatedSound) rmSync(join(generatedSound, '..'), { recursive: true, force: true });
     const left = await cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
     check('settings reset, temp theme removed', Object.keys(left ?? {}).length === 0 && !existsSync(themePath), JSON.stringify(left));
     cdp.close();

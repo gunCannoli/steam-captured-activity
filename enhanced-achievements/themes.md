@@ -1,8 +1,10 @@
 # Theme Schema (`themes.md`)
 
 Reference for every section, key, and tuple format in an `enhanced-achievements`
-theme file. The canonical example is [steam_ps_exemple.json](steam_ps_exemple.json);
-a minimal one is [theme_exemple.json](theme_exemple.json).
+theme file. The bundled default is [themes/steam_tiers.json](themes/steam_tiers.json)
+(colour-coded tiers, no local asset paths). Fuller, asset-based examples live in
+[examples/](examples/) — see [examples/README.md](examples/README.md) for how to
+use one.
 
 A **theme** only describes how an unlock looks and sounds. What the plugin does
 (which theme is active, feature toggles, capture defaults) is a plugin setting,
@@ -105,8 +107,16 @@ fails to load also falls back to Steam's chime — never to silence.
 Optional. They override the plugin's capture settings for this tier only,
 using the same keys:
 
-- **`screenshot`**: `{ "enabled": bool, "delay_ms": number }`
+- **`screenshot`**: `{ "enabled": bool, "delay_ms": number }` — grabs a frame
+  from Steam's own game recording at `unlock_offset + delay_ms`. Needs Game
+  Recording on (background or manual) at the moment of the unlock.
 - **`recording`**: `{ "enabled": bool, "duration_s": number, "delay_ms": number }`
+  — saves a clip ending at `unlock_offset + delay_ms`, `duration_s` seconds long.
+  Same Game Recording requirement.
+- **`recording.add_timeline_marker` is not overridable per tier.** It is a
+  single plugin setting: an "achievement" marker added to a non-Steam game's
+  timeline at the unlock. Steam already marks its own games' achievements on
+  their timeline, so this only applies to shortcuts.
 
 Example: keep recording off in the plugin settings and enable it only on `rare` and
 `exceptional`, so only notable unlocks produce clips.
@@ -135,22 +145,23 @@ you never need to edit it.
 
 ```json
 {
-    "theme": "steam_ps_exemple",
+    "theme": "steam_tiers",
     "banner": { "enabled": true },
     "sound": { "enabled": true },
-    "screenshot": { "enabled": true, "delay_ms": 500 },
+    "screenshot": { "enabled": false, "delay_ms": 500 },
     "recording": {
-        "enabled": true,
+        "enabled": false,
         "duration_s": 15,
         "delay_ms": 0,
-        "add_timeline_marker": true
+        "add_timeline_marker": false
     }
 }
 ```
 
 - **`theme`**: file name (without `.json`) of the active theme in `themes/`.
 - **`banner.enabled`** / **`sound.enabled`**: turn each part off independently. Off means Steam's stock toast or chime, untouched.
-- **`screenshot`** / **`recording`**: capture defaults, overridable per tier (Phase 7).
+- **`screenshot`** / **`recording`**: capture defaults, off by default (they write files into
+  your library). Overridable per tier — see [Capture overrides](#capture-overrides-screenshot-recording) above.
 
 The panel also has **Preview** buttons (one per tier), **Reload themes** and
 **Open themes folder**, so the theme workflow is: edit the JSON → Reload → Preview.

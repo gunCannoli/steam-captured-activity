@@ -1,6 +1,6 @@
 {
   "name": "enhanced-notifications",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content.",
   "scripts": {
@@ -8,7 +8,8 @@
     "build": "millennium-ttc --build prod",
     "build:dev": "millennium-ttc --build dev",
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "verify": "npm run check && npm test && npm run build"
   },
   "dependencies": {
     "@steambrew/client": "^5.8.5",
@@ -20,5 +21,6 @@
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
     "typescript": "^5.9.3"
-  }
+  },
+  "license": "MIT"
 }

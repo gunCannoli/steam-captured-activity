@@ -3,7 +3,7 @@
   "name": "enhanced-achievements",
   "common_name": "Enhanced Achievements",
   "description": "Themes Steam's achievement notifications: custom banners and sounds per rarity tier, from shareable JSON themes.",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "useBackend": true,
   "backendType": "lua"
 }

@@ -1,16 +1,17 @@
 // Live test: sound replacement, display time, and settings round-trips through
 // Millennium's Configuration API (the same store the settings panel writes).
 // Leaves every setting as it found it (deletes the keys it set).
-import { connect } from './cdp.mjs';
+import { connect, resolvePluginName } from './cdp.mjs';
 
-const PLUGIN = process.env.EA_PLUGIN ?? 'enhanced-achievements-dev';
 const cdp = await connect();
+const PLUGIN = await resolvePluginName(cdp, 'EA_PLUGIN', 'enhanced-achievements');
 let failed = false;
 const check = (label, ok, detail = '') => {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
     if (!ok) failed = true;
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+class Skip extends Error {}
 // Drive settings through the plugin's own exports (what the settings panel calls).
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
@@ -63,6 +64,22 @@ async function fire() {
 }
 
 try {
+    // The bundled default theme ("steam_tiers") intentionally ships with no
+    // sound (alpha decision, docs/plans/phase7-and-alpha-plan.md: no local
+    // paths in the bundle). Sound-dependent checks need a theme that has one;
+    // "steam_ps_exemple" is deployed to the user themes folder for exactly
+    // this purpose. Point the plugin at it for the duration of this test.
+    await plugin(`setSetting('theme', 'steam_ps_exemple')`);
+    let soundTheme = false;
+    for (let i = 0; i < 10 && !soundTheme; i++) {
+        await wait(300);
+        soundTheme = await cdp.evaluate(`(() => {
+            const t = window.PLUGIN_LIST['${PLUGIN}'].activeTheme();
+            return t?.name === 'steam_ps_exemple' && t.sounds.size > 0;
+        })()`);
+    }
+    if (!soundTheme) throw new Skip("user theme 'steam_ps_exemple' (with sounds) is not installed on this machine");
+
     const duration = await cdp.evaluate(`(() => {
         const proto = Object.getPrototypeOf(window.NotificationStore);
         let cfg, found;
@@ -107,6 +124,8 @@ try {
     check('banner.enabled=false -> Steam duration restored', stockDuration !== 4000, `toastDurationMS=${stockDuration}`);
     await plugin(`setSetting('banner.enabled', true)`);
 
+    await plugin(`setSetting('theme', 'steam_ps_exemple')`);
+    await wait(500);
     await plugin(`setSetting('theme', 'does_not_exist')`);
     await wait(1000);
     r = await fire();
@@ -116,9 +135,16 @@ try {
     await wait(1500);
 
     r = await fire();
-    check('defaults restored -> themed again', !!r.banner && r.sounds.some((s) => s.kind === 'webaudio'));
+    // The default bundled theme ("steam_tiers") intentionally ships without a
+    // sound (see the "steam_ps_exemple" comment above), so only the banner is
+    // expected back here.
+    check('defaults restored -> themed again', !!r.banner && !r.sounds.some((s) => s.kind === 'webaudio'));
     const left = await stored();
     check('setting a default / reset leaves nothing stored', left && Object.keys(left).length === 0, JSON.stringify(left));
+} catch (e) {
+    if (!(e instanceof Skip)) throw e;
+    console.log(`SKIP  ${e.message}`);
+    await plugin(`resetSettings()`);
 } finally {
     cdp.close();
 }

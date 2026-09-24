@@ -1,7 +1,8 @@
 // Pure-logic tests: run with `npm test` (Node's built-in runner, TS type stripping).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { buildCss, categoryOf, merge, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
@@ -26,6 +27,17 @@ test('every bundled theme resolves for every category', () => {
         const theme = resolveTheme(load(file));
         for (const type of ['FriendOnline', 'FriendMessage', 'DownloadComplete', 'GameRecordingInstantClip', 'Achievement', 'LowBattery']) {
             assert.ok(theme.styleFor(type), `${file}: ${type}`);
+        }
+    }
+});
+
+test("every bundled theme's assets exist, relative to themes/", () => {
+    for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
+        const theme = resolveTheme(load(file));
+        for (const rel of theme.assetPaths) {
+            assert.ok(!/^[a-zA-Z]:[\\/]/.test(rel) && !rel.startsWith('/'), `${file}: asset path must be relative, got "${rel}"`);
+            const abs = fileURLToPath(new URL(rel, themesDir));
+            assert.ok(existsSync(abs), `${file}: missing asset "${rel}" (${abs})`);
         }
     }
 });

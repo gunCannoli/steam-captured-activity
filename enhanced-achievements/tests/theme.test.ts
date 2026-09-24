@@ -1,21 +1,41 @@
 // Pure-logic tests: run with `npm test` (Node's built-in runner, TS type stripping).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { completesGame, mergeTier, resolveTheme, selectTier } from '../frontend/theme/theme.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
-const load = (name: string) => JSON.parse(readFileSync(new URL(name, themesDir), 'utf8'));
+const examplesDir = new URL('../examples/', import.meta.url);
+const load = (dir: URL, name: string) => JSON.parse(readFileSync(new URL(name, dir), 'utf8'));
 
 test('every bundled theme resolves without throwing', () => {
     for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
-        const theme = resolveTheme(load(file));
+        const theme = resolveTheme(load(themesDir, file));
         assert.equal(Object.keys(theme.tiers).length, 4, file);
     }
 });
 
+test('every example theme resolves without throwing', () => {
+    for (const file of readdirSync(examplesDir).filter((f) => f.endsWith('.json'))) {
+        const theme = resolveTheme(load(examplesDir, file));
+        assert.equal(Object.keys(theme.tiers).length, 4, file);
+    }
+});
+
+test("every bundled theme's assets exist, relative to themes/", () => {
+    for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
+        const theme = resolveTheme(load(themesDir, file));
+        for (const rel of theme.assetPaths) {
+            assert.ok(!/^[a-zA-Z]:[\\/]/.test(rel) && !rel.startsWith('/'), `${file}: asset path must be relative, got "${rel}"`);
+            const abs = fileURLToPath(new URL(rel, themesDir));
+            assert.ok(existsSync(abs), `${file}: missing asset "${rel}" (${abs})`);
+        }
+    }
+});
+
 test('tiers inherit omitted keys from normal', () => {
-    const theme = resolveTheme(load('steam_ps_exemple.json'));
+    const theme = resolveTheme(load(examplesDir, 'steam_ps_exemple.json'));
     // magic overrides only glow + rarity icon; text and border come from normal.
     assert.deepEqual(theme.tiers.magic.text, theme.tiers.normal.text);
     assert.deepEqual(theme.tiers.magic.box.border, theme.tiers.normal.box.border);
@@ -34,7 +54,7 @@ test('threshold is never inherited from normal', () => {
 });
 
 test('icon shorthand normalises to [source, 0]', () => {
-    const theme = resolveTheme(load('theme_exemple.json'));
+    const theme = resolveTheme(load(examplesDir, 'theme_exemple.json'));
     assert.deepEqual(theme.tiers.normal.icons.achievement, { source: true, rippleMs: 0 });
     assert.deepEqual(theme.tiers.normal.icons.rarity, { source: false, rippleMs: 0 });
 });
@@ -53,7 +73,7 @@ test('a file without themes.normal is rejected', () => {
 });
 
 test('tier selection: exceptional > rare > magic > normal', () => {
-    const theme = resolveTheme(load('steam_ps_exemple.json')); // magic 25, rare 10
+    const theme = resolveTheme(load(examplesDir, 'steam_ps_exemple.json')); // magic 25, rare 10
     assert.equal(selectTier(theme, { globalPct: 50, completesGame: false }), 'normal');
     assert.equal(selectTier(theme, { globalPct: 25, completesGame: false }), 'magic');
     assert.equal(selectTier(theme, { globalPct: 10, completesGame: false }), 'rare');
@@ -61,7 +81,7 @@ test('tier selection: exceptional > rare > magic > normal', () => {
 });
 
 test('no rarity data (0 / undefined) selects normal', () => {
-    const theme = resolveTheme(load('steam_ps_exemple.json'));
+    const theme = resolveTheme(load(examplesDir, 'steam_ps_exemple.json'));
     assert.equal(selectTier(theme, { globalPct: 0, completesGame: false }), 'normal');
     assert.equal(selectTier(theme, { globalPct: undefined, completesGame: false }), 'normal');
 });

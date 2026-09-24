@@ -1,5 +1,5 @@
 {
-    "theme": "steam_ps_exemple",
+    "theme": "steam_tiers",
     "banner": {
         "enabled": true
     },
@@ -7,13 +7,13 @@
         "enabled": true
     },
     "screenshot": {
-        "enabled": true,
+        "enabled": false,
         "delay_ms": 500
     },
     "recording": {
-        "enabled": true,
+        "enabled": false,
         "duration_s": 15,
         "delay_ms": 0,
-        "add_timeline_marker": true
+        "add_timeline_marker": false
     }
 }

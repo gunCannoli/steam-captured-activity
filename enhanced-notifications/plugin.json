@@ -3,7 +3,7 @@
   "name": "enhanced-notifications",
   "common_name": "Enhanced Notifications",
   "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content.",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "useBackend": true,
   "backendType": "lua"
 }

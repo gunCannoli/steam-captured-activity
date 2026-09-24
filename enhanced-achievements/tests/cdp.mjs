@@ -55,6 +55,20 @@ export async function connect(title = TARGET) {
     return { evaluate, screenshot, close: () => ws.close() };
 }
 
+/**
+ * Resolve which deployed plugin name to drive: an env override, else the
+ * `-dev` name if it is actually loaded (window.PLUGIN_LIST), else the release
+ * name. Same precedence as frontend/settings/settings.ts `pluginName()`.
+ */
+export async function resolvePluginName(cdp, envVar, releaseName) {
+    const fromEnv = process.env[envVar];
+    if (fromEnv) return fromEnv;
+    const devName = `${releaseName}-dev`;
+    const loaded = await cdp.evaluate(`JSON.stringify(Object.keys(window.PLUGIN_LIST || {}))`);
+    const names = JSON.parse(loaded);
+    return names.includes(devName) ? devName : releaseName;
+}
+
 if (process.argv[1] && import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
     const cdp = await connect();
     try {

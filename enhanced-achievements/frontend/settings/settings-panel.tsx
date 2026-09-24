@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, SliderField, ToggleField } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
-import { previewTier } from '../steam/notifications';
+import { fireTestUnlock, previewTier } from '../steam/notifications';
+import { recordingDiagnostics, runningGameAppid } from '../steam/recording';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
 import { TIERS, type Tier } from '../theme/theme';
+import { toastWarning } from '../steam/notification-settings';
 import { DEFAULTS, RANGES, resetSettings, useSetting, type SettingKey } from './settings';
 
 /**
@@ -131,19 +133,58 @@ function describeTheme(): string {
     return `Loaded "${loaded.name}"${warnings ? `, ${warnings} warning(s) in the log` : ''}.`;
 }
 
+/** Section description showing live capture diagnostics, computed once per render (no timer). */
+function captureStatus(): string {
+    const diag = recordingDiagnostics();
+    if (!diag.service) return "Game Recording API not found on this Steam build: captures are off.";
+    if (!diag.running.some((r) => r.recording)) return 'No game is being recorded right now.';
+    return `Recording ${diag.running.filter((r) => r.recording).length} game(s) now.`;
+}
+
+function CapturesSection() {
+    const [screenshotOn] = useSetting('screenshot.enabled');
+    const [clipOn] = useSetting('recording.enabled');
+    const [status] = useState(captureStatus());
+    const [testDesc, setTestDesc] = useState('Fire a test unlock for the game that is being recorded now. Creates a real screenshot/clip with your current settings.');
+
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Captures on unlock</DialogControlsSectionHeader>
+            <div>{status}</div>
+            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description="A frame from Steam's game recording, delay after the unlock. Needs Game Recording on." />
+            <Slider k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={!screenshotOn} />
+            <Toggle k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds, ending delay after the unlock." />
+            <Slider k="recording.duration_s" label="Clip length" suffix=" s" disabled={!clipOn} />
+            <Slider k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={!clipOn} />
+            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description="Adds an achievement marker for non-Steam games (Steam already marks its own games)." />
+            <ButtonItem
+                label="Test captures"
+                description={testDesc}
+                onClick={() => {
+                    const appid = runningGameAppid();
+                    if (appid === null) {
+                        setTestDesc('Start a game with Game Recording on first.');
+                        return;
+                    }
+                    fireTestUnlock(appid, 'Enhanced Achievements test');
+                    setTestDesc('Fire a test unlock for the game that is being recorded now. Creates a real screenshot/clip with your current settings.');
+                }}
+            >
+                Test captures
+            </ButtonItem>
+        </DialogControlsSection>
+    );
+}
+
 export function SettingsPanel() {
-    const phase7 = 'Available with auto-captures (not yet shipped).';
+    const warning = toastWarning();
     return (
         <>
             <ThemeSection />
+            {warning && <div>{warning}</div>}
             <Toggle k="banner.enabled" label="Themed banner" description="Off: Steam's own achievement toast." />
             <Toggle k="sound.enabled" label="Themed sound" description="Off: Steam's own chime. Steam's notification sound setting is always respected." />
-            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description={phase7} disabled />
-            <Slider k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled />
-            <Toggle k="recording.enabled" label="Save clip on unlock" description={phase7} disabled />
-            <Slider k="recording.duration_s" label="Clip length" suffix=" s" disabled />
-            <Slider k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled />
-            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description={phase7} disabled />
+            <CapturesSection />
             <ButtonItem label="Reset to defaults" description="Clear every changed setting." onClick={() => void resetSettings()}>
                 Reset
             </ButtonItem>

@@ -2,6 +2,7 @@ import { logger } from '../logger';
 import { setting, onSettingChange } from '../settings/settings';
 import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
 import { completesGame, selectTier, type Tier } from '../theme/theme';
+import { onUnlock, suppressNextCaptures } from '../capture/captures';
 
 /**
  * Hooks into Steam's NotificationStore: the achievement sound, the toast
@@ -29,12 +30,16 @@ export interface AchievementData {
     image_url(): string;
     achieved(): boolean;
     global_achieved_pct(): number;
+    achievement_id(): string;
 }
 
 export interface SteamNotification {
     eType: number;
     data: AchievementData;
     nToastDurationMS?: number;
+    /** Unix seconds; set in OnNotification on arrival (Phase 7, unlock offset calc). */
+    rtCreated?: number;
+    notificationID?: number;
 }
 
 interface NotificationStoreProto {
@@ -44,11 +49,13 @@ interface NotificationStoreProto {
 
 interface NotificationStore {
     TestAchievement(appid: number): Promise<void>;
+    OnNotification(id: number, eType: number, bytes: Uint8Array): void;
+    m_nNextTestNotificationID?: number;
 }
 
 interface TypeConfig {
     toastDurationMS?: number;
-    proto?: new () => { getClassName?(): string };
+    proto?: (new () => { getClassName?(): string }) & { fromObject(o: Record<string, unknown>): { serializeBinary(): Uint8Array } };
 }
 
 let store: NotificationStore | null = null;
@@ -128,6 +135,11 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         // Only Steam's own calls (on the store) are toasts; stand-in calls that
         // read a type's config (ours, enhanced-notifications') pass through.
         if (this !== owner) return original.call(this, n);
+        try {
+            if (isAchievementUnlock(n)) onUnlock(n, tierFor(n));
+        } catch (error) {
+            logger.warn('Capture scheduling failed; continuing.', error);
+        }
         try {
             if (setting('sound.enabled') && isAchievementUnlock(n)) {
                 const clip = activeTheme()?.sounds.get(tierFor(n));
@@ -213,9 +225,40 @@ export async function previewTier(tier: Tier): Promise<void> {
     // Any owned game with achievements gives a real achievement image; 480 (Spacewar) makes one up.
     const appid = cache?.m_achievementProgress?.mapCache?.keys().next().value ?? 480;
     forced = { tier, until: Date.now() + 10_000 };
+    // Previews must never trigger a real capture (A2.4), same pattern as `forced`.
+    suppressNextCaptures(10_000);
     // A click is a user gesture: unlock audio so the preview can play the theme's sound.
     void audio().resume();
     await store.TestAchievement(appid);
+}
+
+/**
+ * Fire a real (non-preview) test unlock for `appid`, running the full capture
+ * pipeline through the normal hook. Used by the "Test captures" button
+ * (docs/plans/phase7-and-alpha-plan.md § A3.4). Does not use `TestAchievement`:
+ * that awaits `RequestAppDetails(appid)`, unverified for shortcut appids.
+ */
+export function fireTestUnlock(appid: number, name: string): boolean {
+    if (!store || !achievementConfig?.proto) return false;
+    try {
+        const nowS = Math.floor(Date.now() / 1000);
+        const msg = achievementConfig.proto.fromObject({
+            appid,
+            achievement_id: 'EA_TEST',
+            name,
+            description: 'Enhanced Achievements capture test',
+            achieved: true,
+            global_achieved_pct: 50,
+            rtime_unlocked: nowS,
+        });
+        const id = typeof store.m_nNextTestNotificationID === 'number' ? store.m_nNextTestNotificationID++ : Date.now() & 0x7fffffff;
+        if (achievementType === null) return false;
+        store.OnNotification(id, achievementType, msg.serializeBinary());
+        return true;
+    } catch (error) {
+        logger.warn('Could not fire test unlock.', error);
+        return false;
+    }
 }
 
 // --- lifecycle ----------------------------------------------------------------

@@ -2,12 +2,12 @@
 // and check the toast window was restyled (body data-en-type + popup paint), with
 // Steam's content kept.
 // SHOTS_DIR=<dir> saves a screenshot per category.
-import { connect } from './cdp.mjs';
+import { connect, resolvePluginName } from './cdp.mjs';
 
-const PLUGIN = process.env.EN_PLUGIN ?? 'enhanced-notifications-dev';
-const EA = 'enhanced-achievements-dev';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const cdp = await connect();
+const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
+const EA = await resolvePluginName(cdp, 'EA_PLUGIN', 'enhanced-achievements');
 let failed = false;
 const check = (label, ok, detail = '') => {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);

@@ -2,7 +2,8 @@
 
 A [Millennium](https://steambrew.app/) plugin that themes Steam's achievement
 notifications: a custom banner and sound for each rarity tier, from JSON themes
-you can edit and share.
+you can edit and share. It can also grab a screenshot, save a clip and add a
+timeline marker automatically when you unlock an achievement.
 
 - **Four rarity tiers**: normal (bronze), magic (silver), rare (gold) and
   exceptional (the unlock that completes the game), chosen from Steam's own
@@ -11,11 +12,28 @@ you can edit and share.
   with notifications" setting is still respected.
 - **Themed banner** with gradients, borders, glow, icons and animations, on the
   desktop client, in Big Picture, and in the in-game overlay.
+- **Auto-captures on unlock** (opt-in): a screenshot, a clip and a timeline
+  marker, using Steam's own Game Recording. Off by default.
 - **Nothing breaks if something is wrong.** A missing sound falls back to
   Steam's chime, and a broken theme falls back to Steam's own toast.
 
-Screenshots and clips on unlock are planned; the settings are visible but
-disabled until then.
+## Install (alpha)
+
+This is an alpha: expect rough edges, and please report anything odd.
+
+**From a release zip:** unzip it into `<Steam>/millennium/plugins/`, then
+enable **Enhanced Achievements** in Millennium and restart Steam.
+
+**From source:**
+
+```bash
+npm install
+powershell -ExecutionPolicy Bypass -File dev.ps1 -Release
+```
+
+`-Release` builds and deploys under the plugin's real name (not a `-dev`
+copy) and enables it. Steam restarts automatically unless you pass
+`-NoRestart`.
 
 ## Settings
 
@@ -28,13 +46,38 @@ Open Millennium's sidebar and select **Enhanced Achievements**:
 | Open themes folder | Opens the folder for your own themes |
 | Preview | Fires a test achievement for each tier |
 | Themed banner / Themed sound | Turn each part off to get Steam's own toast or chime back |
+| Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
+| Save clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
+| Timeline marker | Adds an achievement marker on non-Steam games' timelines |
+| Test captures | Fires a real test unlock for the game currently being recorded |
 | Reset to defaults | Clears every changed setting |
+
+Captures are **off by default** — they write files into your library. Both
+screenshot and clip need Steam's Game Recording turned on (background or
+manual) for the game.
+
+## How to test
+
+Five minutes, no game required for the first four:
+
+1. Open the settings panel and press **Preview** for each of the four tiers —
+   a themed toast should appear each time.
+2. Toggle **Themed banner** and **Themed sound** off and on; confirm Steam's
+   own stock toast/chime comes back when off.
+3. Edit `themes/steam_tiers.json` (or a copy in your themes folder), press
+   **Reload themes**, then **Preview** again to see the change.
+4. Start any game with Game Recording on (Steam Settings -> In-Game ->
+   Recording), enable **Screenshot on unlock** and/or **Save clip on unlock**,
+   then press **Test captures**. Check Steam's Screenshots/Recordings for the
+   game shortly after.
 
 ## Themes
 
 A theme is one `.json` file plus the images and sounds it uses. The format is
-documented in [themes.md](themes.md); [themes/steam_ps_exemple.json](themes/steam_ps_exemple.json)
-is a full example.
+documented in [themes.md](themes.md). The bundled default,
+[themes/steam_tiers.json](themes/steam_tiers.json), needs no local files. Fuller,
+asset-based examples are in [examples/](examples/) (not installed; copy what you
+need into your own themes folder).
 
 Put your themes in `<Steam>/millennium/config/enhanced-achievements/themes/`
 (**Open themes folder** takes you there). That folder survives plugin updates.
@@ -45,7 +88,7 @@ paths in the theme written relative to it (`"assets/gold.png"`).
 
 The workflow is: edit the JSON, press **Reload themes**, press **Preview**.
 
-## Limits
+## Known limitations
 
 - **Banner size is Steam's.** Steam sizes and places the toast window itself
   (284×71 on the desktop client). A theme's `scale` enlarges text and icons
@@ -54,8 +97,22 @@ The workflow is: edit the JSON, press **Reload themes**, press **Preview**.
 - **Rarity needs Steam's data.** Games without global unlock percentages
   (including non-Steam games) always use the normal tier, except for the
   unlock that completes the game.
+- **The in-game overlay is unverified** with a real in-game unlock.
+- **Captures need Game Recording on**, and never happen if Steam's in-game
+  toast notifications are disabled for that game — Steam itself never calls
+  the hook this plugin uses in that case.
+- **Steam already marks achievements on its own games' timelines.** The
+  timeline marker only applies to non-Steam shortcuts.
+- Banners, sounds and captures do nothing while Steam's own toast
+  notifications are turned off entirely (Steam Settings -> Notifications).
+  The settings panel shows a warning when it can detect this.
+- On Millennium v3.4.1 the Configuration API only partly works (settings save,
+  but Millennium may log an error). The plugin works around it; you should
+  never see a broken save.
 
-## Install
+## Uninstall
 
-Copy the plugin folder into `<Steam>/millennium/plugins/`, enable it in
-Millennium, and restart Steam.
+Disable **Enhanced Achievements** in Millennium's plugin list, then delete
+`<Steam>/millennium/plugins/enhanced-achievements` (and, if you used dev.ps1's
+default deploy, `enhanced-achievements-dev`). Your themes in
+`<Steam>/millennium/config/enhanced-achievements/` are left in place.

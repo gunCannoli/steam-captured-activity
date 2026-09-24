@@ -1,12 +1,13 @@
 <#
 .SYNOPSIS
   Build this plugin and deploy it to a live Millennium install as a parallel
-  "-dev" copy, then restart Steam.
+  "-dev" copy, then restart Steam. Or, with -Release / -Package, build and
+  deploy/zip it under its real name for an alpha install.
 
 .DESCRIPTION
-  Deploys as "<name>-dev" so a released copy of the plugin stays installed and
-  untouched. The released one is disabled and the dev one enabled in
-  Millennium's config.json.
+  Default (no switches): deploys as "<name>-dev" so a released copy of the
+  plugin stays installed and untouched. The released one is disabled and the
+  dev one enabled in Millennium's config.json.
 
   The Steam path is discovered rather than assumed: -SteamPath, then
   $env:STEAM_PATH, then the registry (HKCU:\Software\Valve\Steam), then the
@@ -22,16 +23,32 @@
 .PARAMETER SkipBuild
   Deploy whatever is already in .millennium/Dist without rebuilding.
 
+.PARAMETER Release
+  Build with the real (un-rewritten) name, deploy to plugins/<name>, enable
+  it, and disable <name>-dev. Uses the same file set as the dev deploy
+  (plugin.json, .millennium/, backend/ minus _lib, themes/).
+
+.PARAMETER Package
+  Build with the real name and zip that file set into dist/<name>-<version>.zip
+  (top folder <name>/). dist/ is gitignored. Implies a prod build; does not
+  touch a live Steam install unless -Release is also passed.
+
 .EXAMPLE
   npm run dev
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File dev.ps1 -SteamPath "C:\game\steam"
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File dev.ps1 -Release
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File dev.ps1 -Package
 #>
 [CmdletBinding()]
 param(
   [string] $SteamPath,
   [switch] $NoRestart,
-  [switch] $SkipBuild
+  [switch] $SkipBuild,
+  [switch] $Release,
+  [switch] $Package
 )
 
 $ErrorActionPreference = 'Stop'
@@ -114,6 +131,22 @@ function Stop-Steam {
   }
 }
 
+# The deployed file set (plugin.json, .millennium/Dist, backend minus _lib,
+# themes). Source frontend/, examples/, research/ and tests/ are never deployed
+# or packaged.
+function Copy-PluginFiles {
+  param([string] $SourceRoot, [string] $Target, [pscustomobject] $Manifest)
+
+  if (Test-Path $Target) { Remove-Item -Path $Target -Recurse -Force }
+  New-Item -Path $Target -ItemType Directory -Force | Out-Null
+
+  Write-JsonFile -Path (Join-Path $Target 'plugin.json') -Object $Manifest
+  Copy-Item -Path (Join-Path $SourceRoot '.millennium') -Destination $Target -Recurse -Force
+  Copy-Item -Path (Join-Path $SourceRoot 'backend') -Destination $Target -Recurse -Force
+  Copy-Item -Path (Join-Path $SourceRoot 'themes') -Destination $Target -Recurse -Force
+  Remove-Item -Path (Join-Path $Target 'backend\_lib') -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 # --- resolve paths -----------------------------------------------------------
 
 $steam = Resolve-SteamPath -Explicit $SteamPath
@@ -123,28 +156,34 @@ $pluginsDir = Join-Path $steam 'millennium\plugins'
 $manifest = Get-Content -Path "$PSScriptRoot\plugin.json" -Raw | ConvertFrom-Json
 $name = $manifest.name
 $devName = "$name-dev"
-$target = Join-Path $pluginsDir $devName
+$releaseMode = $Release -or $Package
+$deployName = if ($releaseMode) { $name } else { $devName }
+$target = Join-Path $pluginsDir $deployName
 
 Write-Host "Steam:  $steam"
-Write-Host "Deploy: $target"
+if ($Release) { Write-Host "Deploy: $target (release)" }
+if ($Package) { Write-Host "Package: dist\$name-$($manifest.version).zip" }
+if (-not $releaseMode) { Write-Host "Deploy: $target" }
 
 # --- build -------------------------------------------------------------------
 # The builder bakes plugin.json's `name` into the bundle, and Millennium routes
-# RPC by that baked name. So the manifest must carry the dev name BEFORE the
-# build, or the frontend calls "<name>" while the backend registers as
-# "<name>-dev" and every call fails with "plugin not running".
+# RPC by that baked name. So the manifest must carry the deploy name BEFORE the
+# build, or the frontend calls "<name>" while the backend registers under a
+# different name and every call fails with "plugin not running".
 #
 # The source manifest is restored in the finally block below, so an interrupted
-# run cannot leave the repo holding a dev name.
+# run cannot leave the repo holding a rewritten name.
 
 $manifestPath = Join-Path $PSScriptRoot 'plugin.json'
 $originalManifestText = Get-Content -Path $manifestPath -Raw
 
 try {
-  $devManifest = $originalManifestText | ConvertFrom-Json
-  $devManifest.name = $devName
-  $devManifest.common_name = "$($devManifest.common_name) (dev)"
-  Write-JsonFile -Path $manifestPath -Object $devManifest
+  $buildManifest = $originalManifestText | ConvertFrom-Json
+  if (-not $releaseMode) {
+    $buildManifest.name = $devName
+    $buildManifest.common_name = "$($buildManifest.common_name) (dev)"
+    Write-JsonFile -Path $manifestPath -Object $buildManifest
+  }
 
   if ($SkipBuild) {
     Write-Host 'Skipping build (-SkipBuild).'
@@ -152,8 +191,9 @@ try {
   else {
     Push-Location $PSScriptRoot
     try {
-      Write-Host 'Building with npx millennium-ttc ...'
-      & npx millennium-ttc --build dev
+      $buildKind = if ($releaseMode) { 'prod' } else { 'dev' }
+      Write-Host "Building with npx millennium-ttc (--build $buildKind) ..."
+      & npx millennium-ttc --build $buildKind
       if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
     }
     finally {
@@ -170,6 +210,34 @@ if (-not (Test-Path "$PSScriptRoot\.millennium\Dist\index.js")) {
   throw 'Build produced no .millennium/Dist/index.js.'
 }
 
+# --- package -------------------------------------------------------------------
+
+if ($Package) {
+  $distDir = Join-Path $PSScriptRoot 'dist'
+  New-Item -Path $distDir -ItemType Directory -Force | Out-Null
+  $stageRoot = Join-Path ([System.IO.Path]::GetTempPath()) "millennium-pkg-$([guid]::NewGuid())"
+  $stageTarget = Join-Path $stageRoot $name
+  try {
+    Copy-PluginFiles -SourceRoot $PSScriptRoot -Target $stageTarget -Manifest $buildManifest
+    $zipPath = Join-Path $distDir "$name-$($buildManifest.version).zip"
+    if (Test-Path $zipPath) { Remove-Item -Path $zipPath -Force }
+    Compress-Archive -Path $stageTarget -DestinationPath $zipPath -CompressionLevel Optimal
+    Write-Host "Packaged $zipPath" -ForegroundColor Green
+  }
+  finally {
+    Remove-Item -Path $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
+if (-not $Release) {
+  if (-not $Package) {
+    # Fall through to the default -dev deploy below.
+  }
+  else {
+    exit 0
+  }
+}
+
 # --- stop Steam --------------------------------------------------------------
 # Backend (Lua) changes only take effect on restart.
 
@@ -182,23 +250,18 @@ if (-not $NoRestart) {
 # frontend/ and the _lib type stubs are not deployed.
 # settings.json is bundled into the frontend at build time.
 
-if (Test-Path $target) { Remove-Item -Path $target -Recurse -Force }
-New-Item -Path $target -ItemType Directory -Force | Out-Null
+Copy-PluginFiles -SourceRoot $PSScriptRoot -Target $target -Manifest $buildManifest
 
-# Deploy the same dev-named manifest the bundle was built against.
-Write-JsonFile -Path (Join-Path $target 'plugin.json') -Object $devManifest
+if ($Release) {
+  Set-PluginEnabled -ConfigPath $configPath -Name $devName -Enabled $false
+  Set-PluginEnabled -ConfigPath $configPath -Name $name -Enabled $true
+}
+else {
+  Set-PluginEnabled -ConfigPath $configPath -Name $name -Enabled $false
+  Set-PluginEnabled -ConfigPath $configPath -Name $devName -Enabled $true
+}
 
-Copy-Item -Path "$PSScriptRoot\.millennium" -Destination $target -Recurse -Force
-Copy-Item -Path "$PSScriptRoot\backend" -Destination $target -Recurse -Force
-# Bundled themes; the backend reads them from <plugin>/themes. User themes live
-# outside the plugin folder (millennium/config/enhanced-achievements/themes).
-Copy-Item -Path "$PSScriptRoot\themes" -Destination $target -Recurse -Force
-Remove-Item -Path (Join-Path $target 'backend\_lib') -Recurse -Force -ErrorAction SilentlyContinue
-
-Set-PluginEnabled -ConfigPath $configPath -Name $name -Enabled $false
-Set-PluginEnabled -ConfigPath $configPath -Name $devName -Enabled $true
-
-Write-Host "Deployed $devName." -ForegroundColor Green
+Write-Host "Deployed $deployName." -ForegroundColor Green
 
 # --- start Steam -------------------------------------------------------------
 # -dev exposes the CEF devtools at http://localhost:8080.

@@ -9,7 +9,10 @@
 // docs/plugins.md § 4). Deploy frontend changes with a full `dev.ps1` restart.
 import { connect } from './cdp.mjs';
 
-const PLUGIN = process.env.EN_PLUGIN ?? 'enhanced-notifications-dev';
+// Env override, else `-dev` if loaded, else the release name (same precedence
+// as frontend/settings/settings.ts `pluginName()`).
+const ENV_NAME = process.env.EN_PLUGIN;
+const RELEASE = 'enhanced-notifications';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function tryEval(expression) {
@@ -27,10 +30,15 @@ async function tryEval(expression) {
 
 const deadline = Date.now() + 180_000;
 while (Date.now() < deadline) {
-    const ready = await tryEval(`Array.isArray(window.webpackChunksteamui)
-        && typeof window.PLUGIN_LIST?.['${PLUGIN}']?.setSetting === 'function'
-        && !!window.PLUGIN_LIST['${PLUGIN}'].activeTheme()
-        && !Object.getPrototypeOf(window.NotificationStore).PlayNotificationSound.toString().includes('PlayNavSound')`);
+    const ready = await tryEval(`(() => {
+        const loaded = Object.keys(window.PLUGIN_LIST || {});
+        const plugin = ${JSON.stringify(ENV_NAME) || 'undefined'} ?? (loaded.includes('${RELEASE}-dev') ? '${RELEASE}-dev' : '${RELEASE}');
+        const mod = window.PLUGIN_LIST?.[plugin];
+        return Array.isArray(window.webpackChunksteamui)
+            && typeof mod?.setSetting === 'function'
+            && !!mod.activeTheme()
+            && !Object.getPrototypeOf(window.NotificationStore).PlayNotificationSound.toString().includes('PlayNavSound');
+    })()`);
     if (ready === true) {
         console.log('plugin ready');
         process.exit(0);

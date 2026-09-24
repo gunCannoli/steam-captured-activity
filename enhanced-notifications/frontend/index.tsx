@@ -6,12 +6,14 @@ import { initNotifications } from './steam/notifications';
 import { resolveToastSelectors } from './steam/selectors';
 import { initInjector } from './style/injector';
 import { initActiveTheme, setSelectors } from './theme/active-theme';
+import { initNotificationSettingsDetection } from './steam/notification-settings';
 
 // Named exports are published by Millennium on window.PLUGIN_LIST[<plugin>],
 // which is how tests/*.mjs drive the same code paths as the settings panel.
 export { resetSettings, setSetting } from './settings/settings';
 export { previewCategory } from './steam/notifications';
 export { activeTheme, cssFor } from './theme/active-theme';
+export { toastsEnabled } from './steam/notification-settings';
 
 /**
  * enhanced-notifications: restyles every Steam notification toast in place.
@@ -24,6 +26,7 @@ export { activeTheme, cssFor } from './theme/active-theme';
 async function init(): Promise<void> {
     await initSettings();
     if (!initNotifications()) return; // stock Steam, untouched
+    initNotificationSettingsDetection(); // its failure only disables the settings-panel warning
     const sel = resolveToastSelectors();
     setSelectors(sel.theme);
     await initActiveTheme();

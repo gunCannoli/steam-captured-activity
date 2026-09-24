@@ -73,19 +73,22 @@ PlayNotificationSound(notification) {
   ```
 - **The Banner Hook:** Wrapping or patching `ht` (or using `react/jsx-runtime` interception) allows substituting Steam's default toast markup with our themed banner component, while preserving Steam's click-to-open and dismissal callbacks (`onActivate`, `onDismiss`).
 
-### D. Game Recording & Screenshot Services (`module 80026`)
-Steam's 2024 Game Recording architecture exposes `CGameRecordingService` (module `80026`, export `xM`):
-1. **Instant Replay Clips (`SaveClip`):**
-   - RPC: `GameRecording.SaveClip#1` (`CGameRecording_SaveClip_Request`).
-   - Parameters: `{ game_id, start, end, name, temporary, force_thumbnail }`.
-   - Allows capturing a clip of the past 15 to 30 seconds when an achievement unlocks.
-2. **Timeline Markers (`UserAddTimelineEntry`):**
-   - RPC: `GameRecording.UserAddTimelineEntry#1` (`CGameRecording_UserAddTimelineEntry_Request`).
-   - Inserts a golden trophy marker on the game recording timeline at the exact moment of unlock.
-3. **Screenshots (`TakeScreenshot` & SteamClient):**
-   - RPC: `GameRecording.TakeScreenshot#1` (`CGameRecording_TakeScreenshot_Request`).
-   - Alternatively: Trigger screenshot via Millennium backend keyboard synthesis (F12) or `SteamClient.Screenshots`.
-   - Delayed capture: Executed via `setTimeout(() => takeScreenshot(), delay_ms)` so the on-screen action is captured cleanly without UI occlusion.
+### D. Game Recording & Screenshot Services — implemented, see [phase7-and-alpha-plan.md](phase7-and-alpha-plan.md)
+
+Superseded by live verification in [phase7-and-alpha-plan.md § A1](phase7-and-alpha-plan.md#a1-verified-api-findings).
+Corrections to this section as originally written: the service is resolved by
+signature (`TakeScreenshotHandler?.name === "GameRecording.TakeScreenshot#1"`),
+never by module id — ids reshuffle between builds. **`TakeScreenshot` is not a
+live capture**: it extracts a frame from already-recorded video at a timeline
+offset, so it needs a running recording. There is **no `SteamClient.Screenshots`
+trigger** for a live capture (it is read/manage only) and no F12 synthesis path
+is used. The timeline marker is **not** a "golden trophy" icon — Steam already
+writes its own `Achievement`-type entry for native games' unlocks (duplicate),
+so the plugin only adds one for non-Steam shortcuts, as an `Event`-type entry
+with `marker_icon: "steam_achievement"` (fallback: `UserMarker` /
+`steam_marker`). Implementation:
+`enhanced-achievements/frontend/steam/recording.ts` (RPCs) and
+`frontend/capture/{plan,captures}.ts` (scheduling, off by default).
 
 ---
 
@@ -274,7 +277,9 @@ runtime. API facts: [knowledgebase.md § Plugin settings](../knowledgebase.md#pl
 | `recording.delay_ms` | Slider 0–5000 ms | `0` |
 | `recording.add_timeline_marker` | Toggle | `true` |
 
-Capture keys are shown in Phase 6 but disabled ("Phase 7") until captures ship.
+Capture keys and defaults: implemented and shipped, off by default (`screenshot.enabled`,
+`recording.enabled`, `recording.add_timeline_marker` all `false`) — see
+[phase7-and-alpha-plan.md § A2](phase7-and-alpha-plan.md#a2-capture-semantics).
 
 **Panel actions** (buttons, no stored value):
 
@@ -388,6 +393,7 @@ queueing, timing, click-to-open and dismissal.
 | 6 | Never touch the core plugin's objects (see Scope boundaries) | Guardrails 1, 5, 7, 8 |
 | 7 | No imports across plugin folders | [plugins.md § Layout](../plugins.md#layout) |
 | 8 | Core regression pass with both plugins enabled | Routines 1–3 |
+| 9 | Capture RPCs only in timer callbacks, only when enabled; the hook does O(1) scheduling | The one scoped exception to guardrail 5 — the RPCs are the feature, opt-in and deferred. See [phase7-and-alpha-plan.md § A1.7](phase7-and-alpha-plan.md#a17-hook-point-no-new-hooks-no-polling) |
 
 ### Open decisions
 
@@ -399,16 +405,24 @@ queueing, timing, click-to-open and dismissal.
 
 ---
 
-## 6. Phase 7 Outline — Auto-Captures
+## 6. Phase 7 — Auto-Captures — implemented
 
-Builds on Phase 6's dispatch hook and tier resolver.
+See [phase7-and-alpha-plan.md](phase7-and-alpha-plan.md) for the shipped
+design (this outline is kept for history; the linked plan is authoritative
+where they differ):
 
-- **Trigger:** observe achievement notifications once (in `OnNotification` or
-  the sound hook), resolve the tier, and merge the tier's `screenshot` / `recording`
-  over the plugin settings (Configuration API).
-- **Screenshot:** after `delay_ms`, `GameRecording.TakeScreenshot` (or `SteamClient.Screenshots`).
-- **Clip:** after `delay_ms`, `GameRecording.SaveClip` covering the last `duration_s`.
-- **Timeline marker:** `GameRecording.UserAddTimelineEntry` at the unlock time.
-- Only while a game is running and Game Recording is on; otherwise a no-op, never an error.
+- **Trigger:** the existing sound hook (`installSoundHook`, `frontend/steam/notifications.ts`),
+  not `OnNotification` — reuses Phase 6's dispatch point, no new hook. It does
+  O(1) work only (dedupe, tier merge, snapshot, `setTimeout` scheduling); every
+  RPC runs later, in a timer callback (guardrail 9 below).
+- **Screenshot:** after `delay_ms` (+ a settle time), `GameRecording.TakeScreenshot`
+  — a frame from already-recorded video, so it needs a running recording.
+  `SteamClient.Screenshots` cannot trigger a capture.
+- **Clip:** after `delay_ms`, `GameRecording.SaveClip` covering the last
+  `duration_s`, coalescing multiple unlocks within a burst into one clip.
+- **Timeline marker:** `GameRecording.UserAddTimelineEntry`, only for
+  non-Steam shortcuts (Steam already marks its own games' unlocks).
+- Only while a game's timeline is running and (for screenshot/clip) Game
+  Recording is on; otherwise skipped with a reason, never an error.
 - Captures land in Steam's own folders, so `non-steam-games-activity` picks them up
   with no coupling between the plugins.

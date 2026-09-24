@@ -9,6 +9,35 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`enhanced-achievements` Phase 7 (auto-captures on unlock) + alpha readiness for both toast plugins.**
+  Spec: [docs/plans/phase7-and-alpha-plan.md](docs/plans/phase7-and-alpha-plan.md).
+  - Phase 7: an optional screenshot, clip and timeline marker on achievement
+    unlock, via Steam's own Game Recording RPCs (`GameRecording.TakeScreenshot#1`
+    / `SaveClip#1` / `UserAddTimelineEntry#1`, `window.g_GRS`). Scheduled from a
+    timer, never from the notification hook itself (RPCs are opt-in and
+    deferred — the one scoped exception to the "no per-toast RPC" guardrail).
+    Off by default; the marker only applies to non-Steam shortcuts (Steam
+    already marks its own games' achievements on their timeline). A dry-run
+    mode and a bounded decision log back the live tests.
+  - Both plugins: version `0.1.0-alpha.1`, `LICENSE` (MIT), `dev.ps1
+    -Release`/`-Package` for an installable alpha, portable `tests/*.mjs`
+    (resolve the deployed plugin name the same way the frontend does; no more
+    machine-specific asset paths), and README "How to test" / "Known
+    limitations" sections.
+  - `enhanced-achievements`: new asset-free default theme (`steam_tiers.json`,
+    original SVG trophy icons); the previous PS5-style example moved to
+    `examples/` and the user's own working copy (with its real, machine-local
+    asset paths) copied into this machine's user themes folder so it keeps working.
+  - Both plugins: a settings-panel warning when Steam's own toast notifications
+    are off, detected once (no polling) from Steam's client-settings store
+    (`disable_all_toasts`) — resolved by signature, never a module id.
+  - `enhanced-achievements/tests/settings-sound.mjs` uses the user-installed
+    `steam_ps_exemple` theme for its sound checks and SKIPs (not FAILs) where
+    that theme is absent. Verified: 13/13 PASS here; core `test_nav_cycle.js`
+    and `check_all_tabs.js` PASS on desktop with all plugins enabled.
+  - `TASK.md` trimmed to open work: the alpha user-test checklist (U1–U9), the
+    Millennium#903 blocker, and Phases 5 and 9.
+
 - **Docs housekeeping: one job per doc, no repeated content.** Each doc now opens
   with a "This doc's job" line and points elsewhere for the rest.
   - `docs/architecture.md` renamed to **`docs/millennium-architecture.md`** (it is
@@ -125,7 +154,7 @@ This repo is private and unversioned; entries are grouped by date.
     - **Live Steam Client Reverse-Engineering:** Used CDP probing against `SharedJSContext` (`127.0.0.1:8080`) to map the entire native notification engine (`NotificationStore` in module `60917`), sound playback interception (`PlayNotificationSound`, `ChooseSound`), and toast rendering (`function ht` in module `11374`).
     - **Sound & Banner Interception Hooks:** Confirmed that hooking `PlayNotificationSound` cleanly silences the default Steam chime (`j.PN.ToastAchievement`) and triggers custom audio playback via HTML5 `AudioContext` with per-tier volume control, while patching `ht` allows rendering themed banners with zero UI drift.
     - **Steam Game Recording & Capture RPCs Mapped:** Identified `CGameRecordingService` (module `80026`, export `xM`) RPCs: `UserAddTimelineEntry` (golden trophy timeline markers), `SaveClip` (instant replay buffer extraction), and `TakeScreenshot`.
-    - **Schema & Theme Specification:** Updated [`enhanced-achievements/themes.md`](enhanced-achievements/themes.md) and [`enhanced-achievements/steam_ps_exemple.json`](enhanced-achievements/steam_ps_exemple.json) to incorporate auto-screenshot delay (`screenshot.delay_ms`), auto-recording duration/delay (`recording.duration_s`, `recording.delay_ms`), and timeline markers across rarity tiers (`normal`, `magic`, `rare`, `exceptional`).
+    - **Schema & Theme Specification:** Updated [`enhanced-achievements/themes.md`](enhanced-achievements/themes.md) and [`enhanced-achievements/steam_ps_exemple.json`](enhanced-achievements/examples/steam_ps_exemple.json) to incorporate auto-screenshot delay (`screenshot.delay_ms`), auto-recording duration/delay (`recording.duration_s`, `recording.delay_ms`), and timeline markers across rarity tiers (`normal`, `magic`, `rare`, `exceptional`).
     - **Authored Comprehensive Implementation Plan:** Created [`docs/plans/enhanced-achievements-plan.md`](docs/plans/enhanced-achievements-plan.md) detailing plugin structure, hook points, theme inheritance rules, and phase-by-phase execution roadmap.
 
 - **Lifecycle Cache Hardening & Navigation Resilience (Phase 4b Shipped):**

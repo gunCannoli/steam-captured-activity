@@ -1,6 +1,6 @@
 {
   "name": "enhanced-achievements",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "description": "Themes Steam's achievement notifications: custom banners and sounds per rarity tier, from shareable JSON themes.",
   "scripts": {
@@ -8,7 +8,8 @@
     "build": "millennium-ttc --build prod",
     "build:dev": "millennium-ttc --build dev",
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "verify": "npm run check && npm test && npm run build"
   },
   "dependencies": {
     "@steambrew/client": "^5.8.5",
@@ -20,5 +21,6 @@
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
     "typescript": "^5.9.3"
-  }
+  },
+  "license": "MIT"
 }

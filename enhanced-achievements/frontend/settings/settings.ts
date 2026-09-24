@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { pluginConfig, subscribePluginConfig } from '@steambrew/client';
 import defaults from '../../settings.json';
 import { logger } from '../logger';
+import { CAPTURE_RANGES } from '../capture/plan';
 
 /**
  * Plugin settings, backed by Millennium's Configuration API.
@@ -52,12 +53,8 @@ export const DEFAULTS: Settings = {
     'recording.add_timeline_marker': defaults.recording.add_timeline_marker,
 };
 
-/** Numeric ranges; also used by the settings panel's sliders. */
-export const RANGES: Partial<Record<SettingKey, { min: number; max: number; step: number }>> = {
-    'screenshot.delay_ms': { min: 0, max: 5000, step: 100 },
-    'recording.duration_s': { min: 5, max: 60, step: 5 },
-    'recording.delay_ms': { min: 0, max: 5000, step: 100 },
-};
+/** Numeric ranges; also used by the settings panel's sliders. Single source: capture/plan.ts. */
+export const RANGES: Partial<Record<SettingKey, { min: number; max: number; step: number }>> = { ...CAPTURE_RANGES };
 
 /** A stored value of the wrong type or out of range is ignored, never thrown. */
 function validate<K extends SettingKey>(key: K, value: unknown): Settings[K] | undefined {

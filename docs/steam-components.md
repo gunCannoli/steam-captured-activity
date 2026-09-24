@@ -1298,17 +1298,80 @@ handles `enhanced-achievements` resolves by. Probes: `enhanced-achievements/test
 
 ### Game Recording RPCs & timeline markers
 
-Steam's 2024 Game Recording system (`CGameRecordingService`, webpack module `80026` / export `xM`) exposes structured RPCs through Steam's CM transport:
+Steam's 2024 Game Recording system exposes structured RPCs through Steam's CM
+transport, verified live 2026-09-24 (docs/plans/phase7-and-alpha-plan.md § A1;
+no real capture, clip or marker was created — only dry probes with a bogus
+game id, all failing cleanly). Module ids below are build breadcrumbs, not
+stable — resolve by signature only.
 
-1. **Golden Timeline Markers (`GameRecording.UserAddTimelineEntry#1`):**
-    - Request: `CGameRecording_UserAddTimelineEntry_Request` (`{ game_id, entry, clip_id }`).
-    - Inserts an icon marker directly onto Steam's active recording timeline at the exact timestamp.
-2. **Instant Replay Clips (`GameRecording.SaveClip#1`):**
-    - Request: `CGameRecording_SaveClip_Request` (`{ game_id, start, end, name, src_clip_id, temporary, force_thumbnail }`).
-    - Automatically cuts a clip (e.g., previous 15–30 seconds around an achievement event) into `gamerecordings/clips/`.
-3. **Capture Screenshot (`GameRecording.TakeScreenshot#1`):**
-    - Request: `CGameRecording_TakeScreenshot_Request` (`{ game_id, timeline_id, timeline_offset_ms, source_clip_id }`).
-    - Triggers native frame grab directly aligned with the recording timeline.
+**Resolution.** The service: the export object of the module whose source
+contains `"GameRecording.TakeScreenshot#1"`, with
+`v.TakeScreenshotHandler?.name === "GameRecording.TakeScreenshot#1"` and
+functions `TakeScreenshot`, `SaveClip`, `UserAddTimelineEntry` (this build:
+module `80026`, export `xM`). `SteamClient.GameRecording` is **not** the RPC
+service — it only has `RegisterForAudioSessionsChanged` /
+`SetAudioSessionCaptureState`. There is **no `SteamClient.*` trigger for a live
+capture**; `SteamClient.Screenshots.*` is read/manage only.
+
+**Calling convention.** Steam's own callers (`CGameRecordingStore`) pass plain
+objects; the service converts them to protobuf itself:
+`const res = await svc.TakeScreenshot({...}); res.GetEResult(); res.BSuccess(); res.Body().toObject();`.
+It never throws on a bad request (it resolves with a failing `EResult`); it can
+reject only with no transport ("Transport Error").
+
+1. **`GameRecording.TakeScreenshot#1`** — request `{ game_id, timeline_id,
+   timeline_offset_ms, source_clip_id? }`; response `{ screenshot_id }`.
+   **It extracts a frame from already-recorded video at that timeline offset**
+   (backs the timeline menu's "Take Screenshot at Current Playback"), not a
+   F12-style live grab — it needs background or manual recording already
+   running at that moment.
+2. **`GameRecording.SaveClip#1`** — request `{ game_id, start: {timeline_id,
+   offset_ms}, end: {timeline_id, offset_ms}, name, src_clip_id?, temporary
+   (must be `false` to keep it), force_thumbnail }`; response `{ summary:
+   {clip_id, game_id, duration_ms, date_recorded, thumbnail_url, …} }`.
+3. **`GameRecording.UserAddTimelineEntry#1`** — request `{ game_id, entry:
+   {timeline_id, entry_id: "" on create, time (ms, uint64 string), type,
+   game_mode, range_title, range_duration, range_possible_clip,
+   timestamp_title, marker_icon, marker_description, marker_priority,
+   screenshot_handle, achievement_name, tag[], phase_id, attributes[]},
+   clip_id? }`; response `{ entry_id }`.
+
+**`ETimelineEntryType`** (protobuf wire enum, a network contract, not a
+webpack id): `GameMode=1, Event=2, StateDescription=3, Achievement=4,
+UserMarker=5, Screenshot=6, Error=7`. Rendering, from Steam's proto→UI
+converter: `UserMarker` (5) always draws as `steam_marker` (icon and title
+dropped on reload); `Event` (2) keeps `marker_icon`, `range_title`,
+`marker_description`; `Achievement` (4) keeps only `achievement_name` and is
+looked up via `GetAchievementInfo(appid, achievement_name)` — only resolves
+for apps with a Steam achievement schema. **Steam already writes an
+`Achievement`-type entry on its own games' unlocks**, so a plugin-added marker
+for a native Steam game would duplicate it; only add one for non-Steam
+shortcuts (whose achievements have no Steam schema entry).
+
+**Live recording state:** `window.g_GRS`, an instance of `CGameRecordingStore`
+(created by the client's own store init on both desktop and gamepad startup
+paths). `g_GRS.m_mapActiveTimelines: Map<timelineId, {loader, release}>`; the
+loader has `BIsTimelineRunning(tid)`, `GetRunningTimelineDurationMS(tid)`
+(a `performance.now()`-based live offset), `GetGameID()` (uint64 string —
+native games use the plain appid, shortcuts the composed 64-bit gameid, per
+AGENTS.md § two identifiers), `GetTimelineStartBeforeGlobalZeroMS(tid)`, and
+`m_mapRunningTimelines: Map<tid, {m_metadata, m_runningRecording}>`, where
+`m_runningRecording` is `{recording_id, start_offset_ms, duration_ms,
+recording_type}` while video is being written, `null` otherwise. **Stale
+entries stay in `m_mapActiveTimelines`** after a timeline stops (Steam calls
+`release()` but never deletes the map entry), so `BIsTimelineRunning` is
+mandatory before trusting an entry. `g_GRS` must be read fresh on every use,
+never cached — Steam can recreate it.
+
+**Dry-probe EResults** (bogus `game_id: "1"`, `timeline_id:
+"timeline_0_nonexistent"`): `GetState({})` → 1 OK; `GetTimelinesForApp` → 1,
+empty; `TakeScreenshot` → 8 (InvalidParam); `SaveClip` (`temporary: true`) →
+79 (InvalidState); `UserAddTimelineEntry` (type 5) → 42 (NoMatch).
+
+Implementation: `enhanced-achievements/frontend/steam/recording.ts` (the only
+file touching these objects) and `frontend/capture/{plan,captures}.ts` (pure
+planning + scheduling). Full spec:
+[docs/plans/phase7-and-alpha-plan.md](plans/phase7-and-alpha-plan.md) § A1–A2.
 
 ### Custom artwork API
 

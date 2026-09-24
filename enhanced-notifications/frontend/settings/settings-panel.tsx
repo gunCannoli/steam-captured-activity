@@ -3,6 +3,7 @@ import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, Dropdow
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
 import { achievementsClaims, previewCategory } from '../steam/notifications';
+import { toastWarning } from '../steam/notification-settings';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
 import { CATEGORIES, type Category } from '../theme/theme';
 import { resetSettings, useSetting, type SettingKey } from './settings';
@@ -96,9 +97,11 @@ function PreviewSection() {
 }
 
 export function SettingsPanel() {
+    const warning = toastWarning();
     return (
         <>
             <ThemeSection />
+            {warning && <div>{warning}</div>}
             <PreviewSection />
             <Toggle k="style.enabled" label="Themed style" description="Off: Steam's own look for every notification." />
             <Toggle k="sound.enabled" label="Themed sounds" description="Off: Steam's own sounds. Steam's notification sound setting is always respected." />

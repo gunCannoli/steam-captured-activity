@@ -1,95 +1,62 @@
 # TASK — current status & what's next
 
 Lean tracker: **open work only.** Everything shipped — with verification logs
-and rationale — lives in [CHANGELOG.md](CHANGELOG.md) (workspace) and
-[non-steam-games-activity/CHANGELOG.md](non-steam-games-activity/CHANGELOG.md)
-(plugin). ADRs are in [docs/decisions.md](docs/decisions.md), Steam internals in
-[docs/steam-components.md](docs/steam-components.md). Don't duplicate that
-detail here — link to it.
+and rationale — lives in [CHANGELOG.md](CHANGELOG.md) (workspace) and each
+plugin's own `CHANGELOG.md`. ADRs are in [docs/decisions.md](docs/decisions.md),
+Steam internals in [docs/steam-components.md](docs/steam-components.md). Don't
+duplicate that detail here — link to it.
 
 **Goal:** a non-Steam game's app detail page looks like a native one, on both
 desktop and Big Picture, by restoring Steam's own sections and feeding Steam's
 own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
-`enhanced-achievements` is a separate plugin that themes Steam's achievement
-toasts and sounds.
+`enhanced-achievements` and `enhanced-notifications` are separate plugins that
+theme Steam's toasts and sounds.
 
 ---
 
 ## Status
 
-**Shipped** (details in [CHANGELOG.md](CHANGELOG.md)): Post-Game Summary
-(desktop & Big Picture), library grid, per-day Activity feed, core refresh &
-caching, Phase 4b lifecycle hardening, Game Info & metadata enrichment, docs
-housekeeping, shared self-healing jsx runtime patch (verified across all three
-frontend plugins).
-
-| Area                                         | State                                                                                                                         |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Native Achievements (Phase 5)                | 🔬 Hook points verified in Steam client; not implemented.                                                                     |
-| Achievement Banner & Sound (Phase 6)         | ✅ Desktop + Big Picture verified live; in-game overlay still to verify. |
-| Enhanced Notifications (all toast types)     | ✅ Desktop and Big Picture verified live; friends/messages depend on Steam's Friends notification settings; overlay to verify. |
-| Auto-Captures on Unlock (Phase 7)            | 🔬 Game Recording RPCs mapped; not implemented.                                                                               |
-| Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md)).                                                        |
-
-Full module-by-module state: [non-steam-games-activity/README.md](non-steam-games-activity/README.md#status).
+| Area                                      | State                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Alpha — banner, sound, tiers, Phase 7 auto-captures (off by default); awaiting user testing          |
+| `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
+| Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
+| Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
 
 ---
 
-## Multi-Session Roadmap
+## Alpha testing (user)
+
+Only verifiable with a real game running. Steps and expected results:
+[phase7-and-alpha-plan.md § User test checklist](docs/plans/phase7-and-alpha-plan.md#user-test-checklist-only-the-user-can-verify)
+and each plugin's README ("How to test").
+
+- [ ] **U1–U5:** real-unlock captures — screenshot, clip, coalescing, Steam's own
+      achievement marker, non-Steam shortcut via "Test captures".
+- [ ] **U6:** no captures when in-game toasts are disabled (settings warning shows).
+- [ ] **U7:** in-game overlay, both plugins (desktop overlay toasts should be caught
+      via `g_PopupManager`; Big Picture overlay toasts are code-verified only).
+- [ ] **U8:** `enhanced-notifications` friends/messages styling with Steam's Friends
+      notifications on (currently SKIP in `tests/categories.mjs`).
+- [ ] **U9:** fresh install from a `dev.ps1 -Package` zip under the release name.
+
+## Blocked upstream
+
+- [ ] **Millennium Configuration API bug** [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)
+      (fix proposed in [PR #904](https://github.com/SteamClientHomebrew/Millennium/pull/904)).
+      Once a fixed release ships, re-test and drop the workaround in both plugins' `settings.ts`.
+
+---
+
+## Roadmap
 
 ### Phase 5: Native Achievement Integration (Desktop & Big Picture)
 
-- **Desktop Sidebar:** Re-enable `"achievements"` in `CAppDetailsSections.GetSections()` and feed `AppDetailsStore.GetAchievements(appid)` (module `78057` / `57665`) with `{ nAchieved, nTotal, vecHighlight, vecUnachieved }`.
+- **Desktop Sidebar:** Re-enable `"achievements"` in `CAppDetailsSections.GetSections()` and feed `AppDetailsStore.GetAchievements(appid)` with `{ nAchieved, nTotal, vecHighlight, vecUnachieved }`.
 - **Post-Game Summary:** Feed `CGamePlaySession.prototype.AddAchievement(achievement, unlockTime)` so unlocked achievements appear in the summary card strip alongside screenshots and clips.
 - **Big Picture Play Bar:** Feed `appAchievementProgressCache.m_achievementProgress.mapCache` with `{ unlocked, total }` so quick stats display under the Play button.
 - **Data Adapters:** Ingest schemas and unlocks from local emulator sources (RPCS3 `TROPCONF.SFM`/`TROPUSR.DAT`, RetroArch/rcheevos logs, DuckStation, PCSX2) and generic JSON.
-
-### Phase 6: Achievement Banner & Sound (`enhanced-achievements`) — remaining
-
-Shipped and verified on desktop and Big Picture (see [CHANGELOG.md](CHANGELOG.md),
-[plan § 5 status](docs/plans/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound)).
-
-- [ ] **In-game overlay:** verify with a real unlock in a running game (same dispatcher, code-verified only).
-- [ ] **Millennium Configuration API bug:** [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903), fix proposed in [PR #904](https://github.com/SteamClientHomebrew/Millennium/pull/904). Once a fixed release ships, re-test and drop the workaround in `settings.ts`.
-
-### `enhanced-notifications` — Big Picture toast window fixed
-
-Fixed 2026-09-24 (see [docs/plans/enhanced-notifications-toast-window-bugfix.md](docs/plans/enhanced-notifications-toast-window-bugfix.md)
-for the full diagnosis). Corrects the entry this replaced: **desktop styling was never
-broken** — that diagnosis mixed up desktop and Big Picture, having run its live check
-in Big Picture and misread it as "no toast window is ever caught". Desktop toasts
-(`notificationtoasts_<id>_desktop`, one popup per toast via `g_PopupManager`) were
-already caught by `Millennium.AddWindowCreateHook` the whole time.
-
-The real bug: Big Picture's toast is a single persistent
-`SteamClient.BrowserView.CreatePopup` + `window.open` popup, created once and reused
-for every toast, and it is **never registered with `g_PopupManager`** — so neither
-`AddWindowCreateHook` nor `GetPopups()` (the old `scanPopups` fallback) ever see it.
-Fix: reach it from the `GamepadToastPlaceholder` div Steam renders into the Big
-Picture main window (which *is* in `g_PopupManager`) — two `.return` hops up its React
-fiber, a hook holds the `BrowserViewPopup` object, `GetViewWindow()` is the toast
-window. `style/injector.ts`'s `scanBigPictureToastWindows()` runs this once per toast
-shown, no new timers, no `window.open`/prototype patches, no hardcoded class hashes.
-
-Verified live: `node tests/categories.mjs` PASSes downloads/recording/system/achievement
-on both desktop and Big Picture (friends/messages SKIP — depend on Steam's Friends
-notification settings), including after exiting and re-entering Big Picture (new toast
-window, old one pruned).
-
-### enhanced-notifications — remaining
-
-- [ ] **In-game overlay:** verify both plugins with a real game (desktop overlay toasts
-  should already be caught via `g_PopupManager`; Big Picture overlay toasts use the same
-  `pe` component inside the overlay window and are unverified — see plan § (c)9).
-- [ ] **Friend/message toasts:** enable Steam's Friends notifications and verify content styling (currently SKIP, not exercised).
-- [ ] **Core regression** (Routines 1–2, `scratch/`) with all three plugins enabled.
-- [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
-
-### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)
-
-- **Delayed Auto-Screenshot:** Configurable delay (`screenshot.delay_ms`) before triggering frame capture via `GameRecording.TakeScreenshot#1` or `SteamClient.Screenshots`, ensuring clean in-game capture without toast occlusion.
-- **Instant Replay Clip:** Configurable duration (`recording.duration_s`) and delay (`recording.delay_ms`) saving a video clip around the unlock moment via `GameRecording.SaveClip#1`.
-- **Timeline Achievement Markers:** Place golden achievement icon markers onto Steam's active game recording timeline at the exact moment of unlock via `GameRecording.UserAddTimelineEntry#1`.
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 
