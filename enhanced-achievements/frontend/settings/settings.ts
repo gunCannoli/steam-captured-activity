@@ -14,14 +14,15 @@ import { logger } from '../logger';
  * Reads are served from an in-memory copy: hooks run per toast and must never
  * do an IPC round trip (docs/enhanced-achievements-plan.md, guardrail 5).
  *
- * Millennium bug workaround (verified live on loader 2026-08-18, lib 1.1.2;
- * docs/knowledgebase.md § Plugin settings): the SDK's `pluginConfig` sends its
- * operation as a number and the backend rejects it while building the reply.
- * So `set`/`delete` DO persist but reject with "type must be string, but is
- * number", `get`/`getAll` always fail, and no change events are delivered.
- * This module therefore reads through Millennium's own `PluginConfig_GetAll`
- * FFI when `getAll` fails, confirms writes by reading back, and notifies its
- * own listeners. `usePluginConfig` is not used for the same reason.
+ * Millennium v3.4.1 bug workaround (Millennium#903; docs/knowledgebase.md §
+ * Plugin settings): the FFI metrics recorder reads the numeric config
+ * `methodName` as a string *after* the operation ran, and replaces the result
+ * with "type must be string, but is number". So `set`/`delete` DO persist but
+ * reject, and `get`/`getAll` always fail. Frontend-origin writes also never
+ * raise change events (by design). This module therefore reads through
+ * Millennium's own `PluginConfig_GetAll` FFI when `getAll` fails, confirms
+ * writes by reading back, and notifies its own listeners. `usePluginConfig` is
+ * not used for the same reason.
  */
 
 export interface Settings {
@@ -146,11 +147,12 @@ export async function initSettings(): Promise<void> {
     } catch (error) {
         logger.warn('Could not read plugin config; using defaults.', error);
     }
-    // For Millennium builds where change events work (not the one verified above).
+    // Only Lua-backend writes raise change events (frontend writes do not, by
+    // design); none exist today, but a future backend write would land here.
     try {
         subscribePluginConfig((key, value) => apply(key, value));
     } catch {
-        /* no events on this build; writes go through write() which syncs */
+        /* our own writes go through write(), which syncs */
     }
 }
 

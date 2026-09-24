@@ -217,24 +217,34 @@ Facts confirmed in the installed binaries and core bundle:
 - **A plugin's named exports appear on `window.PLUGIN_LIST[<plugin>]`.** That is
   how a CDP test can call into a plugin (e.g. `PLUGIN_LIST['x-dev'].setSetting(...)`).
 
-> **⚠️ Bug on the installed Millennium (1.1.2, loader 2026-08-18), verified live
-> 2026-09-24.** The frontend library sends the config operation as a number
-> (`methodName: 0` for GET, `1` for SET, …) and the backend expects a string, so
-> **every** `pluginConfig` call rejects with
-> `[json.exception.type_error.302] type must be string, but is number`. However:
+> **⚠️ Bug in Millennium v3.4.1 (latest; commit `18b89e1`; also on `main`),
+> verified live 2026-09-24, reported as
+> [Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903).**
+> Every `pluginConfig` call rejects with
+> `[json.exception.type_error.302] type must be string, but is number`, although
+> the operation itself runs. Root cause: in `src/engine/ffi_binder.cc`, *after*
+> `process_message` succeeds, the FFI metrics recorder reads
+> `data.value("methodName", std::string{})`. For `PLUGIN_CONFIG` calls
+> `methodName` is the numeric op enum, so `value()` throws, and the catch
+> replaces the successful result with the error. So:
 >
 > - `set` / `delete` **do persist**; only the reply fails.
 > - `get` / `getAll` never return a value, so `usePluginConfig` stays `undefined`
 >   and its setter throws before updating local state.
-> - **No change events** reach `subscribePluginConfig`.
 > - Reading works through Millennium's own FFI:
 >   `MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(plugin)` (and
->   `PluginConfig_DeleteAll`), the calls its settings UI uses.
+>   `PluginConfig_DeleteAll`), the calls its settings UI uses (string method names).
+>
+> **Separately, by design:** `plugin_config::notify_change` does not call
+> `window.__millennium_plugin_config_changed__` for frontend-origin writes, so
+> `subscribePluginConfig` only sees changes made by the Lua backend.
 >
 > Workaround in `enhanced-achievements/frontend/settings/settings.ts`: read via
 > `getAll`, falling back to that FFI; write with `set`/`delete`, tolerating that
 > exact error and confirming by reading back; keep an in-memory copy and notify
-> listeners ourselves; do not use `usePluginConfig`. Re-test after Millennium updates.
+> listeners ourselves; do not use `usePluginConfig`. Re-test when #903 is fixed.
+> (The `1.1.2` in `window.MILLENNIUM_FRONTEND_LIB_VERSION` is the bundled frontend
+> library's version, not Millennium's; Millennium's is `PLUGIN_LIST.core.version`.)
 
 ### Reusing Steam's native UI (**✅ verified**, reading `k0d13/steam-non-steam-playtimes` at commit `f2c14ec`)
 

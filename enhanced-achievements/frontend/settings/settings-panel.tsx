@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ButtonItem, DropdownItem, Field, SliderField, ToggleField } from '@steambrew/client';
+import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, SliderField, ToggleField } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
 import { previewTier } from '../steam/notifications';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
-import { TIERS } from '../theme/theme';
+import { TIERS, type Tier } from '../theme/theme';
 import { DEFAULTS, RANGES, resetSettings, useSetting, type SettingKey } from './settings';
 
 /**
@@ -80,16 +80,47 @@ function ThemeSection() {
             <ButtonItem label="Open themes folder" description={userDir || 'Your themes live here and survive plugin updates.'} onClick={() => void rpc.openThemesFolder()}>
                 Open
             </ButtonItem>
-            <Field label="Preview" description="Fire a test achievement with a forced rarity tier.">
-                <div style={{ display: 'flex', gap: 8 }}>
-                    {TIERS.map((tier) => (
-                        <ButtonItem key={tier} onClick={() => void previewTier(tier)}>
-                            {tier}
-                        </ButtonItem>
-                    ))}
-                </div>
-            </Field>
+            <PreviewSection />
         </>
+    );
+}
+
+const TIER_LABELS: Record<Tier, string> = {
+    normal: 'Normal (bronze)',
+    magic: 'Magic (silver)',
+    rare: 'Rare (gold)',
+    exceptional: 'Exceptional (100%)',
+};
+
+/** What makes an unlock land in each tier, for the active theme. */
+function tierRule(tier: Tier): string {
+    const tiers = activeTheme()?.theme.tiers;
+    const magic = tiers?.magic.threshold, rare = tiers?.rare.threshold;
+    switch (tier) {
+        case 'exceptional':
+            return 'The unlock that completes the game.';
+        case 'rare':
+            return rare !== null && rare !== undefined ? `${rare}% or fewer players have it.` : 'Not used by this theme (no threshold).';
+        case 'magic':
+            return magic !== null && magic !== undefined ? `${magic}% or fewer players have it.` : 'Not used by this theme (no threshold).';
+        default:
+            return 'Everything else, and games without rarity data.';
+    }
+}
+
+/** One row per tier: fires Steam's own test achievement with that tier forced. */
+function PreviewSection() {
+    const [, rerender] = useState(0);
+    useEffect(() => onThemeChange(() => rerender((n) => n + 1)), []);
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Preview a tier</DialogControlsSectionHeader>
+            {TIERS.map((tier) => (
+                <ButtonItem key={tier} label={TIER_LABELS[tier]} description={tierRule(tier)} onClick={() => void previewTier(tier)}>
+                    Preview
+                </ButtonItem>
+            ))}
+        </DialogControlsSection>
     );
 }
 

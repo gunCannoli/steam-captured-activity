@@ -43,8 +43,15 @@ local function method(name, func)
   end
 end
 
+--- One separator style per platform: steam_path() uses "/" but fs.join adds
+--- the native one, which showed up as "c:/game/steam\millennium\..." in the panel.
+local SEP = package.config:sub(1, 1)
+local function native(path)
+  return (path:gsub("[/\\]", SEP))
+end
+
 local function user_themes_dir()
-  return fs.join(millennium.steam_path(), "millennium", "config", "enhanced-achievements", "themes")
+  return native(fs.join(millennium.steam_path(), "millennium", "config", "enhanced-achievements", "themes"))
 end
 
 local function bundled_themes_dir()
@@ -132,7 +139,7 @@ end)
 OpenThemesFolder = method("OpenThemesFolder", function(_)
   local dir = user_themes_dir()
   fs.create_directories(dir)
-  utils.exec('explorer "' .. dir:gsub("/", "\\") .. '"')
+  utils.exec('explorer "' .. dir .. '"')
   return { dir = dir }
 end)
 

@@ -22,10 +22,14 @@ try {
 
     // Steam's own test toast (global_achieved_pct 10). The plugin themes it like a real unlock.
     await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
-    await new Promise((r) => setTimeout(r, 1500));
-
-    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
-    const toast = targets.find((t) => /notificationtoasts/i.test(t.title));
+    // The first toast after a Steam start also has to create its popup window.
+    let toast;
+    for (let i = 0; i < 12 && !toast; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
+        toast = targets.find((t) => /notificationtoasts/i.test(t.title));
+    }
+    await new Promise((r) => setTimeout(r, 500));
     check('toast window opened', !!toast, toast?.title);
     if (toast) {
         const win = await connect(toast.title);

@@ -180,8 +180,9 @@ enhanced-achievements/
 >   is applied through the achievement type's config `toastDurationMS` instead.
 > - `position` is not applied: Steam places the toast window from its own setting.
 >   The desktop frame is a fixed 284×71, so `scale` enlarges content, capped to the frame.
-> - Millennium 1.1.2's Configuration API is partly broken (writes persist but
->   error, reads fail, no events). Settings use a workaround instead of
+> - Millennium v3.4.1's Configuration API is partly broken (writes persist but
+>   error, reads fail: [Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)),
+>   and frontend writes raise no change events by design. Settings use a workaround instead of
 >   `subscribePluginConfig` / `usePluginConfig`
 >   ([knowledgebase.md](knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)).
 > - Tests: `npm test` (logic), `tests/*.mjs` (live CDP), `scratch/test_nav_cycle.js`

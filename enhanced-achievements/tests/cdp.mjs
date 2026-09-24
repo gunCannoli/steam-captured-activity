@@ -55,7 +55,7 @@ export async function connect(title = TARGET) {
     return { evaluate, screenshot, close: () => ws.close() };
 }
 
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
     const cdp = await connect();
     try {
         console.log(JSON.stringify(await cdp.evaluate(process.argv[2]), null, 2));

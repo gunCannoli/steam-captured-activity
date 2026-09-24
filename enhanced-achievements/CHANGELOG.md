@@ -32,6 +32,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   within it, and `position` follows Steam's own notification setting.
 - The in-game overlay uses the same toast code path, but has not yet been
   verified with a real in-game unlock.
-- On Millennium 1.1.2 (loader 2026-08-18) the Configuration API only partly
-  works: writes persist but report an error, reads fail, and no change events
-  arrive. The plugin works around it (see `frontend/settings/settings.ts`).
+- On Millennium v3.4.1 the Configuration API only partly works: writes persist
+  but report an error, and reads fail
+  ([Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)).
+  The plugin works around it (see `frontend/settings/settings.ts`).

@@ -48,7 +48,8 @@ Shipped and verified on desktop and Big Picture (see [CHANGELOG.md](CHANGELOG.md
 [plan § 5 status](docs/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound)).
 
 - [ ] **In-game overlay:** verify with a real unlock in a running game (same dispatcher, code-verified only).
-- [ ] **Millennium Configuration API bug:** report upstream (numeric `methodName`; [knowledgebase.md](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)). Drop the workaround in `settings.ts` once fixed.
+- [ ] **Millennium Configuration API bug:** reported as [Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903). Once a fixed release ships, re-test and drop the workaround in `settings.ts`.
+- [ ] **Decide:** `enhanced-notifications` companion plugin (style every toast type; `enhanced-achievements` layers on top). Not started.
 - [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
 
 ### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)
