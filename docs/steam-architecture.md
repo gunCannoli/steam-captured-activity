@@ -41,6 +41,9 @@ SharedJSContext (Single Runtime Truth)
 | **Custom Artwork**      | `SteamClient.Apps`                                | `SetCustomArtworkForApp(appid, base64, ext, type)`                                     | Sets portrait (0), hero (1), logo (2), and wide capsule (3) artwork directly.                                      |
 | **Gamepad Tabbed Page** | `GamepadTabbedPage`                               | Intercept `props.tabs` via `react/jsx-runtime`                                         | Injects custom tabs (e.g. RetroAchievements, Game Info) into Big Picture's tab bar.                                |
 | **Gamepad Components**  | Gamepad UI Library                                | `<Focusable>`, `DialogButton`, `<Carousel>`, `showModal`                               | Native Big Picture UI building blocks with automatic controller navigation.                                        |
+| **AppOverview Model**   | `AppOverview.prototype`                           | `GetGameID()`, `BIsModOrShortcut()`, `BHasStoreCategory()`, `m_gameid`, `rt_original_release_date` | Fundamental per-app data model. Hook `GetGameID` whenever modifying `BIsModOrShortcut` to protect media queries.  |
+| **Game Info Container** | Module `15448` (`G` & `k`)                        | `onCollapseStarted`, `onCollapseComplete`, `setBoxHeight`, `descriptionsData`, `associationData` | Renders native summary capsule, description, developer/publisher credits, release date, and category badges.       |
+| **Your Stuff Media**    | Module `57150` (`Ae.E`)                           | `listSource: { type: "app", gameid: overview.gameid }`                                 | Renders Big Picture "YOUR STUFF" media section (screenshots & clips). Requires 64-bit composed ID `m_gameid`.      |
 
 ---
 
@@ -86,6 +89,7 @@ export function findStore<T>(predicate: (proto: any) => boolean): T | null {
 - **`AppDetailsStore`:** `proto => typeof proto.GetAchievements === 'function' && typeof proto.GetAssociations === 'function'`
 - **`StoreItemCache`:** `proto => typeof proto.GetStoreItem === 'function' && typeof proto.QueueStoreItemRequest === 'function'`
 - **`GameRecordingService`:** `proto => typeof proto.SaveClip === 'function' && typeof proto.UserAddTimelineEntry === 'function'`
+- **`Game Info Container (G)`:** `proto => typeof proto.onCollapseStarted === 'function' && typeof proto.onCollapseComplete === 'function' && typeof proto.setBoxHeight === 'function'`
 
 ---
 

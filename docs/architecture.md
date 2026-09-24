@@ -45,6 +45,22 @@ the other.
 
 ---
 
+## Regression Prevention & Pre-Modification Review Index
+
+Before modifying, creating, or refactoring features in this repository, **consult this index**.
+Because Steam shares store singletons, prototypes, and class modules across all detail tabs,
+a change in one feature area can silently cause a ripple effect and break another.
+
+| When adding/modifying... | Docs to Review First | Source Files Involved | Critical Hazards & Invariants |
+| :--- | :--- | :--- | :--- |
+| **Game Info** (Descriptions, Credits, Release Dates, Categories) | • [knowledgebase.md § Trap 1: AppOverview ID Coupling](knowledgebase.md#trap-1-the-appoverview-id-coupling-trap-bismodorshortcut-vs-getgameid)<br>• [knowledgebase.md § Trap 2: O(1) Performance Choke](knowledgebase.md#trap-2-the-o1-performance-choke-in-prototype-hooks)<br>• [steam-architecture.md § 2: Core Stores](steam-architecture.md#2-core-stores--modules-quick-reference) | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`steamgriddb-artwork/frontend/steam/metadata.ts`<br>`steamgriddb-artwork/backend/metadata.py` | 1. **Do not decouple `GetGameID`:** Overriding `BIsModOrShortcut() => false` causes native `GetGameID()` to evaluate to `this.appid.toString()`. `GetGameID` MUST also be hooked to return `this.m_gameid`, or the **Your Stuff** media tab breaks immediately!<br>2. **$O(1)$ strictly enforced:** Never generate `new Error().stack` or regex inside prototype hooks.<br>3. **Clear stale categories:** Delete previous `STEAM_CATEGORIES` before adding new ones.<br>4. **Release date:** Write unix seconds to `overview.rt_original_release_date`. |
+| **Your Stuff** (Media, Screenshots, Video Clips) | • [knowledgebase.md § The Two Identifiers](knowledgebase.md#the-two-identifiers)<br>• [knowledgebase.md § Trap 1: AppOverview ID Coupling](knowledgebase.md#trap-1-the-appoverview-id-coupling-trap-bismodorshortcut-vs-getgameid)<br>• [steam-components.md § Screenshots & Media](steam-components.md) | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts` | 1. **64-bit composed ID:** Media queries in module `57150` (`Ae.E`) query by `overview.gameid`. Verify `overview.gameid` returns `this.m_gameid` (`18310622842007322624`) and NOT 32-bit `appid.toString()`.<br>2. **Section recognition:** `isShortcut(overview)` must check `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()`. |
+| **Activity Feed** (Chronological Per-Day Cards) | • [decisions.md#adr-0030](decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing)<br>• [knowledgebase.md § Trap 3: Single-Pass Webpack Cache](knowledgebase.md#trap-3-the-single-pass-webpack-cache-choke)<br>• [knowledgebase.md § Trap 6: Activity Feed StoreItemCache Stubbing](knowledgebase.md#trap-6-activity-feed-storeitemcache-stubbing--css-scoping) | `non-steam-games-activity/frontend/steam/activity.ts`<br>`non-steam-games-activity/frontend/steam/day.ts`<br>`non-steam-games-activity/frontend/steam/activity-cards-patch.ts` | 1. **`StoreItemCache` stubbing:** Satisfy `storeApp.BIsVisible()` before dispatching events.<br>2. **Single-pass module resolution:** Call `initCardComponents()` once at plugin startup; never iterate `req.m` in render paths ($O(N^2)$ choke).<br>3. **CSS disambiguation:** Scope thumbnail rules to `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` with `width: 100% !important` to prevent flex collapse. |
+| **Post-Game Summary** (Top Hero Card Strip) | • [decisions.md#adr-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)<br>• [decisions.md#adr-0029](decisions.md#adr-0029-big-picture-runs-in-sharedjscontext-via-react-portal-native-component-rendering-and-store-feeding-supersede-dom-cloning)<br>• [knowledgebase.md § Trap 4: Section Registry Memo](knowledgebase.md#trap-4-section-registry-memo-mutation) | `non-steam-games-activity/frontend/steam/summary.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts` | 1. **Registry memo:** Mutate `m_setSectionsMemo` in place and clear it before `forceUpdate()`.<br>2. **Re-render live instances:** Track instances and forceUpdate on async capture arrival.<br>3. **Zero hand-built DOM:** Use Steam's real `Ge.T` component via `CAppSpotlightStore`. |
+| **Achievements & Notifications** (Phase 5/6) | • [steam-architecture.md § 2: Core Stores](steam-architecture.md#2-core-stores--modules-quick-reference)<br>• [steam-components.md § Achievements](steam-components.md#native-achievements-inspection-verified)<br>• [TASK.md § Phase 5](TASK.md#phase-5-native-achievement-integration-desktop--big-picture) | `enhanced-achievements/`<br>`AppDetailsStore`<br>`window.NotificationStore` | 1. **No false achievement tags:** Only set `categories.achievements` if real achievements exist (`achieved > 0` or schema present).<br>2. **Coordinate with Play Bar:** Feed `appAchievementProgressCache.m_achievementProgress.mapCache` alongside `AppDetailsStore`.<br>3. **Native notifications:** Use `NotificationStore.OnNotification` protobuf dispatch; do not inject custom toast DOM. |
+
+---
+
 ## Core: `non-steam-games-activity`
 
 ### Why this works without any provider
@@ -335,30 +351,31 @@ art and screenshots earn a new `kind: "gallery"` only if `links` genuinely
 cannot express a grid of images — that decision is deferred to when this
 provider is actually built, not made speculatively here.
 
-### 4. `game-metadata`
+### 4. `game-metadata` (Implemented as `steamgriddb-artwork` provider)
 
-Publisher, developer, original release date, genres — the box-back facts Steam
-shows for an owned game but has none of for a shortcut. Two sources considered:
+Publisher, developer, original release date, genres, and category badges — the box-back
+facts Steam shows for an owned game, but hides from shortcuts.
 
-- **IGDB** (igdb.com, run by Twitch) — the more consistent, actively-maintained
-  data model, but auth is a **Twitch OAuth client-credentials flow**
-  (`POST id.twitch.tv/oauth2/token` with a Twitch app's `client_id`/`client_secret`
-  → bearer token), meaning the user needs a Twitch developer application, not
-  just an API key. Rate limit is **4 requests/second, 8 concurrent** — fine
-  once cached, since this data never changes after a game ships.
-- **TheGamesDB** — simpler auth (a single API key), community-maintained so
-  field completeness and quality vary per entry more than IGDB's.
-
-Planned: IGDB when the user configures Twitch credentials, TheGamesDB as the
-lower-effort default, matched by title (retro titles rarely collide) with a
-manual-override escape hatch mirroring
-[ADR-0008](decisions.md#adr-0008-resolve-romgameid-by-cached-history-first-manual-override-last)'s
-pattern. Contributes a `sections` entry — publisher, developer, release date,
-genre tags — as `kind: "list"` (label/value pairs; no new `kind` needed, per
-ADR-0013's rule to keep that vocabulary small), displayed once per game, not
-per session. Aggressively cacheable: this is the one provider whose data is
-permanently static once fetched, so it never needs a refresh trigger beyond
-"first time this game is viewed."
+Implemented and shipped as the `steamgriddb-artwork` plugin:
+- **Local Database Single Source of Truth:** Stored as `C:\game\steam\library_metadata.json`
+  with 2-space indentation. Easily user-editable and preserved with `custom_override`.
+- **Twitch OAuth & IGDB v4 Backend:** APICalypse queries (`igdb.lua`) with client-credentials
+  caching.
+- **Smarter Scraper Disambiguation:** Ingests launch commands and emulator cores from
+  `shortcuts.vdf`. Scores canonical references (e.g. boosting primary `chrono-trigger`
+  and matching SNES platform hints over 2018 PC re-release `chrono-trigger--3`).
+- **Summary vs Storyline Priority:** Strictly prioritizes `summary` > `parent_game.summary` >
+  `storyline` to prevent narrative walkthroughs from replacing general game overviews.
+- **Smart Sentence Boundary Truncation (`truncate_smart`):** Splits cleanly on punctuation
+  (`. ! ?`) targeting ~400 characters with leeway.
+- **Native Store Feeding (Zero Custom DOM):** Feeds `descriptionsData` (`strSnippet`,
+  `strFullDescription`) and `associationData` (`rgDevelopers`, `rgPublishers`, `rgFranchises`).
+  Sets `overview.rt_original_release_date = meta.release_date` for native release date display,
+  and hooks `AppOverview.prototype.BHasStoreCategory` to render Steam's native SVG category badges.
+- **Filter Bypass & `GetGameID` Decoupling:** Hooks `AppOverview.prototype.BIsModOrShortcut`
+  to return `false` for enriched shortcuts (preventing `#AppDetails_Shortcut_Explanation`),
+  while hooking `GetGameID` to guarantee `this.m_gameid` is returned so that the **Your Stuff**
+  media queries are never corrupted.
 
 ---
 

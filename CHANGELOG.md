@@ -11,6 +11,12 @@ This repo is private and unversioned; entries are grouped by date.
 
 ### Added
 
+- **Regression Prevention & Architecture Hardening (Guardrails & ADR-0031):**
+    - **Guardrails in `AGENTS.md`:** Codified 4 unbreakable rules for AI agents: prototype hook coupling (`BIsModOrShortcut` vs `GetGameID`), zero expensive operations ($O(1)$ strictly enforced in hot prototype methods), single-pass Webpack module pre-caching, and multi-tab smoke test verification.
+    - **Regression Prevention Index in `docs/architecture.md`:** Created a pre-modification review table mapping every feature area (Game Info, Your Stuff, Activity Feed, Post-Game Summary, Achievements & Notifications) to specific reference documents, affected files, and critical hazards/invariants to review before writing code.
+    - **Critical Traps in `docs/knowledgebase.md`:** Documented Traps 1–7 covering ID coupling breakdown chains, $O(1)$ performance chokes, Webpack scan render-loop chokes, section memo in-place mutation, and multi-window Reactivity.
+    - **ADR-0031 in `docs/decisions.md`:** Recorded the architectural decision to decouple `GetGameID` from `BIsModOrShortcut` on `AppOverview.prototype` and enforce constant-time $O(1)$ prototype lookups.
+
 - **Smarter Scraper Logic & Canonical Platform Disambiguation (Side Task 4):**
     - **Launch Command & Core Ingestion:** Ingested shortcut launch targets, emulator cores (`snes9x`, `genesis_plus_gx`, `fceumm`, `duckstation`, etc.), and ROM file paths directly from `shortcuts.vdf` via backend `shortcuts.lua` and `steam_paths.lua`.
     - **Platform Clue Detection:** Mapped command lines and tags to retro platform hints (SNES, NES, Genesis, GBA, GB, N64, PS1, PSP, Arcade).

@@ -96,7 +96,8 @@ export function refreshGameInfoInstances(): void {
 
     try {
         const popupMgr =
-            (window as any).g_PopupManager || (globalThis as any).g_PopupManager;
+            (window as any).g_PopupManager ||
+            (globalThis as any).g_PopupManager;
         const bpmPopup = popupMgr?.GetExistingPopup?.("SP BPM_uid0");
         const bpmDoc = bpmPopup?.window?.document;
         if (bpmDoc && !docs.includes(bpmDoc)) {
@@ -291,10 +292,10 @@ function patchKComponent(k: any): boolean {
                 enrichedAppIds.has(overview.appid) ||
                 Boolean(
                     appData?.descriptionsData?.strSnippet ||
-                        appData?.descriptionsData?.strFullDescription ||
-                        appData?.associationData?.rgDevelopers?.length ||
-                        appData?.associationData?.rgPublishers?.length ||
-                        appData?.associationData?.rgFranchises?.length,
+                    appData?.descriptionsData?.strFullDescription ||
+                    appData?.associationData?.rgDevelopers?.length ||
+                    appData?.associationData?.rgPublishers?.length ||
+                    appData?.associationData?.rgFranchises?.length,
                 );
 
             if (hasMetadata) {
@@ -416,10 +417,10 @@ export function patchGameInfoComponent(): boolean {
                         enrichedAppIds.has(overview.appid) ||
                         Boolean(
                             appData?.descriptionsData?.strSnippet ||
-                                appData?.descriptionsData?.strFullDescription ||
-                                appData?.associationData?.rgDevelopers?.length ||
-                                appData?.associationData?.rgPublishers?.length ||
-                                appData?.associationData?.rgFranchises?.length,
+                            appData?.descriptionsData?.strFullDescription ||
+                            appData?.associationData?.rgDevelopers?.length ||
+                            appData?.associationData?.rgPublishers?.length ||
+                            appData?.associationData?.rgFranchises?.length,
                         );
 
                     if (hasMetadata) {
