@@ -1,0 +1,73 @@
+{
+    "settings": {
+        "layout": "default_system_right",
+        "position": "top_right",
+        "display_time_ms": 4000,
+        "animation": "slide"
+    },
+    "themes": {
+        "normal": {
+            "box": {
+                "scale": [100, 100],
+                "background_color": ["#1b2838", "#2a475e"],
+                "gradient_angle": 90,
+                "border": [1, "#ffffff22", 8]
+            },
+            "text": {
+                "title": ["#ffffff", 100, "bold"],
+                "desc": ["#8f98a0", 90, "regular"]
+            },
+            "icons": {
+                "achievement": true,
+                "system": "res/icons/steam.svg",
+                "rarity": false
+            },
+            "sound": ["res/sfx/unlock_bronze.mp3", 60]
+        },
+
+        "magic": {
+            "threshold": 25.0,
+            "box": {
+                "background_color": ["#20262e", "#3a4454"],
+                "border": [1, "#a8b5c8", 8]
+            },
+            "text": {
+                "title": ["#d9e2ec", 100, "bold"]
+            },
+            "icons": {
+                "rarity": "res/icons/trophy_silver.svg"
+            },
+            "sound": ["res/sfx/unlock_silver.mp3", 75]
+        },
+
+        "rare": {
+            "threshold": 10.0,
+            "box": {
+                "background_color": ["#2c2210", "#5c4314"],
+                "border": [1, "#e5a93c", 8]
+            },
+            "text": {
+                "title": ["#ffd56b", 100, "bold"]
+            },
+            "icons": {
+                "rarity": "res/icons/trophy_gold.svg"
+            },
+            "sound": ["res/sfx/unlock_gold.mp3", 85]
+        },
+
+        "exceptional": {
+            "box": {
+                "background_color": ["#101d2d", "#234d70", "#458bc2"],
+                "border": [2, "#40c4ff", 16]
+            },
+            "text": {
+                "title": ["#c2eeff", 110, "bold"],
+                "desc": ["#9adbf5", 95, "regular"]
+            },
+            "icons": {
+                "system": "res/icons/trophy_plat.svg"
+            },
+            "sound": ["res/sfx/unlock_plat.mp3", 100]
+        }
+    }
+}

@@ -1,0 +1,62 @@
+{
+    "settings": {
+        "layout": "default_system_right",
+        "position": "topright",
+        "display_time_ms": 4000,
+        "animation": "slide"
+    },
+    "themes": {
+        "normal": {
+            "box": {
+                "scale": [150, 150],
+                "background_color": ["#2f2f2f", "#1f1f1f"],
+                "gradient_angle": 90,
+                "border": [0, "#8a2be2", 25],
+                "glow": ["#363636", 50, 0]
+            },
+            "text": {
+                "title": ["#ffffff", 100, "bold"],
+                "desc": ["#ffffff", 100, "regular"]
+            },
+            "icons": {
+                "achievement": [true, 0],
+                "system": ["C:/auto/res/trophies/Steam_icon_logo-white.png", 0],
+                "rarity": ["C:/auto/res/trophies/bronze.png", 0]
+            },
+            "sound": ["C:/auto/res/sfx/ps5_trophy.mp3", 40]
+        },
+
+        "magic": {
+            "threshold": 25.0,
+            "box": {
+                "glow": ["#505050", 60, 0]
+            },
+            "icons": {
+                "rarity": ["C:/auto/res/trophies/silver.png", 0]
+            },
+            "sound": ["C:/auto/res/sfx/ps5_trophy.mp3", 40]
+        },
+
+        "rare": {
+            "threshold": 10.0,
+            "box": {
+                "glow": ["#545454", 80, 0]
+            },
+            "icons": {
+                "rarity": ["C:/auto/res/trophies/gold.png", 0]
+            },
+            "sound": ["C:/auto/res/sfx/ps4-trophy-get.mp3", 40]
+        },
+
+        "exceptional": {
+            "box": {
+                "glow": ["#505050", 70, 0]
+            },
+            "icons": {
+                "rarity": ["C:/auto/res/trophies/steam_100_game-badge.png", 0],
+                "exceptional": ["C:/auto/res/trophies/steam_exceptional.png", 0]
+            },
+            "sound": ["C:/auto/res/sfx/platinum-trophy-ps5.mp3", 50]
+        }
+    }
+}

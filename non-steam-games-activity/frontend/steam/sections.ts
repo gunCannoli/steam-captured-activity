@@ -125,7 +125,9 @@ function refreshInstances(): void {
 
 /** True when `overview` is a non-Steam shortcut. */
 function isShortcut(overview: unknown): boolean {
-    const fn = (overview as AppOverview | undefined)?.BIsModOrShortcut;
+    const ov = overview as AppOverview | undefined;
+    if (ov?.appid && ov.appid >= 0x8000_0000) return true;
+    const fn = ov?.BIsModOrShortcut;
     try {
         return typeof fn === "function" && fn.call(overview) === true;
     } catch {

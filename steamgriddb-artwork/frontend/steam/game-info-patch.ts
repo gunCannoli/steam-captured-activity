@@ -154,6 +154,16 @@ function createPatchedOverview(overview: any): any {
             if (prop === "BIsModOrShortcut") {
                 return () => false;
             }
+            if (prop === "GetGameID") {
+                return () =>
+                    target.m_gameid ||
+                    (typeof target.GetGameID === "function"
+                        ? target.GetGameID()
+                        : target.appid?.toString());
+            }
+            if (prop === "gameid") {
+                return target.m_gameid || target.gameid;
+            }
             const val = Reflect.get(target, prop, receiver);
             if (typeof val === "function") {
                 return val.bind(target);
@@ -196,6 +206,21 @@ export function ensureAppOverviewHooked(overview: any): boolean {
                     return false;
                 }
                 return origBIsMod.apply(this, arguments);
+            };
+            hookedAny = true;
+        }
+
+        if (
+            typeof curr.GetGameID === "function" &&
+            !curr.__nsga_getgameid_hooked
+        ) {
+            curr.__nsga_getgameid_hooked = true;
+            const origGetGameID = curr.GetGameID;
+            curr.GetGameID = function () {
+                if (this.m_gameid) {
+                    return this.m_gameid;
+                }
+                return origGetGameID.apply(this, arguments);
             };
             hookedAny = true;
         }

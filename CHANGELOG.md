@@ -78,6 +78,14 @@ This repo is private and unversioned; entries are grouped by date.
   `"activity"` in `CAppDetailsSections.prototype.GetSections` allowed deleting ~1200
   lines of hand-built UI.
 
+### Fixed
+
+- **"YOUR STUFF" Tab Media Regression & `GetGameID` Decoupling:**
+    - **Root Cause:** In `steamgriddb-artwork/frontend/steam/game-info-patch.ts`, hooking `AppOverview.prototype.BIsModOrShortcut` to return `false` for enriched shortcuts caused Steam's native `GetGameID()` implementation (`return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString()`) to evaluate to `this.appid.toString()` (`"4263274102"`). Shortcut captures in `screenshots.vdf` and `window.g_GRS` are keyed by the composed 64-bit ID (`"18310622842007322624"`). Querying by `appid.toString()` returned 0 items in module `57150`, rendering the empty "you can take a screenshot" placeholder.
+    - **Solution:** Hooked `GetGameID` on `AppOverview.prototype` in `ensureAppOverviewHooked` to return `this.m_gameid` whenever present. This completely decouples 64-bit shortcut identification from the `BIsModOrShortcut` flag.
+    - **Section Protection:** Updated `isShortcut` in `non-steam-games-activity/frontend/steam/sections.ts` to test `overview.appid >= 0x8000_0000` alongside `BIsModOrShortcut()`, ensuring core detail sections (`postgamesummary`, `activity`) are never accidentally filtered when `BIsModOrShortcut()` is bypassed.
+    - **Verified Live in Big Picture Mode:** Both "YOUR STUFF" (displaying 10 screenshots, 24 clips, duration badges, and "Manage my 8 items") and "GAME INFO" (displaying full smart summary, credits, release date, and category badges without shortcut warning) render concurrently with 100% data integrity.
+
 ### Changed
 
 - **`docs/steam-styles.md` purged & rewritten** — Deleted 150+ lines of obsolete
