@@ -45,15 +45,16 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 ### Phase 6: Achievement Banner & Sound (`enhanced-achievements`) — NEXT
 
 > **Plan:** [docs/enhanced-achievements-plan.md § 5](docs/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound).
-> **Schema:** [themes.md](enhanced-achievements/themes.md) · themes like [steam_ps_exemple.json](enhanced-achievements/steam_ps_exemple.json) · plugin config [settings.json](enhanced-achievements/settings.json).
+> **Schema:** [themes.md](enhanced-achievements/themes.md) · themes like [steam_ps_exemple.json](enhanced-achievements/steam_ps_exemple.json) · shipped setting defaults [settings.json](enhanced-achievements/settings.json).
 
 - [ ] **Step 0 — Live re-verify (no code).** Resolve every hook point by signature, not module id: `NotificationStore`, the achievement `eType`, the toast renderer, the toast container, completion data for `exceptional`, and **which window paints in-game overlay toasts**. Record the signatures in `steam-components.md § 11B`.
-- [ ] **Step 1 — Scaffold** per [plugins.md § 1](docs/plugins.md#1-scaffold): `plugin.json`, `_lib`, `main.lua` with `millennium.ready()`, parameterised `dev.ps1` that also deploys `settings.json` + `themes/`. Move example themes into `themes/`; keep `research/` out of the published folder.
-- [ ] **Step 2 — Config & themes.** Backend RPCs `GetSettings` / `ListThemes` / `LoadTheme` (assets as data URLs, loaded once). Frontend resolves the four tiers once per load. Tests for tier selection + inheritance outside Steam.
-- [ ] **Step 3 — Sound hook** on `PlayNotificationSound`: achievements only, O(1), falls through to Steam's chime on any failure, respects Steam's own mute.
-- [ ] **Step 4 — Banner** replaces only the inner toast (Steam keeps container, queue, timing, click/dismiss). Renderer resolved once; `jsx` patch is an identity compare; error boundary renders Steam's original.
-- [ ] **Step 5 — Verify** Desktop, Big Picture, overlay; fallbacks (missing sound, broken theme, plugin off); non-achievement toasts unchanged; **core Routines 1–3 with both plugins enabled**; new `scratch/test_achievement_toast.js`.
-- [ ] **Decide:** where user `settings.json` / themes live so updates don't overwrite them (plan § Open decisions).
+- [ ] **Step 1 — Scaffold** per [plugins.md § 1](docs/plugins.md#1-scaffold): `plugin.json`, `_lib`, `main.lua` with `millennium.ready()`, parameterised `dev.ps1` that also deploys `themes/`. Move example themes into `themes/`; keep `research/` out of the published folder.
+- [ ] **Step 2 — Settings** via Millennium's Configuration API: `settings.json` defaults bundled into the frontend, `stored ?? default`, cached in memory and kept current with `subscribePluginConfig`. Panel through `definePlugin({ content })` using `ToggleField` / `Dropdown` / `SliderField`, plus Preview-per-tier, Reload themes and Open themes folder. No theme builder: themes stay shareable JSON.
+- [ ] **Step 3 — Themes.** Backend RPCs `ListThemes` / `LoadTheme` (bundled + user folder, assets as data URLs, loaded once). Frontend resolves the four tiers once per load. Tests for tier selection + inheritance outside Steam.
+- [ ] **Step 4 — Sound hook** on `PlayNotificationSound`: achievements only, O(1), falls through to Steam's chime on any failure, respects Steam's own mute.
+- [ ] **Step 5 — Banner** replaces only the inner toast (Steam keeps container, queue, timing, click/dismiss). Renderer resolved once; `jsx` patch is an identity compare; error boundary renders Steam's original.
+- [ ] **Step 6 — Verify** Desktop, Big Picture, overlay; live settings changes; fallbacks (missing sound, broken theme, plugin off); non-achievement toasts unchanged; **core Routines 1–3 with both plugins enabled**; new `scratch/test_achievement_toast.js`.
+- [ ] **Confirm:** user themes folder (recommended `<steam>/millennium/config/enhanced-achievements/themes/`; plan § Open decisions).
 
 **Guardrails for this plugin:** never touch `AppOverview`, `StoreItemCache`,
 `CAppDetailsSections` or the activity/spotlight stores; no imports from the core

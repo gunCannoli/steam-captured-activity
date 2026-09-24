@@ -5,8 +5,8 @@ theme file. The canonical example is [steam_ps_exemple.json](steam_ps_exemple.js
 a minimal one is [theme_exemple.json](theme_exemple.json).
 
 A **theme** only describes how an unlock looks and sounds. What the plugin does
-(which theme is active, feature toggles, capture defaults) lives in
-[settings.json](settings.json) — see [Plugin settings](#plugin-settings-settingsjson).
+(which theme is active, feature toggles, capture defaults) is a plugin setting,
+changed in the plugin's settings panel — see [Plugin settings](#plugin-settings).
 
 ---
 
@@ -98,13 +98,13 @@ fails to load also falls back to Steam's chime — never to silence.
 
 ### Capture overrides: `screenshot`, `recording`
 
-Optional. They override the capture defaults from `settings.json` for this tier
-only, using the same keys:
+Optional. They override the plugin's capture settings for this tier only,
+using the same keys:
 
 - **`screenshot`**: `{ "enabled": bool, "delay_ms": number }`
 - **`recording`**: `{ "enabled": bool, "duration_s": number, "delay_ms": number }`
 
-Example: keep recording off in `settings.json` and enable it only on `rare` and
+Example: keep recording off in the plugin settings and enable it only on `rare` and
 `exceptional`, so only notable unlocks produce clips.
 
 ---
@@ -120,9 +120,11 @@ Example: keep recording off in `settings.json` and enable it only on `rare` and
 
 ---
 
-## Plugin settings (`settings.json`)
+## Plugin settings
 
-Not part of a theme — one file for the whole plugin.
+Not part of a theme. Set in the plugin's settings panel (Millennium sidebar) and
+stored by Millennium. [settings.json](settings.json) holds the shipped defaults;
+you never need to edit it.
 
 ```json
 {
@@ -142,3 +144,12 @@ Not part of a theme — one file for the whole plugin.
 - **`theme`**: file name (without `.json`) of the active theme in `themes/`.
 - **`banner.enabled`** / **`sound.enabled`**: turn each part off independently. Off means Steam's stock toast or chime, untouched.
 - **`screenshot`** / **`recording`**: capture defaults, overridable per tier (Phase 7).
+
+The panel also has **Preview** buttons (one per tier), **Reload themes** and
+**Open themes folder**, so the theme workflow is: edit the JSON → Reload → Preview.
+
+## Sharing themes
+
+A theme is one `.json` file plus the assets it references. Put them in one
+folder with relative paths (`assets/gold.png`) and share that folder. To install,
+drop it into the themes folder and pick it in the settings panel.

@@ -178,6 +178,41 @@ Key exports used by this plugin:
 (`querySelectorAll`, `renderComponent`), `/watchers` (`onAppLaunch`, `onPopupCreate`,
 `onLocationChange`), and `/logger`.
 
+### Plugin settings — the Configuration API (**✅ verified**, installed Millennium + `@steambrew/client` 5.8.5)
+
+Millennium stores per-plugin settings for you; a plugin does not need its own
+settings file. Official docs: [advanced/config](https://docs.steambrew.app/plugins/advanced/config).
+Those docs show the newer `millennium.toml` / `import … from 'millennium'` layout.
+In this repo's `plugin.json` + `@steambrew/client` layout, the same API is exported
+from `@steambrew/client`:
+
+```ts
+import { definePlugin, pluginConfig, usePluginConfig, subscribePluginConfig } from '@steambrew/client';
+
+await pluginConfig.get<boolean>('banner.enabled');   // undefined when never set
+await pluginConfig.set('banner.enabled', false);
+await pluginConfig.getAll();                           // { key: value, ... }
+const off = subscribePluginConfig((key, value) => {}); // live change events
+const [v, setV] = usePluginConfig<boolean>('banner.enabled'); // reactive, in components
+```
+
+Lua side: `millennium.config.get(key)`, `.set(key, value)`, `.on_change(fn(key, value))`.
+Our vendored `_lib/millennium.lua` stubs predate this and do not declare it.
+
+Facts confirmed in the installed binaries and core bundle:
+
+- **Settings panel:** `export default definePlugin(() => ({ icon, content }))`. Millennium
+  renders `content` in its desktop sidebar (`MillenniumDesktopSidebar_EditorContent`),
+  inside an `ErrorBoundary`. A plugin with no `content` shows as "not configurable".
+- **No default declaration.** An unset key reads `undefined`, so ship defaults in
+  the plugin and read `stored ?? default`.
+- **Limits:** at most 256 keys per plugin, 256 KB per value. Values are JSON.
+- The `@steambrew/client` build exports **stubs** (`get` resolves `undefined`); the
+  real implementation is injected by Millennium at runtime. Outside Steam
+  (tests), the stubs are what you get.
+- Each call is an IPC round trip. Cache values in memory and update them from
+  `subscribePluginConfig`; do not call `get` on a hot path.
+
 ### Reusing Steam's native UI (**✅ verified**, reading `k0d13/steam-non-steam-playtimes` at commit `f2c14ec`)
 
 > **Read this second, not first.** Cloning Steam's DOM is the **last resort**,

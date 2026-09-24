@@ -9,6 +9,12 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`enhanced-achievements` settings move to Millennium's Configuration API:**
+    - **Decision:** Default settings ship inside the plugin (`settings.json`, bundled into the frontend). Users change them in the plugin's settings panel in Millennium's sidebar (`definePlugin({ content })`), and Millennium stores the values. No settings file is written at runtime, so updates never overwrite user choices, and new defaults still reach users who never changed that setting.
+    - **Verified API facts** (installed Millennium + `@steambrew/client` 5.8.5), recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585): `pluginConfig.get/set/getAll`, `usePluginConfig`, `subscribePluginConfig`; Lua `millennium.config.get/set/on_change`; no way to declare defaults; 256 keys and 256 KB per value; the SDK build ships stubs that Millennium replaces at runtime.
+    - **No theme builder:** Themes stay hand-edited JSON (one file plus assets is what users share). The panel instead offers per-tier Preview, Reload themes and Open themes folder.
+    - [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) now has a Settings step with the key/control/default table (steps renumbered 0–6). `themes.md` and `TASK.md` were updated to match.
+
 - **Phase 6 Plan Hardened Against Regression Guardrails (`enhanced-achievements`):**
     - **Guardrail-conformant execution plan:** Replaced the roadmap in [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) with a step-by-step Phase 6 plan (live re-verify → scaffold → config/themes → sound hook → banner → verification) plus a Phase 7 outline. Hook points are now resolved by signature instead of the numeric module ids (`11374`, `ht`) the draft used, which `docs/plugins.md` forbids.
     - **Scope boundaries & plugin guardrails:** The plugin may hook only `NotificationStore` and the achievement toast renderer. It must never touch `AppOverview`, `StoreItemCache`, the section registry or the activity/spotlight stores, never import from the core plugin, and never do per-toast disk, RPC or network work. Every hook falls through to Steam's original on failure. The core regression routines (1–3) must pass with both plugins enabled.

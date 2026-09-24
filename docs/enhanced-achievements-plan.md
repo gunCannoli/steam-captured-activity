@@ -140,16 +140,19 @@ enhanced-achievements/
 ├── tsconfig.json
 ├── dev.ps1                        # Hot-deploy script with Steam path parameter
 ├── themes.md                      # Canonical theme schema documentation
-├── settings.json                  # Default plugin settings (active theme, toggles, capture defaults)
-├── themes/
+├── settings.json                  # Shipped defaults for the plugin settings (bundled into the frontend)
+├── themes/                        # Bundled themes (read by the backend)
 │   ├── steam_ps_exemple.json      # Canonical PlayStation 5 theme
 │   ├── xbox_achievement.json      # Xbox 360 / Series X theme
 │   └── retro_achievements.json    # Retro pixel banner theme
 ├── backend/
-│   ├── main.lua                   # Theme discovery, settings storage, file server
+│   ├── main.lua                   # Theme discovery and asset loading (no settings storage)
 │   └── _lib/                      # Millennium Lua runtime stubs
 └── frontend/
-    ├── index.tsx                  # Plugin entry point (OnPluginLoaded)
+    ├── index.tsx                  # Plugin entry point; definePlugin({ content }) = settings panel
+    ├── settings/
+    │   ├── settings.ts            # pluginConfig read/subscribe, falling back to settings.json defaults
+    │   └── settings-panel.tsx     # Steam-native ToggleField / Dropdown / SliderField controls
     ├── theme/
     │   ├── theme-types.ts         # TypeScript interfaces matching themes.md
     │   ├── theme-loader.ts        # Theme resolver and inheritance calculator
@@ -205,7 +208,7 @@ client before writing hooks, and record the **signatures** (not ids) in
 | `TestAchievement(appid)` | Call it live | Fires a real toast with sound; payload carries `global_achieved_pct` |
 
 Exit criterion: every row resolves by signature to exactly one match, or the
-plan is amended before Step 3.
+plan is amended before Step 4.
 
 ### Step 1: Scaffold
 
@@ -213,19 +216,68 @@ Per [plugins.md § 1](plugins.md#1-scaffold) and its checklist.
 
 - `plugin.json` with `"name": "enhanced-achievements"`, `"backendType": "lua"`.
 - `backend/_lib/` stubs copied; `backend/main.lua` calls `millennium.ready()`.
+  The vendored stubs predate `millennium.config`; that is fine, because settings are frontend-only.
 - `package.json`, `tsconfig.json` mirroring `non-steam-games-activity`.
 - `dev.ps1` copied from the core — Steam path discovered, never hardcoded
   ([ADR-0011](decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)) —
-  and extended to deploy `settings.json` and `themes/`.
+  and extended to deploy `themes/` (the backend reads it). `settings.json` is
+  bundled into the frontend at build time, so it needs no deploy step.
 - Move `steam_ps_exemple.json` and `theme_exemple.json` into `themes/`; move
   `research/` out of the published folder (it contains a local SAN install path).
 
-### Step 2: Config & theme loading (backend + frontend)
+### Step 2: Settings (Millennium Configuration API)
 
-**Backend (`main.lua`)** exposes three RPCs, each JSON in / JSON out, never bare `nil`:
+Defaults ship **in the plugin**; the user changes them from the plugin's
+settings panel in Millennium's sidebar. No settings file is written or read at
+runtime. API facts: [knowledgebase.md § Plugin settings](knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585).
 
-- `GetSettings()` — merged `settings.json` (user file over bundled defaults).
-- `ListThemes()` — names of `*.json` in the themes folder.
+- **Defaults:** [`settings.json`](../enhanced-achievements/settings.json) is imported
+  into the frontend bundle (`resolveJsonModule`). If `millennium-ttc` will not bundle
+  JSON, mirror it in `settings/defaults.ts`; `settings.json` stays the documented source.
+- **Storage:** one flat config key per setting (table below). Millennium has no
+  default declaration: an unset key reads `undefined`, so every read is
+  `stored ?? default`. Nothing is written until the user changes a value, so
+  shipping new defaults in an update reaches every user who never changed that setting.
+- **Reads:** `pluginConfig.getAll()` once at load into a module-scoped object, then
+  `subscribePluginConfig` keeps it current. Hooks read that object, never the
+  config API per toast (it is an IPC round trip). Changes apply live, with no reload.
+- **Validation:** a stored value of the wrong type or out of range is ignored
+  (the default is used) and logged, never thrown.
+- **Panel:** `definePlugin(() => ({ icon, content: <SettingsPanel/> }))`, built from
+  the SDK's own `ToggleField`, `Dropdown`, `SliderField` and `DialogButton`, with no custom CSS.
+
+| Config key | Control | Default (`settings.json`) |
+| --- | --- | --- |
+| `theme` | Dropdown, filled from `ListThemes()` | `"steam_ps_exemple"` |
+| `banner.enabled` | Toggle | `true` |
+| `sound.enabled` | Toggle | `true` |
+| `screenshot.enabled` | Toggle | `true` |
+| `screenshot.delay_ms` | Slider 0–5000 ms | `500` |
+| `recording.enabled` | Toggle | `true` |
+| `recording.duration_s` | Slider 5–60 s | `15` |
+| `recording.delay_ms` | Slider 0–5000 ms | `0` |
+| `recording.add_timeline_marker` | Toggle | `true` |
+
+Capture keys are shown in Phase 6 but disabled ("Phase 7") until captures ship.
+
+**Panel actions** (buttons, no stored value):
+
+- **Preview** per tier (`normal` / `magic` / `rare` / `exceptional`): fires
+  `NotificationStore.TestAchievement` with that tier forced. This makes editing a
+  theme's JSON a quick edit → reload → preview loop.
+- **Reload themes:** re-runs `ListThemes` / `LoadTheme` after a JSON edit, with no Steam restart.
+- **Open themes folder:** opens the user themes folder in Explorer.
+
+**No theme builder.** Themes stay hand-edited JSON files: one file (plus its
+`assets/`) is the unit users share, and it diffs and versions cleanly. A visual
+builder would duplicate the schema in UI code and can come later if there is demand.
+
+### Step 3: Themes (backend + frontend)
+
+**Backend (`main.lua`)** exposes two RPCs, each JSON in / JSON out, never bare `nil`:
+
+- `ListThemes()` — names of `*.json` in the bundled `themes/` folder and the user
+  themes folder. A user theme with the same name overrides the bundled one.
 - `LoadTheme({ name })` — parsed theme plus every referenced asset as a data
   URL (`utils.base64_encode` over `fs` reads). Relative paths resolve against
   the theme's folder. A missing asset is logged and returned as `null`, not an error.
@@ -242,7 +294,7 @@ Per [plugins.md § 1](plugins.md#1-scaffold) and its checklist.
 **Pure-logic tests** (tier selection, inheritance merge, shorthand
 normalisation) run outside Steam, per [plugins.md § 5](plugins.md#5-test).
 
-### Step 3: Sound hook
+### Step 4: Sound hook
 
 Wrap `PlayNotificationSound` on the `NotificationStore` instance's prototype once, at load:
 
@@ -264,7 +316,7 @@ proto.PlayNotificationSound = function (n) {
   returns nothing (user muted toasts), stay silent too.
 - `OnPluginUnload` (or a guard flag) restores the original.
 
-### Step 4: Banner replacement
+### Step 5: Banner replacement
 
 Rung check ([plugins.md § Build nothing Steam already builds](plugins.md#build-nothing-steam-already-builds)):
 Steam's toast is the thing being replaced, so rungs 1–3 do not apply to the
@@ -290,20 +342,22 @@ queueing, timing, click-to-open and dismissal.
   without rebuilding Steam's toast container. Anything that is not goes to a
   follow-up, not into a container rewrite.
 
-### Step 5: Verification
+### Step 6: Verification
 
 1. `npm run check` and `npm run build` pass; the backend tests pass.
 2. **Desktop:** `NotificationStore.TestAchievement(<appid>)` for each tier. To
    force a tier, temporarily set thresholds to `100` / `0` in a test theme.
 3. **Big Picture:** the same, plus controller focus is not stolen by the banner.
 4. **In-game overlay:** a real unlock in a native Steam game, if Step 0 shows the overlay is themeable.
-5. **Fallbacks:** delete a sound file → Steam chime; corrupt the theme JSON →
+5. **Settings:** each toggle takes effect live from the panel; clearing the
+   plugin's config restores every default; a Steam restart keeps changed values.
+6. **Fallbacks:** delete a sound file → Steam chime; corrupt the theme JSON →
    stock toast; disable the plugin → stock toast, stock chime.
-6. **Non-achievement toasts** (friend online, download complete) are unchanged.
-7. **Core regression pass**, because both plugins share one context: Routine 1
+7. **Non-achievement toasts** (friend online, download complete) are unchanged.
+8. **Core regression pass**, because both plugins share one context: Routine 1
    (all four views), Routine 2 (A → B → A) and Routine 3 (`scratch/test_nav_cycle.js`,
    `scratch/check_all_tabs.js`) with `enhanced-achievements` enabled.
-8. Add `scratch/test_achievement_toast.js`: dispatch `TestAchievement` over CDP
+9. Add `scratch/test_achievement_toast.js`: dispatch `TestAchievement` over CDP
    and assert the banner root and the resolved tier.
 
 ### Regression guardrails for this plugin
@@ -321,15 +375,13 @@ queueing, timing, click-to-open and dismissal.
 
 ### Open decisions
 
-- **Where the user's `settings.json` and themes live.** The deployed plugin folder
-  is replaced on every update or `dev.ps1` run, so user edits there are lost.
-  Recommendation: bundle defaults in the plugin, and on first load copy them to a
-  user folder under Millennium's config directory (found via `millennium.steam_path()`),
-  which is then the only place read.
+- **User themes folder.** Settings are solved (Configuration API), but user theme
+  files cannot live in the plugin folder, because updates and `dev.ps1` replace it.
+  Recommendation: `<steam>/millennium/config/enhanced-achievements/themes/`, found
+  via `millennium.steam_path()` and created on first load. The panel's
+  "Open themes folder" button makes it discoverable.
 - **In-game overlay support**, if Step 0 shows overlay toasts are not rendered
   from `SharedJSContext`.
-- **Settings UI.** Phase 6 edits JSON by hand. A settings panel (theme picker,
-  toggles) can follow using Steam's `Dropdown` / `ToggleField`.
 
 ---
 
@@ -339,7 +391,7 @@ Builds on Phase 6's dispatch hook and tier resolver.
 
 - **Trigger:** observe achievement notifications once (in `OnNotification` or
   the sound hook), resolve the tier, and merge the tier's `screenshot` / `recording`
-  over the `settings.json` defaults.
+  over the plugin settings (Configuration API).
 - **Screenshot:** after `delay_ms`, `GameRecording.TakeScreenshot` (or `SteamClient.Screenshots`).
 - **Clip:** after `delay_ms`, `GameRecording.SaveClip` covering the last `duration_s`.
 - **Timeline marker:** `GameRecording.UserAddTimelineEntry` at the unlock time.
