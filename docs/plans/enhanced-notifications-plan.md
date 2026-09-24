@@ -17,7 +17,7 @@
 | Changes | Popup background, border, glow, watermark, font, text colours and sizes, logo shape, header icon, display time, sound (per type or category) | Everything, plus rarity tiers, custom icons, 100% badge, captures (Phase 7) |
 | Icons and content | Steam's own, always | Custom or Steam's, per theme |
 
-Each plugin works alone. Neither imports the other ([plugins.md § Layout](plugins.md#layout)).
+Each plugin works alone. Neither imports the other ([plugins.md § Layout](../plugins.md#layout)).
 
 ## 2. Step 0 findings (verified live 2026-09-24)
 
@@ -27,7 +27,7 @@ Each plugin works alone. Neither imports the other ([plugins.md § Layout](plugi
   these names, never by number. About 20 server-item types (`Comment`,
   `TradeOffer`, `Wishlist`, …) have no protobuf class but do have enum names.
 - **Per-type config:** the stand-in `PlayNotificationSound` trick
-  ([steam-components.md § 11B](steam-components.md#b-native-achievement-notifications-notificationstore))
+  ([steam-components.md § 11B](../steam-components.md#b-native-achievement-notifications-notificationstore))
   yields each type's config (`sound`, `playSound`, `toastDurationMS`, `showToast`).
 - **Toast DOM (desktop):** `DesktopToastPopup` (gradient background) >
   `DesktopToastBackground` (Steam-logo watermark) + the dispatcher's output:
@@ -40,7 +40,7 @@ Each plugin works alone. Neither imports the other ([plugins.md § Layout](plugi
   different modules. `DesktopToastPopup` and `GamepadToastPopup` are two more
   modules. So the plugin collects each key's classes from **every** module that
   has it and targets `:is(...)` of all of them. Never one probe, never a
-  hardcoded hash ([knowledgebase.md § classes seen together](knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)).
+  hardcoded hash ([knowledgebase.md § classes seen together](../knowledgebase.md#classes-seen-together-in-one-element-are-not-necessarily-one-css-module-verified-the-hard-way-building-non-steam-games-activity)).
 
 ## 3. How it works (as built)
 
@@ -54,8 +54,15 @@ Each plugin works alone. Neither imports the other ([plugins.md § Layout](plugi
    call), type names from `EClientNotificationType`, and class selectors from
    **every** CSS module per key.
 2. **Scoped CSS:** built once per theme load, as one `<style>` injected into every toast
-   window (`Millennium.AddWindowCreateHook`, plus a popup scan per toast for windows
-   created before they had a `window`). Every rule starts with `body[data-en-type="<Type>"]`.
+   window. Toast windows come from two different sources
+   ([toast-window bugfix plan](enhanced-notifications-toast-window-bugfix.md)): desktop
+   and the in-game overlay get one popup per toast, registered with Steam's popup manager,
+   so `Millennium.AddWindowCreateHook` sees it directly. Big Picture gets a single
+   persistent `SteamClient.BrowserView.CreatePopup` + `window.open` popup that is **never**
+   registered with the popup manager; it is instead found each time a toast is shown by
+   walking the `GamepadToastPlaceholder` div's React fiber (rendered into the Big Picture
+   main window, which the popup manager does track) to a hook holding the popup object,
+   then calling `GetViewWindow()`. Every rule starts with `body[data-en-type="<Type>"]`.
 3. **Type marking:** when a toast is shown, the toast windows' `<body>` gets
    `data-en-type`. The signal is Steam's own `PlayNotificationSound(n)` call, which every
    toast container makes on display (desktop has no current-toast value), plus

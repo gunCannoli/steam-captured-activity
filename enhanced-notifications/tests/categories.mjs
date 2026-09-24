@@ -14,16 +14,32 @@ const check = (label, ok, detail = '') => {
     if (!ok) failed = true;
 };
 
+// The Big Picture toast window is persistent (one popup reused for every toast),
+// so "the target exists" is not "Steam showed a toast": it exists even when idle.
+// Wait for content too, and treat an empty window the same as no window at all
+// (docs/plans/enhanced-notifications-toast-window-bugfix.md).
 async function toastWindow() {
-    for (let i = 0; i < 12; i++) {
+    let t = null;
+    for (let i = 0; i < 12 && !t; i++) {
         await wait(500);
-        const t = (await (await fetch('http://127.0.0.1:8080/json')).json()).find((x) => /^notificationtoasts/i.test(x.title));
-        if (t) return t;
+        t = (await (await fetch('http://127.0.0.1:8080/json')).json()).find((x) => /^notificationtoasts/i.test(x.title));
+    }
+    if (!t) return null;
+    // Window found (it may be Big Picture's persistent, possibly-idle popup): wait up to
+    // ~6s total for content, once, then treat "still empty" the same as "no window".
+    for (let j = 0; j < 12; j++) {
+        const win = await connect(t.title);
+        const hasContent = await win.evaluate(`document.body.innerText.trim() !== ''`);
+        win.close();
+        if (hasContent) return t;
+        await wait(500);
     }
     return null;
 }
 
 try {
+    const uiMode = await cdp.evaluate(`SteamClient.UI.GetUIMode?.()`);
+    console.log(`UI mode: ${uiMode} (0/1 = desktop, 4 = Big Picture)`);
     const eaClaimsBanner = await cdp.evaluate(`!!window.PLUGIN_LIST['${EA}']?.claims?.('banner')`);
     for (const category of ['friends', 'messages', 'downloads', 'recording', 'system', 'achievement']) {
         await cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].previewCategory('${category}').then(() => true, (e) => String(e))`);

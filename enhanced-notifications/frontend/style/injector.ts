@@ -15,10 +15,22 @@ import { activeTheme, cssFor, onThemeChange } from '../theme/active-theme';
  *   current-toast value (Big Picture). No attribute means no rule matches, so
  *   the toast stays stock.
  *
+ * Toast windows come from two different sources, per mode
+ * (docs/plans/enhanced-notifications-toast-window-bugfix.md):
+ * - Desktop and the in-game overlay: Steam opens one popup per notification
+ *   through its popup manager, so `Millennium.AddWindowCreateHook` sees it.
+ * - Big Picture: one persistent BrowserView popup, created via
+ *   `SteamClient.BrowserView.CreatePopup` + `window.open` and never registered
+ *   with the popup manager. It is instead reached from the
+ *   `GamepadToastPlaceholder` div Steam renders into the (popup-manager-visible)
+ *   Big Picture main window: a few `.return` steps up that div's React fiber, a
+ *   hook holds the BrowserView popup object, whose `GetViewWindow()` is the
+ *   toast window. Scanned once per toast shown, no new timers.
+ *
  * Why not wrap the dispatcher element through react/jsx-runtime, as
  * enhanced-achievements does? Verified live 2026-09-24: for these toasts the
  * wrapped element was not the one React committed (see
- * docs/enhanced-notifications-plan.md § 3). This approach needs no React
+ * docs/plans/enhanced-notifications-plan.md § 3). This approach needs no React
  * interception at all, which is also less risky.
  */
 
@@ -37,10 +49,28 @@ interface Subscribable<T> {
     Subscribe(cb: (value: T) => void): { Unsubscribe(): void };
 }
 
+/** A React fiber, narrowly typed to the fields the placeholder walk touches. */
+interface Fiber {
+    return: Fiber | null;
+    memoizedState: Hook | null;
+}
+
+interface Hook {
+    memoizedState: unknown;
+    next: Hook | null;
+}
+
+/** Big Picture's persistent toast popup object, found via the placeholder fiber walk. */
+interface BrowserViewPopup {
+    GetViewWindow(): Window | undefined;
+    GetRenderElement(): Element | undefined;
+}
+
 const STYLE_ID = 'enhanced-notifications-theme';
 const toastWindows = new Set<Window>();
 let themeCss = '';
 let currentType: string | null = null;
+let placeholderSelector: string | undefined;
 
 /** Every styled type's CSS, built once per theme load (cssFor caches per type). */
 function buildThemeCss(): string {
@@ -81,9 +111,8 @@ function forEachToastWindow(fn: (win: Window) => void): void {
     }
 }
 
-function onPopup(popup: Popup): void {
-    const win = popup?.window;
-    if (!win || !/notificationtoasts/i.test(popup.m_strName ?? '')) return;
+function track(win: Window | undefined | null): void {
+    if (!win) return;
     if (!toastWindows.has(win)) {
         toastWindows.add(win);
         applyStyle(win);
@@ -91,17 +120,54 @@ function onPopup(popup: Popup): void {
     applyType(win);
 }
 
+function onPopup(popup: Popup): void {
+    const win = popup?.window;
+    if (!win || !/notificationtoasts/i.test(popup.m_strName ?? '')) return;
+    track(win);
+}
+
 /**
- * Pick up toast windows the create hook could not: Big Picture's toast popup is
- * created when Big Picture opens, before it has a `window`. Runs once per toast
- * shown (a handful of popups), never on a hot path.
+ * Walk up a `GamepadToastPlaceholder` element's React fiber looking for a hook
+ * whose state is Big Picture's `BrowserViewPopup` object (duck-typed on Steam's
+ * method names, never a minified identifier). Verified live: two `.return`
+ * hops, hook 0 (docs/plans/enhanced-notifications-toast-window-bugfix.md).
+ * Bounded so a shape change degrades to "not found", never a hang.
  */
-function scanPopups(): void {
+function viewWindowFromFiber(el: Element): Window | null {
+    const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+    let fiber: Fiber | null = key ? ((el as unknown as Record<string, Fiber>)[key] ?? null) : null;
+    for (let depth = 0; fiber && depth < 4; depth++, fiber = fiber.return) {
+        for (let hook = fiber.memoizedState, i = 0; hook && i < 16; hook = hook.next, i++) {
+            const v = hook.memoizedState as Partial<BrowserViewPopup> | null;
+            if (v && typeof v.GetViewWindow === 'function' && typeof v.GetRenderElement === 'function') {
+                return v.GetViewWindow() ?? null;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Find Big Picture's persistent toast window: not in `g_PopupManager` itself
+ * (docs/plans/enhanced-notifications-toast-window-bugfix.md), so it is reached
+ * via the `GamepadToastPlaceholder` div Steam renders into windows that ARE in
+ * the popup manager (the Big Picture main window). Runs once per toast shown,
+ * no new timers.
+ */
+function scanBigPictureToastWindows(): void {
+    if (!placeholderSelector) return;
     const manager = Reflect.get(globalThis, 'g_PopupManager') as { GetPopups?: () => Iterable<Popup> } | undefined;
     try {
-        for (const popup of manager?.GetPopups?.() ?? []) onPopup(popup);
+        for (const popup of manager?.GetPopups?.() ?? []) {
+            const doc = popup.window?.document;
+            if (!doc) continue;
+            for (const el of doc.querySelectorAll(placeholderSelector)) {
+                const win = viewWindowFromFiber(el);
+                if (win && !win.closed && /^notificationtoasts/i.test(win.name)) track(win);
+            }
+        }
     } catch (error) {
-        logger.warn('Could not scan popups:', error);
+        logger.warn('Could not scan for Big Picture toast windows:', error);
     }
 }
 
@@ -111,19 +177,20 @@ function onCurrentToast(toast: CurrentToast | null | undefined): void {
     const name = typeName(eType);
     currentType =
         name && setting('style.enabled') && activeTheme() && handles(eType!, 'banner') && cssFor(name) !== '' ? name : null;
-    scanPopups();
+    scanBigPictureToastWindows();
     forEachToastWindow(applyType);
 }
 
 function refresh(): void {
     themeCss = buildThemeCss();
     forEachToastWindow(applyStyle);
+    scanBigPictureToastWindows();
     const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
     const value = store?.CurrentToastSubscribableValue;
     onCurrentToast(value?.Value ?? value?.m_currentValue ?? null);
 }
 
-export function initInjector(): boolean {
+export function initInjector(placeholder?: string): boolean {
     const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
     const current = store?.CurrentToastSubscribableValue;
     const millennium = Reflect.get(globalThis, 'Millennium') as { AddWindowCreateHook?: (cb: (popup: Popup) => void) => void } | undefined;
@@ -132,10 +199,12 @@ export function initInjector(): boolean {
         return false;
     }
 
+    placeholderSelector = placeholder;
     themeCss = buildThemeCss();
     current.Subscribe((toast) => toast && onCurrentToast(toast));
     onToastShown((eType) => onCurrentToast({ eType }));
     millennium.AddWindowCreateHook(onPopup); // existing popups now, and every new one
+    scanBigPictureToastWindows(); // style already in place before the first Big Picture toast
     onThemeChange(refresh);
     onSettingChange((key) => key === 'style.enabled' && refresh());
     logger.info('Toast styling installed.');

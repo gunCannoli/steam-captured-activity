@@ -16,7 +16,7 @@ export { activeTheme, cssFor } from './theme/active-theme';
 /**
  * enhanced-notifications: restyles every Steam notification toast in place.
  *
- * Scope (docs/enhanced-notifications-plan.md): hooks only NotificationStore
+ * Scope (docs/plans/enhanced-notifications-plan.md): hooks only NotificationStore
  * (sound, durations) and adds a scoped <style> to toast windows. It never touches
  * AppOverview, StoreItemCache, the section registry or the activity/spotlight
  * stores, and never imports from another plugin.
@@ -24,9 +24,10 @@ export { activeTheme, cssFor } from './theme/active-theme';
 async function init(): Promise<void> {
     await initSettings();
     if (!initNotifications()) return; // stock Steam, untouched
-    setSelectors(resolveToastSelectors());
+    const sel = resolveToastSelectors();
+    setSelectors(sel.theme);
     await initActiveTheme();
-    initInjector();
+    initInjector(sel.placeholder);
 }
 
 export default definePlugin(() => {

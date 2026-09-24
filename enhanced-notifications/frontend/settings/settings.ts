@@ -13,7 +13,7 @@ import { logger } from '../logger';
  * so updated defaults still reach everyone who never touched that setting.
  *
  * Reads are served from an in-memory copy: hooks run per toast and must never
- * do an IPC round trip (docs/enhanced-notifications-plan.md § 6).
+ * do an IPC round trip (docs/plans/enhanced-notifications-plan.md § 6).
  *
  * Millennium v3.4.1 bug workaround (Millennium#903; docs/knowledgebase.md §
  * Plugin settings): the FFI metrics recorder reads the numeric config

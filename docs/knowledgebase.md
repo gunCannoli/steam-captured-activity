@@ -908,6 +908,26 @@ GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toStri
 - **The Problem:** Setting `appData.details = {}` to feed descriptions or developer credits crashes native `GameStatsSection` components because internal arrays (`vecChildConfigApps`, `unEntitledContentApp`) are missing.
 - **The Defense:** Never overwrite `appData.details`. Exclusively feed Steam's dedicated channels: `appData.descriptionsData` (`strSnippet`, `strFullDescription`) and `appData.associationData` (`rgDevelopers`, `rgPublishers`, `rgFranchises`).
 
+#### Trap 10: BrowserView popups are invisible to `g_PopupManager` / `AddWindowCreateHook`
+
+- **The Problem:** Some Steam popups are opened directly with `SteamClient.BrowserView.CreatePopup` +
+  `window.open` and never registered with `g_PopupManager` — `QuickAccess`, `MainMenu`, and (the
+  case that caused a real regression) Big Picture's single persistent toast window
+  (`?browserviewpopup=1`, CDP target `notificationtoasts_uid<n>`). Neither `Millennium.AddWindowCreateHook`
+  (a thin wrapper over `g_PopupManager`) nor `g_PopupManager.GetPopups()` ever see them, no matter how
+  long you wait or how many toasts fire. Desktop's per-toast popups (`notificationtoasts_<id>_desktop`)
+  *are* registered and work fine with both APIs — do not assume one popup type's behavior for another.
+- **The Defense:** For a BrowserView popup with no popup-manager registration, find a same-window
+  handle to it in the DOM/React tree of a window that *is* registered (e.g. a placeholder element it
+  renders into a tracked window), then walk that element's React fiber for a hook holding the popup
+  object (duck-typed on its methods, e.g. `GetViewWindow()`/`GetRenderElement()` — never a minified
+  class name). See `enhanced-notifications/frontend/style/injector.ts`
+  (`scanBigPictureToastWindows`/`viewWindowFromFiber`) and
+  [docs/plans/enhanced-notifications-toast-window-bugfix.md](plans/enhanced-notifications-toast-window-bugfix.md) for the full trace.
+- **Also:** check the UI mode before trusting a live toast test — `_uid<n>` names are Big Picture,
+  `_desktop` names are desktop. A live check run in the wrong mode reads as "the API never fires
+  at all" when actually only one mode is affected.
+
 ### Identifying non-Steam apps
 
 Steam assigns shortcuts very high app ids. The SDK exposes the boundary as

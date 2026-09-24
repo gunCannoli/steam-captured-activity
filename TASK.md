@@ -27,7 +27,7 @@ frontend plugins).
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Native Achievements (Phase 5)                | 🔬 Hook points verified in Steam client; not implemented.                                                                     |
 | Achievement Banner & Sound (Phase 6)         | ✅ Desktop + Big Picture verified live; in-game overlay still to verify. |
-| Enhanced Notifications (all toast types)     | ⚠️ Desktop styling broken for non-achievement toasts (toast window invisible to popup-tracking APIs); Big Picture, friends/messages, overlay to verify. |
+| Enhanced Notifications (all toast types)     | ✅ Desktop and Big Picture verified live; friends/messages depend on Steam's Friends notification settings; overlay to verify. |
 | Auto-Captures on Unlock (Phase 7)            | 🔬 Game Recording RPCs mapped; not implemented.                                                                               |
 | Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                        |
 
@@ -47,55 +47,41 @@ Full module-by-module state: [non-steam-games-activity/README.md](non-steam-game
 ### Phase 6: Achievement Banner & Sound (`enhanced-achievements`) — remaining
 
 Shipped and verified on desktop and Big Picture (see [CHANGELOG.md](CHANGELOG.md),
-[plan § 5 status](docs/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound)).
+[plan § 5 status](docs/plans/enhanced-achievements-plan.md#5-phase-6-execution-plan--themed-banner--sound)).
 
 - [ ] **In-game overlay:** verify with a real unlock in a running game (same dispatcher, code-verified only).
 - [ ] **Millennium Configuration API bug:** [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903), fix proposed in [PR #904](https://github.com/SteamClientHomebrew/Millennium/pull/904). Once a fixed release ships, re-test and drop the workaround in `settings.ts`.
 
-### `enhanced-notifications`: toast window invisible to both popup-tracking APIs — needs discovery
+### `enhanced-notifications` — Big Picture toast window fixed
 
-**Symptom:** `tests/categories.mjs` fails for every category except `achievement`
-(handed off to `enhanced-achievements`): friends/messages/downloads/recording/system
-toasts never get `data-en-type` set or the theme `<style>` injected, so they render
-stock, unthemed. `style/injector.ts`'s own doc comment claims
-`Millennium.AddWindowCreateHook` (`onPopup`) plus a `g_PopupManager.GetPopups()`
-fallback (`scanPopups`, added for Big Picture's early-created toast window) together
-cover every toast window. Verified live (2026-09-24) that this is false: installing a
-logging callback on **both** `Millennium.AddWindowCreateHook` and
-`window.g_PopupManager.AddPopupCreatedCallback`, then triggering
-`previewCategory('system')`, shows **neither ever fires** for the toast window, and
-`g_PopupManager.GetPopups()` never lists it either — even though the toast's own CDP
-target genuinely appears (`notificationtoasts_uid32`).
-`non-steam-games-activity`'s `onPopupCreate` (from `steambrew-utils`, itself built on
-`g_PopupManager.AddPopupCreatedCallback`/`AddPopupDestroyedCallback`) is proven to
-work for desktop/gamepad popups, so this is specific to how toast windows are
-created, not a broken API in general.
+Fixed 2026-09-24 (see [docs/plans/enhanced-notifications-toast-window-bugfix.md](docs/plans/enhanced-notifications-toast-window-bugfix.md)
+for the full diagnosis). Corrects the entry this replaced: **desktop styling was never
+broken** — that diagnosis mixed up desktop and Big Picture, having run its live check
+in Big Picture and misread it as "no toast window is ever caught". Desktop toasts
+(`notificationtoasts_<id>_desktop`, one popup per toast via `g_PopupManager`) were
+already caught by `Millennium.AddWindowCreateHook` the whole time.
 
-**Not fixed this session — start here:**
-1. Find the real creation signal for `notificationtoasts_*` windows. Candidates to
-   check: a dedicated toast/notification manager object (`window.__TOASTER_INSTANCE`
-   was seen on `window` — not yet explored), a CEF-level browser-created event
-   separate from Millennium's popup hooks, or reaching the toast window via whatever
-   call actually opens it (e.g. a return value from a `window.open`-style call inside
-   Steam's own notification code) instead of a creation callback.
-2. If no creation hook exists, a poll-based fallback (short-interval scan for new
-   `notificationtoasts_*` windows) is the likely workaround — but confirm one doesn't
-   already exist before adding a new poll loop (see [docs/plugins.md](docs/plugins.md)
-   guardrails on avoiding redundant polling).
-3. Once toast windows are reliably caught, re-run
-   `cd enhanced-notifications && node tests/categories.mjs` — expect all 6 categories
-   to pass (or SKIP for friends/messages if Steam's Friends notification settings are off).
-4. Update this file and [CHANGELOG.md](CHANGELOG.md) with the fix.
+The real bug: Big Picture's toast is a single persistent
+`SteamClient.BrowserView.CreatePopup` + `window.open` popup, created once and reused
+for every toast, and it is **never registered with `g_PopupManager`** — so neither
+`AddWindowCreateHook` nor `GetPopups()` (the old `scanPopups` fallback) ever see it.
+Fix: reach it from the `GamepadToastPlaceholder` div Steam renders into the Big
+Picture main window (which *is* in `g_PopupManager`) — two `.return` hops up its React
+fiber, a hook holds the `BrowserViewPopup` object, `GetViewWindow()` is the toast
+window. `style/injector.ts`'s `scanBigPictureToastWindows()` runs this once per toast
+shown, no new timers, no `window.open`/prototype patches, no hardcoded class hashes.
 
-### enhanced-notifications — remaining (after the fix above)
+Verified live: `node tests/categories.mjs` PASSes downloads/recording/system/achievement
+on both desktop and Big Picture (friends/messages SKIP — depend on Steam's Friends
+notification settings), including after exiting and re-entering Big Picture (new toast
+window, old one pruned).
 
-Built and verified on desktop for achievement coexistence only (see
-[CHANGELOG.md](CHANGELOG.md), [plan](docs/enhanced-notifications-plan.md)).
+### enhanced-notifications — remaining
 
-- [ ] **Category styling on desktop:** blocked on the toast-window-detection fix above.
-- [ ] **Big Picture:** verify styling once desktop styling works.
-- [ ] **Friend/message toasts:** enable Steam's Friends notifications and verify.
-- [ ] **In-game overlay:** verify both plugins with a real game.
+- [ ] **In-game overlay:** verify both plugins with a real game (desktop overlay toasts
+  should already be caught via `g_PopupManager`; Big Picture overlay toasts use the same
+  `pe` component inside the overlay window and are unverified — see plan § (c)9).
+- [ ] **Friend/message toasts:** enable Steam's Friends notifications and verify content styling (currently SKIP, not exercised).
 - [ ] **Core regression** (Routines 1–2, `scratch/`) with all three plugins enabled.
 - [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
 

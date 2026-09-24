@@ -9,6 +9,28 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`enhanced-notifications`: Big Picture toast window fixed (corrects the entry below).**
+  The 2026-09-24 entry below said "friends/messages/downloads/recording/system toasts
+  never get `data-en-type`... on **both** popup-tracking APIs" — that live check was run
+  **in Big Picture**, not desktop, and was misread as a total failure. **Desktop styling
+  was never broken**: `Millennium.AddWindowCreateHook` catches every desktop toast popup
+  (`notificationtoasts_<id>_desktop`, one per toast via `g_PopupManager`) exactly as
+  designed. The actual bug is Big Picture-only: its toast is a single persistent
+  `SteamClient.BrowserView.CreatePopup` + `window.open` popup, reused for every toast,
+  and it is **never registered with `g_PopupManager`** — so neither `AddWindowCreateHook`
+  nor the old `GetPopups()` fallback (`scanPopups`) could ever see it. Fixed by reaching
+  it from the `GamepadToastPlaceholder` div Steam renders into the Big Picture main
+  window (which *is* in `g_PopupManager`): two `.return` hops up its React fiber, a hook
+  holds the `BrowserViewPopup` object, `GetViewWindow()` returns the toast window.
+  `style/injector.ts` gained `scanBigPictureToastWindows()`, run at the same per-toast
+  cadence the old scan had — no new timers, no `window.open`/prototype patches, no
+  hardcoded class hashes. Full diagnosis and evidence:
+  [docs/plans/enhanced-notifications-toast-window-bugfix.md](docs/plans/enhanced-notifications-toast-window-bugfix.md).
+  Verified live: `node tests/categories.mjs` PASSes downloads/recording/system/achievement
+  on both desktop and Big Picture (friends/messages SKIP, gated on Steam's Friends
+  notification settings), including across a Big Picture exit/re-entry (new toast window
+  picked up, old one pruned via the existing `closed` check).
+
 - **Shared jsx runtime patch verified (all 4 scenarios pass) and extended to a third plugin and two more patch sites:**
     - **`scratch/jsx_chain.js` result (2026-09-24):** all four scenarios (steady state, foreign wrapper, dropped reference, banner render) now pass, run fresh against a clean Steam restart. Previously untested code (`steam/jsx-hook.ts`, committed `6086323`) is confirmed working.
     - **`steamgriddb-artwork` migrated:** its `gamepad-appid.ts` still had the old unbounded re-patch pattern (`runtime.jsx !== patchedJsx` → re-wrap every 5s) that the other two plugins were already fixed for. With all three plugins loaded, this was quietly growing the shared chain. Migrated onto the shared `steam/jsx-hook.ts` (`keepJsxPatched`), identical copy per [docs/plugins.md § Sharing the jsx runtime between plugins](docs/plugins.md#sharing-the-jsx-runtime-between-plugins). `dev.ps1` builds with `npx` (no `pnpm`).
@@ -16,7 +38,7 @@ This repo is private and unversioned; entries are grouped by date.
     - **Root-cause method note:** the SDK patcher's wrapper always makes `.toString()` return the *original* function's source (`patcher.ts`, `processPatch`, for webpack toString-filter compatibility). Inspecting `.toString()` down a patch chain is therefore useless for telling wrappers apart — use `__millenniumPatch` identity/links instead (`WeakMap`-tagging each function object, not string comparison), or this looks like every link in the chain is the same base function.
     - **`enhanced-notifications` category coexistence test (`tests/categories.mjs`) still fails**, unrelated to the above: friends/messages/downloads/recording/system toasts never get `data-en-type` or the theme `<style>` applied (only `achievement`, handed off to `enhanced-achievements`, passes). Traced to `style/injector.ts`: the toast window (CDP target `notificationtoasts_uid32`) is invisible to **both** `Millennium.AddWindowCreateHook` and `window.g_PopupManager.AddPopupCreatedCallback`/`GetPopups()` — confirmed live by installing a logging hook on each and triggering `previewCategory('system')`; neither ever fires or lists the toast popup. This contradicts the file's own doc comment, which assumes `AddWindowCreateHook` + a `GetPopups()` fallback together cover every toast window. Toast windows appear to be created through a path neither popup-tracking API observes. Not fixed this session — needs discovery work to find the real creation signal (or a polling workaround) before `injector.ts` can be fixed. Full repro and findings in [TASK.md](TASK.md).
 
-- **New plugin `enhanced-notifications`** ([plan](docs/enhanced-notifications-plan.md), [README](enhanced-notifications/README.md)): restyles every Steam toast type in place (Steam's icons, logos and text kept), plus sound per type (replace or mute) and display time. JSON themes with default -> category -> type inheritance.
+- **New plugin `enhanced-notifications`** ([plan](docs/plans/enhanced-notifications-plan.md), [README](enhanced-notifications/README.md)): restyles every Steam toast type in place (Steam's icons, logos and text kept), plus sound per type (replace or mute) and display time. JSON themes with default -> category -> type inheritance.
     - **Step 0 findings:** the SDK's `EClientNotificationType` matches `eType` 1:1 (about 60 types). `StandardTemplateContainer`/`Title`/`Body` exist in **four** CSS modules with different hashes, so selectors are collected across all of them. Desktop toasts have no current-toast value; `PlayNotificationSound` is the "toast shown" signal.
     - **Design change:** the jsx-wrap approach failed (React committed an unwrapped element; cause not found), so styling is a scoped `<style>` per toast window plus a `data-en-type` body attribute, with no React interception.
     - **Bug fixed in both plugins:** sound hooks now ignore stand-in `PlayNotificationSound` calls (config discovery), which could break the other plugin's discovery depending on load order.
@@ -46,10 +68,10 @@ This repo is private and unversioned; entries are grouped by date.
     - **Decision:** Default settings ship inside the plugin (`settings.json`, bundled into the frontend). Users change them in the plugin's settings panel in Millennium's sidebar (`definePlugin({ content })`), and Millennium stores the values. No settings file is written at runtime, so updates never overwrite user choices, and new defaults still reach users who never changed that setting.
     - **Verified API facts** (installed Millennium + `@steambrew/client` 5.8.5), recorded in [`docs/knowledgebase.md`](docs/knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585): `pluginConfig.get/set/getAll`, `usePluginConfig`, `subscribePluginConfig`; Lua `millennium.config.get/set/on_change`; no way to declare defaults; 256 keys and 256 KB per value; the SDK build ships stubs that Millennium replaces at runtime.
     - **No theme builder:** Themes stay hand-edited JSON (one file plus assets is what users share). The panel instead offers per-tier Preview, Reload themes and Open themes folder.
-    - [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) now has a Settings step with the key/control/default table (steps renumbered 0–6). `themes.md` and `TASK.md` were updated to match.
+    - [`docs/plans/enhanced-achievements-plan.md`](docs/plans/enhanced-achievements-plan.md) now has a Settings step with the key/control/default table (steps renumbered 0–6). `themes.md` and `TASK.md` were updated to match.
 
 - **Phase 6 Plan Hardened Against Regression Guardrails (`enhanced-achievements`):**
-    - **Guardrail-conformant execution plan:** Replaced the roadmap in [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) with a step-by-step Phase 6 plan (live re-verify → scaffold → config/themes → sound hook → banner → verification) plus a Phase 7 outline. Hook points are now resolved by signature instead of the numeric module ids (`11374`, `ht`) the draft used, which `docs/plugins.md` forbids.
+    - **Guardrail-conformant execution plan:** Replaced the roadmap in [`docs/plans/enhanced-achievements-plan.md`](docs/plans/enhanced-achievements-plan.md) with a step-by-step Phase 6 plan (live re-verify → scaffold → config/themes → sound hook → banner → verification) plus a Phase 7 outline. Hook points are now resolved by signature instead of the numeric module ids (`11374`, `ht`) the draft used, which `docs/plugins.md` forbids.
     - **Scope boundaries & plugin guardrails:** The plugin may hook only `NotificationStore` and the achievement toast renderer. It must never touch `AppOverview`, `StoreItemCache`, the section registry or the activity/spotlight stores, never import from the core plugin, and never do per-toast disk, RPC or network work. Every hook falls through to Steam's original on failure. The core regression routines (1–3) must pass with both plugins enabled.
     - **Open risks surfaced:** Whether in-game overlay toasts render from `SharedJSContext`; whether 100% completion is knowable at toast time (needed for the `exceptional` tier); where user settings and themes live so updates don't overwrite them.
     - **Settings split:** [`enhanced-achievements/settings.json`](enhanced-achievements/settings.json) now holds the active theme, banner/sound toggles and capture defaults; themes hold only visuals and sound, with optional per-tier capture overrides. [`themes.md`](enhanced-achievements/themes.md) was rewritten to match, adding tier-selection order, a no-rarity-data fallback, merge semantics, icon shorthand and asset path resolution. `theme_exemple.json` now uses the canonical `"topright"`.
@@ -66,7 +88,7 @@ This repo is private and unversioned; entries are grouped by date.
     - **Sound & Banner Interception Hooks:** Confirmed that hooking `PlayNotificationSound` cleanly silences the default Steam chime (`j.PN.ToastAchievement`) and triggers custom audio playback via HTML5 `AudioContext` with per-tier volume control, while patching `ht` allows rendering themed banners with zero UI drift.
     - **Steam Game Recording & Capture RPCs Mapped:** Identified `CGameRecordingService` (module `80026`, export `xM`) RPCs: `UserAddTimelineEntry` (golden trophy timeline markers), `SaveClip` (instant replay buffer extraction), and `TakeScreenshot`.
     - **Schema & Theme Specification:** Updated [`enhanced-achievements/themes.md`](enhanced-achievements/themes.md) and [`enhanced-achievements/steam_ps_exemple.json`](enhanced-achievements/steam_ps_exemple.json) to incorporate auto-screenshot delay (`screenshot.delay_ms`), auto-recording duration/delay (`recording.duration_s`, `recording.delay_ms`), and timeline markers across rarity tiers (`normal`, `magic`, `rare`, `exceptional`).
-    - **Authored Comprehensive Implementation Plan:** Created [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) detailing plugin structure, hook points, theme inheritance rules, and phase-by-phase execution roadmap.
+    - **Authored Comprehensive Implementation Plan:** Created [`docs/plans/enhanced-achievements-plan.md`](docs/plans/enhanced-achievements-plan.md) detailing plugin structure, hook points, theme inheritance rules, and phase-by-phase execution roadmap.
 
 - **Lifecycle Cache Hardening & Navigation Resilience (Phase 4b Shipped):**
     - **Eliminated Cache Deletion on Unpatch:** Removed `storeCache.m_mapApps.delete(appid)` from `clearActivity` in `activity.ts`. In-memory StoreItem stubs now persist indefinitely across navigations (~150 bytes), preventing asynchronous 404 store requests from unmounting React hooks.

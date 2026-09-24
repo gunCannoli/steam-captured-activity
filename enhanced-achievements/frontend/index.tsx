@@ -17,7 +17,7 @@ import { initActiveTheme } from './theme/active-theme';
 /**
  * enhanced-achievements: themed achievement toasts and sounds.
  *
- * Scope (docs/enhanced-achievements-plan.md § 5): hooks only NotificationStore
+ * Scope (docs/plans/enhanced-achievements-plan.md § 5): hooks only NotificationStore
  * and the toast dispatcher. It never touches AppOverview, StoreItemCache, the
  * section registry or the activity/spotlight stores that
  * non-steam-games-activity feeds, and never imports from that plugin.

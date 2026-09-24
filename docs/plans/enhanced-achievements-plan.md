@@ -23,7 +23,7 @@ Through live Chrome DevTools Protocol (CDP) probing against Steam (`127.0.0.1:80
 > **Module ids and minified names below (`60917`, `11374`, `ht`, `u.uM.ok`, `80026`, `xM`) are breadcrumbs from one Steam build, not lookup keys.**
 > They reshuffle between builds. Code must resolve every one of them by a stable signature
 > (prototype method names, or strings inside a function's source) — see
-> [plugins.md § Rules that apply on every rung](plugins.md#rules-that-apply-on-every-rung) and
+> [plugins.md § Rules that apply on every rung](../plugins.md#rules-that-apply-on-every-rung) and
 > the signature table in [§ 5, Step 0](#step-0-live-re-verification-no-code).
 
 ### A. Notification Dispatch Engine (`window.NotificationStore`)
@@ -104,8 +104,8 @@ Themes are defined as clean, declarative JSON files stored in `enhanced-achievem
 ### Configuration Schema Highlights
 
 Capture defaults (`screenshot`, `recording`) and the active theme live in the plugin's
-[`settings.json`](../enhanced-achievements/settings.json), not in the theme; a tier may still
-override captures for itself. Full reference: [themes.md](../enhanced-achievements/themes.md).
+[`settings.json`](../../enhanced-achievements/settings.json), not in the theme; a tier may still
+override captures for itself. Full reference: [themes.md](../../enhanced-achievements/themes.md).
 
 ```json
 {
@@ -174,7 +174,7 @@ enhanced-achievements/
 
 > **Status (2026-09-24): implemented and verified live** on desktop and Big
 > Picture, except the in-game overlay with a real unlock (code path shared,
-> untested). Step 0 signatures are in [steam-components.md § 11B](steam-components.md#b-native-achievement-notifications-notificationstore).
+> untested). Step 0 signatures are in [steam-components.md § 11B](../steam-components.md#b-native-achievement-notifications-notificationstore).
 > Deviations from this plan, found live:
 > - `ProcessNotification` cannot be wrapped (bound, non-writable). `display_time_ms`
 >   is applied through the achievement type's config `toastDurationMS` instead.
@@ -184,7 +184,7 @@ enhanced-achievements/
 >   error, reads fail: [Millennium#903](https://github.com/SteamClientHomebrew/Millennium/issues/903)),
 >   and frontend writes raise no change events by design. Settings use a workaround instead of
 >   `subscribePluginConfig` / `usePluginConfig`
->   ([knowledgebase.md](knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)).
+>   ([knowledgebase.md](../knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585)).
 > - Tests: `npm test` (logic), `tests/*.mjs` (live CDP), `scratch/test_nav_cycle.js`
 >   and `scratch/check_all_tabs.js` (core regression, Routines 1–2).
 
@@ -211,7 +211,7 @@ same store singletons, so a careless hook here breaks the core's views.
 
 The findings in § 2 come from one CDP session. Re-verify against the running
 client before writing hooks, and record the **signatures** (not ids) in
-[steam-components.md § 11B](steam-components.md#b-native-achievement-notifications-notificationstore):
+[steam-components.md § 11B](../steam-components.md#b-native-achievement-notifications-notificationstore):
 
 | Target | Resolve by (signature) | To confirm |
 | --- | --- | --- |
@@ -228,14 +228,14 @@ plan is amended before Step 4.
 
 ### Step 1: Scaffold
 
-Per [plugins.md § 1](plugins.md#1-scaffold) and its checklist.
+Per [plugins.md § 1](../plugins.md#1-scaffold) and its checklist.
 
 - `plugin.json` with `"name": "enhanced-achievements"`, `"backendType": "lua"`.
 - `backend/_lib/` stubs copied; `backend/main.lua` calls `millennium.ready()`.
   The vendored stubs predate `millennium.config`; that is fine, because settings are frontend-only.
 - `package.json`, `tsconfig.json` mirroring `non-steam-games-activity`.
 - `dev.ps1` copied from the core — Steam path discovered, never hardcoded
-  ([ADR-0011](decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)) —
+  ([ADR-0011](../decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)) —
   and extended to deploy `themes/` (the backend reads it). `settings.json` is
   bundled into the frontend at build time, so it needs no deploy step.
 - Move `steam_ps_exemple.json` and `theme_exemple.json` into `themes/`; move
@@ -245,9 +245,9 @@ Per [plugins.md § 1](plugins.md#1-scaffold) and its checklist.
 
 Defaults ship **in the plugin**; the user changes them from the plugin's
 settings panel in Millennium's sidebar. No settings file is written or read at
-runtime. API facts: [knowledgebase.md § Plugin settings](knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585).
+runtime. API facts: [knowledgebase.md § Plugin settings](../knowledgebase.md#plugin-settings--the-configuration-api-verified-installed-millennium--steambrewclient-585).
 
-- **Defaults:** [`settings.json`](../enhanced-achievements/settings.json) is imported
+- **Defaults:** [`settings.json`](../../enhanced-achievements/settings.json) is imported
   into the frontend bundle (`resolveJsonModule`). If `millennium-ttc` will not bundle
   JSON, mirror it in `settings/defaults.ts`; `settings.json` stays the documented source.
 - **Storage:** one flat config key per setting (table below). Millennium has no
@@ -300,7 +300,7 @@ builder would duplicate the schema in UI code and can come later if there is dem
 
 **Frontend (`theme/`)**:
 
-- `theme-types.ts` — types matching [themes.md](../enhanced-achievements/themes.md).
+- `theme-types.ts` — types matching [themes.md](../../enhanced-achievements/themes.md).
 - `theme-loader.ts` — validates, normalises shorthand (`icons: true` → `[true, 0]`),
   merges each tier over `normal`, and returns four **fully resolved** tier objects.
   Resolution happens once per theme load. Toast-time work is only picking one of the four.
@@ -308,7 +308,7 @@ builder would duplicate the schema in UI code and can come later if there is dem
 - Any validation failure logs and falls back to **stock Steam** for that part, never a half-styled banner.
 
 **Pure-logic tests** (tier selection, inheritance merge, shorthand
-normalisation) run outside Steam, per [plugins.md § 5](plugins.md#5-test).
+normalisation) run outside Steam, per [plugins.md § 5](../plugins.md#5-test).
 
 ### Step 4: Sound hook
 
@@ -334,7 +334,7 @@ proto.PlayNotificationSound = function (n) {
 
 ### Step 5: Banner replacement
 
-Rung check ([plugins.md § Build nothing Steam already builds](plugins.md#build-nothing-steam-already-builds)):
+Rung check ([plugins.md § Build nothing Steam already builds](../plugins.md#build-nothing-steam-already-builds)):
 Steam's toast is the thing being replaced, so rungs 1–3 do not apply to the
 **inner** banner. Everything around it stays Steam's: the toast container,
 queueing, timing, click-to-open and dismissal.
@@ -344,7 +344,7 @@ queueing, timing, click-to-open and dismissal.
 - Substitute it in one of two ways, in order of preference:
     1. Replace the export if the module object allows it (webpack getters may not).
     2. `react/jsx-runtime` `beforePatch`, as `gamepad-appid.ts` already does
-       ([ADR-0027](decisions.md#adr-0027-patch-reactjsx-runtime-to-reach-big-pictures-real-render-pipeline)): an **identity compare**
+       ([ADR-0027](../decisions.md#adr-0027-patch-reactjsx-runtime-to-reach-big-pictures-real-render-pipeline)): an **identity compare**
        `type === steamAchievementToast` and nothing else. `jsx` runs for every
        element in the client, so this check must stay O(1) (guardrail 2).
 - `AchievementBanner` receives Steam's original props and forwards
@@ -386,7 +386,7 @@ queueing, timing, click-to-open and dismissal.
 | 4 | Every hook falls through to Steam's original on any failure | A failed resolve degrades to stock, never crashes |
 | 5 | No per-toast disk, RPC or network work | Assets are preloaded at theme load |
 | 6 | Never touch the core plugin's objects (see Scope boundaries) | Guardrails 1, 5, 7, 8 |
-| 7 | No imports across plugin folders | [plugins.md § Layout](plugins.md#layout) |
+| 7 | No imports across plugin folders | [plugins.md § Layout](../plugins.md#layout) |
 | 8 | Core regression pass with both plugins enabled | Routines 1–3 |
 
 ### Open decisions
