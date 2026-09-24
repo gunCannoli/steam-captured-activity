@@ -1,7 +1,7 @@
 local http = require("http")
 local json = require("json")
 local logger = require("logger")
-local config = require("config")
+local config = require("web_config")
 
 local igdb = {}
 

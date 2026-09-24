@@ -3,19 +3,14 @@ local json = require("json")
 local utils = require("utils")
 local logger = require("logger")
 
-local millennium = require("millennium")
+local data_dir = require("data_dir")
 
 local metadata_db = {}
 local DB_FILE = nil
 
 local function get_db_path()
   if DB_FILE then return DB_FILE end
-  local ok, sp = pcall(millennium.steam_path)
-  if ok and sp and #sp > 0 then
-    DB_FILE = sp:gsub("\\", "/") .. "/library_metadata.json"
-  else
-    DB_FILE = "library_metadata.json"
-  end
+  DB_FILE = data_dir.file("library_metadata.json")
   return DB_FILE
 end
 

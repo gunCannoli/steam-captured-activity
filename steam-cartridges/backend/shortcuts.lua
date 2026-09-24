@@ -97,6 +97,9 @@ function shortcuts.parse(path)
 
         if current and field then
           current[field] = data:sub(key_end + 1, value_end - 1)
+        elseif current and tonumber(key) then
+          current.tags = current.tags or {}
+          table.insert(current.tags, data:sub(key_end + 1, value_end - 1))
         end
         i = value_end + 1
       end
