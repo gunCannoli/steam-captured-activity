@@ -1,5 +1,5 @@
-import { logger } from "../logger";
-import type { ArtworkBundle, ArtworkUrls } from "../rpc";
+import { logger } from "../../logger";
+import type { ArtworkBundle, ArtworkUrls } from "../../rpc";
 
 /**
  * Steam custom artwork slot types:

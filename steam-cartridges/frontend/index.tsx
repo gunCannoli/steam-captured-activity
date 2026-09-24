@@ -20,6 +20,8 @@ import { watchGamepadAppid } from "./steam/gamepad-appid";
 import { installHeadlinePatch } from "./steam/headline-patch";
 import { installActivityCardsPatch } from "./steam/activity-cards-patch";
 import { ensureStoreCacheHooked } from "./steam/activity";
+import { NON_STEAM_APPID_MIN, appIdFromPath } from "./steam/route";
+import { initGameInfo } from "./features/game-info";
 
 export { registerSummaryProvider } from "./steam/summary";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
@@ -31,22 +33,29 @@ export type {
     SummaryProvider,
 } from "./steam/summary";
 
-/**
- * Steam assigns non-Steam shortcuts appids at the top of the 32-bit range.
- * Mirrors the backend's NON_STEAM_APPID_MIN.
- */
-const NON_STEAM_APPID_MIN = 0x8000_0000;
-
-/** `/library/app/4263274102` (and Big Picture's `/tab/<Name>` variants). */
-function appIdFromPath(pathname: string): number | undefined {
-    const match = /^\/library\/app\/(\d+)/.exec(pathname);
-    if (!match?.[1]) return undefined;
-
-    const appid = Number(match[1]);
-    return Number.isFinite(appid) ? appid : undefined;
-}
+const LEGACY_PLUGINS = [
+    "non-steam-games-activity",
+    "non-steam-games-activity-dev",
+    "steamgriddb-artwork",
+    "steamgriddb-artwork-dev",
+];
 
 export default async function OnPluginLoaded() {
+    // ===== Legacy guard =====
+    // Log only; never skip init.
+    try {
+        const list = (window as any).PLUGIN_LIST ?? {};
+        for (const name of LEGACY_PLUGINS) {
+            if (list[name]) {
+                logger.error(
+                    `Legacy plugin "${name}" is still loaded next to steam-cartridges; disable it (sections and hooks would be installed twice).`,
+                );
+            }
+        }
+    } catch {
+        /* diagnostics only */
+    }
+
     // ===== Native sections =====
     // Steam hides Post-Game Summary from shortcuts with an app-type filter in its
     // section registry. Putting the name back is what makes the native component
@@ -70,6 +79,13 @@ export default async function OnPluginLoaded() {
     // Replaces community screenshot viewer with genuine Post-Game Summary cards
     // (PostGameSummaryClip and SummaryScreenshot) with hover video scrubbers and native playback.
     installActivityCardsPatch();
+
+    // ===== Game Info (ex steamgriddb-artwork) =====
+    // Not awaited: the two halves load independently, as the two plugins did
+    // (ADR-0010), and a failure here must not affect activity.
+    void initGameInfo().catch((e) =>
+        logger.error("Game Info feature failed; activity is unaffected.", e),
+    );
 
     // ===== Library grid =====
     // Fills in last-played dates Steam does not have, from capture timestamps.

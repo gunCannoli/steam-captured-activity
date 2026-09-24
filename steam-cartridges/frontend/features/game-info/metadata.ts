@@ -1,5 +1,5 @@
-import { logger } from "../logger";
-import type { ConsolidatedMetadata } from "../rpc";
+import { logger } from "../../logger";
+import type { ConsolidatedMetadata } from "../../rpc";
 import {
     enrichedAppIds,
     ensureAppOverviewHooked,

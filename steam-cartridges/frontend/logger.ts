@@ -7,4 +7,4 @@ import { Logger } from 'steambrew-utils/logger';
  * entry point, which would otherwise create a cycle
  * (index -> renderer -> index).
  */
-export const logger = new Logger('Non-Steam Games Activity');
+export const logger = new Logger('Steam Cartridges');

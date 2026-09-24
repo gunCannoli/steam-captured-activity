@@ -1,8 +1,8 @@
 {
-  "name": "non-steam-games-activity",
+  "name": "steam-cartridges",
   "version": "0.1.0",
   "private": true,
-  "description": "Brings the game activity page to non-Steam games, using the screenshots and recordings Steam already captured.",
+  "description": "Makes non-Steam games feel native: Steam's own activity page from your captures, plus optional metadata and artwork.",
   "scripts": {
     "check": "tsc --noEmit",
     "build": "millennium-ttc --build prod",

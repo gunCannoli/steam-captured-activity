@@ -69,7 +69,7 @@ export function installHeadlinePatch(): void {
   }
 
   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
-    label: 'non-steam-games-activity.headline',
+    label: 'steam-cartridges.headline',
     observe: (type, props) => handleHeadlineIntercept(type, props),
   });
   logger.info('Installed Activity Feed headline patch ("{Username} captured").');

@@ -110,7 +110,7 @@ function ensurePatched(): void {
     return;
   }
   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
-    label: 'non-steam-games-activity',
+    label: 'steam-cartridges',
     observe: (_type, props) => handleIntercepted(props),
   });
 }

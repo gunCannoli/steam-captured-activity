@@ -241,7 +241,7 @@ export function installActivityCardsPatch(): void {
   initCardComponents();
 
   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
-    label: 'non-steam-games-activity.activity-cards',
+    label: 'steam-cartridges.activity-cards',
     replaceType: (type, props) => handleActivityCardReplace(type, props),
   });
   logger.info('Installed Activity Feed native Post-Game Summary cards patch.');
