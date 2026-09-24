@@ -71,6 +71,16 @@ function fs.last_write_time(path)
   return tonumber(lines[1]) or 0
 end
 
+function fs.create_directories(path)
+  -- cmd's mkdir wants backslashes and creates intermediate directories.
+  os.execute('mkdir "' .. path:gsub("/", "\\") .. '" >nul 2>nul')
+  return true
+end
+
+function fs.remove(path)
+  return os.remove(path)
+end
+
 function fs.extension(path)
   local ext = path:match("(%.[^%.\\/]+)$")
   return ext or ""
@@ -119,7 +129,21 @@ function utils.read_file(path)
   f:close()
   return content
 end
+function utils.write_file(path, content)
+  local f, err = io.open(path, "wb")
+  if not f then return false, err end
+  f:write(content)
+  f:close()
+  return true
+end
 package.loaded["utils"] = utils
+
+-- ---------- stub: http ----------
+-- A test must never reach the network.
+local http = {}
+function http.get() error("network in test") end
+function http.post() error("network in test") end
+package.loaded["http"] = http
 
 -- ---------- stub: json (encode only, for shape checks) ----------
 local json = {}

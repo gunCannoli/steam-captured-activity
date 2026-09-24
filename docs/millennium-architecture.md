@@ -42,12 +42,14 @@ Steam-native data. Providers contribute extra material for games they recognise.
 
 ```
             ┌───────────────────────────────────────────────┐
-            │      non-steam-games-activity  (CORE)         │
+            │      steam-cartridges  (CORE)                 │
             │                                               │
             │  • restores Steam's own detail sections       │
             │  • feeds them Steam's screenshots + clips     │
             │  • the library grid's play evidence           │
             │  • the provider registry                      │
+            │  • features/: game-info, artwork (web)        │
+            │  • data: millennium/config/steam-cartridges/  │
             │                                               │
             │  no network · no emulator · no API key        │
             └───────────────┬───────────────────────────────┘
@@ -100,7 +102,7 @@ Area-specific invariants not covered by a numbered guardrail:
 
 ---
 
-## Core: `non-steam-games-activity`
+## Core: `steam-cartridges`
 
 ### Why this works without any provider
 
@@ -164,7 +166,7 @@ Where the backend is still involved, it owns the I/O
 `✅` = built and tested · `⚠` = built, unverified · `☐` = not started
 
 ```
-non-steam-games-activity/
+steam-cartridges/
 ├─ plugin.json                                                    ✅
 ├─ dev.ps1                                                        ✅
 ├─ backend/
@@ -395,7 +397,7 @@ provider is actually built, not made speculatively here.
 Publisher, developer, original release date, genres, and category badges — the box-back
 facts Steam shows for an owned game, but hides from shortcuts.
 
-Implemented and shipped as the `steamgriddb-artwork` plugin:
+Implemented as `steam-cartridges` `features/game-info` (ex `steamgriddb-artwork`, merged in P1):
 
 - **Local Database Single Source of Truth:** Stored as `C:\game\steam\library_metadata.json`
   with 2-space indentation. Easily user-editable and preserved with `custom_override`.

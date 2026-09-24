@@ -66,11 +66,12 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
     - [x] T6 fixtures (read-only variant) (`SC Test Steam` / `SC Test Retro`, throwaway shortcuts; needs user OK)
     - [x] Replace every **P0-gated** note in the P1–P3 plans
 - [ ] **P1 plugin merger (refactor-only)**: [plan](docs/plans/steam-cartridges-p1-merger.md)
-    - [ ] `git mv` core → `steam-cartridges/`; move artwork `web/*.lua`, `features/game-info`, `features/artwork`; drop duplicates
-    - [ ] Merged `main.lua` (8 RPC globals, no renames), `data_dir.lua`, `migrate.lua` (secrets never logged)
-    - [ ] One `rpc.ts`/`logger.ts`, `steam/route.ts`, `initGameInfo()` not awaited, legacy-plugin guard
-    - [ ] Harness `http`/`fs`/`utils` stubs + invariant tests; `dev.ps1` retires the old plugins
-    - [ ] Docs renamed (AGENTS, README, architecture, plugins.md, `scratch/jsx_chain.js`); Routines 1–3
+    - [x] `git mv` core → `steam-cartridges/`; move artwork `web/*.lua`, `features/game-info`, `features/artwork`; drop duplicates
+    - [x] Merged `main.lua` (8 RPC globals, no renames), `data_dir.lua`, `migrate.lua` (secrets never logged)
+    - [x] One `rpc.ts`/`logger.ts`, `steam/route.ts`, `initGameInfo()` not awaited, legacy-plugin guard
+    - [x] Harness `http`/`fs`/`utils` stubs + invariant tests; `dev.ps1` retires the old plugins
+    - [x] Docs renamed (AGENTS, README, architecture, plugins.md, `scratch/jsx_chain.js`)
+    - [ ] Live verification pending: deploy `dev.ps1`, Routines 1–3, plan §4 steps 3–8
 - [ ] **P2 exclusive bucket engine**: [plan](docs/plans/steam-cartridges-p2-buckets.md)
     - [ ] `features/buckets/resolve.ts` (pure) + `tests/buckets.test.ts` (two-collection fixture)
     - [ ] `settings/settings.ts` (#903 workaround port), `collections.ts`, `buckets/index.ts`, `definePlugin` panel

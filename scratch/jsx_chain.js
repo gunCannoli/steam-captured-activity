@@ -12,7 +12,7 @@
 
 const PORT = process.env.CDP_PORT ?? '8080';
 const STEADY = Number(process.argv[2] ?? 60);
-const PLUGINS = ['non-steam-games-activity-dev', 'enhanced-achievements-dev', 'steamgriddb-artwork-dev'];
+const PLUGINS = ['steam-cartridges-dev', 'enhanced-achievements-dev'];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function connect(title) {

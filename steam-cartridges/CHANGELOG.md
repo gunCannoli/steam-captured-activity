@@ -1,11 +1,13 @@
 # Changelog
 
-All notable changes to **Non-Steam Games Activity**.
+All notable changes to **Steam Cartridges** (formerly Non-Steam Games Activity).
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+- Merged `steamgriddb-artwork` (web metadata, Game Info, artwork RPCs) and renamed to `steam-cartridges`. Data folder `<Steam>/millennium/config/steam-cartridges`; no RPC renamed.
 
 Non-Steam games now use **Steam's own app detail sections** on both Desktop and
 Big Picture Mode. Library grid, Post-Game Summary, and chronological per-day

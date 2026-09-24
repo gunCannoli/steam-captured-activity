@@ -2,7 +2,7 @@
 
 Workspace-level history: documentation, conventions, and decisions that span
 plugins. Each plugin keeps its own changelog for anything user-facing —
-see [non-steam-games-activity/CHANGELOG.md](non-steam-games-activity/CHANGELOG.md).
+see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.

@@ -8,7 +8,7 @@ A workspace for building **Millennium** plugins (Steam Client homebrew mods).
 
 The product is a **core plugin plus optional provider plugins**:
 
-- **`non-steam-games-activity`** (the backbone) — gives **any** non-Steam game
+- **`steam-cartridges`** (the backbone; ex `non-steam-games-activity` + `steamgriddb-artwork`, ADR-0032) — gives **any** non-Steam game
   Steam's own rich app detail page, using only data Steam already has: the
   screenshots and recordings Steam itself captured. It does not rebuild that
   page — Steam hides it from shortcuts by app type, so the plugin restores the
@@ -143,7 +143,9 @@ last), see [steam-debug.md § Cost-Efficient Debugging](docs/steam-debug.md#7-co
 
 ### Routine 4: Build & Run
 
-Run commands inside the respective plugin directory (`non-steam-games-activity` or `steamgriddb-artwork`):
+Backend tests: `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua` inside `steam-cartridges/` (Lua from `tools/lua/`; fixture counts track the live library).
+
+Run commands inside the respective plugin directory (`steam-cartridges`):
 
 ```bash
 npm install

@@ -1,12 +1,22 @@
-# non-steam-games-activity
+# steam-cartridges
 
-The core plugin. Gives **any** non-Steam game the app detail page Steam already
+The core plugin (formerly `non-steam-games-activity`, merged with `steamgriddb-artwork` in P1, ADR-0032). Gives **any** non-Steam game the app detail page Steam already
 knows how to draw — using the screenshots and recordings Steam has already
 captured.
 
 No emulator, no API key, no network. Providers
 ([architecture](../docs/millennium-architecture.md)) add achievements, playtime and artwork
 on top of this.
+
+## Metadata and artwork (ex steamgriddb-artwork)
+
+The `features/game-info` module enriches Steam's Game Info tab for shortcuts
+(IGDB metadata, cached in `library_metadata.json`), and the backend exposes
+`GetArtworkForGame` for SteamGridDB. Credentials live in the plugin data folder
+`<Steam>/millennium/config/steam-cartridges/.env` (keys `twitch_client_id`,
+`twitch_client_secret`, `steamgriddb_api`; never commit values). On first start
+`migrate.run()` copies any legacy credentials and `<Steam>/library_metadata.json`
+there; originals are left in place.
 
 ## How it works
 

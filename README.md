@@ -28,7 +28,7 @@ Then it makes that extensible.
 **One core plugin, plus optional providers:**
 
 ```
-non-steam-games-activity  (core)      Steam's own screenshots + recordings
+steam-cartridges          (core)      Steam's own screenshots + recordings, metadata, artwork
    ├── retroarch          (provider)  playtime, emulator screenshots
    ├── retroachievements  (provider)  achievements, badges, unlock dates
    ├── guides-artwork     (provider)  manuals, box art (ScreenScraper / Archive.org)
@@ -44,7 +44,7 @@ for what each one needs and where its data comes from.
 
 | Plugin | Status | Public repo |
 | --- | --- | --- |
-| [non-steam-games-activity](non-steam-games-activity/) | 🚧 Post-Game Summary shipped; Activity feed + Big Picture ahead | not yet published |
+| [steam-cartridges](steam-cartridges/) (ex non-steam-games-activity + steamgriddb-artwork) | 🚧 Post-Game Summary shipped; Activity feed + Big Picture ahead | not yet published |
 | [enhanced-notifications](enhanced-notifications/) | 🚧 Restyles every toast type in place, plus sounds and display time; desktop + Big Picture verified, alpha | not yet published |
 | [enhanced-achievements](enhanced-achievements/) | 🚧 Themed achievement banner + sound shipped (desktop, Big Picture); captures (alpha) | not yet published |
 | `retroarch` | 📋 planned | — |

@@ -316,7 +316,7 @@ have been reused instead.
 ### Sharing the jsx runtime between plugins
 
 Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
-`non-steam-games-activity` (Big Picture appid detection) and
+`steam-cartridges` (Big Picture appid detection) and
 `enhanced-achievements` (achievement banner). Rules:
 
 - **Use `steam/jsx-hook.ts` (`keepJsxPatched`)**, a file copied identically into each
@@ -567,7 +567,7 @@ Millennium ships only its embedded Lua VM, so get a standalone interpreter from
 [luabinaries](https://luabinaries.sourceforge.net/) to test backend logic outside
 Steam. Put it in `tools/lua/` (gitignored).
 
-The pattern used by `non-steam-games-activity`: a harness stubs Millennium's
+The pattern used by `steam-cartridges`: a harness stubs Millennium's
 `fs` / `utils` / `logger` / `millennium` / `json` modules, then the **real**
 backend modules run against a **real** Steam install — no mock data.
 

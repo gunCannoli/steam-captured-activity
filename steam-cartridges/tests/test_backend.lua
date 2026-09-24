@@ -15,13 +15,13 @@ require("harness")
 
 -- Expected values for the development machine's library.
 local FIXTURE = {
-  shortcuts        = 223,
-  retroarch        = 210,
+  shortcuts        = 220,
+  retroarch        = 216,
   games_with_media = 6,
-  screenshots      = 211,
+  screenshots      = 213,
   am2r_appid       = 4263274102,
   am2r_name        = "AM2R - Another Metroid 2 Remake",
-  am2r_shots       = 2,
+  am2r_shots       = 4,
   vitality_appid   = 4218550559,
   vitality_shots   = 3,
   -- A 14.144s clip recorded on AM2R; see docs/knowledgebase.md "Recordings".
@@ -110,8 +110,7 @@ end
 -- Scope: the screenshot index only. The recording parsers (clip.pb protobuf,
 -- DASH manifests, session windows) and their tests were removed with ADR-0022 -
 -- the frontend reads clips from Steam's own APIs now. Git history has them.
-print("
-=== captures ===")
+print("\n=== captures ===")
 local captures = require("captures")
 
 local counts = captures.non_steam_counts(paths)
@@ -156,8 +155,7 @@ end
 
 
 -- ============ rpc ============
-print("
-=== rpc (shape) ===")
+print("\n=== rpc (shape) ===")
 local RPC = require("rpc")
 local diag = RPC.GetDiagnostics("{}")
 check("GetDiagnostics returns json", type(diag) == "string" and diag:find("\"ok\""), diag)
@@ -167,6 +165,81 @@ local stats_json = RPC.GetLibraryStats("{}")
 check("GetLibraryStats returns json",
       type(stats_json) == "string" and stats_json:find("screenshots", 1, true) ~= nil)
 
-print("
-" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
+-- ============ merged plugin: web modules, data dir, migration ============
+print("\n=== steam-cartridges (merge invariants) ===")
+
+for _, e in ipairs(entries) do
+  local ok = e.tags == nil
+  if type(e.tags) == "table" then
+    ok = true
+    for _, tag in ipairs(e.tags) do
+      if type(tag) ~= "string" then ok = false end
+    end
+  end
+  if not ok then check("shortcut tags is nil or string[] (" .. tostring(e.appid) .. ")", false) end
+end
+check("shortcut tags are nil or string arrays", true)
+
+for _, mod in ipairs({ "web_metadata_db", "web_config", "web_igdb", "web_sgdb", "web_rpc", "data_dir", "migrate" }) do
+  local ok, res = pcall(require, mod)
+  check("require(" .. mod .. ") loads", ok, not ok and tostring(res) or nil)
+end
+
+local data_dir = require("data_dir")
+local real_path = data_dir.path():gsub("\\", "/")
+check("data_dir.path() ends in millennium/config/steam-cartridges",
+      real_path:sub(-#"millennium/config/steam-cartridges") == "millennium/config/steam-cartridges", real_path)
+check("data_dir.path() has no backslash", not data_dir.path():find("\\", 1, true))
+
+-- Migration against a throwaway Steam root: never touches the real one.
+do
+  local millennium = require("millennium")
+  local config = require("web_config")
+  local migrate = require("migrate")
+  local fs = require("fs")
+  local utils = require("utils")
+
+  local base = (os.getenv("TEMP") or "."):gsub("\\", "/") .. "/sc_migrate_" .. tostring(os.time())
+  local SENTINEL = "SENTINEL_SECRET_VALUE_12345"
+  fs.create_directories(base .. "/millennium/config")
+  utils.write_file(base .. "/legacy.env",
+    "twitch_client_id=idvalue\ntwitch_client_secret=" .. SENTINEL .. "\nsteamgriddb_api=k" .. SENTINEL .. "\nother=x\n")
+  utils.write_file(base .. "/library_metadata.json", "{}")
+
+  local saved_steam, saved_cands = millennium.steam_path, config.legacy_env_candidates
+  millennium.steam_path = function() return base end
+  config.legacy_env_candidates = { base .. "/legacy.env" }
+  data_dir._reset(); config._reset()
+
+  local printed = {}
+  local real_print = print
+  print = function(...) local p = {} for i = 1, select("#", ...) do p[#p + 1] = tostring((select(i, ...))) end printed[#printed + 1] = table.concat(p, " ") end
+  local ran1 = migrate.run()
+  local ran2 = migrate.run()
+  print = real_print
+
+  check("migrate.run() first call does work", ran1 == true)
+  check("migrate.run() second call is a no-op", ran2 == false)
+  check("migrate wrote .env", fs.is_file(data_dir.file(".env")))
+  check("migrate wrote marker", fs.is_file(data_dir.file(".migrated-v1")))
+  check("migrate copied library_metadata.json", fs.is_file(data_dir.file("library_metadata.json")))
+  check("migrate kept the original library_metadata.json", fs.is_file(base .. "/library_metadata.json"))
+  local env_text = utils.read_file(data_dir.file(".env")) or ""
+  check("migrated .env has only the three keys", not env_text:find("other=", 1, true))
+  check("migrate output never prints a secret", not table.concat(printed, "\n"):find(SENTINEL, 1, true))
+
+  config._reset()
+  local creds = config.get_twitch_credentials()
+  check("config reads migrated credentials from the data dir", creds ~= nil and creds.client_id == "idvalue")
+
+  millennium.steam_path, config.legacy_env_candidates = saved_steam, saved_cands
+  data_dir._reset(); config._reset()
+  os.execute('rmdir /s /q "' .. base:gsub("/", "\\") .. '" >nul 2>nul')
+end
+
+-- the network stub must trip, proving tests cannot go online
+check("http stub refuses network", not pcall(require("http").get, "http://example.invalid"))
+
+
+print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)
