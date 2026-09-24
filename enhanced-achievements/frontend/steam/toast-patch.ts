@@ -80,6 +80,11 @@ function patch(name: 'jsx' | 'jsxs'): void {
     installed[name] = wrapped;
 }
 
+/** True once the banner patch is live (used by claims() for enhanced-notifications). */
+export function toastPatchInstalled(): boolean {
+    return !!runtime && runtime.jsx === installed.jsx;
+}
+
 export function initToastPatch(): boolean {
     dispatcher = resolveDispatcher();
     runtime = resolveRuntime();

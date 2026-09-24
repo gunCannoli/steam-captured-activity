@@ -1,0 +1,12 @@
+{
+    "theme": "steam_midnight",
+    "style": {
+        "enabled": true
+    },
+    "sound": {
+        "enabled": true
+    },
+    "duration": {
+        "enabled": true
+    }
+}

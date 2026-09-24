@@ -7,6 +7,7 @@ import { initSettings } from './settings/settings';
 export { resetSettings, setSetting } from './settings/settings';
 export { previewTier } from './steam/notifications';
 export { activeTheme } from './theme/active-theme';
+export { claims } from './claims';
 import { SettingsPanel } from './settings/settings-panel';
 import { initNotifications } from './steam/notifications';
 import { initToastPatch } from './steam/toast-patch';

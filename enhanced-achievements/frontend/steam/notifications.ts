@@ -118,12 +118,15 @@ function playClip(clip: { buffer: AudioBuffer; volume: number }): void {
     source.start();
 }
 
-function installSoundHook(p: NotificationStoreProto): void {
+function installSoundHook(p: NotificationStoreProto, owner: object): void {
     const original = p.PlayNotificationSound;
     const originalChoose = p.ChooseSound;
     originalPlaySound = original;
 
     p.PlayNotificationSound = function (this: { ChooseSound?: unknown }, n: SteamNotification) {
+        // Only Steam's own calls (on the store) are toasts; stand-in calls that
+        // read a type's config (ours, enhanced-notifications') pass through.
+        if (this !== owner) return original.call(this, n);
         try {
             if (setting('sound.enabled') && isAchievementUnlock(n)) {
                 const clip = activeTheme()?.sounds.get(tierFor(n));
@@ -232,7 +235,7 @@ export function initNotifications(): boolean {
         return false;
     }
 
-    installSoundHook(p);
+    installSoundHook(p, candidate);
     applyDuration();
     onThemeChange(applyDuration);
     onSettingChange((key) => key === 'banner.enabled' && applyDuration());

@@ -26,6 +26,7 @@ housekeeping.
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Native Achievements (Phase 5)                | 🔬 Hook points verified in Steam client; not implemented.                                                                     |
 | Achievement Banner & Sound (Phase 6)         | ✅ Desktop + Big Picture verified live; in-game overlay still to verify. |
+| Enhanced Notifications (all toast types)     | ✅ Desktop verified; Big Picture, friends/messages, overlay to verify. |
 | Auto-Captures on Unlock (Phase 7)            | 🔬 Game Recording RPCs mapped; not implemented.                                                                               |
 | Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                        |
 
@@ -49,7 +50,16 @@ Shipped and verified on desktop and Big Picture (see [CHANGELOG.md](CHANGELOG.md
 
 - [ ] **In-game overlay:** verify with a real unlock in a running game (same dispatcher, code-verified only).
 - [ ] **Millennium Configuration API bug:** [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903), fix proposed in [PR #904](https://github.com/SteamClientHomebrew/Millennium/pull/904). Once a fixed release ships, re-test and drop the workaround in `settings.ts`.
-- [ ] **Decide:** `enhanced-notifications` companion plugin (style every toast type; `enhanced-achievements` layers on top). Not started.
+
+### enhanced-notifications — remaining
+
+Built and verified on desktop (see [CHANGELOG.md](CHANGELOG.md), [plan](docs/enhanced-notifications-plan.md)).
+
+- [ ] **Big Picture:** verify styling (a popup scan was added for Big Picture's early-created toast window; the re-check was inconclusive).
+- [ ] **Friend/message toasts:** enable Steam's Friends notifications and verify.
+- [ ] **In-game overlay:** verify both plugins with a real game.
+- [ ] **Core regression** (Routines 1–2, `scratch/`) with all three plugins enabled.
+- [ ] **Latent:** `enhanced-achievements` re-wraps `jsx` every 5 s whenever something else is on top; if another plugin does the same, the chain grows. Mark wrappers so a re-patch only happens when ours is gone.
 - [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
 
 ### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)

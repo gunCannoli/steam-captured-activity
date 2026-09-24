@@ -961,26 +961,22 @@ copy → disable the release plugin and enable the dev one → start Steam with 
 force-killing only as a fallback. Killing just `steam.exe` left webhelper
 windows running into the next start.
 
-#### The occasional "Save as" dialog (🔬 open, not reproduced — 2026-09-24)
+#### The "Save as" dialog: reloading SharedJSContext (confirmed 2026-09-24 12:35)
 
-A Windows "Save as" dialog sometimes appears while developing. What is known:
+**Do not reload SharedJSContext** (`location.reload()`, `Page.reload`, or `Ctrl+R`
+in its devtools). Doing so can make the main Steam window load its in-app route
+(`https://steamloopback.host/routes/library/home`) as a document. Routes are not
+documents, so CEF treats it as a file download and opens a blocking **"Save as"
+dialog for a file named `home`**, and Steam's UI stays stuck behind it. It is
+intermittent (one reload at 11:59 did not trigger it; the one at 12:35 did).
 
-- CEF keeps a persisted list of **in-app routes it treated as file downloads**
-  (`https://steamloopback.host/routes/library/app/<id>`, `…/tab/GameInfo`,
-  `…/tab/YourStuff`, `/routes/library/home`). Routes are not documents a window
-  can load, so a window that loads one directly gets a download and the dialog.
-- The list is re-rejected at every Steam start. `cef_log.txt` then shows a burst of
-  `download_manager_delegate_impl.cc … Rejected download of …/routes/…` in the same
-  millisecond, about 2 s after launch. That burst is replayed history, **not** a new dialog.
-- **Not** triggers, tested live: reloading SharedJSContext, desktop `steam://nav`,
-  `Navigation.Navigate`, opening/closing Big Picture, Big Picture tab navigation.
-- Suspected: a window reloading its own route URL (e.g. `Ctrl+R` in the devtools of
-  the `Steam` or Big Picture window rather than `SharedJSContext`), or the
-  force-kill restarts the scripts used to do.
-
-When it happens: note the time and what was just done (which window had focus,
-which devtools were open), then check `logs/cef_log.txt` and `logs/webhelper.txt`
-for lines at that timestamp.
+- Deploy frontend changes with a **full graceful restart** (`dev.ps1` without
+  `-NoRestart`), not a reload.
+- CEF also keeps a list of these route "downloads" and re-rejects them at every
+  start (`cef_log.txt`: `Rejected download of .../routes/...`, about 2 s after
+  launch). That burst is replayed history, not a new dialog.
+- Our scripts now stop Steam with `steam.exe -shutdown` and wait for the
+  webhelpers, rather than force-killing only `steam.exe`.
 
 ### The official docs, read section by section (2026-09-21)
 

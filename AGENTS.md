@@ -147,8 +147,10 @@ powershell -ExecutionPolicy Bypass -File dev.ps1             # Deploy + restart 
 ```
 
 `dev.ps1` deploys a parallel `-dev` copy so the released plugin stays installed.
-Backend changes need a Steam restart; frontend changes need only a reload (`Ctrl+R`
-in the Steam devtools).
+Backend and frontend changes both need a graceful Steam restart (`dev.ps1` without
+`-NoRestart`). **Do not reload SharedJSContext** (`Ctrl+R` / `location.reload()`): it
+can open a blocking "Save as" dialog for `/routes/library/home` (see
+[knowledgebase.md](docs/knowledgebase.md), Deploying a plugin).
 
 To start Steam with DevTools:
 

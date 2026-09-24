@@ -9,6 +9,13 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **New plugin `enhanced-notifications`** ([plan](docs/enhanced-notifications-plan.md), [README](enhanced-notifications/README.md)): restyles every Steam toast type in place (Steam's icons, logos and text kept), plus sound per type (replace or mute) and display time. JSON themes with default -> category -> type inheritance.
+    - **Step 0 findings:** the SDK's `EClientNotificationType` matches `eType` 1:1 (about 60 types). `StandardTemplateContainer`/`Title`/`Body` exist in **four** CSS modules with different hashes, so selectors are collected across all of them. Desktop toasts have no current-toast value; `PlayNotificationSound` is the "toast shown" signal.
+    - **Design change:** the jsx-wrap approach failed (React committed an unwrapped element; cause not found), so styling is a scoped `<style>` per toast window plus a `data-en-type` body attribute, with no React interception.
+    - **Bug fixed in both plugins:** sound hooks now ignore stand-in `PlayNotificationSound` calls (config discovery), which could break the other plugin's discovery depending on load order.
+    - **Verified live (desktop):** styling for downloads, recording, system and achievement toasts; sound mute and replace; display time; settings round-trips; coexistence (`claims()` export added to `enhanced-achievements`). All `enhanced-achievements` suites still pass. Not verified: Big Picture, friends/messages, overlay.
+- **"Save as" dialog cause confirmed:** reloading SharedJSContext (`Ctrl+R` / `location.reload()`) can load `/routes/library/home` as a download (user-observed at 12:35, matching our reload). `tests/reload.mjs` no longer reloads, and AGENTS.md now says to restart instead.
+
 - **Upstream fix and dev-script hygiene:**
     - **PR opened:** [Millennium#904](https://github.com/SteamClientHomebrew/Millennium/pull/904) fixes [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903). `ffi_binder.cc` reads `methodName` type-safely, and the FFI recorder is wrapped so it can never fail a call it only observes. Not compiled locally; the PR says so.
     - **Graceful Steam shutdown** in `start-steam-dev.ps1` and all three `dev.ps1`: `steam.exe -shutdown`, wait for every `steamwebhelper`, force-kill only as a fallback. Previously only `steam.exe` was force-killed.
