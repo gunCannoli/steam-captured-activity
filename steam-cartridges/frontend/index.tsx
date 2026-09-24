@@ -1,3 +1,4 @@
+import { definePlugin, IconsModule } from "@steambrew/client";
 import { Steam } from "steambrew-utils";
 import {
     onAppLaunch,
@@ -22,6 +23,11 @@ import { installActivityCardsPatch } from "./steam/activity-cards-patch";
 import { ensureStoreCacheHooked } from "./steam/activity";
 import { NON_STEAM_APPID_MIN, appIdFromPath } from "./steam/route";
 import { initGameInfo } from "./features/game-info";
+import { initSettings, resetSettings, setSetting } from "./settings/settings";
+import { SettingsPanel } from "./settings/settings-panel";
+
+export { setSetting, resetSettings };
+export { bucketReport } from "./features/buckets";
 
 export { registerSummaryProvider } from "./steam/summary";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
@@ -40,7 +46,10 @@ const LEGACY_PLUGINS = [
     "steamgriddb-artwork-dev",
 ];
 
-export default async function OnPluginLoaded() {
+async function init() {
+    // Settings first: the Game Info gate reads them (ADR-0033).
+    await initSettings();
+
     // ===== Legacy guard =====
     // Log only; never skip init.
     try {
@@ -219,3 +228,12 @@ export default async function OnPluginLoaded() {
 
     logger.info("Ready. Non-Steam games now use Steam's own detail sections.");
 }
+
+export default definePlugin(() => {
+    init().catch((e) => logger.error("Plugin init failed.", e));
+    return {
+        title: "Steam Cartridges",
+        icon: <IconsModule.Settings />,
+        content: <SettingsPanel />,
+    };
+});

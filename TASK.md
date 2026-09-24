@@ -73,10 +73,10 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
     - [x] Docs renamed (AGENTS, README, architecture, plugins.md, `scratch/jsx_chain.js`)
     - [ ] Live verification pending: deploy `dev.ps1`, Routines 1–3, plan §4 steps 3–8
 - [ ] **P2 exclusive bucket engine**: [plan](docs/plans/steam-cartridges-p2-buckets.md)
-    - [ ] `features/buckets/resolve.ts` (pure) + `tests/buckets.test.ts` (two-collection fixture)
-    - [ ] `settings/settings.ts` (#903 workaround port), `collections.ts`, `buckets/index.ts`, `definePlugin` panel
-    - [ ] Gate IGDB/Game Info to web-scraping; `revertGameDetails` on leave; live re-resolve without restart
-    - [ ] `tests/buckets.mjs` CDP + Routines 1–3
+    - [x] `features/buckets/resolve.ts` (pure) + `tests/buckets.test.ts` (two-collection fixture)
+    - [x] `settings/settings.ts` (#903 workaround port), `collections.ts`, `buckets/index.ts`, `definePlugin` panel
+    - [x] Gate IGDB/Game Info to web-scraping; `revertGameDetails` on leave; live re-resolve without restart
+    - [ ] `tests/buckets.mjs` CDP written, not run; Routines 1–3 pending live verification
 - [ ] **P3 Steam Store bucket**: [plan](docs/plans/steam-cartridges-p3-steam-store.md)
     - [ ] `backend/steam_store/*` (normalize, store, search, appdetails, throttle, 9 RPCs) + Lua tests on captured fixtures
     - [ ] `source-view.ts` dispatcher, `known-apps.ts`, `steam-store/index.ts`, CDN art via `SetCustomArtworkForApp`

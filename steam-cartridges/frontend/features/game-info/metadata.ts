@@ -2,6 +2,7 @@ import { logger } from "../../logger";
 import type { ConsolidatedMetadata } from "../../rpc";
 import {
     enrichedAppIds,
+    clearAppCategories,
     ensureAppOverviewHooked,
     getAppDetailsStore,
     getAppStore,
@@ -40,6 +41,67 @@ function toArray<T>(val: unknown): T[] {
     return [];
 }
 
+interface Originals {
+    descriptionsData: unknown;
+    associationData: unknown;
+    rt_original_release_date: unknown;
+    rt_steam_release_date: unknown;
+    xbox_controller_support: unknown;
+}
+
+/** Values Steam had before our first enrichment, per appid (for revert). */
+const originals = new Map<number, Partial<Originals>>();
+
+function recordOriginals(appid: number, appData: any, overview: any): void {
+    const saved = originals.get(appid) ?? {};
+    if (appData && !("descriptionsData" in saved)) {
+        saved.descriptionsData = appData.descriptionsData;
+        saved.associationData = appData.associationData;
+    }
+    if (overview && !("xbox_controller_support" in saved)) {
+        saved.rt_original_release_date = overview.rt_original_release_date;
+        saved.rt_steam_release_date = overview.rt_steam_release_date;
+        saved.xbox_controller_support = overview.xbox_controller_support;
+    }
+    originals.set(appid, saved);
+}
+
+/**
+ * Undo enrichGameDetails for one app (the game left the web-scraping bucket).
+ * Never touches appData.details (guardrail 8).
+ */
+export function revertGameDetails(appid: number): void {
+    try {
+        const saved = originals.get(appid);
+        const appData = getAppDetailsStore()?.GetAppData?.(appid);
+        if (saved && appData) {
+            if ("descriptionsData" in saved) appData.descriptionsData = saved.descriptionsData;
+            if ("associationData" in saved) appData.associationData = saved.associationData;
+        }
+        const overview = getAppStore()?.GetAppOverviewByAppID?.(appid);
+        if (overview) {
+            if (overview.m_setStoreCategories?.delete) {
+                for (const catId of Object.values(STEAM_CATEGORIES)) overview.m_setStoreCategories.delete(catId);
+            }
+            if (saved && "xbox_controller_support" in saved) {
+                overview.rt_original_release_date = saved.rt_original_release_date;
+                overview.rt_steam_release_date = saved.rt_steam_release_date;
+                overview.xbox_controller_support = saved.xbox_controller_support;
+            }
+        }
+        originals.delete(appid);
+        clearAppCategories(appid);
+        enrichedAppIds.delete(appid);
+        try {
+            getAppDetailsStore()?.AppDetailsChanged?.(appid);
+        } catch {}
+        refreshGameInfoInstances();
+        logger.info(`Reverted Game Info enrichment for ${appid}.`);
+    } catch (err) {
+        logger.warn(`Could not revert Game Info for ${appid}:`, err);
+    }
+}
+
 /**
  * Enriches Steam's in-memory CAppDetailsStore and appStore (AppOverview)
  * so that Big Picture's "Game Info" tab and Desktop game panels display
@@ -63,6 +125,7 @@ export function enrichGameDetails(
         if (detailsStore?.GetAppData) {
             const appData = detailsStore.GetAppData(appid);
             if (appData) {
+                recordOriginals(appid, appData, undefined);
                 // Descriptions (canonical description for snippet and full description)
                 const desc = meta.description || "";
                 appData.descriptionsData = {
@@ -125,6 +188,7 @@ export function enrichGameDetails(
         if (appStore?.GetAppOverviewByAppID) {
             const overview = appStore.GetAppOverviewByAppID(appid);
             if (overview) {
+                recordOriginals(appid, undefined, overview);
                 ensureAppOverviewHooked(overview);
 
                 // Ensure m_setStoreCategories is an active Set and clear previous managed categories

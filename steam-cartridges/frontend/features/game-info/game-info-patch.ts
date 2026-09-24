@@ -180,6 +180,10 @@ export function setAppCategories(appid: number, categories: Set<number>): void {
     appCategoriesCache.set(appid, categories);
 }
 
+export function clearAppCategories(appid: number): void {
+    appCategoriesCache.delete(appid);
+}
+
 export function getCachedCategoriesForApp(
     appid: number,
 ): Set<number> | undefined {

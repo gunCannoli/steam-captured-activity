@@ -55,6 +55,10 @@ Feeding them automatically renders Steam's native components in Big Picture's
 "ACTIVITY" tab, complete with controller D-pad navigation, focus rings, and
 native media carousels.
 
+## Buckets
+
+Game Info (web metadata) now runs only for games in a collection you assign to **Web Scraping** in the plugin's settings panel (Millennium sidebar). **Upgrade note:** until you assign a collection, no game gets Game Info; everything unassigned is bucket `none`. Precedence is the list order; per-game overrides win. Captures, activity and summaries ignore buckets. Design: ADR-0033.
+
 ## Status
 
 Post-game summary, per-day activity feed, and library grid work in the live client.

@@ -8,11 +8,19 @@ import { logger } from "../../logger";
 import { rpc, type ConsolidatedMetadata } from "../../rpc";
 import { watchGamepadAppid } from "../../steam/gamepad-appid";
 import { NON_STEAM_APPID_MIN, appIdFromPath } from "../../steam/route";
-import { enrichGameDetails } from "./metadata";
+import { enrichGameDetails, revertGameDetails } from "./metadata";
+import {
+    getBucket,
+    invalidateMembership,
+    onBucketsChanged,
+    setMetadataAppidSource,
+    waitForCollections,
+} from "../buckets";
 import {
     patchGameInfoComponent,
     setAppViewTrigger,
     setCachedStores,
+    enrichedAppIds,
 } from "./game-info-patch";
 
 /** In-memory cache of library metadata */
@@ -40,6 +48,12 @@ function resolveShortcutTitle(appid: number): string | undefined {
 
 async function handleAppView(appid: number): Promise<void> {
     if (appid < NON_STEAM_APPID_MIN) return;
+
+    // Buckets gate the web source (ADR-0033): only web-scraping games are enriched.
+    if (getBucket(appid).bucket !== "web-scraping") {
+        if (enrichedAppIds.has(appid)) revertGameDetails(appid);
+        return;
+    }
 
     if (libraryCache.has(appid)) {
         enrichGameDetails(appid, libraryCache.get(appid)!);
@@ -110,13 +124,27 @@ export async function initGameInfo(): Promise<void> {
     // Preload all cached metadata into appDetailsStore immediately
     try {
         const all = await rpc.getAllMetadata();
+        const ready = all?.success && all.library
+            ? await waitForCollections()
+            : false;
         if (all?.success && all.library) {
+            // Cache everything; enrich only web-scraping games. On a collections
+            // timeout the preload enriches nothing (views still enrich lazily).
+            if (!ready) {
+                logger.warn(
+                    "Collections not ready; skipping Game Info preload (views enrich lazily).",
+                );
+            }
             let count = 0;
             for (const [key, meta] of Object.entries(all.library)) {
                 const appid = Number(key);
                 if (Number.isFinite(appid) && appid >= NON_STEAM_APPID_MIN) {
                     libraryCache.set(appid, meta);
-                    if (enrichGameDetails(appid, meta)) {
+                    if (
+                        ready &&
+                        getBucket(appid).bucket === "web-scraping" &&
+                        enrichGameDetails(appid, meta)
+                    ) {
                         count++;
                     }
                 }
@@ -128,6 +156,26 @@ export async function initGameInfo(): Promise<void> {
     } catch (err) {
         logger.warn("Could not preload library metadata cache:", err);
     }
+
+    setMetadataAppidSource(() => libraryCache.keys());
+
+    // ===== Bucket changes (no restart needed) =====
+    onBucketsChanged(() => {
+        invalidateMembership();
+        for (const appid of [...enrichedAppIds]) {
+            if (getBucket(appid).bucket !== "web-scraping") {
+                revertGameDetails(appid);
+            }
+        }
+        for (const [appid, meta] of libraryCache) {
+            if (
+                !enrichedAppIds.has(appid) &&
+                getBucket(appid).bucket === "web-scraping"
+            ) {
+                enrichGameDetails(appid, meta);
+            }
+        }
+    });
 
     // ===== Big Picture Navigation =====
     // Big Picture renders through a SharedJSContext portal; react/jsx-runtime interception
