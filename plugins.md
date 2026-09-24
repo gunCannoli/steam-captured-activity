@@ -25,3 +25,4 @@ The comprehensive guide to creating Millennium plugins, plugin architecture, the
 - **5. Test:** Running Lua unit tests outside Steam
 - **6. Publish:** Subtree split and public repository publishing
 - **Checklist for a New Plugin**
+

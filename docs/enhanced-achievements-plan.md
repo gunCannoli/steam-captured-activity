@@ -193,3 +193,4 @@ enhanced-achievements/
 - Verify in Desktop Mode using `window.NotificationStore.TestAchievement(480)`.
 - Verify in Big Picture Mode with controller focus and overlay positioning.
 - Run automated CDP verification harness.
+

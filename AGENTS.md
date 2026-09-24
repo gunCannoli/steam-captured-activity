@@ -25,10 +25,10 @@ The core must be useful alone and must never depend on a provider. See
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | [TASK.md](TASK.md)                                       | **Start here** — current status, multi-session roadmap, what is next                                                        |
 | [CHANGELOG.md](CHANGELOG.md)                             | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean                      |
-| [docs/plugins.md](docs/plugins.md)                       | **Plugin creation & guardrails** — scaffolding, 4-rung reuse ladder, and all 9 mandatory regression guardrails             |
+| [docs/plugins.md](docs/plugins.md)                       | **Plugin creation & guardrails** — scaffolding, 4-rung reuse ladder, and all 9 mandatory regression guardrails              |
 | [docs/steam-architecture.md](docs/steam-architecture.md) | **Steam architecture directory** — cheat sheet of modules, stores, RPCs, and APIs for plugin developers                     |
 | [docs/steam-debug.md](docs/steam-debug.md)               | **CEF DevTools guide** — how to inspect `http://localhost:8080`, target topology, Desktop vs Big Picture quirks             |
-| [docs/knowledgebase.md](docs/knowledgebase.md)           | Millennium SDK, Steam's local data formats, provider sources, verified facts, and detailed failure traps                   |
+| [docs/knowledgebase.md](docs/knowledgebase.md)           | Millennium SDK, Steam's local data formats, provider sources, verified facts, and detailed failure traps                    |
 | [docs/architecture.md](docs/architecture.md)             | Core/provider split, data flow, IPC, and provider contracts                                                                 |
 | [docs/steam-components.md](docs/steam-components.md)     | **Deep reference** — section registry, stores, event shapes, achievements, notifications, recording RPCs, inspection method |
 | [docs/steam-styles.md](docs/steam-styles.md)             | UI styling guidance — why hand-measuring pixels was superseded by component reuse and native block cloning                  |
@@ -77,14 +77,14 @@ substring search for `435150` also matches `4351501` and any gameid containing i
 Non-default on this machine. Never hardcode standard paths — use
 `millennium.steam_path()` and discover the rest.
 
-| Thing             | Value here                                    | Default it is NOT              |
-| ----------------- | --------------------------------------------- | ------------------------------ |
-| Steam             | `C:\game\steam`                               | `C:\Program Files (x86)\Steam` |
-| Plugins           | `C:\game\steam\millennium\plugins`            | —                              |
-| Millennium config | `C:\game\steam\millennium\config\config.json` | —                              |
-| Steam user id     | `83513586`                                    | —                              |
-| RetroArch         | `C:\emu\RetroArch` (portable)                 | `%APPDATA%\RetroArch`          |
-| DevTools Port     | `127.0.0.1:8080` (IPv4)                       | `localhost:8080` (Node 24 IPv6)|
+| Thing             | Value here                                    | Default it is NOT               |
+| ----------------- | --------------------------------------------- | ------------------------------- |
+| Steam             | `C:\game\steam`                               | `C:\Program Files (x86)\Steam`  |
+| Plugins           | `C:\game\steam\millennium\plugins`            | —                               |
+| Millennium config | `C:\game\steam\millennium\config\config.json` | —                               |
+| Steam user id     | `83513586`                                    | —                               |
+| RetroArch         | `C:\emu\RetroArch` (portable)                 | `%APPDATA%\RetroArch`           |
+| DevTools Port     | `127.0.0.1:8080` (IPv4)                       | `localhost:8080` (Node 24 IPv6) |
 
 RetroArch is **portable**: `retroarch.cfg` uses `:\` to mean "the RetroArch install
 dir", so `screenshot_directory = ":\screenshots"` → `C:\emu\RetroArch\screenshots`.
@@ -162,15 +162,16 @@ To start Steam with DevTools:
 ### Routine 5: End-of-Session Prune, Sync & Auto-Push
 
 At the end of every session:
+
 1. Update [CHANGELOG.md](CHANGELOG.md) with completed milestones, rationale, and findings.
 2. Clear completed tasks from [TASK.md](TASK.md) so history lives in CHANGELOG and TASK stays lean.
 3. Commit all changes:
-   ```bash
-   git add -A
-   git commit -m "<concise descriptive message>"
-   ```
+    ```bash
+    git add -A
+    git commit -m "<concise descriptive message>"
+    ```
 4. Push to `origin/main` on GitHub:
-   ```bash
-   git push origin main
-   ```
-   Don't wait to be asked.
+    ```bash
+    git push origin main
+    ```
+    Don't wait to be asked.
