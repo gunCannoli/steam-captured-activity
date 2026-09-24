@@ -7,6 +7,8 @@ import {
 import { logger } from "./logger";
 import { rpc, type ConsolidatedMetadata } from "./rpc";
 import { watchGamepadAppid } from "./steam/gamepad-appid";
+
+export { jsxDiagnostics } from "./steam/gamepad-appid";
 import { enrichGameDetails } from "./steam/metadata";
 import {
     patchGameInfoComponent,

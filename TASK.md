@@ -20,13 +20,14 @@ toasts and sounds.
 **Shipped** (details in [CHANGELOG.md](CHANGELOG.md)): Post-Game Summary
 (desktop & Big Picture), library grid, per-day Activity feed, core refresh &
 caching, Phase 4b lifecycle hardening, Game Info & metadata enrichment, docs
-housekeeping.
+housekeeping, shared self-healing jsx runtime patch (verified across all three
+frontend plugins).
 
 | Area                                         | State                                                                                                                         |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Native Achievements (Phase 5)                | 🔬 Hook points verified in Steam client; not implemented.                                                                     |
 | Achievement Banner & Sound (Phase 6)         | ✅ Desktop + Big Picture verified live; in-game overlay still to verify. |
-| Enhanced Notifications (all toast types)     | ✅ Desktop verified; Big Picture, friends/messages, overlay to verify. |
+| Enhanced Notifications (all toast types)     | ⚠️ Desktop styling broken for non-achievement toasts (toast window invisible to popup-tracking APIs); Big Picture, friends/messages, overlay to verify. |
 | Auto-Captures on Unlock (Phase 7)            | 🔬 Game Recording RPCs mapped; not implemented.                                                                               |
 | Provider contract (Phase 9)                  | ⬜ Architecture planned ([docs/architecture.md](docs/architecture.md)).                                                        |
 
@@ -51,55 +52,51 @@ Shipped and verified on desktop and Big Picture (see [CHANGELOG.md](CHANGELOG.md
 - [ ] **In-game overlay:** verify with a real unlock in a running game (same dispatcher, code-verified only).
 - [ ] **Millennium Configuration API bug:** [#903](https://github.com/SteamClientHomebrew/Millennium/issues/903), fix proposed in [PR #904](https://github.com/SteamClientHomebrew/Millennium/pull/904). Once a fixed release ships, re-test and drop the workaround in `settings.ts`.
 
-### enhanced-notifications — remaining
+### `enhanced-notifications`: toast window invisible to both popup-tracking APIs — needs discovery
 
-Built and verified on desktop (see [CHANGELOG.md](CHANGELOG.md), [plan](docs/enhanced-notifications-plan.md)).
+**Symptom:** `tests/categories.mjs` fails for every category except `achievement`
+(handed off to `enhanced-achievements`): friends/messages/downloads/recording/system
+toasts never get `data-en-type` set or the theme `<style>` injected, so they render
+stock, unthemed. `style/injector.ts`'s own doc comment claims
+`Millennium.AddWindowCreateHook` (`onPopup`) plus a `g_PopupManager.GetPopups()`
+fallback (`scanPopups`, added for Big Picture's early-created toast window) together
+cover every toast window. Verified live (2026-09-24) that this is false: installing a
+logging callback on **both** `Millennium.AddWindowCreateHook` and
+`window.g_PopupManager.AddPopupCreatedCallback`, then triggering
+`previewCategory('system')`, shows **neither ever fires** for the toast window, and
+`g_PopupManager.GetPopups()` never lists it either — even though the toast's own CDP
+target genuinely appears (`notificationtoasts_uid32`).
+`non-steam-games-activity`'s `onPopupCreate` (from `steambrew-utils`, itself built on
+`g_PopupManager.AddPopupCreatedCallback`/`AddPopupDestroyedCallback`) is proven to
+work for desktop/gamepad popups, so this is specific to how toast windows are
+created, not a broken API in general.
 
-- [ ] **Big Picture:** verify styling (a popup scan was added for Big Picture's early-created toast window; the re-check was inconclusive).
+**Not fixed this session — start here:**
+1. Find the real creation signal for `notificationtoasts_*` windows. Candidates to
+   check: a dedicated toast/notification manager object (`window.__TOASTER_INSTANCE`
+   was seen on `window` — not yet explored), a CEF-level browser-created event
+   separate from Millennium's popup hooks, or reaching the toast window via whatever
+   call actually opens it (e.g. a return value from a `window.open`-style call inside
+   Steam's own notification code) instead of a creation callback.
+2. If no creation hook exists, a poll-based fallback (short-interval scan for new
+   `notificationtoasts_*` windows) is the likely workaround — but confirm one doesn't
+   already exist before adding a new poll loop (see [docs/plugins.md](docs/plugins.md)
+   guardrails on avoiding redundant polling).
+3. Once toast windows are reliably caught, re-run
+   `cd enhanced-notifications && node tests/categories.mjs` — expect all 6 categories
+   to pass (or SKIP for friends/messages if Steam's Friends notification settings are off).
+4. Update this file and [CHANGELOG.md](CHANGELOG.md) with the fix.
+
+### enhanced-notifications — remaining (after the fix above)
+
+Built and verified on desktop for achievement coexistence only (see
+[CHANGELOG.md](CHANGELOG.md), [plan](docs/enhanced-notifications-plan.md)).
+
+- [ ] **Category styling on desktop:** blocked on the toast-window-detection fix above.
+- [ ] **Big Picture:** verify styling once desktop styling works.
 - [ ] **Friend/message toasts:** enable Steam's Friends notifications and verify.
 - [ ] **In-game overlay:** verify both plugins with a real game.
 - [ ] **Core regression** (Routines 1–2, `scratch/`) with all three plugins enabled.
-- [ ] **Shared jsx patch (code done 2026-09-24, NOT yet tested)**: fixes the latent chain growth. Details below.
-
-### Shared jsx runtime patch — verify next session
-
-**Problem:** `non-steam-games-activity` (SDK `beforePatch` + 5 s watchdog) and
-`enhanced-achievements` (hand-rolled wrapper + 5 s re-wrap) both re-patched
-whenever `runtime.jsx` was not their own function. With both loaded, each saw
-the other on top and wrapped again every 5 s, so the chain could grow without
-bound. The hand-rolled wrapper also had no `__millenniumPatch` link, so the
-SDK's `unpatch()` would throw walking through it.
-
-**Step 0 finding (SDK source, `@steambrew/client/build/utils/patcher.js`):** the
-SDK patcher is not a shared registry; each patch stacks a wrapper, but every
-wrapper links to the next via `fn.__millenniumPatch.original`. No Millennium
-change is needed.
-
-**Done (committed, deployed as `-dev`, untested):**
-- `steam/jsx-hook.ts` (`keepJsxPatched`), identical copies in
-  `non-steam-games-activity` and `enhanced-achievements`: SDK
-  `replacePatch`/`beforePatch`; liveness = walk SDK links for our patch, else a
-  sentinel probe (`runtime.jsx(SENTINEL, {})`); re-install only if not found;
-  `diagnostics()` = installs / live / chainDepth / probed.
-- `enhanced-achievements/frontend/steam/toast-patch.ts` uses it (`replaceType`);
-  exports `jsxDiagnostics`.
-- `non-steam-games-activity/frontend/steam/gamepad-appid.ts` uses it (`observe`);
-  old watchdog removed; exports `jsxDiagnostics`. Its `dev.ps1` now builds with `npx`.
-- `scratch/jsx_chain.js`: one-run diagnosis of 4 scenarios.
-- Rules: [docs/plugins.md § Sharing the jsx runtime between plugins](docs/plugins.md#sharing-the-jsx-runtime-between-plugins).
-
-**Verify (one pass, read the PASS/FAIL pointers):**
-1. `node scratch/jsx_chain.js` (Steam already restarted with both builds):
-   - **1 steady:** depth stable, installs 1 each, all live. FAIL "no jsxDiagnostics export" means a plugin isn't deployed/loaded.
-   - **2 foreign wrapper:** live via probe, no re-install. FAIL: probe not reaching handler (check `replacePatch` `callOriginal` path for SENTINEL).
-   - **3 dropped reference:** each re-installs once, same depth. FAIL: `ensure()` interval not running, or walk found a stale patch.
-   - **4 banner:** `.ea-banner` renders. FAIL here with 1–3 passing means the `replaceType` swap regressed (compare with the old hand-rolled wrapper in git history).
-2. `cd enhanced-achievements && node tests/smoke.mjs && node tests/tiers.mjs && node tests/settings-sound.mjs`.
-3. `node scratch/test_nav_cycle.js` and `node scratch/check_all_tabs.js` (the core plugin's appid detection in Big Picture now runs through the new hook: check "A -> B -> A" in check_all_tabs).
-4. `cd enhanced-notifications && node tests/categories.mjs` (coexistence; `claims('banner')` depends on `toastPatchInstalled()`, now `diagnostics().every(live)`).
-5. If all pass: update CHANGELOG, then consider retrying the jsx approach in `enhanced-notifications` through `keepJsxPatched` (its earlier mystery may have been chain churn).
-
-**Reminder:** never reload SharedJSContext to test; redeploy with a graceful `dev.ps1` restart.
 - [ ] **Publish prep** ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)): `LICENSE`; a bundled theme whose assets can ship (the example themes point at local files).
 
 ### Phase 7: Native Auto-Captures on Achievement Unlock (`enhanced-achievements`)

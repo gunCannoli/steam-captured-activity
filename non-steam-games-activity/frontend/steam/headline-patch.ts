@@ -1,4 +1,5 @@
-import { beforePatch, findModuleByExport } from '@steambrew/client';
+import { findModuleByExport } from '@steambrew/client';
+import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
 import { logger } from '../logger';
 
 /**
@@ -34,41 +35,47 @@ function findJsxRuntime(): JsxRuntimeModule | undefined {
   return found;
 }
 
-let runtime: JsxRuntimeModule | undefined;
-let isInstalled = false;
-
-function handleHeadlineIntercept(args: unknown[]): void {
-  const props = args[1] as EventHeadlineProps | undefined;
-  if (!props || !props.event || !props.steamIDActor || typeof props.children !== 'string') {
+function handleHeadlineIntercept(_type: unknown, props: unknown): void {
+  const p = props as EventHeadlineProps | undefined;
+  if (!p || !p.event || !p.steamIDActor || typeof p.children !== 'string') {
     return;
   }
 
-  const appid = props.event.appid ?? Number(props.event.gameid);
-  if (props.event.bIsNonSteam || (typeof appid === 'number' && appid >= NON_STEAM_APPID_MIN)) {
+  const appid = p.event.appid ?? Number(p.event.gameid);
+  if (p.event.bIsNonSteam || (typeof appid === 'number' && appid >= NON_STEAM_APPID_MIN)) {
     // Steam's EventHeadline renders:
     // <span className="ActorName">{persona}</span><span className="HeaderChildren">{children}</span>
     // Replacing UGC string (" shared X screenshots") with " captured" aligns with native phrasing (" achieved").
-    args[1] = { ...props, children: ' captured' };
+    Object.assign(p, { children: ' captured' });
   }
 }
+
+let hook: ReturnType<typeof keepJsxPatched> | undefined;
 
 /**
  * Patch react/jsx-runtime to refine the Activity Feed headline for non-Steam games.
  *
  * Replaces community UGC phrasing ("cannoliGun shared 2 screenshots") with native action phrasing
- * ("cannoliGun captured").
+ * ("cannoliGun captured"). Self-healing and shared safely with the other plugins that hook jsx
+ * (steam/jsx-hook.ts).
  */
 export function installHeadlinePatch(): void {
-  if (isInstalled) return;
+  if (hook) return;
 
-  runtime = findJsxRuntime();
+  const runtime = findJsxRuntime();
   if (!runtime) {
     logger.warn('Could not find react/jsx-runtime; activity headline patch skipped.');
     return;
   }
 
-  beforePatch(runtime, 'jsx', (args) => handleHeadlineIntercept(args));
-  beforePatch(runtime, 'jsxs', (args) => handleHeadlineIntercept(args));
-  isInstalled = true;
+  hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
+    label: 'non-steam-games-activity.headline',
+    observe: (type, props) => handleHeadlineIntercept(type, props),
+  });
   logger.info('Installed Activity Feed headline patch ("{Username} captured").');
+}
+
+/** Chain health, for tests (window.PLUGIN_LIST[...].headlineJsxDiagnostics()). */
+export function headlineJsxDiagnostics(): JsxHookDiagnostics[] {
+  return hook?.diagnostics() ?? [];
 }

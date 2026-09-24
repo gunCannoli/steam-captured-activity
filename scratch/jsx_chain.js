@@ -12,7 +12,7 @@
 
 const PORT = process.env.CDP_PORT ?? '8080';
 const STEADY = Number(process.argv[2] ?? 60);
-const PLUGINS = ['non-steam-games-activity-dev', 'enhanced-achievements-dev'];
+const PLUGINS = ['non-steam-games-activity-dev', 'enhanced-achievements-dev', 'steamgriddb-artwork-dev'];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function connect(title) {
@@ -54,10 +54,12 @@ const snapshot = async () =>
         await s.evaluate(`JSON.stringify((() => {
             const rt = window.MILLENNIUM_API.findModuleByExport((e, n) => (n === 'jsx' || n === 'jsxs') && typeof e === 'function');
             const depth = (f) => { let d = 0; while (f && f.__millenniumPatch?.original && d < 200) { f = f.__millenniumPatch.original; d++; } return d; };
+            const diagKeys = ['jsxDiagnostics', 'headlineJsxDiagnostics', 'activityCardsJsxDiagnostics'];
             const plugins = {};
             for (const p of ${JSON.stringify(PLUGINS)}) {
-                const fn = window.PLUGIN_LIST?.[p]?.jsxDiagnostics;
-                plugins[p] = typeof fn === 'function' ? fn() : 'no jsxDiagnostics export (not deployed?)';
+                const mod = window.PLUGIN_LIST?.[p];
+                const fns = diagKeys.map((k) => mod?.[k]).filter((fn) => typeof fn === 'function');
+                plugins[p] = fns.length ? fns.flatMap((fn) => fn()) : 'no jsxDiagnostics export (not deployed?)';
             }
             return { jsxLinks: depth(rt.jsx), jsxsLinks: depth(rt.jsxs), plugins };
         })())`),

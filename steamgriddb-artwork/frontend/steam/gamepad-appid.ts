@@ -1,4 +1,5 @@
-import { beforePatch, findModuleByExport } from "@steambrew/client";
+import { findModuleByExport } from "@steambrew/client";
+import { keepJsxPatched, type JsxHookDiagnostics } from "./jsx-hook";
 import { logger } from "../logger";
 
 interface JsxRuntimeModule {
@@ -50,47 +51,41 @@ function handleIntercepted(props: unknown): void {
     notify(props.appid);
 }
 
-let runtime: JsxRuntimeModule | undefined;
-let patchedJsx: unknown;
-let patchedJsxs: unknown;
+let hook: ReturnType<typeof keepJsxPatched> | undefined;
 
+/**
+ * Install the interception once. Self-healing and shared safely with the other
+ * plugins that hook jsx (steam/jsx-hook.ts): re-installs only when no longer
+ * anywhere in the chain, instead of re-wrapping whenever another plugin's
+ * patch sits on top (the old pattern here, which grew the shared chain
+ * without bound).
+ */
 function ensurePatched(): void {
+    if (hook) return;
+    const runtime = findJsxRuntime();
     if (!runtime) {
-        runtime = findJsxRuntime();
-        if (!runtime) {
-            logger.warn(
-                "Could not find react/jsx-runtime; Big Picture appid detection is unavailable.",
-            );
-            return;
-        }
+        logger.warn(
+            "Could not find react/jsx-runtime; Big Picture appid detection is unavailable.",
+        );
+        return;
     }
-
-    if (runtime.jsx !== patchedJsx) {
-        beforePatch(runtime, "jsx", (args) => handleIntercepted(args[1]));
-        patchedJsx = runtime.jsx;
-    }
-    if (runtime.jsxs !== patchedJsxs) {
-        beforePatch(runtime, "jsxs", (args) => handleIntercepted(args[1]));
-        patchedJsxs = runtime.jsxs;
-    }
+    hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
+        label: "steamgriddb-artwork",
+        observe: (_type, props) => handleIntercepted(props),
+    });
 }
 
-let watchdog: ReturnType<typeof setInterval> | undefined;
+/** Chain health, for tests (window.PLUGIN_LIST[...].jsxDiagnostics()). */
+export function jsxDiagnostics(): JsxHookDiagnostics[] {
+    return hook?.diagnostics() ?? [];
+}
 
 export function watchGamepadAppid(
     onAppid: (appid: number) => void,
 ): () => void {
     ensurePatched();
-    if (watchdog === undefined) {
-        watchdog = setInterval(ensurePatched, 5000);
-    }
-
     listeners.add(onAppid);
     return () => {
         listeners.delete(onAppid);
-        if (listeners.size === 0 && watchdog !== undefined) {
-            clearInterval(watchdog);
-            watchdog = undefined;
-        }
     };
 }

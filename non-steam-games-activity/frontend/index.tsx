@@ -23,6 +23,8 @@ import { ensureStoreCacheHooked } from "./steam/activity";
 
 export { registerSummaryProvider } from "./steam/summary";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
+export { headlineJsxDiagnostics } from "./steam/headline-patch";
+export { activityCardsJsxDiagnostics } from "./steam/activity-cards-patch";
 export type {
     SummaryContext,
     SummaryContribution,

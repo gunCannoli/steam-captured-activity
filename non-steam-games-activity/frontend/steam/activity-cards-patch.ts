@@ -1,5 +1,6 @@
 import React from 'react';
-import { beforePatch, findModuleByExport } from '@steambrew/client';
+import { findModuleByExport } from '@steambrew/client';
+import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
 import { logger } from '../logger';
 import type { MediaItem } from './activity';
 
@@ -208,26 +209,28 @@ function findJsxRuntime(): JsxRuntimeModule | undefined {
   return found;
 }
 
-let isInstalled = false;
+let hook: ReturnType<typeof keepJsxPatched> | undefined;
 
-function handleActivityCardIntercept(args: unknown[]): void {
-  const props = args[1] as any;
+function handleActivityCardReplace(_type: unknown, props: unknown): unknown {
+  const p = props as any;
   if (
-    props?.event?.bIsNonSteam &&
-    Array.isArray(props.event.m_mediaItems) &&
-    props.onScreenshotChanged
+    p?.event?.bIsNonSteam &&
+    Array.isArray(p.event.m_mediaItems) &&
+    p.onScreenshotChanged
   ) {
-    args[0] = NonSteamActivityCards;
+    return NonSteamActivityCards;
   }
+  return undefined;
 }
 
 /**
  * Install the Activity Cards patch to replace Steam's community screenshot carousel
  * with genuine Post-Game Summary cards (PostGameSummaryClip and SummaryScreenshot)
- * for non-Steam games.
+ * for non-Steam games. Self-healing and shared safely with the other plugins that hook
+ * jsx (steam/jsx-hook.ts).
  */
 export function installActivityCardsPatch(): void {
-  if (isInstalled) return;
+  if (hook) return;
 
   const runtime = findJsxRuntime();
   if (!runtime) {
@@ -237,8 +240,14 @@ export function installActivityCardsPatch(): void {
 
   initCardComponents();
 
-  beforePatch(runtime, 'jsx', (args) => handleActivityCardIntercept(args));
-  beforePatch(runtime, 'jsxs', (args) => handleActivityCardIntercept(args));
-  isInstalled = true;
+  hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
+    label: 'non-steam-games-activity.activity-cards',
+    replaceType: (type, props) => handleActivityCardReplace(type, props),
+  });
   logger.info('Installed Activity Feed native Post-Game Summary cards patch.');
+}
+
+/** Chain health, for tests (window.PLUGIN_LIST[...].activityCardsJsxDiagnostics()). */
+export function activityCardsJsxDiagnostics(): JsxHookDiagnostics[] {
+  return hook?.diagnostics() ?? [];
 }
