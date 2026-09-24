@@ -9,6 +9,14 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **Phase 6 Plan Hardened Against Regression Guardrails (`enhanced-achievements`):**
+    - **Guardrail-conformant execution plan:** Replaced the roadmap in [`docs/enhanced-achievements-plan.md`](docs/enhanced-achievements-plan.md) with a step-by-step Phase 6 plan (live re-verify → scaffold → config/themes → sound hook → banner → verification) plus a Phase 7 outline. Hook points are now resolved by signature instead of the numeric module ids (`11374`, `ht`) the draft used, which `docs/plugins.md` forbids.
+    - **Scope boundaries & plugin guardrails:** The plugin may hook only `NotificationStore` and the achievement toast renderer. It must never touch `AppOverview`, `StoreItemCache`, the section registry or the activity/spotlight stores, never import from the core plugin, and never do per-toast disk, RPC or network work. Every hook falls through to Steam's original on failure. The core regression routines (1–3) must pass with both plugins enabled.
+    - **Open risks surfaced:** Whether in-game overlay toasts render from `SharedJSContext`; whether 100% completion is knowable at toast time (needed for the `exceptional` tier); where user settings and themes live so updates don't overwrite them.
+    - **Settings split:** [`enhanced-achievements/settings.json`](enhanced-achievements/settings.json) now holds the active theme, banner/sound toggles and capture defaults; themes hold only visuals and sound, with optional per-tier capture overrides. [`themes.md`](enhanced-achievements/themes.md) was rewritten to match, adding tier-selection order, a no-rarity-data fallback, merge semantics, icon shorthand and asset path resolution. `theme_exemple.json` now uses the canonical `"topright"`.
+    - **Doc repair:** Commit `5ccf645` re-introduced stale lines next to their replacements in `docs/plugins.md`, `README.md`, `docs/architecture.md` (including two phantom table columns) and `themes.md`; these were removed.
+    - **`TASK.md` pruned:** Shipped work (Phase 4b, shipped status rows) moved out; `TASK.md` now lists open phases only.
+
 - **Documentation Streamlining & Lean `AGENTS.md` Refactor:**
     - **Consolidated Plugin Guide & Guardrails into `docs/plugins.md`:** Moved all 9 mandatory regression guardrails, failure traps, the 4-rung UI modification ladder, and plugin creation scaffolding guidelines into [`docs/plugins.md`](docs/plugins.md), keeping root [`plugins.md`](plugins.md) as a direct entry pointer.
     - **Lean `AGENTS.md`:** Streamlined [`AGENTS.md`](AGENTS.md) down from 317 lines to 160 lines, focusing strictly on core non-Steam identifiers (`appid` vs composed `gameid`), environment facts, and 5 standard agent operating routines (Multi-Tab Smoke Verification, Two-Way Navigation Lifecycle, Automated CDP Suite, Build & Run, End-of-Session Prune/Sync/Auto-Push).

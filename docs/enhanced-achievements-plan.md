@@ -20,6 +20,12 @@ Currently, Steam provides a single static achievement notification banner with a
 
 Through live Chrome DevTools Protocol (CDP) probing against Steam (`127.0.0.1:8080`), we mapped the exact internal modules and components responsible for achievement dispatch, sound, rendering, and capture.
 
+> **Module ids and minified names below (`60917`, `11374`, `ht`, `u.uM.ok`, `80026`, `xM`) are breadcrumbs from one Steam build, not lookup keys.**
+> They reshuffle between builds. Code must resolve every one of them by a stable signature
+> (prototype method names, or strings inside a function's source) — see
+> [plugins.md § Rules that apply on every rung](plugins.md#rules-that-apply-on-every-rung) and
+> the signature table in [§ 5, Step 0](#step-0-live-re-verification-no-code).
+
 ### A. Notification Dispatch Engine (`window.NotificationStore`)
 - **Singleton:** `window.NotificationStore` (instantiated in webpack module `60917`).
 - **Achievement Enum:** `u.uM.ok` (corresponds to `NotificationType.Achievement`).
@@ -96,23 +102,18 @@ Themes are defined as clean, declarative JSON files stored in `enhanced-achievem
 > **Inheritance Rule:** Tiers only define fields that override `normal`. All omitted properties inherit from `normal`.
 
 ### Configuration Schema Highlights
+
+Capture defaults (`screenshot`, `recording`) and the active theme live in the plugin's
+[`settings.json`](../enhanced-achievements/settings.json), not in the theme; a tier may still
+override captures for itself. Full reference: [themes.md](../enhanced-achievements/themes.md).
+
 ```json
 {
   "settings": {
     "layout": "default_system_right",
     "position": "topright",
     "display_time_ms": 4000,
-    "animation": "slide",
-    "screenshot": {
-      "enabled": true,
-      "delay_ms": 500
-    },
-    "recording": {
-      "enabled": true,
-      "duration_s": 15,
-      "delay_ms": 1000,
-      "add_timeline_marker": true
-    }
+    "animation": "slide"
   },
   "themes": {
     "normal": {
@@ -139,6 +140,7 @@ enhanced-achievements/
 ├── tsconfig.json
 ├── dev.ps1                        # Hot-deploy script with Steam path parameter
 ├── themes.md                      # Canonical theme schema documentation
+├── settings.json                  # Default plugin settings (active theme, toggles, capture defaults)
 ├── themes/
 │   ├── steam_ps_exemple.json      # Canonical PlayStation 5 theme
 │   ├── xbox_achievement.json      # Xbox 360 / Series X theme
@@ -165,32 +167,182 @@ enhanced-achievements/
 
 ---
 
-## 5. Execution Roadmap
+## 5. Phase 6 Execution Plan — Themed Banner & Sound
 
-### Step 1: Plugin Scaffolding
-- Set up `plugin.json` (`"name": "enhanced-achievements"`, `"backendType": "lua"`).
-- Copy `backend/_lib/` stubs and create `backend/main.lua` calling `millennium.ready()`.
-- Set up `package.json`, `tsconfig.json`, and parameterized `dev.ps1`.
+Phase 6 ships the banner and the sound. Captures (screenshot, clip, timeline
+marker) are Phase 7 and reuse this phase's dispatch hook, config loader and
+tier resolver.
 
-### Step 2: Theme Management & Schema Validation
-- Implement `theme-loader.ts` to read JSON themes, validate against schema, and calculate inheritance.
-- Expose theme selection via Millennium settings or configuration JSON.
+### Scope boundaries (what Phase 6 must never touch)
 
-### Step 3: Sound Interception Hook
-- Install hook on `NotificationStore.prototype.PlayNotificationSound`.
-- Detect achievement type (`u.uM.ok`), read unlock payload, determine rarity tier.
-- Play custom sound at configured volume via HTML5 `AudioContext` and suppress native chime.
+`enhanced-achievements` is a **separate plugin** that shares `SharedJSContext`
+with `non-steam-games-activity`. Both run in the same React runtime and see the
+same store singletons, so a careless hook here breaks the core's views.
 
-### Step 4: Banner Replacement
-- Hook `ht` in module `11374` or intercept JSX creation for achievement toasts.
-- Render `AchievementBanner` respecting box styling, borders, gradients, glows, and icons.
+- It hooks **only** `NotificationStore` (sound) and the achievement toast renderer (banner).
+- It never touches `AppOverview`, `StoreItemCache`, `CAppDetailsSections`,
+  `appActivityStore` or `appSpotlightStore` — the objects the core's guardrails
+  1, 5, 7 and 8 protect.
+- It never imports from `non-steam-games-activity`. When Phase 5 dispatches
+  synthetic toasts for non-Steam games through `NotificationStore.OnNotification`,
+  they flow through the same hooks with no coupling between the plugins.
+- Every notification that is not an achievement passes through untouched.
 
-### Step 5: Auto-Captures Integration
-- Ingest `screenshot` settings and execute delayed capture via `takeScreenshot()`.
-- Ingest `recording` settings, invoke `CGameRecordingService.SaveClip` and `UserAddTimelineEntry`.
+### Step 0: Live re-verification (no code)
 
-### Step 6: Multi-Mode Verification
-- Verify in Desktop Mode using `window.NotificationStore.TestAchievement(480)`.
-- Verify in Big Picture Mode with controller focus and overlay positioning.
-- Run automated CDP verification harness.
+The findings in § 2 come from one CDP session. Re-verify against the running
+client before writing hooks, and record the **signatures** (not ids) in
+[steam-components.md § 11B](steam-components.md#b-native-achievement-notifications-notificationstore):
 
+| Target | Resolve by (signature) | To confirm |
+| --- | --- | --- |
+| `NotificationStore` | `window.NotificationStore`; fallback: singleton with `PlayNotificationSound` + `ChooseSound` + `DispatchNextToast` | Exists in Desktop and Big Picture at plugin load |
+| Achievement type enum | Read `eType` off a live `TestAchievement` notification | Never hardcode the number |
+| Toast renderer | Function whose source contains `global_achieved_pct()` and `achievement_id()` | Unique match; props it receives (`group`, `onActivate`, `onDismiss`?) |
+| Toast container | Where `--toast-duration` is set | Whether `display_time_ms` can be honoured without rebuilding the container |
+| Rendering context | Which window paints the toast | **Desktop**, **Big Picture** and the **in-game overlay** — is the overlay toast rendered from `SharedJSContext`? If not, Phase 6 cannot theme in-game toasts and scope must say so |
+| Completion data | `appAchievementProgressCache`, or `nAchieved`/`nTotal` from `AppDetailsStore.GetAchievements` | Whether "this unlock completes the game" is knowable at toast time (needed for `exceptional`) |
+| `TestAchievement(appid)` | Call it live | Fires a real toast with sound; payload carries `global_achieved_pct` |
+
+Exit criterion: every row resolves by signature to exactly one match, or the
+plan is amended before Step 3.
+
+### Step 1: Scaffold
+
+Per [plugins.md § 1](plugins.md#1-scaffold) and its checklist.
+
+- `plugin.json` with `"name": "enhanced-achievements"`, `"backendType": "lua"`.
+- `backend/_lib/` stubs copied; `backend/main.lua` calls `millennium.ready()`.
+- `package.json`, `tsconfig.json` mirroring `non-steam-games-activity`.
+- `dev.ps1` copied from the core — Steam path discovered, never hardcoded
+  ([ADR-0011](decisions.md#adr-0011-do-not-hardcode-steam-or-retroarch-paths)) —
+  and extended to deploy `settings.json` and `themes/`.
+- Move `steam_ps_exemple.json` and `theme_exemple.json` into `themes/`; move
+  `research/` out of the published folder (it contains a local SAN install path).
+
+### Step 2: Config & theme loading (backend + frontend)
+
+**Backend (`main.lua`)** exposes three RPCs, each JSON in / JSON out, never bare `nil`:
+
+- `GetSettings()` — merged `settings.json` (user file over bundled defaults).
+- `ListThemes()` — names of `*.json` in the themes folder.
+- `LoadTheme({ name })` — parsed theme plus every referenced asset as a data
+  URL (`utils.base64_encode` over `fs` reads). Relative paths resolve against
+  the theme's folder. A missing asset is logged and returned as `null`, not an error.
+
+**Frontend (`theme/`)**:
+
+- `theme-types.ts` — types matching [themes.md](../enhanced-achievements/themes.md).
+- `theme-loader.ts` — validates, normalises shorthand (`icons: true` → `[true, 0]`),
+  merges each tier over `normal`, and returns four **fully resolved** tier objects.
+  Resolution happens once per theme load. Toast-time work is only picking one of the four.
+- Sounds are decoded once into `AudioBuffer`s (or kept as `Audio` elements) at load, not per unlock.
+- Any validation failure logs and falls back to **stock Steam** for that part, never a half-styled banner.
+
+**Pure-logic tests** (tier selection, inheritance merge, shorthand
+normalisation) run outside Steam, per [plugins.md § 5](plugins.md#5-test).
+
+### Step 3: Sound hook
+
+Wrap `PlayNotificationSound` on the `NotificationStore` instance's prototype once, at load:
+
+```ts
+proto.PlayNotificationSound = function (n) {
+    try {
+        if (n?.eType === achievementType && settings.sound.enabled) {
+            const clip = soundFor(n);          // O(1): tier lookup into pre-resolved theme
+            if (clip && play(clip)) return;    // played ours: skip Steam's chime
+        }
+    } catch (e) { logger.warn(...); }
+    return orig.apply(this, arguments);         // everything else: untouched
+};
+```
+
+- Non-achievement types, disabled sound, missing asset and playback errors all
+  fall through to the original. The failure mode is always "Steam's chime".
+- Respect Steam's own "play sound on notification" preference: if `ChooseSound`
+  returns nothing (user muted toasts), stay silent too.
+- `OnPluginUnload` (or a guard flag) restores the original.
+
+### Step 4: Banner replacement
+
+Rung check ([plugins.md § Build nothing Steam already builds](plugins.md#build-nothing-steam-already-builds)):
+Steam's toast is the thing being replaced, so rungs 1–3 do not apply to the
+**inner** banner. Everything around it stays Steam's: the toast container,
+queueing, timing, click-to-open and dismissal.
+
+- Resolve the toast renderer by signature (Step 0) **once at startup** and keep
+  the reference module-scoped (guardrail 3). Never walk `req.m` in a render path.
+- Substitute it in one of two ways, in order of preference:
+    1. Replace the export if the module object allows it (webpack getters may not).
+    2. `react/jsx-runtime` `beforePatch`, as `gamepad-appid.ts` already does
+       ([ADR-0027](decisions.md#adr-0027-patch-reactjsx-runtime-to-reach-big-pictures-real-render-pipeline)): an **identity compare**
+       `type === steamAchievementToast` and nothing else. `jsx` runs for every
+       element in the client, so this check must stay O(1) (guardrail 2).
+- `AchievementBanner` receives Steam's original props and forwards
+  `onActivate` / `onDismiss` unchanged. If the theme failed to load or
+  `banner.enabled` is false, it renders Steam's original component.
+- Wrap it in an error boundary that renders Steam's original on any throw.
+- Styling is our own by definition (the theme *is* custom visuals), but it is
+  scoped under one root class of our own. No rule may target Steam's hashed
+  classes or leak outside the banner.
+- `position` / `display_time_ms`: apply only what Step 0 shows is possible
+  without rebuilding Steam's toast container. Anything that is not goes to a
+  follow-up, not into a container rewrite.
+
+### Step 5: Verification
+
+1. `npm run check` and `npm run build` pass; the backend tests pass.
+2. **Desktop:** `NotificationStore.TestAchievement(<appid>)` for each tier. To
+   force a tier, temporarily set thresholds to `100` / `0` in a test theme.
+3. **Big Picture:** the same, plus controller focus is not stolen by the banner.
+4. **In-game overlay:** a real unlock in a native Steam game, if Step 0 shows the overlay is themeable.
+5. **Fallbacks:** delete a sound file → Steam chime; corrupt the theme JSON →
+   stock toast; disable the plugin → stock toast, stock chime.
+6. **Non-achievement toasts** (friend online, download complete) are unchanged.
+7. **Core regression pass**, because both plugins share one context: Routine 1
+   (all four views), Routine 2 (A → B → A) and Routine 3 (`scratch/test_nav_cycle.js`,
+   `scratch/check_all_tabs.js`) with `enhanced-achievements` enabled.
+8. Add `scratch/test_achievement_toast.js`: dispatch `TestAchievement` over CDP
+   and assert the banner root and the resolved tier.
+
+### Regression guardrails for this plugin
+
+| # | Rule | Why |
+| --- | --- | --- |
+| 1 | Resolve by signature, never by module id or minified name | Ids reshuffle between builds |
+| 2 | Hot-path checks are O(1): identity compare in `jsx`, `eType` compare in the sound hook | `jsx` runs for every element; guardrail 2 |
+| 3 | One module scan at startup, references cached | Guardrail 3 |
+| 4 | Every hook falls through to Steam's original on any failure | A failed resolve degrades to stock, never crashes |
+| 5 | No per-toast disk, RPC or network work | Assets are preloaded at theme load |
+| 6 | Never touch the core plugin's objects (see Scope boundaries) | Guardrails 1, 5, 7, 8 |
+| 7 | No imports across plugin folders | [plugins.md § Layout](plugins.md#layout) |
+| 8 | Core regression pass with both plugins enabled | Routines 1–3 |
+
+### Open decisions
+
+- **Where the user's `settings.json` and themes live.** The deployed plugin folder
+  is replaced on every update or `dev.ps1` run, so user edits there are lost.
+  Recommendation: bundle defaults in the plugin, and on first load copy them to a
+  user folder under Millennium's config directory (found via `millennium.steam_path()`),
+  which is then the only place read.
+- **In-game overlay support**, if Step 0 shows overlay toasts are not rendered
+  from `SharedJSContext`.
+- **Settings UI.** Phase 6 edits JSON by hand. A settings panel (theme picker,
+  toggles) can follow using Steam's `Dropdown` / `ToggleField`.
+
+---
+
+## 6. Phase 7 Outline — Auto-Captures
+
+Builds on Phase 6's dispatch hook and tier resolver.
+
+- **Trigger:** observe achievement notifications once (in `OnNotification` or
+  the sound hook), resolve the tier, and merge the tier's `screenshot` / `recording`
+  over the `settings.json` defaults.
+- **Screenshot:** after `delay_ms`, `GameRecording.TakeScreenshot` (or `SteamClient.Screenshots`).
+- **Clip:** after `delay_ms`, `GameRecording.SaveClip` covering the last `duration_s`.
+- **Timeline marker:** `GameRecording.UserAddTimelineEntry` at the unlock time.
+- Only while a game is running and Game Recording is on; otherwise a no-op, never an error.
+- Captures land in Steam's own folders, so `non-steam-games-activity` picks them up
+  with no coupling between the plugins.

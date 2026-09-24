@@ -1,4 +1,11 @@
 {
+    "theme": "steam_ps_exemple",
+    "banner": {
+        "enabled": true
+    },
+    "sound": {
+        "enabled": true
+    },
     "screenshot": {
         "enabled": true,
         "delay_ms": 500

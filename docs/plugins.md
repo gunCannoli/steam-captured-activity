@@ -1,14 +1,10 @@
-# Creating a plugin
 # Millennium Plugins: Guide, Architecture & Guardrails
 
-How to add a plugin to this workspace, develop it, and publish it as a
 How to add a plugin to this workspace, develop it, maintain regression-free UI/store hooks, and publish it as a
 standalone public repo.
 
 For _what_ the plugins do and why, see [docs/architecture.md](architecture.md)
 and [docs/decisions.md](decisions.md). For Millennium's SDK mechanics in
-detail, see [docs/knowledgebase.md](knowledgebase.md) — this file is the
-procedure, not the reference.
 detail, see [docs/knowledgebase.md](knowledgebase.md).
 
 ---
@@ -20,7 +16,6 @@ imported, because that folder is what gets published:
 
 ```
 millennium-plugins/                 <- this repo (private)
-├─ README.md · CHANGELOG.md · plugin.md · AGENTS.md · TASK.md
 ├─ README.md · CHANGELOG.md · plugins.md · AGENTS.md · TASK.md
 ├─ docs/                            <- workspace-wide docs, NOT published
 └─ <plugin-name>/                   <- published as its own public repo
@@ -512,7 +507,6 @@ against Millennium's plugin database with the public repo URL.
 - [ ] `backend/main.lua` calls `millennium.ready()`
 - [ ] RPC methods never return bare `nil`
 - [ ] `dev.ps1` takes the Steam path as a parameter
-- [ ] No hardcoded Steam CSS classes
 - [ ] No hardcoded Steam CSS classes (resolve via `findClassModule`)
 - [ ] Prototype hooks are strictly $O(1)$ (no stack traces, regexes, or DOM queries)
 - [ ] If hooking `BIsModOrShortcut`, also hook `GetGameID` returning `this.m_gameid`

@@ -1,168 +1,144 @@
-Here is a full breakdown of every section, key, and array format in your schema.
-# Theme Schema & Specifications (`themes.md`)
+# Theme Schema (`themes.md`)
 
-Full breakdown of every section, key, and array format in the `enhanced-achievements` theme schema.
+Reference for every section, key, and tuple format in an `enhanced-achievements`
+theme file. The canonical example is [steam_ps_exemple.json](steam_ps_exemple.json);
+a minimal one is [theme_exemple.json](theme_exemple.json).
 
----
-
-### Root Configuration
-
-#### `settings`
-
-Global display behavior applied to all achievement notifications.
-Global display and capture behavior applied to achievement notifications.
-
-- **`layout`**: Arranges the internal components inside the banner.
-- `"default_steam"`: Classic layout (Icon on the left, Title and Description stacked on the right).
-- `"default_system_right"`: Icon on the left, text block in the middle, and platform/system icon pinned to the right edge.
-- `"custom"`: Unlocks layout customization using template slots.
-  - `"default_steam"`: Classic layout (Icon on the left, Title and Description stacked on the right).
-  - `"default_system_right"`: Icon on the left, text block in the middle, and platform/system icon pinned to the right edge.
-  - `"compact_pill"`: Slim horizontal bar with icon and title.
-  - `"custom"`: Unlocks layout customization using template slots.
-
-- **`position`**: Screen anchor point where the notification appears (`"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`).
-- **`display_time_ms`**: Time in milliseconds the banner remains on-screen before the exit animation triggers (e.g., `10000` = 10 seconds).
-- **`animation`**: Transition style for banner entrance and exit (`"up"`, `"down"`, `"slide"`, `"fade"`).
-- **`display_time_ms`**: Time in milliseconds the banner remains on-screen before the exit animation triggers (e.g., `4000` = 4 seconds).
-- **`animation`**: Transition style for banner entrance and exit (`"slide"`, `"fade"`, `"up"`, `"down"`).
-
-- **`screenshot`**: Auto-screenshot capture configuration on achievement unlock:
-  - **`enabled`**: `boolean` (`true` to capture, `false` to disable).
-  - **`delay_ms`**: `number` (delay in milliseconds after unlock before taking screenshot, e.g. `500` ms).
-
-- **`recording`**: Auto-clip replay capture configuration via Steam Game Recording:
-  - **`enabled`**: `boolean` (`true` to save clip, `false` to disable).
-  - **`duration_s`**: `number` (clip duration in seconds, e.g. `15` or `30` seconds preceding the unlock).
-  - **`delay_ms`**: `number` (delay in milliseconds after unlock before saving clip, e.g. `1000` ms).
-  - **`add_timeline_marker`**: `boolean` (`true` to place an achievement icon marker on Steam's active recording timeline).
+A **theme** only describes how an unlock looks and sounds. What the plugin does
+(which theme is active, feature toggles, capture defaults) lives in
+[settings.json](settings.json) — see [Plugin settings](#plugin-settings-settingsjson).
 
 ---
 
-### Themes & Inheritance Model
+## Root: `settings`
 
-#### `themes`
+Display behaviour for this theme's banners.
 
-Defines the visual profiles based on achievement rarity and completion.
-Defines the visual and audio profiles based on achievement rarity and completion.
+- **`layout`**: How the banner's parts are arranged.
+    - `"default_steam"`: Achievement icon on the left, title and description stacked on the right.
+    - `"default_system_right"`: Achievement icon on the left, text in the middle, system icon pinned to the right edge.
+    - `"compact_pill"`: Slim horizontal bar with icon and title.
+    - `"custom"`: Reserved for template slots (not in the first release).
+- **`position`**: Screen anchor: `"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`.
+- **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
+- **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
 
-- **`normal`**: The master base theme (Bronze tier). Every field defined here acts as the default fallback.
-- **`magic`**: Silver tier. Unlocks when an achievement's global unlock rate is $\le$ `magic.threshold`.
-- **`rare`**: Gold tier. Unlocks when an achievement's global unlock rate is $\le$ `rare.threshold`.
-- **`exceptional`**: Platinum tier. Automatically triggers when unlocking the final achievement that brings the game to 100% completion.
-
-> **Inheritance Rule:** `magic`, `rare`, and `exceptional` only need to specify values that differ from `normal`. Omitted keys inherit directly from `normal`.
-
----
-
-### Object & Tuple Specifications
-
-#### `threshold` (Number)
-
-The global unlock percentage cutoff.
-
-- Example: `"threshold": 10.0` triggers if 10% or fewer of all players have unlocked the achievement.
-- Example: `"threshold": 10.0` triggers if 10% or fewer of all Steam players have unlocked the achievement.
-- Recommended defaults:
-  - `magic` (Silver): `25.0` (top 25% or rarer)
-  - `rare` (Gold): `10.0` (top 10% or rarer)
+Any key that is missing or invalid falls back to the default above (first
+listed value; `display_time_ms` falls back to Steam's own toast duration).
 
 ---
 
-#### `box`
+## Root: `themes`
 
-Controls the geometry, colors, borders, and backdrop shadows of the notification card.
+One visual and audio profile per rarity tier.
 
-- **`scale`**: `[width_pct, height_pct]`
-- Stretches or shrinks the banner size relative to default dimensions (`[100, 100]` = standard size, `[150, 150]` = 1.5× scale).
-  - Stretches or shrinks the banner size relative to default dimensions (`[100, 100]` = standard size, `[150, 150]` = 1.5× scale).
+- **`normal`** (Bronze): the base tier. Every key defined here is the fallback for the other tiers.
+- **`magic`** (Silver): used when the achievement's global unlock rate is ≤ `magic.threshold`.
+- **`rare`** (Gold): used when the global unlock rate is ≤ `rare.threshold`.
+- **`exceptional`** (Platinum): used when the unlock brings the game to 100% completion.
 
-- **`background_color`**: `["color_1", "color_2", ...]`
-- Array of hex strings. Providing one color produces a solid background; providing two or more automatically creates a smooth gradient.
-  - Array of hex strings. Providing one color produces a solid background; providing two or more automatically creates a smooth gradient.
+Tier selection, first match wins: `exceptional` → `rare` → `magic` → `normal`.
+When Steam gives no global unlock rate (common for non-Steam games), the tier is
+`normal` unless the unlock completes the game.
 
-- **`gradient_angle`**: Angle in degrees for the background gradient (`90` = left-to-right, `180` = top-to-bottom, `135` = diagonal).
-- **`border`**: `[width_px, color_hex, border_radius_px]`
-- `width_px`: Border stroke thickness (`0` disables border).
-- `color_hex`: Hex color of the border line.
-- `border_radius_px`: Corner roundness (`0` = sharp square, `25` = rounded capsule corners).
-  - `width_px`: Border stroke thickness (`0` disables border).
-  - `color_hex`: Hex color of the border line.
-  - `border_radius_px`: Corner roundness (`0` = sharp square, `25` = rounded capsule corners).
-
-- **`glow`**: `[glow_color_hex, spread_radius_px, pulse_speed_ms]`
-- `glow_color_hex`: Color of the ambient shadow behind the card.
-- `spread_radius_px`: How far the glow extends outward (`0` turns it off).
-- `pulse_speed_ms`: Duration of the breathing animation cycle in milliseconds. Set to `0` for a steady, static glow; set to a value like `1500` for a 1.5-second pulse.
-  - `glow_color_hex`: Color of the ambient shadow behind the card.
-  - `spread_radius_px`: How far the glow extends outward (`0` turns it off).
-  - `pulse_speed_ms`: Duration of the breathing animation cycle in milliseconds. Set to `0` for a steady, static glow; set to a value like `1500` for a 1.5-second pulse.
+> **Inheritance:** `magic`, `rare` and `exceptional` only list what differs from
+> `normal`. Objects merge key by key; tuples and arrays are replaced whole.
 
 ---
 
-#### `text`
+## Tier keys
 
-Controls typography styling for both copy layers.
+### `threshold` (number)
 
-- **`title`**: `[color_hex, font_size_pct, font_style]`
-- **`desc`**: `[color_hex, font_size_pct, font_style]`
-- `color_hex`: Font color.
-- `font_size_pct`: Scaling factor relative to the base font size (`100` = base size, `110` = 10% larger).
-- `font_style`: Font rendering format: `"bold"`, `"regular"`, or `"italic"`.
-  - `color_hex`: Font color.
-  - `font_size_pct`: Scaling factor relative to the base font size (`100` = base size, `110` = 10% larger).
-  - `font_style`: Font rendering format: `"bold"`, `"regular"`, or `"italic"`.
+Global unlock percentage cutoff for `magic` and `rare`.
+
+- `"threshold": 10.0` matches when 10% or fewer of players have the achievement.
+- Recommended: `magic` = `25.0`, `rare` = `10.0`.
+
+### `box`
+
+Geometry, colours, border and glow of the banner.
+
+- **`scale`**: `[width_pct, height_pct]` — size relative to the default (`[100, 100]` = standard, `[150, 150]` = 1.5×).
+- **`background_color`**: `["#hex", ...]` — one colour is solid; two or more make a gradient.
+- **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
+- **`border`**: `[width_px, "#hex", radius_px]` — `width_px` `0` disables the stroke; `radius_px` `0` is square, `25` is a capsule.
+- **`glow`**: `["#hex", spread_px, pulse_ms]` — `spread_px` `0` turns the glow off; `pulse_ms` `0` is steady, `1500` breathes every 1.5 s.
+
+Colours accept `#rgb`, `#rrggbb` and `#rrggbbaa`.
+
+### `text`
+
+- **`title`** and **`desc`**: `["#hex", size_pct, style]`
+    - `size_pct`: relative to the base font size (`100` = base, `110` = 10% larger).
+    - `style`: `"bold"`, `"regular"` or `"italic"`.
+
+### `icons`
+
+Every slot takes `[source, ripple_ms]`, or just `source` as shorthand for `[source, 0]`.
+
+- **`source`**
+    - `true`: show Steam's own asset (the achievement art, or Steam's logo for `system`).
+    - `false`: hide the slot.
+    - `"path"`: a custom `.png` or `.svg`.
+- **`ripple_ms`**: `0` is static; `> 0` loops an expanding ring behind the icon at that period.
+
+Slots:
+
+- **`achievement`**: the achievement's own artwork.
+- **`system`**: platform logo (Steam, PlayStation, …).
+- **`rarity`**: tier emblem (bronze, silver, gold, 100% badge).
+- **`exceptional`**: extra badge shown only on 100% completion.
+
+### `sound`
+
+`["path", volume_pct]` — `.mp3`, `.wav` or `.ogg`; volume `0`–`100`.
+Omit it (in every tier) to keep Steam's own chime. A file that is missing or
+fails to load also falls back to Steam's chime — never to silence.
+
+### Capture overrides: `screenshot`, `recording`
+
+Optional. They override the capture defaults from `settings.json` for this tier
+only, using the same keys:
+
+- **`screenshot`**: `{ "enabled": bool, "delay_ms": number }`
+- **`recording`**: `{ "enabled": bool, "duration_s": number, "delay_ms": number }`
+
+Example: keep recording off in `settings.json` and enable it only on `rare` and
+`exceptional`, so only notable unlocks produce clips.
 
 ---
 
-#### `icons`
+## File paths
 
-Manages icons, badges, custom assets, and ripple effects. Every asset follows the tuple format:
-
-`[source_target, ripple_speed_ms]`
-
-- **First Value (`source_target`)**:
-- `true`: Displays the original Steam/game asset.
-- `false`: Hides the icon entirely.
-- `"file_path"`: Path to a custom `.svg` or `.png` asset to replace the default icon.
-  - `true`: Displays the original Steam/game asset.
-  - `false`: Hides the icon entirely.
-  - `"file_path"`: Path to a custom `.svg` or `.png` asset to replace the default icon.
-
-- **Second Value (`ripple_speed_ms`)**:
-- Controls the speed of an expanding radial pulse behind the icon.
-- `0`: Static icon (no animation).
-- `> 0`: Loop duration in milliseconds (e.g., `1200` plays an expanding ripple wave every 1.2 seconds).
-  - Controls the speed of an expanding radial pulse behind the icon.
-  - `0`: Static icon (no animation).
-  - `> 0`: Loop duration in milliseconds (e.g., `1200` plays an expanding ripple wave every 1.2 seconds).
-
-**Supported Icon Slots:**
-
-- **`achievement`**: The square artwork of the unlocked achievement.
-- **`system`**: Platform logo (such as the white Steam icon, PlayStation logo, etc.).
-- **`rarity`**: The trophy/tier emblem (Bronze, Silver, Gold, or 100% badge).
-- **`exceptional`**: Special standalone badge asset reserved for 100% game completion.
+- A relative path resolves against the theme file's own folder, so a theme and
+  its `assets/` folder can be shared as one directory.
+- An absolute path (`C:/…`) is allowed for personal themes, but makes the theme
+  non-portable.
+- The frontend cannot read local files directly; the backend loads each asset
+  once when the theme is (re)loaded, never per unlock.
 
 ---
 
-#### `sound`
+## Plugin settings (`settings.json`)
 
-Manages audio playback on unlock.
+Not part of a theme — one file for the whole plugin.
 
-- Format: `["file_path", volume_pct]`
-- `"file_path"`: Local file path to the audio file (`.mp3`, `.wav`, or `.ogg`).
-- `volume_pct`: Output volume level from `0` (silent) to `100` (full volume).
-  - `"file_path"`: Local file path to the audio file (`.mp3`, `.wav`, or `.ogg`).
-  - `volume_pct`: Output volume level from `0` (silent) to `100` (full volume).
+```json
+{
+    "theme": "steam_ps_exemple",
+    "banner": { "enabled": true },
+    "sound": { "enabled": true },
+    "screenshot": { "enabled": true, "delay_ms": 500 },
+    "recording": {
+        "enabled": true,
+        "duration_s": 15,
+        "delay_ms": 0,
+        "add_timeline_marker": true
+    }
+}
+```
 
----
-
-#### Tier Override Options
-
-In addition to `box`, `text`, `icons`, and `sound`, tiers may optionally override capture settings:
-
-- **`screenshot`**: `{ "enabled": boolean, "delay_ms": number }`
-- **`recording`**: `{ "enabled": boolean, "duration_s": number, "delay_ms": number }`
-
-For example, a user may configure `recording` to capture clips **only** for `rare` and `exceptional` unlocks.
+- **`theme`**: file name (without `.json`) of the active theme in `themes/`.
+- **`banner.enabled`** / **`sound.enabled`**: turn each part off independently. Off means Steam's stock toast or chime, untouched.
+- **`screenshot`** / **`recording`**: capture defaults, overridable per tier (Phase 7).
