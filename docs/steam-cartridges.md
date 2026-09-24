@@ -369,3 +369,9 @@ achievements, user-created achievements.
 - [decisions.md](decisions.md): ADRs listed in Phase 0.
 - [millennium-architecture.md](millennium-architecture.md): core/provider split, module layout.
 - [AGENTS.md](../AGENTS.md): plugin names in Routine 4.
+
+## Addendum: confirmations after the P0–P3 plans
+
+1. ADR-0032's change to ADR-0012 ("no bucket, no network") is approved.
+2. P0 test subject: the existing non-Steam shortcut **Jotunnslayer: Hordes of Hel** (Epic copy, also on Steam). No throwaway shortcuts needed.
+3. ADR-0033 keeps the single ordered list of collections, but it stores **only non-Steam game info** (shortcut ids and their bucket); native Steam data is never persisted there. Implementers: reconcile this in P2 before writing `buckets.lua`.
