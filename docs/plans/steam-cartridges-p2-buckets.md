@@ -11,6 +11,11 @@
 > Prerequisites: P1 merged. P0 **T1** is recorded in steam-components.md §
 > "Collections (`collectionStore`)": `userCollections` (Array), `id`, `displayName`, `bIsDynamic`, `apps` (Map, `has(appid)`), `GetCollectionListForAppID`. Shortcuts are members of static and dynamic collections.
 
+Persistence rule (ADR-0033 addendum): the config stores only the ordered
+collection list and **shortcut** overrides. Membership is read live and never
+saved; native Steam ids and data are never persisted. Because the backend is
+flat and buckets are frontend-only, there is no `buckets.lua` (dropped).
+
 Out of scope: Steam Store behaviour (P3). In P2 a `steam-store` game just gets
 no web enrichment. The capture features (sections, summary, activity, library
 grid) **ignore buckets** and keep serving every shortcut.

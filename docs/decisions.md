@@ -2050,6 +2050,11 @@ Lua backend cannot see it.
   order whose collection contains the game, else `none`. A game in collections
   assigned to different buckets is a **conflict**: it still resolves by that
   order, and the settings page lists it.
+- **Persisted data is non-Steam only** (2026-09-24 addendum). The config holds
+  the ordered collection list (`id`, `name`, bucket: the user's own grouping, not
+  game data), and per-game overrides keyed by **shortcut** appid. Collection
+  membership is never stored (read live from `collectionStore`), and no native
+  Steam app id, title or metadata is ever written to the config.
 - Only shortcuts (`appid >= 0x8000_0000`) are ever bucketed. Native apps inside
   a collection are skipped.
 - Resolution runs in the frontend (`features/buckets/`), lazily when an app page
