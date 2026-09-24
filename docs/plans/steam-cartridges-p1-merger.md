@@ -19,7 +19,7 @@
 | `backend/steam_paths.lua` | ✔ | identical | keep core copy |
 | `backend/shortcuts.lua` | ✔ | **superset**: also fills `entry.tags` (L100–102) | take the **artwork** copy (igdb `detect_platform_hints` reads `tags`) |
 | `backend/{captures,gameid,rpc}.lua` | ✔ | — | keep |
-| `backend/{config,igdb,metadata_db,sgdb}.lua` | — | ✔ | move to `backend/web/` (flat if P0 T5 ❌) |
+| `backend/{config,igdb,metadata_db,sgdb}.lua` | — | ✔ | move flat as `backend/web_<name>.lua` (P0 T5: dotted require unverified, flat chosen) |
 | `backend/main.lua` | 2 globals via `rpc.lua` `method()` | 6 globals defined inline | merge (§ 3.1) |
 | RPC names | `GetLibraryStats`, `GetDiagnostics` | `GetStatus`, `GetGameMetadata`, `RefreshGameMetadata`, `GetAllMetadata`, `SaveGameMetadata`, `GetArtworkForGame` | **no collision; no renames** |
 | `frontend/steam/jsx-hook.ts` | ✔ | identical (also identical in `enhanced-achievements`) | keep core copy **byte-identical** |
@@ -80,7 +80,7 @@ steam-cartridges/
   description "Makes non-Steam games feel native: Steam's own activity page from
   your captures, plus optional metadata and artwork.", `version: "0.1.0"`.
 - `web/*.lua`: change the `require("config")` / `require("metadata_db")` lines to
-  `web.config` / `web.metadata_db` (only if dotted requires work, P0 T5).
+  flat `web_config` / `web_metadata_db` (P0 T5: dotted requires unverified; P1 adds a startup self-check logging `package.path` and cwd).
 - **NEW `data_dir.lua`**: `data_dir.path()` returns
   `fs.join(millennium.steam_path(), "millennium", "config", "steam-cartridges")`,
   creating it on first use (hardcode the base name, as
@@ -219,7 +219,7 @@ Keep the core script. After deploying, add a **legacy retirement** block:
 | --- | --- |
 | Old and new plugins both enabled: sections and prototype hooks installed twice | `dev.ps1` retirement + the frontend legacy guard |
 | Startup order changes when two plugins become one | Game Info init is not awaited and is isolated in `catch`; both halves register their own watchers as before |
-| Dotted `require` unsupported | P0 T5 gate; fallback is the flat layout (no subfolders) |
+| Dotted `require` unsupported | P0 T5 unverified: the flat layout is the decision (no subfolders) |
 | Migration misses the creds | Legacy candidates still read after the data dir (P1 keeps the old behaviour) |
 | `jsx-hook.ts` drifts from `enhanced-achievements` | Not edited; `md5sum` both copies in verification |
 

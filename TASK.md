@@ -55,16 +55,16 @@ and each plugin's README ("How to test").
 
 Plan only, no code yet: [docs/steam-cartridges.md](docs/steam-cartridges.md).
 ADRs [0032–0034](docs/decisions.md#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)
-written (0034 Proposed until P0 T4). Run phases in order; each plan lists its exit criteria.
+written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
 
-- [ ] **P0 research closure**: [plan](docs/plans/steam-cartridges-p0-research.md)
-    - [ ] T1 collections (`collectionStore` enumeration, ids, membership, change signal) → steam-components.md
-    - [ ] T2 CDN artwork + `SetCustomArtworkForApp` limits, user-art detection → steam-components.md
-    - [ ] T3 native-app knowledge (`appStore.allApps`, `StoreItemCache` for unowned) → steam-components.md
-    - [ ] T4 keyless achievement schema → knowledgebase.md; flip ADR-0034 to Accepted
-    - [ ] T5 Lua dotted `require`, cwd, `millennium.config` → knowledgebase.md
-    - [ ] T6 fixtures (`SC Test Steam` / `SC Test Retro`, throwaway shortcuts; needs user OK)
-    - [ ] Replace every **P0-gated** note in the P1–P3 plans
+- [x] **P0 research closure**: [plan](docs/plans/steam-cartridges-p0-research.md)
+    - [x] T1 collections (`collectionStore` enumeration, ids, membership, change signal) → steam-components.md
+    - [x] T2 CDN (set/clear limits unverified) artwork + `SetCustomArtworkForApp` limits, user-art detection → steam-components.md
+    - [x] T3 native-app knowledge (`appStore.allApps`, `StoreItemCache` for unowned) → steam-components.md
+    - [x] T4 keyless achievement schema → knowledgebase.md; flip ADR-0034 to Accepted
+    - [x] T5 Lua (unverified, flat layout; P1 self-check) dotted `require`, cwd, `millennium.config` → knowledgebase.md
+    - [x] T6 fixtures (read-only variant) (`SC Test Steam` / `SC Test Retro`, throwaway shortcuts; needs user OK)
+    - [x] Replace every **P0-gated** note in the P1–P3 plans
 - [ ] **P1 plugin merger (refactor-only)**: [plan](docs/plans/steam-cartridges-p1-merger.md)
     - [ ] `git mv` core → `steam-cartridges/`; move artwork `web/*.lua`, `features/game-info`, `features/artwork`; drop duplicates
     - [ ] Merged `main.lua` (8 RPC globals, no renames), `data_dir.lua`, `migrate.lua` (secrets never logged)

@@ -8,9 +8,8 @@
 > (config shape, precedence, frontend resolution) and
 > [steam-cartridges.md § 9](../steam-cartridges.md#9-risks-and-open-questions)
 > decision 1 (`none` for everything unassigned).
-> Prerequisites: P1 merged; P0 **T1** recorded in steam-components.md §
-> "Collections (`collectionStore`)". Every collection accessor below is
-> **P0-gated**: use the names T1 recorded, not the expected ones written here.
+> Prerequisites: P1 merged. P0 **T1** is recorded in steam-components.md §
+> "Collections (`collectionStore`)": `userCollections` (Array), `id`, `displayName`, `bIsDynamic`, `apps` (Map, `has(appid)`), `GetCollectionListForAppID`. Shortcuts are members of static and dynamic collections.
 
 Out of scope: Steam Store behaviour (P3). In P2 a `steam-store` game just gets
 no web enrichment. The capture features (sections, summary, activity, library

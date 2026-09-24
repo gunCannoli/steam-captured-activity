@@ -1,0 +1,22 @@
+import { connect } from './cdp.mjs';
+const c = await connect();
+const r = await c.evaluate(`(() => {
+  const cs = window.collectionStore; const out = {};
+  const ids=[4263274102,2788628389];
+  out.cols = cs.userCollections.map(x=>({id:x.id,name:x.displayName,dyn:x.bIsDynamic,n:x.allApps.length,hasIds:ids.map(i=>x.apps.has(i)),ed:x.bIsEditable, filt: !!x.m_filter, added:x.m_setAddedManually?.size, keyType: typeof [...x.apps.keys()][0]}));
+  out.listFor = ids.map(i=>cs.GetCollectionListForAppID(i).map(x=>x.id));
+  out.mapCollectionsFromStorage = cs.m_mapCollectionsFromStorage?.size;
+  out.shortcutInfo = Object.prototype.toString.call(cs.m_shortcutCollectionInfo); out.shortcutInfoKeys=Object.keys(cs.m_shortcutCollectionInfo||{}).slice(0,5);
+  const ov = window.appStore.GetAppOverviewByAppID(4263274102);
+  out.am2r = ov && {n:ov.display_name, tags:ov.store_tag, cat:ov.store_category?.length};
+  const j = [...window.appStore.allApps].filter(a=>/Jotunn/i.test(a.display_name)).map(a=>({appid:a.appid,n:a.display_name,t:a.app_type}));
+  out.jot=j;
+  const proto=Object.getOwnPropertyNames(Object.getPrototypeOf(cs.userCollections[1]));
+  out.ac = window.appStore.allApps.length;
+  out.byType = {}; for (const a of window.appStore.allApps) out.byType[a.app_type]=(out.byType[a.app_type]||0)+1;
+  out.native = window.appStore.allApps.filter(a=>a.appid<0x80000000).length;
+  out.fields = Object.keys(window.appStore.GetAppOverviewByAppID(435150)).slice(0,60);
+  return out;
+})()`);
+console.log(JSON.stringify(r));
+c.close();

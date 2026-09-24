@@ -2078,8 +2078,7 @@ Lua backend cannot see it.
 
 ## ADR-0034: Achievement sourcing per bucket; locked-only for unowned Steam games
 
-**Status:** Proposed · 2026-09-24 · becomes Accepted when P0 trace T4
-(docs/plans/steam-cartridges-p0-research.md) has named the keyless schema source
+**Status:** Accepted · 2026-09-24 · P0 trace T4 named the keyless schema source
 
 ### Context
 
@@ -2103,7 +2102,7 @@ Licenses of the references (checked 2026-09-24): `PlayniteAchievements` MIT,
   (no section, no empty state, no error).
 - Steam native schema: Steam's client stores first (keyless). Then keyless public
   endpoints. A Steam Web API key is optional and only extends coverage. P0 T4
-  names the exact store and endpoint.
+  chose store `appdetails` `achievements` (total plus highlighted names and icons).
 - Unlock state: only from Steam's own per-user caches for an **owned** native
   appid. Otherwise the list renders locked-only, labelled "no unlock tracking"
   (decision 2). Unlocks are never inferred.

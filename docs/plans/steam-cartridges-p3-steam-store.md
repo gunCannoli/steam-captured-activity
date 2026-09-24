@@ -53,7 +53,7 @@ vita3k). This is a guard against wrong matches, not bucket guessing. Any appid i
 `appdetails_cache.json` is disposable: `{ "<steamAppid>": { "at": epoch, "metadata": ConsolidatedMetadata } }`
 with a 7-day TTL.
 
-## 3. Backend (`backend/steam_store/`; flat `steam_store_*.lua` if P0 T5 ❌)
+## 3. Backend (flat `backend/steam_store_*.lua`; P0 T5 dotted require unverified)
 
 | File | Contents |
 | --- | --- |
@@ -77,12 +77,12 @@ with a 7-day TTL.
 | `SteamStoreClearMapping` | `{ appid, reject }` | `{ steam_appid, slots }` (the slots the frontend must clear) |
 | `SteamStoreGetAppDetails` | `{ steam_appid, force? }` | `{ metadata, cached }` \| `{ error }` |
 | `SteamStoreRecordArtwork` | `{ appid, steam_appid, slots }` | `{ ok: true }` |
-| `SteamStoreDownloadImage` | `{ url }` | `{ base64, ext }`. **Only if P0 T2 found the frontend fetch fails.** URL allowlist: `^https://[%w%.]*steamstatic%.com/` |
+| `SteamStoreDownloadImage` | `{ url }` | `{ base64, ext }`. **Not needed for CDN paths (P0 T2: frontend fetch works); keep only as a fallback.** URL allowlist: `^https://[%w%.]*steamstatic%.com/` |
 
 Register them as globals in `main.lua`.
 
-**P0 T3 gate:** if `StoreItemCache` returns name, description, credits, date and
-categories for unowned apps through Steam's own transport, build
+**P0 T3 result (confirmed):** `StoreItemCache` returns name, description, credits, date and
+categories for unowned apps through Steam's own transport; build
 `features/steam-store/store-item.ts` producing the same `ConsolidatedMetadata`, and
 use it **before** `SteamStoreGetAppDetails` (the ADR-0009 ladder). Keep
 `appdetails` as the fallback.
@@ -93,9 +93,9 @@ use it **before** `SteamStoreGetAppDetails` (the ADR-0009 ladder). Keep
 | --- | --- |
 | `frontend/steam/shortcut.ts` | **NEW.** Move `resolveShortcutTitle` out of `features/game-info/index.ts` (both features need it). |
 | `frontend/features/source-view.ts` | **NEW.** Move the desktop `onPopupCreate`/`onLocationChange` and `watchGamepadAppid` wiring out of `features/game-info/index.ts`. `onSourceView(appid)`: `getBucket(appid)`. **web-scraping** → the game-info handler (unchanged). **steam-store** → `handleSteamStoreView`. **none** → `revertGameDetails` if enriched. Dedupe concurrent calls per appid (desktop and Big Picture can both fire). |
-| `frontend/features/steam-store/resolve.ts` | **NEW, pure** (only `import type`): `normalizeTitle` (mirrors `normalize.lua`), `matchKnownApp(title, apps)` (unique exact match or undefined), `cdnArtworkUrls(steam_appid)` → `{ portrait, hero, logo, wide }` (unhashed paths from the linker unless P0 T2 says otherwise). |
-| `frontend/features/steam-store/known-apps.ts` | **NEW.** Native app list from `appStore` (P0 T3 accessor); `appid < 0x8000_0000`, games only. Normalised index built once, lazily; `refreshKnownApps()` rebuilds it when the settings panel opens. |
-| `frontend/features/steam-store/index.ts` | **NEW.** `handleSteamStoreView(appid)`: (1) `SteamStoreGetMapping`; (2) none → `matchKnownApp` → `SteamStoreSaveKnownMatch`, else `SteamStoreSearch` (suggestions only → stop); (3) metadata → `enrichGameDetails(appid, metadata)` (same originals/revert as P2); (4) if `applied?.steam_appid !== mapping.steam_appid` → `applyCustomArtworkFromUrls(appid, cdnArtworkUrls(...))` → `SteamStoreRecordArtwork` with only the slots that succeeded (change `applyCustomArtworkFromUrls` to return them). Skip slots holding user art if P0 T2 q5 makes that detectable. `clearSteamStore(appid, reject)`: RPC, then `SteamClient.Apps.ClearCustomArtworkForApp(appid, slot)` per returned slot (called on `SteamClient.Apps`, never extracted), then `revertGameDetails`. One session-level `processed` set, as in the web path. |
+| `frontend/features/steam-store/resolve.ts` | **NEW, pure** (only `import type`): `normalizeTitle` (mirrors `normalize.lua`), `matchKnownApp(title, apps)` (unique exact match or undefined), `cdnArtworkUrls(steam_appid)` → `{ portrait, hero, logo, wide }` (unhashed CDN paths fetch fine for existing apps; prefer hashed URLs from `StoreItemCache` `GetAssets()` for newer apps). |
+| `frontend/features/steam-store/known-apps.ts` | **NEW.** Native app list from `appStore` (`appStore.allApps`, `display_name`); `appid < 0x8000_0000`, games only. Normalised index built once, lazily; `refreshKnownApps()` rebuilds it when the settings panel opens. |
+| `frontend/features/steam-store/index.ts` | **NEW.** `handleSteamStoreView(appid)`: (1) `SteamStoreGetMapping`; (2) none → `matchKnownApp` → `SteamStoreSaveKnownMatch`, else `SteamStoreSearch` (suggestions only → stop); (3) metadata → `enrichGameDetails(appid, metadata)` (same originals/revert as P2); (4) if `applied?.steam_appid !== mapping.steam_appid` → `applyCustomArtworkFromUrls(appid, cdnArtworkUrls(...))` → `SteamStoreRecordArtwork` with only the slots that succeeded (change `applyCustomArtworkFromUrls` to return them). User art in a slot is not detectable (P0 T2 q5): record and clear only slots this plugin wrote. `clearSteamStore(appid, reject)`: RPC, then `SteamClient.Apps.ClearCustomArtworkForApp(appid, slot)` per returned slot (called on `SteamClient.Apps`, never extracted), then `revertGameDetails`. One session-level `processed` set, as in the web path. |
 | `frontend/features/artwork/artwork.ts` | Now used. `fetchImageAsBase64`'s wsrv.nl proxy stays **SGDB-only**; Steam CDN URLs never go through a third-party proxy. If P0 T2 says fetch fails, route through `SteamStoreDownloadImage`. |
 | `frontend/settings/settings-panel.tsx` | **Steam Store** section: each steam-store shortcut with mapping (name, appid, source), a manual appid field + Set, **Clear** (reject), and suggestions with Accept/Reject. Stock components only. |
 | `frontend/index.tsx` | Export `clearSteamStore` and `steamStoreState` for CDP tests. |

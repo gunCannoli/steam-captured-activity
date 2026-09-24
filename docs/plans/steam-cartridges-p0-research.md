@@ -188,6 +188,10 @@ the commit.
 ## 4. Fixture block (fill in during T6)
 
 ```
+# P0 ran read-only (no user library changes). Fixtures recorded:
+SC_STEAM_UNOWNED = 2315502503  # existing shortcut "Jotunnslayer: Hordes of Hel" -> native 2820820 (unowned; StoreItemCache loads it)
+SC_STEAM_OWNED   = none        # no shortcut copies an owned game; P3 test creates one with user OK
+COLLECTIONS      = none        # SC Test * not created; P2 tests use existing Fav (static, has AM2R? no: ActRaiser-side SNES srm-U05FUw==) and Installed
 SC_STEAM_OWNED   = <appid>   # shortcut named after owned native <native appid>
 SC_STEAM_UNOWNED = <appid>   # shortcut named after unowned native <native appid>
 SC_RETRO_A       = 2788628389  # ActRaiser

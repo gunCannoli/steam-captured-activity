@@ -1393,6 +1393,28 @@ SteamClient.Apps.SetCustomArtworkForApp(
 
 Clearing custom artwork: `SteamClient.Apps.ClearCustomArtworkForApp(appid, imageType)`.
 
+**P0 findings (2026-09-24).** Both methods exist (plus `SetCustomLogoPositionForApp`). The run was read-only, so the 3-5 MB base64 limit, the `grid/` file and clear behaviour are **unverified: P3 must add a self-check on a test shortcut**. `AppOverview` exposes only hash fields (`icon_hash`, `library_capsule_filename`, `header_filename`, `rt_store_asset_mtime`), so **user-set art in a slot is not detectable** from it: P3 records only slots it wrote and clears only those. `appDetailsStore.RequestCustomImageInfo` exists and is a candidate to check.
+
+### Collections (`collectionStore`)
+
+Verified live 2026-09-24 (`scratch/cartridges/p0-t1-collections.mjs`, `p0-t1b.mjs`).
+
+- `window.collectionStore` is a class instance (`OnAppOverviewChange` is an own field). `userCollections` is an **Array** (22 here, including `favorite`, `uncategorized`, `type-music`). Also `GetCollection(id)`, `GetCollectionListForAppID(appid)` (collections holding the app, shortcuts included), `AddOrRemoveApp`, `SaveCollection`, `DeleteCollection`.
+- Per collection: `id` (also `m_strId`; `uc-...` user, `srm-<base64 name>` static, `favorite`), `displayName`, `bIsDynamic`, `bIsEditable`, `allApps` (AppOverview[]), `apps` (a Map keyed by numeric appid, so `apps.has(appid)` is O(1)), `m_filter` (set for dynamic), `m_setAddedManually`, `m_setRemovedManually`. Methods: `AddApps`, `RemoveApps`, `Save`, `Delete`, `FreezeToStatic`.
+- Shortcuts appear in membership for **both** static (`Fav`, `SNES`) and dynamic (`Installed`, `Not Played`) collections. Use `apps.has` / `GetCollectionListForAppID`.
+- Readiness: populated once the client UI has loaded. Wait on `collectionStore?.userCollections?.length > 0`.
+- Change signal: not observed. `AddApps`/`RemoveApps`/`Save` are the mutators; P2 re-resolves on view per ADR-0033. Nothing was hooked.
+
+### Store item data for arbitrary apps
+
+Verified 2026-09-24 (`p0-t3-sic*.mjs`, `p0-t2-cdn.mjs`).
+
+- `appStore.allApps`: 690 entries here: native by `app_type` (1: 309, 2: 5, 4: 151, 8: 1, 8192: 2, 65536: 2) plus 220 shortcuts (`1073741824`). 470 have `appid < 0x80000000`. Usable fields: `display_name`, `sort_as`, `app_type`. Owned and known apps, not the whole store.
+- `window.StoreItemCache` (Steam's CM transport) **loads unowned apps**: `QueueAppRequest(appid, {include_assets:true, include_basic_info:true, include_release:true, include_full_description:true})`, wait ~4 s, then `BHasApp`/`GetApp`. Verified with 2820820 (absent from `appStore`). Item fields: `m_strName`, `m_BasicInfo` (short_description, developers[], publishers[]), `m_ReleaseInfo` (`steam_release_date`), `m_StoreCategories` (id lists), `m_rgStoreTags`, `m_strFullDescriptionBBCode`, and `GetAssets()` with `GetLibraryHeroURL`, `GetLibraryCapsuleURL(_2x)`, `GetHeaderURL`, `GetMainCapsuleURL`. Steam's own data, no scraping.
+- Asset URLs are hashed paths under `shared.steamstatic.com/store_item_assets/steam/apps/<id>/<hash>/...`: take them from `GetAssets()`, do not hand-build.
+- No client-side title to appid search exists; `storesearch` stays step 3. A frontend `fetch` to store search failed (`Failed to fetch`), so search stays in the backend.
+- Frontend `fetch()` of `cdn.akamai.steamstatic.com/steam/apps/435150/` succeeds (200) for `library_hero.jpg` (354759 B), `library_600x900.jpg` (61149 B), `logo.png` (262681 B), `header.jpg` (52895 B): no backend download needed for unhashed paths of an existing app.
+
 ### Game Info tab & metadata
 
 The Big Picture `GameInfo` tab (`/library/app/<appid>/tab/GameInfo`) and desktop metadata panels query `CAppDetailsStore`:

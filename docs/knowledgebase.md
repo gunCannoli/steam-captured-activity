@@ -219,6 +219,16 @@ or Big Picture.
 
 ---
 
+### Backend runtime facts (steam-cartridges P0 T5)
+
+Answered from code and docs, **no live probe** (an earlier probe plugin crashed Steam). All **unverified: P1 must add a startup self-check** logging `package.path`, cwd and a dotted `require` result.
+
+- Dotted `require("web.igdb")`: no existing plugin uses it (all use flat `require("name")`). Decision: **flat backend files** (`web_igdb.lua`, `steam_store_*.lua`), keeping the existing `_lib` layout.
+- Lua cwd: unknown. `config.lua` already scans `.env`, `../.env`, `../../.env`, `../../../.env` and `c:/game/millennium/.env`; the migration scans all of them.
+- `MILLENNIUM_PLUGIN_SECRET_BACKEND_ABSOLUTE`: relied on by `research/game-data-linker`, so likely present; not needed (data lives in `<steam>/millennium/config/steam-cartridges/`).
+- Lua `millennium.config.get/set`: whether #903 (frontend FFI metrics path) affects the Lua side is unverified. P1 avoids it.
+- Use forward slashes in every Lua path string (an unescaped backslash crashed Steam).
+
 ## Part 2 — Steam's own data & runtime
 
 **✅ All verified on this machine.** This is what the **core** plugin runs on. All of it is local, already present, and
@@ -426,6 +436,20 @@ implementation is unnecessary; scanning for the type markers is enough.
 
 > `appid` is stored as a **signed** int32 but used as unsigned. Mask with
 > `& 0xFFFFFFFF` before the `<< 32` conversion, or ids above 2³¹ come out negative.
+
+### Shortcut `tags` and collections
+
+Collections live in cloud storage and `collectionStore` (`srm-*` static collections exist for shortcuts here). The `tags` block in `shortcuts.vdf` is not a trustworthy membership source: trust `collectionStore` only.
+
+### Steam achievement schema sources
+
+Verified 2026-09-24 (`p0-t4*.mjs`), owned `435150` vs unowned `2820820`.
+
+- `appAchievementProgressCache.m_achievementProgress.mapCache.get(appid)`: present for owned (`unlocked:4,total:97`), **absent for unowned**.
+- `appDetailsStore.GetAchievements(appid)` after `RequestAppDetails`: for unowned, empty arrays (`nTotal` 0). Not a schema source.
+- `SteamClient.Apps` achievement methods: `RegisterForAchievementChanges`, `GetFriendAchievementsForApp`, `GetMyAchievementsForApp`, `GetAchievementsInTimeRange`, `SaveAchievementProgressCache`. `GetMyAchievementsForApp` timed out for both apps.
+- Keyless web: store `appdetails?filters=achievements` returns `total` and `highlighted[]` (name, icon; highlighted subset only) and works from the frontend. `GetGlobalAchievementPercentagesForApp` and the community stats page failed from the frontend (`Failed to fetch`); the former may work from the backend.
+- Chosen source: **store `appdetails` `achievements`** (keyless) for total plus highlighted names/icons; full lists need an optional Steam Web API key.
 
 ### Identifying non-Steam apps
 

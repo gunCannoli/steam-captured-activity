@@ -61,6 +61,8 @@ Module ids are one build's breadcrumbs; resolve by § 3.
 
 ## 3. Stable Resolution Signatures
 
+> Added by P0: `window.collectionStore` (`userCollections`, `GetCollectionListForAppID`) and `window.StoreItemCache` (`QueueAppRequest`, `GetApp`); see steam-components.md "Collections" and "Store item data".
+
 Numeric webpack module ids reshuffle between Steam client builds; real
 `prototype` method names and CSS class-map keys survive minification. In plugin
 code, resolve with the SDK — `findModuleExport` for classes and singletons,
