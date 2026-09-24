@@ -56,6 +56,7 @@ const VIEW = String.raw`JSON.stringify((() => {
         description: (t.match(/GAME INFO\s+([^\n]{40,})/)?.[1] ?? '').slice(0, 60),
         developer: /DEVELOPER|Developer/.test(t),
         releaseDate: /RELEASE DATE|Release Date/.test(t),
+        errorBoundary: t.includes('An error occurred while rendering this content'),
         shortcutWarning: /detailed information on .* is unavailable/i.test(t),
     };
 })())`;
@@ -98,13 +99,29 @@ try {
     ok('3. Your Stuff: media items', stuff.media > 0, stuff.media);
 
     const info = await view(shared, `/library/app/${A}/tab/GameInfo`, nameA);
-    ok('4. Game Info: description, developer, release date', !!info.description && info.developer && info.releaseDate, info.description);
-    ok('4. Game Info: no grey shortcut warning', !info.shortcutWarning);
+    ok('4. Game Info: no error boundary', !info.errorBoundary);
+    const bucket = await shared.evaluate(`PLUGIN_LIST['steam-cartridges-dev'].bucketReport().games[${A}]?.bucket ?? 'none'`);
+    if (bucket === 'web-scraping' || bucket === 'steam-store') {
+        console.log(`INFO  check 4 branch: ${bucket} (expect enrichment)`);
+        ok('4. Game Info: description, developer, release date', !!info.description && info.developer && info.releaseDate, info.description);
+        ok('4. Game Info: no grey shortcut warning', !info.shortcutWarning);
+    } else {
+        console.log('INFO  check 4 branch: none (grey shortcut warning accepted)');
+    }
+    ok('collectionStore health: userCollections readable', (await shared.evaluate('(() => { try { return Array.isArray(collectionStore.userCollections) } catch { return false } })()')) === true);
 
+    const infoB = await view(shared, `/library/app/${B}/tab/GameInfo`, nameB);
+    ok('Native B Game Info: no error boundary', !infoB.errorBoundary);
     await view(shared, `/library/app/${B}`, nameB);
-    const back = await view(shared, `/library/app/${A}`, nameA);
+    let back;
+    for (let i = 0; i < 20; i++) {
+        back = await view(shared, `/library/app/${A}`, nameA);
+        if (back.captured >= 1 && back.captured === activity.captured) break;
+        await wait(500);
+    }
     ok('A -> B -> A: Post-Game Summary intact', back.postGameSummary);
-    ok('A -> B -> A: activity cards intact (hasEvent)', back.captured === activity.captured, back.captured);
+    ok('A -> B -> A: no error boundary', !back.errorBoundary);
+    ok('A -> B -> A: activity cards intact (hasEvent)', back.captured >= 1 && back.captured === activity.captured, back.captured);
 } finally {
     shared.close();
 }

@@ -5,6 +5,7 @@ import { resolveShortcutTitle } from "../../steam/shortcut";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
 import {
+    collectionsReady,
     getBucket,
     invalidateMembership,
     onBucketsChanged,
@@ -28,7 +29,8 @@ export async function handleWebScrapingView(appid: number): Promise<void> {
     if (appid < NON_STEAM_APPID_MIN) return;
 
     // Buckets gate the web source (ADR-0033): only web-scraping games are enriched.
-    const bucket = getBucket(appid).bucket;
+    const { bucket, via } = getBucket(appid);
+    if (via === "pending") return;
     if (bucket !== "web-scraping") {
         if (bucket !== "steam-store" && enrichedAppIds.has(appid)) revertGameDetails(appid);
         return;
@@ -138,6 +140,7 @@ export async function initGameInfo(): Promise<void> {
     // ===== Bucket changes (no restart needed) =====
     onBucketsChanged(() => {
         invalidateMembership();
+        if (!collectionsReady()) return;
         for (const appid of [...enrichedAppIds]) {
             const bucket = getBucket(appid).bucket;
             // steam-store games keep their enrichment (its view handler owns it);

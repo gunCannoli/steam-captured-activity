@@ -1,8 +1,9 @@
 import { onSettingChange, setting } from '../../settings/settings';
-import { listCollections, membersOf, type CollectionInfo } from './collections';
+import { collectionsReady, listCollections, membersOf, type CollectionInfo } from './collections';
+import { pendingOr } from './ready';
 import { findConflicts, resolveBucket, SHORTCUT_MIN, type Bucket, type Resolution } from './resolve';
 
-export { waitForCollections, listCollections, invalidateMembership } from './collections';
+export { waitForCollections, listCollections, invalidateMembership, collectionsReady } from './collections';
 export type { Bucket, BucketsConfig, Resolution } from './resolve';
 
 let metadataAppids: () => Iterable<number> = () => [];
@@ -13,7 +14,9 @@ export function setMetadataAppidSource(fn: () => Iterable<number>): void {
 
 /** Current settings + live collections. */
 export function getBucket(appid: number): Resolution {
-    return resolveBucket(appid, setting('buckets'), membersOf);
+    const cfg = setting('buckets');
+    if (appid >= SHORTCUT_MIN && cfg.overrides[String(appid)]) return resolveBucket(appid, cfg, membersOf);
+    return pendingOr<Resolution>(cfg.assignments.length > 0, collectionsReady(), () => resolveBucket(appid, cfg, membersOf)) as Resolution;
 }
 
 export function onBucketsChanged(fn: () => void): () => void {
@@ -44,11 +47,13 @@ export interface BucketReport {
     conflicts: { appid: number; name: string; collectionIds: string[]; buckets: Bucket[]; using: Bucket }[];
     missing: { id: string; name: string; bucket: Bucket; relinkId?: string }[];
     unbucketedWithMetadata: number;
+    ready: boolean;
     games: Record<number, { bucket: Bucket; via: Resolution['via'] }>;
 }
 
 export function bucketReport(): BucketReport {
     const cfg = setting('buckets');
+    const ready = collectionsReady();
     const live = listCollections();
     const liveIds = new Set(live.map((c) => c.id));
     const assigned = new Map(cfg.assignments.map((a) => [a.id, a.bucket] as const));
@@ -57,11 +62,15 @@ export function bucketReport(): BucketReport {
 
     const games: BucketReport['games'] = {};
     for (const appid of appids) {
-        const r = resolveBucket(appid, cfg, membersOf);
+        const r = getBucket(appid);
         games[appid] = { bucket: r.bucket, via: r.via };
     }
 
+    if (!ready) {
+        return { ready, collections: [], conflicts: [], missing: [], unbucketedWithMetadata: 0, games };
+    }
     return {
+        ready,
         collections: live.map((c) => ({ ...c, bucket: assigned.get(c.id) ?? 'none' })),
         conflicts: findConflicts(cfg, membersOf, appids).map(({ appid, resolution }) => ({
             appid,

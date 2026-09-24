@@ -295,6 +295,8 @@ and the full workflow: [plugins.md § 4 Develop](plugins.md#4-develop).
 
 ## 7. Cost-Efficient Debugging
 
+> **Poisoned MobX computed:** read `obj[Symbol(mobx administration)].values_.get(name)` and check `value_.cause`, `observing_`, `dependenciesState_`. A keepAlive computed that threw with `observing_ = []` is cached forever; only a Steam restart recovers.
+
 Screenshots and full DOM/console dumps burn a lot of tokens. Answer the question
 with the cheapest method that actually answers it, in this order:
 

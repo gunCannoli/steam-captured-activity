@@ -1,5 +1,6 @@
 import { logger } from '../../logger';
 import { SHORTCUT_MIN } from './resolve';
+import { isCollectionStoreReady, readUserCollections } from './ready';
 
 /**
  * The only file that touches `collectionStore` (steam-components.md
@@ -18,16 +19,22 @@ const TTL_MS = 2000;
 let warned = false;
 const cache = new Map<string, { at: number; set: ReadonlySet<number> }>();
 
-function store(): any {
+export function collectionsReady(): boolean {
+    return isCollectionStoreReady((window as any).collectionStore);
+}
+
+function userCollections(): any[] | undefined {
     const s = (window as any).collectionStore;
-    if (!s || !Array.isArray(s.userCollections)) {
+    if (!isCollectionStoreReady(s)) {
         if (!warned) {
             warned = true;
-            logger.warn('collectionStore unavailable; all games resolve to bucket "none".');
+            logger.info('collectionStore not ready yet; games resolve as pending.');
         }
         return undefined;
     }
-    return s;
+    const list = readUserCollections(s);
+    if (!list) logger.warn('collectionStore.userCollections unavailable; treating as empty.');
+    return list;
 }
 
 function shortcutIds(coll: any): Set<number> {
@@ -41,19 +48,19 @@ function shortcutIds(coll: any): Set<number> {
     return out;
 }
 
-export async function waitForCollections(timeoutMs = 10_000): Promise<boolean> {
+export async function waitForCollections(timeoutMs = 30_000): Promise<boolean> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-        if ((window as any).collectionStore?.userCollections?.length > 0) return true;
+        if (collectionsReady()) return readUserCollections((window as any).collectionStore) !== undefined;
         await new Promise((r) => setTimeout(r, 250));
     }
     return false;
 }
 
 export function listCollections(): CollectionInfo[] {
-    const s = store();
-    if (!s) return [];
-    return s.userCollections.map((c: any) => ({
+    const list = userCollections();
+    if (!list) return [];
+    return list.map((c: any) => ({
         id: String(c.id),
         name: String(c.displayName ?? c.id),
         dynamic: !!c.bIsDynamic,
@@ -61,14 +68,14 @@ export function listCollections(): CollectionInfo[] {
     }));
 }
 
-/** Shortcut members of a collection; undefined when the collection no longer exists. */
+/** Shortcut members of a collection; undefined when unavailable (not cached while not ready). */
 export function membersOf(id: string): ReadonlySet<number> | undefined {
-    const s = store();
-    if (!s) return undefined;
+    const list = userCollections();
+    if (!list) return undefined;
     const now = Date.now();
     const hit = cache.get(id);
     if (hit && now - hit.at < TTL_MS) return hit.set;
-    const coll = s.userCollections.find((c: any) => c?.id === id);
+    const coll = list.find((c: any) => c?.id === id);
     if (!coll) {
         cache.delete(id);
         return undefined;

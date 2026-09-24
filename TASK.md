@@ -85,12 +85,7 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
 
 ## Active Failures & Blockers
 
-Verification run (steam-cartridges-dev deployed, plugin loads, no critical popup; old plugins retired). Attempt Count: 1
-- Offline gates PASS: check, build, test:ts (11), Lua tests (lupa 5.5), 27 Lua files parse, no backslash-path literals.
-- scratch/test_nav_cycle.js FAIL: A/other/second visits all render "An error occurred while rendering this content"; postGameSummary/activity/loopback all 0.
-- scratch/check_all_tabs.js FAIL: check 4 Game Info (description/developer/release) shows the render-error boundary; "A -> B -> A: activity cards intact (hasEvent)" FAIL (1). Post-Game Summary, Activity feed, Your Stuff PASS.
-- Steam then flipped to Big Picture (no desktop "Steam" CDP target), so desktop reruns stopped. tests/buckets.mjs and tests/steam-store.mjs NOT run (settings untouched).
-- Root cause of the render error not yet captured; inspect the error boundary stack on the Game Info / details render.
+Render-error fix (docs/plans/steam-cartridges-render-bugfix.md) implemented offline; awaiting restart + live verification (check_all_tabs.js, test_nav_cycle.js, tests/buckets.mjs).
 
 ### Live verification pending (P1-P3; nothing below has run against Steam)
 

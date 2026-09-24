@@ -21,7 +21,7 @@ export interface BucketsConfig {
 
 export interface Resolution {
     bucket: Bucket;
-    via: 'override' | 'collection' | 'default' | 'not-a-shortcut';
+    via: 'override' | 'collection' | 'default' | 'not-a-shortcut' | 'pending';
     collectionId?: string;
     conflict?: { collectionIds: string[]; buckets: Bucket[] };
 }

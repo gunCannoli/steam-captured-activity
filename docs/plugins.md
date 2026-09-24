@@ -514,6 +514,15 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   [plans/enhanced-notifications-toast-window-bugfix.md](plans/enhanced-notifications-toast-window-bugfix.md).
   Check the UI mode before trusting a live test ([steam-debug.md § 4](steam-debug.md#4-big-picture-mode-gamepad-ui-quirks--traps)).
 
+### 13. Never read a Steam MobX computed before its source exists
+
+- **The Trap:** `collectionStore.userCollections` is a keepAlive computed over `m_mapCollectionsFromStorage`,
+  which Steam creates lazily. A read at plugin init throws before tracking any observable, MobX caches the
+  error with no dependencies, and every later read (Steam's own `CollectionsHeader`) rethrows it. Symptom:
+  "An error occurred while rendering this content" on unrelated pages, with a stack pointing at plugin init.
+- **The Mandatory Guardrail:** Gate on a plain field first (`features/buckets/ready.ts`), defer the work until
+  it exists, and never read the computed directly. A poisoned session only recovers after a Steam restart.
+
 ---
 
 ## 4. Develop

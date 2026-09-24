@@ -1402,7 +1402,7 @@ Verified live 2026-09-24 (`scratch/cartridges/p0-t1-collections.mjs`, `p0-t1b.mj
 - `window.collectionStore` is a class instance (`OnAppOverviewChange` is an own field). `userCollections` is an **Array** (22 here, including `favorite`, `uncategorized`, `type-music`). Also `GetCollection(id)`, `GetCollectionListForAppID(appid)` (collections holding the app, shortcuts included), `AddOrRemoveApp`, `SaveCollection`, `DeleteCollection`.
 - Per collection: `id` (also `m_strId`; `uc-...` user, `srm-<base64 name>` static, `favorite`), `displayName`, `bIsDynamic`, `bIsEditable`, `allApps` (AppOverview[]), `apps` (a Map keyed by numeric appid, so `apps.has(appid)` is O(1)), `m_filter` (set for dynamic), `m_setAddedManually`, `m_setRemovedManually`. Methods: `AddApps`, `RemoveApps`, `Save`, `Delete`, `FreezeToStatic`.
 - Shortcuts appear in membership for **both** static (`Fav`, `SNES`) and dynamic (`Installed`, `Not Played`) collections. Use `apps.has` / `GetCollectionListForAppID`.
-- Readiness: populated once the client UI has loaded. Wait on `collectionStore?.userCollections?.length > 0`.
+- Readiness: populated once the client UI has loaded. Wait on `collectionStore.m_mapCollectionsFromStorage` (a plain field, created in the first `OnCloudStorageChanged`). Never read `userCollections` or any other collectionStore computed before then. They are MobX keepAlive computeds, and a throw before they track anything poisons them for the session, which breaks Steam's `CollectionsHeader` for every app.
 - Change signal: not observed. `AddApps`/`RemoveApps`/`Save` are the mutators; P2 re-resolves on view per ADR-0033. Nothing was hooked.
 
 ### Store item data for arbitrary apps
