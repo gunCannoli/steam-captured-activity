@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Alpha — banner, sound, tiers, Phase 7 auto-captures (off by default); awaiting user testing          |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Alpha — banner, sound, tiers, Phase 7 auto-captures; theme customization & PS5 layout plan written ([plan](docs/plans/enhanced-achievements-theme-customization-plan.md)) |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |

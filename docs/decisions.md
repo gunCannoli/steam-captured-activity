@@ -1958,7 +1958,7 @@ To bypass this suppression and render enriched metadata, `AppOverview.prototype.
 
 ## ADR-0032: Merge `non-steam-games-activity` and `steamgriddb-artwork` into `steam-cartridges`
 
-**Status:** Accepted · 2026-09-24 · **Supersedes [ADR-0012](#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins) in part** (the scope of the core plugin; the provider split for third-party plugins stands)
+**Status:** Accepted · 2026-09-24 · **Supersedes [ADR-0012](#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins) in part** (the scope of the core plugin; the provider split for third-party plugins stands) · **Amended by [ADR-0036](#adr-0036-default-bucket-is-steam-store-with-a-web-fallback-per-collection-title-rules)** ("no bucket, no network" is replaced: the default bucket is Steam Store)
 
 ### Context
 
@@ -2022,7 +2022,7 @@ CDN).
 
 ## ADR-0033: Exclusive source buckets, resolved in the frontend from Steam's collections
 
-**Status:** Accepted · 2026-09-24 · **Amended by [ADR-0035](#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)** (buckets gate fetching, not the display of local Game Info; the "Upgrading … hides existing Game Info" consequence below is reversed)
+**Status:** Accepted · 2026-09-24 · **Amended by [ADR-0035](#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)** (buckets gate fetching, not the display of local Game Info; the "Upgrading … hides existing Game Info" consequence below is reversed) · **Amended by [ADR-0036](#adr-0036-default-bucket-is-steam-store-with-a-web-fallback-per-collection-title-rules)** (default `steam-store`, not `none`; `none` becomes a per-collection choice; rules gain title patterns)
 
 ### Context
 
@@ -2133,7 +2133,7 @@ Licenses of the references (checked 2026-09-24): `PlayniteAchievements` MIT,
 
 ## ADR-0035: Local Game Info is a capture-tier feature; buckets gate only fetching
 
-**Status:** Accepted · 2026-09-24 (user: Game Info must keep working for shortcuts; "ignore apps in no collection" must not remove behaviour that worked before) · **Amends [ADR-0033](#adr-0033-exclusive-source-buckets-resolved-in-the-frontend-from-steams-collections)**
+**Status:** Accepted · 2026-09-24 (user: Game Info must keep working for shortcuts; "ignore apps in no collection" must not remove behaviour that worked before) · **Amends [ADR-0033](#adr-0033-exclusive-source-buckets-resolved-in-the-frontend-from-steams-collections)** · **Amended by [ADR-0036](#adr-0036-default-bucket-is-steam-store-with-a-web-fallback-per-collection-title-rules)** (local data also shows for a steam-store game until the store answers, and stays when it has no Steam match)
 
 ### Context
 
@@ -2175,3 +2175,83 @@ Reading metadata the user already has on disk is neither a source nor a network 
 - `scratch/check_all_tabs.js` check 4 again requires enriched Game Info for AM2R.
 - Cost: two tiers write the same Game Info fields; `steam-store` must always win
   while assigned, which the precedence rule and its tests pin down.
+
+---
+
+## ADR-0036: Default bucket is Steam Store with a web fallback; per-collection title rules
+
+**Status:** Accepted · 2026-09-24 (user decision A) · **Amends [ADR-0032](#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)** (network rule), **[ADR-0033](#adr-0033-exclusive-source-buckets-resolved-in-the-frontend-from-steams-collections)** (default, rule shape) and **[ADR-0035](#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)** (local tier for steam-store games)
+
+### Context
+
+ADR-0033 sent every shortcut outside an assigned collection to `none`, and
+ADR-0032 turned that into "no bucket, no network". With that default,
+*Jotunnslayer: Hordes of Hel* (an Epic copy of native app 2820820) shows local
+IGDB data for the wrong product (the Conan DLC: its description and an
+Apr 8, 2026 release date) and none of Steam's own data. Parity baseline, live
+2026-09-24: 3 PASS / 10 FAIL ([parity plan § 1](plans/steam-cartridges-parity.md#1-parity-gap-analysis-live-2026-09-24)).
+
+The user decided (2026-09-24): games in no collection are still bucketed; the
+default is Steam Store; metadata scraping is the fallback when there is no Steam
+match; Steam Store has priority; buckets stay exclusive per collection; each
+collection can be tuned with inclusion and exclusion rules.
+
+Also found live: our Game Info enrichment writes store categories onto
+`AppOverview`, and Steam's dynamic collections filter on categories (this
+library has a "GAMEPAD SUPPORT" collection). A game's membership can change
+because we enriched it.
+
+### Decision
+
+- Buckets stay `steam-store` | `web-scraping` | `none`. When no rule claims a
+  shortcut, its bucket is **`steam-store`**. The default is fixed, not a setting.
+- **Steam Store first.** A steam-store game with a Steam match (P3 order:
+  manual mapping, then a unique known native, then an exact `storesearch` hit;
+  emulator guard and rejections unchanged) gets Steam's own data. **No match**
+  (no exact hit, suggestions only, emulator exe, rejected, negative-cached, or the
+  store data failed to load) means a **web-scraping fallback** for that view:
+  local Game Info plus the IGDB fetch, which still needs Twitch credentials. If
+  the answer is not known yet (the title is missing), only local data is shown.
+- **Config v2:** one ordered list of collection rules
+  `{ id, name, bucket, include: string[], exclude: string[] }`, plus per-shortcut
+  overrides. A collection appears once, so exclusivity holds by construction; the
+  list order is the precedence. `bucket: "none"` means never fetch for that
+  collection's games.
+- **Title patterns**, kept minimal and testable: case-insensitive; with no
+  wildcard a pattern matches a substring; with `*` (any run) or `?` (one
+  character) it must match the whole title; never a regex built from user text;
+  at most 32 patterns of at most 100 characters per list. A non-empty `include`
+  makes the rule claim only matching titles. A title matching `exclude` skips the
+  rule and falls through to later rules, then the default.
+- **Resolution:** override, else the first rule whose collection holds the
+  shortcut and whose patterns admit its title, else `steam-store`. A game claimed
+  by rules of different buckets is a conflict: it resolves by order and the
+  settings page lists it (as before).
+- A v1 config (`assignments`) is migrated in memory. Its `default: "none"` is not
+  carried over.
+- **Resolutions are sticky per session**: computed once per shortcut, reset when
+  the bucket settings change. Collection membership changes (including ones our
+  own category enrichment causes) never flip a bucket mid-session.
+- **Network, restated (amends ADR-0032).** A fresh install now looks a shortcut up
+  on the Steam Store **lazily, when its page is viewed**: `StoreItemCache`
+  (Steam's own transport) and the backend `storesearch` (at most 1 request/s on
+  the wall clock, 8 s timeout, offline circuit breaker, 7-day negative cache;
+  [P4](plans/steam-cartridges-p4-hardening.md)). There is no startup sweep. IGDB
+  is reached only for the fallback, and only with credentials. `none` (rule or
+  override) still means no network for that game.
+- **Local tier (amends ADR-0035).** Local Game Info shows for every shortcut
+  until the store answers, stays when there is no match, and is replaced while
+  store data is applied.
+
+### Consequences
+
+- Jotunnslayer resolves to its Steam match with no configuration.
+- Each viewed shortcut costs one `storesearch` request, once; after that the
+  mapping or the negative cache answers. The 210 RetroArch shortcuts skip the
+  lookup (emulator guard) and fall back to web scraping.
+- A wrong exact-title match remains possible. The mitigations are unchanged:
+  unique exact matches only, Clear with reject, manual mapping. Users who want no
+  lookups set a collection rule to Neither, or an override.
+- A collection membership change takes effect after a restart or any bucket
+  settings change. The settings page says so.
+- Replaces decision 1 in [steam-cartridges.md § 9](steam-cartridges.md#9-risks-and-open-questions).
