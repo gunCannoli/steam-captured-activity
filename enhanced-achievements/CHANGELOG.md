@@ -7,8 +7,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- **`animation.in` / `animation.out`**, independently settable entrance and
+  exit transitions (`"animation": {"in": "slide", "out": "fade"}`), instead of
+  one name that had to cover both. A bare string (`"fade"`) still means both
+  states use it — no behaviour change for existing themes.
+- **`"ps5"` animation preset**: slides in from the screen edge the banner is
+  anchored to (and back out the same way) plus a fade, like a PS5 trophy
+  popup. `top_center`/`bottom_center` slide vertically instead.
+- **One-at-a-time achievement toast queue.** Only one themed banner is ever
+  visible; a second (or later) unlock waits for the current one's exit
+  animation to finish, then shows 100ms later — not the theme's configured
+  delay. Bounded to 5 queued toasts; past that, a new unlock shows immediately
+  rather than risking Steam auto-hiding an unshown popup on its own timer.
+
 ### Fixed
 
+- **The ripple now starts at the icon's own edge and expands outward**,
+  instead of already 35% inflated and drifting further — a ring collapsed
+  onto the icon's outline, like an object breaking the surface of water.
 - **`banner.scale` no longer scales title, description and icon sizes** — only
   the banner box. Text now renders at the size its `text.*` percentage and the
   base font (14px title, 12px desc) ask for; icons at their own `scale_pct`

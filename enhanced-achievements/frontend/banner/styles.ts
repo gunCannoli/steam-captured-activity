@@ -44,41 +44,58 @@ export const BANNER_CSS = `
     padding: 4px 16px 4px 4px;
 }
 
-/* Entrance Animations */
-/* Steam no longer slides the window out (it is pinned), so the banner fades
-   itself: Steam fades out after 300 ms fade-in + --toast-duration, over 300 ms. */
-.ea-banner.ea-anim-fade, .ea-banner.ea-anim-slide, .ea-banner.ea-anim-up, .ea-banner.ea-anim-down {
-    animation-name: var(--ea-enter), ea-exit;
-    animation-duration: var(--ea-enter-ms), 300ms;
+/* Entrance and exit animations, independently settable (themes.md § animation).
+   Both run off the same two variables Steam gives us on the parent div:
+   --toast-duration is set by Steam (nToastDurationMS + z); our own fade/slide
+   timings are constants here, matching the pre-split defaults (400/350ms in,
+   300ms out) so an unchanged theme looks identical to before this fix. */
+.ea-banner {
+    animation-name: var(--ea-in-name, none), var(--ea-out-name, none);
+    animation-duration: var(--ea-in-ms, 0ms), var(--ea-out-ms, 0ms);
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in;
-    animation-delay: 0ms, calc(var(--toast-duration, 5000ms) + 300ms);
+    animation-delay: 0ms, calc(var(--toast-duration, 5000ms) + var(--ea-in-ms, 0ms) - var(--ea-out-ms, 0ms) + var(--ea-out-ms, 0ms));
     animation-fill-mode: both, forwards;
 }
-.ea-anim-fade  { --ea-enter: ea-anim-fade;  --ea-enter-ms: 400ms; }
-.ea-anim-slide { --ea-enter: ea-anim-slide; --ea-enter-ms: 350ms; }
-.ea-anim-up    { --ea-enter: ea-anim-up;    --ea-enter-ms: 350ms; }
-.ea-anim-down  { --ea-enter: ea-anim-down;  --ea-enter-ms: 350ms; }
-@keyframes ea-exit { to { opacity: 0; } }
+/* The delay above simplifies to --toast-duration + --ea-in-ms: the exit
+   should start once the toast has been fully visible for --toast-duration,
+   measured from when the entrance *finishes*, not from t=0. Keeping it spelled
+   with both terms documents that derivation instead of hiding it in one number. */
 
-@keyframes ea-anim-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+/* --- entrance (ea-in-*) --- */
+.ea-in-fade  { --ea-in-name: ea-in-fade;  --ea-in-ms: 400ms; }
+.ea-in-slide { --ea-in-name: ea-in-slide; --ea-in-ms: 350ms; }
+.ea-in-up    { --ea-in-name: ea-in-up;    --ea-in-ms: 350ms; }
+.ea-in-down  { --ea-in-name: ea-in-down;  --ea-in-ms: 350ms; }
+.ea-in-none  { --ea-in-name: none;        --ea-in-ms: 0ms; }
+/* ps5: slide in from the anchored screen edge + fade, direction from ea-pos-*. */
+.ea-in-ps5.ea-pos-top_right, .ea-in-ps5.ea-pos-bottom_right { --ea-in-name: ea-in-slide;      --ea-in-ms: 450ms; }
+.ea-in-ps5.ea-pos-top_left,  .ea-in-ps5.ea-pos-bottom_left  { --ea-in-name: ea-in-slide-left;  --ea-in-ms: 450ms; }
+.ea-in-ps5.ea-pos-top_center                                { --ea-in-name: ea-in-down;        --ea-in-ms: 450ms; }
+.ea-in-ps5.ea-pos-bottom_center                              { --ea-in-name: ea-in-up;          --ea-in-ms: 450ms; }
 
-@keyframes ea-anim-slide {
-    from { opacity: 0; transform: translateX(100%); }
-    to { opacity: 1; transform: translateX(0); }
-}
+/* --- exit (ea-out-*) --- */
+.ea-out-fade  { --ea-out-name: ea-out-fade;  --ea-out-ms: 300ms; }
+.ea-out-slide { --ea-out-name: ea-out-slide; --ea-out-ms: 300ms; }
+.ea-out-up    { --ea-out-name: ea-out-up;    --ea-out-ms: 300ms; }
+.ea-out-down  { --ea-out-name: ea-out-down;  --ea-out-ms: 300ms; }
+.ea-out-none  { --ea-out-name: none;         --ea-out-ms: 0ms; }
+.ea-out-ps5.ea-pos-top_right, .ea-out-ps5.ea-pos-bottom_right { --ea-out-name: ea-out-slide;      --ea-out-ms: 400ms; }
+.ea-out-ps5.ea-pos-top_left,  .ea-out-ps5.ea-pos-bottom_left  { --ea-out-name: ea-out-slide-left;  --ea-out-ms: 400ms; }
+.ea-out-ps5.ea-pos-top_center                                  { --ea-out-name: ea-out-up;          --ea-out-ms: 400ms; }
+.ea-out-ps5.ea-pos-bottom_center                                { --ea-out-name: ea-out-down;        --ea-out-ms: 400ms; }
 
-@keyframes ea-anim-up {
-    from { opacity: 0; transform: translateY(100%); }
-    to { opacity: 1; transform: translateY(0); }
-}
+@keyframes ea-in-fade  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ea-out-fade { from { opacity: 1; } to { opacity: 0; } }
 
-@keyframes ea-anim-down {
-    from { opacity: 0; transform: translateY(-100%); }
-    to { opacity: 1; transform: translateY(0); }
-}
+@keyframes ea-in-slide       { from { opacity: 0; transform: translateX(100%); }  to { opacity: 1; transform: translateX(0); } }
+@keyframes ea-in-slide-left  { from { opacity: 0; transform: translateX(-100%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ea-out-slide      { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
+@keyframes ea-out-slide-left { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-100%); } }
+
+@keyframes ea-in-up   { from { opacity: 0; transform: translateY(100%); }  to { opacity: 1; transform: translateY(0); } }
+@keyframes ea-out-up  { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(100%); } }
+@keyframes ea-in-down  { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ea-out-down { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-100%); } }
 
 /* Pulsing outline glow fade */
 @keyframes ea-pulse {
@@ -107,20 +124,26 @@ export const BANNER_CSS = `
     object-fit: contain;
 }
 
-/* PS5-Style Blurry Water Ripple */
+/* Water-ripple: starts as a ring collapsed onto the icon's own outline and
+   expands outward from there (like an object breaking the surface of water),
+   not a pre-inflated blurred disc drifting further away. Fixed-size ring
+   (inset: 0, same box as the icon) rather than a percentage inset, so it
+   always starts exactly at the icon's edge regardless of icon scale. */
 .ea-ripple {
     position: absolute;
-    inset: -35%;
+    inset: 0;
     border-radius: 50%;
-    background: radial-gradient(circle, transparent 40%, rgba(255, 255, 255, 0.35) 55%, rgba(255, 255, 255, 0.75) 70%, transparent 80%);
-    filter: blur(4px);
+    border: calc(1.5px * var(--ea-icon-scale, 1)) solid rgba(255, 255, 255, 0.85);
+    filter: blur(calc(0.65px * var(--ea-icon-scale, 1)));
     pointer-events: none;
+    transform: scale(1);
+    opacity: 0;
     animation: ea-ripple var(--ea-ripple) cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
 }
 @keyframes ea-ripple {
-    0% { transform: scale(0.6); opacity: 1; }
-    70% { opacity: 0.6; }
-    100% { transform: scale(1.8); opacity: 0; }
+    0%   { transform: scale(1);    opacity: 0.9; }
+    15%  { opacity: 0.7; }
+    100% { transform: scale(1.9);  opacity: 0; }
 }
 
 /* 3-Zone Flexbox Architecture */

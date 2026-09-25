@@ -394,6 +394,7 @@ queueing, timing, click-to-open and dismissal.
 | 7 | No imports across plugin folders | [plugins.md § Layout](../plugins.md#layout) |
 | 8 | Core regression pass with both plugins enabled | Routines 1–3 |
 | 9 | Capture RPCs only in timer callbacks, only when enabled; the hook does O(1) scheduling | The one scoped exception to guardrail 5 — the RPCs are the feature, opt-in and deferred. See [phase7-and-alpha-plan.md § A1.7](phase7-and-alpha-plan.md#a17-hook-point-no-new-hooks-no-polling) |
+| 10 | Toast queue state (`banner/queue.ts`) is a plain array, never a Steam API call; Steam's own popup timing is never delayed or held — only our own render output is | See [enhanced-achievements-animation-queue-improvements.md](enhanced-achievements-animation-queue-improvements.md) § 1.5 |
 
 ### Open decisions
 

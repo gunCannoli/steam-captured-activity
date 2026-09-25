@@ -17,8 +17,13 @@ export type ToastPosition = (typeof POSITIONS)[number];
 export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5', 'custom'] as const;
 export type Layout = (typeof LAYOUTS)[number];
 
-export const ANIMATIONS = ['slide', 'fade', 'up', 'down'] as const;
+export const ANIMATIONS = ['slide', 'fade', 'up', 'down', 'ps5', 'none'] as const;
 export type Animation = (typeof ANIMATIONS)[number];
+
+export interface AnimationPair {
+    in: Animation;
+    out: Animation;
+}
 
 export type FontStyle = 'bold' | 'regular' | 'italic';
 
@@ -93,7 +98,7 @@ export interface ResolvedTheme {
     position: ToastPosition;
     layout: Layout;
     customLayout?: CustomLayoutMap;
-    animation: Animation;
+    animation: AnimationPair;
     textAlign: TextAlign;
     /** `null` keeps Steam's own toast duration. */
     displayTimeMs: number | null;
@@ -311,6 +316,36 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: Te
 }
 
 /**
+ * `settings.animation` is a bare string (`"fade"`, both states use it), or
+ * `{ "in": ..., "out": ... }` for independent control. `"ps5"` is a preset
+ * (§ themes.md): entrance slides in from the anchor edge and fades, exit
+ * reverses it; its direction is resolved from `position` in CSS (banner
+ * geometry fix's approach of a static class name, not a runtime style), so
+ * `resolveAnimation` only validates the *name*, never the direction.
+ */
+function resolveAnimation(raw: unknown, warnings: string[]): AnimationPair {
+    const DEFAULT: AnimationPair = { in: 'slide', out: 'fade' };
+    if (raw === undefined) return DEFAULT;
+    if (typeof raw === 'string') {
+        const a = oneOf(raw, ANIMATIONS);
+        if (!a) {
+            warnings.push(`settings.animation "${raw}" is not supported; using slide in, fade out.`);
+            return DEFAULT;
+        }
+        return { in: a, out: a };
+    }
+    if (isObject(raw)) {
+        const inAnim = oneOf(raw.in, ANIMATIONS);
+        const outAnim = oneOf(raw.out, ANIMATIONS);
+        if (raw.in !== undefined && !inAnim) warnings.push(`settings.animation.in "${String(raw.in)}" is not supported; using slide.`);
+        if (raw.out !== undefined && !outAnim) warnings.push(`settings.animation.out "${String(raw.out)}" is not supported; using fade.`);
+        return { in: inAnim ?? DEFAULT.in, out: outAnim ?? DEFAULT.out };
+    }
+    warnings.push('settings.animation is not a string or {in, out} object; using slide in, fade out.');
+    return DEFAULT;
+}
+
+/**
  * Validate a parsed theme file and resolve all four tiers.
  *
  * Throws only when the file is unusable as a theme (no `themes.normal`); every
@@ -381,11 +416,13 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
         for (const slot of Object.values(t.icons)) if (typeof slot.source === 'string') assetPaths.add(slot.source);
     }
 
+    const animation = resolveAnimation(settings.animation, warnings);
+
     return {
         position: position ?? 'bottom_right',
         layout: layout ?? 'default_steam',
         customLayout,
-        animation: oneOf(settings.animation, ANIMATIONS) ?? 'slide',
+        animation,
         textAlign: themeTextAlign,
         displayTimeMs: num(settings.display_time_ms, 1000, 60_000) ?? null,
         tiers,

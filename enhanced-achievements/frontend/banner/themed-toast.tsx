@@ -1,4 +1,4 @@
-import React, { Component, useLayoutEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { IconsModule } from '@steambrew/client';
 import { logger } from '../logger';
 import { activeTheme } from '../theme/active-theme';
@@ -7,6 +7,7 @@ import { tierFor, type SteamNotification } from '../steam/notifications';
 import { BANNER_CSS } from './styles';
 import { bannerSize, placeBanner } from './geometry';
 import { pinToastWindow } from './window-pin';
+import { releaseTurn, requestTurn } from './queue';
 
 /**
  * The themed achievement banner, rendered in place of Steam's toast
@@ -98,6 +99,12 @@ function Banner({ toast }: { toast: ToastProps }) {
     const n = toast.group?.notifications?.[0];
     if (!loaded || !n) return <>{renderSteam(toast)}</>;
 
+    const [myTurn, setMyTurn] = useState(() =>
+        requestTurn(n.data, () => setMyTurn(true), () => logger.warn('Achievement toast queue full; showing out of turn.')),
+    );
+    useEffect(() => () => releaseTurn(n.data), [n.data]);
+    if (!myTurn) return null;
+
     const { theme, assets } = loaded;
     const tier: ResolvedTier = theme.tiers[tierFor(n)];
     const banner = tier.banner ?? tier.box;
@@ -145,6 +152,16 @@ function Banner({ toast }: { toast: ToastProps }) {
         // Pinned once per toast: a toast's theme does not change while it is shown.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        const el = rootRef.current;
+        if (!el) return undefined;
+        const onEnd = (e: AnimationEvent) => {
+            if (e.animationName.startsWith('ea-out-')) releaseTurn(n.data);
+        };
+        el.addEventListener('animationend', onEnd);
+        return () => el.removeEventListener('animationend', onEnd);
+    }, [n.data]);
 
     const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
 
@@ -289,7 +306,7 @@ function Banner({ toast }: { toast: ToastProps }) {
     return (
         <div
             ref={rootRef}
-            className={`ea-banner ea-layout-${theme.layout} ea-anim-${theme.animation} ea-tier-${tier.tier}${banner.glow.spread > 0 ? ' ea-glow' : ''}${banner.glow.pulseMs > 0 ? ' ea-pulse' : ''}`}
+            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}${banner.glow.spread > 0 ? ' ea-glow' : ''}${banner.glow.pulseMs > 0 ? ' ea-pulse' : ''}`}
             style={rootStyle}
             onClick={toast.onDismiss}
         >

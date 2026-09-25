@@ -25,7 +25,16 @@ Display behaviour for this theme's banners.
     - `"custom"`: Flexible anchor-based layout defined via the root `layout` mapping object.
 - **`position`**: Screen anchor: `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`.
 - **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
-- **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
+- **`animation`**: Entrance and exit transition. Either one name for both
+  (`"fade"` — the same as before), `"none"` (no animation for that state), or
+  independent control: `{"in": "slide", "out": "fade"}`. Default when omitted:
+  `{"in": "slide", "out": "fade"}`.
+    - `"slide"`, `"up"`, `"down"`: enter and exit both move (the exit is the
+      reverse motion of the entrance), not just fade.
+    - `"ps5"`: slides in from the screen edge the banner is anchored to (and
+      slides back out the same way) plus a fade, like a PS5 trophy popup.
+      `top_center`/`bottom_center` slide vertically instead, since they have
+      no horizontal edge to anchor to.
 - **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
 
 ---
@@ -107,7 +116,7 @@ Every slot takes `[source, scale_pct, ripple_ms]`, `[source, ripple_ms]`, or bar
     - `false`: hide the slot.
     - `"path"`: a custom `.png` or `.svg`.
 - **`scale_pct`**: icon scaling relative to standard bounds (`100` = 100%, `50` = half size).
-- **`ripple_ms`**: `0` is static; `> 0` loops an expanding blurry water-ripple ring behind the icon at that period (e.g. `2000` = 2-second pulse).
+- **`ripple_ms`**: `0` is static; `> 0` loops an expanding water-ripple ring behind the icon at that period (e.g. `2000` = 2-second pulse). The ring starts as a ring at the icon's own edge and expands outward (not a pre-inflated glow).
 
 Slots:
 

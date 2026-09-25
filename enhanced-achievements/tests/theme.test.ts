@@ -174,6 +174,36 @@ test('settings and tier text-align parse and inherit correctly', () => {
     assert.ok(t2.warnings.some((w) => w.includes('text_align')));
 });
 
+test('settings.animation: bare string sets both in and out', () => {
+    const t = resolveTheme({ settings: { animation: 'fade' }, themes: { normal: {} } });
+    assert.deepEqual(t.animation, { in: 'fade', out: 'fade' });
+});
+
+test('settings.animation: {in, out} object sets each independently', () => {
+    const t = resolveTheme({ settings: { animation: { in: 'ps5', out: 'fade' } }, themes: { normal: {} } });
+    assert.deepEqual(t.animation, { in: 'ps5', out: 'fade' });
+});
+
+test('settings.animation: missing keys in {in, out} fall back to the default per key', () => {
+    const t = resolveTheme({ settings: { animation: { in: 'up' } }, themes: { normal: {} } });
+    assert.deepEqual(t.animation, { in: 'up', out: 'fade' });
+});
+
+test('settings.animation: unsupported value warns and uses the default pair', () => {
+    const t1 = resolveTheme({ settings: { animation: 'bogus' }, themes: { normal: {} } });
+    assert.deepEqual(t1.animation, { in: 'slide', out: 'fade' });
+    assert.ok(t1.warnings.some((w) => w.includes('settings.animation')));
+
+    const t2 = resolveTheme({ settings: { animation: { in: 'bogus' } }, themes: { normal: {} } });
+    assert.deepEqual(t2.animation, { in: 'slide', out: 'fade' });
+    assert.ok(t2.warnings.some((w) => w.includes('settings.animation.in')));
+});
+
+test('settings.animation: no setting at all defaults to slide in, fade out', () => {
+    const t = resolveTheme({ themes: { normal: {} } });
+    assert.deepEqual(t.animation, { in: 'slide', out: 'fade' });
+});
+
 test('banner dimensions width and height parse and clamp', () => {
     const theme = resolveTheme({
         themes: {
