@@ -186,3 +186,45 @@ At the end of every session:
     git push origin main
     ```
     Don't wait to be asked.
+
+### Routine 6: No AI Attribution on Anything That Reaches `SteamClientHomebrew/Millennium`
+
+`SteamClientHomebrew/Millennium` (the upstream project — issues, PRs, the
+`gunCannoli/Millennium` fork used to open them) does not want Anthropic/Claude on
+its contributor list. **Any commit, PR branch, or PR/issue body destined for that
+repo must not contain:**
+
+- `Co-Authored-By: Claude ...` / `Co-Authored-By: ... @anthropic...` trailers
+- "🤖 Generated with [Claude Code]" or similar footers in PR/issue descriptions
+
+This repo (`millennium-plugins`, private) is exempt by default — its own history
+still carries `Co-Authored-By: Claude ...` trailers, which is fine here. Strip
+attribution only for content that leaves this repo: a PR opened against
+`SteamClientHomebrew/Millennium`, or a fork branch pushed for that purpose. Check
+before opening the PR, not after — a force-push to rewrite history once a commit
+is already linked from an issue/PR timeline is a partial fix at best. GitHub
+retains dangling commit objects by SHA (direct URL still resolves, and any
+existing issue "added a commit that references this issue" timeline entry keeps
+pointing at the old SHA) even after a force-push removes the commit from the
+branch; only a GitHub support ticket can purge it, and even that is not
+guaranteed quickly. So: get the message right before the first push, not after.
+
+If a cleanup is still needed:
+
+1. Identify every affected commit (`gh pr view <url> --json commits`, or `git log
+   --format='%H%n%B---END---' | grep -B5 -i 'co-authored-by.*claude\|generated with'`
+   for a broader sweep).
+2. Single commit on a PR branch: `git commit --amend` (keep the rest of the
+   message; drop only the attribution line/trailer), then
+   `git push --force-with-lease`.
+3. Multiple commits / full branch history: `git filter-branch -f --msg-filter
+   '<strip-script>' -- <branch>` (no file-content changes — message-only filter
+   keeps trees identical), verify with `git diff <old-ref> <branch> --stat` (must
+   be empty) and a grep for remaining mentions, then
+   `git push --force-with-lease` (or plain `--force` if lease rejects a stale
+   remote-tracking ref you've already confirmed is safe to overwrite).
+4. Always make a local backup ref/branch before rewriting (`git branch
+   backup-<name> HEAD`) and confirm the rewrite before force-pushing — this
+   changes every downstream SHA and is disruptive for any other clone.
+5. Update the PR/issue body itself separately (`gh pr edit <url> --body-file
+   ...`) — rewriting the commit does not touch the description text.
