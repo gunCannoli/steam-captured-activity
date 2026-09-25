@@ -7,8 +7,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- **The settings panel now warns and greys out when Steam's toast
+  notifications are off entirely** (Steam Settings -> Notifications),
+  reactively — the whole panel disables itself (checked every 2s while the
+  panel is open; cheap, no new webpack scan) as soon as it detects Steam's
+  toasts are off, and clears automatically once they're back on. Previously
+  this was a static one-line disclaimer shown regardless of relevance;
+  that's now replaced by this always-current state, hidden entirely when
+  toasts are on or when the state can't be detected on this Steam build.
+
 ### Changed
 
+- **Every settings-panel row now uses `bottomSeparator="none"` except the
+  last row in its group**, instead of each component's own default
+  separator/spacing. This fixes two things: the group header no longer sits
+  flush against the row above it (each group's gap now comes only from
+  `DialogControlsSection`'s own margin, not stacked with per-row spacing),
+  and every group's rows are now evenly spaced instead of some groups (e.g.
+  Screenshots & Recordings, mostly sliders) looking more spread out than
+  others (e.g. Theme, mostly buttons).
 - **The shipped default is now "Steam default" (`theme: ""`), not a bundled
   theme.** A fresh install shows Steam's own stock toast and chime until a
   theme is picked. The settings panel's Theme dropdown lists "Steam default"
@@ -43,7 +62,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Removed
 
-- **The Steam-toast-notifications-disabled disclaimer** in the settings panel.
+- **The static Steam-toast-notifications-disabled disclaimer** in the settings
+  panel (superseded by the reactive warning+greyout above — same information,
+  now only shown when actually relevant).
+- **The "no game is being recorded right now" capture status line.** It added
+  a `recordingDiagnostics()` call for information the settings panel doesn't
+  need to police; `recordingDiagnostics` remains exported for diagnostics/CDP
+  use.
 - **The "Test captures" button.** `fireTestUnlock`/`runningGameAppid` remain
   as exports for the live regression test (`tests/captures.mjs`); there is no
   longer a settings-panel control for it.

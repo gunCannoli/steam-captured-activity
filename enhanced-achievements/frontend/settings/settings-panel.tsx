@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, SliderField, ToggleField } from '@steambrew/client';
+import { ButtonItem, DialogBodyText, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, SliderField, ToggleField } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
 import { previewTier } from '../steam/notifications';
-import { recordingDiagnostics } from '../steam/recording';
+import { toastsEnabled } from '../steam/notification-settings';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
 import { TIERS, type Tier } from '../theme/theme';
 import { DEFAULTS, RANGES, resetSettings, setting, useSetting, type SettingKey } from './settings';
@@ -15,20 +15,36 @@ import { DEFAULTS, RANGES, resetSettings, setting, useSetting, type SettingKey }
  *
  * There is deliberately no theme builder: themes are hand-edited JSON files,
  * which is also what users share. Preview + Reload make that edit loop quick.
+ *
+ * Every row but the last in a group passes `bottomSeparator="none"`, matching
+ * how Steam's own settings pages space a group: one separator between rows,
+ * one gap between groups (DialogControlsSection's own margin) — instead of
+ * each component's own default, which was inconsistent from group to group.
  */
 
-function Toggle({ k, label, description, disabled }: { k: SettingKey; label: string; description?: string; disabled?: boolean }) {
+function Toggle({ k, label, description, disabled, last }: { k: SettingKey; label: string; description?: string; disabled?: boolean; last?: boolean }) {
     const [value, set] = useSetting(k);
-    return <ToggleField label={label} description={description} layout="below" checked={value as boolean} disabled={disabled} onChange={(v) => set(v as never)} />;
+    return (
+        <ToggleField
+            label={label}
+            description={description}
+            layout="below"
+            bottomSeparator={last ? 'standard' : 'none'}
+            checked={value as boolean}
+            disabled={disabled}
+            onChange={(v) => set(v as never)}
+        />
+    );
 }
 
-function Slider({ k, label, suffix, disabled }: { k: SettingKey; label: string; suffix: string; disabled?: boolean }) {
+function Slider({ k, label, suffix, disabled, last }: { k: SettingKey; label: string; suffix: string; disabled?: boolean; last?: boolean }) {
     const [value, set] = useSetting(k);
     const range = RANGES[k]!;
     return (
         <SliderField
             label={label}
             layout="below"
+            bottomSeparator={last ? 'standard' : 'none'}
             value={value as number}
             min={range.min}
             max={range.max}
@@ -42,7 +58,17 @@ function Slider({ k, label, suffix, disabled }: { k: SettingKey; label: string; 
     );
 }
 
-function ThemeSection() {
+/** Poll while the panel is mounted: cheap after the first call (notification-settings.ts caches the resolved store). */
+function usePanelDisabled(): boolean {
+    const [enabled, setEnabled] = useState(toastsEnabled());
+    useEffect(() => {
+        const id = setInterval(() => setEnabled(toastsEnabled()), 2000);
+        return () => clearInterval(id);
+    }, []);
+    return enabled === false;
+}
+
+function ThemeSection({ disabled }: { disabled: boolean }) {
     const [theme, setTheme] = useSetting('theme');
     const [themes, setThemes] = useState<ThemeEntry[]>([]);
     const [userDir, setUserDir] = useState('');
@@ -69,11 +95,22 @@ function ThemeSection() {
     return (
         <DialogControlsSection>
             <DialogControlsSectionHeader>Theme</DialogControlsSectionHeader>
-            <DropdownItem label="Theme" description={status} layout="below" rgOptions={options} selectedOption={theme} onChange={(o) => setTheme(o.data as string)} />
+            <DropdownItem
+                label="Theme"
+                description={status}
+                layout="below"
+                bottomSeparator="none"
+                disabled={disabled}
+                rgOptions={options}
+                selectedOption={theme}
+                onChange={(o) => setTheme(o.data as string)}
+            />
             <ButtonItem
                 label="Reload themes"
                 description="Pick up theme file edits without restarting Steam."
                 layout="below"
+                bottomSeparator="none"
+                disabled={disabled}
                 onClick={async () => {
                     await refresh();
                     await reloadTheme();
@@ -81,7 +118,13 @@ function ThemeSection() {
             >
                 Reload
             </ButtonItem>
-            <ButtonItem label="Open themes folder" description={userDir || 'Your themes, kept across plugin updates.'} layout="below" onClick={() => void rpc.openThemesFolder()}>
+            <ButtonItem
+                label="Open themes folder"
+                description={userDir || 'Your themes, kept across plugin updates.'}
+                layout="below"
+                disabled={disabled}
+                onClick={() => void rpc.openThemesFolder()}
+            >
                 Open
             </ButtonItem>
         </DialogControlsSection>
@@ -118,14 +161,22 @@ function tierRule(tier: Tier): string {
 }
 
 /** One row per tier: fires Steam's own test achievement with that tier forced. */
-function PreviewSection() {
+function PreviewSection({ disabled }: { disabled: boolean }) {
     const [, rerender] = useState(0);
     useEffect(() => onThemeChange(() => rerender((n) => n + 1)), []);
     return (
         <DialogControlsSection>
             <DialogControlsSectionHeader>Preview Achievements</DialogControlsSectionHeader>
-            {TIERS.map((tier) => (
-                <ButtonItem key={tier} label={TIER_LABELS[tier]} description={tierRule(tier)} layout="below" onClick={() => void previewTier(tier)}>
+            {TIERS.map((tier, i) => (
+                <ButtonItem
+                    key={tier}
+                    label={TIER_LABELS[tier]}
+                    description={tierRule(tier)}
+                    layout="below"
+                    bottomSeparator={i === TIERS.length - 1 ? 'standard' : 'none'}
+                    disabled={disabled}
+                    onClick={() => void previewTier(tier)}
+                >
                     Preview
                 </ButtonItem>
             ))}
@@ -144,45 +195,43 @@ function describeTheme(): string {
     return `Loaded "${loaded.name}"${warnings ? `, ${warnings} warning(s) in the log` : ''}.`;
 }
 
-/** Section description showing live capture diagnostics, computed once per render (no timer). */
-function captureStatus(): string {
-    const diag = recordingDiagnostics();
-    if (!diag.service) return "Game Recording API not found on this Steam build: captures are off.";
-    if (!diag.running.some((r) => r.recording)) return 'No game is being recorded right now.';
-    return `Recording ${diag.running.filter((r) => r.recording).length} game(s) now.`;
-}
-
-function CapturesSection() {
+function CapturesSection({ disabled }: { disabled: boolean }) {
     const [screenshotOn] = useSetting('screenshot.enabled');
     const [clipOn] = useSetting('recording.enabled');
-    const [status] = useState(captureStatus());
 
     return (
         <DialogControlsSection>
             <DialogControlsSectionHeader>Screenshots &amp; Recordings</DialogControlsSectionHeader>
-            <div>{status}</div>
-            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description="Needs Game Recording on." />
-            <Slider k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={!screenshotOn} />
-            <Toggle k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds." />
-            <Slider k="recording.duration_s" label="Clip length" suffix=" s" disabled={!clipOn} />
-            <Slider k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={!clipOn} />
-            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description="Non-Steam games only." />
+            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description="Needs Game Recording on." disabled={disabled} />
+            <Slider k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={disabled || !screenshotOn} />
+            <Toggle k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds." disabled={disabled} />
+            <Slider k="recording.duration_s" label="Clip length" suffix=" s" disabled={disabled || !clipOn} />
+            <Slider k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={disabled || !clipOn} />
+            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description="Non-Steam games only." last disabled={disabled} />
         </DialogControlsSection>
     );
 }
 
 export function SettingsPanel() {
+    const disabled = usePanelDisabled();
+
     return (
         <>
-            <ThemeSection />
-            <PreviewSection />
+            {disabled && (
+                <DialogBodyText>
+                    Steam's toast notifications are off, so this plugin cannot trigger anything. Turn them on in Steam
+                    Settings -&gt; Notifications.
+                </DialogBodyText>
+            )}
+            <ThemeSection disabled={disabled} />
+            <PreviewSection disabled={disabled} />
             <DialogControlsSection>
                 <DialogControlsSectionHeader>General</DialogControlsSectionHeader>
-                <Toggle k="queue.enabled" label="Achievement queue" description="One banner at a time instead of Steam's stacking." />
+                <Toggle k="queue.enabled" label="Achievement queue" description="One banner at a time instead of Steam's stacking." last disabled={disabled} />
             </DialogControlsSection>
-            <CapturesSection />
+            <CapturesSection disabled={disabled} />
             <DialogControlsSection>
-                <ButtonItem label="Reset to defaults" description="Clear every changed setting." layout="below" onClick={() => void resetSettings()}>
+                <ButtonItem label="Reset to defaults" description="Clear every changed setting." layout="below" disabled={disabled} onClick={() => void resetSettings()}>
                     Reset
                 </ButtonItem>
             </DialogControlsSection>
