@@ -10,7 +10,9 @@
 export const BANNER_CSS = `
 .ea-banner {
     position: absolute;
-    inset: var(--ea-margin-y, 0px) var(--ea-margin-x, 0px);
+    inset: 0;
+    width: 100%;
+    height: 100%;
     z-index: 1;
     display: flex;
     align-items: center;
@@ -22,8 +24,6 @@ export const BANNER_CSS = `
     cursor: pointer;
     user-select: none;
     container-type: size;
-    transform-origin: top right;
-    transform: scale(var(--ea-scale-x, 1), var(--ea-scale-y, 1));
 }
 
 /* Exterior outline glow */
@@ -41,13 +41,13 @@ export const BANNER_CSS = `
 
 /* Entrance Animations */
 .ea-anim-slide { animation: ea-enter 300ms ease-out both; --ea-from: translateX(100%); }
-.ea-anim-fade  { animation: ea-enter 300ms ease-out both; --ea-from: none; }
+.ea-anim-fade  { animation: ea-enter 300ms ease-out both; --ea-from: translateY(0); }
 .ea-anim-up    { animation: ea-enter 300ms ease-out both; --ea-from: translateY(100%); }
 .ea-anim-down  { animation: ea-enter 300ms ease-out both; --ea-from: translateY(-100%); }
 
 @keyframes ea-enter {
-    from { opacity: 0; transform: var(--ea-from) scale(var(--ea-scale-x, 1), var(--ea-scale-y, 1)); }
-    to { opacity: 1; transform: none scale(var(--ea-scale-x, 1), var(--ea-scale-y, 1)); }
+    from { opacity: 0; transform: var(--ea-from, translate(0, 0)); }
+    to { opacity: 1; transform: translate(0, 0); }
 }
 
 /* Pulsing outline glow fade */

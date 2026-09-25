@@ -3,6 +3,7 @@ import { setting, onSettingChange } from '../settings/settings';
 import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
 import { completesGame, selectTier, type Tier } from '../theme/theme';
 import { onUnlock, suppressNextCaptures } from '../capture/captures';
+import { findExports } from './webpack';
 
 /**
  * Hooks into Steam's NotificationStore: the achievement sound, the toast
@@ -96,14 +97,15 @@ export function tierFor(n: SteamNotification): Tier {
 
     let tier: Tier = 'normal';
     try {
-        if (forced && Date.now() < forced.until) {
+        if (n.data.achievement_id?.() === 'EA_100_PERCENT') {
+            tier = 'exceptional';
+        } else if (forced && Date.now() < forced.until) {
             tier = forced.tier;
         } else {
             const theme = activeTheme()?.theme;
             if (theme) {
-                const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
-                const progress = cache?.m_achievementProgress?.mapCache?.get(n.data.appid());
-                tier = selectTier(theme, { globalPct: n.data.global_achieved_pct(), completesGame: completesGame(progress) });
+                // Real achievement unlocks are evaluated for their own tier (normal, magic, rare)
+                tier = selectTier(theme, { globalPct: n.data.global_achieved_pct(), completesGame: false });
             }
         }
     } catch (error) {
@@ -136,7 +138,24 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         // read a type's config (ours, enhanced-notifications') pass through.
         if (this !== owner) return original.call(this, n);
         try {
-            if (isAchievementUnlock(n)) onUnlock(n, tierFor(n));
+            if (isAchievementUnlock(n)) {
+                applyPosition();
+                const tier = tierFor(n);
+                onUnlock(n, tier);
+
+                // If this is a real unlock (not the synthetic platinum itself) and it completes the game,
+                // schedule the synthetic 100% completion toast right after.
+                if (n.data.achievement_id?.() !== 'EA_100_PERCENT') {
+                    const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
+                    const progress = cache?.m_achievementProgress?.mapCache?.get(n.data.appid());
+                    if (completesGame(progress)) {
+                        const appid = n.data.appid();
+                        setTimeout(() => {
+                            fireExceptionalCompletionToast(appid);
+                        }, 1500);
+                    }
+                }
+            }
         } catch (error) {
             logger.warn('Capture scheduling failed; continuing.', error);
         }
@@ -216,20 +235,111 @@ function applyDuration(): void {
     achievementConfig.toastDurationMS = themed ?? originalDurationMs;
 }
 
+interface ActiveWindowInstance {
+    NotificationPosition?: unknown;
+    SetNotificationPosition?(position: number, horizontalInset: number, verticalInset: number): void;
+}
+
+let activeWindowInstance: ActiveWindowInstance | null | undefined;
+
+function getActiveWindowInstance(): ActiveWindowInstance | null {
+    if (activeWindowInstance !== undefined) return activeWindowInstance;
+    activeWindowInstance = null;
+    try {
+        const hits = findExports(
+            (src) => src.includes('ActiveWindowInstance') && src.includes('m_GamepadUIAudioStore'),
+            (val) => !!val && typeof (val as Record<string, unknown>).ActiveWindowInstance === 'object',
+        );
+        const manager = hits[0] as { ActiveWindowInstance?: ActiveWindowInstance } | undefined;
+        if (manager?.ActiveWindowInstance) {
+            activeWindowInstance = manager.ActiveWindowInstance;
+        }
+    } catch (e) {
+        logger.warn('Could not discover Steam ActiveWindowInstance:', e);
+    }
+    return activeWindowInstance;
+}
+
+const POSITION_ENUM: Record<string, number> = {
+    topleft: 0,
+    topright: 1,
+    bottomleft: 2,
+    bottomright: 3,
+    topcenter: 1,
+    bottomcenter: 3,
+};
+
+export function applyPosition(): void {
+    const theme = activeTheme()?.theme;
+    if (!theme) return;
+    const pos = theme.position ?? 'bottomright';
+    const enumVal = POSITION_ENUM[pos] ?? 3;
+    const banner = theme.tiers.normal.banner ?? theme.tiers.normal.box;
+    const marginX = banner.margin?.[1] ?? 0;
+    const marginY = banner.margin?.[0] ?? 0;
+    try {
+        const inst = getActiveWindowInstance();
+        inst?.SetNotificationPosition?.(enumVal, marginX, marginY);
+    } catch (e) {
+        logger.warn('Could not apply notification position to Steam:', e);
+    }
+}
+
 // --- preview ------------------------------------------------------------------
 
 /** Fire Steam's own test toast with the given tier forced (settings panel "Preview"). */
 export async function previewTier(tier: Tier): Promise<void> {
     if (!store) return;
+    applyPosition();
     const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
     // Any owned game with achievements gives a real achievement image; 480 (Spacewar) makes one up.
     const appid = cache?.m_achievementProgress?.mapCache?.keys().next().value ?? 480;
-    forced = { tier, until: Date.now() + 10_000 };
+
     // Previews must never trigger a real capture (A2.4), same pattern as `forced`.
     suppressNextCaptures(10_000);
     // A click is a user gesture: unlock audio so the preview can play the theme's sound.
     void audio().resume();
+
+    if (tier === 'exceptional') {
+        fireExceptionalCompletionToast(appid);
+        return;
+    }
+
+    forced = { tier, until: Date.now() + 10_000 };
     await store.TestAchievement(appid);
+}
+
+/**
+ * Fire synthetic 100% completion (Platinum) notification.
+ * Steam has no native 100% completion achievement, so the plugin synthesizes
+ * this toast when all achievements in a game have been unlocked.
+ */
+export function fireExceptionalCompletionToast(appid: number): boolean {
+    if (!store || !achievementConfig?.proto) return false;
+    try {
+        applyPosition();
+        const theme = activeTheme()?.theme;
+        const exceptional = theme?.tiers.exceptional;
+        const title = exceptional?.text.titleText || '100% Complete';
+        const desc = exceptional?.text.descText || "You've unlocked all achievements!";
+        const nowS = Math.floor(Date.now() / 1000);
+        const msg = achievementConfig.proto.fromObject({
+            appid,
+            achievement_id: 'EA_100_PERCENT',
+            name: title,
+            description: desc,
+            achieved: true,
+            global_achieved_pct: 0,
+            rtime_unlocked: nowS,
+        });
+        const id = typeof store.m_nNextTestNotificationID === 'number' ? store.m_nNextTestNotificationID++ : Date.now() & 0x7fffffff;
+        if (achievementType === null) return false;
+        store.OnNotification(id, achievementType, msg.serializeBinary());
+        return true;
+    } catch (error) {
+        logger.warn('Could not fire 100% completion toast.', error);
+        return false;
+    }
 }
 
 /**
@@ -241,6 +351,7 @@ export async function previewTier(tier: Tier): Promise<void> {
 export function fireTestUnlock(appid: number, name: string): boolean {
     if (!store || !achievementConfig?.proto) return false;
     try {
+        applyPosition();
         const nowS = Math.floor(Date.now() / 1000);
         const msg = achievementConfig.proto.fromObject({
             appid,
@@ -281,8 +392,17 @@ export function initNotifications(): boolean {
 
     installSoundHook(p, candidate);
     applyDuration();
-    onThemeChange(applyDuration);
-    onSettingChange((key) => key === 'banner.enabled' && applyDuration());
+    applyPosition();
+    onThemeChange(() => {
+        applyDuration();
+        applyPosition();
+    });
+    onSettingChange((key) => {
+        if (key === 'banner.enabled') {
+            applyDuration();
+            applyPosition();
+        }
+    });
     logger.info(`Notification hooks installed (achievement eType ${achievementType}).`);
     return true;
 }

@@ -103,7 +103,6 @@ test('layout: ps5 preset sets authentic anchors', () => {
         achievement: 'left',
         system: 'right',
         rarity: 'title_left',
-        exceptional: 'title_left',
         text: 'center',
     });
 });
@@ -115,7 +114,7 @@ test('layout: custom maps arbitrary anchors', () => {
             achievement: 'left',
             system: 'right',
             rarity: 'title_left',
-            exceptional: 'title_right',
+            text: 'achievement_left',
         },
         themes: { normal: {} },
     });
@@ -123,7 +122,31 @@ test('layout: custom maps arbitrary anchors', () => {
     assert.equal(theme.customLayout?.achievement, 'left');
     assert.equal(theme.customLayout?.system, 'right');
     assert.equal(theme.customLayout?.rarity, 'title_left');
-    assert.equal(theme.customLayout?.exceptional, 'title_right');
+    assert.equal(theme.customLayout?.text, 'achievement_left');
+});
+
+test('settings: position parses supported values and falls back', () => {
+    const t1 = resolveTheme({ settings: { position: 'topright' }, themes: { normal: {} } });
+    assert.equal(t1.position, 'topright');
+    const t2 = resolveTheme({ settings: { position: 'invalid' }, themes: { normal: {} } });
+    assert.equal(t2.position, 'bottomright');
+    assert.ok(t2.warnings.some((w) => w.includes('settings.position')));
+});
+
+test('exceptional text parses custom title and desc strings', () => {
+    const theme = resolveTheme({
+        themes: {
+            normal: {},
+            exceptional: {
+                text: {
+                    title: '100% Complete',
+                    desc: "You've unlocked all achievements!",
+                },
+            },
+        },
+    });
+    assert.equal(theme.tiers.exceptional.text.titleText, '100% Complete');
+    assert.equal(theme.tiers.exceptional.text.descText, "You've unlocked all achievements!");
 });
 
 test('invalid fields fall back to defaults instead of throwing', () => {

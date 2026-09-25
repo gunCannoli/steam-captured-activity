@@ -11,6 +11,9 @@
 export const TIERS = ['normal', 'magic', 'rare', 'exceptional'] as const;
 export type Tier = (typeof TIERS)[number];
 
+export const POSITIONS = ['topright', 'topleft', 'bottomright', 'bottomleft', 'topcenter', 'bottomcenter'] as const;
+export type ToastPosition = (typeof POSITIONS)[number];
+
 export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5', 'custom'] as const;
 export type Layout = (typeof LAYOUTS)[number];
 
@@ -54,7 +57,6 @@ export interface CustomLayoutMap {
     achievement?: AnchorPosition;
     system?: AnchorPosition;
     rarity?: AnchorPosition;
-    exceptional?: AnchorPosition;
     text?: AnchorPosition;
 }
 
@@ -76,13 +78,14 @@ export interface ResolvedTier {
     banner: BannerStyle;
     /** Backward compatibility alias for banner. */
     box: BannerStyle;
-    text: { title: TextStyle; desc: TextStyle };
-    icons: { achievement: IconSlot; system: IconSlot; rarity: IconSlot; exceptional: IconSlot };
+    text: { title: TextStyle; desc: TextStyle; titleText?: string; descText?: string };
+    icons: { achievement: IconSlot; system: IconSlot; rarity: IconSlot };
     /** `null` keeps Steam's own chime. */
     sound: SoundSpec | null;
 }
 
 export interface ResolvedTheme {
+    position: ToastPosition;
     layout: Layout;
     customLayout?: CustomLayoutMap;
     animation: Animation;
@@ -118,7 +121,6 @@ const DEFAULT_TIER: Omit<ResolvedTier, 'tier' | 'threshold'> = {
         achievement: { source: true, scalePct: 100, rippleMs: 0 },
         system: { source: false, scalePct: 100, rippleMs: 0 },
         rarity: { source: false, scalePct: 100, rippleMs: 0 },
-        exceptional: { source: false, scalePct: 100, rippleMs: 0 },
     },
     sound: null,
 };
@@ -254,6 +256,26 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
         },
     };
 
+    let titleText: string | undefined = undefined;
+    let descText: string | undefined = undefined;
+
+    if (typeof text.title === 'string' && text.title.trim()) {
+        titleText = text.title.trim();
+    } else if (typeof text.title_text === 'string' && text.title_text.trim()) {
+        titleText = text.title_text.trim();
+    }
+
+    if (typeof text.desc === 'string' && text.desc.trim()) {
+        descText = text.desc.trim();
+    } else if (typeof text.desc_text === 'string' && text.desc_text.trim()) {
+        descText = text.desc_text.trim();
+    }
+
+    if (tier === 'exceptional') {
+        if (!titleText) titleText = '100% Complete';
+        if (!descText) descText = "You've unlocked all achievements!";
+    }
+
     return {
         tier,
         threshold: tier === 'magic' || tier === 'rare' ? (num(raw.threshold, 0, 100) ?? null) : null,
@@ -262,12 +284,13 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
         text: {
             title: textStyle(text.title, d.text.title),
             desc: textStyle(text.desc, d.text.desc),
+            titleText,
+            descText,
         },
         icons: {
             achievement: iconSlot(icons.achievement, d.icons.achievement),
             system: iconSlot(icons.system, d.icons.system),
             rarity: iconSlot(icons.rarity, d.icons.rarity),
-            exceptional: iconSlot(icons.exceptional, d.icons.exceptional),
         },
         sound,
     };
@@ -298,6 +321,12 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
         tiers[tier] = resolveTier(tier, merged, warnings);
     }
 
+    let position = oneOf(settings.position, POSITIONS);
+    if (settings.position !== undefined && !position) {
+        warnings.push(`settings.position "${String(settings.position)}" is not supported; using bottomright.`);
+        position = 'bottomright';
+    }
+
     let layout = oneOf(settings.layout, LAYOUTS);
     if (settings.layout !== undefined && !layout) {
         warnings.push(`settings.layout "${String(settings.layout)}" is not supported; using default_steam.`);
@@ -310,7 +339,6 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
             achievement: 'left',
             system: 'right',
             rarity: 'title_left',
-            exceptional: 'title_left',
             text: 'center',
         };
     } else if (layout === 'custom' || isObject(raw.layout)) {
@@ -322,7 +350,6 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
             achievement: oneOf(rawMap.achievement, validAnchors) ?? 'left',
             system: oneOf(rawMap.system, validAnchors) ?? 'right',
             rarity: oneOf(rawMap.rarity, validAnchors) ?? 'title_left',
-            exceptional: oneOf(rawMap.exceptional, validAnchors) ?? 'title_left',
             text: oneOf(rawMap.text, validAnchors) ?? 'center',
         };
     }
@@ -334,6 +361,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     }
 
     return {
+        position: position ?? 'bottomright',
         layout: layout ?? 'default_steam',
         customLayout,
         animation: oneOf(settings.animation, ANIMATIONS) ?? 'slide',

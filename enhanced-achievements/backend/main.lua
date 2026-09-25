@@ -120,13 +120,13 @@ LoadAssets = method("LoadAssets", function(data)
       local path = is_absolute(rel) and rel or fs.join(dir, rel)
       local mime = MIME[(fs.extension(path):sub(2)):lower()]
       if not mime then
-        logger:info("asset type not allowed: " .. rel)
+        logger:warn("asset type not allowed: " .. rel)
         out[rel] = false
       elseif not fs.is_file(path) then
-        logger:info("asset not found: " .. path)
+        logger:warn("asset not found: " .. path)
         out[rel] = false
       elseif (fs.file_size(path) or 0) > MAX_ASSET_BYTES then
-        logger:info("asset too large (> 8 MB): " .. path)
+        logger:warn("asset too large (> 8 MB): " .. path)
         out[rel] = false
       else
         out[rel] = "data:" .. mime .. ";base64," .. utils.base64_encode(utils.read_file(path))

@@ -23,8 +23,7 @@ Display behaviour for this theme's banners.
     - `"default_system_right"`: Achievement icon on the left, text in the middle, system icon pinned to the right edge.
     - `"compact_pill"`: Slim horizontal bar with icon and title.
     - `"custom"`: Flexible anchor-based layout defined via the root `layout` mapping object.
-- **`position`**: Screen anchor: `"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`.
-  *Note:* Steam places the toast window itself from its notification position setting (Steam Settings → Notifications).
+- **`position`**: Screen anchor: `"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`.
 - **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
 - **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
 
@@ -55,11 +54,10 @@ One visual and audio profile per rarity tier.
 - **`normal`** (Bronze): the base tier. Every key defined here is the fallback for the other tiers.
 - **`magic`** (Silver): used when the achievement's global unlock rate is ≤ `magic.threshold`.
 - **`rare`** (Gold): used when the global unlock rate is ≤ `rare.threshold`.
-- **`exceptional`** (Platinum): used when the unlock brings the game to 100% completion.
+- **`exceptional`** (Platinum): synthesized 100% completion banner triggered right after the final achievement in a game is unlocked (acting as a "fake platinum trophy", since Steam has no native 100% completion achievement).
 
-Tier selection, first match wins: `exceptional` → `rare` → `magic` → `normal`.
-When Steam gives no global unlock rate (common for non-Steam games), the tier is
-`normal` unless the unlock completes the game.
+Tier selection for real unlocks: `rare` → `magic` → `normal`. When the unlock completes the game, the real unlock fires first with its own rarity tier, followed 1.5s later by the synthetic `exceptional` banner.
+When Steam gives no global unlock rate (common for non-Steam games), the tier is `normal`.
 
 > **Inheritance:** `magic`, `rare` and `exceptional` only list what differs from
 > `normal`. Objects merge key by key; tuples and arrays are replaced whole.
@@ -92,9 +90,10 @@ Colours accept `#rgb`, `#rrggbb` and `#rrggbbaa`.
 
 ### `text`
 
-- **`title`** and **`desc`**: `["#hex", size_pct, style]`
+- **`title`** and **`desc`**: `["#hex", size_pct, style]` or custom string overrides.
     - `size_pct`: relative to the base font size (`100` = base, `120` = 20% larger).
     - `style`: `"bold"`, `"regular"` or `"italic"`.
+    - Custom strings: In `exceptional` (or any tier), `"title": "100% Complete"` and `"desc": "You've unlocked all achievements!"` specify the exact headline and subtitle text.
 
 ### `icons`
 
@@ -109,10 +108,9 @@ Every slot takes `[source, scale_pct, ripple_ms]`, `[source, ripple_ms]`, or bar
 
 Slots:
 
-- **`achievement`**: the achievement's own artwork.
+- **`achievement`**: the achievement's own artwork. In `exceptional`, can specify a custom game completion badge/icon image.
 - **`system`**: platform logo (Steam, PlayStation, …).
-- **`rarity`**: tier emblem (bronze, silver, gold, 100% badge).
-- **`exceptional`**: extra badge shown only on 100% completion.
+- **`rarity`**: tier emblem (bronze, silver, gold, or the Platinum 100% completion badge).
 
 ### `sound`
 

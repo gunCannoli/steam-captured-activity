@@ -1,4 +1,4 @@
-import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
 import { IconsModule } from '@steambrew/client';
 import { logger } from '../logger';
 import { activeTheme } from '../theme/active-theme';
@@ -127,7 +127,41 @@ function Banner({ toast }: { toast: ToastProps }) {
         borderRadius: `${banner.border.radius}px`,
     } as React.CSSProperties;
 
+    const rootRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const targetWindow = (rootRef.current?.ownerDocument?.defaultView as (Window & typeof globalThis) | null) || (typeof window !== 'undefined' ? window : null);
+        if (!targetWindow || !targetWindow.SteamClient?.Window) return;
+        try {
+            const w = targetWindow.SteamClient.Window;
+            const sx = (banner.scale?.[0] ?? 100) / 100;
+            const sy = (banner.scale?.[1] ?? 100) / 100;
+            const baseW = 283;
+            const baseH = 70;
+            const targetW = Math.round(baseW * sx);
+            const targetH = Math.round(baseH * sy);
+
+            w.ResizeTo(targetW, targetH, true);
+
+            const pos = theme.position ?? 'bottomright';
+            if (pos === 'topcenter' || pos === 'bottomcenter') {
+                const marginY = banner.margin?.[0] ?? 0;
+                const availW = targetWindow.screen.availWidth;
+                const availH = targetWindow.screen.availHeight;
+                const targetX = Math.round((availW - targetW) / 2);
+                const targetY = pos === 'topcenter' ? marginY : availH - targetH - marginY;
+                (w.MoveTo as (x: number, y: number, dpi?: boolean | number) => void)(targetX, targetY, true);
+            }
+        } catch (e) {
+            logger.warn('Could not position/resize toast window:', e);
+        }
+    }, [banner.scale, banner.margin, theme.position]);
+
     const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
+
+    const isExceptional = tier.tier === 'exceptional';
+    const displayTitle = (isExceptional && tier.text.titleText) || data.name();
+    const displayDesc = (isExceptional && tier.text.descText) || data.description();
 
     const titleStyle = {
         color: text.title.color,
@@ -142,10 +176,15 @@ function Banner({ toast }: { toast: ToastProps }) {
     } as React.CSSProperties;
 
     // Elements
+    const achievementUrl =
+        isExceptional && typeof icons.achievement.source === 'string'
+            ? (assets.get(icons.achievement.source) ?? null)
+            : iconUrl(icons.achievement, data.image_url() || null, assets);
+
     const AchievementIcon = (className = 'ea-achievement') => (
         <Icon
             key="achievement"
-            url={iconUrl(icons.achievement, data.image_url() || null, assets)}
+            url={achievementUrl}
             scalePct={icons.achievement.scalePct}
             rippleMs={icons.achievement.rippleMs}
             className={className}
@@ -173,17 +212,6 @@ function Banner({ toast }: { toast: ToastProps }) {
         />
     );
 
-    const ExceptionalIcon = (className = 'ea-exceptional') =>
-        tier.tier === 'exceptional' ? (
-            <Icon
-                key="exceptional"
-                url={iconUrl(icons.exceptional, null, assets)}
-                scalePct={icons.exceptional.scalePct}
-                rippleMs={icons.exceptional.rippleMs}
-                className={className}
-            />
-        ) : null;
-
     // Render by layout mode
     let content: ReactNode = null;
 
@@ -194,14 +222,13 @@ function Banner({ toast }: { toast: ToastProps }) {
                 <div className="ea-zone-center">
                     <div className="ea-row-title">
                         {RarityIcon('ea-anchored-icon ea-rarity')}
-                        {ExceptionalIcon('ea-anchored-icon ea-exceptional')}
                         <div className="ea-title" style={titleStyle}>
-                            {data.name()}
+                            {displayTitle}
                         </div>
                     </div>
                     <div className="ea-row-desc">
                         <div className="ea-desc" style={descStyle}>
-                            {data.description()}
+                            {displayDesc}
                         </div>
                     </div>
                 </div>
@@ -214,7 +241,6 @@ function Banner({ toast }: { toast: ToastProps }) {
             const list: ReactNode[] = [];
             if (cl.achievement === pos) list.push(AchievementIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-achievement' : 'ea-achievement'));
             if (cl.rarity === pos) list.push(RarityIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-rarity' : 'ea-rarity'));
-            if (cl.exceptional === pos) list.push(ExceptionalIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-exceptional' : 'ea-exceptional'));
             if (cl.system === pos) list.push(SystemIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-system' : 'ea-system'));
             return list;
         };
@@ -229,14 +255,14 @@ function Banner({ toast }: { toast: ToastProps }) {
                     <div className="ea-row-title">
                         {inSlot('title_left')}
                         <div className="ea-title" style={titleStyle}>
-                            {data.name()}
+                            {displayTitle}
                         </div>
                         {inSlot('title_right')}
                     </div>
                     <div className="ea-row-desc">
                         {inSlot('desc_left')}
                         <div className="ea-desc" style={descStyle}>
-                            {data.description()}
+                            {displayDesc}
                         </div>
                         {inSlot('desc_right')}
                     </div>
@@ -255,16 +281,15 @@ function Banner({ toast }: { toast: ToastProps }) {
                 {AchievementIcon()}
                 <div className="ea-text">
                     <div className="ea-title" style={titleStyle}>
-                        {data.name()}
+                        {displayTitle}
                     </div>
                     {theme.layout !== 'compact_pill' && (
                         <div className="ea-desc" style={descStyle}>
-                            {data.description()}
+                            {displayDesc}
                         </div>
                     )}
                 </div>
                 <div className="ea-badges">
-                    {ExceptionalIcon()}
                     {RarityIcon()}
                     {showSystem && SystemIcon()}
                 </div>
@@ -274,6 +299,7 @@ function Banner({ toast }: { toast: ToastProps }) {
 
     return (
         <div
+            ref={rootRef}
             className={`ea-banner ea-layout-${theme.layout} ea-anim-${theme.animation} ea-tier-${tier.tier}${banner.glow.spread > 0 ? ' ea-glow' : ''}${banner.glow.pulseMs > 0 ? ' ea-pulse' : ''}`}
             style={rootStyle}
             onClick={toast.onDismiss}

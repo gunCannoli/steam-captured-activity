@@ -58,7 +58,11 @@
             },
             "icons": {
                 "rarity": ["assets/trophy_platinum.svg", 100, 0],
-                "exceptional": ["assets/trophy_platinum.svg", 100, 0]
+                "achievement": ["assets/trophy_platinum.svg", 100, 0]
+            },
+            "text": {
+                "title": "100% Complete",
+                "desc": "You've unlocked all achievements!"
             }
         }
     }

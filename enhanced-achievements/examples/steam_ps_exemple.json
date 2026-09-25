@@ -57,7 +57,11 @@
             },
             "icons": {
                 "rarity": ["assets/steam_100_game-badge.png", 100, 0],
-                "exceptional": ["assets/trophy_platinum.svg", 100, 0]
+                "achievement": ["assets/steam_exceptional.png", 100, 0]
+            },
+            "text": {
+                "title": "100% Complete",
+                "desc": "You've unlocked all achievements!"
             },
             "sound": ["assets/platinum-trophy-ps5.mp3", 50]
         }
