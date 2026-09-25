@@ -9,6 +9,17 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`enhanced-achievements` banner geometry: smoke-test findings and fix plan (docs only)**: the user's alpha smoke test (2026-09-25) reported 5 bugs: `scale` scales the content, a scaled banner leaves the screen, `topright` should be `top_right`, the position flickers, and `margin` does not offset from the anchor. Only `enhanced-achievements-dev` is now deployed (the release copy was removed). Live CDP root causes:
+  - Steam's desktop toast stack (rAF loop, fade-in/out `W=U=300` ms, fixed width `H=283`) calls `MoveTo(x, y, m_flDPI)` on each toast popup every animation frame, caching only its own last position.
+  - EA's timer `MoveTo`s (0/100/300 ms) race it. Captured: EA and Steam both wrote at t=502 ms, so the last write wins, and the fade-out always returns the window to Steam's corner.
+  - EA passes `true` where Steam passes the DPI, so its CSS-px coordinates land as physical px.
+  - `applyPosition()` rewrites Steam's global `SetNotificationPosition` for every toast, and live it still read bottom-right with 0 inset.
+  - A `24cqh` clamp rendered a 16.8 px title at 9.9 px, so text tracked the box height.
+
+  The earlier "verified" positioning entries (below) came from single toasts, which cannot show the race.
+
+  Plan: [enhanced-achievements-banner-geometry-fix.md](docs/plans/enhanced-achievements-banner-geometry-fix.md). It pins **that popup's own** `SteamClient.Window.MoveTo` (own, writable; verified) in `useLayoutEffect`, before Steam's first move. It adds pure `placeBanner`/`bannerSize` with clamping and stack slots, sizes content from the unscaled base, adds snake_case positions and `text_align` (legacy spellings warn), and deletes `applyPosition`. Phases 1–2 dry-run: `npm test` 34 → 41 PASS.
+
 - **`steam-cartridges` parity plan, Part F controller addendum (docs only, ADR-0038 addendum)**: user decision 2026-09-25 answers § 12 Q2. Full Controller Support = Steam Store data > emulator inference (new `emulator_controllers.lua` table from the machine's RetroArch cores/info: consoles yes, DOS/ScummVM/PC-88/PC-98 no, unknown not inferred) > new setting `defaultFullController` (off, `ToggleField` row) > none; local/IGDB `full_controller` (hard-coded true) is no longer data. Found: `is_emulator` misses every RetroArch shortcut (Exe holds the full command); Step 37a fixes it via `program()`. Dry run: all 49 file steps and hashes match, `tsc` clean, `test:ts` 50/50, Lua 71 + 86 + 25, build OK. [Plan § 5b](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app).
 
 - **`enhanced-achievements` theme sizing, unclipped PS5 layout, fade animation, and text alignment**:

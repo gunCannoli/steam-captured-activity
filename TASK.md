@@ -19,12 +19,37 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Alpha — banner, sound, tiers, PS5 layout & theme customization implemented; awaiting user smoke testing |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🐞 Alpha smoke test 2026-09-25 found 5 banner geometry bugs; fix planned (below). **Fix existing features before anything new.** |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
 
 ---
+
+## enhanced-achievements: banner geometry fix (current focus)
+
+Plan: [docs/plans/enhanced-achievements-banner-geometry-fix.md](docs/plans/enhanced-achievements-banner-geometry-fix.md).
+Only `enhanced-achievements-dev` is deployed (the release copy was removed 2026-09-25).
+Root causes were verified live. Steam's desktop toast stack moves each toast window every frame of fade-in and fade-out,
+with its own corner and a fixed 283 px width, and EA races it with timer `MoveTo`s in the wrong units (`true` instead of a DPI).
+A second path, `applyPosition()`, rewrites Steam's **global** toast position and does not hold. Text and icons are sized from the box height.
+
+| Smoke issue | Fixed in |
+| --- | --- |
+| 1 `scale` scales the content, not only the box | Phase 3 (content sized from the unscaled base) |
+| 2 a larger `scale` loses its anchor and goes off-screen | Phases 2–3 (`placeBanner` + clamp, per-popup pin) |
+| 3 `topright` should be `top_right` (and `text-align` should be `text_align`) | Phase 1 (legacy spellings still load, with a warning) |
+| 4 the position flickers between top and Steam's corner | Phase 3 (pin that popup's `MoveTo`; remove `applyPosition`) |
+| 5 `margin` does not offset from the anchor | Phases 2–3 (DPI-correct `MoveTo`, margin from the corner) |
+
+- [ ] **Phase 1:** snake_case `position` values and `text_align`, with deprecation warnings; bundled themes and themes.md. Gate: `npm test` 36/36.
+- [ ] **Phase 2:** pure `banner/geometry.ts` (`bannerSize`, `placeBanner`) + `tests/geometry.test.ts`. Gate: `npm test` 41/41 (dry-run ✅).
+- [ ] **Phase 3:** delete `applyPosition`; new `banner/window-pin.ts` (per-popup `MoveTo` pin in `useLayoutEffect`, stack slots);
+      content sizing without `scale`/`cqh`; banner fade-out on `--toast-duration`. Gate: `npm run check && npm test && npm run build`.
+- [ ] **Phase 4:** docs: themes.md (`scale`, `margin`, Big Picture limitation), EA CHANGELOG, steam-components.md toast-stack row.
+- [ ] **Live verification** (after `dev.ps1`): plan § 10. `tests/placement.mjs` 5/5 PASS, the P2 font check, and the user's P3 manual matrix
+      (update your user theme `config/enhanced-achievements/themes/ps5_example.json` to `top_right` / `text_align`).
+- [ ] Open questions (defaults applied): plan § 11 Q1–Q3 (legacy spellings, centre margin, window slide replaced by a fade).
 
 ## Alpha testing (user)
 
