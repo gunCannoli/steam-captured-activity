@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🐞 5 banner geometry bugs fixed offline 2026-09-25 (`tsc`/`test`/`build` clean); **awaiting live verification** (below). **Fix existing features before anything new.** |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Banner geometry fix deployed and live 2026-09-25 (legacy position aliases dropped, pre-release); 5 new user-reported improvements planned. **Fix existing features before anything new.** |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
@@ -47,10 +47,32 @@ A second path, `applyPosition()`, rewrites Steam's **global** toast position and
 - [x] **Phase 3:** deleted `applyPosition`; new `banner/window-pin.ts` (per-popup `MoveTo` pin in `useLayoutEffect`, stack slots);
       content sizing without `scale`/`cqh`; banner fade-out on `--toast-duration`. Gate: `npm run check && npm test && npm run build` — all clean ✅ (commit `ea76c26`).
 - [x] **Phase 4:** docs: themes.md (`scale`, `margin`, Big Picture limitation), EA CHANGELOG, steam-components.md toast-stack row ✅.
-- [ ] **Live verification** (needs `dev.ps1` deploy + a running Steam — user action): plan § 10. `tests/placement.mjs` (not yet written — optional per plan, add if wanted)
-      or manual Preview per § 10 P3, the P2 font check, and the user's manual matrix
-      (update your user theme `config/enhanced-achievements/themes/ps5_example.json` to `top_right` / `text_align`).
-- [ ] Open questions (defaults applied, no objection yet): plan § 11 Q1–Q3 (legacy spellings, centre margin, window slide replaced by a fade).
+- [x] **Deployed** via `dev.ps1` 2026-09-25; only `enhanced-achievements-dev` on disk and enabled, confirmed live via CDP.
+- [x] Legacy `topright`/`text-align` aliases **removed** (not deprecated) 2026-09-25 — plugin is pre-release, user said no alias needed. Both live user theme files updated to snake_case. Commit `336f3ad`.
+- [ ] User manual smoke test still pending (plan § 10 P3 matrix).
+
+## enhanced-achievements: animation, ripple and queue improvements (current focus)
+
+Plan: [docs/plans/enhanced-achievements-animation-queue-improvements.md](docs/plans/enhanced-achievements-animation-queue-improvements.md).
+5 user-reported items after the geometry fix went live. Item 4 (exceptional
+custom text) was confirmed **already correct** via a live CDP probe — no code
+change, just confirmation. The other 4 are planned:
+
+| # | Request | Plan phase |
+| --- | --- | --- |
+| 1 | `animation: fade` only fades out, not in | Phase 1–2 (`animation.in`/`.out` independently settable) |
+| 2 | New `ps5` animation: slide + fade, anchor-aware direction | Phase 1–2 (`ea-pos-*` CSS classes pick direction from `position`) |
+| 3 | Ripple should start at the icon's edge and expand outward, not already-inflated | Phase 2 (`.ea-ripple` rewritten as a ring at `inset: 0`) |
+| 4 | Exceptional 100% text seemed hardcoded | **Confirmed already correct**, live probe 2026-09-25 — no change |
+| 5 | Multiple unlocks should queue one-at-a-time, 100ms gap, not stack | Phase 3 (`banner/queue.ts`, wired into `ThemedToast`) |
+
+- [ ] **Phase 1:** `AnimationPair` schema (`{in, out}` or bare string), `resolveAnimation`, `tests/theme.test.ts` additions. Gate: `npm test` 44/44.
+- [ ] **Phase 2:** CSS split `ea-in-*`/`ea-out-*` (was `ea-anim-*`+`ea-exit`), new `ps5` preset via `ea-pos-*` classes, ripple rewritten as an edge-anchored ring. Gate: `npm run check && npm test`.
+- [ ] **Phase 3:** new pure `banner/queue.ts` (no `logger` import — dry-run caught this: extensionless imports don't resolve under `npm test`'s raw Node ESM loader) + `tests/queue.test.ts`; wired into `Banner` via `requestTurn`/`releaseTurn`, released on `animationend` (`ea-out-*`) or unmount. Gate: `npm run check && npm test && npm run build`, 50/50.
+- [ ] **Phase 4:** docs: themes.md `animation` shape, ripple note; EA CHANGELOG; guardrail table row 10.
+- [ ] **Dry-run: done** 2026-09-25 on a scratch copy — found and fixed 2 real bugs before handoff (a `logger` import that can't resolve under the test runner; literal backticks in a CSS comment that broke out of the `BANNER_CSS` template literal). `tsc --noEmit` clean, `npm test` 50/50 after fixes.
+- [ ] **Live verification** (needs `dev.ps1` deploy — user action): plan § 8 P1–P4 (animation directions incl. `ps5` at different anchors, ripple shape, rapid-fire queue behaviour incl. the synthetic exceptional toast, exceptional text re-confirm).
+- [ ] Open questions: plan § 9 Q1–Q3 (default animation pair, `ps5` timings, queue overflow behaviour).
 
 ## Alpha testing (user)
 
