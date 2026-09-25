@@ -1,6 +1,5 @@
 import { findModuleByExport } from '@steambrew/client';
 import { logger } from '../logger';
-import { setting } from '../settings/settings';
 import { activeTheme } from '../theme/active-theme';
 import { ThemedToast, setSteamToast } from '../banner/themed-toast';
 import { isAchievementUnlock, type SteamNotification } from './notifications';
@@ -62,7 +61,7 @@ function resolveRuntime(): JsxRuntime | null {
 
 function shouldTheme(props: ToastProps | undefined): boolean {
     const n = props?.group?.notifications?.[0];
-    return isAchievementUnlock(n) && setting('banner.enabled') && activeTheme() !== null;
+    return isAchievementUnlock(n) && activeTheme() !== null;
 }
 
 /** True once the banner patch is live (used by claims() for enhanced-notifications). */

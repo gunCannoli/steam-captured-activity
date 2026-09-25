@@ -99,31 +99,16 @@ try {
     check('themed sound played', ours.length === 1, JSON.stringify(r.sounds));
     check("Steam's chime suppressed", steam.length === 0);
 
-    await plugin(`setSetting('sound.enabled', false)`);
-    check('setSetting persisted to Millennium config', (await stored())['sound.enabled'] === false);
-    await wait(300);
+    // Sound and banner theming are no longer separate on/off settings: they
+    // follow what the selected theme actually defines. A theme with no sound
+    // for a tier (the bundled default) auto-falls-back to Steam's chime,
+    // while the banner is themed whenever any theme is loaded.
+    await plugin(`setSetting('theme', 'steam_tiers')`);
+    await wait(500);
     r = await fire();
-    check('sound.enabled=false -> no themed sound', !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
-    check('sound.enabled=false -> Steam chime plays', r.sounds.some((s) => s.kind === 'steam'));
-    check('sound.enabled=false -> banner still themed', !!r.banner);
-    await plugin(`setSetting('sound.enabled', true)`);
-
-    await plugin(`setSetting('banner.enabled', false)`);
-    await wait(300);
-    r = await fire();
-    check('banner.enabled=false -> stock Steam toast', r.banner === null);
-    const stockDuration = await cdp.evaluate(`(() => {
-        const proto = Object.getPrototypeOf(window.NotificationStore);
-        let cfg, found;
-        for (let t = 0; t < 256 && !found; t++) {
-            proto.PlayNotificationSound.call({ ChooseSound(c) { cfg = c; return null; } }, { eType: t });
-            try { if (cfg?.proto && new cfg.proto().getClassName() === 'CClientNotificationAchievement') found = cfg; } catch {}
-        }
-        return found?.toastDurationMS ?? 'default';
-    })()`);
-    check('banner.enabled=false -> Steam duration restored', stockDuration !== 4000, `toastDurationMS=${stockDuration}`);
-    await plugin(`setSetting('banner.enabled', true)`);
-
+    check('theme with no sound -> Steam chime plays', r.sounds.some((s) => s.kind === 'steam'));
+    check('theme with no sound -> no themed sound', !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
+    check('theme with no sound -> banner still themed', !!r.banner);
     await plugin(`setSetting('theme', 'steam_ps_exemple')`);
     await wait(500);
     await plugin(`setSetting('theme', 'does_not_exist')`);

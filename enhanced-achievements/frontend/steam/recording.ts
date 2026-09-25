@@ -198,7 +198,7 @@ export function addTimelineEntry(req: {
     return invoke(() => service!.UserAddTimelineEntry(req));
 }
 
-/** For the "Test captures" button: the appid of the game with a running timeline, if any. */
+/** For tests/captures.mjs: the appid of the game with a running timeline, if any. */
 export function runningGameAppid(): number | null {
     const store = grs();
     if (!store) return null;

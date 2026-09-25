@@ -45,11 +45,10 @@ Open Millennium's sidebar and select **Enhanced Achievements**:
 | Reload themes | Pick up edits to a theme file without restarting Steam |
 | Open themes folder | Opens the folder for your own themes |
 | Preview | Fires a test achievement for each tier |
-| Themed banner / Themed sound | Turn each part off to get Steam's own toast or chime back |
+| Achievement queue | One themed banner at a time instead of Steam's own stacking |
 | Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
 | Save clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
 | Timeline marker | Adds an achievement marker on non-Steam games' timelines |
-| Test captures | Fires a real test unlock for the game currently being recorded |
 | Reset to defaults | Clears every changed setting |
 
 Captures are **off by default** — they write files into your library. Both
@@ -62,14 +61,15 @@ Five minutes, no game required for the first four:
 
 1. Open the settings panel and press **Preview** for each of the four tiers —
    a themed toast should appear each time.
-2. Toggle **Themed banner** and **Themed sound** off and on; confirm Steam's
-   own stock toast/chime comes back when off.
+2. Switch **Theme** to a theme with no sound file and confirm Steam's own
+   chime plays instead; switch to `does_not_exist` and confirm Steam's stock
+   toast and chime come back.
 3. Edit `themes/steam_tiers.json` (or a copy in your themes folder), press
    **Reload themes**, then **Preview** again to see the change.
 4. Start any game with Game Recording on (Steam Settings -> In-Game ->
    Recording), enable **Screenshot on unlock** and/or **Save clip on unlock**,
-   then press **Test captures**. Check Steam's Screenshots/Recordings for the
-   game shortly after.
+   then unlock (or preview) an achievement for that game. Check Steam's
+   Screenshots/Recordings for the game shortly after.
 
 ## Themes
 

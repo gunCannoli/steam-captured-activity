@@ -1,5 +1,4 @@
 import { logger } from '../logger';
-import { setting, onSettingChange } from '../settings/settings';
 import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
 import { completesGame, selectTier, type Tier } from '../theme/theme';
 import { onUnlock, suppressNextCaptures } from '../capture/captures';
@@ -158,7 +157,7 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
             logger.warn('Capture scheduling failed; continuing.', error);
         }
         try {
-            if (setting('sound.enabled') && isAchievementUnlock(n)) {
+            if (isAchievementUnlock(n)) {
                 const clip = activeTheme()?.sounds.get(tierFor(n));
                 const ctx = clip ? audio() : null;
                 if (clip && ctx?.state === 'running') {
@@ -229,7 +228,7 @@ function discoverAchievementType(p: NotificationStoreProto): void {
 
 function applyDuration(): void {
     if (!achievementConfig) return;
-    const themed = setting('banner.enabled') ? activeTheme()?.theme.displayTimeMs : null;
+    const themed = activeTheme()?.theme.displayTimeMs;
     achievementConfig.toastDurationMS = themed ?? originalDurationMs;
 }
 
@@ -290,9 +289,10 @@ export function fireExceptionalCompletionToast(appid: number): boolean {
 
 /**
  * Fire a real (non-preview) test unlock for `appid`, running the full capture
- * pipeline through the normal hook. Used by the "Test captures" button
- * (docs/plans/phase7-and-alpha-plan.md § A3.4). Does not use `TestAchievement`:
- * that awaits `RequestAppDetails(appid)`, unverified for shortcut appids.
+ * pipeline through the normal hook. Used by tests/captures.mjs (the settings
+ * panel's own "Test captures" button was removed; this export stays for the
+ * live regression test). Does not use `TestAchievement`: that awaits
+ * `RequestAppDetails(appid)`, unverified for shortcut appids.
  */
 export function fireTestUnlock(appid: number, name: string): boolean {
     if (!store || !achievementConfig?.proto) return false;
@@ -339,11 +339,6 @@ export function initNotifications(): boolean {
     applyDuration();
     onThemeChange(() => {
         applyDuration();
-    });
-    onSettingChange((key) => {
-        if (key === 'banner.enabled') {
-            applyDuration();
-        }
     });
     logger.info(`Notification hooks installed (achievement eType ${achievementType}).`);
     return true;

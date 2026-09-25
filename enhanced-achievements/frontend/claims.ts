@@ -1,4 +1,3 @@
-import { setting } from './settings/settings';
 import { toastPatchInstalled } from './steam/toast-patch';
 import { activeTheme } from './theme/active-theme';
 
@@ -15,11 +14,11 @@ export function claims(feature: 'banner' | 'sound' | 'duration'): boolean {
     if (!theme) return false;
     switch (feature) {
         case 'banner':
-            return setting('banner.enabled') && toastPatchInstalled();
+            return toastPatchInstalled();
         case 'sound':
-            return setting('sound.enabled') && theme.sounds.size > 0;
+            return theme.sounds.size > 0;
         case 'duration':
-            return setting('banner.enabled') && theme.theme.displayTimeMs !== null;
+            return theme.theme.displayTimeMs !== null;
         default:
             return false;
     }

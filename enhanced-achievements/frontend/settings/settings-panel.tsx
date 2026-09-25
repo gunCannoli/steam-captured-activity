@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, SliderField, ToggleField } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
-import { fireTestUnlock, previewTier } from '../steam/notifications';
-import { recordingDiagnostics, runningGameAppid } from '../steam/recording';
+import { previewTier } from '../steam/notifications';
+import { recordingDiagnostics } from '../steam/recording';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
 import { TIERS, type Tier } from '../theme/theme';
-import { toastWarning } from '../steam/notification-settings';
 import { DEFAULTS, RANGES, resetSettings, useSetting, type SettingKey } from './settings';
 
 /**
@@ -64,15 +63,16 @@ function ThemeSection() {
         return onThemeChange(() => setStatus(describeTheme()));
     }, []);
 
-    const options = themes.map((t) => ({ data: t.name, label: t.source === 'user' ? `${t.name} (yours)` : t.name }));
+    const options = themes.map((t) => ({ data: t.name, label: t.name }));
     if (!themes.some((t) => t.name === theme)) options.unshift({ data: theme, label: `${theme} (missing)` });
 
     return (
-        <>
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Theme</DialogControlsSectionHeader>
             <DropdownItem label="Theme" description={status} layout="below" rgOptions={options} selectedOption={theme} onChange={(o) => setTheme(o.data as string)} />
             <ButtonItem
                 label="Reload themes"
-                description="Pick up edits to theme JSON files without restarting Steam."
+                description="Pick up theme file edits without restarting Steam."
                 layout="below"
                 onClick={async () => {
                     await refresh();
@@ -81,34 +81,39 @@ function ThemeSection() {
             >
                 Reload
             </ButtonItem>
-            <ButtonItem label="Open themes folder" description={userDir || 'Your themes live here and survive plugin updates.'} layout="below" onClick={() => void rpc.openThemesFolder()}>
+            <ButtonItem label="Open themes folder" description={userDir || 'Your themes, kept across plugin updates.'} layout="below" onClick={() => void rpc.openThemesFolder()}>
                 Open
             </ButtonItem>
-            <PreviewSection />
-        </>
+        </DialogControlsSection>
     );
 }
 
+// PreviewSection renders its own DialogControlsSection (own group), so it is
+// rendered as a sibling of ThemeSection, not nested inside its section.
+
+// Icon names (bronze/silver/gold, etc.) are a theme's own styling choice, not
+// part of the tier schema, so labels stay generic; only the rule text is
+// theme-driven (see tierRule).
 const TIER_LABELS: Record<Tier, string> = {
-    normal: 'Normal (bronze)',
-    magic: 'Magic (silver)',
-    rare: 'Rare (gold)',
-    exceptional: 'Exceptional (100%)',
+    normal: 'Normal',
+    magic: 'Magic',
+    rare: 'Rare',
+    exceptional: 'Exceptional',
 };
 
-/** What makes an unlock land in each tier, for the active theme. */
+/** What makes an unlock land in each tier, for the active theme's thresholds. */
 function tierRule(tier: Tier): string {
     const tiers = activeTheme()?.theme.tiers;
     const magic = tiers?.magic.threshold, rare = tiers?.rare.threshold;
     switch (tier) {
         case 'exceptional':
-            return 'The unlock that completes the game.';
+            return 'The unlock that completes the game (100%).';
         case 'rare':
-            return rare !== null && rare !== undefined ? `${rare}% or fewer players have it.` : 'Not used by this theme (no threshold).';
+            return rare !== null && rare !== undefined ? `${rare}% or fewer players have it.` : 'Unused by this theme (no threshold set).';
         case 'magic':
-            return magic !== null && magic !== undefined ? `${magic}% or fewer players have it.` : 'Not used by this theme (no threshold).';
+            return magic !== null && magic !== undefined ? `${magic}% or fewer players have it.` : 'Unused by this theme (no threshold set).';
         default:
-            return 'Everything else, and games without rarity data.';
+            return magic !== null && magic !== undefined ? `Everything below Magic's ${magic}%.` : 'Everything else, and games without rarity data.';
     }
 }
 
@@ -118,7 +123,7 @@ function PreviewSection() {
     useEffect(() => onThemeChange(() => rerender((n) => n + 1)), []);
     return (
         <DialogControlsSection>
-            <DialogControlsSectionHeader>Preview a tier</DialogControlsSectionHeader>
+            <DialogControlsSectionHeader>Preview Achievements</DialogControlsSectionHeader>
             {TIERS.map((tier) => (
                 <ButtonItem key={tier} label={TIER_LABELS[tier]} description={tierRule(tier)} layout="below" onClick={() => void previewTier(tier)}>
                     Preview
@@ -147,51 +152,36 @@ function CapturesSection() {
     const [screenshotOn] = useSetting('screenshot.enabled');
     const [clipOn] = useSetting('recording.enabled');
     const [status] = useState(captureStatus());
-    const [testDesc, setTestDesc] = useState('Fire a test unlock for the game that is being recorded now. Creates a real screenshot/clip with your current settings.');
 
     return (
         <DialogControlsSection>
-            <DialogControlsSectionHeader>Captures on unlock</DialogControlsSectionHeader>
+            <DialogControlsSectionHeader>Screenshots &amp; Recordings</DialogControlsSectionHeader>
             <div>{status}</div>
-            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description="A frame from Steam's game recording, delay after the unlock. Needs Game Recording on." />
+            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description="Needs Game Recording on." />
             <Slider k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={!screenshotOn} />
-            <Toggle k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds, ending delay after the unlock." />
+            <Toggle k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds." />
             <Slider k="recording.duration_s" label="Clip length" suffix=" s" disabled={!clipOn} />
             <Slider k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={!clipOn} />
-            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description="Adds an achievement marker for non-Steam games (Steam already marks its own games)." />
-            <ButtonItem
-                label="Test captures"
-                description={testDesc}
-                layout="below"
-                onClick={() => {
-                    const appid = runningGameAppid();
-                    if (appid === null) {
-                        setTestDesc('Start a game with Game Recording on first.');
-                        return;
-                    }
-                    fireTestUnlock(appid, 'Enhanced Achievements test');
-                    setTestDesc('Fire a test unlock for the game that is being recorded now. Creates a real screenshot/clip with your current settings.');
-                }}
-            >
-                Test captures
-            </ButtonItem>
+            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description="Non-Steam games only." />
         </DialogControlsSection>
     );
 }
 
 export function SettingsPanel() {
-    const warning = toastWarning();
     return (
         <>
             <ThemeSection />
-            {warning && <div>{warning}</div>}
-            <Toggle k="banner.enabled" label="Themed banner" description="Off: Steam's own achievement toast." />
-            <Toggle k="sound.enabled" label="Themed sound" description="Off: Steam's own chime. Steam's notification sound setting is always respected." />
-            <Toggle k="queue.enabled" label="One achievement at a time" description="On: only one themed banner shows at once; a second unlock waits for the first to finish, then appears shortly after. Off: Steam's own default (toasts can show side by side)." />
+            <PreviewSection />
+            <DialogControlsSection>
+                <DialogControlsSectionHeader>General</DialogControlsSectionHeader>
+                <Toggle k="queue.enabled" label="Achievement queue" description="One banner at a time instead of Steam's stacking." />
+            </DialogControlsSection>
             <CapturesSection />
-            <ButtonItem label="Reset to defaults" description="Clear every changed setting." layout="below" onClick={() => void resetSettings()}>
-                Reset
-            </ButtonItem>
+            <DialogControlsSection>
+                <ButtonItem label="Reset to defaults" description="Clear every changed setting." layout="below" onClick={() => void resetSettings()}>
+                    Reset
+                </ButtonItem>
+            </DialogControlsSection>
         </>
     );
 }

@@ -7,6 +7,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- **Themed banner and sound are no longer separate on/off settings.** They now
+  follow the active theme automatically: the banner is themed whenever a
+  theme is loaded, and sound is themed per tier only if the theme defines a
+  clip for it (falling back to Steam's own chime otherwise, same as before
+  for a missing/undecodable sound). `banner.enabled` / `sound.enabled` are
+  removed from the settings schema.
+- **"One achievement at a time" renamed to "Achievement queue"**, with a
+  shorter description.
+- **"Preview a tier" renamed to "Preview Achievements".**
+- **"Captures on unlock" renamed to "Screenshots & Recordings".**
+- **Settings panel now groups every row under a section header** (Theme,
+  Preview Achievements, General, Screenshots & Recordings), using Steam's own
+  `DialogControlsSectionHeader` for consistent (uppercase, spaced) styling —
+  no custom CSS.
+- **Tier preview labels and rules are now theme-driven, not hardcoded.** The
+  bronze/silver/gold names were a specific theme's icon choice, not part of
+  the schema, so labels are generic (Normal/Magic/Rare/Exceptional); the
+  "Normal" rule now reads "Everything below Magic's N%" when the active
+  theme sets a magic threshold, instead of always saying "everything else".
+- Shortened several settings descriptions (theme reload/open, capture
+  toggles) and dropped the theme dropdown's "(yours)" suffix on user themes.
+
+### Removed
+
+- **The Steam-toast-notifications-disabled disclaimer** in the settings panel.
+- **The "Test captures" button.** `fireTestUnlock`/`runningGameAppid` remain
+  as exports for the live regression test (`tests/captures.mjs`); there is no
+  longer a settings-panel control for it.
+
 ### Added
 
 - **`animation.in` / `animation.out`**, independently settable entrance and

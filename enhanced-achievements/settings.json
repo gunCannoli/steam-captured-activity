@@ -1,11 +1,5 @@
 {
     "theme": "steam_tiers",
-    "banner": {
-        "enabled": true
-    },
-    "sound": {
-        "enabled": true
-    },
     "queue": {
         "enabled": false
     },

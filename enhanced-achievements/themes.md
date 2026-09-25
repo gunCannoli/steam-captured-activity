@@ -156,8 +156,7 @@ you never need to edit it manually.
 ```json
 {
     "theme": "steam_tiers",
-    "banner": { "enabled": true },
-    "sound": { "enabled": true },
+    "queue": { "enabled": false },
     "screenshot": { "enabled": false, "delay_ms": 500 },
     "recording": {
         "enabled": false,
@@ -169,9 +168,15 @@ you never need to edit it manually.
 ```
 
 - **`theme`**: file name (without `.json`) of the active theme in `themes/`.
-- **`banner.enabled`** / **`sound.enabled`**: turn each part off independently. Off means Steam's stock toast or chime, untouched.
+- **`queue.enabled`**: one achievement banner at a time (see below), off by default.
 - **`screenshot`** / **`recording`**: capture defaults, off by default (they write files into
   your library). All capture settings are global to the plugin and never overridden by themes.
+
+Banner and sound theming are no longer separate on/off toggles — they follow the
+active theme automatically. The banner is themed whenever a theme is loaded; sound
+is themed only for tiers the theme actually defines a sound clip for, and falls
+back to Steam's own chime otherwise (including if the theme itself defines no sound
+at all, like the bundled default).
 
 The panel also has **Preview** buttons (one per tier), **Reload themes** and
 **Open themes folder**, so the theme workflow is: edit the JSON → Reload → Preview.
