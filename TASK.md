@@ -53,9 +53,10 @@ and each plugin's README ("How to test").
 
 ### steam-cartridges (merger + buckets + achievements)
 
-Plan only, no code yet: [docs/steam-cartridges.md](docs/steam-cartridges.md).
-ADRs [0032–0034](docs/decisions.md#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)
-written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
+Parent plan: [docs/steam-cartridges.md](docs/steam-cartridges.md). P1–P3 are
+implemented offline; their live verification is pending (below). ADRs
+[0032–0037](docs/decisions.md#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges).
+Run phases in order; each plan lists its exit criteria.
 
 - [x] **P0 research closure**: [plan](docs/plans/steam-cartridges-p0-research.md)
     - [x] T1 collections (`collectionStore` enumeration, ids, membership, change signal) → steam-components.md
@@ -87,7 +88,7 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
 
 - VERIFIED live 2026-09-24 (regression fix 907f59c, desktop, dev deploy OK, no popup/load failure): offline check, build, test:ts (19), Lua via lupa pass; test_nav_cycle.js 5/5 all PASS; check_all_tabs.js 3/3 all PASS (AM2R Game Info renders, bucket none, no grey warning, A->B->A intact); no new "Fetching Game Info" log lines (last 20:03, before deploy).
 - NOT RUN (fixtures absent, not approved): tests/buckets.mjs, tests/steam-store.mjs. Big Picture check and plan sec 7 step 3 (GetAppData snippet) not run.
-- NON-BLOCKING WARNING: webhelper_js.txt "Could not enrich native Game Info for 4263274102: TypeError: (meta.franchises || []).join is not a function" (metadata.ts:231 debug log line; franchises not an array). Old (1173 hits since 11:09), pre-existing; data still applied.
+- NON-BLOCKING WARNING: webhelper_js.txt "Could not enrich native Game Info for 4263274102: TypeError: (meta.franchises || []).join is not a function" (metadata.ts:231 debug log line; franchises not an array). Old (1173 hits since 11:09), pre-existing; data still applied. Fix planned: P4 H1.
 - Attempt Count: +1
 
 ### Live verification pending (P1-P3; nothing below has run against Steam)
@@ -100,7 +101,22 @@ Deploy is a user action (`dev.ps1`). Then:
 - **P3 unverified assumptions:** `StoreItemCache` item field names in `store-item.ts` (`m_StoreCategories` shape, `GetAssets()` method names, portrait via `GetLibraryCapsuleURL_2x`); `SetCustomArtworkForApp` size limits (a failed slot is skipped and unrecorded); `ClearCustomArtworkForApp` really clears a written slot; Millennium's `json.encode` of empty tables in `steam_store.json`; `os.rename` overwrite semantics in Millennium's Lua (store removes the target first, falls back to a direct write); real `storesearch`/`appdetails` shapes against the hand-shaped fixtures (re-record with curl); the throttle busy-wait is acceptable on the backend thread; settings panel `TextField`/buttons render and refresh; desktop and Big Picture both fire `onSourceView` without a double-apply.
 - **Logs:** no store request for `none` or web-scraping games; requests throttled to 1/s.
 
-- [ ] **P4** hardening · [ ] **P5** achievements (Steam native, RetroAchievements) · [ ] **P6** optional SteamGridDB rules (plans written when P3 lands)
+### Next, in this order (user decisions A and B, 2026-09-24)
+
+- [ ] **1. P4 hardening**: [plan](docs/plans/steam-cartridges-p4-hardening.md) (goes first: the other two are cut on top of it)
+    - [ ] H1 metadata shape guard (the `metadata.ts:231` TypeError) · H2 wall-clock throttle · H3 offline breaker, 8 s timeout, 5 min retry · H4 skip missing store items · H5 per-slot art record, no orphans · H6 replay racing views
+    - [ ] Offline gates: `tsc`, `test:ts` 28/28, Lua 71 + 86 PASS
+    - [ ] Live verification (plan § 7)
+- [ ] **2. ADR-0036 policy change** (no collection → Steam Store, web fallback, per-collection include/exclude): [parity plan Part A](docs/plans/steam-cartridges-parity.md#4-part-a-adr-0036-policy-change)
+    - [ ] Config v2 rules and title patterns, fixed default `steam-store`, sticky resolutions
+    - [ ] Store first, web fallback on no match; settings panel
+    - [ ] Offline gates: `tsc`, `test:ts` 35/35
+- [ ] **3. Native parity, Jotunnslayer vs 2820820**: [parity plan Parts B–E](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps)
+    - [ ] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
+    - [ ] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
+    - [ ] **Parity gate: `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL`** (baseline 2026-09-25: 3 PASS / 10 FAIL), plus plan § 9
+- [ ] ⛔ **P5** achievements (Steam native, RetroAchievements): **blocked on the parity gate** (user decision B)
+- [ ] ⛔ **P6** optional SteamGridDB rules: blocked on P5
 
 Phase 5 below is superseded by P5 there.
 

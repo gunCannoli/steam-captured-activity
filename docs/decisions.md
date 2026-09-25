@@ -2255,3 +2255,55 @@ because we enriched it.
 - A collection membership change takes effect after a restart or any bucket
   settings change. The settings page says so.
 - Replaces decision 1 in [steam-cartridges.md § 9](steam-cartridges.md#9-risks-and-open-questions).
+
+---
+
+## ADR-0037: A mapped shortcut borrows its native app's Steam sections; the P5 gate is native parity
+
+**Status:** Accepted · 2026-09-25 (user decision B) · **Refines [ADR-0032](#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)** (which linker features are dropped) · builds on [ADR-0022](#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them) and [ADR-0009](#adr-0009-prefer-patching-steams-data-over-patching-its-dom)
+
+### Context
+
+The user decided (2026-09-24) that P5 (achievements) starts only when the page of
+*Jotunnslayer: Hordes of Hel* (Epic shortcut 2315502503) holds as much data as
+native app 2820820, and that there are no user-created achievements. Live
+(2026-09-25, `scratch/check_parity.mjs` from the
+[parity plan](plans/steam-cartridges-parity.md#1-parity-gap-analysis-live-2026-09-24)):
+3 PASS / 10 FAIL. Besides Game Info fields, the shortcut lacks the store links,
+Friends who play, Community Content and the app's news, all of which Steam's own
+section components render for any appid. `research/game-data-linker` rebuilt
+these by scraping (`fetch_news`, `fetch_partner_events`,
+`fetch_community_content`, `fetch_friend_*`); steam-cartridges.md § 3.3 had
+dropped them as "out of scope".
+
+### Decision
+
+- For a shortcut **with a Steam Store match**, Steam's own Links, Friends and
+  Community Content components receive the **native appid** (a props rewrite in
+  the jsx runtime, resolved once at startup by localisation-token signatures;
+  O(1) per element), `friends` and `community` join its section list, and the
+  native app's activity events (Steam's own `appActivityStore` objects) join the
+  shortcut's feed. Steam fetches and renders all of it through its own transport.
+- The linker's scrapers stay dropped: no news-hub, community or persona scraping,
+  no Web API calls for news. Epic/Xbox stay dropped.
+- A shortcut without a match gets Steam's stock behaviour for these sections
+  (no links: a shortcut appid has no store page).
+- Owner-only surfaces (playtime, cloud, trading cards, DLC ownership, workshop
+  subscriptions, "My Review") and store-page-only data (screenshots, trailers,
+  tags, requirements, languages, reviews, metacritic) are not rebuilt; the Store
+  Page link reaches them. An unowned native app shows none of the owner-only
+  surfaces either.
+- **P5 gate:** `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL` plus the
+  Big Picture and regression checks in
+  [parity plan § 9](plans/steam-cartridges-parity.md#9-live-verification-and-exit-criteria-the-p5-gate).
+
+### Consequences
+
+- Links on an unmatched shortcut's Game Info disappear. They pointed at a store
+  page that does not exist (`store.steampowered.com/app/<shortcut appid>`).
+- A match now also costs Steam's own requests for friends, community and news of
+  the native app, like opening an owned game.
+- A wrong match now also shows another game's friends and news; the mitigations
+  of ADR-0036 (exact unique title, Clear with reject, manual mapping) apply.
+- Three more signature-resolved components; a Steam update that moves one leaves
+  that section stock and logs a warning.

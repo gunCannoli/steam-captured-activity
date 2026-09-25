@@ -1,13 +1,15 @@
 # steam-cartridges — research & implementation plan
 
-**Status:** 📝 Plan only. No code written. Implementation tasks move into
+**Status:** P0–P3 implemented offline (live verification pending); P4 and the
+native-parity work are planned. Implementation tasks move into
 [TASK.md](../TASK.md) one phase at a time; decisions get ADRs in
 [decisions.md](decisions.md) when a phase starts.
 Phase plans: [P0](plans/steam-cartridges-p0-research.md) ·
 [P1](plans/steam-cartridges-p1-merger.md) · [P2](plans/steam-cartridges-p2-buckets.md) ·
-[P3](plans/steam-cartridges-p3-steam-store.md). ADRs 0032–0034 are written; where
-they refine this doc (config shape, frontend-only bucket resolution, data folder),
-the ADRs win.
+[P3](plans/steam-cartridges-p3-steam-store.md) · [P4](plans/steam-cartridges-p4-hardening.md) ·
+[parity (ADR-0036 policy + P5 gate)](plans/steam-cartridges-parity.md). ADRs 0032–0037
+are written; where they refine this doc (config shape, frontend-only bucket
+resolution, data folder, default bucket, native sections), the ADRs win.
 
 `steam-cartridges` merges [`non-steam-games-activity`](../non-steam-games-activity/)
 and [`steamgriddb-artwork`](../steamgriddb-artwork/) into one plugin that owns
@@ -27,13 +29,17 @@ achievements, informed by `research/PlayniteAchievements` and
    where its metadata and artwork come from.
 3. Games that _are_ on Steam (Epic/GOG copies, launchers) borrow Steam's own data — no scraping.
 4. Achievements where a source exists (Steam native, RetroAchievements). Otherwise none.
-5. The core stays useful with zero accounts, zero keys and zero network (existing rule,
-   [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+5. The capture features stay useful with zero accounts, zero keys and zero network
+   ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+   Store lookups happen lazily, per viewed shortcut, under the limits of
+   [ADR-0036](decisions.md#adr-0036-default-bucket-is-steam-store-with-a-web-fallback-per-collection-title-rules).
 
 **Non-goals (for now)**
 
 - User-created/manual achievements.
-- Epic/Xbox sign-in, friends, news, community hub (linker features; see §3.3 — dropped).
+- Epic/Xbox sign-in, and the linker's scraping of friends, news and the community hub
+  (§3.3 — dropped). For a shortcut with a Steam match, Steam's own sections show that
+  data instead ([ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity)).
 - Achievements for games with no source (old Windows games, uncovered ROMs): nothing shown.
 - Replacing SteamGridDB tooling users already have; artwork scraping is the **last, optional** phase.
 
@@ -86,7 +92,7 @@ to Web Scraping by default (§4).
 | Portrait / hero / logo / wide capsule | Steam CDN `library_600x900`, `library_hero`, `logo`, `header` | `SetCustomArtworkForApp` (frontend; already used) — preferred over the linker's disk write into `grid/` |
 | Description, developers, publishers, release date, categories, genres | `appdetails` | Existing `game-info-patch.ts` path |
 | Achievements schema | Steam (see Phase 5) | Steam's own achievement stores |
-| Friends, news, community, reviews | — | **Not copied.** Out of scope |
+| Links, friends who play, community content, news | Steam's own sections and activity store, fed the native appid | [ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity), [parity plan](plans/steam-cartridges-parity.md) C/D. Reviews, tags, store media: store page only (Store Page link) |
 
 Reuse the linker's `fetch_game_data` (10 lines of real logic) and its CDN image list;
 do not port its 3.5k-line UI — `steam-cartridges` renders through Steam's own sections.
@@ -95,7 +101,10 @@ do not port its 3.5k-line UI — `steam-cartridges` renders through Steam's own 
 
 Epic and Xbox auth, friends-who-play, partner-event/news scraping, community hub
 scraping, status-update posting. They need accounts and network, fight the "core needs
-nothing" rule, and overlap what Steam already shows once artwork/ids resolve.
+nothing" rule, and overlap what Steam already shows once artwork/ids resolve. The
+*data* is not dropped for mapped games: Steam's own sections load it for the native
+appid ([ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity);
+per-feature adopt/adapt/drop table in [parity plan § 2](plans/steam-cartridges-parity.md#2-researchgame-data-linker-adopt--adapt--drop)).
 
 ---
 
@@ -121,22 +130,32 @@ Two buckets decide **where a game's info comes from**:
   settings, not silently resolved.
 - Example from the request: exclude all retro collections from **Steam Store**, include them
   only in **Web Scraping**.
-- **Decided:** shortcuts in no listed collection are **ignored** (`default = none`); the plugin
-  touches only games the user has put in a bucket. No automatic emulator guessing.
+- **Decided (superseded 2026-09-24):** shortcuts in no listed collection were
+  ignored (`default = none`). [ADR-0036](decisions.md#adr-0036-default-bucket-is-steam-store-with-a-web-fallback-per-collection-title-rules)
+  replaces this: a shortcut no rule claims is **`steam-store`** (fixed default), and a
+  steam-store game with no Steam match falls back to web scraping. `none` is a
+  per-collection (or per-game) choice meaning "never fetch". Emulator shortcuts skip
+  the store lookup (backend emulator guard) and so fall back to web scraping.
 
-**Config shape** (`config.json`, read through the Millennium config API; keep the
-workaround from Blocked-upstream #903 in one `settings.ts`):
+**Config shape** (v2, ADR-0036; `config.json` through the Millennium config API; the
+#903 workaround stays in one `settings.ts`; a v1 `assignments` list is migrated in memory):
 
 ```jsonc
 {
   "buckets": {
-    "default": "none",
-    "steamStore": { "collections": ["My Epic Games"] },
-    "webScraping": { "collections": ["Retro", "SNES", "GBA"] },
+    "version": 2,
+    "default": "steam-store",          // fixed, not a setting
+    "rules": [                          // ORDER = precedence; a collection appears once
+      { "id": "uc-…", "name": "Retro", "bucket": "web-scraping", "include": [], "exclude": ["*(beta)*"] },
+      { "id": "uc-…", "name": "Emulated homebrew", "bucket": "none", "include": [], "exclude": [] }
+    ],
     "overrides": { "2890139989": "web-scraping" }
   }
 }
 ```
+
+Title patterns: case-insensitive; plain text matches a substring; `*` / `?` make it a
+whole-title glob; never a regex; at most 32 patterns of 100 characters per list.
 
 **Frontend facts to verify in Phase 1** (do not assume): how to enumerate collections and
 their members from `collectionStore` (see [decisions.md ADR near L710](decisions.md)) and
@@ -265,8 +284,9 @@ starts: either RA becomes internal only, or exposes `Collect()` too.
 
 ### 7.4 Settings UX (single page)
 
-1. Buckets: table of collections × {Steam Store, Web Scraping, Neither}, default bucket,
-   per-game override list, conflict warnings.
+1. Buckets: table of collections × {Default (Steam Store, web fallback), Steam Store, Web
+   Scraping, Neither} with include/exclude title patterns per rule (ADR-0036), per-game
+   override list, conflict warnings.
 2. Steam Store: mappings editor (shortcut ↔ native appid, "suggestions" list).
 3. Web Scraping: IGDB creds status; SGDB toggle (default off) + rule field with live parse.
 4. Achievements: source toggles, RA status (read from `retroarch.cfg`), Steam Web API key (optional).
@@ -317,6 +337,15 @@ Routines 1–3 in [AGENTS.md](../AGENTS.md). Phases 0–2 are prerequisites; 3+ 
 
 - Two-way navigation test (Routine 2) across both buckets; negative cache for failed
   resolves; rate limits; offline behaviour (core still works).
+- Plan: [plans/steam-cartridges-p4-hardening.md](plans/steam-cartridges-p4-hardening.md). Runs **before** the parity work.
+
+### Native parity (the P5 gate)
+
+- ADR-0036 policy change (Part A), then Game Info fields, Steam's own Links / Friends /
+  Community sections, native news and the logo for mapped games (Parts B–E):
+  [plans/steam-cartridges-parity.md](plans/steam-cartridges-parity.md).
+- **Exit (gate for Phase 5):** `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL`
+  for Jotunnslayer (2315502503 → 2820820), plus the plan's Big Picture and regression checks.
 
 ### Phase 5 — Achievements
 
@@ -353,9 +382,15 @@ achievements, user-created achievements.
 
 **Decisions (user)**
 
-1. Apps in no collection are ignored (`default = none`). "Ignored" means nothing is fetched or
-   sourced for them. Game Info already saved locally still shows, as it did before the merge
+1. ~~Apps in no collection are ignored (`default = none`).~~ Replaced 2026-09-24 (user
+   decision A, [ADR-0036](decisions.md#adr-0036-default-bucket-is-steam-store-with-a-web-fallback-per-collection-title-rules)):
+   apps in no collection are bucketed, default Steam Store (priority), metadata scraping
+   as the fallback when there is no Steam match; per-collection include/exclude rules in
+   settings. Game Info already saved locally still shows until store data replaces it
    ([ADR-0035](decisions.md#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)).
+4. (User decision B, 2026-09-24) Phase 5 starts only when the Jotunnslayer shortcut's page
+   holds as much data as native 2820820 ([ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity)).
+   No user-created achievements.
 2. A Steam-listed game added from another store (e.g. Xbox) shows Steam's achievement list
    **locked-only**, labelled "no unlock tracking": Steam has no unlock state for a copy it does
    not own, and Xbox unlocks would need Xbox sign-in (parked, "Later").
@@ -374,6 +409,7 @@ achievements, user-created achievements.
 
 ## Addendum: confirmations after the P0–P3 plans
 
-1. ADR-0032's change to ADR-0012 ("no bucket, no network") is approved.
+1. ADR-0032's change to ADR-0012 ("no bucket, no network") is approved. (Its "no bucket,
+   no network" half is later replaced by ADR-0036: lazy per-view store lookups.)
 2. P0 test subject: the existing non-Steam shortcut **Jotunnslayer: Hordes of Hel** (Epic copy, also on Steam). No throwaway shortcuts needed.
 3. ADR-0033 keeps the single ordered list of collections, but it stores **only non-Steam game info** (shortcut ids and their bucket); native Steam data is never persisted there. Implementers: reconcile this in P2 before writing `buckets.lua`.
