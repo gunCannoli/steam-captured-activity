@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ButtonItem, DialogBodyText, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, SliderField, ToggleField } from '@steambrew/client';
+import { DialogBodyText, DialogButton, Dropdown, Field, PanelSection, PanelSectionRow, SliderField, Toggle as SteamToggle } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
 import { previewTier } from '../steam/notifications';
@@ -16,58 +16,77 @@ import { DEFAULTS, RANGES, resetSettings, setting, useSetting, type SettingKey }
  * There is deliberately no theme builder: themes are hand-edited JSON files,
  * which is also what users share. Preview + Reload make that edit loop quick.
  *
- * Every row but the last in a group passes `bottomSeparator="none"`, and
- * every row passes `transparentBackground`, matching how Steam's own
- * settings pages space a group: one flat surface per group, one separator
- * between rows, one gap between groups (DialogControlsSection's own
- * margin). `transparentBackground` is a real prop of the SDK's underlying
- * `Field` component (verified against the live client's own source,
- * frontend/steam/webpack.ts-style resolution — not a made-up class), just
- * missing from @steambrew/client's .d.ts; without it every row painted its
- * own background card (Steam's `Background` class applies outside Steam's
- * own "classic" render context, which a Millennium sidebar panel is), which
- * is what actually produced the boxed-card look and uneven gaps —
- * `bottomSeparator` alone never controlled that.
+ * Uses `PanelSection`/`PanelSectionRow` for grouping, not
+ * `DialogControlsSection`/`DialogControlsSectionHeader` — this repo's own
+ * docs/knowledgebase.md already documents `Panel` as "the titled-section
+ * container used in Settings and Quick Access", i.e. the sidebar context a
+ * Millennium plugin panel actually renders in, where `DialogControlsSection`
+ * is the layout for Steam's full Settings *dialog* instead. Two earlier
+ * attempts to fix uneven spacing by tweaking `Field` props
+ * (`bottomSeparator`, `transparentBackground`) while keeping
+ * `DialogControlsSection` did not fix it (confirmed by screenshot both
+ * times) — the container was the actual problem, not a prop on the rows.
+ * Each row is a plain `Field` (label + description) wrapping a bare control
+ * (`Toggle`, `Dropdown`, `DialogButton`), matching Millennium's own settings
+ * UI for themes (`ThemeEditor.tsx`) — not the combined `ToggleField`/
+ * `ButtonItem`/`DropdownItem` wrappers, which carry the same `Field`
+ * defaults that caused the boxed-row look.
  */
 
-/** transparentBackground is a real Field prop, missing from the SDK's .d.ts (see doc comment above). */
-const FLAT = { transparentBackground: true } as { transparentBackground: true };
-
-function Toggle({ k, label, description, disabled, last }: { k: SettingKey; label: string; description?: string; disabled?: boolean; last?: boolean }) {
+function ToggleRow({ k, label, description, disabled }: { k: SettingKey; label: string; description?: string; disabled?: boolean }) {
     const [value, set] = useSetting(k);
     return (
-        <ToggleField
-            {...FLAT}
-            label={label}
-            description={description}
-            layout="below"
-            bottomSeparator={last ? 'standard' : 'none'}
-            checked={value as boolean}
-            disabled={disabled}
-            onChange={(v) => set(v as never)}
-        />
+        <PanelSectionRow>
+            <Field label={label} description={description} disabled={disabled}>
+                <SteamToggle value={value as boolean} disabled={disabled} onChange={(v) => set(v as never)} />
+            </Field>
+        </PanelSectionRow>
     );
 }
 
-function Slider({ k, label, suffix, disabled, last }: { k: SettingKey; label: string; suffix: string; disabled?: boolean; last?: boolean }) {
+function SliderRow({ k, label, suffix, disabled }: { k: SettingKey; label: string; suffix: string; disabled?: boolean }) {
     const [value, set] = useSetting(k);
     const range = RANGES[k]!;
     return (
-        <SliderField
-            {...FLAT}
-            label={label}
-            layout="below"
-            bottomSeparator={last ? 'standard' : 'none'}
-            value={value as number}
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            showValue
-            valueSuffix={suffix}
-            resetValue={DEFAULTS[k] as number}
-            disabled={disabled}
-            onChange={(v) => set(v as never)}
-        />
+        <PanelSectionRow>
+            <SliderField
+                label={label}
+                layout="below"
+                value={value as number}
+                min={range.min}
+                max={range.max}
+                step={range.step}
+                showValue
+                valueSuffix={suffix}
+                resetValue={DEFAULTS[k] as number}
+                disabled={disabled}
+                onChange={(v) => set(v as never)}
+            />
+        </PanelSectionRow>
+    );
+}
+
+function ButtonRow({
+    label,
+    description,
+    buttonLabel,
+    disabled,
+    onClick,
+}: {
+    label: string;
+    description?: string;
+    buttonLabel: string;
+    disabled?: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <PanelSectionRow>
+            <Field label={label} description={description} disabled={disabled}>
+                <DialogButton disabled={disabled} onClick={onClick}>
+                    {buttonLabel}
+                </DialogButton>
+            </Field>
+        </PanelSectionRow>
     );
 }
 
@@ -106,49 +125,34 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
     if (theme && !themes.some((t) => t.name === theme)) options.push({ data: theme, label: `${theme} (missing)` });
 
     return (
-        <DialogControlsSection>
-            <DialogControlsSectionHeader>Theme</DialogControlsSectionHeader>
-            <DropdownItem
-                {...FLAT}
-                label="Theme"
-                description={status}
-                layout="below"
-                bottomSeparator="none"
-                disabled={disabled}
-                rgOptions={options}
-                selectedOption={theme}
-                onChange={(o) => setTheme(o.data as string)}
-            />
-            <ButtonItem
-                {...FLAT}
+        <PanelSection title="Theme">
+            <PanelSectionRow>
+                <Field label="Theme" description={status} disabled={disabled}>
+                    <Dropdown rgOptions={options} selectedOption={theme} disabled={disabled} onChange={(o) => setTheme(o.data as string)} />
+                </Field>
+            </PanelSectionRow>
+            <ButtonRow
                 label="Reload themes"
                 description="Pick up theme file edits without restarting Steam."
-                layout="below"
-                bottomSeparator="none"
+                buttonLabel="Reload"
                 disabled={disabled}
-                onClick={async () => {
-                    await refresh();
-                    await reloadTheme();
+                onClick={() => {
+                    void (async () => {
+                        await refresh();
+                        await reloadTheme();
+                    })();
                 }}
-            >
-                Reload
-            </ButtonItem>
-            <ButtonItem
-                {...FLAT}
+            />
+            <ButtonRow
                 label="Open themes folder"
                 description={userDir || 'Your themes, kept across plugin updates.'}
-                layout="below"
+                buttonLabel="Open"
                 disabled={disabled}
                 onClick={() => void rpc.openThemesFolder()}
-            >
-                Open
-            </ButtonItem>
-        </DialogControlsSection>
+            />
+        </PanelSection>
     );
 }
-
-// PreviewSection renders its own DialogControlsSection (own group), so it is
-// rendered as a sibling of ThemeSection, not nested inside its section.
 
 // Icon names (bronze/silver/gold, etc.) are a theme's own styling choice, not
 // part of the tier schema, so labels stay generic; only the rule text is
@@ -181,23 +185,18 @@ function PreviewSection({ disabled }: { disabled: boolean }) {
     const [, rerender] = useState(0);
     useEffect(() => onThemeChange(() => rerender((n) => n + 1)), []);
     return (
-        <DialogControlsSection>
-            <DialogControlsSectionHeader>Preview Achievements</DialogControlsSectionHeader>
-            {TIERS.map((tier, i) => (
-                <ButtonItem
-                    {...FLAT}
+        <PanelSection title="Preview Achievements">
+            {TIERS.map((tier) => (
+                <ButtonRow
                     key={tier}
                     label={TIER_LABELS[tier]}
                     description={tierRule(tier)}
-                    layout="below"
-                    bottomSeparator={i === TIERS.length - 1 ? 'standard' : 'none'}
+                    buttonLabel="Preview"
                     disabled={disabled}
                     onClick={() => void previewTier(tier)}
-                >
-                    Preview
-                </ButtonItem>
+                />
             ))}
-        </DialogControlsSection>
+        </PanelSection>
     );
 }
 
@@ -217,15 +216,14 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
     const [clipOn] = useSetting('recording.enabled');
 
     return (
-        <DialogControlsSection>
-            <DialogControlsSectionHeader>Screenshots &amp; Recordings</DialogControlsSectionHeader>
-            <Toggle k="screenshot.enabled" label="Screenshot on unlock" description="Needs Game Recording on." disabled={disabled} />
-            <Slider k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={disabled || !screenshotOn} />
-            <Toggle k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds." disabled={disabled} />
-            <Slider k="recording.duration_s" label="Clip length" suffix=" s" disabled={disabled || !clipOn} />
-            <Slider k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={disabled || !clipOn} />
-            <Toggle k="recording.add_timeline_marker" label="Timeline marker" description="Non-Steam games only." last disabled={disabled} />
-        </DialogControlsSection>
+        <PanelSection title="Screenshots & Recordings">
+            <ToggleRow k="screenshot.enabled" label="Screenshot on unlock" description="Needs Game Recording on." disabled={disabled} />
+            <SliderRow k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={disabled || !screenshotOn} />
+            <ToggleRow k="recording.enabled" label="Save clip on unlock" description="Saves the last length seconds." disabled={disabled} />
+            <SliderRow k="recording.duration_s" label="Clip length" suffix=" s" disabled={disabled || !clipOn} />
+            <SliderRow k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={disabled || !clipOn} />
+            <ToggleRow k="recording.add_timeline_marker" label="Timeline marker" description="Non-Steam games only." disabled={disabled} />
+        </PanelSection>
     );
 }
 
@@ -242,16 +240,13 @@ export function SettingsPanel() {
             )}
             <ThemeSection disabled={disabled} />
             <PreviewSection disabled={disabled} />
-            <DialogControlsSection>
-                <DialogControlsSectionHeader>General</DialogControlsSectionHeader>
-                <Toggle k="queue.enabled" label="Achievement queue" description="One banner at a time instead of Steam's stacking." last disabled={disabled} />
-            </DialogControlsSection>
+            <PanelSection title="General">
+                <ToggleRow k="queue.enabled" label="Achievement queue" description="One banner at a time instead of Steam's stacking." disabled={disabled} />
+            </PanelSection>
             <CapturesSection disabled={disabled} />
-            <DialogControlsSection>
-                <ButtonItem {...FLAT} label="Reset to defaults" description="Clear every changed setting." layout="below" disabled={disabled} onClick={() => void resetSettings()}>
-                    Reset
-                </ButtonItem>
-            </DialogControlsSection>
+            <PanelSection title="Reset">
+                <ButtonRow label="Reset to defaults" description="Clear every changed setting." buttonLabel="Reset" disabled={disabled} onClick={() => void resetSettings()} />
+            </PanelSection>
         </>
     );
 }

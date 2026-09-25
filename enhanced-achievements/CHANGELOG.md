@@ -20,19 +20,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
-- **Every settings-panel row now passes `transparentBackground` (in addition
-  to `bottomSeparator="none"` except the last row in its group).** The
-  uneven spacing/group-header-clipping wasn't actually a separator problem:
-  outside Steam's own "classic" Settings-dialog render context (which a
-  Millennium sidebar panel is not), the SDK's underlying `Field` component
-  paints every row with its own background card by default — that's what
-  produced the boxed-card look with visible gaps between rows, and between a
-  header and the row below it, regardless of `bottomSeparator`.
-  `transparentBackground` is a real prop of that component (confirmed
-  against the live client's own bundled source), just missing from
-  `@steambrew/client`'s `.d.ts`. An earlier attempt in this same file that
-  only added `bottomSeparator="none"` did not fix this — recorded here so
-  the wrong fix doesn't get re-tried.
+- **Settings panel rebuilt on `PanelSection`/`PanelSectionRow`, not
+  `DialogControlsSection`/`DialogControlsSectionHeader`.** Two earlier
+  attempts to fix the boxed-card look and uneven group spacing by tweaking
+  `Field` props (`bottomSeparator="none"`, then also `transparentBackground`)
+  while keeping `DialogControlsSection` did **not** work — confirmed live by
+  screenshot both times, despite each being individually plausible from
+  reading the SDK's resolved component source. The actual issue was the
+  container: `DialogControlsSection` is Steam's full Settings-*dialog*
+  layout; this repo's own docs/knowledgebase.md already documented `Panel`
+  (`PanelSection`/`PanelSectionRow`) as "the titled-section container used
+  in Settings and Quick Access" — the sidebar context a Millennium plugin
+  panel actually renders in. Each row is now a plain `Field` (label +
+  description) wrapping a bare `Toggle`/`Dropdown`/`DialogButton`, matching
+  Millennium's own settings UI for themes (`ThemeEditor.tsx`) instead of the
+  combined `ToggleField`/`ButtonItem`/`DropdownItem` wrappers. Sliders keep
+  `SliderField` (no bare `Slider` component exists). No more per-row
+  `bottomSeparator`/`transparentBackground` hacks.
 - **The shipped default is now "Steam default" (`theme: ""`), not a bundled
   theme.** A fresh install shows Steam's own stock toast and chime until a
   theme is picked. The settings panel's Theme dropdown lists "Steam default"
