@@ -53,6 +53,9 @@ export type AnchorPosition =
     | 'achievement_left'
     | 'achievement_right';
 
+export const TEXT_ALIGNS = ['left', 'center', 'right'] as const;
+export type TextAlign = (typeof TEXT_ALIGNS)[number];
+
 export interface CustomLayoutMap {
     achievement?: AnchorPosition;
     system?: AnchorPosition;
@@ -62,6 +65,8 @@ export interface CustomLayoutMap {
 
 export interface BannerStyle {
     scale: [number, number];
+    width?: number;
+    height?: number;
     background: string[];
     gradientAngle: number;
     border: { width: number; color: string; radius: number };
@@ -78,7 +83,7 @@ export interface ResolvedTier {
     banner: BannerStyle;
     /** Backward compatibility alias for banner. */
     box: BannerStyle;
-    text: { title: TextStyle; desc: TextStyle; titleText?: string; descText?: string };
+    text: { align: TextAlign; title: TextStyle; desc: TextStyle; titleText?: string; descText?: string };
     icons: { achievement: IconSlot; system: IconSlot; rarity: IconSlot };
     /** `null` keeps Steam's own chime. */
     sound: SoundSpec | null;
@@ -89,6 +94,7 @@ export interface ResolvedTheme {
     layout: Layout;
     customLayout?: CustomLayoutMap;
     animation: Animation;
+    textAlign: TextAlign;
     /** `null` keeps Steam's own toast duration. */
     displayTimeMs: number | null;
     tiers: Record<Tier, ResolvedTier>;
@@ -114,6 +120,7 @@ const DEFAULT_TIER: Omit<ResolvedTier, 'tier' | 'threshold'> = {
     banner: DEFAULT_BANNER,
     box: DEFAULT_BANNER,
     text: {
+        align: 'left',
         title: { color: '#ffffff', sizePct: 100, style: 'bold' },
         desc: { color: '#c7d5e0', sizePct: 100, style: 'regular' },
     },
@@ -213,13 +220,15 @@ function textStyle(raw: unknown, fallback: TextStyle): TextStyle {
     };
 }
 
-function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
+function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: TextAlign = 'left'): ResolvedTier {
     const d = DEFAULT_TIER;
     const bannerRaw = isObject(raw.banner) ? raw.banner : isObject(raw.box) ? raw.box : {};
     const text = isObject(raw.text) ? raw.text : {};
     const icons = isObject(raw.icons) ? raw.icons : {};
 
     const scale = pair(bannerRaw.scale, [100, 100], 25, 400);
+    const width = num(bannerRaw.width, 100, 2000) ?? undefined;
+    const height = num(bannerRaw.height, 30, 1000) ?? undefined;
     const margin = pair(bannerRaw.margin, [0, 0], -100, 200);
     const padding = pair(bannerRaw.padding, [6, 10], 0, 100);
     const gap = pair(bannerRaw.gap, [10, 2], 0, 100);
@@ -239,6 +248,8 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
 
     const resolvedBanner: BannerStyle = {
         scale,
+        width,
+        height,
         margin,
         padding,
         gap,
@@ -276,12 +287,16 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
         if (!descText) descText = "You've unlocked all achievements!";
     }
 
+    const rawAlign = text.align ?? text['text-align'] ?? text.textAlign;
+    const align: TextAlign = oneOf(rawAlign, TEXT_ALIGNS) ?? defaultAlign;
+
     return {
         tier,
         threshold: tier === 'magic' || tier === 'rare' ? (num(raw.threshold, 0, 100) ?? null) : null,
         banner: resolvedBanner,
         box: resolvedBanner,
         text: {
+            align,
             title: textStyle(text.title, d.text.title),
             desc: textStyle(text.desc, d.text.desc),
             titleText,
@@ -311,6 +326,14 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     const settings = isObject(raw.settings) ? raw.settings : {};
     const normal = raw.themes.normal;
 
+    const rawTextAlign = settings['text-align'] ?? settings.textAlign ?? settings.text_align;
+    let textAlign = oneOf(rawTextAlign, TEXT_ALIGNS);
+    if (rawTextAlign !== undefined && !textAlign) {
+        warnings.push(`settings.text-align "${String(rawTextAlign)}" is not supported; using left.`);
+        textAlign = 'left';
+    }
+    const themeTextAlign = textAlign ?? 'left';
+
     const tiers = {} as Record<Tier, ResolvedTier>;
     for (const tier of TIERS) {
         const own = raw.themes[tier];
@@ -318,7 +341,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
         const merged = tier === 'normal' ? normal : mergeTier(normal, isObject(own) ? own : {});
         // `threshold` is per tier and never inherited from normal.
         if (tier !== 'normal') merged.threshold = isObject(own) ? own.threshold : undefined;
-        tiers[tier] = resolveTier(tier, merged, warnings);
+        tiers[tier] = resolveTier(tier, merged, warnings, themeTextAlign);
     }
 
     let position = oneOf(settings.position, POSITIONS);
@@ -365,6 +388,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
         layout: layout ?? 'default_steam',
         customLayout,
         animation: oneOf(settings.animation, ANIMATIONS) ?? 'slide',
+        textAlign: themeTextAlign,
         displayTimeMs: num(settings.display_time_ms, 1000, 60_000) ?? null,
         tiers,
         assetPaths: [...assetPaths],

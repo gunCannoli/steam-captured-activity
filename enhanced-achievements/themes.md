@@ -26,6 +26,7 @@ Display behaviour for this theme's banners.
 - **`position`**: Screen anchor: `"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`.
 - **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
 - **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
+- **`text-align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
 
 ---
 
@@ -78,6 +79,8 @@ Global unlock percentage cutoff for `magic` and `rare`.
 Geometry, colours, border, glow, margin, padding, and gap of the banner. (The key `box` is maintained as a backward-compatible alias).
 
 - **`scale`**: `[width_pct, height_pct]` or scalar `pct` — size relative to the default (`[100, 100]` = standard size).
+- **`width`**: *(optional)* Base banner width in px (defaults to 400 for `ps5` and `custom`, 283 for standard Steam).
+- **`height`**: *(optional)* Base banner height in px (defaults to 70 for normal cards, 48 for `compact_pill`).
 - **`margin`**: `[vert_px, horiz_px]` or scalar `px` — screen offset pushing the banner inward from its anchor edges (e.g. `[5, 5]`).
 - **`padding`**: `[vert_px, horiz_px]` or scalar `px` — internal breathing room pushing banner content inward (e.g. `[6, 12]`).
 - **`gap`**: `[col_gap_px, row_gap_px]` or scalar `px` — flexbox spacing between layout zones, columns, and text rows (e.g. `[10, 2]`).

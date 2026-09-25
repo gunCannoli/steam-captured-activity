@@ -1,14 +1,15 @@
 {
     "settings": {
-        "layout": "ps5",
+        "layout": "custom",
         "position": "topright",
         "display_time_ms": 4000,
-        "animation": "fade"
+        "animation": "fade",
+        "text-align": "left"
     },
     "layout": {
         "achievement": "left",
         "system": "right",
-        "text": "center",
+        "text": "achievement_right",
         "rarity": "title_left"
     },
     "themes": {
@@ -19,12 +20,12 @@
                 "gradient_angle": 90,
                 "border": [0, "#8a2be2", 15],
                 "glow": ["#363636", 0, 0],
-                "margin": [5, 5],
-                "padding": [6, 12],
-                "gap": [10, 2]
+                "margin": 5,
+                "padding": 8,
+                "gap": 5
             },
             "text": {
-                "title": ["#ffffff", 120, "bold"],
+                "title": ["#ffffff", 120, "regular"],
                 "desc": ["#ffffff", 100, "regular"]
             },
             "icons": {

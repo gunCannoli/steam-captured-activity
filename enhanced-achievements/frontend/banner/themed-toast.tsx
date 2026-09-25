@@ -109,6 +109,9 @@ function Banner({ toast }: { toast: ToastProps }) {
             ? `linear-gradient(${banner.gradientAngle}deg, ${banner.background.join(', ')})`
             : banner.background[0];
 
+    const textAlign = text.align ?? theme.textAlign ?? 'left';
+    const textJustify = textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start';
+
     const rootStyle = {
         '--ea-scale-x': String(scaleX),
         '--ea-scale-y': String(scaleY),
@@ -122,6 +125,8 @@ function Banner({ toast }: { toast: ToastProps }) {
         '--ea-glow': banner.glow.color,
         '--ea-glow-spread': `${banner.glow.spread}px`,
         '--ea-glow-pulse': `${banner.glow.pulseMs}ms`,
+        '--ea-text-align': textAlign,
+        '--ea-text-justify': textJustify,
         background,
         border: banner.border.width > 0 ? `${banner.border.width}px solid ${banner.border.color}` : 'none',
         borderRadius: `${banner.border.radius}px`,
@@ -131,31 +136,76 @@ function Banner({ toast }: { toast: ToastProps }) {
 
     useEffect(() => {
         const targetWindow = (rootRef.current?.ownerDocument?.defaultView as (Window & typeof globalThis) | null) || (typeof window !== 'undefined' ? window : null);
-        if (!targetWindow || !targetWindow.SteamClient?.Window) return;
+        if (!targetWindow || !targetWindow.SteamClient?.Window) return undefined;
+        let t1: ReturnType<typeof setTimeout> | undefined;
+        let t2: ReturnType<typeof setTimeout> | undefined;
         try {
             const w = targetWindow.SteamClient.Window;
             const sx = (banner.scale?.[0] ?? 100) / 100;
             const sy = (banner.scale?.[1] ?? 100) / 100;
-            const baseW = 283;
-            const baseH = 70;
+            const defaultBaseW = (theme.layout === 'ps5' || theme.layout === 'custom' || theme.layout === 'default_system_right') ? 400 : 283;
+            const baseW = banner.width ?? defaultBaseW;
+            const baseH = banner.height ?? (theme.layout === 'compact_pill' ? 48 : 70);
             const targetW = Math.round(baseW * sx);
             const targetH = Math.round(baseH * sy);
 
             w.ResizeTo(targetW, targetH, true);
 
+            const screen = targetWindow.screen;
+            const availW = (screen?.availWidth && screen.availWidth > 100) ? screen.availWidth : 1920;
+            const availH = (screen?.availHeight && screen.availHeight > 100) ? screen.availHeight : 1080;
+            const screenLeft = (screen as unknown as { availLeft?: number })?.availLeft ?? 0;
+            const screenTop = (screen as unknown as { availTop?: number })?.availTop ?? 0;
+            const marginX = banner.margin?.[1] ?? 0;
+            const marginY = banner.margin?.[0] ?? 0;
+
             const pos = theme.position ?? 'bottomright';
-            if (pos === 'topcenter' || pos === 'bottomcenter') {
-                const marginY = banner.margin?.[0] ?? 0;
-                const availW = targetWindow.screen.availWidth;
-                const availH = targetWindow.screen.availHeight;
-                const targetX = Math.round((availW - targetW) / 2);
-                const targetY = pos === 'topcenter' ? marginY : availH - targetH - marginY;
-                (w.MoveTo as (x: number, y: number, dpi?: boolean | number) => void)(targetX, targetY, true);
+            let targetX = screenLeft + availW - targetW - marginX;
+            let targetY = screenTop + availH - targetH - marginY;
+
+            switch (pos) {
+                case 'topleft':
+                    targetX = screenLeft + marginX;
+                    targetY = screenTop + marginY;
+                    break;
+                case 'topright':
+                    targetX = screenLeft + availW - targetW - marginX;
+                    targetY = screenTop + marginY;
+                    break;
+                case 'topcenter':
+                    targetX = screenLeft + Math.round((availW - targetW) / 2);
+                    targetY = screenTop + marginY;
+                    break;
+                case 'bottomleft':
+                    targetX = screenLeft + marginX;
+                    targetY = screenTop + availH - targetH - marginY;
+                    break;
+                case 'bottomright':
+                    targetX = screenLeft + availW - targetW - marginX;
+                    targetY = screenTop + availH - targetH - marginY;
+                    break;
+                case 'bottomcenter':
+                    targetX = screenLeft + Math.round((availW - targetW) / 2);
+                    targetY = screenTop + availH - targetH - marginY;
+                    break;
             }
+
+            const moveToTarget = () => {
+                try {
+                    (w.MoveTo as (x: number, y: number, dpi?: boolean | number) => void)(targetX, targetY, true);
+                } catch {}
+            };
+            moveToTarget();
+            t1 = setTimeout(moveToTarget, 100);
+            t2 = setTimeout(moveToTarget, 300);
         } catch (e) {
             logger.warn('Could not position/resize toast window:', e);
         }
-    }, [banner.scale, banner.margin, theme.position]);
+        return () => {
+            if (t1) clearTimeout(t1);
+            if (t2) clearTimeout(t2);
+        };
+    }, [banner.scale, banner.margin, banner.width, banner.height, theme.position, theme.layout]);
 
     const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
 

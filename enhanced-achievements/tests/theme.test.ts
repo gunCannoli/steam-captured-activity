@@ -149,6 +149,45 @@ test('exceptional text parses custom title and desc strings', () => {
     assert.equal(theme.tiers.exceptional.text.descText, "You've unlocked all achievements!");
 });
 
+test('settings and tier text-align parse and inherit correctly', () => {
+    const t1 = resolveTheme({
+        settings: { 'text-align': 'center' },
+        themes: {
+            normal: {
+                text: { title: ['#ffffff', 100, 'bold'] },
+            },
+            magic: {
+                text: { align: 'right' },
+            },
+        },
+    });
+    assert.equal(t1.textAlign, 'center');
+    assert.equal(t1.tiers.normal.text.align, 'center');
+    assert.equal(t1.tiers.magic.text.align, 'right');
+
+    const t2 = resolveTheme({
+        settings: { 'text-align': 'invalid' },
+        themes: { normal: {} },
+    });
+    assert.equal(t2.textAlign, 'left');
+    assert.ok(t2.warnings.some((w) => w.includes('text-align')));
+});
+
+test('banner dimensions width and height parse and clamp', () => {
+    const theme = resolveTheme({
+        themes: {
+            normal: {
+                banner: {
+                    width: 450,
+                    height: 80,
+                },
+            },
+        },
+    });
+    assert.equal(theme.tiers.normal.banner.width, 450);
+    assert.equal(theme.tiers.normal.banner.height, 80);
+});
+
 test('invalid fields fall back to defaults instead of throwing', () => {
     const theme = resolveTheme({ settings: { layout: 'nope' }, themes: { normal: { banner: { border: [1, 'red', 5] }, sound: 'x' } } });
     assert.equal(theme.layout, 'default_steam');
