@@ -1,10 +1,12 @@
-import React, { Component, useEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, useLayoutEffect, useRef, type ErrorInfo, type ReactNode } from 'react';
 import { IconsModule } from '@steambrew/client';
 import { logger } from '../logger';
 import { activeTheme } from '../theme/active-theme';
 import type { AnchorPosition, IconSlot, ResolvedTier } from '../theme/theme';
 import { tierFor, type SteamNotification } from '../steam/notifications';
 import { BANNER_CSS } from './styles';
+import { bannerSize, placeBanner } from './geometry';
+import { pinToastWindow } from './window-pin';
 
 /**
  * The themed achievement banner, rendered in place of Steam's toast
@@ -101,9 +103,8 @@ function Banner({ toast }: { toast: ToastProps }) {
     const banner = tier.banner ?? tier.box;
     const { text, icons } = tier;
     const data = n.data;
+    const size = bannerSize(theme.layout, banner);
 
-    const scaleX = banner.scale[0] / 100;
-    const scaleY = banner.scale[1] / 100;
     const background =
         banner.background.length > 1
             ? `linear-gradient(${banner.gradientAngle}deg, ${banner.background.join(', ')})`
@@ -113,11 +114,7 @@ function Banner({ toast }: { toast: ToastProps }) {
     const textJustify = textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start';
 
     const rootStyle = {
-        '--ea-scale-x': String(scaleX),
-        '--ea-scale-y': String(scaleY),
-        '--ea-scale': String(scaleX),
-        '--ea-margin-y': `${banner.margin[0]}px`,
-        '--ea-margin-x': `${banner.margin[1]}px`,
+        '--ea-inner-h': `${size.innerH}px`,
         '--ea-pad-y': `${banner.padding[0]}px`,
         '--ea-pad-x': `${banner.padding[1]}px`,
         '--ea-gap-x': `${banner.gap[0]}px`,
@@ -134,78 +131,20 @@ function Banner({ toast }: { toast: ToastProps }) {
 
     const rootRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        const targetWindow = (rootRef.current?.ownerDocument?.defaultView as (Window & typeof globalThis) | null) || (typeof window !== 'undefined' ? window : null);
-        if (!targetWindow || !targetWindow.SteamClient?.Window) return undefined;
-        let t1: ReturnType<typeof setTimeout> | undefined;
-        let t2: ReturnType<typeof setTimeout> | undefined;
-        try {
-            const w = targetWindow.SteamClient.Window;
-            const sx = (banner.scale?.[0] ?? 100) / 100;
-            const sy = (banner.scale?.[1] ?? 100) / 100;
-            const defaultBaseW = (theme.layout === 'ps5' || theme.layout === 'custom' || theme.layout === 'default_system_right') ? 400 : 283;
-            const baseW = banner.width ?? defaultBaseW;
-            const baseH = banner.height ?? (theme.layout === 'compact_pill' ? 48 : 70);
-            const targetW = Math.round(baseW * sx);
-            const targetH = Math.round(baseH * sy);
-
-            w.ResizeTo(targetW, targetH, true);
-
-            const screen = targetWindow.screen;
-            const availW = (screen?.availWidth && screen.availWidth > 100) ? screen.availWidth : 1920;
-            const availH = (screen?.availHeight && screen.availHeight > 100) ? screen.availHeight : 1080;
-            const screenLeft = (screen as unknown as { availLeft?: number })?.availLeft ?? 0;
-            const screenTop = (screen as unknown as { availTop?: number })?.availTop ?? 0;
-            const marginX = banner.margin?.[1] ?? 0;
-            const marginY = banner.margin?.[0] ?? 0;
-
-            const pos = theme.position ?? 'bottomright';
-            let targetX = screenLeft + availW - targetW - marginX;
-            let targetY = screenTop + availH - targetH - marginY;
-
-            switch (pos) {
-                case 'topleft':
-                    targetX = screenLeft + marginX;
-                    targetY = screenTop + marginY;
-                    break;
-                case 'topright':
-                    targetX = screenLeft + availW - targetW - marginX;
-                    targetY = screenTop + marginY;
-                    break;
-                case 'topcenter':
-                    targetX = screenLeft + Math.round((availW - targetW) / 2);
-                    targetY = screenTop + marginY;
-                    break;
-                case 'bottomleft':
-                    targetX = screenLeft + marginX;
-                    targetY = screenTop + availH - targetH - marginY;
-                    break;
-                case 'bottomright':
-                    targetX = screenLeft + availW - targetW - marginX;
-                    targetY = screenTop + availH - targetH - marginY;
-                    break;
-                case 'bottomcenter':
-                    targetX = screenLeft + Math.round((availW - targetW) / 2);
-                    targetY = screenTop + availH - targetH - marginY;
-                    break;
-            }
-
-            const moveToTarget = () => {
-                try {
-                    (w.MoveTo as (x: number, y: number, dpi?: boolean | number) => void)(targetX, targetY, true);
-                } catch {}
-            };
-            moveToTarget();
-            t1 = setTimeout(moveToTarget, 100);
-            t2 = setTimeout(moveToTarget, 300);
-        } catch (e) {
-            logger.warn('Could not position/resize toast window:', e);
-        }
-        return () => {
-            if (t1) clearTimeout(t1);
-            if (t2) clearTimeout(t2);
-        };
-    }, [banner.scale, banner.margin, banner.width, banner.height, theme.position, theme.layout]);
+    useLayoutEffect(() => {
+        const win = rootRef.current?.ownerDocument?.defaultView;
+        if (!win) return undefined;
+        const s = win.screen as Screen & { availLeft?: number; availTop?: number };
+        const avail = { left: s.availLeft ?? 0, top: s.availTop ?? 0, width: s.availWidth, height: s.availHeight };
+        const unpin = pinToastWindow(win, (slot) => ({
+            ...placeBanner(theme.position, banner.margin, size, avail, slot),
+            width: size.width,
+            height: size.height,
+        }));
+        return unpin ?? undefined;
+        // Pinned once per toast: a toast's theme does not change while it is shown.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
 
@@ -215,13 +154,13 @@ function Banner({ toast }: { toast: ToastProps }) {
 
     const titleStyle = {
         color: text.title.color,
-        '--ea-title-size': `calc(${text.title.sizePct / 100} * 14px * var(--ea-scale-y, 1))`,
+        '--ea-title-size': `calc(${text.title.sizePct / 100} * 14px)`,
         ...fontWeight(text.title.style),
     } as React.CSSProperties;
 
     const descStyle = {
         color: text.desc.color,
-        '--ea-desc-size': `calc(${text.desc.sizePct / 100} * 12px * var(--ea-scale-y, 1))`,
+        '--ea-desc-size': `calc(${text.desc.sizePct / 100} * 12px)`,
         ...fontWeight(text.desc.style),
     } as React.CSSProperties;
 

@@ -7,6 +7,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Fixed
+
+- **`banner.scale` no longer scales title, description and icon sizes** — only
+  the banner box. Text now renders at the size its `text.*` percentage and the
+  base font (14px title, 12px desc) ask for; icons at their own `scale_pct`
+  against the unscaled box height.
+- **A scaled banner no longer loses its anchor and grows off-screen.** Window
+  placement is computed from the actual (scaled) banner size and clamped to
+  the screen, so a large `scale` or a negative margin can never push the
+  banner past the screen edge.
+- **The banner position no longer flickers between the configured anchor and
+  Steam's own corner.** Steam's desktop toast stack re-positions every toast
+  popup on every animation frame of its fade-in/fade-out, anchored at its own
+  corner with a fixed 283px width; our old timer-based `MoveTo` calls raced it
+  and whichever wrote last "won" for that frame. The fix pins that popup's own
+  `SteamClient.Window.MoveTo` (an own, writable property) before Steam's first
+  move, so our position is never overwritten.
+- **`margin` now correctly offsets from the anchor corner.** The previous code
+  passed CSS-pixel coordinates as if they were physical pixels (`MoveTo`'s
+  third argument is a DPI multiplier, not a boolean), so at DPR 1.25 the
+  banner landed about 20% short of its intended offset.
+
+### Changed
+
+- **`position` values are now snake_case** (`top_right`, `bottom_center`, …)
+  for consistency with every other multi-word value in the schema. The old
+  run-together spellings (`topright`, …) still load, with a deprecation
+  warning.
+- **`text-align` is now `text_align`**, for the same reason. The old spelling
+  still loads, with a deprecation warning.
+- **`applyPosition()` / `SetNotificationPosition` removed.** It rewrote
+  Steam's global (all-toasts) notification position and did not reliably take
+  effect; window placement is now done per-toast-popup only (see Fixed, above).
+
 ## [0.1.0-alpha.1] - 2026-09-24
 
 ### Added

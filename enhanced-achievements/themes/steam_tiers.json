@@ -1,7 +1,7 @@
 {
     "settings": {
         "layout": "default_system_right",
-        "position": "topright",
+        "position": "top_right",
         "display_time_ms": 4000,
         "animation": "slide"
     },

@@ -23,10 +23,10 @@ Display behaviour for this theme's banners.
     - `"default_system_right"`: Achievement icon on the left, text in the middle, system icon pinned to the right edge.
     - `"compact_pill"`: Slim horizontal bar with icon and title.
     - `"custom"`: Flexible anchor-based layout defined via the root `layout` mapping object.
-- **`position`**: Screen anchor: `"topright"`, `"topleft"`, `"bottomright"`, `"bottomleft"`, `"topcenter"`, `"bottomcenter"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`.
+- **`position`**: Screen anchor: `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`. The pre-alpha.2 spellings (`"topright"`, …) still load, with a warning.
 - **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
 - **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
-- **`text-align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
+- **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"` (`"text-align"` still loads, with a warning).
 
 ---
 
@@ -78,10 +78,10 @@ Global unlock percentage cutoff for `magic` and `rare`.
 
 Geometry, colours, border, glow, margin, padding, and gap of the banner. (The key `box` is maintained as a backward-compatible alias).
 
-- **`scale`**: `[width_pct, height_pct]` or scalar `pct` — size relative to the default (`[100, 100]` = standard size).
+- **`scale`**: `[width_pct, height_pct]` or scalar `pct` — size of the banner **box** relative to the default (`[100, 100]` = standard size). Text and icons keep their own sizes (`text.*` size %, icon `scale_pct`); they do not grow or shrink with the box.
 - **`width`**: *(optional)* Base banner width in px (defaults to 400 for `ps5` and `custom`, 283 for standard Steam).
 - **`height`**: *(optional)* Base banner height in px (defaults to 70 for normal cards, 48 for `compact_pill`).
-- **`margin`**: `[vert_px, horiz_px]` or scalar `px` — screen offset pushing the banner inward from its anchor edges (e.g. `[5, 5]`).
+- **`margin`**: `[vertical_px, horizontal_px]` or one number — distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. The horizontal margin is ignored for `top_center`/`bottom_center`.
 - **`padding`**: `[vert_px, horiz_px]` or scalar `px` — internal breathing room pushing banner content inward (e.g. `[6, 12]`).
 - **`gap`**: `[col_gap_px, row_gap_px]` or scalar `px` — flexbox spacing between layout zones, columns, and text rows (e.g. `[10, 2]`).
 - **`background_color`**: `["#hex", ...]` — one colour is solid; two or more make a smooth gradient.
@@ -175,3 +175,9 @@ Themes load from two folders; a user theme with the same name wins:
 A theme is one `.json` file plus the assets it references. Put them in one
 folder with relative paths (`assets/gold.png`) and share that folder. To install,
 drop it into the themes folder and pick it in the settings panel.
+
+## Known limitations
+
+- **Big Picture** uses Steam's own 300×80 toast frame and placement. `scale`
+  and `position` do not apply there; only the desktop and in-game overlay
+  toast windows are resized and repositioned.

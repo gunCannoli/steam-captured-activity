@@ -1,10 +1,10 @@
 {
     "settings": {
         "layout": "custom",
-        "position": "topright",
+        "position": "top_right",
         "display_time_ms": 4000,
         "animation": "fade",
-        "text-align": "left"
+        "text_align": "left"
     },
     "layout": {
         "achievement": "left",

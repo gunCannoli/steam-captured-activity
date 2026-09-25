@@ -23,7 +23,6 @@ export const BANNER_CSS = `
     font-family: "Motiva Sans", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     cursor: pointer;
     user-select: none;
-    container-type: size;
 }
 
 /* Exterior outline glow (isolated on ::before to never conflict with entrance animations) */
@@ -46,10 +45,20 @@ export const BANNER_CSS = `
 }
 
 /* Entrance Animations */
-.ea-anim-fade  { animation: ea-anim-fade 400ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.ea-anim-slide { animation: ea-anim-slide 350ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.ea-anim-up    { animation: ea-anim-up 350ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.ea-anim-down  { animation: ea-anim-down 350ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+/* Steam no longer slides the window out (it is pinned), so the banner fades
+   itself: Steam fades out after 300 ms fade-in + --toast-duration, over 300 ms. */
+.ea-banner.ea-anim-fade, .ea-banner.ea-anim-slide, .ea-banner.ea-anim-up, .ea-banner.ea-anim-down {
+    animation-name: var(--ea-enter), ea-exit;
+    animation-duration: var(--ea-enter-ms), 300ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in;
+    animation-delay: 0ms, calc(var(--toast-duration, 5000ms) + 300ms);
+    animation-fill-mode: both, forwards;
+}
+.ea-anim-fade  { --ea-enter: ea-anim-fade;  --ea-enter-ms: 400ms; }
+.ea-anim-slide { --ea-enter: ea-anim-slide; --ea-enter-ms: 350ms; }
+.ea-anim-up    { --ea-enter: ea-anim-up;    --ea-enter-ms: 350ms; }
+.ea-anim-down  { --ea-enter: ea-anim-down;  --ea-enter-ms: 350ms; }
+@keyframes ea-exit { to { opacity: 0; } }
 
 @keyframes ea-anim-fade {
     from { opacity: 0; }
@@ -123,8 +132,7 @@ export const BANNER_CSS = `
     height: 100%;
 }
 .ea-zone-left .ea-icon {
-    height: 100%;
-    max-height: calc(56px * var(--ea-icon-scale, 1));
+    height: calc(min(56px, var(--ea-inner-h, 56px)) * var(--ea-icon-scale, 1));
     aspect-ratio: 1;
 }
 .ea-zone-left img {
@@ -167,12 +175,12 @@ export const BANNER_CSS = `
 }
 .ea-title {
     white-space: nowrap;
-    font-size: min(var(--ea-title-size), 24cqh);
+    font-size: var(--ea-title-size);
     flex: 1;
     min-width: 0;
 }
 .ea-desc {
-    font-size: min(var(--ea-desc-size), 18cqh);
+    font-size: var(--ea-desc-size);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -188,12 +196,11 @@ export const BANNER_CSS = `
     height: 100%;
 }
 .ea-zone-right .ea-icon {
-    height: 60%;
-    max-height: calc(34px * var(--ea-icon-scale, 1));
+    height: calc(min(34px, 0.6 * var(--ea-inner-h, 56px)) * var(--ea-icon-scale, 1));
     aspect-ratio: 1;
 }
 .ea-zone-right .ea-system {
-    height: 48%;
+    height: calc(min(34px, 0.48 * var(--ea-inner-h, 56px)) * var(--ea-icon-scale, 1));
 }
 .ea-zone-right .ea-system svg {
     fill: currentColor;
@@ -201,11 +208,11 @@ export const BANNER_CSS = `
 }
 
 /* Classic fallback / compatibility classes */
-.ea-achievement { height: 100%; max-height: calc(56px * var(--ea-icon-scale, 1)); aspect-ratio: 1; }
+.ea-achievement { height: calc(min(56px, var(--ea-inner-h, 56px)) * var(--ea-icon-scale, 1)); aspect-ratio: 1; }
 .ea-achievement img { border-radius: 4px; }
 .ea-badges { display: flex; align-items: center; gap: 6px; margin-left: auto; height: 100%; }
-.ea-badges .ea-icon { height: 60%; max-height: calc(34px * var(--ea-icon-scale, 1)); aspect-ratio: 1; }
-.ea-badges .ea-system { height: 48%; }
+.ea-badges .ea-icon { height: calc(min(34px, 0.6 * var(--ea-inner-h, 56px)) * var(--ea-icon-scale, 1)); aspect-ratio: 1; }
+.ea-badges .ea-system { height: calc(min(34px, 0.48 * var(--ea-inner-h, 56px)) * var(--ea-icon-scale, 1)); }
 .ea-badges .ea-system svg { fill: currentColor; color: #ffffff; }
 .ea-text { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--ea-gap-y, 2px); line-height: 1.2; text-align: var(--ea-text-align, left); }
 `;

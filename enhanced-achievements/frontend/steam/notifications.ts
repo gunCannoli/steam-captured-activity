@@ -3,7 +3,6 @@ import { setting, onSettingChange } from '../settings/settings';
 import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
 import { completesGame, selectTier, type Tier } from '../theme/theme';
 import { onUnlock, suppressNextCaptures } from '../capture/captures';
-import { findExports } from './webpack';
 
 /**
  * Hooks into Steam's NotificationStore: the achievement sound, the toast
@@ -139,7 +138,6 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         if (this !== owner) return original.call(this, n);
         try {
             if (isAchievementUnlock(n)) {
-                applyPosition();
                 const tier = tierFor(n);
                 onUnlock(n, tier);
 
@@ -235,62 +233,11 @@ function applyDuration(): void {
     achievementConfig.toastDurationMS = themed ?? originalDurationMs;
 }
 
-interface ActiveWindowInstance {
-    NotificationPosition?: unknown;
-    SetNotificationPosition?(position: number, horizontalInset: number, verticalInset: number): void;
-}
-
-let activeWindowInstance: ActiveWindowInstance | null | undefined;
-
-function getActiveWindowInstance(): ActiveWindowInstance | null {
-    if (activeWindowInstance !== undefined) return activeWindowInstance;
-    activeWindowInstance = null;
-    try {
-        const hits = findExports(
-            (src) => src.includes('ActiveWindowInstance') && src.includes('m_GamepadUIAudioStore'),
-            (val) => !!val && typeof (val as Record<string, unknown>).ActiveWindowInstance === 'object',
-        );
-        const manager = hits[0] as { ActiveWindowInstance?: ActiveWindowInstance } | undefined;
-        if (manager?.ActiveWindowInstance) {
-            activeWindowInstance = manager.ActiveWindowInstance;
-        }
-    } catch (e) {
-        logger.warn('Could not discover Steam ActiveWindowInstance:', e);
-    }
-    return activeWindowInstance;
-}
-
-const POSITION_ENUM: Record<string, number> = {
-    topleft: 0,
-    topright: 1,
-    bottomleft: 2,
-    bottomright: 3,
-    topcenter: 1,
-    bottomcenter: 3,
-};
-
-export function applyPosition(): void {
-    const theme = activeTheme()?.theme;
-    if (!theme) return;
-    const pos = theme.position ?? 'bottomright';
-    const enumVal = POSITION_ENUM[pos] ?? 3;
-    const banner = theme.tiers.normal.banner ?? theme.tiers.normal.box;
-    const marginX = banner.margin?.[1] ?? 0;
-    const marginY = banner.margin?.[0] ?? 0;
-    try {
-        const inst = getActiveWindowInstance();
-        inst?.SetNotificationPosition?.(enumVal, marginX, marginY);
-    } catch (e) {
-        logger.warn('Could not apply notification position to Steam:', e);
-    }
-}
-
 // --- preview ------------------------------------------------------------------
 
 /** Fire Steam's own test toast with the given tier forced (settings panel "Preview"). */
 export async function previewTier(tier: Tier): Promise<void> {
     if (!store) return;
-    applyPosition();
     const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
     // Any owned game with achievements gives a real achievement image; 480 (Spacewar) makes one up.
     const appid = cache?.m_achievementProgress?.mapCache?.keys().next().value ?? 480;
@@ -317,7 +264,6 @@ export async function previewTier(tier: Tier): Promise<void> {
 export function fireExceptionalCompletionToast(appid: number): boolean {
     if (!store || !achievementConfig?.proto) return false;
     try {
-        applyPosition();
         const theme = activeTheme()?.theme;
         const exceptional = theme?.tiers.exceptional;
         const title = exceptional?.text.titleText || '100% Complete';
@@ -351,7 +297,6 @@ export function fireExceptionalCompletionToast(appid: number): boolean {
 export function fireTestUnlock(appid: number, name: string): boolean {
     if (!store || !achievementConfig?.proto) return false;
     try {
-        applyPosition();
         const nowS = Math.floor(Date.now() / 1000);
         const msg = achievementConfig.proto.fromObject({
             appid,
@@ -392,15 +337,12 @@ export function initNotifications(): boolean {
 
     installSoundHook(p, candidate);
     applyDuration();
-    applyPosition();
     onThemeChange(() => {
         applyDuration();
-        applyPosition();
     });
     onSettingChange((key) => {
         if (key === 'banner.enabled') {
             applyDuration();
-            applyPosition();
         }
     });
     logger.info(`Notification hooks installed (achievement eType ${achievementType}).`);

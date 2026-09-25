@@ -11,8 +11,18 @@
 export const TIERS = ['normal', 'magic', 'rare', 'exceptional'] as const;
 export type Tier = (typeof TIERS)[number];
 
-export const POSITIONS = ['topright', 'topleft', 'bottomright', 'bottomleft', 'topcenter', 'bottomcenter'] as const;
+export const POSITIONS = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'top_center', 'bottom_center'] as const;
 export type ToastPosition = (typeof POSITIONS)[number];
+
+/** Pre-0.1.0-alpha.2 spellings: still accepted, with a deprecation warning. */
+const LEGACY_POSITIONS: Record<string, ToastPosition> = {
+    topright: 'top_right',
+    topleft: 'top_left',
+    bottomright: 'bottom_right',
+    bottomleft: 'bottom_left',
+    topcenter: 'top_center',
+    bottomcenter: 'bottom_center',
+};
 
 export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5', 'custom'] as const;
 export type Layout = (typeof LAYOUTS)[number];
@@ -326,10 +336,13 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     const settings = isObject(raw.settings) ? raw.settings : {};
     const normal = raw.themes.normal;
 
-    const rawTextAlign = settings['text-align'] ?? settings.textAlign ?? settings.text_align;
+    if (settings['text-align'] !== undefined || settings.textAlign !== undefined) {
+        warnings.push('settings "text-align" is deprecated; use "text_align".');
+    }
+    const rawTextAlign = settings.text_align ?? settings['text-align'] ?? settings.textAlign;
     let textAlign = oneOf(rawTextAlign, TEXT_ALIGNS);
     if (rawTextAlign !== undefined && !textAlign) {
-        warnings.push(`settings.text-align "${String(rawTextAlign)}" is not supported; using left.`);
+        warnings.push(`settings.text_align "${String(rawTextAlign)}" is not supported; using left.`);
         textAlign = 'left';
     }
     const themeTextAlign = textAlign ?? 'left';
@@ -345,9 +358,14 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     }
 
     let position = oneOf(settings.position, POSITIONS);
+    const legacy = typeof settings.position === 'string' ? LEGACY_POSITIONS[settings.position] : undefined;
+    if (!position && legacy) {
+        warnings.push(`settings.position "${String(settings.position)}" is deprecated; use "${legacy}".`);
+        position = legacy;
+    }
     if (settings.position !== undefined && !position) {
-        warnings.push(`settings.position "${String(settings.position)}" is not supported; using bottomright.`);
-        position = 'bottomright';
+        warnings.push(`settings.position "${String(settings.position)}" is not supported; using bottom_right.`);
+        position = 'bottom_right';
     }
 
     let layout = oneOf(settings.layout, LAYOUTS);
@@ -384,7 +402,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     }
 
     return {
-        position: position ?? 'bottomright',
+        position: position ?? 'bottom_right',
         layout: layout ?? 'default_steam',
         customLayout,
         animation: oneOf(settings.animation, ANIMATIONS) ?? 'slide',

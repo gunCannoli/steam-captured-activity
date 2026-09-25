@@ -126,11 +126,18 @@ test('layout: custom maps arbitrary anchors', () => {
 });
 
 test('settings: position parses supported values and falls back', () => {
-    const t1 = resolveTheme({ settings: { position: 'topright' }, themes: { normal: {} } });
-    assert.equal(t1.position, 'topright');
+    const t1 = resolveTheme({ settings: { position: 'top_right' }, themes: { normal: {} } });
+    assert.equal(t1.position, 'top_right');
+    assert.equal(t1.warnings.length, 0);
     const t2 = resolveTheme({ settings: { position: 'invalid' }, themes: { normal: {} } });
-    assert.equal(t2.position, 'bottomright');
+    assert.equal(t2.position, 'bottom_right');
     assert.ok(t2.warnings.some((w) => w.includes('settings.position')));
+});
+
+test('settings: legacy run-together positions still load, with a deprecation warning', () => {
+    const t = resolveTheme({ settings: { position: 'bottomcenter' }, themes: { normal: {} } });
+    assert.equal(t.position, 'bottom_center');
+    assert.ok(t.warnings.some((w) => w.includes('deprecated') && w.includes('bottom_center')));
 });
 
 test('exceptional text parses custom title and desc strings', () => {
@@ -151,7 +158,7 @@ test('exceptional text parses custom title and desc strings', () => {
 
 test('settings and tier text-align parse and inherit correctly', () => {
     const t1 = resolveTheme({
-        settings: { 'text-align': 'center' },
+        settings: { text_align: 'center' },
         themes: {
             normal: {
                 text: { title: ['#ffffff', 100, 'bold'] },
@@ -166,11 +173,17 @@ test('settings and tier text-align parse and inherit correctly', () => {
     assert.equal(t1.tiers.magic.text.align, 'right');
 
     const t2 = resolveTheme({
-        settings: { 'text-align': 'invalid' },
+        settings: { text_align: 'invalid' },
         themes: { normal: {} },
     });
     assert.equal(t2.textAlign, 'left');
-    assert.ok(t2.warnings.some((w) => w.includes('text-align')));
+    assert.ok(t2.warnings.some((w) => w.includes('text_align')));
+});
+
+test('settings: legacy "text-align" still loads, with a deprecation warning', () => {
+    const t = resolveTheme({ settings: { 'text-align': 'right' }, themes: { normal: {} } });
+    assert.equal(t.textAlign, 'right');
+    assert.ok(t.warnings.some((w) => w.includes('deprecated') && w.includes('text_align')));
 });
 
 test('banner dimensions width and height parse and clamp', () => {
