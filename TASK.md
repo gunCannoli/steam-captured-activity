@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🐞 Alpha smoke test 2026-09-25 found 5 banner geometry bugs; fix planned (below). **Fix existing features before anything new.** |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🐞 5 banner geometry bugs fixed offline 2026-09-25 (`tsc`/`test`/`build` clean); **awaiting live verification** (below). **Fix existing features before anything new.** |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
@@ -42,14 +42,15 @@ A second path, `applyPosition()`, rewrites Steam's **global** toast position and
 | 4 the position flickers between top and Steam's corner | Phase 3 (pin that popup's `MoveTo`; remove `applyPosition`) |
 | 5 `margin` does not offset from the anchor | Phases 2–3 (DPI-correct `MoveTo`, margin from the corner) |
 
-- [ ] **Phase 1:** snake_case `position` values and `text_align`, with deprecation warnings; bundled themes and themes.md. Gate: `npm test` 36/36.
-- [ ] **Phase 2:** pure `banner/geometry.ts` (`bannerSize`, `placeBanner`) + `tests/geometry.test.ts`. Gate: `npm test` 41/41 (dry-run ✅).
-- [ ] **Phase 3:** delete `applyPosition`; new `banner/window-pin.ts` (per-popup `MoveTo` pin in `useLayoutEffect`, stack slots);
-      content sizing without `scale`/`cqh`; banner fade-out on `--toast-duration`. Gate: `npm run check && npm test && npm run build`.
-- [ ] **Phase 4:** docs: themes.md (`scale`, `margin`, Big Picture limitation), EA CHANGELOG, steam-components.md toast-stack row.
-- [ ] **Live verification** (after `dev.ps1`): plan § 10. `tests/placement.mjs` 5/5 PASS, the P2 font check, and the user's P3 manual matrix
+- [x] **Phase 1:** snake_case `position` values and `text_align`, with deprecation warnings; bundled themes and themes.md. Gate: `npm test` 36/36 ✅.
+- [x] **Phase 2:** pure `banner/geometry.ts` (`bannerSize`, `placeBanner`) + `tests/geometry.test.ts`. Gate: `npm test` 41/41 ✅.
+- [x] **Phase 3:** deleted `applyPosition`; new `banner/window-pin.ts` (per-popup `MoveTo` pin in `useLayoutEffect`, stack slots);
+      content sizing without `scale`/`cqh`; banner fade-out on `--toast-duration`. Gate: `npm run check && npm test && npm run build` — all clean ✅ (commit `ea76c26`).
+- [x] **Phase 4:** docs: themes.md (`scale`, `margin`, Big Picture limitation), EA CHANGELOG, steam-components.md toast-stack row ✅.
+- [ ] **Live verification** (needs `dev.ps1` deploy + a running Steam — user action): plan § 10. `tests/placement.mjs` (not yet written — optional per plan, add if wanted)
+      or manual Preview per § 10 P3, the P2 font check, and the user's manual matrix
       (update your user theme `config/enhanced-achievements/themes/ps5_example.json` to `top_right` / `text_align`).
-- [ ] Open questions (defaults applied): plan § 11 Q1–Q3 (legacy spellings, centre margin, window slide replaced by a fade).
+- [ ] Open questions (defaults applied, no objection yet): plan § 11 Q1–Q3 (legacy spellings, centre margin, window slide replaced by a fade).
 
 ## Alpha testing (user)
 
