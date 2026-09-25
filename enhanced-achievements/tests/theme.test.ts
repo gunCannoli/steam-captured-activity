@@ -134,12 +134,6 @@ test('settings: position parses supported values and falls back', () => {
     assert.ok(t2.warnings.some((w) => w.includes('settings.position')));
 });
 
-test('settings: legacy run-together positions still load, with a deprecation warning', () => {
-    const t = resolveTheme({ settings: { position: 'bottomcenter' }, themes: { normal: {} } });
-    assert.equal(t.position, 'bottom_center');
-    assert.ok(t.warnings.some((w) => w.includes('deprecated') && w.includes('bottom_center')));
-});
-
 test('exceptional text parses custom title and desc strings', () => {
     const theme = resolveTheme({
         themes: {
@@ -178,12 +172,6 @@ test('settings and tier text-align parse and inherit correctly', () => {
     });
     assert.equal(t2.textAlign, 'left');
     assert.ok(t2.warnings.some((w) => w.includes('text_align')));
-});
-
-test('settings: legacy "text-align" still loads, with a deprecation warning', () => {
-    const t = resolveTheme({ settings: { 'text-align': 'right' }, themes: { normal: {} } });
-    assert.equal(t.textAlign, 'right');
-    assert.ok(t.warnings.some((w) => w.includes('deprecated') && w.includes('text_align')));
 });
 
 test('banner dimensions width and height parse and clamp', () => {

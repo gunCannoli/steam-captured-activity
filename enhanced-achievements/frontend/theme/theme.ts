@@ -14,16 +14,6 @@ export type Tier = (typeof TIERS)[number];
 export const POSITIONS = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'top_center', 'bottom_center'] as const;
 export type ToastPosition = (typeof POSITIONS)[number];
 
-/** Pre-0.1.0-alpha.2 spellings: still accepted, with a deprecation warning. */
-const LEGACY_POSITIONS: Record<string, ToastPosition> = {
-    topright: 'top_right',
-    topleft: 'top_left',
-    bottomright: 'bottom_right',
-    bottomleft: 'bottom_left',
-    topcenter: 'top_center',
-    bottomcenter: 'bottom_center',
-};
-
 export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5', 'custom'] as const;
 export type Layout = (typeof LAYOUTS)[number];
 
@@ -297,8 +287,7 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: Te
         if (!descText) descText = "You've unlocked all achievements!";
     }
 
-    const rawAlign = text.align ?? text['text-align'] ?? text.textAlign;
-    const align: TextAlign = oneOf(rawAlign, TEXT_ALIGNS) ?? defaultAlign;
+    const align: TextAlign = oneOf(text.align, TEXT_ALIGNS) ?? defaultAlign;
 
     return {
         tier,
@@ -336,13 +325,9 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     const settings = isObject(raw.settings) ? raw.settings : {};
     const normal = raw.themes.normal;
 
-    if (settings['text-align'] !== undefined || settings.textAlign !== undefined) {
-        warnings.push('settings "text-align" is deprecated; use "text_align".');
-    }
-    const rawTextAlign = settings.text_align ?? settings['text-align'] ?? settings.textAlign;
-    let textAlign = oneOf(rawTextAlign, TEXT_ALIGNS);
-    if (rawTextAlign !== undefined && !textAlign) {
-        warnings.push(`settings.text_align "${String(rawTextAlign)}" is not supported; using left.`);
+    let textAlign = oneOf(settings.text_align, TEXT_ALIGNS);
+    if (settings.text_align !== undefined && !textAlign) {
+        warnings.push(`settings.text_align "${String(settings.text_align)}" is not supported; using left.`);
         textAlign = 'left';
     }
     const themeTextAlign = textAlign ?? 'left';
@@ -358,11 +343,6 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     }
 
     let position = oneOf(settings.position, POSITIONS);
-    const legacy = typeof settings.position === 'string' ? LEGACY_POSITIONS[settings.position] : undefined;
-    if (!position && legacy) {
-        warnings.push(`settings.position "${String(settings.position)}" is deprecated; use "${legacy}".`);
-        position = legacy;
-    }
     if (settings.position !== undefined && !position) {
         warnings.push(`settings.position "${String(settings.position)}" is not supported; using bottom_right.`);
         position = 'bottom_right';

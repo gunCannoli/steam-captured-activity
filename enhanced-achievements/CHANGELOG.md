@@ -32,11 +32,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ### Changed
 
 - **`position` values are now snake_case** (`top_right`, `bottom_center`, …)
-  for consistency with every other multi-word value in the schema. The old
-  run-together spellings (`topright`, …) still load, with a deprecation
-  warning.
-- **`text-align` is now `text_align`**, for the same reason. The old spelling
-  still loads, with a deprecation warning.
+  for consistency with every other multi-word value in the schema. Pre-alpha,
+  so the old run-together spellings (`topright`, …) are a breaking change, not
+  deprecated — update your theme files.
+- **`text-align` is now `text_align`**, for the same reason and with the same
+  breaking change.
 - **`applyPosition()` / `SetNotificationPosition` removed.** It rewrote
   Steam's global (all-toasts) notification position and did not reliably take
   effect; window placement is now done per-toast-popup only (see Fixed, above).

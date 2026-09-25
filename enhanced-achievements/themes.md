@@ -23,10 +23,10 @@ Display behaviour for this theme's banners.
     - `"default_system_right"`: Achievement icon on the left, text in the middle, system icon pinned to the right edge.
     - `"compact_pill"`: Slim horizontal bar with icon and title.
     - `"custom"`: Flexible anchor-based layout defined via the root `layout` mapping object.
-- **`position`**: Screen anchor: `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`. The pre-alpha.2 spellings (`"topright"`, …) still load, with a warning.
+- **`position`**: Screen anchor: `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`.
 - **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
 - **`animation`**: Entrance and exit transition: `"slide"`, `"fade"`, `"up"`, `"down"`.
-- **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"` (`"text-align"` still loads, with a warning).
+- **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
 
 ---
 
