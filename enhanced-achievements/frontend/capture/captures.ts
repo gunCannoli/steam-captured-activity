@@ -1,9 +1,8 @@
 import { logger } from '../logger';
 import { setting } from '../settings/settings';
-import { activeTheme } from '../theme/active-theme';
 import type { Tier } from '../theme/theme';
 import { addTimelineEntry, runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from '../steam/recording';
-import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, resolveCaptureSettings, type Action, type CaptureSettings, type Plan } from './plan';
+import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from './plan';
 import type { SteamNotification } from '../steam/notifications';
 
 /**
@@ -137,8 +136,7 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
 
         if (Date.now() < suppressUntil) return;
 
-        const { settings, warnings } = resolveCaptureSettings(baseSettings(), activeTheme()?.theme.tiers[tier]);
-        for (const w of warnings) logger.warn(`Capture override for tier "${tier}": ${w}`);
+        const settings = baseSettings();
 
         const appid = n.data.appid();
         const nowMs = Date.now();

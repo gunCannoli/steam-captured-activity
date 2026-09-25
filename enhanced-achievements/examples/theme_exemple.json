@@ -7,11 +7,15 @@
     },
     "themes": {
         "normal": {
-            "box": {
+            "banner": {
                 "scale": [100, 100],
                 "background_color": ["#1b2838", "#2a475e"],
                 "gradient_angle": 90,
-                "border": [1, "#ffffff22", 8]
+                "border": [1, "#ffffff22", 8],
+                "glow": ["#ffffff", 0, 0],
+                "margin": [0, 0],
+                "padding": [6, 10],
+                "gap": [10, 2]
             },
             "text": {
                 "title": ["#ffffff", 100, "bold"],
@@ -27,7 +31,7 @@
 
         "magic": {
             "threshold": 25.0,
-            "box": {
+            "banner": {
                 "background_color": ["#20262e", "#3a4454"],
                 "border": [1, "#a8b5c8", 8]
             },
@@ -42,7 +46,7 @@
 
         "rare": {
             "threshold": 10.0,
-            "box": {
+            "banner": {
                 "background_color": ["#2c2210", "#5c4314"],
                 "border": [1, "#e5a93c", 8]
             },
@@ -56,7 +60,7 @@
         },
 
         "exceptional": {
-            "box": {
+            "banner": {
                 "background_color": ["#101d2d", "#234d70", "#458bc2"],
                 "border": [2, "#40c4ff", 16]
             },

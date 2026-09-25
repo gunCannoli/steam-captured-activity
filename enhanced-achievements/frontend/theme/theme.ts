@@ -11,7 +11,7 @@
 export const TIERS = ['normal', 'magic', 'rare', 'exceptional'] as const;
 export type Tier = (typeof TIERS)[number];
 
-export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill'] as const;
+export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5', 'custom'] as const;
 export type Layout = (typeof LAYOUTS)[number];
 
 export const ANIMATIONS = ['slide', 'fade', 'up', 'down'] as const;
@@ -24,6 +24,7 @@ export type IconSource = boolean | string;
 
 export interface IconSlot {
     source: IconSource;
+    scalePct: number;
     rippleMs: number;
 }
 
@@ -38,22 +39,43 @@ export interface SoundSpec {
     volumePct: number;
 }
 
-export interface CaptureOverrides {
-    screenshot?: Record<string, unknown>;
-    recording?: Record<string, unknown>;
+export type AnchorPosition =
+    | 'left'
+    | 'right'
+    | 'center'
+    | 'title_left'
+    | 'title_right'
+    | 'desc_left'
+    | 'desc_right'
+    | 'achievement_left'
+    | 'achievement_right';
+
+export interface CustomLayoutMap {
+    achievement?: AnchorPosition;
+    system?: AnchorPosition;
+    rarity?: AnchorPosition;
+    exceptional?: AnchorPosition;
+    text?: AnchorPosition;
+}
+
+export interface BannerStyle {
+    scale: [number, number];
+    background: string[];
+    gradientAngle: number;
+    border: { width: number; color: string; radius: number };
+    glow: { color: string; spread: number; pulseMs: number };
+    margin: [number, number];
+    padding: [number, number];
+    gap: [number, number];
 }
 
 /** One fully resolved tier: every field present, inheritance already applied. */
-export interface ResolvedTier extends CaptureOverrides {
+export interface ResolvedTier {
     tier: Tier;
     threshold: number | null;
-    box: {
-        scale: [number, number];
-        background: string[];
-        gradientAngle: number;
-        border: { width: number; color: string; radius: number };
-        glow: { color: string; spread: number; pulseMs: number };
-    };
+    banner: BannerStyle;
+    /** Backward compatibility alias for banner. */
+    box: BannerStyle;
     text: { title: TextStyle; desc: TextStyle };
     icons: { achievement: IconSlot; system: IconSlot; rarity: IconSlot; exceptional: IconSlot };
     /** `null` keeps Steam's own chime. */
@@ -62,6 +84,7 @@ export interface ResolvedTier extends CaptureOverrides {
 
 export interface ResolvedTheme {
     layout: Layout;
+    customLayout?: CustomLayoutMap;
     animation: Animation;
     /** `null` keeps Steam's own toast duration. */
     displayTimeMs: number | null;
@@ -73,23 +96,29 @@ export interface ResolvedTheme {
 
 // --- defaults ----------------------------------------------------------------
 
+const DEFAULT_BANNER: BannerStyle = {
+    scale: [100, 100],
+    background: ['#1b2838', '#2a475e'],
+    gradientAngle: 90,
+    border: { width: 0, color: '#ffffff', radius: 4 },
+    glow: { color: '#000000', spread: 0, pulseMs: 0 },
+    margin: [0, 0],
+    padding: [6, 10],
+    gap: [10, 2],
+};
+
 const DEFAULT_TIER: Omit<ResolvedTier, 'tier' | 'threshold'> = {
-    box: {
-        scale: [100, 100],
-        background: ['#1b2838', '#2a475e'],
-        gradientAngle: 90,
-        border: { width: 0, color: '#ffffff', radius: 4 },
-        glow: { color: '#000000', spread: 0, pulseMs: 0 },
-    },
+    banner: DEFAULT_BANNER,
+    box: DEFAULT_BANNER,
     text: {
         title: { color: '#ffffff', sizePct: 100, style: 'bold' },
         desc: { color: '#c7d5e0', sizePct: 100, style: 'regular' },
     },
     icons: {
-        achievement: { source: true, rippleMs: 0 },
-        system: { source: false, rippleMs: 0 },
-        rarity: { source: false, rippleMs: 0 },
-        exceptional: { source: false, rippleMs: 0 },
+        achievement: { source: true, scalePct: 100, rippleMs: 0 },
+        system: { source: false, scalePct: 100, rippleMs: 0 },
+        rarity: { source: false, scalePct: 100, rippleMs: 0 },
+        exceptional: { source: false, scalePct: 100, rippleMs: 0 },
     },
     sound: null,
 };
@@ -129,11 +158,48 @@ export function mergeTier(base: Json, override: Json): Json {
     return out;
 }
 
-/** `[source, ripple]` or bare `source` shorthand. */
+function pair(raw: unknown, fallback: [number, number], min: number, max: number): [number, number] {
+    if (typeof raw === 'number') {
+        const v = num(raw, min, max) ?? fallback[0];
+        return [v, v];
+    }
+    if (Array.isArray(raw)) {
+        return [
+            num(raw[0], min, max) ?? fallback[0],
+            num(raw[1], min, max) ?? fallback[1],
+        ];
+    }
+    return fallback;
+}
+
+/** `[source, scale, ripple]` or `[source, ripple]` or bare `source` shorthand. */
 function iconSlot(raw: unknown, fallback: IconSlot): IconSlot {
-    const [src, ripple] = Array.isArray(raw) ? raw : [raw, 0];
-    const source = typeof src === 'boolean' || (typeof src === 'string' && src.length > 0) ? src : fallback.source;
-    return { source, rippleMs: num(ripple, 0, 60_000) ?? 0 };
+    if (raw === undefined) return fallback;
+    if (typeof raw === 'boolean' || typeof raw === 'string') {
+        return { source: raw || fallback.source, scalePct: fallback.scalePct, rippleMs: fallback.rippleMs };
+    }
+    if (Array.isArray(raw)) {
+        const src = typeof raw[0] === 'boolean' || (typeof raw[0] === 'string' && raw[0].length > 0) ? raw[0] : fallback.source;
+        if (raw.length >= 3) {
+            return {
+                source: src,
+                scalePct: num(raw[1], 10, 300) ?? 100,
+                rippleMs: num(raw[2], 0, 60_000) ?? 0,
+            };
+        }
+        if (raw.length === 2) {
+            const second = typeof raw[1] === 'number' ? raw[1] : 0;
+            if (second > 100) {
+                return { source: src, scalePct: 100, rippleMs: second };
+            }
+            if (second === 0) {
+                return { source: src, scalePct: 100, rippleMs: 0 };
+            }
+            return { source: src, scalePct: num(second, 10, 300) ?? 100, rippleMs: 0 };
+        }
+        return { source: src, scalePct: 100, rippleMs: 0 };
+    }
+    return fallback;
 }
 
 function textStyle(raw: unknown, fallback: TextStyle): TextStyle {
@@ -147,15 +213,19 @@ function textStyle(raw: unknown, fallback: TextStyle): TextStyle {
 
 function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
     const d = DEFAULT_TIER;
-    const box = isObject(raw.box) ? raw.box : {};
+    const bannerRaw = isObject(raw.banner) ? raw.banner : isObject(raw.box) ? raw.box : {};
     const text = isObject(raw.text) ? raw.text : {};
     const icons = isObject(raw.icons) ? raw.icons : {};
 
-    const scale = Array.isArray(box.scale) ? box.scale : [];
-    const border = Array.isArray(box.border) ? box.border : [];
-    const glow = Array.isArray(box.glow) ? box.glow : [];
-    const background = Array.isArray(box.background_color)
-        ? box.background_color.map(color).filter((c): c is string => !!c)
+    const scale = pair(bannerRaw.scale, [100, 100], 25, 400);
+    const margin = pair(bannerRaw.margin, [0, 0], -100, 200);
+    const padding = pair(bannerRaw.padding, [6, 10], 0, 100);
+    const gap = pair(bannerRaw.gap, [10, 2], 0, 100);
+
+    const border = Array.isArray(bannerRaw.border) ? bannerRaw.border : [];
+    const glow = Array.isArray(bannerRaw.glow) ? bannerRaw.glow : [];
+    const background = Array.isArray(bannerRaw.background_color)
+        ? bannerRaw.background_color.map(color).filter((c): c is string => !!c)
         : [];
 
     let sound: SoundSpec | null = null;
@@ -165,24 +235,30 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
         warnings.push(`${tier}.sound is not ["path", volume]; using Steam's chime.`);
     }
 
+    const resolvedBanner: BannerStyle = {
+        scale,
+        margin,
+        padding,
+        gap,
+        background: background.length ? background : d.banner.background,
+        gradientAngle: num(bannerRaw.gradient_angle, -360, 360) ?? d.banner.gradientAngle,
+        border: {
+            width: num(border[0], 0, 20) ?? d.banner.border.width,
+            color: color(border[1]) ?? d.banner.border.color,
+            radius: num(border[2], 0, 100) ?? d.banner.border.radius,
+        },
+        glow: {
+            color: color(glow[0]) ?? d.banner.glow.color,
+            spread: num(glow[1], 0, 200) ?? d.banner.glow.spread,
+            pulseMs: num(glow[2], 0, 60_000) ?? d.banner.glow.pulseMs,
+        },
+    };
+
     return {
         tier,
         threshold: tier === 'magic' || tier === 'rare' ? (num(raw.threshold, 0, 100) ?? null) : null,
-        box: {
-            scale: [num(scale[0], 25, 400) ?? d.box.scale[0], num(scale[1], 25, 400) ?? d.box.scale[1]],
-            background: background.length ? background : d.box.background,
-            gradientAngle: num(box.gradient_angle, -360, 360) ?? d.box.gradientAngle,
-            border: {
-                width: num(border[0], 0, 20) ?? d.box.border.width,
-                color: color(border[1]) ?? d.box.border.color,
-                radius: num(border[2], 0, 100) ?? d.box.border.radius,
-            },
-            glow: {
-                color: color(glow[0]) ?? d.box.glow.color,
-                spread: num(glow[1], 0, 200) ?? d.box.glow.spread,
-                pulseMs: num(glow[2], 0, 60_000) ?? d.box.glow.pulseMs,
-            },
-        },
+        banner: resolvedBanner,
+        box: resolvedBanner,
         text: {
             title: textStyle(text.title, d.text.title),
             desc: textStyle(text.desc, d.text.desc),
@@ -194,8 +270,6 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[]): ResolvedTier {
             exceptional: iconSlot(icons.exceptional, d.icons.exceptional),
         },
         sound,
-        screenshot: isObject(raw.screenshot) ? raw.screenshot : undefined,
-        recording: isObject(raw.recording) ? raw.recording : undefined,
     };
 }
 
@@ -224,8 +298,34 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
         tiers[tier] = resolveTier(tier, merged, warnings);
     }
 
-    const layout = oneOf(settings.layout, LAYOUTS);
-    if (settings.layout !== undefined && !layout) warnings.push(`settings.layout "${String(settings.layout)}" is not supported; using default_steam.`);
+    let layout = oneOf(settings.layout, LAYOUTS);
+    if (settings.layout !== undefined && !layout) {
+        warnings.push(`settings.layout "${String(settings.layout)}" is not supported; using default_steam.`);
+        layout = 'default_steam';
+    }
+
+    let customLayout: CustomLayoutMap | undefined = undefined;
+    if (layout === 'ps5') {
+        customLayout = {
+            achievement: 'left',
+            system: 'right',
+            rarity: 'title_left',
+            exceptional: 'title_left',
+            text: 'center',
+        };
+    } else if (layout === 'custom' || isObject(raw.layout)) {
+        const rawMap = isObject(raw.layout) ? raw.layout : {};
+        const validAnchors: readonly AnchorPosition[] = [
+            'left', 'right', 'center', 'title_left', 'title_right', 'desc_left', 'desc_right', 'achievement_left', 'achievement_right'
+        ];
+        customLayout = {
+            achievement: oneOf(rawMap.achievement, validAnchors) ?? 'left',
+            system: oneOf(rawMap.system, validAnchors) ?? 'right',
+            rarity: oneOf(rawMap.rarity, validAnchors) ?? 'title_left',
+            exceptional: oneOf(rawMap.exceptional, validAnchors) ?? 'title_left',
+            text: oneOf(rawMap.text, validAnchors) ?? 'center',
+        };
+    }
 
     const assetPaths = new Set<string>();
     for (const t of Object.values(tiers)) {
@@ -235,6 +335,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
 
     return {
         layout: layout ?? 'default_steam',
+        customLayout,
         animation: oneOf(settings.animation, ANIMATIONS) ?? 'slide',
         displayTimeMs: num(settings.display_time_ms, 1000, 60_000) ?? null,
         tiers,

@@ -38,14 +38,14 @@ test('tiers inherit omitted keys from normal', () => {
     const theme = resolveTheme(load(examplesDir, 'steam_ps_exemple.json'));
     // magic overrides only glow + rarity icon; text and border come from normal.
     assert.deepEqual(theme.tiers.magic.text, theme.tiers.normal.text);
-    assert.deepEqual(theme.tiers.magic.box.border, theme.tiers.normal.box.border);
-    assert.equal(theme.tiers.magic.box.glow.spread, 60);
+    assert.deepEqual(theme.tiers.magic.banner.border, theme.tiers.normal.banner.border);
+    assert.equal(theme.tiers.magic.banner.glow.spread, 60);
     assert.notEqual(theme.tiers.magic.icons.rarity.source, theme.tiers.normal.icons.rarity.source);
 });
 
 test('objects merge key by key, arrays are replaced whole', () => {
-    const merged = mergeTier({ box: { scale: [1, 2], border: [1, '#fff', 2] } }, { box: { scale: [3] } });
-    assert.deepEqual(merged, { box: { scale: [3], border: [1, '#fff', 2] } });
+    const merged = mergeTier({ banner: { scale: [1, 2], border: [1, '#fff', 2] } }, { banner: { scale: [3] } });
+    assert.deepEqual(merged, { banner: { scale: [3], border: [1, '#fff', 2] } });
 });
 
 test('threshold is never inherited from normal', () => {
@@ -53,16 +53,83 @@ test('threshold is never inherited from normal', () => {
     assert.equal(theme.tiers.magic.threshold, null);
 });
 
-test('icon shorthand normalises to [source, 0]', () => {
+test('icon shorthand normalises to [source, 100, 0]', () => {
     const theme = resolveTheme(load(examplesDir, 'theme_exemple.json'));
-    assert.deepEqual(theme.tiers.normal.icons.achievement, { source: true, rippleMs: 0 });
-    assert.deepEqual(theme.tiers.normal.icons.rarity, { source: false, rippleMs: 0 });
+    assert.deepEqual(theme.tiers.normal.icons.achievement, { source: true, scalePct: 100, rippleMs: 0 });
+    assert.deepEqual(theme.tiers.normal.icons.rarity, { source: false, scalePct: 100, rippleMs: 0 });
+});
+
+test('icon 3-tuple parses [source, scalePct, rippleMs]', () => {
+    const theme = resolveTheme({
+        themes: {
+            normal: {
+                icons: {
+                    system: ['custom/logo.png', 50, 2000],
+                    rarity: ['custom/trophy.png', 120, 0],
+                },
+            },
+        },
+    });
+    assert.deepEqual(theme.tiers.normal.icons.system, { source: 'custom/logo.png', scalePct: 50, rippleMs: 2000 });
+    assert.deepEqual(theme.tiers.normal.icons.rarity, { source: 'custom/trophy.png', scalePct: 120, rippleMs: 0 });
+});
+
+test('banner geometry: margin, padding, gap parse scalars and pairs', () => {
+    const theme = resolveTheme({
+        themes: {
+            normal: {
+                banner: {
+                    margin: 10,
+                    padding: [8, 16],
+                    gap: 5,
+                },
+            },
+        },
+    });
+    assert.deepEqual(theme.tiers.normal.banner.margin, [10, 10]);
+    assert.deepEqual(theme.tiers.normal.banner.padding, [8, 16]);
+    assert.deepEqual(theme.tiers.normal.banner.gap, [5, 5]);
+    // box is backward compatibility alias
+    assert.deepEqual(theme.tiers.normal.box, theme.tiers.normal.banner);
+});
+
+test('layout: ps5 preset sets authentic anchors', () => {
+    const theme = resolveTheme({
+        settings: { layout: 'ps5' },
+        themes: { normal: {} },
+    });
+    assert.equal(theme.layout, 'ps5');
+    assert.deepEqual(theme.customLayout, {
+        achievement: 'left',
+        system: 'right',
+        rarity: 'title_left',
+        exceptional: 'title_left',
+        text: 'center',
+    });
+});
+
+test('layout: custom maps arbitrary anchors', () => {
+    const theme = resolveTheme({
+        settings: { layout: 'custom' },
+        layout: {
+            achievement: 'left',
+            system: 'right',
+            rarity: 'title_left',
+            exceptional: 'title_right',
+        },
+        themes: { normal: {} },
+    });
+    assert.equal(theme.layout, 'custom');
+    assert.equal(theme.customLayout?.achievement, 'left');
+    assert.equal(theme.customLayout?.system, 'right');
+    assert.equal(theme.customLayout?.rarity, 'title_left');
+    assert.equal(theme.customLayout?.exceptional, 'title_right');
 });
 
 test('invalid fields fall back to defaults instead of throwing', () => {
-    const theme = resolveTheme({ settings: { layout: 'nope' }, themes: { normal: { box: { border: [1, 'red', 5] }, sound: 'x' } } });
+    const theme = resolveTheme({ settings: { layout: 'nope' }, themes: { normal: { banner: { border: [1, 'red', 5] }, sound: 'x' } } });
     assert.equal(theme.layout, 'default_steam');
-    assert.equal(theme.tiers.normal.box.border.color, '#ffffff');
+    assert.equal(theme.tiers.normal.banner.border.color, '#ffffff');
     assert.equal(theme.tiers.normal.sound, null);
     assert.ok(theme.warnings.length >= 2);
 });
