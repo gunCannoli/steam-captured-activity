@@ -2394,3 +2394,27 @@ app.
   enriched shortcut (recorded in steam-components.md; not addressed here).
 - A wrong store match now also sends news clicks and header links to the wrong
   native app; ADR-0036's mitigations apply.
+
+### Addendum (2026-09-25, user decision): the Full Controller Support badge
+
+Answers the open question above (parity plan § 12 Q2) and replaces "the
+`full_controller` default of local data stays".
+
+- **Precedence, shortcuts only:** Steam Store controller data (`store_category_ids`,
+  or the explicit flags of a `source: 'steam-store'` record) > emulator inference >
+  the setting "Default to full controller support" > no badge. Nothing below Steam
+  data can override it.
+- **Inference** is a fixed table (`backend/emulator_controllers.lua`, parity plan
+  Step 37b): RetroArch core from `-L` in `Exe`/`LaunchOptions` (ADR-0003) or the
+  standalone emulator's exe. Consoles, handhelds and arcade = yes; keyboard/mouse
+  systems (DOS, ScummVM, PC-88/PC-98, PC, Mac) = no; anything else = not inferred.
+  Core names come from the machine's `C:\emu\RetroArch\cores` and `info\`.
+  Collections are not used.
+- **Setting** `defaultFullController` (boolean, default off) in the plugin settings,
+  a `ToggleField` row, stored with the Millennium#903 pattern of `settings.ts`.
+- Local / IGDB records carry no controller data (IGDB and the fallback record
+  hard-code `full_controller = true`), so their controller flags are ignored. With
+  the setting off, a native-PC shortcut without Steam data (AM2R) loses the badge it
+  showed before: a user decision, recorded here per guardrail 14.
+- `is_emulator` now reads the program token of `Exe`; before, it never matched a
+  RetroArch shortcut, because Steam stores the whole command there.

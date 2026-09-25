@@ -115,7 +115,8 @@ Deploy is a user action (`dev.ps1`). Then:
     - [ ] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
     - [ ] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
     - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
-    - [ ] Offline gates: `tsc`, `test:ts` 49/49
+    - [ ] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
+      (Part F now includes the controller addendum, Steps 37a–37i: Steam data > emulator inference > "Default to full controller support" setting, off > no badge; live check § 9 item 5b)
     - [ ] **Parity gate: `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL`** (baseline 2026-09-25: 4 PASS / 13 FAIL), plus plan § 9 items 1–7
     - [ ] Open questions for the user: plan § 12 Q2–Q4 (Full Controller default for local data, Manage/Properties, tags/languages/ratings)
 - [ ] ⛔ **P5** achievements (Steam native, RetroAchievements): **blocked on the parity gate** (user decision B)

@@ -3294,7 +3294,8 @@ Guides, Workshop) **adapt** to Steam's own links component and `urlStore`
 | --- | --- | --- |
 | Categories, allow-list | `supported_player_categoryids` and `controller_categoryids` ids with a known meaning: 1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49 (players); 18, 28, 55, 56, 57, 58 (controllers) | `category-policy.ts` `PORTABLE_CATEGORY_IDS` |
 | Categories, deny-list | the whole `feature_categoryids` group is never read; anything not allowed is dropped; named: 22 Achievements, 23 Cloud, 29 Trading Cards, 30 Workshop, 42/43 Remote Play on Phone/Tablet, 44 Remote Play Together, 59 Steam Input API, 62 Family Sharing | `STEAM_ONLY_CATEGORY_IDS` |
-| Local / IGDB flags | mapped as before, except `achievements` and `remote_play_together`, which are never mapped; `full_controller` keeps its default (guardrail 14, § 12 Q2) | `badgeCategoryIds` |
+| Local / IGDB flags | player flags mapped as before; `achievements` and `remote_play_together` never mapped; controller flags ignored (IGDB and the fallback record hard-code `full_controller = true`, `web_igdb.lua:483`, `web_rpc.lua:97`: not data) | `badgeCategoryIds` |
+| Controller badge (user decision 2026-09-25, ADR-0038 addendum; shortcuts only) | Steam Store data (`store_category_ids`, or the explicit flags of a `source: 'steam-store'` record) > emulator inference (`emulator_controllers.lua`: true / false / unknown, Step 37b table) > setting `defaultFullController` (default off) > no badge. Never overrides Steam data | `badgeCategoryIds(meta, controllerContext(appid))` |
 | Steam Store ids vs flags | Steam's own ids replace the flags when the store supplied them (exact) | `badgeCategoryIds` |
 | Description, developers, publishers, franchises, release dates | ported (Parts A, B) | unchanged |
 | Genres, user tags, languages, ratings, requirements | true of the game, allowed, but no app-page surface (they feed library sort and dynamic-collection filters only): not written by this plan | ADR-0038 |
@@ -3302,7 +3303,7 @@ Guides, Workshop) **adapt** to Steam's own links component and `urlStore`
 
 **What changes.**
 
-- **F** `category-policy.ts` (pure allow/deny lists, `badgeCategoryIds`);
+- **F** (F5/F6 = the controller addendum, Steps 32–37i) `category-policy.ts` (pure allow/deny lists, `badgeCategoryIds`, controller precedence); backend `emulator_controllers.lua` + RPC `GetControllerInference` (and `is_emulator` reads the program token); setting `defaultFullController` with a panel toggle;
   `store-item.ts` records Steam's own player + controller ids as
   `store_category_ids`; `metadata.ts` writes only `badgeCategoryIds(meta)` and
   purges every managed id (guardrail 7); gate check 14.
@@ -3341,7 +3342,7 @@ Expected exactly:
 ℹ fail 0
 ```
 
-### Step 32: `steam-cartridges/frontend/features/game-info/category-policy.ts` (new file) — F1 allow / deny lists (pure)
+### Step 32: `steam-cartridges/frontend/features/game-info/category-policy.ts` (new file) — F1 allow / deny lists and the controller precedence (pure)
 
 Create with exactly:
 
@@ -3397,13 +3398,40 @@ export function portableCategoryIds(ids: Iterable<unknown>): number[] {
 }
 
 /**
+ * What decides the controller badge of a shortcut without Steam Store data
+ * (ADR-0038 addendum). `inferred` comes from the shortcut's emulator
+ * (backend emulator_controllers.lua): true, false, or undefined when unknown.
+ * `defaultFull` is the setting "Default to full controller support".
+ */
+export interface ControllerContext {
+    inferred?: boolean;
+    defaultFull?: boolean;
+}
+
+/** Full Controller Support (28) from the emulator first, then the user's default; else none. */
+export function inferredControllerIds(ctx: ControllerContext = {}): number[] {
+    if (ctx.inferred === true) return [28];
+    if (ctx.inferred === false) return [];
+    return ctx.defaultFull === true ? [28] : [];
+}
+
+/**
  * The category ids to write for one game. Steam's own ids win when the Steam
  * Store supplied them (exact); otherwise the flags of local / web metadata are
  * mapped. `achievements` and `remote_play_together` are Steam services and are
- * never mapped (ADR-0038). `full_controller` keeps its old default (on unless
- * explicitly false) so no badge that showed before disappears (guardrail 14).
+ * never mapped (ADR-0038).
+ *
+ * Controller precedence (ADR-0038 addendum): Steam Store data > emulator
+ * inference > the default setting > no badge. Steam Store data is
+ * `store_category_ids` or the explicit flags of a `source: 'steam-store'`
+ * record. Local and IGDB records carry no controller data (web_igdb.lua and
+ * the fallback record always write `full_controller = true`), so their
+ * controller flags are ignored.
  */
-export function badgeCategoryIds(meta: { categories?: GameCategories; store_category_ids?: unknown }): number[] {
+export function badgeCategoryIds(
+    meta: { categories?: GameCategories; store_category_ids?: unknown; source?: string },
+    controller: ControllerContext = {},
+): number[] {
     if (Array.isArray(meta.store_category_ids)) return portableCategoryIds(meta.store_category_ids);
     const c = meta.categories ?? {};
     const ids: number[] = [];
@@ -3414,15 +3442,19 @@ export function badgeCategoryIds(meta: { categories?: GameCategories; store_cate
         ids.push(24);
         if (c.coop) ids.push(39);
     }
-    if (c.full_controller !== false) ids.push(28);
-    if (c.partial_controller) ids.push(18);
+    if (meta.source === 'steam-store') {
+        if (c.full_controller === true) ids.push(28);
+        if (c.partial_controller === true) ids.push(18);
+    } else {
+        ids.push(...inferredControllerIds(controller));
+    }
     return portableCategoryIds(ids);
 }
 ```
 
-Check: `git hash-object steam-cartridges/frontend/features/game-info/category-policy.ts` prints `5cf1545b42976d1a3ef494691c9e8973d1ffed62`.
+Check: `git hash-object steam-cartridges/frontend/features/game-info/category-policy.ts` prints `f6411988b4289bc7d523f1ef4f47649400e3a512`.
 
-### Step 33: `steam-cartridges/tests/category-policy.test.ts` (new file) — F1 unit tests
+### Step 33: `steam-cartridges/tests/category-policy.test.ts` (new file) — F1 unit tests, including the controller precedence chain
 
 Create with exactly:
 
@@ -3434,6 +3466,7 @@ import {
     PORTABLE_CATEGORY_IDS,
     STEAM_ONLY_CATEGORY_IDS,
     badgeCategoryIds,
+    inferredControllerIds,
     portableCategoryIds,
 } from '../frontend/features/game-info/category-policy.ts';
 
@@ -3459,18 +3492,38 @@ test('Steam ids win over flags; flags never map achievements or Remote Play Toge
     assert.deepEqual(badgeCategoryIds({ categories, store_category_ids: [] }), [], 'an empty Steam answer is an answer');
 });
 
-test('flags keep their old mapping (split-screen co-op is 39, full controller defaults on)', () => {
-    assert.deepEqual(badgeCategoryIds({ categories: { coop: true, split_screen: true } }), [9, 24, 28, 39]);
-    assert.deepEqual(badgeCategoryIds({ categories: { partial_controller: true, full_controller: false } }), [18]);
-    assert.deepEqual(badgeCategoryIds({}), [28]);
+test('local flags keep the player mapping (split-screen co-op is 39); their controller flags are not data', () => {
+    assert.deepEqual(badgeCategoryIds({ categories: { coop: true, split_screen: true } }), [9, 24, 39]);
+    assert.deepEqual(badgeCategoryIds({ categories: { full_controller: true, partial_controller: true } }), []);
+    assert.deepEqual(badgeCategoryIds({}), []);
+});
+
+test('controller precedence: Steam Store data > emulator inference > default setting > no badge (ADR-0038 addendum)', () => {
+    // IGDB and the fallback record always write full_controller: true.
+    const local = { categories: { single_player: true, full_controller: true } };
+    // 1. Steam Store data wins over the inference and the setting, both ways.
+    assert.deepEqual(badgeCategoryIds({ ...local, store_category_ids: [2] }, { inferred: true, defaultFull: true }), [2]);
+    assert.deepEqual(badgeCategoryIds({ ...local, store_category_ids: [2, 28] }, { inferred: false, defaultFull: false }), [2, 28]);
+    const appdetails = { source: 'steam-store', categories: { single_player: true, full_controller: false, partial_controller: true } };
+    assert.deepEqual(badgeCategoryIds(appdetails, { inferred: true, defaultFull: true }), [2, 18]);
+    assert.deepEqual(badgeCategoryIds({ ...appdetails, categories: { full_controller: true } }, { inferred: false }), [28]);
+    // 2. The emulator decides before the setting, both ways.
+    assert.deepEqual(badgeCategoryIds(local, { inferred: true, defaultFull: false }), [2, 28]);
+    assert.deepEqual(badgeCategoryIds(local, { inferred: false, defaultFull: true }), [2]);
+    // 3. The setting, only when nothing was inferred.
+    assert.deepEqual(badgeCategoryIds(local, { defaultFull: true }), [2, 28]);
+    // 4. Otherwise no badge.
+    assert.deepEqual(badgeCategoryIds(local, { defaultFull: false }), [2]);
+    assert.deepEqual(badgeCategoryIds(local), [2]);
+    assert.deepEqual(inferredControllerIds(), []);
 });
 ```
 
-Check: `git hash-object steam-cartridges/tests/category-policy.test.ts` prints `25554b964cb675e5b59e81a31203c090c090288f`.
+Check: `git hash-object steam-cartridges/tests/category-policy.test.ts` prints `004f213d1fcf85950d068336628b8c98642039f2`.
 
-### Step 34: `steam-cartridges/frontend/rpc.ts` — F2 `store_category_ids`
+### Step 34: `steam-cartridges/frontend/rpc.ts` — F2 `store_category_ids`, F5 `getControllerInference`
 
-**Edit 1 of 1.** Before:
+**Edit 1 of 2.** Before:
 
 ```ts
     genres?: string[];
@@ -3488,7 +3541,22 @@ After:
     custom_override?: boolean;
 ```
 
-Check: `git hash-object steam-cartridges/frontend/rpc.ts` prints `da3b38c7d9b2045e46a0a7232cb5aae813dc67ff`.
+**Edit 2 of 2.** Before:
+
+```ts
+        }>("GetAllMetadata"),
+```
+
+After:
+
+```ts
+        }>("GetAllMetadata"),
+    /** Controller support inferred from each shortcut's emulator (parity plan F); unknown games are absent. */
+    getControllerInference: () =>
+        call<{ games?: Record<string, boolean> }>("GetControllerInference"),
+```
+
+Check: `git hash-object steam-cartridges/frontend/rpc.ts` prints `3caef12202082fdc7a171bcdb4552ad6d0fd9a30`.
 
 ### Step 35: `steam-cartridges/frontend/features/steam-store/store-item.ts` — F2 Steam's own player and controller ids, never the feature group
 
@@ -3603,9 +3671,9 @@ test('store_category_ids: player + controller groups only, accessor first (parit
 
 Check: `git hash-object steam-cartridges/tests/steam-store.test.ts` prints `c8121d1debcb6d10221462d9914e93122959574b`.
 
-### Step 37: `steam-cartridges/frontend/features/game-info/metadata.ts` — F3 write only categories true of the game
+### Step 37: `steam-cartridges/frontend/features/game-info/metadata.ts` — F3 write only categories true of the game, F5 controller precedence
 
-**Edit 1 of 4.** Before:
+**Edit 1 of 5.** Before:
 
 ```ts
 import type { ConsolidatedMetadata } from "../../rpc";
@@ -3618,11 +3686,12 @@ After:
 ```ts
 import type { ConsolidatedMetadata } from "../../rpc";
 import { MANAGED_CATEGORY_IDS, badgeCategoryIds } from "./category-policy";
+import { controllerContext } from "./controller";
 import {
     enrichedAppIds,
 ```
 
-**Edit 2 of 4.** Before:
+**Edit 2 of 5.** Before:
 
 ```ts
             if (overview.m_setStoreCategories?.delete) {
@@ -3638,7 +3707,7 @@ After:
             }
 ```
 
-**Edit 3 of 4.** Before:
+**Edit 3 of 5.** Before:
 
 ```ts
         const cats = meta.categories || {};
@@ -3670,13 +3739,13 @@ After:
 
 ```ts
         // Only categories true of the game itself: no Steam services (ADR-0038, parity plan F).
-        const cats = meta.categories || {};
-        const catSet = new Set<number>(badgeCategoryIds(meta));
+        // Controller: Steam Store data > emulator inference > the default setting > none (ADR-0038 addendum).
+        const catSet = new Set<number>(badgeCategoryIds(meta, controllerContext(appid)));
 
         setAppCategories(appid, catSet);
 ```
 
-**Edit 4 of 4.** Before:
+**Edit 4 of 5.** Before:
 
 ```ts
                 } else {
@@ -3696,7 +3765,619 @@ After:
                 }
 ```
 
-Check: `git hash-object steam-cartridges/frontend/features/game-info/metadata.ts` prints `831d4bcfa26b7f1b0bd5a17b666a5f8e8113c8a1`.
+**Edit 5 of 5.** Before:
+
+```ts
+                if (cats.full_controller !== false) {
+                    overview.xbox_controller_support = 2;
+                } else if (cats.partial_controller) {
+                    overview.xbox_controller_support = 1;
+                }
+```
+
+After:
+
+```ts
+                // Steam's controller field follows the badge: 2 full, 1 partial, else Steam's own value.
+                if (catSet.has(28)) {
+                    overview.xbox_controller_support = 2;
+                } else if (catSet.has(18)) {
+                    overview.xbox_controller_support = 1;
+                } else {
+                    const saved = originals.get(appid);
+                    if (saved && "xbox_controller_support" in saved) {
+                        overview.xbox_controller_support = saved.xbox_controller_support;
+                    }
+                }
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/game-info/metadata.ts` prints `2d0a87bb5d90590bcc120a5b92561088f1ae2b24`.
+
+### Step 37a: `steam-cartridges/backend/steam_store_emulators.lua` — F5 read the program token of a full command line
+
+Root cause (verified 2026-09-25 with lupa, read-only): 216 of the 220 shortcuts
+here store the whole command in `Exe`
+(`"C:\emu\RetroArch\retroarch.exe" -L cores\snes9x_libretro.dll "…zip"`), and
+`basename()` of that string is the ROM name, so `is_emulator` returns false
+for every RetroArch shortcut (the P3 emulator guard never fires, contrary to
+§ 9 item 1). The controller inference needs the program, so both use
+`program()`. There is no ADR-0003 `-L` parser left in the code (it lived in the
+removed `retroarch` provider); the existing helpers reused are
+`shortcuts.parse` / `shortcuts.by_appid` (`exe`, `launch_options`),
+`steam_paths.resolve` and `steam_store_emulators.basename` / `is_emulator`.
+
+**Edit 1 of 1.** Before:
+
+```lua
+function M.is_emulator(exe)
+  local b = M.basename(exe)
+```
+
+After:
+
+```lua
+--- The program of a command line, as basename(). Steam's Exe field holds the
+--- whole command for a RetroArch shortcut (`"...\retroarch.exe" -L core "rom"`),
+--- so only the first token (quoted, or up to ".exe", or up to a space) counts.
+function M.program(cmd)
+  local s = tostring(cmd or ""):gsub("^%s+", "")
+  local first = s:match('^"([^"]*)"')
+    or s:match("^(.-%.[eE][xX][eE])%s") or s:match("^(.-%.[eE][xX][eE])$")
+    or s:match("^(%S*)")
+  return M.basename(first)
+end
+
+function M.is_emulator(exe)
+  local b = M.program(exe)
+```
+
+Check: `git hash-object steam-cartridges/backend/steam_store_emulators.lua` prints `860472672224d81a026e9de3c06f9dd127959a3a`.
+
+### Step 37b: `steam-cartridges/backend/emulator_controllers.lua` (new file) — F5 the emulator → controller table (pure)
+
+The table (user decision 2026-09-25, ADR-0038 addendum). Core names are the
+machine's own: the installed cores, `C:\emu\RetroArch\cores` listed read-only
+on 2026-09-25, are exactly `fbneo`, `mgba`, `snes9x`, `swanstation` (the
+shortcuts use snes9x 138×, fbneo 35×, mgba 35×, swanstation 8×); every other
+name exists as `C:\emu\RetroArch\info\<core>_libretro.info` (332 files; its
+`systemname` was read).
+
+| Identity | Controller | Names |
+| --- | --- | --- |
+| RetroArch core, installed | yes | `snes9x` (SNES), `mgba` (GB/GBC/GBA), `fbneo` (Arcade), `swanstation` (PlayStation) |
+| RetroArch core, console / handheld / arcade | yes | NES `fceumm nestopia mesen quicknes`; SNES `bsnes mesen-s snes9x2010`; Sega 8/16-bit `genesis_plus_gx picodrive blastem gearsystem`; PlayStation `duckstation pcsx_rearmed mednafen_psx mednafen_psx_hw`; N64 `mupen64plus_next parallel_n64`; GB/GBA `gambatte sameboy gearboy gpsp vba_next vbam`; DS `melonds melondsds desmume`; PSP `ppsspp`; Saturn `mednafen_saturn yabasanshiro kronos`; Dreamcast `flycast`; PC Engine `mednafen_pce_fast mednafen_pce geargrafx`; GameCube/Wii `dolphin`; PS2 `pcsx2 play`; 3DS `citra azahar`; Arcade / Neo Geo `fbneo_neogeo fbalpha2012 mame2003_plus mame2010 mame geolith neocd`; Atari `stella prosystem handy`; others `mednafen_wswan mednafen_ngp race mednafen_vb opera virtualjaguar` |
+| RetroArch core, keyboard / mouse system | no | DOS `dosbox_pure dosbox_core dosbox_svn dosbox`; `scummvm`; PC-88 `quasi88`; PC-98 `np2kai nekop2`; PC `pcem virtualxt`; Mac `minivmac` |
+| Standalone exe (program basename, `-x64` style suffix stripped as in `is_emulator`) | yes | `dolphin primehack cemu pcsx2 rpcs3 duckstation ppsspp yuzu ryujinx xemu xenia flycast melonds citra vita3k mednafen` |
+| Anything else | not inferred | RetroArch with no or an unlisted core (home computers with joysticks: C64, Amiga, MSX, ZX, CPC, ST), standalone `mame` (also runs computers), native games (AM2R) |
+
+Collections are not used: they are user-named text, not an emulator identity,
+and the backend cannot read them. `-L` is read from `Exe` + `LaunchOptions`
+(`-L <path>`, `-L "<path>"`, `--libretro=<path>`). Measured on this library
+(read-only): 218 true (216 RetroArch + Cemu + PrimeHack's `dolphin.exe`), 0
+false, 2 unknown (AM2R, Jotunnslayer).
+
+Create with exactly:
+
+```lua
+--- Full Controller Support inferred from how a shortcut launches (parity plan
+--- Part F, ADR-0038 addendum). A fixed table, no guessing: a RetroArch core
+--- (`-L <core>` in Exe or LaunchOptions, ADR-0003) or a standalone emulator exe
+--- maps to true (a console, handheld or arcade system: played with a
+--- controller) or false (a keyboard / mouse system). Anything else is nil: not
+--- inferred, the "Default to full controller support" setting decides.
+---
+--- Core names are the `<core>_libretro.info` names in C:\emu\RetroArch\info
+--- (RetroArch's core catalog on the dev machine, read 2026-09-25); the four
+--- cores installed there (cores\*.dll) are listed first.
+
+local emulators = require("steam_store_emulators")
+
+local M = {}
+
+local function set(words)
+  local t = {}
+  for w in words:gmatch("%S+") do t[w] = true end
+  return t
+end
+
+--- RetroArch cores of consoles, handhelds and arcade boards.
+M.CORES_WITH_CONTROLLER = set([[
+  snes9x mgba fbneo swanstation
+  fceumm nestopia mesen quicknes
+  bsnes mesen-s snes9x2010
+  genesis_plus_gx picodrive blastem gearsystem
+  duckstation pcsx_rearmed mednafen_psx mednafen_psx_hw
+  mupen64plus_next parallel_n64
+  gambatte sameboy gearboy gpsp vba_next vbam
+  melonds melondsds desmume
+  ppsspp
+  mednafen_saturn yabasanshiro kronos
+  flycast
+  mednafen_pce_fast mednafen_pce geargrafx
+  dolphin
+  pcsx2 play
+  citra azahar
+  fbneo_neogeo fbalpha2012 mame2003_plus mame2010 mame geolith neocd
+  stella prosystem handy
+  mednafen_wswan mednafen_ngp race mednafen_vb opera virtualjaguar
+]])
+
+--- RetroArch cores of keyboard / mouse systems (DOS, ScummVM, NEC PC-88 / PC-98, PC, Mac).
+M.CORES_WITHOUT_CONTROLLER = set([[
+  dosbox_pure dosbox_core dosbox_svn dosbox
+  scummvm
+  quasi88 np2kai nekop2
+  pcem virtualxt minivmac
+]])
+
+--- Standalone emulator programs (steam_store_emulators.lua names) of controller
+--- systems. `retroarch` is decided by its core; `mame` also runs computers: not inferred.
+M.EMULATORS_WITH_CONTROLLER = set([[
+  dolphin primehack cemu pcsx2 rpcs3 duckstation ppsspp yuzu ryujinx
+  xemu xenia flycast melonds citra vita3k mednafen
+]])
+
+--- Core name from a command line: `-L cores\snes9x_libretro.dll` -> "snes9x".
+---@param cmd string
+---@return string|nil
+function M.core(cmd)
+  local s = tostring(cmd or ""):gsub("\\", "/")
+  local path = s:match('%-L%s+"([^"]+)"') or s:match("%-L%s+(%S+)")
+    or s:match('%-%-libretro[=%s]+"([^"]+)"') or s:match("%-%-libretro[=%s]+(%S+)")
+  if not path then return nil end
+  local base = (path:match("([^/]*)$") or path):lower()
+  return (base:gsub("%.%w+$", ""):gsub("_libretro$", ""))
+end
+
+--- true (controller system), false (keyboard / mouse system) or nil (unknown)
+--- for one shortcuts.lua entry ({ exe, launch_options }).
+---@param entry table
+---@return boolean|nil
+function M.infer(entry)
+  if type(entry) ~= "table" then return nil end
+  local program = emulators.program(entry.exe)
+  local head = program:match("^(%w+)[%-_ ]")
+  if program == "retroarch" or head == "retroarch" then
+    local core = M.core(tostring(entry.exe or "") .. " " .. tostring(entry.launch_options or ""))
+    if core and M.CORES_WITH_CONTROLLER[core] then return true end
+    if core and M.CORES_WITHOUT_CONTROLLER[core] then return false end
+    return nil
+  end
+  if M.EMULATORS_WITH_CONTROLLER[program] or (head and M.EMULATORS_WITH_CONTROLLER[head]) then
+    return true
+  end
+  return nil
+end
+
+--- { ["<appid>"] = true|false } for every shortcut with an inference (unknown ones are left out).
+---@param entries table[]
+---@return table<string, boolean>
+function M.for_entries(entries)
+  local out = {}
+  for _, entry in ipairs(entries or {}) do
+    local value = M.infer(entry)
+    if value ~= nil and entry.appid then out[tostring(entry.appid)] = value end
+  end
+  return out
+end
+
+return M
+```
+
+Check: `git hash-object steam-cartridges/backend/emulator_controllers.lua` prints `1679f564dc48952d847f320b9ae6c6ed9afe5e3e`.
+
+### Step 37c: `steam-cartridges/backend/web_rpc.lua` — F5 `GetControllerInference`
+
+**Edit 1 of 2.** Before:
+
+```lua
+local steam_paths = require("steam_paths")
+local shortcuts = require("shortcuts")
+
+local M = {}
+```
+
+After:
+
+```lua
+local steam_paths = require("steam_paths")
+local shortcuts = require("shortcuts")
+local controllers = require("emulator_controllers")
+
+local M = {}
+```
+
+**Edit 2 of 2.** Before:
+
+```lua
+  return json.encode({ success = true, library = all })
+end
+```
+
+After:
+
+```lua
+  return json.encode({ success = true, library = all })
+end
+
+--- Controller support inferred from each shortcut's emulator (parity plan Part F,
+--- ADR-0038 addendum): { games = { ["<appid>"] = true|false } }; unknown games
+--- are left out. Never fails: an unreadable shortcuts.vdf gives an empty map.
+function M.GetControllerInference()
+  local ok, games = pcall(function()
+    local paths = steam_paths.resolve()
+    if not paths or not paths.shortcuts then return {} end
+    return controllers.for_entries(shortcuts.parse(paths.shortcuts) or {})
+  end)
+  return json.encode({ games = ok and games or {} })
+end
+```
+
+Check: `git hash-object steam-cartridges/backend/web_rpc.lua` prints `9e27332e07d3b1a8d142b3d0290d1e405a8af41b`.
+
+### Step 37d: `steam-cartridges/backend/main.lua` — F5 expose the RPC
+
+**Edit 1 of 1.** Before:
+
+```lua
+GetArtworkForGame    = WEB_RPC.GetArtworkForGame
+```
+
+After:
+
+```lua
+GetArtworkForGame    = WEB_RPC.GetArtworkForGame
+GetControllerInference = WEB_RPC.GetControllerInference
+```
+
+Check: `git hash-object steam-cartridges/backend/main.lua` prints `a406b64eb035cb2bb23bc3c4a529df36cc97ed00`.
+
+### Step 37e: `steam-cartridges/tests/test_emulator_controllers.lua` (new file) — F5 Lua tests
+
+Create with exactly:
+
+```lua
+-- Controller inference tests (parity plan Part F, ADR-0038 addendum). Hermetic:
+-- pure modules only, no Steam install.
+--
+--   lua tests/test_emulator_controllers.lua   (any Lua 5.1-5.5; lupa works too)
+
+local here = (debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."):gsub("\\", "/")
+package.path = here .. "/../backend/?.lua;" .. package.path
+
+local emulators = require("steam_store_emulators")
+local controllers = require("emulator_controllers")
+
+local failures = 0
+local function check(label, cond, detail)
+  print((cond and "  PASS  " or "  FAIL  ") .. label .. (detail ~= nil and ("  -> " .. tostring(detail)) or ""))
+  if not cond then failures = failures + 1 end
+end
+
+-- Exe fields as Steam stores them on the dev machine (shortcuts.vdf, 2026-09-25).
+local SNES = [["C:\emu\RetroArch\retroarch.exe" -L cores\snes9x_libretro.dll "C:\emu\roms\snes\Zombies Ate My Neighbors (USA).zip"]]
+local AM2R = [["C:\emu\am2r\AM2RLauncher_2.3.0_win_DownloadMe\Profiles\Community Updates (Latest)\AM2R.exe"]]
+
+print("program / emulator guard")
+check("program of a full RetroArch command", emulators.program(SNES) == "retroarch", emulators.program(SNES))
+check("the guard sees RetroArch in a full command", emulators.is_emulator(SNES))
+check("unquoted path with spaces", emulators.program([[C:\Program Files\Cemu\Cemu.exe -g game.rpx]]) == "cemu")
+check("a native game is not an emulator", not emulators.is_emulator(AM2R))
+
+print("core")
+check("-L core", controllers.core(SNES) == "snes9x", controllers.core(SNES))
+check("quoted -L core with a hyphen", controllers.core([[-L "C:/RA/cores/mesen-s_libretro.dll" rom.sfc]]) == "mesen-s")
+check("--libretro=", controllers.core("retroarch --libretro=cores/fbneo_libretro.dll x.zip") == "fbneo")
+check("no core", controllers.core([["C:\emu\RetroArch\retroarch.exe"]]) == nil)
+
+print("infer")
+check("installed cores: snes9x", controllers.infer({ exe = SNES }) == true)
+for _, core in ipairs({ "mgba", "fbneo", "swanstation" }) do
+  local exe = [["C:\emu\RetroArch\retroarch.exe" -L cores\]] .. core .. [[_libretro.dll "C:\roms\x.zip"]]
+  check("installed cores: " .. core, controllers.infer({ exe = exe }) == true)
+end
+check("core in launch options", controllers.infer({ exe = [["C:\emu\RetroArch\retroarch.exe"]], launch_options = [[-L cores\mgba_libretro.dll "x.gba"]] }) == true)
+check("keyboard system: dosbox_pure", controllers.infer({ exe = [["C:\RA\retroarch.exe" -L cores\dosbox_pure_libretro.dll "doom.zip"]] }) == false)
+check("keyboard system: scummvm", controllers.infer({ exe = [["C:\RA\retroarch.exe" -L cores\scummvm_libretro.dll "x.scummvm"]] }) == false)
+check("unknown core is not inferred", controllers.infer({ exe = [["C:\RA\retroarch.exe" -L cores\vice_x64_libretro.dll "x.d64"]] }) == nil)
+check("RetroArch without a core is not inferred", controllers.infer({ exe = [["C:\emu\RetroArch\retroarch.exe"]] }) == nil)
+check("standalone emulator: cemu", controllers.infer({ exe = [["C:\emu\cemu\Cemu.exe"]] }) == true)
+check("standalone emulator: primehack's dolphin.exe", controllers.infer({ exe = [["C:\emu\primehack\Dolphin.exe"]] }) == true)
+check("suffixed build: dolphin-x64", controllers.infer({ exe = "D:/games/Dolphin-x64.exe" }) == true)
+check("mame is not inferred (it also runs computers)", controllers.infer({ exe = [["C:\mame\mame.exe" sf2]] }) == nil)
+check("a native game is not inferred", controllers.infer({ exe = AM2R }) == nil)
+check("tables are disjoint", (function()
+  for core in pairs(controllers.CORES_WITHOUT_CONTROLLER) do
+    if controllers.CORES_WITH_CONTROLLER[core] then return false end
+  end
+  return true
+end)())
+
+print("for_entries")
+local map = controllers.for_entries({
+  { appid = 3224687354, exe = SNES },
+  { appid = 4263274102, exe = AM2R },
+  { appid = 1, exe = [["C:\RA\retroarch.exe" -L cores\scummvm_libretro.dll "x"]] },
+})
+check("inferred games are keyed by appid string", map["3224687354"] == true and map["1"] == false)
+check("unknown games are left out", map["4263274102"] == nil)
+
+print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
+os.exit(failures == 0 and 0 or 1)
+```
+
+Check: `git hash-object steam-cartridges/tests/test_emulator_controllers.lua` prints `515485823b21433c73a2c1566c6a45183c4a74e4`. Then run the **Lua command**:
+
+```bash
+cd /c/game/millennium/steam-cartridges && for f in test_backend test_steam_store test_emulator_controllers; do NSGA_STEAM_ROOT='C:\game\steam' python -c "import sys,lupa; L=lupa.LuaRuntime(unpack_returned_tuples=True); L.globals().dofile(sys.argv[1])" tests/$f.lua > /tmp/sc_$f.txt 2>&1; echo "$f exit=$? pass=$(grep -c '^  PASS' /tmp/sc_$f.txt) fail=$(grep -c '^  FAIL' /tmp/sc_$f.txt) last=$(tail -1 /tmp/sc_$f.txt)"; done
+```
+Expected exactly:
+```
+test_backend exit=0 pass=71 fail=0 last=ALL PASS
+test_steam_store exit=0 pass=86 fail=0 last=ALL PASS
+test_emulator_controllers exit=0 pass=25 fail=0 last=ALL PASS
+```
+`package.json` `test:lua` is not changed: the new file runs through this command only.
+
+### Step 37f: `steam-cartridges/frontend/settings/settings.ts` — F6 setting `defaultFullController`
+
+Key `defaultFullController`, type `boolean`, default `false`, validator
+`raw === true`. The Millennium#903 workaround is generic in this module
+(`apply` parses string values, `write` swallows "type must be string" and
+re-reads, storing the default deletes the key), so the key only has to be added
+to `Settings`, `DEFAULTS`, `VALIDATORS` and `current`.
+
+**Edit 1 of 3.** Before:
+
+```ts
+ * One key today: `buckets` (ADR-0033). Reads come from an in-memory copy.
+```
+
+After:
+
+```ts
+ * Keys: `buckets` (ADR-0033) and `defaultFullController` (ADR-0038 addendum).
+ * Reads come from an in-memory copy.
+```
+
+**Edit 2 of 3.** Before:
+
+```ts
+export interface Settings {
+    buckets: BucketsConfig;
+}
+```
+
+After:
+
+```ts
+export interface Settings {
+    buckets: BucketsConfig;
+    /** Full Controller Support for a shortcut that neither Steam nor its emulator decides (ADR-0038 addendum). */
+    defaultFullController: boolean;
+}
+```
+
+**Edit 3 of 3.** Before:
+
+```ts
+export const DEFAULTS: Settings = { buckets: DEFAULT_BUCKETS };
+
+const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
+    buckets: validateConfig,
+};
+
+const current: Settings = { buckets: DEFAULT_BUCKETS };
+```
+
+After:
+
+```ts
+export const DEFAULTS: Settings = { buckets: DEFAULT_BUCKETS, defaultFullController: false };
+
+const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
+    buckets: validateConfig,
+    defaultFullController: (raw) => raw === true,
+};
+
+const current: Settings = { buckets: DEFAULT_BUCKETS, defaultFullController: false };
+```
+
+Check: `git hash-object steam-cartridges/frontend/settings/settings.ts` prints `c04dc3095d62a5bf9671f2800009a024d3f940a6`.
+
+### Step 37g: `steam-cartridges/frontend/features/game-info/controller.ts` (new file) — F5 inference cache and context
+
+Create with exactly:
+
+```ts
+import { logger } from "../../logger";
+import { rpc } from "../../rpc";
+import { setting } from "../../settings/settings";
+import type { ControllerContext } from "./category-policy";
+
+/**
+ * Controller support inferred from each shortcut's emulator (backend
+ * emulator_controllers.lua), loaded once at startup (ADR-0038 addendum).
+ */
+const inferred = new Map<number, boolean>();
+
+export async function loadControllerInference(): Promise<void> {
+    try {
+        const res = await rpc.getControllerInference();
+        inferred.clear();
+        for (const [key, value] of Object.entries(res?.games ?? {})) {
+            const appid = Number(key);
+            if (Number.isFinite(appid) && typeof value === "boolean") inferred.set(appid, value);
+        }
+        logger.info(`Controller support inferred for ${inferred.size} shortcut(s) from their emulator.`);
+    } catch (err) {
+        logger.warn("Could not load controller inference; only the default setting applies.", err);
+    }
+}
+
+/** O(1): what decides the controller badge of a shortcut without Steam Store data. */
+export function controllerContext(appid: number): ControllerContext {
+    return { inferred: inferred.get(appid), defaultFull: setting("defaultFullController") };
+}
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/game-info/controller.ts` prints `b0df10523748e2921143ae15bbe9c64b7c7f2bb6`.
+
+### Step 37h: `steam-cartridges/frontend/features/game-info/index.ts` — F5 load the inference before the preload, F6 re-apply on a setting change
+
+**Edit 1 of 4.** Before:
+
+```ts
+import { rpc, type ConsolidatedMetadata } from "../../rpc";
+```
+
+After:
+
+```ts
+import { rpc, type ConsolidatedMetadata } from "../../rpc";
+import { onSettingChange } from "../../settings/settings";
+```
+
+**Edit 2 of 4.** Before:
+
+```ts
+import { enrichGameDetails, revertGameDetails } from "./metadata";
+```
+
+After:
+
+```ts
+import { loadControllerInference } from "./controller";
+import { enrichGameDetails, revertGameDetails } from "./metadata";
+```
+
+**Edit 3 of 4.** Before:
+
+```ts
+    // Bypass Big Picture native shortcut filter on Game Info tab
+    patchGameInfoComponent();
+
+```
+
+After:
+
+```ts
+    // Bypass Big Picture native shortcut filter on Game Info tab
+    patchGameInfoComponent();
+
+    // Controller support per shortcut from its emulator, before any badge is written (ADR-0038 addendum).
+    await loadControllerInference();
+
+```
+
+**Edit 4 of 4.** Before:
+
+```ts
+                enrichGameDetails(appid, meta);
+            }
+        }
+    });
+
+    logger.info("Game Metadata Provider ready.");
+```
+
+After:
+
+```ts
+                enrichGameDetails(appid, meta);
+            }
+        }
+    });
+
+    // ===== "Default to full controller support" (no restart needed) =====
+    onSettingChange((key) => {
+        if (key !== "defaultFullController") return;
+        for (const [appid, meta] of libraryCache) {
+            // Steam Store data never depends on the setting (ADR-0038 addendum).
+            if (enrichedAppIds.has(appid) && !storeEnrichedAppIds.has(appid)) {
+                enrichGameDetails(appid, meta);
+            }
+        }
+    });
+
+    logger.info("Game Metadata Provider ready.");
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/game-info/index.ts` prints `c92177b45f75d0777ab7ccdbe5833866c8fddaea`.
+
+### Step 37i: `steam-cartridges/frontend/settings/settings-panel.tsx` — F6 the "Default to full controller support" row
+
+The panel has no checkbox component of its own; the row is the SDK's
+`ToggleField` (Steam's own toggle; `enhanced-achievements` and
+`enhanced-notifications` use the same). The plugin has no i18n layer: labels
+are literal English like every other row. Section "Game Info", label
+"Default to full controller support", description as below.
+
+**Edit 1 of 3.** Before:
+
+```tsx
+import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, TextField } from '@steambrew/client';
+```
+
+After:
+
+```tsx
+import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, TextField, ToggleField } from '@steambrew/client';
+```
+
+**Edit 2 of 3.** Before:
+
+```tsx
+function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) => void }) {
+```
+
+After:
+
+```tsx
+function GameInfo() {
+    const [defaultFull, setDefaultFull] = useSetting('defaultFullController');
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Game Info</DialogControlsSectionHeader>
+            <ToggleField
+                label="Default to full controller support"
+                description="Shows Full Controller Support for games without Steam Store data whose emulator is not recognised. Steam Store data and recognised emulators always decide first."
+                checked={defaultFull}
+                onChange={setDefaultFull}
+            />
+        </DialogControlsSection>
+    );
+}
+
+function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) => void }) {
+```
+
+**Edit 3 of 3.** Before:
+
+```tsx
+            <SteamStore />
+            <Warnings cfg={cfg} save={save} />
+```
+
+After:
+
+```tsx
+            <SteamStore />
+            <GameInfo />
+            <Warnings cfg={cfg} save={save} />
+```
+
+Check: `git hash-object steam-cartridges/frontend/settings/settings-panel.tsx` prints `7d4c66e27b35702032b72286ef86dfefceff1cb3`. Then:
+
+```bash
+cd /c/game/millennium/steam-cartridges && npm run check && npm run test:ts 2>&1 | grep -E "^ℹ (tests|pass|fail)"
+```
+Expected: the two `check` banner lines, nothing from `tsc`, then exactly:
+```
+ℹ tests 50
+ℹ pass 50
+ℹ fail 0
+```
 
 ### Step 38: `scratch/check_parity.mjs` — F4 gate check 14 (no Steam-only badge)
 
@@ -4296,11 +4977,11 @@ cd /c/game/millennium/steam-cartridges && npm run check && npm run test:ts 2>&1 
 ```
 Expected: the two `check` banner lines, nothing from `tsc`, then exactly:
 ```
-ℹ tests 49
-ℹ pass 49
+ℹ tests 50
+ℹ pass 50
 ℹ fail 0
 ```
-and a last line starting `build Succeeded`. Then:
+and a last line starting `build Succeeded`. Then run the Lua command of Step 37e; expect its three lines exactly. Then:
 
 ```bash
 cd /c/game/millennium && node --check scratch/check_parity.mjs && echo syntax-ok && grep -c "check(" scratch/check_parity.mjs
@@ -4318,19 +4999,19 @@ After:
 ```
 ## [Unreleased]
 
-- **`steam-cartridges` parity Parts F–H (offline, ADR-0038)**: a shortcut carries only categories true of the game (allow-list of Steam's player and controller ids; Steam services such as Achievements, Cloud, Remote Play Together, Family Sharing never written); Steam's `Navigator.App` sends an unowned mapped native app to its shortcut; the partner event overlay gets the native appid, so native news opens on the shortcut page. Gate: 17 checks (baseline 4 PASS / 13 FAIL). Plan: [docs/plans/steam-cartridges-parity.md § 5b](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app). `tsc` clean, `test:ts` 49/49. Live gate pending.
+- **`steam-cartridges` parity Parts F–H (offline, ADR-0038)**: a shortcut carries only categories true of the game (allow-list of Steam's player and controller ids; Steam services such as Achievements, Cloud, Remote Play Together, Family Sharing never written); Full Controller Support from Steam data, else the shortcut's emulator (RetroArch core / exe table), else the new "Default to full controller support" setting (off); Steam's `Navigator.App` sends an unowned mapped native app to its shortcut; the partner event overlay gets the native appid, so native news opens on the shortcut page. Gate: 17 checks (baseline 4 PASS / 13 FAIL). Plan: [docs/plans/steam-cartridges-parity.md § 5b](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app). `tsc` clean, `test:ts` 50/50, Lua 71 + 86 + 25. Live gate pending.
 
 ```
 
 48b. `TASK.md`: Before:
 ```
     - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
-    - [ ] Offline gates: `tsc`, `test:ts` 49/49
+    - [ ] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
 ```
 After:
 ```
     - [x] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
-    - [x] Offline gates: `tsc`, `test:ts` 49/49
+    - [x] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
 ```
 
 ### Step 49: Parts F–H commit (do not push unless the caller said so)
@@ -4338,7 +5019,7 @@ After:
 Stage only your CHANGELOG bullet (the file may hold unrelated user edits):
 
 ```bash
-cd /c/game/millennium && git add steam-cartridges/frontend/features/game-info/category-policy.ts steam-cartridges/tests/category-policy.test.ts steam-cartridges/frontend/rpc.ts steam-cartridges/frontend/features/steam-store/store-item.ts steam-cartridges/tests/steam-store.test.ts steam-cartridges/frontend/features/game-info/metadata.ts steam-cartridges/frontend/features/steam-store/native-sections-core.ts steam-cartridges/tests/native-sections.test.ts steam-cartridges/frontend/features/steam-store/native-sections.ts scratch/check_parity.mjs TASK.md
+cd /c/game/millennium && git add steam-cartridges/frontend/features/game-info/category-policy.ts steam-cartridges/tests/category-policy.test.ts steam-cartridges/frontend/rpc.ts steam-cartridges/frontend/features/steam-store/store-item.ts steam-cartridges/tests/steam-store.test.ts steam-cartridges/frontend/features/game-info/metadata.ts steam-cartridges/backend/steam_store_emulators.lua steam-cartridges/backend/emulator_controllers.lua steam-cartridges/backend/web_rpc.lua steam-cartridges/backend/main.lua steam-cartridges/tests/test_emulator_controllers.lua steam-cartridges/frontend/settings/settings.ts steam-cartridges/frontend/features/game-info/controller.ts steam-cartridges/frontend/features/game-info/index.ts steam-cartridges/frontend/settings/settings-panel.tsx steam-cartridges/frontend/features/steam-store/native-sections-core.ts steam-cartridges/tests/native-sections.test.ts steam-cartridges/frontend/features/steam-store/native-sections.ts scratch/check_parity.mjs TASK.md
 git show HEAD:CHANGELOG.md > .git/cl_head.md
 python - <<'EOF'
 head = open('.git/cl_head.md', encoding='utf-8').read()
@@ -4352,7 +5033,7 @@ git diff --no-index .git/cl_head.md .git/cl_new.md | sed 's#a/.git/cl_head.md#a/
 rm -f .git/cl_head.md .git/cl_new.md
 git diff --cached --stat
 ```
-Expected: exactly 12 files: the 9 `steam-cartridges/` paths,
+Expected: exactly 21 files: the 18 `steam-cartridges/` paths,
 `scratch/check_parity.mjs`, `TASK.md`, and `CHANGELOG.md | 2 ++`. Anything else: stop.
 
 ```bash
@@ -4388,7 +5069,7 @@ come from Step 28 (ADR-0037); checks 14–17 and the check 11 key come from Step
 | 11 | News / partner events | the native entry has ≥ 1 event and every native event is in the shortcut's feed: news keyed by `announcementGID`, other events by type, time, actor and `unUniqueID` (Step 46; `unUniqueID` alone is a per-store counter, `1` for the native news event) | FAIL (native 1, missing 1) |
 | 12 | Your Stuff media | heading `Recordings and Screenshots` | PASS |
 | 13 | Notes | heading `Notes` | PASS |
-| 14 | Badges (ADR-0038) | the shortcut has categories, none of 22, 23, 29, 30, 42, 43, 44, 59, 62 is in `m_setStoreCategories` or answers `BHasStoreCategory`, and every id it carries is in the allow-list | PASS (2, 28 from local data; Part A without Part F would add 44) |
+| 14 | Badges (ADR-0038) | the shortcut has categories, none of 22, 23, 29, 30, 42, 43, 44, 59, 62 is in `m_setStoreCategories` or answers `BHasStoreCategory`, and every id it carries is in the allow-list | PASS (2, 28 from local data; Part A without Part F would add 44). Unchanged by the controller addendum: the shortcut is store-matched, so its 28 is Steam's own; the inference and the setting are checked live in § 9 item 5b, not by a new gate check (the gate stays 17) |
 | 15 | Header links | every links-bar entry (desktop fiber props, then `url` or `urlStore.ResolveURL(link, appid)`) targets N (`/app/N` or `appid=N`) and never S; the ids `GameHub`, `GameHubDiscussions`, `GameHubGuides`, `HelpAppPage` and a `store.steampowered.com/app/N` URL are present | FAIL (all five built from 2315502503) |
 | 16 | News click-through | `MainWindowInstance.Navigator.App(model.appid, { gidPartnerEvent: model.GID })` for the native news event leads to `/library/app/S` with `event_to_show.eventid === GID`, and the overlay rendered with `lastNative.event === N` | FAIL (route unchanged: `App(2820820)` is a no-op) |
 | 17 | Community Content loader | Steam's loader under `[class*="CommunityContentContainer"]` has `m_unAppID === N` | FAIL (2315502503) |
@@ -4404,10 +5085,10 @@ do not loosen them.
 
 ## 7. Do not touch
 
-- `steam-cartridges/backend/**` (P4 owns it; Parts A–H are frontend only; the backend `CATEGORY_FLAGS` keeps mapping 44, and the frontend sink `badgeCategoryIds` drops it), `plugin.json`, `dev.ps1`, `package.json`, `package-lock.json`, `tsconfig.json`
+- `steam-cartridges/backend/**` except Steps 37a–37d (P4 owns it; Parts A–E, G and H are frontend only; the backend `CATEGORY_FLAGS` keeps mapping 44, and the frontend sink `badgeCategoryIds` drops it), `plugin.json`, `dev.ps1`, `package.json`, `package-lock.json`, `tsconfig.json`
 - `steam-cartridges/frontend/steam/{summary,stores,jsx-hook,gamepad-appid,headline-patch,activity-cards-patch,route,shortcut,gameid,modules}.ts`, `frontend/renderers/**`
-- `steam-cartridges/frontend/settings/settings.ts`, `features/buckets/{collections,ready}.ts`, `features/artwork/**`, `features/steam-store/{known-apps,resolve,enriched,art-plan}.ts`
-- Parts F–H: `features/game-info/game-info-patch.ts` (the `BIsModOrShortcut` / `GetGameID` / `BHasStoreCategory` prototype hooks stay as they are), `steam/activity.ts`, `steam/sections.ts`, `features/steam-store/{index,logo}.ts`, `features/game-info/{index,normalize,policy}.ts`, `index.tsx`
+- `steam-cartridges/frontend/settings/settings.ts` (except Step 37f), `features/buckets/{collections,ready}.ts`, `features/artwork/**`, `features/steam-store/{known-apps,resolve,enriched,art-plan}.ts`
+- Parts F–H: `features/game-info/game-info-patch.ts` (the `BIsModOrShortcut` / `GetGameID` / `BHasStoreCategory` prototype hooks stay as they are), `steam/activity.ts`, `steam/sections.ts`, `features/steam-store/{index,logo}.ts`, `features/game-info/{normalize,policy}.ts`, `features/game-info/index.ts` (except Step 37h), `index.tsx`, `package.json` (`test:lua` is not extended)
 - Every file not named in a step; `docs/**` (except the Step 12/30/48 edits to `TASK.md`, `CHANGELOG.md`); `scratch/check_all_tabs.js`, `scratch/test_nav_cycle.js`
 - Anything under `C:\game\steam\` (plugins, Millennium config, `library_metadata.json`, `steam_store.json`, userdata, grid)
 - The unrelated uncommitted user changes (`enhanced-achievements/`, `enhanced-notifications/`, `scratch/*` probes other than `check_parity.mjs`, other `CHANGELOG.md` hunks)
@@ -4472,6 +5153,13 @@ in order; every item must hold. Record the outputs in `TASK.md` / `CHANGELOG.md`
    event, and selecting it opens the event over the Jotunnslayer page;
    `nativeSectionsDiagnostics().navigatorPatches` is one higher than on desktop (the Big
    Picture window's Navigator). One clipped, low-quality screenshot per claim (guardrail 4).
+5b. **Controller badge (ADR-0038 addendum), desktop SharedJSContext, read-only:** the log has
+   `Controller support inferred for 218 shortcut(s) from their emulator.`; a snes9x shortcut
+   (Zombies Ate My Neighbors) with local metadata answers
+   `appStore.GetAppOverviewByAppID(<appid>).BHasStoreCategory(28)` true; AM2R (4263274102)
+   answers false with the setting off. The user turns "Default to full controller support"
+   on in the panel: AM2R answers true without a restart and Jotunnslayer keeps Steam's own
+   ids; the user turns it off again (only the user writes this setting, never the verifier).
 6. **Desktop by hand, Jotunnslayer:** the gear (Manage) menu still offers the shortcut's
    own items ("Remove non-Steam game from your library", custom artwork, browse local files)
    and "Properties…" opens the shortcut's properties (target, start in, launch options).
@@ -4498,7 +5186,7 @@ ADR-0034 (Steam native, RetroAchievements); no user-created achievements.
 - [ ] **11 re-render:** `refreshGameInfoInstances()` after the native appid is known; `setExtraSections` re-renders the sections.
 - [ ] **12 windows:** the Navigator patch is per Steam UI window and re-applied on each mapped view; the Big Picture window is checked live (§ 9 item 5).
 - [ ] **13 MobX computed:** no new `collectionStore` read; titles come from `appStore.GetAppOverviewByAppID`.
-- [ ] **14 gates:** local Game Info still shows until store data replaces it; unmatched shortcuts lose only dead links (ADR-0037); the only badges removed are the Steam services the user ruled out (ADR-0038); `full_controller` keeps its default.
+- [ ] **14 gates:** local Game Info still shows until store data replaces it; unmatched shortcuts lose only dead links (ADR-0037); the only badges removed are the Steam services the user ruled out (ADR-0038) and the local-data `full_controller` default, which the user replaced with emulator inference + the setting (ADR-0038 addendum: a user decision, not a gate side effect).
 - [ ] **15 checks:** checks 1–13 are fixed by ADR-0037 and 14–17 by ADR-0038; check 11's event key got stricter, not looser (ADR-0038); § 9 item 5's badge list was corrected to Steam's real badge table; `check_all_tabs.js` / `test_nav_cycle.js` unchanged.
 
 ## 11. Dry-run record
@@ -4515,6 +5203,13 @@ Steps 1–15 and Steps 1–31 of this plan applied by a script that parses the
 plans (all 39 file steps matched once, all hashes matched), then Steps 32–46:
 every before block matched once and every Check hash matched; gate: `tsc`
 clean, `test:ts` 49/49, build succeeded, `node --check` OK, 17 `check(` calls.
+
+Controller addendum (2026-09-25, third session): a fresh `git archive HEAD`, P4 Steps
+1–15, then this plan's Steps 1–46 including the amended 32–37i, applied by the plan parser
+in order: all 49 file steps matched every before block once and every Check hash matched;
+`tsc` clean, `test:ts` 50/50, build succeeded, Lua 71 + 86 + 25 PASS, `node --check` OK,
+17 `check(` calls. Inference against the real shortcuts.vdf (read-only): 218 true, 0
+false, 2 unknown.
 The 17-check gate script ran live (read-only) against the current build:
 `4 PASS / 13 FAIL` (§ 6).
 
