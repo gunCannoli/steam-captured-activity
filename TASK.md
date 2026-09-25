@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Geometry, animation/queue, glow/settings-layout and settings-panel-cleanup fixes all committed and deployed 2026-09-25; awaiting user's live smoke test. |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Geometry, animation/queue, glow/settings-layout, settings-panel-cleanup and Steam-default-theme fixes all committed and deployed 2026-09-25; awaiting user's live smoke test. |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
@@ -37,8 +37,9 @@ is just the index.
 2. **Animation in/out split, `ps5` preset, edge-anchored ripple, one-at-a-time queue** — [plan](docs/plans/enhanced-achievements-animation-queue-improvements.md), commit `db93e79`. `animation.in`/`.out` independently settable; new pure `banner/queue.ts`.
 3. **Glow removal, capture slider floor, two-row settings layout, queue toggle** — [plan](docs/plans/enhanced-achievements-glow-queue-settings-improvements.md), commit `0be4cf0`. Glow dropped (double-clipped by `overflow:hidden` + the exact-fit toast window — `banner.glow` still parses, no visual effect); `recording.duration_s` now starts at 0; every row uses SDK `layout="below"`; new `queue.enabled` toggle (off by default).
 4. **Settings panel cleanup** — commit `c55a783`. `banner.enabled`/`sound.enabled` removed (banner theming always on with a loaded theme; sound theming follows whether the theme defines a clip per tier); renamed labels/sections (Achievement queue, Preview Achievements, Screenshots & Recordings); every row grouped under a `DialogControlsSectionHeader`; dropped the toast-disabled disclaimer, the "(yours)" theme suffix, and the "Test captures" button; tier preview labels/rules now theme-driven instead of hardcoding bronze/silver/gold.
+5. **"Steam default" as the shipped default theme** — commit `bac1703`. `theme: ""` (was `"steam_tiers"`) means no theme loaded, Steam's own stock toast and chime; the settings panel's Theme dropdown lists it as the first option. Answers the user's question about theme modularity: a theme file's fields were already independently optional (set only `sound`, only `icons`, etc.), but keeping Steam's *own* native banner rendering specifically requires selecting "Steam default" — any theme file always replaces the banner with ours.
 
-- [ ] **User's live smoke test** across all four rounds — not yet run.
+- [ ] **User's live smoke test** across all five rounds — not yet run.
 - [ ] Open questions (not blocking, defaults already applied): default animation pair, `ps5` timings, queue overflow behaviour (plan 2 § 9); `queue.enabled` default off vs on, `duration_s: 0` edge case (plan 3 § 9).
 
 ## Alpha testing (user)
@@ -48,7 +49,9 @@ Only verifiable with a real game running. Steps and expected results:
 and each plugin's README ("How to test").
 
 - [ ] **U1–U5:** real-unlock captures — screenshot, clip, coalescing, Steam's own
-      achievement marker, non-Steam shortcut via "Test captures".
+      achievement marker, non-Steam shortcut (via a real unlock; the settings
+      panel's "Test captures" button was removed 2026-09-25, see `fireTestUnlock`
+      in `tests/captures.mjs` for the equivalent CDP-driven check).
 - [ ] **U6:** no captures when in-game toasts are disabled (settings warning shows).
 - [ ] **U7:** in-game overlay, both plugins (desktop overlay toasts should be caught
       via `g_PopupManager`; Big Picture overlay toasts are code-verified only).
