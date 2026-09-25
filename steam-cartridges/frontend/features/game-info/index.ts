@@ -4,13 +4,13 @@ import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
+import { gameInfoPlan } from "./policy";
 import {
     collectionsReady,
     getBucket,
     invalidateMembership,
     onBucketsChanged,
     setMetadataAppidSource,
-    waitForCollections,
 } from "../buckets";
 import {
     patchGameInfoComponent,
@@ -24,21 +24,21 @@ const libraryCache = new Map<number, ConsolidatedMetadata>();
 /** Set of appids we have already enriched this session */
 const processedApps = new Set<number>();
 
-/** Web-scraping source for one shortcut view (dispatched by features/source-view.ts). */
+/**
+ * Game Info for one view of a shortcut that is not steam-store (dispatched by
+ * features/source-view.ts). Local DB for every such shortcut; the web fetch
+ * only for web-scraping games (ADR-0035, ADR-0032).
+ */
 export async function handleWebScrapingView(appid: number): Promise<void> {
     if (appid < NON_STEAM_APPID_MIN) return;
 
-    // Buckets gate the web source (ADR-0033): only web-scraping games are enriched.
     const { bucket, via } = getBucket(appid);
-    if (via === "pending") return;
-    if (bucket !== "web-scraping") {
-        if (bucket !== "steam-store" && enrichedAppIds.has(appid)) revertGameDetails(appid);
-        return;
-    }
+    const plan = gameInfoPlan(bucket, via);
 
-    if (libraryCache.has(appid)) {
+    if (plan.applyLocal && libraryCache.has(appid)) {
         enrichGameDetails(appid, libraryCache.get(appid)!);
     }
+    if (!plan.fetchWeb) return;
 
     if (processedApps.has(appid)) return;
     processedApps.add(appid);
@@ -99,28 +99,21 @@ export async function initGameInfo(): Promise<void> {
     // Bypass Big Picture native shortcut filter on Game Info tab
     patchGameInfoComponent();
 
-    // Preload all cached metadata into appDetailsStore immediately
+    // Preload all cached metadata into appDetailsStore immediately. Local data
+    // applies to every shortcut that is not steam-store (ADR-0035), so this does
+    // not wait for collections; getBucket returns 'pending' until they load
+    // (guardrail 13: it never reads collectionStore computeds before then).
     try {
         const all = await rpc.getAllMetadata();
-        const ready = all?.success && all.library
-            ? await waitForCollections()
-            : false;
         if (all?.success && all.library) {
-            // Cache everything; enrich only web-scraping games. On a collections
-            // timeout the preload enriches nothing (views still enrich lazily).
-            if (!ready) {
-                logger.warn(
-                    "Collections not ready; skipping Game Info preload (views enrich lazily).",
-                );
-            }
             let count = 0;
             for (const [key, meta] of Object.entries(all.library)) {
                 const appid = Number(key);
                 if (Number.isFinite(appid) && appid >= NON_STEAM_APPID_MIN) {
                     libraryCache.set(appid, meta);
+                    const { bucket, via } = getBucket(appid);
                     if (
-                        ready &&
-                        getBucket(appid).bucket === "web-scraping" &&
+                        gameInfoPlan(bucket, via).applyLocal &&
                         enrichGameDetails(appid, meta)
                     ) {
                         count++;
@@ -141,21 +134,16 @@ export async function initGameInfo(): Promise<void> {
     onBucketsChanged(() => {
         invalidateMembership();
         if (!collectionsReady()) return;
-        for (const appid of [...enrichedAppIds]) {
-            const bucket = getBucket(appid).bucket;
-            // steam-store games keep their enrichment (its view handler owns it);
-            // anything else, or a game that left steam-store, is reverted.
-            if (bucket === "steam-store") continue;
-            if (bucket !== "web-scraping" || storeEnrichedAppIds.has(appid)) {
-                revertGameDetails(appid);
-                storeEnrichedAppIds.delete(appid);
-            }
+        // A game that left steam-store drops the store's Game Info (ADR-0033) ...
+        for (const appid of [...storeEnrichedAppIds]) {
+            if (getBucket(appid).bucket === "steam-store") continue;
+            revertGameDetails(appid);
+            storeEnrichedAppIds.delete(appid);
         }
+        // ... and every shortcut that is not steam-store shows its local Game Info (ADR-0035).
         for (const [appid, meta] of libraryCache) {
-            if (
-                !enrichedAppIds.has(appid) &&
-                getBucket(appid).bucket === "web-scraping"
-            ) {
+            const { bucket, via } = getBucket(appid);
+            if (!enrichedAppIds.has(appid) && gameInfoPlan(bucket, via).applyLocal) {
                 enrichGameDetails(appid, meta);
             }
         }

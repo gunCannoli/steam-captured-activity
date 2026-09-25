@@ -212,7 +212,7 @@ function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) 
                 </div>
             ))}
             {report.unbucketedWithMetadata > 0 && (
-                <div>{report.unbucketedWithMetadata} game(s) have cached metadata but no bucket, so Game Info is hidden for them.</div>
+                <div>{report.unbucketedWithMetadata} game(s) have cached metadata but no bucket: they show their saved Game Info, but it is never refreshed from the web.</div>
             )}
             {report.conflicts.length === 0 && report.missing.length === 0 && report.unbucketedWithMetadata === 0 && <div>No warnings.</div>}
         </DialogControlsSection>

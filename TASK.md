@@ -88,7 +88,7 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
 Render-error fix re-verified live 2026-09-24 (dev deploy OK, no popup/load failure). Offline: check, build, test:ts (15), Lua via lupa (NSGA_SKIP_FIXTURES=1) all pass.
 
 - VERIFIED: desktop test_nav_cycle.js 5/6 runs all PASS; check_all_tabs.js (Big Picture) PASS on rerun; collectionStore health OK.
-- FLAKY: nav_cycle run 3: FAIL "A (return visit): same activity days" (activityDays 1 vs 2 on return; likely render timing). check_all_tabs first run after mode switch: FAIL "3. Your Stuff: media items (0)"; passed (8) on rerun.
+- FIXED OFFLINE (plan docs/plans/steam-cartridges-regression-bugfix.md): AM2R Game Info (ADR-0035) and the two test flakes. Live verification pending (plan §7).
 - BLOCKED: tests/buckets.mjs and tests/steam-store.mjs throw "fixture collections/apps not found" (no SC_STEAM/SC_RETRO collections, no SC_* shortcuts). Not created (user data).
 - Ad hoc Steam Store on 'Jotunnslayer: Hordes of Hel' (shortcut 2315502503, override -> steam-store): search mapping to 2820820, art slots 0-3 applied, clear removed both, settings reset; config restored to empty.
 - DIAGNOSED (plan: docs/plans/steam-cartridges-regression-bugfix.md, ready for @implementer): AM2R Game Info is a real P2 regression. The bucket gate hid the local metadata DB for `none` games (ADR-0035 restores it; buckets gate only fetching). The nav-cycle and Your Stuff failures are pre-existing test timing (the store keeps 3 days on every return; the DOM reveals days one at a time), fixed by polling in the scripts.

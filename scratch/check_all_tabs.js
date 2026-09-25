@@ -76,6 +76,16 @@ async function view(shared, path, expect) {
     }
 }
 
+/** Re-read the current Big Picture page without navigating (polling, guardrail 15). */
+async function read() {
+    const win = await connect(BPM);
+    try {
+        return JSON.parse(await win.evaluate(VIEW));
+    } finally {
+        win.close();
+    }
+}
+
 const shared = await connect('SharedJSContext');
 let failed = false;
 const ok = (label, cond, detail) => {
@@ -95,19 +105,23 @@ try {
     ok('1. Post-Game Summary', activity.postGameSummary);
     ok('2. Activity feed: "{Username} captured" cards (hasEvent)', activity.captured > 0, activity.captured);
 
-    const stuff = await view(shared, `/library/app/${A}/tab/YourStuff`, 'Media');
+    let stuff = await view(shared, `/library/app/${A}/tab/YourStuff`, 'Media');
+    // Steam loads the media list asynchronously (slow on the first view after a
+    // mode switch): poll the page for up to 10 s instead of a fixed wait.
+    for (let i = 0; i < 20 && !(stuff.media > 0); i++) {
+        await wait(500);
+        stuff = await read();
+    }
     ok('3. Your Stuff: media items', stuff.media > 0, stuff.media);
 
     const info = await view(shared, `/library/app/${A}/tab/GameInfo`, nameA);
     ok('4. Game Info: no error boundary', !info.errorBoundary);
     const bucket = await shared.evaluate(`PLUGIN_LIST['steam-cartridges-dev'].bucketReport().games[${A}]?.bucket ?? 'none'`);
-    if (bucket === 'web-scraping' || bucket === 'steam-store') {
-        console.log(`INFO  check 4 branch: ${bucket} (expect enrichment)`);
-        ok('4. Game Info: description, developer, release date', !!info.description && info.developer && info.releaseDate, info.description);
-        ok('4. Game Info: no grey shortcut warning', !info.shortcutWarning);
-    } else {
-        console.log('INFO  check 4 branch: none (grey shortcut warning accepted)');
-    }
+    // ADR-0035: local Game Info shows in every bucket, including none. AM2R has a
+    // local metadata entry on this machine, so enrichment is always expected.
+    console.log(`INFO  check 4 bucket: ${bucket} (enrichment expected in every bucket)`);
+    ok('4. Game Info: description, developer, release date', !!info.description && info.developer && info.releaseDate, info.description);
+    ok('4. Game Info: no grey shortcut warning', !info.shortcutWarning);
     ok('collectionStore health: userCollections readable', (await shared.evaluate('(() => { try { return Array.isArray(collectionStore.userCollections) } catch { return false } })()')) === true);
 
     const infoB = await view(shared, `/library/app/${B}/tab/GameInfo`, nameB);

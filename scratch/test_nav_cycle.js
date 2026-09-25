@@ -71,13 +71,22 @@ async function visit(shared, appid, label, expectText) {
     await shared.evaluate(`(SteamClient.URL.ExecuteSteamURL('steam://nav/games/details/${appid}'), true)`);
     const win = await connect('Steam');
     try {
-        // Wait for the page to show the game, then give async store feeding a moment.
+        // Wait for the page to show the game.
         for (let i = 0; i < 30; i++) {
             if (await win.evaluate(`document.body.innerText.includes(${JSON.stringify(expectText)})`)) break;
             await wait(500);
         }
-        await wait(3000);
-        const metrics = JSON.parse(await win.evaluate(METRICS));
+        // Then poll (max 10 s) until the shortcut's data is fed and drawn. storeDays is
+        // what the plugin feeds (appActivityStore). The DOM reveals days one at a time
+        // (nDaysToDisplay), so DOM day counts are never compared (guardrail 15).
+        let metrics;
+        for (let i = 0; i < 20; i++) {
+            metrics = JSON.parse(await win.evaluate(METRICS));
+            metrics.storeDays = await shared.evaluate(`appActivityStore.m_mapAppActivity.get(${appid})?.appActivityByDay?.length ?? 0`);
+            if (appid !== A) break;
+            if (metrics.postGameSummary && metrics.mediaCount > 0 && metrics.storeDays > 0 && metrics.activityDays > 0) break;
+            await wait(500);
+        }
         if (process.env.SHOTS_DIR) {
             await Promise.race([win.screenshot(`${process.env.SHOTS_DIR}/nav-${label}.png`), wait(10000)]);
         }
@@ -103,10 +112,10 @@ try {
     };
     ok('A: Post-Game Summary present', first.postGameSummary);
     ok('A: recordings & screenshots listed', first.mediaCount > 0);
-    ok('A: activity day sections with captures (hasEvent)', first.activityDays > 0 && first.loopbackImages > 0);
+    ok('A: activity day sections with captures (hasEvent)', first.activityDays > 0 && first.storeDays > 0 && first.loopbackImages > 0);
     ok('A (return visit): Post-Game Summary still present', second.postGameSummary);
     ok('A (return visit): same media count', second.mediaCount === first.mediaCount);
-    ok('A (return visit): same activity days, captures still shown', second.activityDays === first.activityDays && second.loopbackImages > 0);
+    ok('A (return visit): same activity days in the store, captures still shown', second.storeDays === first.storeDays && second.activityDays > 0 && second.loopbackImages > 0);
 } finally {
     shared.close();
 }

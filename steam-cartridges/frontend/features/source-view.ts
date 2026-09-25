@@ -8,8 +8,7 @@ import { watchGamepadAppid } from "../steam/gamepad-appid";
 import { NON_STEAM_APPID_MIN, appIdFromPath } from "../steam/route";
 import { getBucket, waitForCollections } from "./buckets";
 import { handleWebScrapingView } from "./game-info";
-import { enrichedAppIds, setAppViewTrigger } from "./game-info/game-info-patch";
-import { revertGameDetails } from "./game-info/metadata";
+import { setAppViewTrigger } from "./game-info/game-info-patch";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { storeEnrichedAppIds } from "./steam-store/enriched";
 
@@ -25,18 +24,18 @@ export async function onSourceView(appid: number): Promise<void> {
     try {
         const { bucket, via } = getBucket(appid);
         if (via === "pending") {
+            // Local Game Info only until collections load (ADR-0035); replayed then.
             deferred.add(appid);
+            await handleWebScrapingView(appid);
             return;
         }
-        if (bucket === "web-scraping") {
-            // Came from steam-store: drop its Game Info before the web source fills in.
-            if (storeEnrichedAppIds.has(appid)) leaveSteamStore(appid);
-            await handleWebScrapingView(appid);
-        } else if (bucket === "steam-store") {
+        if (bucket === "steam-store") {
             await handleSteamStoreView(appid);
         } else {
+            // web-scraping or none. Came from steam-store: drop its Game Info first;
+            // the handler then applies local data (and fetches for web-scraping only).
             if (storeEnrichedAppIds.has(appid)) leaveSteamStore(appid);
-            else if (enrichedAppIds.has(appid)) revertGameDetails(appid);
+            await handleWebScrapingView(appid);
         }
     } finally {
         inflight.delete(appid);
