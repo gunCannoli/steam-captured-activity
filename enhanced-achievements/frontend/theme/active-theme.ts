@@ -49,6 +49,12 @@ function dataUrlToArrayBuffer(url: string): ArrayBuffer {
 }
 
 async function load(name: string): Promise<void> {
+    if (!name) {
+        // Deliberate "Steam default": no theme selected, not a load failure.
+        loaded = null;
+        for (const listener of listeners) listener();
+        return;
+    }
     try {
         const file = await rpc.loadTheme(name);
         const theme = resolveTheme(JSON.parse(file.text));

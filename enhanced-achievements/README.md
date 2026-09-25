@@ -41,7 +41,7 @@ Open Millennium's sidebar and select **Enhanced Achievements**:
 
 | Setting | What it does |
 | --- | --- |
-| Theme | Which theme to use |
+| Theme | Which theme to use, or "Steam default" (the shipped default) for Steam's own stock toast and chime |
 | Reload themes | Pick up edits to a theme file without restarting Steam |
 | Open themes folder | Opens the folder for your own themes |
 | Preview | Fires a test achievement for each tier |
@@ -59,11 +59,11 @@ manual) for the game.
 
 Five minutes, no game required for the first four:
 
-1. Open the settings panel and press **Preview** for each of the four tiers —
-   a themed toast should appear each time.
-2. Switch **Theme** to a theme with no sound file and confirm Steam's own
-   chime plays instead; switch to `does_not_exist` and confirm Steam's stock
-   toast and chime come back.
+1. Open the settings panel; **Theme** starts on "Steam default". Press
+   **Preview** for each of the four tiers — Steam's own stock toast appears
+   each time.
+2. Switch **Theme** to `steam_tiers` (the bundled default) and press
+   **Preview** again — a themed toast should now appear each time.
 3. Edit `themes/steam_tiers.json` (or a copy in your themes folder), press
    **Reload themes**, then **Preview** again to see the change.
 4. Start any game with Game Recording on (Steam Settings -> In-Game ->

@@ -6,7 +6,7 @@ import { previewTier } from '../steam/notifications';
 import { recordingDiagnostics } from '../steam/recording';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
 import { TIERS, type Tier } from '../theme/theme';
-import { DEFAULTS, RANGES, resetSettings, useSetting, type SettingKey } from './settings';
+import { DEFAULTS, RANGES, resetSettings, setting, useSetting, type SettingKey } from './settings';
 
 /**
  * The plugin's settings panel, shown by Millennium in its sidebar
@@ -63,8 +63,8 @@ function ThemeSection() {
         return onThemeChange(() => setStatus(describeTheme()));
     }, []);
 
-    const options = themes.map((t) => ({ data: t.name, label: t.name }));
-    if (!themes.some((t) => t.name === theme)) options.unshift({ data: theme, label: `${theme} (missing)` });
+    const options: { data: string; label: string }[] = [{ data: '', label: 'Steam default' }, ...themes.map((t) => ({ data: t.name, label: t.name }))];
+    if (theme && !themes.some((t) => t.name === theme)) options.push({ data: theme, label: `${theme} (missing)` });
 
     return (
         <DialogControlsSection>
@@ -135,7 +135,11 @@ function PreviewSection() {
 
 function describeTheme(): string {
     const loaded = activeTheme();
-    if (!loaded) return "Theme not loaded: Steam's stock toast and chime are used.";
+    if (!loaded) {
+        return setting('theme')
+            ? "Could not load this theme: using Steam's stock toast and chime."
+            : "Using Steam's own toast and chime.";
+    }
     const warnings = loaded.theme.warnings.length;
     return `Loaded "${loaded.name}"${warnings ? `, ${warnings} warning(s) in the log` : ''}.`;
 }

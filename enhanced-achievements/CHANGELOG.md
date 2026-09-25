@@ -9,6 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- **The shipped default is now "Steam default" (`theme: ""`), not a bundled
+  theme.** A fresh install shows Steam's own stock toast and chime until a
+  theme is picked. The settings panel's Theme dropdown lists "Steam default"
+  as its first option, above every theme file. Screenshot/recording captures
+  are unaffected — they're independent of whether a theme is selected. This
+  also clarifies the modularity a theme's own fields already had: a theme
+  file can set only `sound` (or only `icons`, etc.) and leave the rest at our
+  defaults, but "Steam default" is the only way to keep Steam's *own* native
+  banner rendering — selecting any theme file always replaces the banner
+  with ours, styled by whatever fields that theme sets.
 - **Themed banner and sound are no longer separate on/off settings.** They now
   follow the active theme automatically: the banner is themed whenever a
   theme is loaded, and sound is themed per tier only if the theme defines a

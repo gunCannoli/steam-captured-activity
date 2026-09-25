@@ -116,14 +116,23 @@ try {
     r = await fire();
     check('missing theme -> stock toast', r.banner === null);
     check('missing theme -> Steam chime', r.sounds.some((s) => s.kind === 'steam') && !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
+
+    // "" (Steam default) is the shipped default (settings.json), deliberately
+    // distinct from a missing/failed theme: no warning is logged, and picking
+    // it back is the same as never having selected a theme.
+    await plugin(`setSetting('theme', '')`);
+    await wait(500);
+    r = await fire();
+    check("empty theme ('Steam default') -> stock toast", r.banner === null);
+    check("empty theme ('Steam default') -> Steam chime", r.sounds.some((s) => s.kind === 'steam') && !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
+
     await plugin(`resetSettings()`);
     await wait(1500);
 
     r = await fire();
-    // The default bundled theme ("steam_tiers") intentionally ships without a
-    // sound (see the "steam_ps_exemple" comment above), so only the banner is
-    // expected back here.
-    check('defaults restored -> themed again', !!r.banner && !r.sounds.some((s) => s.kind === 'webaudio'));
+    // Steam default is now the shipped default (settings.json's theme is ""),
+    // so resetting leaves Steam's own stock toast and chime, not a theme.
+    check('defaults restored -> Steam default (no banner, no themed sound)', r.banner === null && !r.sounds.some((s) => s.kind === 'webaudio'));
     const left = await stored();
     check('setting a default / reset leaves nothing stored', left && Object.keys(left).length === 0, JSON.stringify(left));
 } catch (e) {
