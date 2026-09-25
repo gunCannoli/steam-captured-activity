@@ -1434,3 +1434,159 @@ The Big Picture `GameInfo` tab (`/library/app/<appid>/tab/GameInfo`) and desktop
 - `GetAssociations(appid)`: Provides `rgDevelopers`, `rgPublishers`, `rgFranchises`.
 - `strManualURL`: Provides community guides / digital manual links.
   Feeding these in-memory stubs satisfies the native Game Info tab without modifying Steam's tab layout components.
+
+## Links, navigation and native content for a mapped shortcut
+
+Verified live 2026-09-25, desktop, read-only CDP (module ids are this build's
+breadcrumbs; resolve by the signatures at the end). Subjects: shortcut
+2315502503 (Jotunnslayer, Epic copy, Game Info enriched), native 2820820 (not
+owned), 435150 (owned). Used by
+[parity plan § 5b](plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app)
+and [ADR-0038](decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app).
+
+### Store categories and feature badges
+
+- Game Info's inner component (module `15448`) draws 15 `FeaturesList` badges with
+  `n$({ overview, feature })` (module `28346`, feature table `w`). Each asks module
+  `14629` `Xr(overview)(feature)`, which calls `overview.BHasStoreCategory(id)`:
+
+  | Badge (`#AppDetails_Feature_*`) | Store category ids | Other source |
+  | --- | --- | --- |
+  | SinglePlayer | 2 | — |
+  | MultiPlayer | 1, 36, 37, 27, 20, 24 | — |
+  | CoOp | 9, 38, 39 | — |
+  | FullController | 28 | `xbox_controller_support == 2` |
+  | PartialController (only when not full) | 18, 28 | `xbox_controller_support` 1 or 2 |
+  | PS4 / PS5 controller | 55, 56 / 57, 58 | — |
+  | VRSupport | 31 | `vr_supported` |
+  | HDR | 61 | — |
+  | SteamAchievements | 22 | — |
+  | SteamCloud | 23 | — |
+  | SteamWorkshop | 30 | — |
+  | RemotePlayTogether | 44 | — |
+  | SteamInputAPI | 59 | — |
+  | FamilySharing | 62 | — |
+
+  There is **no Shared/Split Screen badge**: 24 only feeds MultiPlayer. 29 (Trading
+  Cards) and 60 exist only as library filters.
+- `StoreItemCache` items split categories into three groups,
+  `m_StoreCategories = { supported_player_categoryids, feature_categoryids, controller_categoryids }`,
+  with accessors `GetStoreCategories_SupportedPlayers / _Features / _Controller()`.
+  2820820: `[2, 1, 9, 39, 24]` / `[22, 29, 23, 44, 62]` / `[28]`; 435150:
+  `[2, 1, 49, 36, 37, 9, 38, 39, 24]` / `[22, 29, 13, 30, 23, 17, 42, 43, 44, 62]` / `[28]`.
+  The feature group is Steam services (plus 13 captions and 17 level editor). Items
+  also expose `GetTagIDs()` (20 ids), `GetAllLanguagesWithSomeSupport()`,
+  `GetFilteredReviewSummary()`, `GetPlatforms()`.
+- `AppOverview` of an owned app also carries `m_setStoreTags`, `metacritic_score`,
+  `bitfield_supported_languages`, `review_score_*` / `review_percentage_*` and
+  `steam_hw_compat_category_packed` (all zero on a shortcut). They feed library
+  sorting and dynamic-collection filters, not the app page.
+
+### The links bar (module `52470`, export `Qd`)
+
+- Built in a computed only when `!overview.BIsModOrShortcut()`, from
+  `i = overview.appid` (a demo's parent for `app_type` demo): Store Page
+  `urlStore.BuildStoreAppURL(appid, "primarylinks")`; DLC `BuildStoreAppDlcURL` when
+  `details.bAvailableContentOnStore`; Community Hub `link: "GameHub"`; Points Shop
+  `BuildAppPointsShopURL` when the app has points-shop cards; Discussions
+  `"GameHubDiscussions"`; Guides `"GameHubGuides"`; Workshop `"SteamWorkshopPage"`
+  when the `workshopVisible` prop is true; Market `"CommunityMarketApp"` when
+  `marketPresence`; Support `"HelpAppPage"` unless kiosk mode.
+- Each entry renders `P` (export `aX`): `url ?? urlStore.ResolveURL(link, appid)`,
+  opened with `Navigator.SteamWeb` (module `18057` `Qt`, Steam's in-client browser).
+  Desktop row `O`, Big Picture carousel `z`.
+- Rendered with jsx by the desktop page (module `59856`,
+  `jsx(k.Qd, { overview, details, workshopVisible, marketPresence })`) and by Big
+  Picture's Game Info (module `3375`, inside `GameInfoQuickLinks`).
+- **For a shortcut:** no links until Game Info is enriched; then our prototype hook
+  (`game-info-patch.ts` `ensureAppOverviewHooked`, `BIsModOrShortcut` false for
+  `enrichedAppIds`) makes Steam build them from the shortcut appid. Live props:
+  `https://store.steampowered.com/app/2315502503?snr=5000_5100__`, `GameHub` /
+  `GameHubDiscussions` / `GameHubGuides` / `HelpAppPage` with `appid: 2315502503`.
+- `window.urlStore` (CURLStore, module `87935` `B7`) resolves Steam's URL ids from
+  `SteamClient.URL.GetSteamURLList`. For 2820820: `GameHub` →
+  `https://steamcommunity.com/app/2820820/`, `GameHubDiscussions` → `…/discussions/`,
+  `GameHubGuides` → `…/guides/`, `SteamWorkshopPage` → `…/workshop/`, `HelpAppPage` →
+  `https://help.steampowered.com/en/wizard/HelpWithGame/?appid=2820820`, `StoreAppPage` →
+  `https://store.steampowered.com/app/2820820/`, `GameHubNews` / `AppNewsPage` → the
+  store news hub.
+
+### Header buttons: Manage and Properties
+
+- The desktop header (module `56262`) has the gear "Manage" button, which opens the
+  app context menu (module `5808`, class `Fe`), the ⓘ Game Info toggle (shown when
+  `!BIsModOrShortcut()`) and the favourite star.
+- `Fe` builds its items from `app_type` and local install state, not from
+  `BIsModOrShortcut`: "Properties…" is `navigator.AppProperties(appid)` (the
+  shortcut's own dialog), and the Manage submenu holds desktop shortcut, custom
+  artwork, browse local files, hide and "Remove non-Steam game from your library".
+- Only "Mark as Private" (`Ge`) keys on `BIsModOrShortcut()`. Our prototype hook
+  makes it enabled for an enriched shortcut, where it would send the shortcut appid
+  to the private-apps service. Recorded risk; not in any plan.
+
+### `Navigator.App` (module `874`)
+
+- Each Steam UI window has a plain `Navigator` object
+  (`SteamUIStore.WindowStore.SteamUIWindows[i].Navigator`, the same object as
+  `SteamUIStore.ActiveWindowInstance.Navigator`). Components get it from React
+  context or from that global (module `79112` `br()`). Keys: `Home`, `App`,
+  `MyAchievements`, `FriendAchievements`, `GlobalAchievements`, `AllCollections`,
+  `Collection`, `Downloads`, `AppProperties`, `Console`, `Chat`, `Settings`,
+  `SteamWeb`, `SteamWebTab`, `ExternalWeb`, `Media`, … The properties are writable
+  (`configurable: true`).
+- `App(appid, { strCollectionId, gidPartnerEvent }, extra)` returns at once when
+  `appStore.GetAppOverviewByAppID(appid)` is missing, i.e. for every unowned app.
+  With `gidPartnerEvent` it pushes `/library/app/<appid>` with route state
+  `event_to_show: { appid, eventid, clanSteamID, additionalParams }` (module `58437`
+  `KV`).
+- Live: `Navigator.App(2820820, { gidPartnerEvent })` from the shortcut page left the
+  route unchanged.
+
+### Partner event overlay (module `46776`, export `z`)
+
+- Drawn at library level over any page: desktop (module `53822`, `ca()`) and Big
+  Picture (module `3375`, `RA()`) read `event_to_show` from the current route
+  state and render `z({ onClose, showAppIcon, appid, initialEventID, clanSteamID, additionalParams })`.
+- Class `dr`: `GetClanEventModel(initialEventID)` (cached by GID), otherwise
+  `LoadAdjacentPartnerEvents(gid, clan, appid, 0, 3, …)`. `BHasValidEvent()` is false
+  when `props.appid && event.appid != props.appid`, and then it renders nothing. The
+  app icon calls `navigator.App(props.appid)`.
+- Live, on `/library/app/2315502503`: `event_to_show: { appid: 2315502503, eventid: "692016318956700209" }`
+  drew nothing; `{ appid: 2820820, … }` drew the Jotunnslayer news with its adjacent
+  events. Closed with `MainWindowBrowserManager.m_history.replace(path, {})`.
+
+### Activity news cards (module `80478`)
+
+- `dt` sends `PostedAnnouncement` (1002) straight to `Be`, before the store-item
+  visibility check that other event types need (for `event.appid`).
+- A news card click is `fe(navigator, eventModel)`, i.e.
+  `navigator.App(eventModel.appid, { gidPartnerEvent: eventModel.GID })`. Comments open
+  `COMMUNITY_BASE_URL + "app/<event.appid>/eventcomments/<forumTopicGID>"`.
+- 2820820's entry holds one event: class `J`, `eEventType` 1002, `appid` 2820820 (a
+  getter from `gameid`), `announcementGID` "692016318956700210", `unUniqueID` 1 (a
+  per-store counter, not an identity). Its model: `GID` "692016318956700209", clan
+  103582791474423883, type 28.
+
+### Community Content (module `77163`, export `wb`) and Friends (module `2326`)
+
+- `wb({ appid })` → class `oe` → loader `ae(appid)` (`m_unAppID`); it loads pages when
+  on screen (unless `library_disable_community_content` is set, which shows a Load
+  button). Cards open `CommunityFilePage` by `published_file_id`: no appid involved.
+  Rendered by the desktop page (section `community`, `{ appid: overview.appid }`) and
+  Big Picture (`lt`, when `setSections.has("community")`).
+- Live: the loader under `[class*="CommunityContentContainer"]` had
+  `m_unAppID` 2315502503. The section shows at all only because the prototype hook
+  makes `GetSections` return the native list for an enriched shortcut.
+- Friends: desktop `yj({ details })`, Big Picture `w4({ details })`, both read
+  `details.unAppID`.
+
+### Resolution signatures (one module each on this build)
+
+| Component | Factory-source needles | Module here |
+| --- | --- | --- |
+| Links bar | `"#AppDetails_Links_Store"` + `"primarylinks"` | `52470` (`Qd`, `aX`) |
+| Friends section | `"CommunityFriendsThatPlay"` + `"#AppDetails_SectionTitle_Friends"` | `2326` |
+| Community Content | `"#AppDetails_SectionTitle_Community"` + `LoadAdditionalContent` | `77163` (`wb`, `kB`) |
+| Partner event overlay | `"LibraryAppPartnerEventsPage unmounting"` + `LoadAdjacentPartnerEvents` | `46776` (`z`) |
+| Navigator | `SteamUIStore.WindowStore.SteamUIWindows[i].Navigator` (global, no scan) | `874` |
+| URL ids | `window.urlStore.ResolveURL(id, appid)` (global) | `87935` |

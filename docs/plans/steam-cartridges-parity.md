@@ -7,11 +7,15 @@ Decisions: [ADR-0036](../decisions.md#adr-0036-default-bucket-is-steam-store-wit
 per-collection include/exclude) and
 [ADR-0037](../decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity)
 (user decision B: P5 starts only when the Jotunnslayer page holds as much data as
-native app 2820820; no user-created achievements).
+native app 2820820; no user-created achievements) and
+[ADR-0038](../decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app)
+(user decisions of 2026-09-25: only badges true of the non-Steam copy; header
+links, news and community content open the native app). Amended 2026-09-25
+with Parts F–H (§ 5b); the gate grew from 13 to 17 checks.
 
 **Order.** [P4 hardening](steam-cartridges-p4-hardening.md) first (its § 0 says
-why), then Part A (§ 4), then Parts B–E (§ 5). Every **before** block below was
-cut from the tree with the previous part applied.
+why), then Part A (§ 4), then Parts B–E (§ 5), then Parts F–H (§ 5b). Every
+**before** block below was cut from the tree with the previous part applied.
 
 **Subjects.** Shortcut **2315502503** *Jotunnslayer: Hordes of Hel* (Epic copy)
 and native **2820820** (same game on Steam, **not owned**). Other-game leg of
@@ -72,11 +76,11 @@ product: description and `release_date` 1775692800 = Apr 8, 2026).
 | Game Info: release date | steam 1756917692 (Sep 3, 2025), original 1737464732 (Jan 21, 2025, Early Access) | 1775692800 / 1775692800 (Apr 8, 2026) | wrong; original date never carried | `GetReleaseDateRTime`, `GetOriginalReleaseDateRTime` | **A + B2** |
 | Game Info: player categories | 2, 1, 9, 39, 24 | 2 | 1, 9, 39, 24 missing; code emits **37** (Split Screen **PvP**) for split-screen co-op | `GetStoreCategories_SupportedPlayers()` | **A + B3** |
 | Game Info: controller category | 28 | 28 | none | `GetStoreCategories_Controller()` | PASS |
-| Game Info: feature categories | 22 Achievements, 23 Cloud, 29 Trading Cards, 44 Remote Play Together, 62 Family Sharing | none (44 after A: existing flag) | Steam-service features of a Steam licence | `GetStoreCategories_Features()` | **not copied** (false for a non-Steam copy; user question Q1); 22 comes with P5 |
-| Links (Store Page, Community Hub, Discussions, Guides, Support; DLC / Points Shop / Workshop when present) | desktop links bar and Big Picture Game Info links, all for 2820820 | desktop: none; Big Picture: links built from **2315502503** (dead store page) | wrong / missing | Steam's links component with the native appid | **C1–C2** |
+| Game Info: feature categories | 22 Achievements, 23 Cloud, 29 Trading Cards, 44 Remote Play Together, 62 Family Sharing | none (44 after A: existing flag) | Steam-service features of a Steam licence | `GetStoreCategories_Features()` | **never copied** (ADR-0038, user decision 2026-09-25); Part **F** also stops the flag path writing 44 or 22 |
+| Links (Store Page, Community Hub, Discussions, Guides, Support; DLC / Points Shop / Workshop when present) | desktop links bar and Big Picture Game Info links, all for 2820820 | desktop and Big Picture: none before enrichment; once Game Info is enriched, links built from **2315502503** (dead pages; live 2026-09-25) | wrong / missing | Steam's links component with the native appid | **C1–C2**, proved per link by **G** (check 15) |
 | Friends who play | Steam's Friends section (renders when a friend owns/plays it) | not rendered | missing | Steam's friends section, `details.unAppID` = native | **C1–C3** |
-| Community Content | Steam's Community Content rows for 2820820 | desktop header "Community Content" with no rows (loaded for the shortcut appid); Big Picture Community tab empty | empty | Steam's community section, `appid` = native | **C1–C3** |
-| Activity: news / partner events | 1 partner event (type 1002, actor clan 103582791474423883, 2026-07-30) | "There's no recent activity…" (no captures) | missing | `appActivityStore` entry of 2820820 (`m_mapActivityByDay`) | **D** |
+| Community Content | Steam's Community Content rows for 2820820 | desktop header "Community Content" with no rows (loaded for the shortcut appid); Big Picture Community tab empty | empty | Steam's community section, `appid` = native | **C1–C3**, loader proved by **H** (check 17) |
+| Activity: news / partner events | 1 partner event (type 1002, actor clan 103582791474423883, 2026-07-30) | "There's no recent activity…" (no captures) | missing | `appActivityStore` entry of 2820820 (`m_mapActivityByDay`) | **D**; click-through **G + H** (check 16: `Navigator.App(2820820)` is a no-op for an unowned app) |
 | Activity: friends' achievements / reviews | none for this app | none | none | — | N/A |
 | Artwork: hero, portrait, wide | store assets | custom `2315502503_hero.jpg`, `p.jpg`, `.jpg` (CDN art from an old P3 run) | recorded without a mapping (orphan) | `GetAssets()` + CDN, `SetCustomArtworkForApp` | **P4 H5 + A** (adopted once mapped) |
 | Artwork: logo | `logo.png` drawn in the header | `2315502503_logo.png` exists; Big Picture header draws no logo (no logo position: `TopCapsule` draws only when `logoPosition !== null`) | not drawn | `appDetailsStore.SaveCustomLogoPosition` (Steam's "Adjust logo position") | **E** |
@@ -112,20 +116,21 @@ fields shown are exactly the local entry's); stale DOM across navigation
 
 ## 2. research/game-data-linker: adopt / adapt / drop
 
-| Linker feature | Decision | Where |
-| --- | --- | --- |
-| `fetch_game_data` (store `appdetails`) | **adopt** (done) | P3 `SteamStoreGetAppDetails`, fallback after `StoreItemCache` |
-| `steam_search_appid` (storesearch) | **adopt** (done), exact unique title only | P3 `SteamStoreSearch`; P4 H2/H3 limits |
-| `save_mapping` / `remove_mapping` / `get_all_mappings` | **adopt** (done) | P3 `steam_store.json` mappings, Clear with reject |
-| `save_artwork` / `clear_artwork` (writes into `grid/`) | **adapt** to `SetCustomArtworkForApp` with a per-slot record | P3; P4 H5; E (logo position) |
-| `fetch_news` (`ISteamNews/GetNewsForApp`) | **adapt** to Steam's own activity feed for the native appid; no Web API call | D |
-| `fetch_partner_events` / `scrape_partner_events` (news-hub HTML scrape) | **adapt** to Steam's own partner-event objects; the scraper is dropped | D |
-| `cross_platform_patch_notes` | **drop** (Epic/Xbox path; D covers mapped games) | — |
-| `fetch_community_content` (community home scrape) | **adapt** to Steam's Community Content section with the native appid | C |
-| `fetch_published_file_previews` | **drop** (Steam's section loads its own previews) | — |
-| `fetch_friend_personas` / friends-who-play | **adapt** to Steam's Friends section with the native appid | C |
-| `fetch_friend_review` | **drop** (owner/store-page data) | — |
-| Linker activity feed UI | **adapt** to Steam's own feed (core since ADR-0030) plus D | D |
+| Linker feature | Decision | Where | Click-through (ADR-0038) |
+| --- | --- | --- | --- |
+| `fetch_game_data` (store `appdetails`) | **adopt** (done) | P3 `SteamStoreGetAppDetails`, fallback after `StoreItemCache` | — |
+| `steam_search_appid` (storesearch) | **adopt** (done), exact unique title only | P3 `SteamStoreSearch`; P4 H2/H3 limits | — |
+| `save_mapping` / `remove_mapping` / `get_all_mappings` | **adopt** (done) | P3 `steam_store.json` mappings, Clear with reject | — |
+| `save_artwork` / `clear_artwork` (writes into `grid/`) | **adapt** to `SetCustomArtworkForApp` with a per-slot record | P3; P4 H5; E (logo position) | — |
+| Hard-coded link list (Store Page, Community Hub, Points Shop, Discussions, Guides, Workshop URLs) | **adapt** to Steam's own links component with the native appid; URLs from `urlStore`, never hand-built | C1–C2 | Steam's `Navigator.SteamWeb`, native pages (G, check 15) |
+| `fetch_news` (`ISteamNews/GetNewsForApp`) | **adapt** to Steam's own activity feed for the native appid; no Web API call | D | news card → event overlay on the shortcut page (G2 + H1, check 16) |
+| `fetch_partner_events` / `scrape_partner_events` (news-hub HTML scrape) | **adapt** to Steam's own partner-event objects; the scraper is dropped | D | same as above |
+| `cross_platform_patch_notes` | **drop** (Epic/Xbox path; D covers mapped games) | — | — |
+| `fetch_community_content` (community home scrape) | **adapt** to Steam's Community Content section with the native appid | C | Steam's own cards open `CommunityFilePage` by file id (no appid); loader proved by check 17 |
+| `fetch_published_file_previews` | **drop** (Steam's Community Content section and event cards load their own previews) | — | — |
+| `fetch_friend_personas` / friends-who-play | **adapt** to Steam's Friends section with the native appid | C | Steam's own |
+| `fetch_friend_review` | **drop** (owner/store-page data) | — | — |
+| Linker activity feed UI (activity feed injection) | **adapt** to Steam's own feed (core since ADR-0030) plus D | D | G2 + H1 |
 | SteamGridDB logo/art (`sgdb_*`) | later, optional | P6 |
 | Epic / Xbox auth, game data, friends, news, community, artwork; status posting | **drop** (already) | — |
 
@@ -3216,6 +3221,1144 @@ Expected: exactly 17 files: the 14 `steam-cartridges/` paths,
 cd /c/game/millennium && git commit -m "feat(steam-cartridges): native parity for mapped shortcuts - Game Info fields, Steam's own links/friends/community, native news, logo position (ADR-0037)" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
 
+## 5b. Parts F–H: only true badges; links, news and community content open the native app
+
+User decisions of 2026-09-25, recorded as
+[ADR-0038](../decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app).
+Every **before** block below was cut from the tree with P4 and Steps 1–31
+applied. Run Steps 32–49 in order, after Step 31.
+
+**Root causes (live 2026-09-25, read-only CDP; traces in
+[steam-components.md § Links, navigation and native content](../steam-components.md#links-navigation-and-native-content-for-a-mapped-shortcut)).**
+
+- **F, badges.** Steam's Game Info draws 15 feature badges from
+  `overview.BHasStoreCategory(id)` (module `28346` table, module `14629`
+  mapping). Six of them are Steam services: Steam Achievements 22, Steam Cloud
+  23, Steam Workshop 30, Remote Play Together 44, Steam Input API 59, Family
+  Sharing 62. `StoreItemCache` splits an app's categories into three groups:
+  `supported_player_categoryids` (2820820: 2, 1, 9, 39, 24),
+  `controller_categoryids` (28) and `feature_categoryids` (22, 29, 23, 44, 62).
+  `store-item.ts` reads all three groups through `categoryIds(item.m_StoreCategories)`,
+  and `CATEGORY_FLAGS` maps 44 to `remote_play_together`, which `metadata.ts`
+  writes as category 44. So once Part A maps Jotunnslayer, Game Info shows
+  "Remote Play Together" for the Epic copy. Local/IGDB flags can also map
+  `achievements` to 22. There is no "Shared/Split Screen" badge: 24 only feeds
+  "Multi-player" (so § 9 item 5 listed a badge Steam does not have).
+- **G, links.** Steam's links bar (module `52470`, `Qd`) is built only when
+  `overview.BIsModOrShortcut()` is false, from `overview.appid`. Our prototype hook
+  (`game-info-patch.ts` `ensureAppOverviewHooked`) returns false for every
+  enriched shortcut, so the desktop page and Big Picture's Game Info show
+  Store Page `https://store.steampowered.com/app/2315502503?snr=5000_5100__`,
+  Community Hub / Discussions / Guides `https://steamcommunity.com/app/2315502503/…`
+  and Support `…HelpWithGame/?appid=2315502503`: all dead. Each link opens
+  `url ?? urlStore.ResolveURL(link, appid)` in Steam's in-client browser
+  (`Navigator.SteamWeb`); with 2820820 the same ids resolve to the native store,
+  hub, discussions, guides, workshop and help pages. Part C's props rewrite
+  already hands `Qd` the native appid; Part G proves it per link (check 15) and
+  fixes the second path: `Navigator.App(appid)` (module `874`) returns at once
+  when `appStore` has no overview for the appid, which is every unowned native
+  app.
+- **H, activity and community.** A native news card calls
+  `Navigator.App(event.appid = 2820820, { gidPartnerEvent })`: nothing happens
+  (reproduced live). The partner event overlay (module `46776`, `z`) is drawn
+  over any page from the route state `event_to_show: { appid, eventid }`, and
+  renders nothing when `appid` is not the event's own app (`BHasValidEvent`):
+  live, `{ appid: 2315502503 }` drew nothing and `{ appid: 2820820 }` drew the
+  Jotunnslayer news. Community Content's loader fetches `m_unAppID` =
+  2315502503 today (Part C fixes it; check 17 proves it on Steam's own loader
+  state). Gate check 11 keyed events on `unUniqueID`, a per-store counter (the
+  native news event is `1`), so a capture event could match it by accident.
+
+**Ruled out.** The `Manage` gear menu and `Properties…` are not broken by us and
+stay the shortcut's: module `5808` builds them from `app_type` and local
+install state, and `Properties…` opens the shortcut's own dialog (exe, start
+dir, launch options). Pointing them at an unowned native app would open
+nothing useful. The Workshop link appears only when `workshopVisible` (from the
+page's details) is true; 2820820 has no Workshop category, so none is expected.
+The Community Content cards open `CommunityFilePage` by published file id, with
+no appid involved.
+
+**`research/game-data-linker`, the items the user named** (full table in § 2):
+`fetch_community_content` **adapt** (Steam's Community Content section with the
+native appid, Part C; check 17); `fetch_published_file_previews` **drop** (Steam's
+section and event cards load their own previews); `fetch_partner_events`
+**adapt** (Steam's own partner-event objects, Part D; click-through Part H);
+activity feed injection **adapt** (Part D plus the click-through, Part H); the
+linker's hard-coded link list (Store, Community Hub, Points Shop, Discussions,
+Guides, Workshop) **adapt** to Steam's own links component and `urlStore`
+(Parts C and G).
+
+**Badge policy, the mechanical rule (ADR-0038).**
+
+| Data | Rule | Where |
+| --- | --- | --- |
+| Categories, allow-list | `supported_player_categoryids` and `controller_categoryids` ids with a known meaning: 1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49 (players); 18, 28, 55, 56, 57, 58 (controllers) | `category-policy.ts` `PORTABLE_CATEGORY_IDS` |
+| Categories, deny-list | the whole `feature_categoryids` group is never read; anything not allowed is dropped; named: 22 Achievements, 23 Cloud, 29 Trading Cards, 30 Workshop, 42/43 Remote Play on Phone/Tablet, 44 Remote Play Together, 59 Steam Input API, 62 Family Sharing | `STEAM_ONLY_CATEGORY_IDS` |
+| Local / IGDB flags | mapped as before, except `achievements` and `remote_play_together`, which are never mapped; `full_controller` keeps its default (guardrail 14, § 12 Q2) | `badgeCategoryIds` |
+| Steam Store ids vs flags | Steam's own ids replace the flags when the store supplied them (exact) | `badgeCategoryIds` |
+| Description, developers, publishers, franchises, release dates | ported (Parts A, B) | unchanged |
+| Genres, user tags, languages, ratings, requirements | true of the game, allowed, but no app-page surface (they feed library sort and dynamic-collection filters only): not written by this plan | ADR-0038 |
+| Steam Deck / SteamOS compatibility, achievements on Steam, playtime, cloud, cards | Steam copy only: never | ADR-0038 |
+
+**What changes.**
+
+- **F** `category-policy.ts` (pure allow/deny lists, `badgeCategoryIds`);
+  `store-item.ts` records Steam's own player + controller ids as
+  `store_category_ids`; `metadata.ts` writes only `badgeCategoryIds(meta)` and
+  purges every managed id (guardrail 7); gate check 14.
+- **G** `navigationTarget` (pure) and a `Navigator.App` patch (SDK `beforePatch`,
+  once per Steam UI window, installed on each mapped view): an unowned native
+  appid mapped from a shortcut navigates to the shortcut; an owned native keeps
+  its page; gate check 15 (every links-bar URL targets 2820820).
+- **H** the partner event overlay is the fourth component the jsx hook rewrites
+  (`event`, signature `"LibraryAppPartnerEventsPage unmounting"` +
+  `LoadAdjacentPartnerEvents`, one module on this build): `appid` shortcut →
+  native. So a news card click goes `App(2820820)` → `App(2315502503, { gidPartnerEvent })`
+  → overlay `appid` → 2820820 → the event shows on the shortcut page. Gate
+  checks 16 (that click, done by the script the way Steam's card does it) and 17
+  (Community Content loader `m_unAppID`), and check 11 keys news by
+  announcement GID.
+
+**Preconditions for § 5b** (run first; stop if any differs):
+
+```bash
+cd /c/game/millennium && git status --porcelain -- steam-cartridges scratch/check_parity.mjs
+```
+Expected: no output.
+
+```bash
+cd /c/game/millennium && git log -1 --format=%s -- steam-cartridges
+```
+Expected: `feat(steam-cartridges): native parity for mapped shortcuts - Game Info fields, Steam's own links/friends/community, native news, logo position (ADR-0037)`.
+
+```bash
+cd /c/game/millennium/steam-cartridges && npm run test:ts 2>&1 | grep -E "^ℹ (tests|pass|fail)"
+```
+Expected exactly:
+```
+ℹ tests 42
+ℹ pass 42
+ℹ fail 0
+```
+
+### Step 32: `steam-cartridges/frontend/features/game-info/category-policy.ts` (new file) — F1 allow / deny lists (pure)
+
+Create with exactly:
+
+```ts
+/**
+ * Which Steam store categories a shortcut may carry (parity plan Part F,
+ * ADR-0038). A shortcut is not a Steam licence, so it shows only what is true
+ * of the game itself: who can play it and which controllers it supports.
+ * Steam services (Achievements, Cloud, Trading Cards, Workshop, Remote Play,
+ * Family Sharing, Steam Input API, ...) belong to the Steam copy and are never
+ * written. Pure, `import type` only, so Node can run the unit tests.
+ *
+ * Ids verified live 2026-09-25 against the badge table of Steam's Game Info
+ * (FeaturesList) and StoreItemCache's three category groups
+ * (docs/steam-components.md, "Store categories and feature badges").
+ */
+import type { GameCategories } from '../../rpc';
+
+/** Allowed: StoreItemCache `supported_player_categoryids` and `controller_categoryids` ids with a known meaning. */
+export const PORTABLE_CATEGORY_IDS: readonly number[] = [
+    // Players: 1 Multi-player, 2 Single-player, 9 Co-op, 20 MMO, 24 Shared/Split Screen,
+    // 27 Cross-Platform Multiplayer, 36 Online PvP, 37 Shared/Split Screen PvP,
+    // 38 Online Co-op, 39 Shared/Split Screen Co-op, 49 PvP
+    1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49,
+    // Controller: 18 Partial, 28 Full, 55/56 PlayStation 4, 57/58 PlayStation 5
+    18, 28, 55, 56, 57, 58,
+];
+
+/**
+ * Denied: Steam services seen on native apps here. Everything outside
+ * PORTABLE_CATEGORY_IDS is dropped anyway (the whole `feature_categoryids`
+ * group, for one); this list names them for the tests and gate check 14.
+ */
+export const STEAM_ONLY_CATEGORY_IDS: readonly number[] = [
+    // 22 Steam Achievements, 23 Steam Cloud, 29 Steam Trading Cards, 30 Steam Workshop,
+    // 42/43 Remote Play on Phone/Tablet, 44 Remote Play Together, 59 Steam Input API,
+    // 62 Family Sharing
+    22, 23, 29, 30, 42, 43, 44, 59, 62,
+];
+
+/** Every id this plugin may have written; purged before each write (guardrail 7). */
+export const MANAGED_CATEGORY_IDS: readonly number[] = [...PORTABLE_CATEGORY_IDS, ...STEAM_ONLY_CATEGORY_IDS];
+
+const ALLOWED = new Set<number>(PORTABLE_CATEGORY_IDS);
+
+/** Keep only allowed ids; numbers only, deduplicated, ascending. */
+export function portableCategoryIds(ids: Iterable<unknown>): number[] {
+    const out = new Set<number>();
+    for (const id of ids) {
+        if (typeof id === 'number' && ALLOWED.has(id)) out.add(id);
+    }
+    return [...out].sort((a, b) => a - b);
+}
+
+/**
+ * The category ids to write for one game. Steam's own ids win when the Steam
+ * Store supplied them (exact); otherwise the flags of local / web metadata are
+ * mapped. `achievements` and `remote_play_together` are Steam services and are
+ * never mapped (ADR-0038). `full_controller` keeps its old default (on unless
+ * explicitly false) so no badge that showed before disappears (guardrail 14).
+ */
+export function badgeCategoryIds(meta: { categories?: GameCategories; store_category_ids?: unknown }): number[] {
+    if (Array.isArray(meta.store_category_ids)) return portableCategoryIds(meta.store_category_ids);
+    const c = meta.categories ?? {};
+    const ids: number[] = [];
+    if (c.single_player) ids.push(2);
+    if (c.multiplayer) ids.push(1);
+    if (c.coop) ids.push(9);
+    if (c.split_screen) {
+        ids.push(24);
+        if (c.coop) ids.push(39);
+    }
+    if (c.full_controller !== false) ids.push(28);
+    if (c.partial_controller) ids.push(18);
+    return portableCategoryIds(ids);
+}
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/game-info/category-policy.ts` prints `5cf1545b42976d1a3ef494691c9e8973d1ffed62`.
+
+### Step 33: `steam-cartridges/tests/category-policy.test.ts` (new file) — F1 unit tests
+
+Create with exactly:
+
+```ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+    MANAGED_CATEGORY_IDS,
+    PORTABLE_CATEGORY_IDS,
+    STEAM_ONLY_CATEGORY_IDS,
+    badgeCategoryIds,
+    portableCategoryIds,
+} from '../frontend/features/game-info/category-policy.ts';
+
+test('allow and deny lists are disjoint; managed covers both', () => {
+    for (const id of STEAM_ONLY_CATEGORY_IDS) assert.equal(PORTABLE_CATEGORY_IDS.includes(id), false, `${id} is Steam-only`);
+    for (const id of [...PORTABLE_CATEGORY_IDS, ...STEAM_ONLY_CATEGORY_IDS]) assert.ok(MANAGED_CATEGORY_IDS.includes(id));
+});
+
+test('Jotunnslayer (2820820): player + controller ids port, Steam features do not', () => {
+    // StoreItemCache groups, live 2026-09-25.
+    const supported = [2, 1, 9, 39, 24];
+    const features = [22, 29, 23, 44, 62];
+    const controller = [28];
+    assert.deepEqual(badgeCategoryIds({ store_category_ids: [...supported, ...controller] }), [1, 2, 9, 24, 28, 39]);
+    assert.deepEqual(portableCategoryIds(features), [], 'the whole feature group is dropped');
+    assert.deepEqual(portableCategoryIds([...STEAM_ONLY_CATEGORY_IDS, 28, 28, '2', null]), [28]);
+});
+
+test('Steam ids win over flags; flags never map achievements or Remote Play Together', () => {
+    const categories = { single_player: true, achievements: true, remote_play_together: true, full_controller: false };
+    assert.deepEqual(badgeCategoryIds({ categories }), [2]);
+    assert.deepEqual(badgeCategoryIds({ categories, store_category_ids: [1, 59, 22] }), [1], 'store ids replace the flags');
+    assert.deepEqual(badgeCategoryIds({ categories, store_category_ids: [] }), [], 'an empty Steam answer is an answer');
+});
+
+test('flags keep their old mapping (split-screen co-op is 39, full controller defaults on)', () => {
+    assert.deepEqual(badgeCategoryIds({ categories: { coop: true, split_screen: true } }), [9, 24, 28, 39]);
+    assert.deepEqual(badgeCategoryIds({ categories: { partial_controller: true, full_controller: false } }), [18]);
+    assert.deepEqual(badgeCategoryIds({}), [28]);
+});
+```
+
+Check: `git hash-object steam-cartridges/tests/category-policy.test.ts` prints `25554b964cb675e5b59e81a31203c090c090288f`.
+
+### Step 34: `steam-cartridges/frontend/rpc.ts` — F2 `store_category_ids`
+
+**Edit 1 of 1.** Before:
+
+```ts
+    genres?: string[];
+    categories?: GameCategories;
+    custom_override?: boolean;
+```
+
+After:
+
+```ts
+    genres?: string[];
+    categories?: GameCategories;
+    /** Steam's own player + controller category ids (StoreItemCache); filtered by category-policy.ts. */
+    store_category_ids?: number[];
+    custom_override?: boolean;
+```
+
+Check: `git hash-object steam-cartridges/frontend/rpc.ts` prints `da3b38c7d9b2045e46a0a7232cb5aae813dc67ff`.
+
+### Step 35: `steam-cartridges/frontend/features/steam-store/store-item.ts` — F2 Steam's own player and controller ids, never the feature group
+
+**Edit 1 of 2.** Before:
+
+```ts
+    visit(raw, 0);
+    return out;
+}
+```
+
+After:
+
+```ts
+    visit(raw, 0);
+    return out;
+}
+
+/**
+ * The ids of Steam's `supported_player_categoryids` and `controller_categoryids`
+ * groups (accessor first, raw field second). The `feature_categoryids` group
+ * (Steam services) is never read (parity plan F, ADR-0038). Undefined when the
+ * item carries no category data at all (the flags decide then).
+ */
+export function gameCategoryIds(item: any): number[] | undefined {
+    if (!item?.m_StoreCategories && typeof item?.GetStoreCategories_SupportedPlayers !== 'function') return undefined;
+    const group = (method: string, field: string): number[] => {
+        try {
+            const v = item?.[method]?.();
+            if (Array.isArray(v)) return categoryIds(v);
+        } catch {
+            /* fall through to the raw field */
+        }
+        return categoryIds(item?.m_StoreCategories?.[field]);
+    };
+    return [
+        ...group('GetStoreCategories_SupportedPlayers', 'supported_player_categoryids'),
+        ...group('GetStoreCategories_Controller', 'controller_categoryids'),
+    ];
+}
+```
+
+**Edit 2 of 2.** Before:
+
+```ts
+        original_release_date: original || release,
+        categories,
+        source: 'steam-store',
+```
+
+After:
+
+```ts
+        original_release_date: original || release,
+        categories,
+        store_category_ids: gameCategoryIds(item),
+        source: 'steam-store',
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/steam-store/store-item.ts` prints `84344f888ce5109d6934f1c0361ea5a531617258`.
+
+### Step 36: `steam-cartridges/tests/steam-store.test.ts` — F2 unit test
+
+**Edit 1 of 2.** Before:
+
+```ts
+import { categoryIds, metadataFromStoreItem } from '../frontend/features/steam-store/store-item.ts';
+```
+
+After:
+
+```ts
+import { categoryIds, gameCategoryIds, metadataFromStoreItem } from '../frontend/features/steam-store/store-item.ts';
+```
+
+**Edit 2 of 2.** Before:
+
+```ts
+    const noOriginal = metadataFromStoreItem({ m_strName: 'x', m_ReleaseInfo: { steam_release_date: 5 } }, 1, 2);
+    assert.equal(noOriginal?.original_release_date, 5);
+});
+```
+
+After:
+
+```ts
+    const noOriginal = metadataFromStoreItem({ m_strName: 'x', m_ReleaseInfo: { steam_release_date: 5 } }, 1, 2);
+    assert.equal(noOriginal?.original_release_date, 5);
+});
+
+test('store_category_ids: player + controller groups only, accessor first (parity F)', () => {
+    const raw = {
+        supported_player_categoryids: [2, 1, 9, 39, 24],
+        feature_categoryids: [22, 29, 23, 44, 62],
+        controller_categoryids: [{ categoryid: 28 }],
+    };
+    assert.deepEqual(gameCategoryIds({ m_StoreCategories: raw }), [2, 1, 9, 39, 24, 28]);
+    assert.deepEqual(
+        gameCategoryIds({
+            m_StoreCategories: raw,
+            GetStoreCategories_SupportedPlayers: () => [2],
+            GetStoreCategories_Controller: () => { throw new Error('not loaded'); },
+        }),
+        [2, 28],
+        'a throwing accessor falls back to the raw group',
+    );
+    assert.equal(gameCategoryIds({ m_strName: 'x' }), undefined, 'no category data: the flags decide');
+    const meta = metadataFromStoreItem({ m_strName: 'Jotunnslayer', m_StoreCategories: raw }, 2820820, 2315502503);
+    assert.deepEqual(meta?.store_category_ids, [2, 1, 9, 39, 24, 28]);
+});
+```
+
+Check: `git hash-object steam-cartridges/tests/steam-store.test.ts` prints `c8121d1debcb6d10221462d9914e93122959574b`.
+
+### Step 37: `steam-cartridges/frontend/features/game-info/metadata.ts` — F3 write only categories true of the game
+
+**Edit 1 of 4.** Before:
+
+```ts
+import type { ConsolidatedMetadata } from "../../rpc";
+import {
+    enrichedAppIds,
+```
+
+After:
+
+```ts
+import type { ConsolidatedMetadata } from "../../rpc";
+import { MANAGED_CATEGORY_IDS, badgeCategoryIds } from "./category-policy";
+import {
+    enrichedAppIds,
+```
+
+**Edit 2 of 4.** Before:
+
+```ts
+            if (overview.m_setStoreCategories?.delete) {
+                for (const catId of Object.values(STEAM_CATEGORIES)) overview.m_setStoreCategories.delete(catId);
+            }
+```
+
+After:
+
+```ts
+            if (overview.m_setStoreCategories?.delete) {
+                for (const catId of MANAGED_CATEGORY_IDS) overview.m_setStoreCategories.delete(catId);
+            }
+```
+
+**Edit 3 of 4.** Before:
+
+```ts
+        const cats = meta.categories || {};
+        const catSet = new Set<number>();
+        if (cats.single_player) catSet.add(STEAM_CATEGORIES.SINGLE_PLAYER);
+        if (cats.multiplayer) catSet.add(STEAM_CATEGORIES.MULTIPLAYER);
+        if (cats.coop) catSet.add(STEAM_CATEGORIES.COOP);
+        if (cats.split_screen) {
+            catSet.add(STEAM_CATEGORIES.SPLIT_SCREEN);
+            if (cats.coop) catSet.add(STEAM_CATEGORIES.SPLIT_SCREEN_COOP);
+        }
+        if (cats.full_controller !== false) {
+            catSet.add(STEAM_CATEGORIES.FULL_CONTROLLER);
+        }
+        if (cats.partial_controller) {
+            catSet.add(STEAM_CATEGORIES.PARTIAL_CONTROLLER);
+        }
+        if (cats.achievements) {
+            catSet.add(STEAM_CATEGORIES.ACHIEVEMENTS);
+        }
+        if (cats.remote_play_together) {
+            catSet.add(STEAM_CATEGORIES.REMOTE_PLAY_TOGETHER);
+        }
+
+        setAppCategories(appid, catSet);
+```
+
+After:
+
+```ts
+        // Only categories true of the game itself: no Steam services (ADR-0038, parity plan F).
+        const cats = meta.categories || {};
+        const catSet = new Set<number>(badgeCategoryIds(meta));
+
+        setAppCategories(appid, catSet);
+```
+
+**Edit 4 of 4.** Before:
+
+```ts
+                } else {
+                    for (const catId of Object.values(STEAM_CATEGORIES)) {
+                        overview.m_setStoreCategories.delete(catId);
+                    }
+                }
+```
+
+After:
+
+```ts
+                } else {
+                    for (const catId of MANAGED_CATEGORY_IDS) {
+                        overview.m_setStoreCategories.delete(catId);
+                    }
+                }
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/game-info/metadata.ts` prints `831d4bcfa26b7f1b0bd5a17b666a5f8e8113c8a1`.
+
+### Step 38: `scratch/check_parity.mjs` — F4 gate check 14 (no Steam-only badge)
+
+**Edit 1 of 3.** Before:
+
+```js
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
+};
+```
+
+After:
+
+```js
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
+};
+
+// Badge policy (ADR-0038; same lists as frontend/features/game-info/category-policy.ts).
+const ALLOWED_CATEGORIES = [1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49, 18, 28, 55, 56, 57, 58];
+const STEAM_ONLY_CATEGORIES = [22, 23, 29, 30, 42, 43, 44, 59, 62];
+```
+
+**Edit 2 of 3.** Before:
+
+```js
+                logoPosition: ad?.customImageInfo?.logoPosition ?? null,
+                diag,
+```
+
+After:
+
+```js
+                logoPosition: ad?.customImageInfo?.logoPosition ?? null,
+                denied: ${JSON.stringify(STEAM_ONLY_CATEGORIES)}.filter((id) => ov?.m_setStoreCategories?.has(id) || ov?.BHasStoreCategory?.(id)),
+                notAllowed: [...(ov?.m_setStoreCategories ?? [])].filter((id) => !${JSON.stringify(ALLOWED_CATEGORIES)}.includes(id)),
+                diag,
+```
+
+**Edit 3 of 3.** Before:
+
+```js
+    check('13. Notes section present', heads.includes('Notes'));
+```
+
+After:
+
+```js
+    check('13. Notes section present', heads.includes('Notes'));
+    check(
+        '14. Badges: no Steam-only category, only allowed ones (ADR-0038)',
+        st.cats.length > 0 && st.denied.length === 0 && st.notAllowed.length === 0,
+        `categories ${st.cats.join(',') || 'none'}; Steam-only ${st.denied.join(',') || 'none'}; not allowed ${st.notAllowed.join(',') || 'none'}`,
+    );
+```
+
+Check: `git hash-object scratch/check_parity.mjs` prints `fa09cc37e7212c7d7e1c6559285bf6589134e86d`.
+
+### Step 39: `steam-cartridges/frontend/features/steam-store/native-sections-core.ts` — G1 `navigationTarget` (pure)
+
+**Edit 1 of 1.** Before:
+
+```ts
+    props.appid = native;
+    return native;
+}
+```
+
+After:
+
+```ts
+    props.appid = native;
+    return native;
+}
+
+/**
+ * Where Steam's `Navigator.App(appid)` should go (parity plan G2). It returns
+ * early for an appid missing from appStore, which is every unowned native app,
+ * so a click on a native news card or on the event overlay's app icon does
+ * nothing (live 2026-09-25). For a native app mapped from a shortcut, open the
+ * shortcut instead. Undefined = leave the call alone. O(1).
+ */
+export function navigationTarget(
+    appid: unknown,
+    isKnown: (appid: number) => boolean,
+    shortcutOf: (nativeAppid: number) => number | undefined,
+): number | undefined {
+    if (typeof appid !== 'number' || appid >= SHORTCUT_MIN) return undefined;
+    const shortcut = shortcutOf(appid);
+    if (shortcut === undefined || isKnown(appid)) return undefined;
+    return shortcut;
+}
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/steam-store/native-sections-core.ts` prints `891104ccdcac507cb1b1cdbd23b65444ad70b4c9`.
+
+### Step 40: `steam-cartridges/tests/native-sections.test.ts` — G1 unit test
+
+**Edit 1 of 2.** Before:
+
+```ts
+import { linksOverview, nativeDetails, redirectProps } from '../frontend/features/steam-store/native-sections-core.ts';
+```
+
+After:
+
+```ts
+import {
+    linksOverview,
+    nativeDetails,
+    navigationTarget,
+    redirectProps,
+} from '../frontend/features/steam-store/native-sections-core.ts';
+```
+
+**Edit 2 of 2.** Before:
+
+```ts
+    const d = { unAppID: SHORTCUT };
+    assert.equal(nativeDetails(d, NATIVE), nativeDetails(d, NATIVE));
+});
+```
+
+After:
+
+```ts
+    const d = { unAppID: SHORTCUT };
+    assert.equal(nativeDetails(d, NATIVE), nativeDetails(d, NATIVE));
+});
+
+test('navigationTarget: an unowned mapped native app opens its shortcut (parity G2)', () => {
+    const shortcutOf = (n: number) => (n === NATIVE ? SHORTCUT : undefined);
+    const unknown = () => false;
+    assert.equal(navigationTarget(NATIVE, unknown, shortcutOf), SHORTCUT);
+    assert.equal(navigationTarget(NATIVE, () => true, shortcutOf), undefined, 'an owned native keeps its own page');
+    assert.equal(navigationTarget(435150, unknown, shortcutOf), undefined, 'unmapped');
+    assert.equal(navigationTarget(SHORTCUT, unknown, shortcutOf), undefined, 'a shortcut appid is never redirected');
+    assert.equal(navigationTarget('2820820', unknown, shortcutOf), undefined);
+});
+```
+
+Check: `git hash-object steam-cartridges/tests/native-sections.test.ts` prints `71a1e53b12d19fa771dd79a9fb0c5b155f53f776`.
+
+### Step 41: `steam-cartridges/frontend/features/steam-store/native-sections.ts` — G2 patch Steam's `Navigator.App` once per window
+
+**Edit 1 of 5.** Before:
+
+```ts
+import { findModuleByExport } from "@steambrew/client";
+```
+
+After:
+
+```ts
+import { beforePatch, findModuleByExport } from "@steambrew/client";
+```
+
+**Edit 2 of 5.** Before:
+
+```ts
+import { redirectProps, type RedirectKind } from "./native-sections-core";
+```
+
+After:
+
+```ts
+import { navigationTarget, redirectProps, type RedirectKind } from "./native-sections-core";
+```
+
+**Edit 3 of 5.** Before:
+
+```ts
+const lastNative: Partial<Record<RedirectKind, number>> = {};
+
+export function setNativeAppid(appid: number, nativeAppid: number | undefined): void {
+    if (nativeAppid === undefined) nativeFor.delete(appid);
+    else nativeFor.set(appid, nativeAppid);
+}
+
+const nativeOf = (appid: number) => nativeFor.get(appid);
+```
+
+After:
+
+```ts
+const lastNative: Partial<Record<RedirectKind, number>> = {};
+/** Native appid -> shortcut appid, for the Navigator.App redirect (parity plan G2). */
+const shortcutFor = new Map<number, number>();
+
+export function setNativeAppid(appid: number, nativeAppid: number | undefined): void {
+    const previous = nativeFor.get(appid);
+    if (previous !== undefined && shortcutFor.get(previous) === appid) shortcutFor.delete(previous);
+    if (nativeAppid === undefined) {
+        nativeFor.delete(appid);
+        return;
+    }
+    nativeFor.set(appid, nativeAppid);
+    shortcutFor.set(nativeAppid, appid);
+    wrapNavigators();
+}
+
+const nativeOf = (appid: number) => nativeFor.get(appid);
+
+/** Navigators already patched (one per Steam UI window: desktop, Big Picture). */
+const wrappedNavigators = new WeakSet<object>();
+let navigatorPatches = 0;
+let navRedirects = 0;
+
+const isKnownApp = (appid: number): boolean => !!(window as any).appStore?.GetAppOverviewByAppID?.(appid);
+
+/**
+ * Patch `Navigator.App` of every Steam UI window once (SDK patcher, so the
+ * chain stays unpatchable). Steam's native news cards and the event overlay's
+ * app icon call `Navigator.App(<native appid>)`, a no-op for an unowned app;
+ * a mapped native appid is sent to its shortcut instead. Called on each mapped
+ * view, so a Big Picture window opened later is picked up. Not a hot path.
+ */
+function wrapNavigators(): void {
+    try {
+        const windows = (window as any).SteamUIStore?.WindowStore?.SteamUIWindows ?? [];
+        for (const w of windows) {
+            const nav = w?.Navigator;
+            if (!nav || typeof nav.App !== "function" || wrappedNavigators.has(nav)) continue;
+            beforePatch(nav, "App", (args: unknown[]) => {
+                const target = navigationTarget(args[0], isKnownApp, (n) => shortcutFor.get(n));
+                if (target === undefined) return;
+                args[0] = target;
+                navRedirects++;
+            });
+            wrappedNavigators.add(nav);
+            navigatorPatches++;
+        }
+    } catch (err) {
+        logger.warn("Could not patch Steam's Navigator; native links stay stock.", err);
+    }
+}
+```
+
+**Edit 4 of 5.** Before:
+
+```ts
+    mapped: Record<number, number>;
+    jsx: JsxHookDiagnostics[];
+} {
+```
+
+After:
+
+```ts
+    mapped: Record<number, number>;
+    jsx: JsxHookDiagnostics[];
+    navigatorPatches: number;
+    navRedirects: number;
+} {
+```
+
+**Edit 5 of 5.** Before:
+
+```ts
+        jsx: hook?.diagnostics() ?? [],
+    };
+}
+```
+
+After:
+
+```ts
+        jsx: hook?.diagnostics() ?? [],
+        navigatorPatches,
+        navRedirects,
+    };
+}
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/steam-store/native-sections.ts` prints `7eeba8563819226549022ad92feaa5698a6b6a0f`.
+
+### Step 42: `scratch/check_parity.mjs` — G3 gate check 15 (header links open the native app)
+
+**Edit 1 of 3.** Before:
+
+```js
+const STEAM_ONLY_CATEGORIES = [22, 23, 29, 30, 42, 43, 44, 59, 62];
+```
+
+After:
+
+```js
+const STEAM_ONLY_CATEGORIES = [22, 23, 29, 30, 42, 43, 44, 59, 62];
+
+// Links bar entries on the desktop page: the props Steam's link component gets (url, or link id + appid).
+const LINKS = String.raw`JSON.stringify([...document.querySelectorAll('[role="link"]')].map((el) => {
+    const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+    let f = key ? el[key] : null;
+    for (let i = 0; f && i < 6; i++, f = f.return) {
+        const p = f.memoizedProps;
+        if (p && typeof p.label === 'string' && ('url' in p || 'link' in p)) return { label: p.label, url: p.url ?? null, link: p.link ?? null, appid: p.appid ?? null };
+    }
+    return null;
+}).filter(Boolean))`;
+```
+
+**Edit 2 of 3.** Before:
+
+```js
+    );
+    const heads = JSON.parse(await desk.ev(HEADS));
+```
+
+After:
+
+```js
+    );
+    const heads = JSON.parse(await desk.ev(HEADS));
+    const links = JSON.parse(await desk.ev(LINKS));
+    const linkUrls = JSON.parse(await shared.ev(`JSON.stringify(${JSON.stringify(links)}.map((l) => l.url || urlStore.ResolveURL(l.link, l.appid) || ''))`));
+```
+
+**Edit 3 of 3.** Before:
+
+```js
+        `categories ${st.cats.join(',') || 'none'}; Steam-only ${st.denied.join(',') || 'none'}; not allowed ${st.notAllowed.join(',') || 'none'}`,
+    );
+```
+
+After:
+
+```js
+        `categories ${st.cats.join(',') || 'none'}; Steam-only ${st.denied.join(',') || 'none'}; not allowed ${st.notAllowed.join(',') || 'none'}`,
+    );
+    const toNative = (u) => (u.includes(`/app/${N}`) || u.includes(`appid=${N}`)) && !u.includes(String(S));
+    const linkIds = new Set(links.map((l) => l.link).filter(Boolean));
+    const needIds = ['GameHub', 'GameHubDiscussions', 'GameHubGuides', 'HelpAppPage'];
+    check(
+        '15. Header links (Store Page, Community Hub, Discussions, Guides, Support) open the native app',
+        linkUrls.length > 0 && linkUrls.every(toNative) && needIds.every((id) => linkIds.has(id)) && linkUrls.some((u) => u.includes(`store.steampowered.com/app/${N}`)),
+        linkUrls.map((u, i) => `${links[i].label}=${toNative(u) ? 'native' : u}`).join(' | ') || 'no links',
+    );
+```
+
+Check: `git hash-object scratch/check_parity.mjs` prints `1298440dbdbab280c4e3686fed62ddce4c8b47cd`.
+
+### Step 43: `steam-cartridges/frontend/features/steam-store/native-sections-core.ts` — H1 `event` redirect kind
+
+**Edit 1 of 2.** Before:
+
+```ts
+export type RedirectKind = 'links' | 'friends' | 'community';
+```
+
+After:
+
+```ts
+export type RedirectKind = 'links' | 'friends' | 'community' | 'event';
+```
+
+**Edit 2 of 2.** Before:
+
+```ts
+    const appid = props.appid;
+    if (!(appid >= SHORTCUT_MIN)) return undefined;
+```
+
+After:
+
+```ts
+    // community (Community Content `{appid}`) and event (partner event overlay
+    // `{appid, initialEventID}`, which renders only when appid is the event's app).
+    const appid = props.appid;
+    if (!(appid >= SHORTCUT_MIN)) return undefined;
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/steam-store/native-sections-core.ts` prints `f674241c429e8809872598736bbcb1468704fd45`.
+
+### Step 44: `steam-cartridges/tests/native-sections.test.ts` — H1 unit test
+
+**Edit 1 of 1.** Before:
+
+```ts
+test('navigationTarget: an unowned mapped native app opens its shortcut (parity G2)', () => {
+```
+
+After:
+
+```ts
+test('event: the partner event overlay gets the native appid (parity H1)', () => {
+    const props: Record<string, any> = { appid: SHORTCUT, initialEventID: '692016318956700209', showAppIcon: true };
+    assert.equal(redirectProps('event', props, nativeOf), NATIVE);
+    assert.equal(props.appid, NATIVE);
+    assert.equal(props.initialEventID, '692016318956700209');
+    assert.equal(redirectProps('event', { appid: 435150 }, nativeOf), undefined);
+});
+
+test('navigationTarget: an unowned mapped native app opens its shortcut (parity G2)', () => {
+```
+
+Check: `git hash-object steam-cartridges/tests/native-sections.test.ts` prints `1cddfe3b16d1d4a736db2803e6604de73152bbf2`.
+
+### Step 45: `steam-cartridges/frontend/features/steam-store/native-sections.ts` — H1 resolve the partner event overlay once
+
+**Edit 1 of 4.** Before:
+
+```ts
+ * community -> the Community Content section (`{appid}`).
+ *
+```
+
+After:
+
+```ts
+ * community -> the Community Content section (`{appid}`). Verified 2026-09-25:
+ * event -> the partner event overlay (`{appid, initialEventID}`, desktop and
+ * Big Picture), which renders only when `appid` is the event's own app.
+ *
+```
+
+**Edit 2 of 4.** Before:
+
+```ts
+    ["community", ['"#AppDetails_SectionTitle_Community"', "LoadAdditionalContent"]],
+];
+```
+
+After:
+
+```ts
+    ["community", ['"#AppDetails_SectionTitle_Community"', "LoadAdditionalContent"]],
+    ["event", ['"LibraryAppPartnerEventsPage unmounting"', "LoadAdjacentPartnerEvents"]],
+];
+```
+
+**Edit 3 of 4.** Before:
+
+```ts
+const counts: Record<RedirectKind, number> = { links: 0, friends: 0, community: 0 };
+```
+
+After:
+
+```ts
+const counts: Record<RedirectKind, number> = { links: 0, friends: 0, community: 0, event: 0 };
+```
+
+**Edit 4 of 4.** Before:
+
+```ts
+    const hits: Record<RedirectKind, string[]> = { links: [], friends: [], community: [] };
+```
+
+After:
+
+```ts
+    const hits: Record<RedirectKind, string[]> = { links: [], friends: [], community: [], event: [] };
+```
+
+Check: `git hash-object steam-cartridges/frontend/features/steam-store/native-sections.ts` prints `b6b5888bdc361d5418759027e7bf9f60cf184eef`.
+
+### Step 46: `scratch/check_parity.mjs` — H2 gate checks 16-17, event identity for check 11
+
+**Edit 1 of 5.** Before:
+
+```js
+// Parity gate (docs/plans/steam-cartridges-parity.md § 5): compares a non-Steam
+// shortcut with the Steam data Steam itself holds for its native app, surface by
+// surface, and prints PASS/FAIL per line. Read-only: it navigates the desktop
+// client (A -> B -> A, Routine 2) and reads Steam's stores; it never writes
+// settings, the library, collections or artwork.
+```
+
+After:
+
+```js
+// Parity gate (docs/plans/steam-cartridges-parity.md § 6): compares a non-Steam
+// shortcut with the Steam data Steam itself holds for its native app, surface by
+// surface, and prints PASS/FAIL per line. Read-only: it navigates the desktop
+// client (A -> B -> A, Routine 2; check 16 opens and closes one news overlay the
+// way a click does) and reads Steam's stores; it never writes settings, the
+// library, collections or artwork.
+```
+
+**Edit 2 of 5.** Before:
+
+```js
+}).filter(Boolean))`;
+```
+
+After:
+
+```js
+}).filter(Boolean))`;
+
+// The appid Steam's Community Content loader fetches for (its own state, not ours).
+const COMMUNITY_LOADER = String.raw`(() => {
+    const el = document.querySelector('[class*="CommunityContentContainer"]');
+    const key = el && Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+    for (let f = key ? el[key] : null, i = 0; f && i < 12; i++, f = f.return) {
+        const loader = f.stateNode && f.stateNode.m_loader;
+        if (loader && 'm_unAppID' in loader) return JSON.stringify(loader.m_unAppID);
+    }
+    return 'null';
+})()`;
+```
+
+**Edit 3 of 5.** Before:
+
+```js
+            const events = (appid) => {
+                const e = appActivityStore.m_mapAppActivity.get(appid);
+                const out = [];
+                for (const day of e?.m_mapActivityByDay?.values() ?? []) for (const ev of day.m_rgEvents ?? []) out.push(String(ev.unUniqueID ?? ev.m_gidAnnouncement ?? ''));
+                return out;
+            };
+```
+
+After:
+
+```js
+            // Event identity: unUniqueID is a per-store counter (the native news event is 1), so key
+            // news by its announcement GID and anything else by type, time, actor and id.
+            const events = (appid) => {
+                const e = appActivityStore.m_mapAppActivity.get(appid);
+                const out = [];
+                for (const day of e?.m_mapActivityByDay?.values() ?? []) for (const ev of day.m_rgEvents ?? []) {
+                    const actor = ev.steamIDActor?.ConvertTo64BitString?.() ?? '';
+                    out.push(ev.announcementGID ? 'news:' + ev.announcementGID : [ev.eEventType, ev.rtEventTime, actor, ev.unUniqueID].join(':'));
+                }
+                return out;
+            };
+```
+
+**Edit 4 of 5.** Before:
+
+```js
+    const linkUrls = JSON.parse(await shared.ev(`JSON.stringify(${JSON.stringify(links)}.map((l) => l.url || urlStore.ResolveURL(l.link, l.appid) || ''))`));
+```
+
+After:
+
+```js
+    const linkUrls = JSON.parse(await shared.ev(`JSON.stringify(${JSON.stringify(links)}.map((l) => l.url || urlStore.ResolveURL(l.link, l.appid) || ''))`));
+    const communityAppid = JSON.parse(await desk.ev(COMMUNITY_LOADER));
+```
+
+**Edit 5 of 5.** Before:
+
+```js
+        linkUrls.map((u, i) => `${links[i].label}=${toNative(u) ? 'native' : u}`).join(' | ') || 'no links',
+    );
+```
+
+After:
+
+```js
+        linkUrls.map((u, i) => `${links[i].label}=${toNative(u) ? 'native' : u}`).join(' | ') || 'no links',
+    );
+
+    // Last: it navigates. Exactly what Steam's news card does on click: Navigator.App(event.appid, { gidPartnerEvent }).
+    const click = JSON.parse(
+        await shared.ev(`(async () => {
+            const e = appActivityStore.m_mapAppActivity.get(${N});
+            let news = null;
+            for (const day of e?.m_mapActivityByDay?.values() ?? []) for (const ev of day.m_rgEvents ?? []) if (ev.announcementGID && !news) news = ev;
+            if (!news) return JSON.stringify({ error: 'no native news event' });
+            const model = await news.GetEvent();
+            const nav = SteamUIStore.WindowStore.MainWindowInstance?.Navigator;
+            if (!model || !nav) return JSON.stringify({ error: 'no event model or navigator' });
+            nav.App(model.appid, { gidPartnerEvent: model.GID });
+            let loc = null;
+            for (let i = 0; i < 20; i++) {
+                await new Promise((r) => setTimeout(r, 250));
+                loc = MainWindowBrowserManager.m_lastLocation;
+                if (loc?.state?.event_to_show?.eventid === model.GID) break;
+            }
+            const P = ${plugin};
+            let redirected = null;
+            for (let i = 0; i < 20; i++) {
+                redirected = P.nativeSectionsDiagnostics?.()?.lastNative?.event ?? null;
+                if (redirected === ${N}) break;
+                await new Promise((r) => setTimeout(r, 250));
+            }
+            const out = { path: loc?.pathname ?? null, eventid: loc?.state?.event_to_show?.eventid ?? null, gid: model.GID, redirected };
+            if (out.eventid) MainWindowBrowserManager.m_history.replace(loc.pathname, {}); // close the overlay
+            return JSON.stringify(out);
+        })()`),
+    );
+    check(
+        '16. Native news click opens the event on the shortcut page',
+        !click.error && click.path === `/library/app/${S}` && click.eventid === click.gid && click.redirected === N,
+        click.error ?? `path ${click.path}, event ${click.eventid ? 'shown' : 'not shown'}, overlay appid ${click.redirected}`,
+    );
+    check('17. Community Content loads the native app (Steam loader m_unAppID)', communityAppid === N, `loader ${communityAppid}`);
+```
+
+Check: `git hash-object scratch/check_parity.mjs` prints `986e0c0824867d1554bce4ee27b46842425e7c8c`.
+
+### Step 47: Parts F–H gate
+
+```bash
+cd /c/game/millennium/steam-cartridges && npm run check && npm run test:ts 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm run build 2>&1 | tail -1
+```
+Expected: the two `check` banner lines, nothing from `tsc`, then exactly:
+```
+ℹ tests 49
+ℹ pass 49
+ℹ fail 0
+```
+and a last line starting `build Succeeded`. Then:
+
+```bash
+cd /c/game/millennium && node --check scratch/check_parity.mjs && echo syntax-ok && grep -c "check(" scratch/check_parity.mjs
+```
+Expected: `syntax-ok`, then `17` (one `check(` call per gate check).
+
+### Step 48: Parts F–H docs
+
+48a. `CHANGELOG.md`: Before:
+```
+## [Unreleased]
+
+```
+After:
+```
+## [Unreleased]
+
+- **`steam-cartridges` parity Parts F–H (offline, ADR-0038)**: a shortcut carries only categories true of the game (allow-list of Steam's player and controller ids; Steam services such as Achievements, Cloud, Remote Play Together, Family Sharing never written); Steam's `Navigator.App` sends an unowned mapped native app to its shortcut; the partner event overlay gets the native appid, so native news opens on the shortcut page. Gate: 17 checks (baseline 4 PASS / 13 FAIL). Plan: [docs/plans/steam-cartridges-parity.md § 5b](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app). `tsc` clean, `test:ts` 49/49. Live gate pending.
+
+```
+
+48b. `TASK.md`: Before:
+```
+    - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
+    - [ ] Offline gates: `tsc`, `test:ts` 49/49
+```
+After:
+```
+    - [x] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
+    - [x] Offline gates: `tsc`, `test:ts` 49/49
+```
+
+### Step 49: Parts F–H commit (do not push unless the caller said so)
+
+Stage only your CHANGELOG bullet (the file may hold unrelated user edits):
+
+```bash
+cd /c/game/millennium && git add steam-cartridges/frontend/features/game-info/category-policy.ts steam-cartridges/tests/category-policy.test.ts steam-cartridges/frontend/rpc.ts steam-cartridges/frontend/features/steam-store/store-item.ts steam-cartridges/tests/steam-store.test.ts steam-cartridges/frontend/features/game-info/metadata.ts steam-cartridges/frontend/features/steam-store/native-sections-core.ts steam-cartridges/tests/native-sections.test.ts steam-cartridges/frontend/features/steam-store/native-sections.ts scratch/check_parity.mjs TASK.md
+git show HEAD:CHANGELOG.md > .git/cl_head.md
+python - <<'EOF'
+head = open('.git/cl_head.md', encoding='utf-8').read()
+new = open('CHANGELOG.md', encoding='utf-8').read().replace('\r\n', '\n')
+line = next(l for l in new.split('\n') if l.startswith('- **`steam-cartridges` parity Parts F–H (offline, ADR-0038)**'))
+marker = '## [Unreleased]\n\n'
+assert head.count(marker) == 1
+open('.git/cl_new.md', 'w', encoding='utf-8', newline='\n').write(head.replace(marker, marker + line + '\n\n'))
+EOF
+git diff --no-index .git/cl_head.md .git/cl_new.md | sed 's#a/.git/cl_head.md#a/CHANGELOG.md#; s#b/.git/cl_new.md#b/CHANGELOG.md#' | git apply --cached
+rm -f .git/cl_head.md .git/cl_new.md
+git diff --cached --stat
+```
+Expected: exactly 12 files: the 9 `steam-cartridges/` paths,
+`scratch/check_parity.mjs`, `TASK.md`, and `CHANGELOG.md | 2 ++`. Anything else: stop.
+
+```bash
+cd /c/game/millennium && git commit -m "feat(steam-cartridges): only true badges; native links, news click-through and community content for mapped shortcuts (ADR-0038)" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
 ## 6. Gate script spec (`scratch/check_parity.mjs`)
 
 `node scratch/check_parity.mjs [shortcut=2315502503] [native=2820820] [other=435150]`,
@@ -3224,8 +4367,11 @@ desktop UI, DevTools on `127.0.0.1:8080`. It loads the native store item through
 `steam://nav/games/details/<appid>` (Routine 2), reads Steam's stores and the
 plugin's read-only exports, prints one `PASS`/`FAIL` line per surface and
 `<n> PASS / <m> FAIL`, returns to the page that was open, and exits 0 only when
-all 13 pass. It writes nothing. Grid folder: `SC_GRID` (default
-`C:/game/steam/userdata/83513586/config/grid`).
+all 17 pass. It writes nothing; check 16 performs one navigation exactly as a
+click on the native news card does, then closes the overlay. Grid folder:
+`SC_GRID` (default `C:/game/steam/userdata/83513586/config/grid`). Checks 1–13
+come from Step 28 (ADR-0037); checks 14–17 and the check 11 key come from Steps
+38, 42 and 46 (ADR-0038).
 
 | # | Surface | PASS when | Baseline 2026-09-25 |
 | --- | --- | --- | --- |
@@ -3239,23 +4385,32 @@ all 13 pass. It writes nothing. Grid folder: `SC_GRID` (default
 | 8 | Artwork | the 4 grid files exist, `applied_artwork[S]` is for N with slots 0–3, a mapping exists, `customImageInfo.logoPosition` set | FAIL (logoPosition null, no mapping) |
 | 9 | Friends who play | `lastNative.friends === N`, count > 0 (the section may render empty when no friend plays it: that is Steam's answer) | FAIL |
 | 10 | Community Content | desktop heading `Community Content…` present and `lastNative.community === N` | FAIL |
-| 11 | News / partner events | the native entry has ≥ 1 event and every native event id (`unUniqueID`) is in the shortcut's feed | FAIL (native 1, missing 1) |
+| 11 | News / partner events | the native entry has ≥ 1 event and every native event is in the shortcut's feed: news keyed by `announcementGID`, other events by type, time, actor and `unUniqueID` (Step 46; `unUniqueID` alone is a per-store counter, `1` for the native news event) | FAIL (native 1, missing 1) |
 | 12 | Your Stuff media | heading `Recordings and Screenshots` | PASS |
 | 13 | Notes | heading `Notes` | PASS |
+| 14 | Badges (ADR-0038) | the shortcut has categories, none of 22, 23, 29, 30, 42, 43, 44, 59, 62 is in `m_setStoreCategories` or answers `BHasStoreCategory`, and every id it carries is in the allow-list | PASS (2, 28 from local data; Part A without Part F would add 44) |
+| 15 | Header links | every links-bar entry (desktop fiber props, then `url` or `urlStore.ResolveURL(link, appid)`) targets N (`/app/N` or `appid=N`) and never S; the ids `GameHub`, `GameHubDiscussions`, `GameHubGuides`, `HelpAppPage` and a `store.steampowered.com/app/N` URL are present | FAIL (all five built from 2315502503) |
+| 16 | News click-through | `MainWindowInstance.Navigator.App(model.appid, { gidPartnerEvent: model.GID })` for the native news event leads to `/library/app/S` with `event_to_show.eventid === GID`, and the overlay rendered with `lastNative.event === N` | FAIL (route unchanged: `App(2820820)` is a no-op) |
+| 17 | Community Content loader | Steam's loader under `[class*="CommunityContentContainer"]` has `m_unAppID === N` | FAIL (2315502503) |
+
+Baseline of the 17-check script (Steps 28, 38, 42 and 46 applied to a scratch
+copy), run read-only against the current build on 2026-09-25:
+**`4 PASS / 13 FAIL`**.
 
 A check changes only when the expected behaviour changes in an accepted ADR
 (guardrail 15). If Steam returns zero native events for 2820820 on the day of
-the gate, check 11 cannot pass: record the output and ask the architect; do not
-loosen it.
+the gate, checks 11 and 16 cannot pass: record the output and ask the architect;
+do not loosen them.
 
 ## 7. Do not touch
 
-- `steam-cartridges/backend/**` (P4 owns it; Parts A–E are frontend only), `plugin.json`, `dev.ps1`, `package.json`, `package-lock.json`, `tsconfig.json`
+- `steam-cartridges/backend/**` (P4 owns it; Parts A–H are frontend only; the backend `CATEGORY_FLAGS` keeps mapping 44, and the frontend sink `badgeCategoryIds` drops it), `plugin.json`, `dev.ps1`, `package.json`, `package-lock.json`, `tsconfig.json`
 - `steam-cartridges/frontend/steam/{summary,stores,jsx-hook,gamepad-appid,headline-patch,activity-cards-patch,route,shortcut,gameid,modules}.ts`, `frontend/renderers/**`
 - `steam-cartridges/frontend/settings/settings.ts`, `features/buckets/{collections,ready}.ts`, `features/artwork/**`, `features/steam-store/{known-apps,resolve,enriched,art-plan}.ts`
-- Every file not named in a step; `docs/**` (except the Step 12/30 edits to `TASK.md`, `CHANGELOG.md`); `scratch/check_all_tabs.js`, `scratch/test_nav_cycle.js`
+- Parts F–H: `features/game-info/game-info-patch.ts` (the `BIsModOrShortcut` / `GetGameID` / `BHasStoreCategory` prototype hooks stay as they are), `steam/activity.ts`, `steam/sections.ts`, `features/steam-store/{index,logo}.ts`, `features/game-info/{index,normalize,policy}.ts`, `index.tsx`
+- Every file not named in a step; `docs/**` (except the Step 12/30/48 edits to `TASK.md`, `CHANGELOG.md`); `scratch/check_all_tabs.js`, `scratch/test_nav_cycle.js`
 - Anything under `C:\game\steam\` (plugins, Millennium config, `library_metadata.json`, `steam_store.json`, userdata, grid)
-- The unrelated uncommitted user changes (`enhanced-achievements/`, `enhanced-notifications/`, `scratch/check_toast_metrics.mjs`, `scratch/find_popup_module.mjs`, other `CHANGELOG.md` hunks)
+- The unrelated uncommitted user changes (`enhanced-achievements/`, `enhanced-notifications/`, `scratch/*` probes other than `check_parity.mjs`, other `CHANGELOG.md` hunks)
 
 ## 8. Banned actions and failure rule
 
@@ -3266,6 +4421,8 @@ loosen it.
 - No `npm install`, `npm update` or version change (ignore the `@steambrew/ttc` update nag).
 - No `git add -A` / `git add .`, `git push --force`, `--no-verify`, amend or rebase.
 - Do not change any assertion, expected count, hash or gate check to make a step pass.
+- Do not add an id to `PORTABLE_CATEGORY_IDS`, remove one from `STEAM_ONLY_CATEGORY_IDS`, or change the gate's copies of those lists (ADR-0038 owns them).
+- Do not patch Steam's `Navigator` any other way than Step 41 (no hand-rolled `nav.App = …`, no `SteamClient.URL` or `window.open` call to reach a store page).
 
 **Failure rule.** Run any failing command at most **twice**. After the second
 failure, stop; do not edit around it or skip ahead. Append to `TASK.md`
@@ -3298,37 +4455,51 @@ in order; every item must hold. Record the outputs in `TASK.md` / `CHANGELOG.md`
    before: the log shows `Steam Store search failed for "<title>": offline` within ~8 s; a
    second new shortcut fails at once (breaker). Back online, the first one is looked up on
    a view after 5 minutes.
-4. **Parity gate (desktop):** `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL` and
+4. **Parity gate (desktop):** `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL` and
    exits 0. Run it twice: right after the restart and again after opening two other games.
+   Then in SharedJSContext, `PLUGIN_LIST['steam-cartridges-dev'].nativeSectionsDiagnostics()`
+   lists all four `kinds` (`links`, `friends`, `community`, `event`) and has
+   `navigatorPatches >= 1`.
 5. **Big Picture** (`start-steam-dev.ps1 -BigPicture`, not a mode toggle), Jotunnslayer: the
    header draws the logo; GAME INFO shows "Hordes of Hel is a gripping roguelike…",
    "Developer: Games Farm, ARTillery", "Publisher: Grindstone", a 2025 release date, and
-   badges Single-Player, Multi-Player, Co-op, Shared/Split Screen, Full Controller Support;
-   "Store Page" opens app 2820820; the COMMUNITY tab lists content; ACTIVITY shows the
-   partner event. One clipped, low-quality screenshot per claim (guardrail 4).
-6. **Regression (Routines 1–3):** `node scratch/test_nav_cycle.js` five times, every line
+   exactly the badges Single-player, Multi-player, Co-op and Full Controller Support (Steam's
+   badge table has no Shared/Split Screen badge; category 24 feeds Multi-player), with **no**
+   Steam Achievements, Steam Cloud, Steam Workshop, Remote Play Together, Steam Input API or
+   Family Sharing badge (ADR-0038); each Game Info link (Store Page, Community Hub,
+   Discussions, Guides, Support) opens a 2820820 page in Steam's browser; the COMMUNITY tab
+   lists content and one card opens its community file page; ACTIVITY shows the partner
+   event, and selecting it opens the event over the Jotunnslayer page;
+   `nativeSectionsDiagnostics().navigatorPatches` is one higher than on desktop (the Big
+   Picture window's Navigator). One clipped, low-quality screenshot per claim (guardrail 4).
+6. **Desktop by hand, Jotunnslayer:** the gear (Manage) menu still offers the shortcut's
+   own items ("Remove non-Steam game from your library", custom artwork, browse local files)
+   and "Properties…" opens the shortcut's properties (target, start in, launch options).
+   Close them without changing anything.
+7. **Regression (Routines 1–3):** `node scratch/test_nav_cycle.js` five times, every line
    `PASS`; in Big Picture `node scratch/check_all_tabs.js`, every line `PASS` (AM2R); AM2R's
-   four views by eye.
+   four views by eye (AM2R shows no links bar: it has no Steam match).
 
-**Exit criteria = the P5 gate:** items 1–6 all pass on the same deploy. Only
+**Exit criteria = the P5 gate:** items 1–7 all pass on the same deploy. Only
 then does TASK.md's parity line get ticked and P5 unblock. P5 scope stays
 ADR-0034 (Steam native, RetroAchievements); no user-created achievements.
 
 ## 10. Guardrail checklist (re-read each in docs/plugins.md; tick with one line of proof)
 
-- [ ] **1 ID coupling:** the links proxy returns `BIsModOrShortcut` false only with a native appid and passes every other read to the real overview; `GetGameID` hooks untouched.
-- [ ] **2 O(1):** the jsx handler is one `Map.get` on the element type and one on the appid; proxies are cached per (object, native).
-- [ ] **3 single-pass:** `resolveTypes()` scans `req.m` once, from `installNativeSections()` at startup; never in a render or callback.
-- [ ] **4 multi-tab:** § 9 items 5–6.
+- [ ] **1 ID coupling:** the links proxy returns `BIsModOrShortcut` false only with a native appid and passes every other read to the real overview; `GetGameID` hooks untouched; Parts F–H change no prototype hook.
+- [ ] **2 O(1):** the jsx handler is one `Map.get` on the element type and one on the appid (the `event` kind uses the same branch); proxies are cached per (object, native); `navigationTarget` is two `Map` lookups and runs only on navigation.
+- [ ] **3 single-pass:** `resolveTypes()` scans `req.m` once, from `installNativeSections()` at startup, now for four signatures; never in a render or callback. `wrapNavigators()` walks the one or two Steam UI windows, never `req.m`.
+- [ ] **4 multi-tab:** § 9 items 5–7.
 - [ ] **5 stubs / negative cache:** shortcut stubs untouched; the native app's store item is Steam's own.
-- [ ] **6 two-way nav:** the gate script does A → B → A; § 9 item 6.
-- [ ] **7 categories:** the purge list is `STEAM_CATEGORIES`, now with 39; nothing outside it is added.
+- [ ] **6 two-way nav:** the gate script does A → B → A; § 9 item 7.
+- [ ] **7 categories:** the purge list is `MANAGED_CATEGORY_IDS` (every allowed and every Steam-only id), in both `enrichGameDetails` and `revertGameDetails`; only `badgeCategoryIds(meta)` is added.
 - [ ] **8 details:** no `appData.details` write; the friends proxy only overrides `unAppID` on a proxy.
 - [ ] **10 memo:** `setExtraSections` re-renders through `refreshInstances` (memo cleared first).
 - [ ] **11 re-render:** `refreshGameInfoInstances()` after the native appid is known; `setExtraSections` re-renders the sections.
+- [ ] **12 windows:** the Navigator patch is per Steam UI window and re-applied on each mapped view; the Big Picture window is checked live (§ 9 item 5).
 - [ ] **13 MobX computed:** no new `collectionStore` read; titles come from `appStore.GetAppOverviewByAppID`.
-- [ ] **14 gates:** local Game Info still shows until store data replaces it; unmatched shortcuts lose only dead links (ADR-0037 consequence).
-- [ ] **15 checks:** the gate script's 13 checks are fixed by ADR-0037; `check_all_tabs.js` / `test_nav_cycle.js` unchanged.
+- [ ] **14 gates:** local Game Info still shows until store data replaces it; unmatched shortcuts lose only dead links (ADR-0037); the only badges removed are the Steam services the user ruled out (ADR-0038); `full_controller` keeps its default.
+- [ ] **15 checks:** checks 1–13 are fixed by ADR-0037 and 14–17 by ADR-0038; check 11's event key got stricter, not looser (ADR-0038); § 9 item 5's badge list was corrected to Steam's real badge table; `check_all_tabs.js` / `test_nav_cycle.js` unchanged.
 
 ## 11. Dry-run record
 
@@ -3336,16 +4507,43 @@ Applied P4 Steps 1–15, then Steps 1–10, 14–27 and 28 of this plan, to
 `git archive HEAD steam-cartridges` in a scratch folder (2026-09-25): every
 before block matched exactly once and every Check hash matched; Part A gate:
 `tsc` clean, `test:ts` 35/35, build succeeded; Parts B–E gate: `tsc` clean,
-`test:ts` 42/42, build succeeded; Lua unchanged (71 + 86 PASS). The gate script
-ran live (read-only) against the current build: `3 PASS / 10 FAIL`, as in § 6.
+`test:ts` 42/42, build succeeded; Lua unchanged (71 + 86 PASS). The 13-check
+gate script ran live (read-only) against the current build: `3 PASS / 10 FAIL`.
+
+Parts F–H (2026-09-25, second session): a fresh `git archive HEAD`, with P4
+Steps 1–15 and Steps 1–31 of this plan applied by a script that parses the
+plans (all 39 file steps matched once, all hashes matched), then Steps 32–46:
+every before block matched once and every Check hash matched; gate: `tsc`
+clean, `test:ts` 49/49, build succeeded, `node --check` OK, 17 `check(` calls.
+The 17-check gate script ran live (read-only) against the current build:
+`4 PASS / 13 FAIL` (§ 6).
+
+Verified live on the running client (read-only; traces in steam-components.md):
+the four component signatures each match exactly one module (links `52470`,
+friends `2326`, community `77163`, event overlay `46776`); the links bar's
+props on the Jotunnslayer page; `urlStore.ResolveURL` for 2820820;
+`Navigator.App(2820820, …)` is a no-op; the event overlay renders for
+`event_to_show.appid` 2820820 and not for 2315502503; Steam's badge table and
+category ids; the Community Content loader's `m_unAppID`.
 
 Not verified offline (checked by § 9): the partner event rendering inside the
-shortcut's feed, the logo position call (`SaveCustomLogoPosition`), and the
-three component signatures on the running client.
+shortcut's feed, the logo position call (`SaveCustomLogoPosition`), the jsx
+redirects and the Navigator patch in the deployed plugin, and the Big Picture
+window's Navigator.
 
 ## 12. Questions for the user
 
-- **Q1.** Native 2820820 lists Steam-service features (Achievements, Steam Cloud,
-  Trading Cards, Family Sharing). They are false for an Epic copy, so this plan
-  does not copy them (gate check 6 compares player and controller categories
-  only); Achievements comes with P5. Keep it that way?
+- **Q1 (answered 2026-09-25, ADR-0038).** Steam-service features are not ported;
+  only badges true of the non-Steam copy are shown.
+- **Q2.** Local / IGDB data without a controller flag still gets the "Full Controller
+  Support" badge (the old default, kept so that no badge that showed before
+  disappears, guardrail 14). Store-matched games use Steam's exact ids. Drop that
+  default too (it is a guess, not a fact)?
+- **Q3.** "Manage" and "Properties…" stay the shortcut's own: they edit the local exe,
+  launch options and artwork, module `5808` builds them from the app type, and our
+  hooks do not touch them. If you saw one of them broken, which item, on which page?
+- **Q4.** Genres, user tags, languages and review/Metacritic scores are true of the
+  game but have no place on the app page; Steam uses them only for library sorting
+  and dynamic-collection filters (for example a "tag: Roguelike" collection). Port
+  them there later? That needs a new ADR: like categories (ADR-0036), they can
+  change dynamic collection membership.

@@ -87,5 +87,9 @@ global where Steam exposes one.
 | Post-Game Summary styles      | class-map probe key `GamePlaySummaryContainer` (the page spans four CSS modules: [list](steam-components.md#rendered-dom-and-css-modules)) | `non-steam-games-activity/frontend/index.tsx` |
 | Activity feed styles          | class-map probe key `AppActivityDay` / `AppActivityDate`                                              | `stores.ts`, `activity.ts` |
 | Big Picture toast placeholder | class-map probe key `GamepadToastPlaceholder`                                                         | `enhanced-notifications/frontend/steam/selectors.ts` |
+| App-page links bar / Friends / Community Content / partner event overlay | factory-source needles, one module each ([table](steam-components.md#resolution-signatures-one-module-each-on-this-build)) | `steam-cartridges` `features/steam-store/native-sections.ts` (parity plan C, H) |
+| Window `Navigator` (`App`, `SteamWeb`, `AppProperties`, …) | `SteamUIStore.WindowStore.SteamUIWindows[i].Navigator` (a plain object per window) | parity plan G |
+| Steam URL ids (`GameHub`, `HelpAppPage`, `StoreAppPage`, …) | `window.urlStore.ResolveURL(id, appid)` | parity gate check 15 |
+| Game Info feature badges → store category ids | module with `n$` + the `#AppDetails_Feature_*` table ([mapping](steam-components.md#store-categories-and-feature-badges)) | `features/game-info/category-policy.ts` |
 
 The store singletons are long-lived MobX objects: resolve once and cache.

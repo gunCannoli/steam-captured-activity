@@ -111,10 +111,13 @@ Deploy is a user action (`dev.ps1`). Then:
     - [ ] Config v2 rules and title patterns, fixed default `steam-store`, sticky resolutions
     - [ ] Store first, web fallback on no match; settings panel
     - [ ] Offline gates: `tsc`, `test:ts` 35/35
-- [ ] **3. Native parity, Jotunnslayer vs 2820820**: [parity plan Parts B–E](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps)
+- [ ] **3. Native parity, Jotunnslayer vs 2820820**: [parity plan Parts B–E](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps), then [Parts F–H](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app) (user decisions 2026-09-25, [ADR-0038](docs/decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app))
     - [ ] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
     - [ ] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
-    - [ ] **Parity gate: `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL`** (baseline 2026-09-25: 3 PASS / 10 FAIL), plus plan § 9
+    - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
+    - [ ] Offline gates: `tsc`, `test:ts` 49/49
+    - [ ] **Parity gate: `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL`** (baseline 2026-09-25: 4 PASS / 13 FAIL), plus plan § 9 items 1–7
+    - [ ] Open questions for the user: plan § 12 Q2–Q4 (Full Controller default for local data, Manage/Properties, tags/languages/ratings)
 - [ ] ⛔ **P5** achievements (Steam native, RetroAchievements): **blocked on the parity gate** (user decision B)
 - [ ] ⛔ **P6** optional SteamGridDB rules: blocked on P5
 

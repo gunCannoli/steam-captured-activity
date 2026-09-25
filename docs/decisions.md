@@ -2260,7 +2260,7 @@ because we enriched it.
 
 ## ADR-0037: A mapped shortcut borrows its native app's Steam sections; the P5 gate is native parity
 
-**Status:** Accepted · 2026-09-25 (user decision B) · **Refines [ADR-0032](#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)** (which linker features are dropped) · builds on [ADR-0022](#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them) and [ADR-0009](#adr-0009-prefer-patching-steams-data-over-patching-its-dom)
+**Status:** Accepted · 2026-09-25 (user decision B) · **Refines [ADR-0032](#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)** (which linker features are dropped) · builds on [ADR-0022](#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them) and [ADR-0009](#adr-0009-prefer-patching-steams-data-over-patching-its-dom) · **Amended by [ADR-0038](#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app)** (badge policy, navigation redirect, gate of 17 checks)
 
 ### Context
 
@@ -2307,3 +2307,90 @@ dropped them as "out of scope".
   of ADR-0036 (exact unique title, Clear with reject, manual mapping) apply.
 - Three more signature-resolved components; a Steam update that moves one leaves
   that section stock and logs a warning.
+
+---
+
+## ADR-0038: A mapped shortcut shows only what is true of its copy; its links, news and community content open the native app
+
+**Status:** Accepted · 2026-09-25 (user decisions: badge policy; link and navigation parity) · **Amends [ADR-0037](#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity)** (answers its open question Q1, adds the navigation redirect, the gate grows to 17 checks)
+
+### Context
+
+ADR-0037 hands Steam's own sections the native appid of a mapped shortcut and
+left one question open: should Steam-service features of the native app show
+on a non-Steam copy? A live read-only session on 2026-09-25
+([steam-components.md § Links, navigation and native content](steam-components.md#links-navigation-and-native-content-for-a-mapped-shortcut))
+found:
+
+- Steam's Game Info draws 15 feature badges from `BHasStoreCategory`. Six are
+  Steam services (Achievements 22, Cloud 23, Workshop 30, Remote Play Together
+  44, Steam Input API 59, Family Sharing 62). `StoreItemCache` groups an app's
+  categories into players, controller and features. Our store-item mapping reads
+  all three and maps 44 to a flag that `metadata.ts` writes, so the Epic copy of
+  Jotunnslayer would show "Remote Play Together" once Part A maps it.
+- Once Game Info is enriched, our `BIsModOrShortcut` prototype hook makes Steam
+  build the header links (Store Page, Community Hub, Discussions, Guides,
+  Support) from the shortcut appid: every one is a dead page.
+- A native news card calls `Navigator.App(<native appid>)`, which returns at once
+  for an app missing from `appStore` (every unowned app): the click does
+  nothing. The event overlay renders only when its `appid` is the event's app.
+- Community Content loads for the shortcut appid.
+
+The user decided (2026-09-25): the non-native copy shows only tags and badges
+that are true for it; Steam-only features are not ported. The header links,
+activity feed and community content must work by pointing at the linked native
+app.
+
+### Decision
+
+- **Badge policy (mechanical).** A shortcut carries only store categories from an
+  allow-list: the `supported_player_categoryids` and `controller_categoryids` ids
+  with a known meaning, 1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49 and 18, 28, 55, 56,
+  57, 58. The `feature_categoryids` group is never read. Anything else is
+  dropped; the Steam services seen on native apps are named for tests and the
+  gate: 22, 23, 29, 30, 42, 43, 44, 59, 62. When the Steam Store supplied ids,
+  they replace the old flags; local and IGDB flags never map `achievements` or
+  `remote_play_together`. The `full_controller` default of local data stays
+  (guardrail 14; open question to the user).
+- **Other store data.** Description, credits and both release dates are ported
+  (ADR-0036/0037). Genres, user tags, languages, ratings and requirements are
+  true of the game but have no app-page surface (Steam uses them for library
+  sorting and dynamic-collection filters); they are not written until a later
+  ADR. Steam Deck / SteamOS compatibility, achievements on Steam, playtime,
+  cloud and cards belong to the Steam copy: never.
+- **Links.** The header links come from Steam's own links component with the
+  native appid (ADR-0037); their URLs are Steam's own (`urlStore`), opened in
+  Steam's in-client browser. Nothing is hand-built. DLC, Points Shop, Workshop
+  and Market appear only when Steam shows them.
+- **Manage and Properties stay the shortcut's.** They act on the local copy (exe,
+  launch options, artwork, removal) and Steam builds them from the app type, not
+  from our hooks.
+- **Navigation.** Each Steam UI window's `Navigator.App` is patched once with the
+  SDK patcher: an unowned native appid mapped from a shortcut goes to the
+  shortcut. The partner event overlay is the fourth component whose `appid` prop
+  the jsx hook rewrites to the native app. A news card click therefore opens the
+  native event over the shortcut's page. An owned native app keeps its own page.
+- **Activity and Community Content** come from the native app (ADR-0037 Parts C
+  and D) and click through Steam's own paths above. Community cards open by
+  file id. From `research/game-data-linker`: `fetch_community_content` and
+  `fetch_partner_events` are adapted to Steam's own components; the activity
+  feed injection is adapted to Steam's own feed; `fetch_published_file_previews`
+  is dropped (Steam loads its own previews).
+- **Gate:** `scratch/check_parity.mjs` has 17 checks: 14 badges, 15 header links,
+  16 news click-through, 17 the Community Content loader's appid. Check 11 now
+  keys news by announcement GID (`unUniqueID` is a per-store counter), a stricter
+  key. The Big Picture badge list in the parity plan § 9 is corrected to Steam's
+  real table (there is no Shared/Split Screen badge). P5 starts at
+  `17 PASS / 0 FAIL` plus the plan's § 9.
+
+### Consequences
+
+- A shortcut whose local or IGDB data claimed achievements or Remote Play
+  Together loses that badge (user-decided). No other badge changes for
+  unmatched games.
+- One more patched Steam object (the window `Navigator`), resolved without a
+  module scan; if it is missing, clicks stay stock and a warning is logged.
+- The global `BIsModOrShortcut` hook still enables "Mark as Private" for an
+  enriched shortcut (recorded in steam-components.md; not addressed here).
+- A wrong store match now also sends news clicks and header links to the wrong
+  native app; ADR-0036's mitigations apply.
