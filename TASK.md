@@ -85,13 +85,9 @@ written (0034 Accepted). Run phases in order; each plan lists its exit criteria.
 
 ## Active Failures & Blockers
 
-Render-error fix re-verified live 2026-09-24 (dev deploy OK, no popup/load failure). Offline: check, build, test:ts (15), Lua via lupa (NSGA_SKIP_FIXTURES=1) all pass.
-
-- VERIFIED: desktop test_nav_cycle.js 5/6 runs all PASS; check_all_tabs.js (Big Picture) PASS on rerun; collectionStore health OK.
-- FIXED OFFLINE (plan docs/plans/steam-cartridges-regression-bugfix.md): AM2R Game Info (ADR-0035) and the two test flakes. Live verification pending (plan §7).
-- BLOCKED: tests/buckets.mjs and tests/steam-store.mjs throw "fixture collections/apps not found" (no SC_STEAM/SC_RETRO collections, no SC_* shortcuts). Not created (user data).
-- Ad hoc Steam Store on 'Jotunnslayer: Hordes of Hel' (shortcut 2315502503, override -> steam-store): search mapping to 2820820, art slots 0-3 applied, clear removed both, settings reset; config restored to empty.
-- DIAGNOSED (plan: docs/plans/steam-cartridges-regression-bugfix.md, ready for @implementer): AM2R Game Info is a real P2 regression. The bucket gate hid the local metadata DB for `none` games (ADR-0035 restores it; buckets gate only fetching). The nav-cycle and Your Stuff failures are pre-existing test timing (the store keeps 3 days on every return; the DOM reveals days one at a time), fixed by polling in the scripts.
+- VERIFIED live 2026-09-24 (regression fix 907f59c, desktop, dev deploy OK, no popup/load failure): offline check, build, test:ts (19), Lua via lupa pass; test_nav_cycle.js 5/5 all PASS; check_all_tabs.js 3/3 all PASS (AM2R Game Info renders, bucket none, no grey warning, A->B->A intact); no new "Fetching Game Info" log lines (last 20:03, before deploy).
+- NOT RUN (fixtures absent, not approved): tests/buckets.mjs, tests/steam-store.mjs. Big Picture check and plan sec 7 step 3 (GetAppData snippet) not run.
+- NON-BLOCKING WARNING: webhelper_js.txt "Could not enrich native Game Info for 4263274102: TypeError: (meta.franchises || []).join is not a function" (metadata.ts:231 debug log line; franchises not an array). Old (1173 hits since 11:09), pre-existing; data still applied.
 - Attempt Count: +1
 
 ### Live verification pending (P1-P3; nothing below has run against Steam)
