@@ -20,14 +20,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
-- **Every settings-panel row now uses `bottomSeparator="none"` except the
-  last row in its group**, instead of each component's own default
-  separator/spacing. This fixes two things: the group header no longer sits
-  flush against the row above it (each group's gap now comes only from
-  `DialogControlsSection`'s own margin, not stacked with per-row spacing),
-  and every group's rows are now evenly spaced instead of some groups (e.g.
-  Screenshots & Recordings, mostly sliders) looking more spread out than
-  others (e.g. Theme, mostly buttons).
+- **Every settings-panel row now passes `transparentBackground` (in addition
+  to `bottomSeparator="none"` except the last row in its group).** The
+  uneven spacing/group-header-clipping wasn't actually a separator problem:
+  outside Steam's own "classic" Settings-dialog render context (which a
+  Millennium sidebar panel is not), the SDK's underlying `Field` component
+  paints every row with its own background card by default — that's what
+  produced the boxed-card look with visible gaps between rows, and between a
+  header and the row below it, regardless of `bottomSeparator`.
+  `transparentBackground` is a real prop of that component (confirmed
+  against the live client's own bundled source), just missing from
+  `@steambrew/client`'s `.d.ts`. An earlier attempt in this same file that
+  only added `bottomSeparator="none"` did not fix this — recorded here so
+  the wrong fix doesn't get re-tried.
 - **The shipped default is now "Steam default" (`theme: ""`), not a bundled
   theme.** A fresh install shows Steam's own stock toast and chime until a
   theme is picked. The settings panel's Theme dropdown lists "Steam default"

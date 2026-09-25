@@ -16,16 +16,28 @@ import { DEFAULTS, RANGES, resetSettings, setting, useSetting, type SettingKey }
  * There is deliberately no theme builder: themes are hand-edited JSON files,
  * which is also what users share. Preview + Reload make that edit loop quick.
  *
- * Every row but the last in a group passes `bottomSeparator="none"`, matching
- * how Steam's own settings pages space a group: one separator between rows,
- * one gap between groups (DialogControlsSection's own margin) — instead of
- * each component's own default, which was inconsistent from group to group.
+ * Every row but the last in a group passes `bottomSeparator="none"`, and
+ * every row passes `transparentBackground`, matching how Steam's own
+ * settings pages space a group: one flat surface per group, one separator
+ * between rows, one gap between groups (DialogControlsSection's own
+ * margin). `transparentBackground` is a real prop of the SDK's underlying
+ * `Field` component (verified against the live client's own source,
+ * frontend/steam/webpack.ts-style resolution — not a made-up class), just
+ * missing from @steambrew/client's .d.ts; without it every row painted its
+ * own background card (Steam's `Background` class applies outside Steam's
+ * own "classic" render context, which a Millennium sidebar panel is), which
+ * is what actually produced the boxed-card look and uneven gaps —
+ * `bottomSeparator` alone never controlled that.
  */
+
+/** transparentBackground is a real Field prop, missing from the SDK's .d.ts (see doc comment above). */
+const FLAT = { transparentBackground: true } as { transparentBackground: true };
 
 function Toggle({ k, label, description, disabled, last }: { k: SettingKey; label: string; description?: string; disabled?: boolean; last?: boolean }) {
     const [value, set] = useSetting(k);
     return (
         <ToggleField
+            {...FLAT}
             label={label}
             description={description}
             layout="below"
@@ -42,6 +54,7 @@ function Slider({ k, label, suffix, disabled, last }: { k: SettingKey; label: st
     const range = RANGES[k]!;
     return (
         <SliderField
+            {...FLAT}
             label={label}
             layout="below"
             bottomSeparator={last ? 'standard' : 'none'}
@@ -96,6 +109,7 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
         <DialogControlsSection>
             <DialogControlsSectionHeader>Theme</DialogControlsSectionHeader>
             <DropdownItem
+                {...FLAT}
                 label="Theme"
                 description={status}
                 layout="below"
@@ -106,6 +120,7 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                 onChange={(o) => setTheme(o.data as string)}
             />
             <ButtonItem
+                {...FLAT}
                 label="Reload themes"
                 description="Pick up theme file edits without restarting Steam."
                 layout="below"
@@ -119,6 +134,7 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                 Reload
             </ButtonItem>
             <ButtonItem
+                {...FLAT}
                 label="Open themes folder"
                 description={userDir || 'Your themes, kept across plugin updates.'}
                 layout="below"
@@ -169,6 +185,7 @@ function PreviewSection({ disabled }: { disabled: boolean }) {
             <DialogControlsSectionHeader>Preview Achievements</DialogControlsSectionHeader>
             {TIERS.map((tier, i) => (
                 <ButtonItem
+                    {...FLAT}
                     key={tier}
                     label={TIER_LABELS[tier]}
                     description={tierRule(tier)}
@@ -231,7 +248,7 @@ export function SettingsPanel() {
             </DialogControlsSection>
             <CapturesSection disabled={disabled} />
             <DialogControlsSection>
-                <ButtonItem label="Reset to defaults" description="Clear every changed setting." layout="below" disabled={disabled} onClick={() => void resetSettings()}>
+                <ButtonItem {...FLAT} label="Reset to defaults" description="Clear every changed setting." layout="below" disabled={disabled} onClick={() => void resetSettings()}>
                     Reset
                 </ButtonItem>
             </DialogControlsSection>
