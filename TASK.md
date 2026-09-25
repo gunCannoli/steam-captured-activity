@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Banner geometry fix deployed and live 2026-09-25 (legacy position aliases dropped, pre-release); 5 new user-reported improvements planned. **Fix existing features before anything new.** |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Geometry fix deployed and live; animation/queue and glow/settings-layout fixes committed 2026-09-25, **not yet deployed** — awaiting `dev.ps1` and live smoke test. **Fix existing features before anything new.** |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
@@ -66,13 +66,40 @@ change, just confirmation. The other 4 are planned:
 | 4 | Exceptional 100% text seemed hardcoded | **Confirmed already correct**, live probe 2026-09-25 — no change |
 | 5 | Multiple unlocks should queue one-at-a-time, 100ms gap, not stack | Phase 3 (`banner/queue.ts`, wired into `ThemedToast`) |
 
-- [ ] **Phase 1:** `AnimationPair` schema (`{in, out}` or bare string), `resolveAnimation`, `tests/theme.test.ts` additions. Gate: `npm test` 44/44.
-- [ ] **Phase 2:** CSS split `ea-in-*`/`ea-out-*` (was `ea-anim-*`+`ea-exit`), new `ps5` preset via `ea-pos-*` classes, ripple rewritten as an edge-anchored ring. Gate: `npm run check && npm test`.
-- [ ] **Phase 3:** new pure `banner/queue.ts` (no `logger` import — dry-run caught this: extensionless imports don't resolve under `npm test`'s raw Node ESM loader) + `tests/queue.test.ts`; wired into `Banner` via `requestTurn`/`releaseTurn`, released on `animationend` (`ea-out-*`) or unmount. Gate: `npm run check && npm test && npm run build`, 50/50.
-- [ ] **Phase 4:** docs: themes.md `animation` shape, ripple note; EA CHANGELOG; guardrail table row 10.
-- [ ] **Dry-run: done** 2026-09-25 on a scratch copy — found and fixed 2 real bugs before handoff (a `logger` import that can't resolve under the test runner; literal backticks in a CSS comment that broke out of the `BANNER_CSS` template literal). `tsc --noEmit` clean, `npm test` 50/50 after fixes.
-- [ ] **Live verification** (needs `dev.ps1` deploy — user action): plan § 8 P1–P4 (animation directions incl. `ps5` at different anchors, ripple shape, rapid-fire queue behaviour incl. the synthetic exceptional toast, exceptional text re-confirm).
+- [x] **Phase 1:** `AnimationPair` schema (`{in, out}` or bare string), `resolveAnimation`, `tests/theme.test.ts` additions. Gate: `npm test` 44/44 ✅.
+- [x] **Phase 2:** CSS split `ea-in-*`/`ea-out-*` (was `ea-anim-*`+`ea-exit`), new `ps5` preset via `ea-pos-*` classes, ripple rewritten as an edge-anchored ring. Gate: `npm run check && npm test` ✅.
+- [x] **Phase 3:** new pure `banner/queue.ts` + `tests/queue.test.ts`; wired into `Banner` via `requestTurn`/`releaseTurn`, released on `animationend` (`ea-out-*`) or unmount. Gate: `npm run check && npm test && npm run build`, 50/50 ✅.
+- [x] **Phase 4:** docs: themes.md `animation` shape, ripple note; EA CHANGELOG; guardrail table row 10 ✅.
+- [x] **Executed and committed** 2026-09-25, commit `db93e79`. `tsc --noEmit` clean, `npm test` 50/50, build succeeded.
+- [ ] **Live verification** (needs `dev.ps1` deploy — user action): plan § 8 P1–P4 (animation directions incl. `ps5` at different anchors, ripple shape, rapid-fire queue behaviour incl. the synthetic exceptional toast, exceptional text re-confirm). Note: the queue is now **off by default** (see next section) — turn on "One achievement at a time" in settings before testing P3.
 - [ ] Open questions: plan § 9 Q1–Q3 (default animation pair, `ps5` timings, queue overflow behaviour).
+
+## enhanced-achievements: glow removal, capture slider, settings layout, queue toggle (current focus)
+
+Plan: [docs/plans/enhanced-achievements-glow-queue-settings-improvements.md](docs/plans/enhanced-achievements-glow-queue-settings-improvements.md).
+5 more user-reported items after the animation/queue plan landed; 2 are **out
+of scope by user decision** (dropdown width/text size, button padding — no
+`className`/`style` hook on those SDK components, and the panel deliberately
+uses no custom CSS). Executed and committed 2026-09-25, commit `0be4cf0`.
+
+| # | Request | Resolution |
+| --- | --- | --- |
+| 1 | Glow should be an outer outline pulse, not inside the banner | **Dropped** (user decision) — double-clipped by `overflow:hidden` and the exact-fit toast window; a real fix needs the geometry fix's resize math changed. `banner.glow` still parses, no visual effect. |
+| 2 | `recording.duration_s` slider should start at 0, not 5 | Fixed — `CAPTURE_RANGES` |
+| 3 | Wider/smaller-text theme dropdown | **Out of scope** (user decision) — no SDK style hook |
+| 4 | Buttons have no horizontal padding | **Out of scope** (user decision) — no SDK style hook |
+| 4b | Two-row layout: label+control on row 1, description on row 2 | Fixed — SDK's own `layout="below"` prop on every panel row, no custom CSS |
+| 5 | Queue should be a checkbox, default to Steam's own behaviour | Fixed — new `queue.enabled` setting, **off by default** |
+
+- [x] **Phase 1:** glow removed (`ea-glow`/`ea-pulse` CSS + class-list logic); `banner.glow` still parses.
+- [x] **Phase 2:** `recording.duration_s` range `{min: 0, max: 60, step: 5}` (was `min: 5`).
+- [x] **Phase 3:** `layout="below"` on every `Toggle`/`Slider`/`DropdownItem`/`ButtonItem` in the settings panel.
+- [x] **Phase 4:** new `queue.enabled` setting (off by default), gates `requestTurn`/`releaseTurn` in `themed-toast.tsx`; `banner/queue.ts` stays pure/setting-unaware.
+- [x] **Phase 5:** docs — EA CHANGELOG (Added/Changed/Removed), README (dropped "glow" from the feature list), themes.md.
+- [x] **Dry-run: done** 2026-09-25 on a scratch copy — every before block matched, `tsc --noEmit` clean, `npm test` 50/50.
+- [x] **Executed and committed**, commit `0be4cf0`. `tsc --noEmit` clean, `npm test` 50/50 (unchanged), build succeeded.
+- [ ] **Live verification** (needs `dev.ps1` deploy — user action): plan § 8 P1–P4 (no glow on any tier, slider floor at 0, every row's two-line layout, queue toggle on/off behaviour).
+- [ ] Open questions: plan § 9 Q1–Q2 (`queue.enabled` default off vs on, `duration_s: 0` edge case).
 
 ## Alpha testing (user)
 
