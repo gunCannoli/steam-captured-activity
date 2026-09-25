@@ -20,7 +20,7 @@ import { DEFAULTS, RANGES, resetSettings, useSetting, type SettingKey } from './
 
 function Toggle({ k, label, description, disabled }: { k: SettingKey; label: string; description?: string; disabled?: boolean }) {
     const [value, set] = useSetting(k);
-    return <ToggleField label={label} description={description} checked={value as boolean} disabled={disabled} onChange={(v) => set(v as never)} />;
+    return <ToggleField label={label} description={description} layout="below" checked={value as boolean} disabled={disabled} onChange={(v) => set(v as never)} />;
 }
 
 function Slider({ k, label, suffix, disabled }: { k: SettingKey; label: string; suffix: string; disabled?: boolean }) {
@@ -29,6 +29,7 @@ function Slider({ k, label, suffix, disabled }: { k: SettingKey; label: string; 
     return (
         <SliderField
             label={label}
+            layout="below"
             value={value as number}
             min={range.min}
             max={range.max}
@@ -68,10 +69,11 @@ function ThemeSection() {
 
     return (
         <>
-            <DropdownItem label="Theme" description={status} rgOptions={options} selectedOption={theme} onChange={(o) => setTheme(o.data as string)} />
+            <DropdownItem label="Theme" description={status} layout="below" rgOptions={options} selectedOption={theme} onChange={(o) => setTheme(o.data as string)} />
             <ButtonItem
                 label="Reload themes"
                 description="Pick up edits to theme JSON files without restarting Steam."
+                layout="below"
                 onClick={async () => {
                     await refresh();
                     await reloadTheme();
@@ -79,7 +81,7 @@ function ThemeSection() {
             >
                 Reload
             </ButtonItem>
-            <ButtonItem label="Open themes folder" description={userDir || 'Your themes live here and survive plugin updates.'} onClick={() => void rpc.openThemesFolder()}>
+            <ButtonItem label="Open themes folder" description={userDir || 'Your themes live here and survive plugin updates.'} layout="below" onClick={() => void rpc.openThemesFolder()}>
                 Open
             </ButtonItem>
             <PreviewSection />
@@ -118,7 +120,7 @@ function PreviewSection() {
         <DialogControlsSection>
             <DialogControlsSectionHeader>Preview a tier</DialogControlsSectionHeader>
             {TIERS.map((tier) => (
-                <ButtonItem key={tier} label={TIER_LABELS[tier]} description={tierRule(tier)} onClick={() => void previewTier(tier)}>
+                <ButtonItem key={tier} label={TIER_LABELS[tier]} description={tierRule(tier)} layout="below" onClick={() => void previewTier(tier)}>
                     Preview
                 </ButtonItem>
             ))}
@@ -160,6 +162,7 @@ function CapturesSection() {
             <ButtonItem
                 label="Test captures"
                 description={testDesc}
+                layout="below"
                 onClick={() => {
                     const appid = runningGameAppid();
                     if (appid === null) {
@@ -184,8 +187,9 @@ export function SettingsPanel() {
             {warning && <div>{warning}</div>}
             <Toggle k="banner.enabled" label="Themed banner" description="Off: Steam's own achievement toast." />
             <Toggle k="sound.enabled" label="Themed sound" description="Off: Steam's own chime. Steam's notification sound setting is always respected." />
+            <Toggle k="queue.enabled" label="One achievement at a time" description="On: only one themed banner shows at once; a second unlock waits for the first to finish, then appears shortly after. Off: Steam's own default (toasts can show side by side)." />
             <CapturesSection />
-            <ButtonItem label="Reset to defaults" description="Clear every changed setting." onClick={() => void resetSettings()}>
+            <ButtonItem label="Reset to defaults" description="Clear every changed setting." layout="below" onClick={() => void resetSettings()}>
                 Reset
             </ButtonItem>
         </>

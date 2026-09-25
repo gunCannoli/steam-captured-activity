@@ -30,6 +30,7 @@ export interface Settings {
     theme: string;
     'banner.enabled': boolean;
     'sound.enabled': boolean;
+    'queue.enabled': boolean;
     'screenshot.enabled': boolean;
     'screenshot.delay_ms': number;
     'recording.enabled': boolean;
@@ -45,6 +46,7 @@ export const DEFAULTS: Settings = {
     theme: defaults.theme,
     'banner.enabled': defaults.banner.enabled,
     'sound.enabled': defaults.sound.enabled,
+    'queue.enabled': defaults.queue.enabled,
     'screenshot.enabled': defaults.screenshot.enabled,
     'screenshot.delay_ms': defaults.screenshot.delay_ms,
     'recording.enabled': defaults.recording.enabled,

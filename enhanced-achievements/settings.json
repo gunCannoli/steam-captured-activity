@@ -6,6 +6,9 @@
     "sound": {
         "enabled": true
     },
+    "queue": {
+        "enabled": false
+    },
     "screenshot": {
         "enabled": false,
         "delay_ms": 500

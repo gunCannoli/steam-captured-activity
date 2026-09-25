@@ -7,6 +7,7 @@ import { tierFor, type SteamNotification } from '../steam/notifications';
 import { BANNER_CSS } from './styles';
 import { bannerSize, placeBanner } from './geometry';
 import { pinToastWindow } from './window-pin';
+import { setting } from '../settings/settings';
 import { releaseTurn, requestTurn } from './queue';
 
 /**
@@ -99,10 +100,14 @@ function Banner({ toast }: { toast: ToastProps }) {
     const n = toast.group?.notifications?.[0];
     if (!loaded || !n) return <>{renderSteam(toast)}</>;
 
+    const queueOn = setting('queue.enabled');
     const [myTurn, setMyTurn] = useState(() =>
-        requestTurn(n.data, () => setMyTurn(true), () => logger.warn('Achievement toast queue full; showing out of turn.')),
+        !queueOn || requestTurn(n.data, () => setMyTurn(true), () => logger.warn('Achievement toast queue full; showing out of turn.')),
     );
-    useEffect(() => () => releaseTurn(n.data), [n.data]);
+    useEffect(() => {
+        if (!queueOn) return undefined;
+        return () => releaseTurn(n.data);
+    }, [n.data, queueOn]);
     if (!myTurn) return null;
 
     const { theme, assets } = loaded;
@@ -126,9 +131,6 @@ function Banner({ toast }: { toast: ToastProps }) {
         '--ea-pad-x': `${banner.padding[1]}px`,
         '--ea-gap-x': `${banner.gap[0]}px`,
         '--ea-gap-y': `${banner.gap[1]}px`,
-        '--ea-glow': banner.glow.color,
-        '--ea-glow-spread': `${banner.glow.spread}px`,
-        '--ea-glow-pulse': `${banner.glow.pulseMs}ms`,
         '--ea-text-align': textAlign,
         '--ea-text-justify': textJustify,
         background,
@@ -154,6 +156,7 @@ function Banner({ toast }: { toast: ToastProps }) {
     }, []);
 
     useEffect(() => {
+        if (!queueOn) return undefined;
         const el = rootRef.current;
         if (!el) return undefined;
         const onEnd = (e: AnimationEvent) => {
@@ -161,7 +164,7 @@ function Banner({ toast }: { toast: ToastProps }) {
         };
         el.addEventListener('animationend', onEnd);
         return () => el.removeEventListener('animationend', onEnd);
-    }, [n.data]);
+    }, [n.data, queueOn]);
 
     const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
 
@@ -306,7 +309,7 @@ function Banner({ toast }: { toast: ToastProps }) {
     return (
         <div
             ref={rootRef}
-            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}${banner.glow.spread > 0 ? ' ea-glow' : ''}${banner.glow.pulseMs > 0 ? ' ea-pulse' : ''}`}
+            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}`}
             style={rootStyle}
             onClick={toast.onDismiss}
         >

@@ -25,20 +25,6 @@ export const BANNER_CSS = `
     user-select: none;
 }
 
-/* Exterior outline glow (isolated on ::before to never conflict with entrance animations) */
-.ea-banner.ea-glow::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    box-shadow: 0 0 var(--ea-glow-spread) var(--ea-glow);
-    pointer-events: none;
-    z-index: -1;
-}
-.ea-banner.ea-pulse::before {
-    animation: ea-pulse var(--ea-glow-pulse, 1500ms) ease-in-out infinite alternate;
-}
-
 .ea-banner.ea-layout-compact_pill {
     border-radius: 999px !important;
     padding: 4px 16px 4px 4px;
@@ -96,18 +82,6 @@ export const BANNER_CSS = `
 @keyframes ea-out-up  { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(100%); } }
 @keyframes ea-in-down  { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ea-out-down { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-100%); } }
-
-/* Pulsing outline glow fade */
-@keyframes ea-pulse {
-    0%, 100% {
-        box-shadow: 0 0 calc(var(--ea-glow-spread) * 0.4) var(--ea-glow);
-        opacity: 0.6;
-    }
-    50% {
-        box-shadow: 0 0 var(--ea-glow-spread) var(--ea-glow);
-        opacity: 1;
-    }
-}
 
 /* Base Icon and Scaling */
 .ea-icon {

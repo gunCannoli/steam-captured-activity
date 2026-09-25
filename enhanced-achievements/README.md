@@ -10,7 +10,7 @@ timeline marker automatically when you unlock an achievement.
   global unlock percentage.
 - **Custom sound per tier**, replacing Steam's chime. Steam's "play a sound
   with notifications" setting is still respected.
-- **Themed banner** with gradients, borders, glow, icons and animations, on the
+- **Themed banner** with gradients, borders, icons and animations, on the
   desktop client, in Big Picture, and in the in-game overlay.
 - **Auto-captures on unlock** (opt-in): a screenshot, a clip and a timeline
   marker, using Steam's own Game Recording. Off by default.

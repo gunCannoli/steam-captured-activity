@@ -96,7 +96,9 @@ Geometry, colours, border, glow, margin, padding, and gap of the banner. (The ke
 - **`background_color`**: `["#hex", ...]` — one colour is solid; two or more make a smooth gradient.
 - **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
 - **`border`**: `[width_px, "#hex", radius_px]` — `width_px` `0` disables stroke; `radius_px` `0` is square, `15` is rounded, `25` is capsule.
-- **`glow`**: `["#hex", spread_px, pulse_ms]` — exterior outline glow outside the banner card. `spread_px` `0` disables glow; `pulse_ms` `0` is steady, `1500` animates a gentle breathing fade in/out every 1.5 s.
+- **`glow`**: *(parsed, currently has no visual effect — the outline-glow
+  render was removed; kept in the schema so existing theme files do not warn
+  or break)*.
 
 Colours accept `#rgb`, `#rrggbb` and `#rrggbbaa`.
 

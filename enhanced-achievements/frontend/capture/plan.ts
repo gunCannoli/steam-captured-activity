@@ -13,7 +13,7 @@
 
 export const CAPTURE_RANGES = {
     'screenshot.delay_ms': { min: 0, max: 5000, step: 100 },
-    'recording.duration_s': { min: 5, max: 60, step: 5 },
+    'recording.duration_s': { min: 0, max: 60, step: 5 },
     'recording.delay_ms': { min: 0, max: 5000, step: 100 },
 } as const;
 

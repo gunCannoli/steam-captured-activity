@@ -21,6 +21,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   animation to finish, then shows 100ms later — not the theme's configured
   delay. Bounded to 5 queued toasts; past that, a new unlock shows immediately
   rather than risking Steam auto-hiding an unshown popup on its own timer.
+  **Off by default** — new setting **"One achievement at a time"**
+  (`queue.enabled`); off falls back to Steam's own default (toasts can show
+  side by side, as before).
+
+### Changed
+
+- **The `recording.duration_s` (clip length) slider now starts at 0 s**, was 5 s.
+- **Every settings-panel row now shows its control above its description**
+  (SDK `layout="below"`, no custom CSS) instead of the two overlapping on one
+  line.
+
+### Removed
+
+- **The outline glow effect** (`banner.glow`'s `spread`/`pulseMs`). It rendered
+  clipped by the banner's own `overflow: hidden` (looking like an inner
+  effect, not an outline), and the toast popup window is resized to exactly
+  the banner's size, leaving no room for a glow to visibly bleed past the
+  banner's edge without a larger, separate change to that resize/placement
+  math. `glow` is still parsed (no warning, no theme-file changes needed) but
+  has no visual effect.
 
 ### Fixed
 
