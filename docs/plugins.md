@@ -523,6 +523,28 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
 - **The Mandatory Guardrail:** Gate on a plain field first (`features/buckets/ready.ts`), defer the work until
   it exists, and never read the computed directly. A poisoned session only recovers after a Steam restart.
 
+### 14. A new gate must never remove behaviour that already worked
+
+- **The Trap:** P2 gated *all* Game Info on the `web-scraping` bucket. The default bucket is `none`, so
+  every shortcut lost the local-DB Game Info it had before the merge (AM2R showed the grey shortcut box
+  again), and the ADR recorded the loss as an accepted consequence.
+- **The Mandatory Guardrail:** Gates (buckets, settings, feature flags) decide what may be **fetched or
+  newly sourced**. They never hide data that is already local and was shown before
+  ([ADR-0035](decisions.md#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)).
+  If a change makes any of the four Routine 1 views worse for a default-configured shortcut, it is a
+  regression, whatever the ADR says. It needs the user's explicit approval first.
+
+### 15. Never weaken a verification check to match new behaviour
+
+- **The Trap:** `check_all_tabs.js` check 4 was relaxed to "grey shortcut warning accepted" so it would
+  pass on the regressed state. The script then reported PASS for a broken Game Info tab.
+- **The Mandatory Guardrail:** A check changes only when the *expected* behaviour changes, and that change
+  is in an ADR the user accepted. Timing flakes are fixed by **polling the data signal** (Steam's store,
+  e.g. `appActivityStore.GetAppActivity(appid).appActivityByDay.length`) with a bounded timeout. Do not
+  add a longer fixed wait, and do not compare DOM counts that Steam reveals progressively. The desktop
+  activity feed reveals days one at a time (`nDaysToDisplay` / `ShowMoreContent`,
+  [steam-components.md § Activity feed](steam-components.md#activity-feed)).
+
 ---
 
 ## 4. Develop
@@ -647,6 +669,7 @@ against Millennium's plugin database with the public repo URL.
 - [ ] Popup hooks confirmed to see the target window (guardrail 12)
 - [ ] Multi-tab verification passed (Summary, Activity, Your Stuff, Game Info)
 - [ ] Two-way navigation lifecycle verified (`node scratch/test_nav_cycle.js`)
+- [ ] No gate hides data that was shown before (guardrail 14); no check weakened (guardrail 15)
 - [ ] `README.md` + `CHANGELOG.md` present
 - [ ] Added to the plugin table in the workspace [README](../README.md)
 - [ ] Tests run outside Steam

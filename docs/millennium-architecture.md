@@ -26,7 +26,9 @@ Orchestrator roles, mapped:
 
 - **architect** (diagnosis, planning) — [steam-debug.md](steam-debug.md) +
   [steam-architecture.md](steam-architecture.md) → [steam-components.md](steam-components.md)
-  for root-causing, then write or update a plan in [plans/](plans/).
+  for root-causing, then write or update a plan in [plans/](plans/), following the
+  [plan writing standard](plans/README.md) (mechanical before/after blocks,
+  per-step commands and expected output, banned actions, failure rule, dry-run).
 - **implementer** — the [plugins.md](plugins.md) guardrails are non-negotiable
   before touching plugin code.
 - **verifier** — Routines 1–3 in [AGENTS.md](../AGENTS.md) (smoke tests, nav

@@ -458,6 +458,17 @@ Confirmed live: Bloodstained returns **40 days**; AM2R returns a valid store
 object with **0 days**. The server has nothing to say about a shortcut, and
 never will.
 
+**Mount order and progressive reveal (verified live 2026-09-24, desktop, 4 A→B→A cycles).**
+`GetAppActivity(appid)` with no map entry calls `RequestRestoreActivity` → `RestoreActivity`:
+`await RestoreCachedActivity` (a MobX flow; it only `set`s when the local cache has events, which a
+shortcut never has), then `m_mapAppActivity.set(appid, new CAppActivity(appid))` plus a server fetch. The core's
+`clearActivity` deletes the entry on navigation away, so on every return Steam creates the empty
+entry first (`0` days, fetch requested). `publishActivity` then fills **that same object**, about 0.3 to 1.2 s
+later. On every visit the store ended at 3 days for AM2R. The component renders
+`appActivityByDay.slice(0, nDaysToDisplay)`. `ShowMoreContent()` raises `nDaysToDisplay` **one day
+at a time**, so the DOM shows 1 day, then 2, several hundred ms after the store is full. Compare the
+store, not DOM day counts ([plugins.md guardrail 15](plugins.md#15-never-weaken-a-verification-check-to-match-new-behaviour)).
+
 ### Structure
 
 ```

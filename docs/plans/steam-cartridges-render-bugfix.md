@@ -63,6 +63,10 @@ pre-merge code never read `collectionStore.userCollections`.
 
 ### Secondary finding (test expectation, not a code bug)
 
+> **Superseded (2026-09-24):** this finding was itself the regression. Game Info for `none` games is
+> restored by [ADR-0035](../decisions.md#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching),
+> and check 4 is strict again ([steam-cartridges-regression-bugfix.md](steam-cartridges-regression-bugfix.md)).
+
 No buckets are configured, so AM2R resolves to `none`. Under ADR-0033 a `none` game gets **no** web
 enrichment. That means check 4 ("description, developer, release date") cannot pass for AM2R even after
 the crash is fixed, and the grey shortcut warning is the *expected* state. `check_all_tabs.js` predates P2

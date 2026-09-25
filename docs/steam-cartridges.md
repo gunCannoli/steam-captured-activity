@@ -353,7 +353,9 @@ achievements, user-created achievements.
 
 **Decisions (user)**
 
-1. Apps in no collection are ignored (`default = none`).
+1. Apps in no collection are ignored (`default = none`). "Ignored" means nothing is fetched or
+   sourced for them. Game Info already saved locally still shows, as it did before the merge
+   ([ADR-0035](decisions.md#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)).
 2. A Steam-listed game added from another store (e.g. Xbox) shows Steam's achievement list
    **locked-only**, labelled "no unlock tracking": Steam has no unlock state for a copy it does
    not own, and Xbox unlocks would need Xbox sign-in (parked, "Later").

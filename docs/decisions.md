@@ -2022,7 +2022,7 @@ CDN).
 
 ## ADR-0033: Exclusive source buckets, resolved in the frontend from Steam's collections
 
-**Status:** Accepted · 2026-09-24
+**Status:** Accepted · 2026-09-24 · **Amended by [ADR-0035](#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)** (buckets gate fetching, not the display of local Game Info; the "Upgrading … hides existing Game Info" consequence below is reversed)
 
 ### Context
 
@@ -2128,3 +2128,50 @@ Licenses of the references (checked 2026-09-24): `PlayniteAchievements` MIT,
   the label explains it.
 - Cost: two schema paths (client store vs. endpoint) to maintain until P0 shows
   one is enough.
+
+---
+
+## ADR-0035: Local Game Info is a capture-tier feature; buckets gate only fetching
+
+**Status:** Accepted · 2026-09-24 (user: Game Info must keep working for shortcuts; "ignore apps in no collection" must not remove behaviour that worked before) · **Amends [ADR-0033](#adr-0033-exclusive-source-buckets-resolved-in-the-frontend-from-steams-collections)**
+
+### Context
+
+Before the merge, `steamgriddb-artwork` applied `library_metadata.json` to every
+shortcut that had an entry, at startup and on every view. P2 (commit `123eb2b`)
+gated **all** Game Info on the `web-scraping` bucket, including this local data. With
+no buckets configured (the default), AM2R and 26 other shortcuts with cached
+metadata lost their description, credits, release date and badges, and showed the
+grey `#AppDetails_Shortcut_Explanation` box again. Verified live 2026-09-24: plugin
+config `{}`, `bucketReport().games[4263274102] = { bucket: 'none', via: 'default' }`,
+`unbucketedWithMetadata = 27`, no `descriptionsData`, `BIsModOrShortcut() === true`.
+ADR-0033 had listed this as an accepted consequence; the render-bugfix then weakened
+`scratch/check_all_tabs.js` check 4 to accept the grey box, which hid it.
+
+The user decision "apps in no collection are ignored" was about **sources**: no
+bucket, no network ([ADR-0032](#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)).
+Reading metadata the user already has on disk is neither a source nor a network call.
+
+### Decision
+
+- **Local tier (every shortcut, like captures):** an entry in the local metadata DB
+  (`<steam>/millennium/config/steam-cartridges/library_metadata.json`) is applied to
+  Game Info for every shortcut whose bucket is not `steam-store`, including `none`
+  and `pending`. No network, no bucket needed. Preload at startup does not wait for
+  collections.
+- **Fetch tier (bucket-gated, unchanged):** only `web-scraping` games may call
+  `GetGameMetadata` (IGDB). Only `steam-store` games use the store handler. `none`
+  and `pending` never fetch.
+- **Precedence:** `steam-store` data replaces local data while the game is in that
+  bucket. Leaving `steam-store` reverts the store data and re-applies local data.
+  Leaving `web-scraping` keeps local data (it is on disk); it only stops fetching.
+- The pure rule lives in `features/game-info/policy.ts` (`gameInfoPlan`) with unit tests.
+
+### Consequences
+
+- Upgrading from `steamgriddb-artwork` keeps all existing Game Info. A shortcut that
+  was never scraped stays grey until the user puts it in Web Scraping.
+- "No bucket, no network" still holds.
+- `scratch/check_all_tabs.js` check 4 again requires enriched Game Info for AM2R.
+- Cost: two tiers write the same Game Info fields; `steam-store` must always win
+  while assigned, which the precedence rule and its tests pin down.

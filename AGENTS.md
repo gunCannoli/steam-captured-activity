@@ -33,7 +33,7 @@ The core must be useful alone and must never depend on a provider. See
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Facts outside Steam's UI code — Millennium SDK & config API, CEF quirks, Steam's file formats, provider sources, prior art |
 | [docs/steam-styles.md](docs/steam-styles.md) | UI styling guidance — why hand-measuring pixels was superseded by component reuse |
 | [docs/decisions.md](docs/decisions.md) | ADRs — _why_ things are the way they are |
-| [docs/plans/](docs/plans/) | Per-feature and per-bugfix plans (e.g. `enhanced-notifications-plan.md`) |
+| [docs/plans/](docs/plans/) | Per-feature and per-bugfix plans (e.g. `enhanced-notifications-plan.md`); every plan follows [the plan writing standard](docs/plans/README.md) |
 
 For a situation-based map of these docs (e.g. "I'm debugging live" or "I'm
 writing a plugin"), see [docs/millennium-architecture.md](docs/millennium-architecture.md#where-to-look-doc-map).
