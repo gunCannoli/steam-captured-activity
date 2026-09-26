@@ -19,7 +19,7 @@ import {
  * 22: Steam Achievements
  * 24: Shared/Split Screen
  * 28: Full Controller Support
- * 37: Shared/Split Screen Co-op
+ * 39: Shared/Split Screen Co-op (37 is Shared/Split Screen PvP)
  * 44: Remote Play Together
  */
 export const STEAM_CATEGORIES = {
@@ -30,7 +30,7 @@ export const STEAM_CATEGORIES = {
     ACHIEVEMENTS: 22,
     SPLIT_SCREEN: 24,
     FULL_CONTROLLER: 28,
-    SPLIT_SCREEN_COOP: 37,
+    SPLIT_SCREEN_COOP: 39,
     REMOTE_PLAY_TOGETHER: 44,
 } as const;
 
@@ -215,7 +215,8 @@ export function enrichGameDetails(
 
                 // Release Date
                 if (meta.release_date && meta.release_date > 0) {
-                    overview.rt_original_release_date = meta.release_date;
+                    // Same two fields a native overview carries (parity plan B3).
+                    overview.rt_original_release_date = meta.original_release_date || meta.release_date;
                     overview.rt_steam_release_date = meta.release_date;
                 }
 

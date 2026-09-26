@@ -76,6 +76,8 @@ export interface ConsolidatedMetadata {
     publishers?: string[];
     franchises?: string[];
     release_date?: number;
+    /** First release (Early Access start) when it differs from release_date; Steam Store only. */
+    original_release_date?: number;
     genres?: string[];
     categories?: GameCategories;
     custom_override?: boolean;

@@ -27,5 +27,6 @@ export function normalizeMetadata(meta: ConsolidatedMetadata): ConsolidatedMetad
         franchises: strings(meta.franchises),
         genres: strings(meta.genres),
         release_date: seconds(meta.release_date),
+        original_release_date: seconds(meta.original_release_date),
     };
 }

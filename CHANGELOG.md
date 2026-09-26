@@ -9,6 +9,8 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`steam-cartridges` native parity for mapped shortcuts (offline)**: Game Info credits through Steam's accessors, both release dates, category 39 for split-screen co-op; Steam's own Links / Friends / Community sections read the native appid (ADR-0037); the native app's news joins the activity feed; default logo position for the logo we write. Gate script `scratch/check_parity.mjs` (baseline 3 PASS / 10 FAIL). Plan: [docs/plans/steam-cartridges-parity.md § 5](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps). `tsc` clean, `test:ts` 42/42. Live gate pending.
+
 - **`steam-cartridges` ADR-0036 policy change (offline)**: shortcuts no rule claims use the Steam Store (fixed default); no Steam match falls back to web scraping; config v2 collection rules with include/exclude title patterns (v1 migrated in memory); resolutions sticky per session; settings panel updated. Plan: [docs/plans/steam-cartridges-parity.md § 4](docs/plans/steam-cartridges-parity.md#4-part-a-adr-0036-policy-change). `tsc` clean, `test:ts` 35/35. Live verification pending.
 
 - **`steam-cartridges` P4 hardening (offline)**: metadata shape guard (fixes the `metadata.ts:231` `franchises.join` TypeError), wall-clock store throttle, offline circuit breaker with an 8 s timeout and a 5 min frontend retry, no wait on store items Steam already marked missing, per-slot art record (orphans refused, failed slots retried once, slots the user removed never rewritten), replay of racing views. Plan: [docs/plans/steam-cartridges-p4-hardening.md](docs/plans/steam-cartridges-p4-hardening.md). `tsc` clean, `test:ts` 28/28, Lua 71 + 86 PASS. Live verification pending.

@@ -64,3 +64,25 @@ test('StoreItemCache item -> metadata', () => {
     assert.equal(meta?.categories?.multiplayer, false);
     assert.equal(metadataFromStoreItem({}, 1, 2), null);
 });
+
+test('StoreItemCache accessors win over raw fields; both release dates kept (parity B)', () => {
+    const meta = metadataFromStoreItem(
+        {
+            m_strName: 'Jotunnslayer: Hordes of Hel',
+            m_BasicInfo: { short_description: 'Slay.', developers: [{ name: 'Games Farm' }], publishers: [] },
+            m_ReleaseInfo: { steam_release_date: 1756917692, original_steam_release_date: 1737464732 },
+            GetDeveloperNames: () => ['Games Farm', 'ARTillery'],
+            GetPublisherNames: () => ['Grindstone'],
+            GetFranchiseNames: () => { throw new Error('not loaded'); },
+        },
+        2820820,
+        2315502503,
+    );
+    assert.deepEqual(meta?.developers, ['Games Farm', 'ARTillery']);
+    assert.deepEqual(meta?.publishers, ['Grindstone']);
+    assert.deepEqual(meta?.franchises, [], 'a throwing accessor falls back to the raw field');
+    assert.equal(meta?.release_date, 1756917692);
+    assert.equal(meta?.original_release_date, 1737464732);
+    const noOriginal = metadataFromStoreItem({ m_strName: 'x', m_ReleaseInfo: { steam_release_date: 5 } }, 1, 2);
+    assert.equal(noOriginal?.original_release_date, 5);
+});

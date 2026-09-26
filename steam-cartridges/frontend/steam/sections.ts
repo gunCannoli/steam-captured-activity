@@ -57,6 +57,23 @@ const REPLACED_SECTIONS: readonly string[] = ["nonsteam"];
 const appsWithContent = new Set<number>();
 
 /**
+ * Extra Steam sections per shortcut (parity plan C3). A shortcut with a Steam
+ * Store match gets Steam's own `friends` and `community` sections, which then
+ * load the native app's data (features/steam-store/native-sections.ts).
+ */
+const extraSections = new Map<number, readonly string[]>();
+
+/** Set (or with `undefined`, drop) the extra sections for one shortcut; re-renders on change. */
+export function setExtraSections(appid: number, names: readonly string[] | undefined): void {
+    const before = extraSections.get(appid)?.join(",") ?? "";
+    const after = names?.join(",") ?? "";
+    if (before === after) return;
+    if (names && names.length > 0) extraSections.set(appid, names);
+    else extraSections.delete(appid);
+    refreshInstances();
+}
+
+/**
  * Tell the section registry this app gained or lost a summary.
  *
  * The publish is async, so Steam has already rendered the page by the time it
@@ -179,10 +196,13 @@ export function patchSections(): boolean {
         try {
             for (const name of RESTORED_SECTIONS) sections.add(name);
 
+            const appid = (overview as AppOverview | undefined)?.appid;
+            const extra = appid !== undefined ? extraSections.get(appid) : undefined;
+            if (extra) for (const name of extra) sections.add(name);
+
             // Only drop a section once we have something in its place; otherwise the
             // page loses an explanation and gains nothing. Empty today - see
             // REPLACED_SECTIONS.
-            const appid = (overview as AppOverview | undefined)?.appid;
             if (appid !== undefined && appsWithContent.has(appid)) {
                 for (const name of REPLACED_SECTIONS) sections.delete(name);
             }
@@ -212,6 +232,7 @@ export function unpatchSections(): void {
     patchedProto = undefined;
 
     appsWithContent.clear();
+    extraSections.clear();
     refreshInstances();
     instances.clear();
 }

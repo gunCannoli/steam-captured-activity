@@ -8,12 +8,18 @@ import {
 } from "../../rpc";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { applyCustomArtworkFromUrls } from "../artwork/artwork";
+import { refreshGameInfoInstances } from "../game-info/game-info-patch";
 import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
+import { setNativeActivitySource } from "../../steam/activity";
+import { setExtraSections } from "../../steam/sections";
+import { patch as patchLibraryApp } from "../../renderers/library-app";
 import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
 import { storeEnrichedAppIds } from "./enriched";
 import { knownAppName, matchKnownNative } from "./known-apps";
+import { clearLogoPosition, ensureLogoPosition } from "./logo";
+import { setNativeAppid } from "./native-sections";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
 
@@ -79,10 +85,16 @@ async function loadNative(appid: number, steamAppid: number): Promise<Loaded> {
     return { metadata, urls };
 }
 
-async function applyArtwork(appid: number, mapping: StoreMapping, applied: StoreApplied | null, urls: Loaded["urls"]) {
+/** Returns the slots recorded as ours afterwards. */
+async function applyArtwork(
+    appid: number,
+    mapping: StoreMapping,
+    applied: StoreApplied | null,
+    urls: Loaded["urls"],
+): Promise<number[]> {
     const plan = artworkPlan(applied, mapping.steam_appid, artRetried.has(appid));
     if (applied?.steam_appid === mapping.steam_appid) artRetried.add(appid);
-    if (plan.write.length === 0) return;
+    if (plan.write.length === 0) return slotList(applied?.slots);
 
     const apps = (window as any).SteamClient?.Apps; // call on the object; never extract the method
     // A different game was mapped before: clear only the slots this plugin wrote.
@@ -102,10 +114,14 @@ async function applyArtwork(appid: number, mapping: StoreMapping, applied: Store
             } catch {}
         }
         logger.warn(`Steam Store: art for ${appid} discarded (${res.error}).`);
-        return;
+        return [];
     }
     logger.info(`Steam Store: applied ${written.length} art slot(s) from ${mapping.steam_appid} to ${appid}; ${failed.length} failed.`);
+    return slots;
 }
+
+/** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
+const NATIVE_SECTIONS = ["friends", "community"] as const;
 
 /** Per-session answer to "did the Steam Store supply this game's Game Info?" (ADR-0036). */
 const matched = new Map<number, boolean>();
@@ -143,6 +159,14 @@ export async function handleSteamStoreView(appid: number): Promise<boolean | und
             return false;
         }
 
+        // Parity C + D: Steam's own Links/Friends/Community sections and activity
+        // feed read the native app; re-publish so the feed picks up its events.
+        setNativeAppid(appid, mapping.steam_appid);
+        setNativeActivitySource(appid, mapping.steam_appid);
+        setExtraSections(appid, NATIVE_SECTIONS);
+        refreshGameInfoInstances(); // guardrail 11: the sections already rendered with the shortcut appid
+        void patchLibraryApp(appid);
+
         const { metadata, urls } = await loadNative(appid, mapping.steam_appid);
         if (metadata) {
             metaCache.set(appid, metadata);
@@ -153,7 +177,9 @@ export async function handleSteamStoreView(appid: number): Promise<boolean | und
         }
         matched.set(appid, metadata !== null);
 
-        await applyArtwork(appid, mapping, applied, urls);
+        const slots = await applyArtwork(appid, mapping, applied, urls);
+        // Parity E: our logo needs a position or Steam never draws it.
+        if (slots.includes(2)) await ensureLogoPosition(appid);
         return metadata !== null;
     } catch (err) {
         logger.warn(`Steam Store view failed for ${appid}:`, err);
@@ -169,6 +195,9 @@ function forget(appid: number): void {
     retryAt.delete(appid);
     artRetried.delete(appid);
     matched.delete(appid);
+    setNativeAppid(appid, undefined);
+    setNativeActivitySource(appid, undefined);
+    setExtraSections(appid, undefined);
 }
 
 /**
@@ -185,6 +214,7 @@ export async function clearSteamStore(appid: number, reject: boolean) {
             logger.warn(`Could not clear art slot ${slot} for ${appid}:`, err);
         }
     }
+    if (slotList(res.slots).includes(2)) await clearLogoPosition(appid);
     revertGameDetails(appid);
     forget(appid);
     return res;

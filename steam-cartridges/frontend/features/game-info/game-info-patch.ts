@@ -13,7 +13,7 @@ type ChunkGlobal = Array<
 
 let cachedRequire: WebpackRequire | undefined;
 
-function getSteamRequire(): WebpackRequire | undefined {
+export function getSteamRequire(): WebpackRequire | undefined {
     if (cachedRequire) return cachedRequire;
     try {
         const chunks = (window as any).webpackChunksteamui as

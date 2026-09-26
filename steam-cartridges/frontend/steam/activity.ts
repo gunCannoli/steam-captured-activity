@@ -9,6 +9,7 @@ import {
     workshopStore,
     type AppActivity,
     type AppActivityDay,
+    type AppActivityStore,
     type SteamClip,
     type SteamScreenshot,
 } from "./stores";
@@ -37,6 +38,38 @@ const registeredFilesByApp = new Map<number, string[]>();
 
 /** Apps with fake in-memory StoreItems injected into StoreItemCache. */
 const injectedStoreApps = new Set<number>();
+
+/**
+ * Shortcut appid -> native appid whose Steam activity (partner events / news,
+ * friend events) joins the shortcut's feed (parity plan D). Set by the Steam
+ * Store bucket for mapped games only.
+ */
+const nativeActivitySource = new Map<number, number>();
+
+export function setNativeActivitySource(appid: number, nativeAppid: number | undefined): void {
+    if (nativeAppid === undefined) nativeActivitySource.delete(appid);
+    else nativeActivitySource.set(appid, nativeAppid);
+}
+
+/**
+ * Steam's own activity for a native app, as [day key, day] pairs. `GetAppActivity`
+ * makes Steam restore its cache and fetch from the server (verified live
+ * 2026-09-25: unowned 2820820 returned one partner event, type 1002). A native
+ * day's `m_rtDayBegin` is unset, so the key comes from `m_mapActivityByDay`.
+ * Polls until Steam stops loading, at most 8 s.
+ */
+async function nativeActivityDays(nativeAppid: number | undefined): Promise<[number, AppActivityDay][]> {
+    const store = appActivityStore() as (AppActivityStore & { m_setAppsLoading?: Set<number>; m_setAppFetchRequested?: Set<number> }) | undefined;
+    if (nativeAppid === undefined || !store) return [];
+    for (let i = 0; i < 16; i++) {
+        const entry = store.GetAppActivity(nativeAppid);
+        const busy = store.m_setAppsLoading?.has(nativeAppid) || store.m_setAppFetchRequested?.has(nativeAppid);
+        if (entry && !busy) return [...entry.m_mapActivityByDay.entries()];
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    const entry = store.m_mapAppActivity.get(nativeAppid);
+    return entry ? [...entry.m_mapActivityByDay.entries()] : [];
+}
 
 /** Compute local midnight in unix seconds for a given timestamp. */
 function getLocalMidnight(timestamp: number): number {
@@ -97,11 +130,12 @@ export async function publishActivity(
     appid: number,
     gameid: string,
 ): Promise<number> {
-    const [screenshots, clips] = await Promise.all([
+    const [screenshots, clips, nativeDays] = await Promise.all([
         screenshotsSince(appid, 0),
         clipsSince(gameid, 0),
+        nativeActivityDays(nativeActivitySource.get(appid)),
     ]);
-    if (screenshots.length === 0 && clips.length === 0) return 0;
+    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0) return 0;
 
     const actStore = appActivityStore();
     const storeCache = storeItemCache();
@@ -347,11 +381,31 @@ export async function publishActivity(
         }
     }
 
+    // Native news and friend events for a mapped shortcut (parity plan D): Steam's
+    // own event objects, added to the same local day as our captures.
+    const NativeDay = (CDay ?? nativeDays[0]?.[1]?.constructor) as (new () => AppActivityDay) | undefined;
+    let nativeEvents = 0;
+    for (const [nativeKey, nativeDay] of nativeDays) {
+        const dayBegin = getLocalMidnight(nativeKey);
+        let day = appActivity.m_mapActivityByDay.get(dayBegin);
+        if (!day) {
+            if (!NativeDay) continue;
+            day = new NativeDay();
+            day.m_rtDayBegin = dayBegin;
+            appActivity.m_mapActivityByDay.set(dayBegin, day);
+        }
+        for (const event of [...(nativeDay.m_rgEvents ?? [])]) {
+            day.m_rgEvents.push(event);
+            nativeEvents++;
+        }
+        day.SortEvents?.();
+    }
+
     registeredFilesByApp.set(appid, fileIdsForApp);
     logger.info(
-        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)) across ${byDay.size} day(s) in activity feed for ${appid}.`,
+        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)) and ${nativeEvents} native event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
     );
-    return mediaItems.length;
+    return mediaItems.length + nativeEvents;
 }
 
 /** Drop an app's activity feed entries and associated fake store/workshop records. */

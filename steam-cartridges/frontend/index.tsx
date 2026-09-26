@@ -24,6 +24,7 @@ import { ensureStoreCacheHooked } from "./steam/activity";
 import { NON_STEAM_APPID_MIN, appIdFromPath } from "./steam/route";
 import { initGameInfo } from "./features/game-info";
 import { initSourceView } from "./features/source-view";
+import { installNativeSections } from "./features/steam-store/native-sections";
 import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 
@@ -39,6 +40,7 @@ export { registerSummaryProvider } from "./steam/summary";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
 export { headlineJsxDiagnostics } from "./steam/headline-patch";
 export { activityCardsJsxDiagnostics } from "./steam/activity-cards-patch";
+export { nativeSectionsDiagnostics } from "./features/steam-store/native-sections";
 export type {
     SummaryContext,
     SummaryContribution,
@@ -94,6 +96,11 @@ async function init() {
     // Replaces community screenshot viewer with genuine Post-Game Summary cards
     // (PostGameSummaryClip and SummaryScreenshot) with hover video scrubbers and native playback.
     installActivityCardsPatch();
+
+    // ===== Native sections for mapped games (parity plan C) =====
+    // Steam's own Links / Friends / Community sections read the native appid
+    // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
+    installNativeSections();
 
     // ===== Game Info (ex steamgriddb-artwork) =====
     // Not awaited: the two halves load independently, as the two plugins did

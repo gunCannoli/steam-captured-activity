@@ -121,8 +121,8 @@ Deploy is a user action (`dev.ps1`). Then:
     - [x] Store first, web fallback on no match; settings panel
     - [x] Offline gates: `tsc`, `test:ts` 35/35
 - [ ] **3. Native parity, Jotunnslayer vs 2820820**: [parity plan Parts B–E](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps), then [Parts F–H](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app) (user decisions 2026-09-25, [ADR-0038](docs/decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app))
-    - [ ] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
-    - [ ] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
+    - [x] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
+    - [x] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
     - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
     - [ ] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
           (Part F now includes the controller addendum, Steps 37a–37i: Steam data > emulator inference > "Default to full controller support" setting, off > no badge; live check § 9 item 5b)

@@ -60,16 +60,29 @@ export function metadataFromStoreItem(item: any, steamAppid: number, shortcutApp
     const basic = item.m_BasicInfo ?? {};
     const names = (v: unknown): string[] =>
         (Array.isArray(v) ? v : []).map((x: any) => (typeof x === 'string' ? x : x?.name)).filter(Boolean);
+    // Steam's own accessors first (they return every credit), the raw fields second.
+    const credit = (method: string, raw: unknown): string[] => {
+        try {
+            const v = item[method]?.();
+            if (Array.isArray(v)) return names(v);
+        } catch {
+            /* fall through to the raw field */
+        }
+        return names(raw);
+    };
     const description = String(basic.short_description ?? '');
+    const release = Number(item.m_ReleaseInfo?.steam_release_date) || 0;
+    const original = Number(item.m_ReleaseInfo?.original_steam_release_date) || 0;
     return {
         appid: shortcutAppid,
         title,
         description,
         short_description: description,
-        developers: names(basic.developers),
-        publishers: names(basic.publishers),
-        franchises: [],
-        release_date: Number(item.m_ReleaseInfo?.steam_release_date) || 0,
+        developers: credit('GetDeveloperNames', basic.developers),
+        publishers: credit('GetPublisherNames', basic.publishers),
+        franchises: credit('GetFranchiseNames', basic.franchises),
+        release_date: release || original,
+        original_release_date: original || release,
         categories,
         source: 'steam-store',
         steam_appid: steamAppid,
@@ -101,6 +114,14 @@ export function assetUrlsFromItem(item: any): ArtworkUrls {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** The item fields this plugin reads. BHasApp(id, request) is true only once all of them are loaded. */
+const STORE_ITEM_REQUEST = {
+    include_assets: true,
+    include_basic_info: true,
+    include_release: true,
+    include_full_description: true,
+};
+
 /** Queue the request and poll (Steam loads it asynchronously; ~4 s observed). */
 export async function loadStoreItem(steamAppid: number, timeoutMs = 8000): Promise<any | null> {
     const cache = (window as any).StoreItemCache;
@@ -108,17 +129,12 @@ export async function loadStoreItem(steamAppid: number, timeoutMs = 8000): Promi
     try {
         // Steam already failed to load it (delisted or unknown): go straight to the fallback (P4 H4).
         if (cache.BIsAppMissing?.(steamAppid)) return null;
-        if (!cache.BHasApp?.(steamAppid)) {
-            cache.QueueAppRequest(steamAppid, {
-                include_assets: true,
-                include_basic_info: true,
-                include_release: true,
-                include_full_description: true,
-            });
+        if (!cache.BHasApp?.(steamAppid, STORE_ITEM_REQUEST)) {
+            cache.QueueAppRequest(steamAppid, STORE_ITEM_REQUEST);
         }
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-            if (cache.BHasApp?.(steamAppid)) {
+            if (cache.BHasApp?.(steamAppid, STORE_ITEM_REQUEST)) {
                 const item = cache.GetApp?.(steamAppid);
                 if (item?.m_strName) return item;
             }
