@@ -2419,3 +2419,55 @@ Answers the open question above (parity plan § 12 Q2) and replaces "the
   showed before: a user decision, recorded here per guardrail 14.
 - `is_emulator` now reads the program token of `Exe`; before, it never matched a
   RetroArch shortcut, because Steam stores the whole command there.
+
+### Addendum (2026-09-26, user decision): "achievements on Steam... belong to the
+Steam copy: never" narrowed to the feature badge; the achievements section itself is in scope
+
+The Decision section above says "Steam Deck / SteamOS compatibility,
+**achievements on Steam**, playtime, cloud and cards belong to the Steam
+copy: never." In context (the Badge policy bullet, category id 22) that
+sentence was about the **Achievements feature badge** — the small icon on
+Game Info saying "this game supports Steam Achievements" — grouped with
+other Steam-service badges (Cloud, Workshop, Remote Play Together) that are
+genuinely never true of a non-Steam copy. It was not a decision about
+whether to render the **achievements section** (the right-column panel,
+Post-Game Summary strip, and Big Picture play-bar progress) the way Links,
+Friends and Community Content already are (ADR-0037).
+
+**Narrowed scope:** the badge-never rule stands unchanged (category id 22
+stays off the allow-list; a shortcut never claims "supports Steam
+Achievements" as a feature). Separately, and newly decided here: **the
+native app's real Steam achievement schema and (if owned) the user's own
+unlock progress should be mirrored onto the mapped shortcut's achievements
+section**, following the same "borrow the native app's Steam section"
+principle ADR-0037 already established for Friends/Links/Community — this is
+what is true of the copy in the sense that matters to the player (the same
+game's real achievement list), not a Steam-service capability being falsely
+claimed.
+
+**Relationship to ADR-0034:** ADR-0034 already commits to a *fetch-and-feed*
+mechanism for Steam-native achievement sourcing (our backend calls the
+keyless store `appdetails` endpoint and feeds `AppDetailsStore` under the
+**shortcut's own** appid, the same pattern as Game Info's
+`descriptionsData`/`associationData`). ADR-0037's Friends/Links/Community
+sections instead use a *redirect* mechanism (the jsx prop rewrite hands
+Steam's own component the **native** appid and lets Steam's own transport
+and caches answer it, no fetching). Both could produce the same visual
+result for an owned native app; they differ in unowned-app coverage (redirect
+depends on Steam already having the native app's data cached; fetch works
+regardless) and in implementation cost/performance (redirect is zero extra
+network and reuses code already proven safe for Friends; fetch adds a
+request path and a cache to maintain). **This ADR does not choose between
+them.** The next agent to implement this
+([docs/plans/steam-cartridges-native-achievements-mirror-plan.md](plans/steam-cartridges-native-achievements-mirror-plan.md))
+must live-investigate both against the real client (including UI performance
+impact) before picking one, and record that choice back into this ADR or a
+follow-up addendum.
+
+This is layered *underneath*, not instead of, the agnostic local-unlock
+detector in
+[docs/plans/steam-cartridges-achievements-plan.md](plans/steam-cartridges-achievements-plan.md):
+that system is a separate, not-yet-implemented later phase that will also
+trigger the *native* Steam achievement itself (communicating with Steam so
+the unlock is real, not just displayed). Mirroring the native schema/progress
+onto the shortcut's UI is the prerequisite piece that ships first.

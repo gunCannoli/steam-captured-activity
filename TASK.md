@@ -17,9 +17,19 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges P5 — native achievements.** Unblocked 2026-09-26 (parity
-gate green, Friends-section crash fixed — CHANGELOG.md). Not yet started.
-Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md).
+**steam-cartridges P5 — native achievements.** Two pieces, in order:
+
+1. **Mirror the native app's real Steam achievements onto the shortcut**
+   (schema + owned-user progress, read-only, same "borrow the native app's
+   section" pattern as Friends/Links/Community). Not started — mechanism
+   (redirect vs. fetch-and-feed) still open, next agent decides live.
+   Plan: [docs/plans/steam-cartridges-native-achievements-mirror-plan.md](docs/plans/steam-cartridges-native-achievements-mirror-plan.md).
+   ADR: [ADR-0038 addendum, 2026-09-26](docs/decisions.md#addendum-2026-09-26-user-decision-achievements-on-steam-belong-to-the-steam-copy-never-narrowed-to-the-feature-badge-the-achievements-section-itself-is-in-scope).
+2. **Agnostic local-unlock detector** (reads local saves/logs for any
+   storefront, triggers the real Steam achievement). Not ready — design only,
+   depends on (1) shipping first. Architecture:
+   [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md).
+   Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md).
 
 ## Next
 
