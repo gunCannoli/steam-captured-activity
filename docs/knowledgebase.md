@@ -467,6 +467,101 @@ Steam assigns shortcuts very high app ids. The SDK exposes the boundary as
 if (app.appid < NON_STEAM_APP_APPID_MASK) return; // a real Steam game — skip
 ```
 
+### `appStore.GetAppOverviewByAppID` has multiple callers — patch the method carefully, or not at all
+
+**✅ Verified live 2026-09-26**, fixing the Friends-section crash
+([docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md)).
+
+`appStore.GetAppOverviewByAppID(appid)` returns `null` for **every unowned
+app** — an app not in the local user's library, not owned, and not a small
+set of already-loaded recently-viewed apps. That is completely normal Steam
+behaviour, not a bug. The trap is that **several independent pieces of
+Steam's own UI code call this method and each assumes something different
+about a `null` result**:
+
+- Steam's own Friends section (module 2326, function `ne(appid)`) calls
+  `.GetAppOverviewByAppID(appid).BIsApplicationOrTool()` with **no null
+  guard at all** — a real crash (`TypeError: Cannot read properties of null`)
+  the instant any code path hands it an appid Steam has no overview for.
+  Two other call sites of the identical pattern exist in the same build
+  (modules 97561 and 56262), unconfirmed as reachable but present.
+- Steam's own `Navigator.App(appid, …)` (module `874`) reads the **same**
+  method and treats a `null`/missing result as "unowned, do nothing" — it
+  returns early rather than navigating
+  ([steam-components.md § Navigator.App](steam-components.md#navigatorapp-module-874)).
+  This is a **deliberate, correct** use of the same null — not a bug to fix.
+
+> **Consequence for any patch on this method (or any Steam store method with
+> more than one caller):** a fix aimed at one caller can silently break
+> another caller that relies on the *original* return value's truthiness for
+> an unrelated purpose. `steam-cartridges`' own `native-sections.ts` has
+> exactly this shape: it patches `GetAppOverviewByAppID` to return a
+> non-null fallback object for a mapped native appid Steam has no data for
+> (fixing the Friends crash above), but the **same file** already had a
+> second, older consumer of the same method (`isKnownApp`, feeding its own
+> `Navigator.App` redirect) that read the *old* null-vs-object distinction to
+> mean "is this app really known to Steam". Once the fallback started
+> returning truthy, `isKnownApp` started reporting a still-unowned app as
+> "known", and stopped redirecting native news clicks back to the shortcut —
+> a real, working feature silently regressed by a fix to something else
+> entirely. Caught only by re-running the full parity gate
+> (`scratch/check_parity.mjs`, 17→16 PASS) after the first deploy, not by
+> code reading.
+>
+> **The fix:** never patch a shared store method to change its return value
+> unconditionally for a whole class of appid. Tag the substitute value (e.g.
+> a module-local `Symbol` property) so it is distinguishable from a real
+> result, and make every consumer that cares about "is this a *real*
+> AppOverview" (not just "is it truthy") check for the tag's absence. Before
+> patching any Steam store method's return value, **grep the whole file (and
+> ideally the whole plugin) for every other call site of that same method**
+> — a method-level patch has a much smaller blast radius than a shared-map
+> write (see `appStore.m_mapApps`, next), but it is not automatically safe to
+> *every* caller, only to callers outside the module actually being fixed.
+
+### `appStore.m_mapApps` is the global, enumerated backing store for the entire library — never write into it
+
+**✅ Verified live 2026-09-26** (two reverted attempts before the fix above;
+full writeup in
+[docs/plans/steam-cartridges-friends-boat-crash.md § 2](plans/steam-cartridges-friends-boat-crash.md#2-attempted-fixes-this-session--both-reverted-do-not-repeat-verbatim)).
+
+It is tempting to "fix" a missing `AppOverview` by inserting a synthetic
+same-prototype stub directly into `appStore.m_mapApps` keyed by the missing
+appid. **This breaks the entire library's rendering, not just the one app.**
+`m_mapApps` is not a private, section-scoped cache the way
+`StoreItemCache`/`workshopStore`/`appActivityStore` are (those three are
+already safely hand-populated with fakes for the shortcut's own appid — see
+[plugins.md guardrail 5](plugins.md#5-persistent-in-memory-stubs--negative-cache-immunization)).
+It is the MobX-observed backing store the **library grid, collections, and
+per-app content loader all enumerate directly**, expecting every entry to be
+a fully populated `AppOverview` (with `store_tag`/`m_setStoreCategories`
+-derived getters and every other field real code reads). A
+prototype-correct but data-sparse stub inserted there makes some other
+consumer's `.find(...)` (on whatever list it expected to be fully shaped)
+receive `undefined` where it expected an object with `.appid`, throwing
+`Cannot read properties of undefined (reading 'find'/'appid')` across
+**every page**, not the one being fixed. Confirmed live: user reported *"as a
+new thing the entire steam library shows the rendering error"* within
+seconds of this stub being deployed.
+
+Also relevant: several `AppOverview` prototype fields are **getter-only**
+(`store_tag`, `store_category`, `selected_per_client_data`,
+`most_available_per_client_data`, `local_per_client_data`, `gameid`,
+`display_status`, `status_percentage`, `installed`, `active_beta`,
+`review_score`, `review_percentage`, several `*_compat_category` fields, and
+more — verify with `Object.getOwnPropertyDescriptor(proto, key)` before
+assigning any field on a same-prototype stub). Plain assignment on one of
+these throws `TypeError: Cannot set property … which has only a getter`, and
+a `try/catch` around a multi-field stub build silently drops the whole stub
+after the first failing field, in source order.
+
+**The safe pattern for "Steam's helper needs a non-null result for this
+appid" is a scoped method patch on the read path** (`afterPatch`/`beforePatch`
+on the accessor method itself, gated by appid, always falling through to the
+real implementation otherwise) — never a durable entry in the shared,
+globally-enumerated map. See the previous entry for the one remaining trap
+even with a correctly-scoped method patch.
+
 ### Steam's embedded CEF: two silent no-ops
 
 **✅ Verified.**

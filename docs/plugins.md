@@ -453,6 +453,16 @@ user-facing breaks. Numbers are stable — code comments cite them.
     2. **Always purge negative caches on ingestion:** In `publishActivity`, call `storeCache.m_setUnavailableApps.delete(appid)`.
     3. **Immunize via Prototype Hook:** Hook `StoreItemCache.prototype.BIsAppMissing` to return `false` whenever `appid >= 0x8000_0000`.
     4. **Scope card thumbnail CSS precisely:** `[class*="CarouselThumb"]:not([class*="CarouselThumbs"])` with `width: 100% !important`, or parent flex rows squash cards into ~80px cutouts.
+- **The same "hook the method, never write into the shared map" shape recurs
+  with `appStore`/`appStore.m_mapApps`** (a different store, same lesson):
+  writing a same-prototype stub into `m_mapApps` fixed one crash but broke
+  the entire library's rendering, since that map is enumerated globally.
+  The safe fix patches `appStore.GetAppOverviewByAppID` itself — but even a
+  correctly-scoped method patch can break an *unrelated* second caller of the
+  same method if it changes what a `null` result means. See
+  [knowledgebase.md's two `appStore` entries](knowledgebase.md#appstoregetappoverviewbyappid-has-multiple-callers--patch-the-method-carefully-or-not-at-all)
+  for the full trap and the fix (tag the substitute value so only the
+  intended caller treats it as real).
 
 ### 6. Two-Way Navigation Lifecycle Smoke Verification (Game A ➔ Game B ➔ Game A)
 
