@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Native Achievements & Big Picture Full-Screen Page (Phase 5)**:
+  - Non-Steam shortcuts mirror native Steam Store achievement schemas (titles, descriptions, icons, global unlock percentages).
+  - Out-of-process in-game observers detect achievements in real time from local emulator saves (Goldberg, CODEX, RUNE, GSE) and engine runtime logs (Unity `Player.log`, Godot `godot.log`, Unreal `Saved/Logs`) with zero DLL injection.
+  - Feeds Steam's native `NotificationStore.OnNotification` (popup toast + sound chime 5), Post-Game Summary hero banner, desktop library right column, and Big Picture play bar.
+  - Hooked `AchievementsFullStore` (module `32179` / `p6`) on prototype methods `LoadMyAchievements`, `GetMyAchievements`, `GetGlobalAchievements`, and `GetPlayerAchievements`. Non-Steam shortcuts navigating to `/routes/library/app/<appid>/achievements/my/individual` render Steam's genuine full-screen achievements page instead of "Failed to load achievement data".
+  - Configurable "Local Achievements Enabled" startup notification (`all_runs`, `first_run`, `off`).
+
 - `steam/jsx-hook.ts` (shared with enhanced-achievements): heals within a microtask of any write to `jsx`/`jsxs`, not only on the 5 s timer. Millennium core restores a stale `jsx` whenever a toast window renders, dropping every plugin's patch for up to 5 s (docs/plugins.md § Sharing the jsx runtime). Verified: `scratch/jsx_chain.js` 9/9.
 
 - Steam Store bucket (P3): games in a Steam Store collection get native art and Game Info from an exact, unique title match (known natives, then store search); suggestions and manual appid in settings; Clear removes the match and only the art this plugin wrote.

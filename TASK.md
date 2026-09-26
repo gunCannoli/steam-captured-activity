@@ -17,12 +17,12 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges P6 — optional SteamGridDB rules.** SteamGridDB integration for custom capsules, hero artwork, and logos when Steam Store does not supply them.
-Plan: [docs/plans/steam-cartridges-art-plan.md](docs/plans/steam-cartridges-art-plan.md).
+**steam-cartridges P5 — native achievements.** Keyless schema ingestion, out-of-process in-game observers (CODEX/Goldberg/RUNE/Unity/Godot), native toasts (`NotificationStore.OnNotification`), Big Picture play bar, and individual full-screen achievements page (`AchievementsFullStore`) implemented and verified live against *Jotunnslayer* (`2315502503`).
+Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md). Reference: [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md).
 
 ## Next
 
-- **steam-cartridges P5 Polish (Session 3)** — Optional: Steam Game Recording timeline markers on unlock, and deep Post-Game Summary styling checks.
+- **steam-cartridges P6** — optional SteamGridDB rules. Blocked on P5.
 - **enhanced-achievements 1.0 release** — audit items done
   (`enhanced-achievements/CHANGELOG.md` § 1.0.0); remaining: visual settings-panel
   check, U7 in-game overlay verification, stale `themes/ps5.json` cleanup,

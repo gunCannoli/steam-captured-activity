@@ -143,6 +143,12 @@ Dispatched via `window.NotificationStore.OnNotification(id, eType, binaryPayload
 - Updated via `window.appAchievementProgressCache.m_achievementProgress.mapCache.set(shortcutAppId, { unlocked, total, all_unlocked })`.
 - Big Picture immediately renders the quick stats (e.g. `5 / 25 Achievements`) under the "Play" button.
 
+### 5. Big Picture & Desktop Individual Achievements Full-Page Screen
+- **Route:** `/routes/library/app/<shortcutAppId>/achievements/my/individual`.
+- **Component & Fetcher:** Component `re` (module `10709`) invokes `(0, _.hj)(appid, accountid)` (module `32179`), querying the singleton store `p6` (`AchievementsFullStore`).
+- **The Shortcut Trap:** By default, Steam's `LoadMyAchievements` calls `SteamClient.Apps.GetMyAchievementsForApp(shortcutAppId)`, which fails with result `8` (`k_EResultFail`) for non-Steam shortcuts (`appid >= 0x80000000`), caching `{ error: 8 }` and throwing the `"Failed to load achievement data"` screen.
+- **Hook & Feed:** `ensureAchievementsFullStoreHooked()` wraps `LoadMyAchievements`, `GetMyAchievements`, `GetGlobalAchievements`, and `GetPlayerAchievements` on `AchievementsFullStore.prototype`. It populates `m_mapMyAchievements` and `m_mapGlobalAchievements` directly from local state (`achieved`, `unachieved`, and `globalPcts`), completely bypassing the failing RPC call. Steam then renders its full native achievements screen with capsule artwork, header progress bar, search, and rarity tiers.
+
 ---
 
 ## 5. "Local Achievements Enabled" Game-Launch Notification
