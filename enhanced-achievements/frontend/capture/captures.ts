@@ -14,7 +14,6 @@ import type { SteamNotification } from '../steam/notifications';
  */
 
 const seen = new WeakSet<object>();
-let suppressUntil = 0;
 let dryRun = false;
 
 interface LogAction {
@@ -47,10 +46,6 @@ export function captureLog(): readonly LogEntry[] {
 
 export function setCaptureDryRun(on: boolean): void {
     dryRun = on;
-}
-
-export function suppressNextCaptures(ms: number): void {
-    suppressUntil = Date.now() + ms;
 }
 
 function baseSettings(): CaptureSettings {
@@ -133,8 +128,6 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
     try {
         if (seen.has(n.data)) return;
         seen.add(n.data);
-
-        if (Date.now() < suppressUntil) return;
 
         const settings = baseSettings();
 

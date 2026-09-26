@@ -4,6 +4,10 @@
 //
 // The protobuf class and eType are found the same way the plugin finds them
 // (stand-in call to PlayNotificationSound), not hardcoded.
+//
+// A game-completing unlock keeps its own rarity tier; the plugin then posts a
+// separate synthetic 100% toast (tier exceptional) ~1.5 s later (the design
+// since fe25714), so that case checks both toasts.
 import { connect } from './cdp.mjs';
 
 const cases = [
@@ -11,11 +15,28 @@ const cases = [
     { label: 'magic (20%)', pct: 20, expect: 'magic' },
     { label: 'rare (5%)', pct: 5, expect: 'rare' },
     { label: 'no rarity data (0%)', pct: 0, expect: 'normal' },
-    { label: 'exceptional (completes game)', pct: 50, expect: 'exceptional', completes: true },
+    { label: 'completes game (50%)', pct: 50, expect: 'normal', completes: true, then: 'exceptional' },
 ];
 
 const cdp = await connect();
 let failed = false;
+
+/** Tiers of every themed banner currently in a toast window. */
+async function allBannerTiers() {
+    const targets = (await (await fetch('http://127.0.0.1:8080/json')).json()).filter((t) => /notificationtoasts/i.test(t.title));
+    const tiers = [];
+    for (const t of targets) {
+        const win = await connect(t.title);
+        try {
+            const cls = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
+            const tier = cls?.match(/ea-tier-(\w+)/)?.[1];
+            if (tier) tiers.push(tier);
+        } finally {
+            win.close();
+        }
+    }
+    return tiers;
+}
 
 async function bannerTier() {
     const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
@@ -61,6 +82,16 @@ try {
         console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.label}: banner tier = ${tier}, expected ${c.expect}`);
         if (win && process.env.SHOTS_DIR) await win.screenshot(`${process.env.SHOTS_DIR}/tier-${c.expect}-${c.pct}.png`);
         win?.close();
+        if (c.then) {
+            let seen = [];
+            for (let t = 0; t < 12 && !seen.includes(c.then); t++) {
+                await new Promise((r) => setTimeout(r, 500));
+                seen = await allBannerTiers();
+            }
+            const okThen = seen.includes(c.then);
+            if (!okThen) failed = true;
+            console.log(`${okThen ? 'PASS' : 'FAIL'}  ${c.label}: then a ${c.then} toast (seen: ${seen.join(',') || 'none'})`);
+        }
         if (c.completes) await cdp.evaluate(`(window.appAchievementProgressCache.m_achievementProgress.mapCache.delete(${appid}), true)`);
         // Let the toast expire before the next one (display_time_ms + fade).
         await new Promise((r) => setTimeout(r, 6000));

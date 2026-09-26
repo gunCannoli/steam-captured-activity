@@ -1,14 +1,15 @@
 import React, { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { IconsModule } from '@steambrew/client';
 import { logger } from '../logger';
-import { activeTheme } from '../theme/active-theme';
+import { activeTheme, type LoadedTheme } from '../theme/active-theme';
 import type { AnchorPosition, IconSlot, ResolvedTier } from '../theme/theme';
 import { tierFor, type SteamNotification } from '../steam/notifications';
 import { BANNER_CSS } from './styles';
 import { bannerSize, placeBanner } from './geometry';
-import { pinToastWindow } from './window-pin';
+import { pinToastWindow, type PinnedWindow } from './window-pin';
 import { setting } from '../settings/settings';
-import { releaseTurn, requestTurn } from './queue';
+import { admit, finish, forget, MAX_QUEUE, phaseOf, subscribe, type Phase } from './queue';
+import { bannerTiming } from './timing';
 
 /**
  * The themed achievement banner, rendered in place of Steam's toast
@@ -95,27 +96,101 @@ function fontWeight(style: string): React.CSSProperties {
     return style === 'bold' ? { fontWeight: 700 } : style === 'italic' ? { fontStyle: 'italic', fontWeight: 400 } : { fontWeight: 400 };
 }
 
+/** Stable React key per notification, so a reused toast slot (Big Picture) remounts per toast. */
+const toastKeys = new WeakMap<object, number>();
+let nextToastKey = 1;
+function toastKey(data: object): number {
+    let k = toastKeys.get(data);
+    if (k === undefined) toastKeys.set(data, (k = nextToastKey++));
+    return k;
+}
+
+/**
+ * Keep Steam's per-toast popup open until our scheduler says this toast is
+ * done. Steam's desktop toast loop re-reads `fnNotificationResolved` on the
+ * notification every frame while the toast is showing and, when it is set,
+ * waits for it instead of `nToastDurationMS` (docs/steam-components.md §
+ * Resolution signatures & toast windows). The cap guarantees the popup always
+ * closes whatever happens to us. A resolver Steam set itself is never replaced.
+ */
+function holdPopup(n: SteamNotification, key: object, capMs: number): void {
+    if (n.fnNotificationResolved) return;
+    const until = Date.now() + capMs;
+    n.fnNotificationResolved = () => phaseOf(key) === 'done' || Date.now() > until;
+}
+
+/** Snapshots the theme at mount: a toast keeps the theme it arrived with, even across a reload. */
 function Banner({ toast }: { toast: ToastProps }) {
-    const loaded = activeTheme();
+    const [loaded] = useState(activeTheme);
     const n = toast.group?.notifications?.[0];
     if (!loaded || !n) return <>{renderSteam(toast)}</>;
+    return <ThemedBanner key={toastKey(n.data)} loaded={loaded} n={n} onDismiss={toast.onDismiss} />;
+}
 
-    const queueOn = setting('queue.enabled');
-    const [myTurn, setMyTurn] = useState(() =>
-        !queueOn || requestTurn(n.data, () => setMyTurn(true), () => logger.warn('Achievement toast queue full; showing out of turn.')),
-    );
-    useEffect(() => {
-        if (!queueOn) return undefined;
-        return () => releaseTurn(n.data);
-    }, [n.data, queueOn]);
-    if (!myTurn) return null;
-
+/**
+ * Every hook runs on every render, whatever the phase: an early return above
+ * a hook is what broke the old queue (React threw "rendered more hooks" when a
+ * queued toast got its turn, and the error boundary fell back to Steam's
+ * unpinned stock toast).
+ */
+function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedTheme; n: SteamNotification; onDismiss?: () => void }) {
+    const key = n.data;
     const { theme, assets } = loaded;
     const tier: ResolvedTier = theme.tiers[tierFor(n)];
     const banner = tier.banner ?? tier.box;
     const { text, icons } = tier;
     const data = n.data;
     const size = bannerSize(theme.layout, banner);
+    const timing = bannerTiming(theme.animation, theme.displayTimeMs ?? (n.nToastDurationMS || 5000));
+
+    // Read once per toast: toggling the setting affects later toasts, not this one.
+    const [queued] = useState(() => setting('queue.enabled'));
+    const [phase, setPhase] = useState<Phase>(() =>
+        admit(key, timing.totalMs, queued, () => logger.warn('Achievement toast queue full; showing out of turn.')),
+    );
+    useEffect(() => {
+        setPhase(phaseOf(key)); // it may have changed between render and subscribe
+        return subscribe(key, () => setPhase(phaseOf(key)));
+    }, [key]);
+
+    const rootRef = useRef<HTMLDivElement>(null);
+    const pinRef = useRef<PinnedWindow | null>(null);
+
+    /** Queue on: always the anchor slot (one at a time). Waiting: 1x1, so it cannot catch clicks. */
+    const targetFor = (slot: number, p: Phase, win: Window) => {
+        const s = win.screen as Screen & { availLeft?: number; availTop?: number };
+        const avail = { left: s.availLeft ?? 0, top: s.availTop ?? 0, width: s.availWidth, height: s.availHeight };
+        const at = placeBanner(theme.position, banner.margin, size, avail, queued ? 0 : slot);
+        return p === 'waiting' ? { ...at, width: 1, height: 1 } : { ...at, width: size.width, height: size.height };
+    };
+
+    useLayoutEffect(() => {
+        const win = rootRef.current?.ownerDocument?.defaultView;
+        const pin = win ? pinToastWindow(win, (slot) => targetFor(slot, phaseOf(key), win)) : null;
+        pinRef.current = pin;
+        // Only per-toast popups (the ones we pin) are held; Big Picture's single
+        // popup already shows one toast at a time, on Steam's own timer.
+        if (pin) holdPopup(n, key, timing.totalMs * (MAX_QUEUE + 2) + 10_000);
+        return () => {
+            pin?.unpin();
+            pinRef.current = null;
+            forget(key);
+        };
+        // Once per toast: its theme and size are fixed at mount.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useLayoutEffect(() => {
+        const pin = pinRef.current;
+        const win = rootRef.current?.ownerDocument?.defaultView;
+        if (pin && win && phase === 'showing') pin.retarget(targetFor(pin.slot, phase, win));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [phase]);
+
+    const dismiss = () => {
+        finish(key);
+        onDismiss?.();
+    };
 
     const background =
         banner.background.length > 1
@@ -133,38 +208,22 @@ function Banner({ toast }: { toast: ToastProps }) {
         '--ea-gap-y': `${banner.gap[1]}px`,
         '--ea-text-align': textAlign,
         '--ea-text-justify': textJustify,
+        '--ea-in-ms': `${timing.inMs}ms`,
+        '--ea-out-ms': `${timing.outMs}ms`,
+        '--ea-display-ms': `${timing.displayMs}ms`,
         background,
         border: banner.border.width > 0 ? `${banner.border.width}px solid ${banner.border.color}` : 'none',
         borderRadius: `${banner.border.radius}px`,
     } as React.CSSProperties;
 
-    const rootRef = useRef<HTMLDivElement>(null);
-
-    useLayoutEffect(() => {
-        const win = rootRef.current?.ownerDocument?.defaultView;
-        if (!win) return undefined;
-        const s = win.screen as Screen & { availLeft?: number; availTop?: number };
-        const avail = { left: s.availLeft ?? 0, top: s.availTop ?? 0, width: s.availWidth, height: s.availHeight };
-        const unpin = pinToastWindow(win, (slot) => ({
-            ...placeBanner(theme.position, banner.margin, size, avail, slot),
-            width: size.width,
-            height: size.height,
-        }));
-        return unpin ?? undefined;
-        // Pinned once per toast: a toast's theme does not change while it is shown.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
-        if (!queueOn) return undefined;
-        const el = rootRef.current;
-        if (!el) return undefined;
-        const onEnd = (e: AnimationEvent) => {
-            if (e.animationName.startsWith('ea-out-')) releaseTurn(n.data);
-        };
-        el.addEventListener('animationend', onEnd);
-        return () => el.removeEventListener('animationend', onEnd);
-    }, [n.data, queueOn]);
+    if (phase === 'waiting') {
+        // The root stays mounted (ref, pin) but paints nothing and hides Steam's popup chrome.
+        return (
+            <div ref={rootRef} className="ea-banner ea-waiting">
+                <style>{BANNER_CSS}</style>
+            </div>
+        );
+    }
 
     const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
 
@@ -309,9 +368,9 @@ function Banner({ toast }: { toast: ToastProps }) {
     return (
         <div
             ref={rootRef}
-            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}`}
+            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}${phase === 'done' ? ' ea-done' : ''}`}
             style={rootStyle}
-            onClick={toast.onDismiss}
+            onClick={dismiss}
         >
             <style>{BANNER_CSS}</style>
             {content}

@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Geometry, animation/queue, glow/settings-layout, settings-panel-cleanup, Steam-default-theme and settings-spacing/toasts-off-warning fixes all committed and deployed 2026-09-25; awaiting user's live smoke test. |
+| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Queue/lifetime rebuild + "Steam default" ownership fix deployed and verified live 2026-09-25 (`tests/queue-stress.mjs` 16/16). Preparing 1.0 — see the release checklist below. |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
@@ -40,7 +40,28 @@ is just the index.
 5. **"Steam default" as the shipped default theme** — commit `bac1703`. `theme: ""` (was `"steam_tiers"`) means no theme loaded, Steam's own stock toast and chime; the settings panel's Theme dropdown lists it as the first option. Answers the user's question about theme modularity: a theme file's fields were already independently optional (set only `sound`, only `icons`, etc.), but keeping Steam's *own* native banner rendering specifically requires selecting "Steam default" — any theme file always replaces the banner with ours.
 6. **Consistent row spacing, dropped capture status line, reactive toasts-off warning** — commit `664afc3`. Every row now passes `bottomSeparator="none"` except the last in its group (fixes group headers sitting flush against the row above, and groups looking unevenly spaced); removed the "No game is being recorded" status line; the settings panel now reactively warns and disables itself when Steam's own toasts are globally off (polled every 2s while mounted, cheap — replaces the earlier static disclaimer). Item 4 ("force achievements even with Steam toasts off") was investigated and declined: `ProcessNotification` returns early in that state and calls nothing this plugin hooks — no event exists to react to (same conclusion as the prior plan's Q5).
 
-- [ ] **User's live smoke test** across all six rounds — not yet run.
+7. **Queue/lifetime rebuild, "Steam default" ownership** — see [enhanced-achievements/CHANGELOG.md](enhanced-achievements/CHANGELOG.md) § Unreleased › Fixed. Scheduler (`banner/queue.ts`) owns banner lifetime; desktop popups held via Steam's `fnNotificationResolved` ([steam-components.md § Toast lifetime](docs/steam-components.md#resolution-signatures--toast-windows)); queued sounds play with their banner; previews tagged by id; `claims()` owns achievement toasts while hooked.
+
+### 1.0 release checklist (audit 2026-09-25)
+
+Blockers:
+- [ ] `npm run check` fails: `status` unused in `settings-panel.tsx` (from `9fb71ea`). With the status line gone, theme load failures and theme warnings are no longer shown anywhere in the UI; decide where they surface.
+- [ ] Bump `version` in `package.json` and `plugin.json` (`0.1.0-alpha.1` → `1.0.0`); move CHANGELOG § Unreleased to `[1.0.0]`.
+- [ ] Run `tests/bigpicture.mjs` against this build: the queue and lifetime rebuild was verified on desktop only. In Big Picture, Steam times the toast, so a long `ps5` entrance/exit can still be cut short there.
+- [ ] U7 in-game overlay with a real unlock: the popup hold assumes the overlay honours `fnNotificationResolved` (code-read, unverified). Worst case it falls back to Steam's timer.
+
+Should fix:
+- [ ] `tests/captures.mjs` ends with `resetSettings()` and wipes the user's stored settings; snapshot and restore them instead.
+- [ ] `tests/tiers.mjs` reads the first toast window it finds, so it fails if a previous toast is still closing; wait for no toasts first (as `queue-stress.mjs` does).
+- [ ] A game-completing unlock captures twice: the synthetic 100% toast also runs `onUnlock` 1.5 s later (clips merge, screenshots don't). Skip captures for `EA_100_PERCENT`.
+- [ ] enhanced-achievements records `originalDurationMs` at startup; if enhanced-notifications wrote the achievement type's `toastDurationMS` first, "Steam default" restores EN's value instead of Steam's. Read it from a stand-in or restore Steam's default `5000`.
+- [ ] Queue on: waiting popups are invisible 1×1 windows but still count in Steam's desktop stack, so other toast types (friends, downloads) may stack above an empty slot while a burst drains. Verify with a mixed burst.
+
+Nice to have:
+- [ ] `@steambrew/ttc` 2.8.7 → 3.3.7 (build warns). Upgrade before 1.0 only if a full live pass follows.
+- [ ] `LoadAssets` accepts absolute paths from a theme file (any allowed-type file ≤ 8 MB on disk, displayed locally only). Consider confining assets to the theme's folder, since themes are shared.
+
+- [ ] **User's live smoke test** across all rounds — not yet run.
 - [ ] Open questions (not blocking, defaults already applied): default animation pair, `ps5` timings, queue overflow behaviour (plan 2 § 9); `queue.enabled` default off vs on, `duration_s: 0` edge case (plan 3 § 9).
 
 ## Alpha testing (user)

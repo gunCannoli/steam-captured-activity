@@ -31,44 +31,51 @@ export const BANNER_CSS = `
 }
 
 /* Entrance and exit animations, independently settable (themes.md § animation).
-   Both run off the same two variables Steam gives us on the parent div:
-   --toast-duration is set by Steam (nToastDurationMS + z); our own fade/slide
-   timings are constants here, matching the pre-split defaults (400/350ms in,
-   300ms out) so an unchanged theme looks identical to before this fix. */
+   Lengths are set inline from banner/timing.ts (--ea-in-ms, --ea-out-ms), the
+   same numbers the scheduler uses to decide when this toast is done; only the
+   keyframe names live here. The exit starts after the entrance plus the
+   theme's display time (--ea-display-ms), not Steam's --toast-duration: the
+   banner owns its lifetime and Steam holds the popup until it is done. */
 .ea-banner {
     animation-name: var(--ea-in-name, none), var(--ea-out-name, none);
     animation-duration: var(--ea-in-ms, 0ms), var(--ea-out-ms, 0ms);
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in;
-    animation-delay: 0ms, calc(var(--toast-duration, 5000ms) + var(--ea-in-ms, 0ms) - var(--ea-out-ms, 0ms) + var(--ea-out-ms, 0ms));
+    animation-delay: 0ms, calc(var(--ea-in-ms, 0ms) + var(--ea-display-ms, 5000ms));
     animation-fill-mode: both, forwards;
 }
-/* The delay above simplifies to --toast-duration + --ea-in-ms: the exit
-   should start once the toast has been fully visible for --toast-duration,
-   measured from when the entrance *finishes*, not from t=0. Keeping it spelled
-   with both terms documents that derivation instead of hiding it in one number. */
+
+/* Queued: nothing painted, and Steam's own popup chrome (gradient box and
+   logo watermark, the popup div we are a direct child of) hidden too, so a
+   waiting popup is fully invisible. :has(> ...) matches only that parent. */
+.ea-banner.ea-waiting { visibility: hidden; animation: none; }
+:has(> .ea-banner.ea-waiting) { background: none !important; box-shadow: none !important; border-color: transparent !important; }
+:has(> .ea-banner.ea-waiting) > :not(.ea-banner) { display: none !important; }
+/* Done: stays invisible while Steam fades and closes the popup. Visibility,
+   not a class swap, so the finished exit animation is not restarted. */
+.ea-banner.ea-done { visibility: hidden; }
 
 /* --- entrance (ea-in-*) --- */
-.ea-in-fade  { --ea-in-name: ea-in-fade;  --ea-in-ms: 400ms; }
-.ea-in-slide { --ea-in-name: ea-in-slide; --ea-in-ms: 350ms; }
-.ea-in-up    { --ea-in-name: ea-in-up;    --ea-in-ms: 350ms; }
-.ea-in-down  { --ea-in-name: ea-in-down;  --ea-in-ms: 350ms; }
-.ea-in-none  { --ea-in-name: none;        --ea-in-ms: 0ms; }
+.ea-in-fade  { --ea-in-name: ea-in-fade; }
+.ea-in-slide { --ea-in-name: ea-in-slide; }
+.ea-in-up    { --ea-in-name: ea-in-up; }
+.ea-in-down  { --ea-in-name: ea-in-down; }
+.ea-in-none  { --ea-in-name: none; }
 /* ps5: slide in from the anchored screen edge + fade, direction from ea-pos-*. */
-.ea-in-ps5.ea-pos-top_right, .ea-in-ps5.ea-pos-bottom_right { --ea-in-name: ea-in-slide;      --ea-in-ms: 450ms; }
-.ea-in-ps5.ea-pos-top_left,  .ea-in-ps5.ea-pos-bottom_left  { --ea-in-name: ea-in-slide-left;  --ea-in-ms: 450ms; }
-.ea-in-ps5.ea-pos-top_center                                { --ea-in-name: ea-in-down;        --ea-in-ms: 450ms; }
-.ea-in-ps5.ea-pos-bottom_center                              { --ea-in-name: ea-in-up;          --ea-in-ms: 450ms; }
+.ea-in-ps5.ea-pos-top_right, .ea-in-ps5.ea-pos-bottom_right { --ea-in-name: ea-in-slide; }
+.ea-in-ps5.ea-pos-top_left,  .ea-in-ps5.ea-pos-bottom_left  { --ea-in-name: ea-in-slide-left; }
+.ea-in-ps5.ea-pos-top_center                                { --ea-in-name: ea-in-down; }
+.ea-in-ps5.ea-pos-bottom_center                             { --ea-in-name: ea-in-up; }
 
 /* --- exit (ea-out-*) --- */
-.ea-out-fade  { --ea-out-name: ea-out-fade;  --ea-out-ms: 300ms; }
-.ea-out-slide { --ea-out-name: ea-out-slide; --ea-out-ms: 300ms; }
-.ea-out-up    { --ea-out-name: ea-out-up;    --ea-out-ms: 300ms; }
-.ea-out-down  { --ea-out-name: ea-out-down;  --ea-out-ms: 300ms; }
-.ea-out-none  { --ea-out-name: none;         --ea-out-ms: 0ms; }
-.ea-out-ps5.ea-pos-top_right, .ea-out-ps5.ea-pos-bottom_right { --ea-out-name: ea-out-slide;      --ea-out-ms: 400ms; }
-.ea-out-ps5.ea-pos-top_left,  .ea-out-ps5.ea-pos-bottom_left  { --ea-out-name: ea-out-slide-left;  --ea-out-ms: 400ms; }
-.ea-out-ps5.ea-pos-top_center                                  { --ea-out-name: ea-out-up;          --ea-out-ms: 400ms; }
-.ea-out-ps5.ea-pos-bottom_center                                { --ea-out-name: ea-out-down;        --ea-out-ms: 400ms; }
+.ea-out-fade  { --ea-out-name: ea-out-fade; }
+.ea-out-slide { --ea-out-name: ea-out-slide; }
+.ea-out-up    { --ea-out-name: ea-out-up; }
+.ea-out-down  { --ea-out-name: ea-out-down; }
+.ea-out-none  { --ea-out-name: none; }
+.ea-out-ps5.ea-pos-top_right, .ea-out-ps5.ea-pos-bottom_right { --ea-out-name: ea-out-slide; }
+.ea-out-ps5.ea-pos-top_left,  .ea-out-ps5.ea-pos-bottom_left  { --ea-out-name: ea-out-slide-left; }
+.ea-out-ps5.ea-pos-top_center                                 { --ea-out-name: ea-out-up; }
+.ea-out-ps5.ea-pos-bottom_center                              { --ea-out-name: ea-out-down; }
 
 @keyframes ea-in-fade  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ea-out-fade { from { opacity: 1; } to { opacity: 0; } }

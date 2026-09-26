@@ -1,7 +1,8 @@
 import { logger } from '../logger';
 import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
-import { completesGame, selectTier, type Tier } from '../theme/theme';
-import { onUnlock, suppressNextCaptures } from '../capture/captures';
+import { completesGame, selectTier, TIERS, type Tier } from '../theme/theme';
+import { onUnlock } from '../capture/captures';
+import { phaseOf, subscribe } from '../banner/queue';
 
 /**
  * Hooks into Steam's NotificationStore: the achievement sound, the toast
@@ -39,6 +40,28 @@ export interface SteamNotification {
     /** Unix seconds; set in OnNotification on arrival (Phase 7, unlock offset calc). */
     rtCreated?: number;
     notificationID?: number;
+    /**
+     * When set, Steam's desktop toast loop keeps the toast showing until this
+     * returns true, instead of timing it by `nToastDurationMS` (read every frame).
+     */
+    fnNotificationResolved?: () => boolean;
+}
+
+/** Synthetic achievement ids this plugin posts. Never real Steam ids. */
+export const PREVIEW_ID_PREFIX = 'EA_PREVIEW_';
+export const COMPLETION_ID = 'EA_100_PERCENT';
+export const TEST_UNLOCK_ID = 'EA_TEST';
+
+/** The tier a settings-panel preview was posted for, or null for any other notification. */
+export function previewTierOf(n: SteamNotification): Tier | null {
+    try {
+        const id = n.data.achievement_id?.();
+        if (typeof id !== 'string' || !id.startsWith(PREVIEW_ID_PREFIX)) return null;
+        const tier = id.slice(PREVIEW_ID_PREFIX.length) as Tier;
+        return TIERS.includes(tier) ? tier : null;
+    } catch {
+        return null;
+    }
 }
 
 interface NotificationStoreProto {
@@ -83,7 +106,10 @@ export function isAchievementUnlock(n: SteamNotification | undefined): n is Stea
 
 /** Tier memo keyed by the notification's data object: computed once, read by sound and banner. */
 const tiers = new WeakMap<object, Tier>();
-let forced: { tier: Tier; until: number } | null = null;
+/** Unlocks whose completion check already ran: Steam calls PlayNotificationSound once per toast shown, possibly more than once. */
+const completionChecked = new WeakSet<object>();
+/** Unlocks whose sound is already waiting for their banner's turn. */
+const soundDeferred = new WeakSet<object>();
 
 interface ProgressCache {
     m_achievementProgress?: { mapCache?: Map<number, { unlocked?: number; total?: number; all_unlocked?: boolean }> };
@@ -95,10 +121,13 @@ export function tierFor(n: SteamNotification): Tier {
 
     let tier: Tier = 'normal';
     try {
-        if (n.data.achievement_id?.() === 'EA_100_PERCENT') {
+        // Previews carry their tier in their own id, so rapid clicks can never
+        // hand one preview's tier to another toast (or to a real unlock).
+        const preview = previewTierOf(n);
+        if (preview) {
+            tier = preview;
+        } else if (n.data.achievement_id?.() === COMPLETION_ID) {
             tier = 'exceptional';
-        } else if (forced && Date.now() < forced.until) {
-            tier = forced.tier;
         } else {
             const theme = activeTheme()?.theme;
             if (theme) {
@@ -109,7 +138,6 @@ export function tierFor(n: SteamNotification): Tier {
     } catch (error) {
         logger.warn('Could not determine rarity tier; using normal.', error);
     }
-    forced = null;
     tiers.set(n.data, tier);
     return tier;
 }
@@ -138,11 +166,16 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         try {
             if (isAchievementUnlock(n)) {
                 const tier = tierFor(n);
-                onUnlock(n, tier);
+                // Previews never capture (A2.4); decided by id, so a real unlock
+                // right after a preview still captures.
+                if (!previewTierOf(n)) onUnlock(n, tier);
 
-                // If this is a real unlock (not the synthetic platinum itself) and it completes the game,
-                // schedule the synthetic 100% completion toast right after.
-                if (n.data.achievement_id?.() !== 'EA_100_PERCENT') {
+                // An unlock that completes the game schedules the synthetic 100%
+                // completion toast right after, once. Previews and that toast itself
+                // never do (EA_TEST does: it stands in for a real unlock).
+                const synthetic = previewTierOf(n) !== null || n.data.achievement_id?.() === COMPLETION_ID;
+                if (!synthetic && !completionChecked.has(n.data)) {
+                    completionChecked.add(n.data);
                     const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
                     const progress = cache?.m_achievementProgress?.mapCache?.get(n.data.appid());
                     if (completesGame(progress)) {
@@ -156,6 +189,25 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         } catch (error) {
             logger.warn('Capture scheduling failed; continuing.', error);
         }
+        // Queued banner: its sound waits for its turn, so a burst of unlocks
+        // is heard one at a time with the banners, not all at once on arrival.
+        if (isAchievementUnlock(n) && phaseOf(n.data) === 'waiting') {
+            if (!soundDeferred.has(n.data)) {
+                soundDeferred.add(n.data);
+                const self = this;
+                const off = subscribe(n.data, () => {
+                    const phase = phaseOf(n.data);
+                    if (phase === 'waiting') return;
+                    off();
+                    if (phase === 'showing') playSound(self, n); // dismissed before its turn: silent
+                });
+            }
+            return;
+        }
+        return playSound(this, n);
+    };
+
+    function playSound(self: { ChooseSound?: unknown }, n: SteamNotification): void {
         try {
             if (isAchievementUnlock(n)) {
                 const clip = activeTheme()?.sounds.get(tierFor(n));
@@ -164,14 +216,14 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
                     // Let Steam decide whether a sound is wanted (its mute setting),
                     // but take the decision instead of playing its chime.
                     let wanted = false;
-                    this.ChooseSound = function (this: unknown, config: unknown, notification: SteamNotification) {
+                    self.ChooseSound = function (this: unknown, config: unknown, notification: SteamNotification) {
                         wanted = !!originalChoose.call(this, config, notification);
                         return null;
                     };
                     try {
-                        original.call(this, n);
+                        original.call(self, n);
                     } finally {
-                        delete this.ChooseSound;
+                        delete self.ChooseSound;
                     }
                     if (wanted) playClip(clip);
                     return;
@@ -182,8 +234,8 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         } catch (error) {
             logger.warn('Achievement sound hook failed; using Steam chime.', error);
         }
-        return original.call(this, n);
-    };
+        original.call(self, n);
+    }
 }
 
 // --- duration -----------------------------------------------------------------
@@ -232,27 +284,99 @@ function applyDuration(): void {
     achievementConfig.toastDurationMS = themed ?? originalDurationMs;
 }
 
-// --- preview ------------------------------------------------------------------
+// --- synthetic toasts -------------------------------------------------------------
 
-/** Fire Steam's own test toast with the given tier forced (settings panel "Preview"). */
+interface AchievementFields {
+    appid: number;
+    achievement_id: string;
+    name: string;
+    description: string;
+    image_url?: string;
+    global_achieved_pct: number;
+}
+
+/**
+ * Post an achievement notification through Steam's own path
+ * (docs/steam-components.md § Test toast): the same toast, sound, timing and
+ * hooks as a real unlock. Each call gets its own notification id and data object.
+ */
+function postAchievement(fields: AchievementFields): boolean {
+    if (!store || !achievementConfig?.proto || achievementType === null) return false;
+    const msg = achievementConfig.proto.fromObject({
+        ...fields,
+        image_url: fields.image_url ?? '',
+        achieved: true,
+        rtime_unlocked: Math.floor(Date.now() / 1000),
+    });
+    const id = typeof store.m_nNextTestNotificationID === 'number' ? store.m_nNextTestNotificationID++ : Date.now() & 0x7fffffff;
+    store.OnNotification(id, achievementType, msg.serializeBinary());
+    return true;
+}
+
+interface Highlight {
+    strName?: string;
+    strDescription?: string;
+    strImage?: string;
+}
+
+interface AppDetailsStore {
+    RequestAppDetails?(appid: number): Promise<{ achievements?: { vecHighlight?: Highlight[] } } | undefined>;
+}
+
+/** Steam's own fallback in `TestAchievement`, for apps without highlighted achievements. */
+const MADE_UP: Highlight = {
+    strName: 'won a race',
+    strDescription: 'You placed 1st!',
+    strImage: 'https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/270880/2aec8af4b4b23cb6054d9aea06194621cdd66945.jpg',
+};
+
+const samples = new Map<number, Promise<Highlight[]>>();
+
+/**
+ * Real achievements to dress previews in, the way `TestAchievement` does
+ * (`appDetailsStore.RequestAppDetails(appid).achievements.vecHighlight`).
+ * Fetched once per app and cached, so rapid preview clicks never wait on it twice.
+ */
+function sampleAchievements(appid: number): Promise<Highlight[]> {
+    let pending = samples.get(appid);
+    if (!pending) {
+        const ds = Reflect.get(globalThis, 'appDetailsStore') as AppDetailsStore | undefined;
+        const request = (async () => (await ds?.RequestAppDetails?.(appid))?.achievements?.vecHighlight ?? [])();
+        const timeout = new Promise<Highlight[]>((resolve) => setTimeout(() => resolve([]), 2000));
+        pending = Promise.race([request, timeout]).catch(() => []);
+        samples.set(appid, pending);
+    }
+    return pending;
+}
+
+/**
+ * Settings panel "Preview": post a synthetic unlock whose id carries its tier
+ * (`EA_PREVIEW_<tier>`), so the tier is exact however fast previews are
+ * clicked, and captures skip it by id (never by a time window that could
+ * swallow a real unlock).
+ */
 export async function previewTier(tier: Tier): Promise<void> {
     if (!store) return;
-    const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
-    // Any owned game with achievements gives a real achievement image; 480 (Spacewar) makes one up.
-    const appid = cache?.m_achievementProgress?.mapCache?.keys().next().value ?? 480;
-
-    // Previews must never trigger a real capture (A2.4), same pattern as `forced`.
-    suppressNextCaptures(10_000);
     // A click is a user gesture: unlock audio so the preview can play the theme's sound.
     void audio().resume();
 
-    if (tier === 'exceptional') {
-        fireExceptionalCompletionToast(appid);
-        return;
-    }
+    const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
+    // Any owned game with achievements gives a real achievement image; 480 (Spacewar) makes one up.
+    const appid: number = cache?.m_achievementProgress?.mapCache?.keys().next().value ?? 480;
+    const pool = await sampleAchievements(appid);
+    const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)]! : MADE_UP;
 
-    forced = { tier, until: Date.now() + 10_000 };
-    await store.TestAchievement(appid);
+    const theme = activeTheme()?.theme;
+    const exceptional = tier === 'exceptional' ? theme?.tiers.exceptional.text : undefined;
+    const threshold = theme?.tiers[tier].threshold;
+    postAchievement({
+        appid,
+        achievement_id: PREVIEW_ID_PREFIX + tier,
+        name: exceptional?.titleText || pick.strName || 'Achievement unlocked',
+        description: exceptional?.descText || pick.strDescription || '',
+        image_url: pick.strImage,
+        global_achieved_pct: typeof threshold === 'number' ? threshold : 50,
+    });
 }
 
 /**
@@ -261,26 +385,15 @@ export async function previewTier(tier: Tier): Promise<void> {
  * this toast when all achievements in a game have been unlocked.
  */
 export function fireExceptionalCompletionToast(appid: number): boolean {
-    if (!store || !achievementConfig?.proto) return false;
     try {
-        const theme = activeTheme()?.theme;
-        const exceptional = theme?.tiers.exceptional;
-        const title = exceptional?.text.titleText || '100% Complete';
-        const desc = exceptional?.text.descText || "You've unlocked all achievements!";
-        const nowS = Math.floor(Date.now() / 1000);
-        const msg = achievementConfig.proto.fromObject({
+        const text = activeTheme()?.theme.tiers.exceptional.text;
+        return postAchievement({
             appid,
-            achievement_id: 'EA_100_PERCENT',
-            name: title,
-            description: desc,
-            achieved: true,
+            achievement_id: COMPLETION_ID,
+            name: text?.titleText || '100% Complete',
+            description: text?.descText || "You've unlocked all achievements!",
             global_achieved_pct: 0,
-            rtime_unlocked: nowS,
         });
-        const id = typeof store.m_nNextTestNotificationID === 'number' ? store.m_nNextTestNotificationID++ : Date.now() & 0x7fffffff;
-        if (achievementType === null) return false;
-        store.OnNotification(id, achievementType, msg.serializeBinary());
-        return true;
     } catch (error) {
         logger.warn('Could not fire 100% completion toast.', error);
         return false;
@@ -295,22 +408,14 @@ export function fireExceptionalCompletionToast(appid: number): boolean {
  * `RequestAppDetails(appid)`, unverified for shortcut appids.
  */
 export function fireTestUnlock(appid: number, name: string): boolean {
-    if (!store || !achievementConfig?.proto) return false;
     try {
-        const nowS = Math.floor(Date.now() / 1000);
-        const msg = achievementConfig.proto.fromObject({
+        return postAchievement({
             appid,
-            achievement_id: 'EA_TEST',
+            achievement_id: TEST_UNLOCK_ID,
             name,
             description: 'Enhanced Achievements capture test',
-            achieved: true,
             global_achieved_pct: 50,
-            rtime_unlocked: nowS,
         });
-        const id = typeof store.m_nNextTestNotificationID === 'number' ? store.m_nNextTestNotificationID++ : Date.now() & 0x7fffffff;
-        if (achievementType === null) return false;
-        store.OnNotification(id, achievementType, msg.serializeBinary());
-        return true;
     } catch (error) {
         logger.warn('Could not fire test unlock.', error);
         return false;

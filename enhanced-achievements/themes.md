@@ -24,7 +24,7 @@ Display behaviour for this theme's banners.
     - `"compact_pill"`: Slim horizontal bar with icon and title.
     - `"custom"`: Flexible anchor-based layout defined via the root `layout` mapping object.
 - **`position`**: Screen anchor: `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"`. The toast window is dynamically repositioned to the chosen screen location, offset inward by `margin`.
-- **`display_time_ms`**: How long the banner stays on screen before its exit animation (e.g. `4000` = 4 s).
+- **`display_time_ms`**: How long the banner stays fully visible, between the end of its entrance and the start of its exit animation (e.g. `4000` = 4 s). On desktop the banner owns its timing, so entrance and exit are never cut short. Unset keeps Steam's own duration.
 - **`animation`**: Entrance and exit transition. Either one name for both
   (`"fade"` — the same as before), `"none"` (no animation for that state), or
   independent control: `{"in": "slide", "out": "fade"}`. Default when omitted:
@@ -169,10 +169,16 @@ you never need to edit it manually.
 
 - **`theme`**: file name (without `.json`) of the active theme in `themes/`, or
   `""` for **Steam default** — no theme loaded, Steam's own stock toast and
-  chime, untouched. `""` is the shipped default; the settings panel's Theme
+  chime, untouched — also by enhanced-notifications, which leaves achievement
+  toasts to this plugin whenever it is installed. `""` is the shipped default; the settings panel's Theme
   dropdown shows it as "Steam default". Screenshot/recording captures still
   work with Steam default selected — they're independent of the banner.
-- **`queue.enabled`**: one achievement banner at a time (see below), off by default.
+- **`queue.enabled`**: one achievement banner at a time, off by default. A
+  burst of unlocks is shown one after another in arrival order, each with its
+  own sound when its banner appears, at the same spot. Up to 5 can wait; past
+  that a new one shows at once rather than being dropped. Applies to themed
+  banners on desktop and in the in-game overlay (Big Picture already shows one
+  toast at a time).
 - **`screenshot`** / **`recording`**: capture defaults, off by default (they write files into
   your library). All capture settings are global to the plugin and never overridden by themes.
 

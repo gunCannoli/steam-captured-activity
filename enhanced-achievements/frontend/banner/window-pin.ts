@@ -31,9 +31,22 @@ export interface PinTarget {
     height: number;
 }
 
-/** Returns an unpin function, or null when this window is not a per-toast popup. */
-export function pinToastWindow(win: Window, targetFor: (slot: number) => PinTarget): (() => void) | null {
-    if (!PER_TOAST_POPUP.test(win.name)) return null;
+export interface PinnedWindow {
+    /** Stack slot this popup holds (0 = nearest the anchor corner). */
+    slot: number;
+    /** Move/resize the popup; Steam's per-frame MoveTo keeps landing on it. */
+    retarget(target: PinTarget): void;
+    unpin(): void;
+}
+
+/** True for the per-toast popups Steam opens on desktop and in the in-game overlay. */
+export function isPerToastPopup(win: Window): boolean {
+    return PER_TOAST_POPUP.test(win.name);
+}
+
+/** Pin a per-toast popup; null when `win` is not one (Big Picture) or the API is missing. */
+export function pinToastWindow(win: Window, targetFor: (slot: number) => PinTarget): PinnedWindow | null {
+    if (!isPerToastPopup(win)) return null;
     const api = (win as unknown as { SteamClient?: { Window?: WindowApi } }).SteamClient?.Window;
     if (!api || typeof api.MoveTo !== 'function' || typeof api.ResizeTo !== 'function') return null;
 
@@ -41,10 +54,15 @@ export function pinToastWindow(win: Window, targetFor: (slot: number) => PinTarg
     if (slot < 0) slot = slots.length;
     slots[slot] = win;
 
-    const target = targetFor(slot);
+    let target = targetFor(slot);
     const original = api.MoveTo;
     const dpiOf = (dpi: unknown) => (typeof dpi === 'number' && dpi > 0 ? dpi : win.devicePixelRatio || 1);
     const pinned: MoveTo = (_x, _y, dpi) => original.call(api, target.x, target.y, dpiOf(dpi));
+    const release = () => {
+        if (api.MoveTo === pinned) api.MoveTo = original;
+        if (slots[slot] === win) slots[slot] = null;
+        while (slots.length && slots[slots.length - 1] === null) slots.pop();
+    };
 
     try {
         api.ResizeTo(target.width, target.height, true);
@@ -52,14 +70,22 @@ export function pinToastWindow(win: Window, targetFor: (slot: number) => PinTarg
         original.call(api, target.x, target.y, dpiOf(undefined));
     } catch (error) {
         logger.warn('Could not pin the toast window; Steam places it.', error);
-        api.MoveTo = original;
-        slots[slot] = null;
+        release();
         return null;
     }
 
-    return () => {
-        if (api.MoveTo === pinned) api.MoveTo = original;
-        slots[slot] = null;
-        while (slots.length && slots[slots.length - 1] === null) slots.pop();
+    return {
+        slot,
+        retarget(next) {
+            const resized = next.width !== target.width || next.height !== target.height;
+            target = next;
+            try {
+                if (resized) api.ResizeTo(next.width, next.height, true);
+                original.call(api, next.x, next.y, dpiOf(undefined));
+            } catch (error) {
+                logger.warn('Could not move the toast window.', error);
+            }
+        },
+        unpin: release,
     };
 }

@@ -1,57 +1,122 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { releaseTurn, requestTurn, resetQueue } from '../frontend/banner/queue.ts';
+import { admit, finish, forget, MAX_QUEUE, phaseOf, resetQueue, subscribe } from '../frontend/banner/queue.ts';
+import { bannerTiming } from '../frontend/banner/timing.ts';
 
-test('the first request always gets its turn immediately', () => {
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const LONG = 60_000; // show timers that never fire inside a test
+
+test('the first toast shows immediately', () => {
     resetQueue();
-    assert.equal(requestTurn({}, () => {}), true);
+    assert.equal(admit({}, LONG, true), 'showing');
 });
 
-test('a second request while one is showing is queued, not immediate', () => {
-    resetQueue();
-    const a = {}, b = {};
-    assert.equal(requestTurn(a, () => {}), true);
-    let firedB = false;
-    assert.equal(requestTurn(b, () => { firedB = true; }), false);
-    assert.equal(firedB, false);
-});
-
-test('releasing the current turn schedules the next queued one (after the gap)', async () => {
+test('queue on: a second toast waits while one is showing', () => {
     resetQueue();
     const a = {}, b = {};
-    requestTurn(a, () => {});
-    let firedB = false;
-    requestTurn(b, () => { firedB = true; });
-    releaseTurn(a);
-    assert.equal(firedB, false); // not yet: QUEUE_GAP_MS hasn't elapsed
-    await new Promise((r) => setTimeout(r, 150));
-    assert.equal(firedB, true);
+    assert.equal(admit(a, LONG, true), 'showing');
+    assert.equal(admit(b, LONG, true), 'waiting');
 });
 
-test('a key already current or already queued is not queued twice', () => {
+test('queue off: every toast shows immediately', () => {
     resetQueue();
-    const a = {};
-    requestTurn(a, () => {});
-    assert.equal(requestTurn(a, () => {}), true); // still current
+    assert.equal(admit({}, LONG, false), 'showing');
+    assert.equal(admit({}, LONG, false), 'showing');
 });
 
-test('releasing a queued (not current) key removes it without affecting current', async () => {
+test('admit is idempotent: a remounted toast keeps its phase and place', () => {
+    resetQueue();
+    const a = {}, b = {};
+    admit(a, LONG, true);
+    admit(b, LONG, true);
+    assert.equal(admit(a, LONG, true), 'showing');
+    assert.equal(admit(b, LONG, true), 'waiting');
+});
+
+test('finishing the current toast promotes the next after the gap, and notifies it', async () => {
+    resetQueue();
+    const a = {}, b = {};
+    admit(a, LONG, true);
+    admit(b, LONG, true);
+    let notified = 0;
+    subscribe(b, () => notified++);
+    finish(a);
+    assert.equal(phaseOf(a), 'done');
+    assert.equal(phaseOf(b), 'waiting'); // gap not elapsed yet
+    await wait(150);
+    assert.equal(phaseOf(b), 'showing');
+    assert.equal(notified, 1);
+});
+
+test('a showing toast ends on its own timer, with no animation event needed', async () => {
+    resetQueue();
+    const a = {}, b = {};
+    admit(a, 30, true);
+    admit(b, LONG, true);
+    await wait(200);
+    assert.equal(phaseOf(a), 'done');
+    assert.equal(phaseOf(b), 'showing');
+});
+
+test('rapid bursts keep strict FIFO order, one showing at a time', async () => {
+    resetQueue();
+    const keys = [{}, {}, {}, {}];
+    for (const k of keys) admit(k, 20, true);
+    const order: number[] = [];
+    keys.forEach((k, i) => subscribe(k, () => phaseOf(k) === 'showing' && order.push(i)));
+    for (let t = 0; t < 40; t++) {
+        await wait(25);
+        assert.ok(keys.filter((k) => phaseOf(k) === 'showing').length <= 1, 'never two showing at once');
+    }
+    assert.deepEqual(order, [1, 2, 3]);
+    assert.ok(keys.every((k) => phaseOf(k) === 'done'));
+});
+
+test('a waiting toast that unmounts gives up its place without affecting the current one', async () => {
     resetQueue();
     const a = {}, b = {}, c = {};
-    requestTurn(a, () => {});
-    let firedB = false, firedC = false;
-    requestTurn(b, () => { firedB = true; });
-    requestTurn(c, () => { firedC = true; });
-    releaseTurn(b); // b gives up its place before ever showing
-    releaseTurn(a);
-    await new Promise((r) => setTimeout(r, 150));
-    assert.equal(firedB, false);
-    assert.equal(firedC, true);
+    admit(a, LONG, true);
+    admit(b, LONG, true);
+    admit(c, LONG, true);
+    forget(b);
+    assert.equal(phaseOf(a), 'showing');
+    finish(a);
+    await wait(150);
+    assert.equal(phaseOf(b), 'done');
+    assert.equal(phaseOf(c), 'showing');
 });
 
-test('past MAX_QUEUE, a new request shows immediately instead of queueing forever', () => {
+test('a toast arriving during the gap waits for the gap, then shows', async () => {
     resetQueue();
-    requestTurn({}, () => {}); // current
-    for (let i = 0; i < 5; i++) requestTurn({}, () => {}); // fills the 5-slot queue
-    assert.equal(requestTurn({}, () => {}), true); // 6th waiting slot: shown anyway
+    const a = {}, b = {};
+    admit(a, LONG, true);
+    finish(a);
+    assert.equal(admit(b, LONG, true), 'waiting');
+    await wait(150);
+    assert.equal(phaseOf(b), 'showing');
 });
+
+test(`past MAX_QUEUE (${MAX_QUEUE}) waiting, a new toast shows at once and reports overflow`, () => {
+    resetQueue();
+    admit({}, LONG, true);
+    for (let i = 0; i < MAX_QUEUE; i++) assert.equal(admit({}, LONG, true), 'waiting');
+    let overflow = false;
+    assert.equal(admit({}, LONG, true, () => (overflow = true)), 'showing');
+    assert.equal(overflow, true);
+});
+
+test('unknown keys read as done (nothing holds their popup)', () => {
+    assert.equal(phaseOf({}), 'done');
+});
+
+test('timing: exit starts after entrance + display, and the hold covers the whole exit', () => {
+    const t = bannerTiming({ in: 'ps5', out: 'ps5' }, 4000);
+    assert.equal(t.inMs, 450);
+    assert.equal(t.outMs, 400);
+    assert.ok(t.totalMs > t.inMs + t.displayMs + t.outMs);
+    const none = bannerTiming({ in: 'none', out: 'none' }, 3000);
+    assert.equal(none.inMs + none.outMs, 0);
+    assert.ok(none.totalMs >= 3000);
+});
+
+test.after(() => resetQueue());
