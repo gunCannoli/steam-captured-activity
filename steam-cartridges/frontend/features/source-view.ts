@@ -16,10 +16,16 @@ import { storeEnrichedAppIds } from "./steam-store/enriched";
 const inflight = new Set<number>();
 /** Views seen before collections were ready; replayed once they are. */
 const deferred = new Set<number>();
+/** A view that arrived while the same appid was in flight; replayed once afterwards (P4 H6). */
+const rerun = new Set<number>();
 
 /** Route a view of a shortcut to the handler for its bucket (ADR-0033). */
 export async function onSourceView(appid: number): Promise<void> {
-    if (appid < NON_STEAM_APPID_MIN || inflight.has(appid)) return;
+    if (appid < NON_STEAM_APPID_MIN) return;
+    if (inflight.has(appid)) {
+        rerun.add(appid);
+        return;
+    }
     inflight.add(appid);
     try {
         const { bucket, via } = getBucket(appid);
@@ -39,6 +45,7 @@ export async function onSourceView(appid: number): Promise<void> {
         }
     } finally {
         inflight.delete(appid);
+        if (rerun.delete(appid)) void onSourceView(appid);
     }
 }
 

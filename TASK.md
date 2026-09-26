@@ -16,33 +16,12 @@ theme Steam's toasts and sounds.
 
 ## Status
 
-| Area                                      | State                                                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `1.0.0`           | ✅ 1.0.0 ready 2026-09-25: queue/lifetime rebuild, Steam-default ownership, JSONC themes, jsx write guard; all live suites pass (desktop + Big Picture). Remaining: visual panel check, overlay U7, publish. |
-| `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
-| Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
-| Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
+| Native Achievements (Phase 5) | 🔬 Hook points verified in Steam client; not implemented |
+| Provider contract (Phase 9) | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md)) |
 
 ---
 
-## enhanced-achievements: recent fixes, all deployed (user smoke test pending)
-
-Four rounds of user-reported fixes, each fully executed, gated, and deployed.
-Full detail (root causes, before/after, phase gates) lives in each plan and in
-[enhanced-achievements/CHANGELOG.md](enhanced-achievements/CHANGELOG.md); this
-is just the index.
-
-1. **Banner geometry fix** — [plan](docs/plans/enhanced-achievements-banner-geometry-fix.md), commit `ea76c26`. Per-popup `MoveTo` pin (was racing Steam's own toast-stack repositioning), DPI-correct margin, content sized from the unscaled box, snake_case `position`/`text_align` (legacy aliases removed outright, not deprecated — pre-release).
-2. **Animation in/out split, `ps5` preset, edge-anchored ripple, one-at-a-time queue** — [plan](docs/plans/enhanced-achievements-animation-queue-improvements.md), commit `db93e79`. `animation.in`/`.out` independently settable; new pure `banner/queue.ts`.
-3. **Glow removal, capture slider floor, two-row settings layout, queue toggle** — [plan](docs/plans/enhanced-achievements-glow-queue-settings-improvements.md), commit `0be4cf0`. Glow dropped (double-clipped by `overflow:hidden` + the exact-fit toast window — `banner.glow` still parses, no visual effect); `recording.duration_s` now starts at 0; every row uses SDK `layout="below"`; new `queue.enabled` toggle (off by default).
-4. **Settings panel cleanup** — commit `c55a783`. `banner.enabled`/`sound.enabled` removed (banner theming always on with a loaded theme; sound theming follows whether the theme defines a clip per tier); renamed labels/sections (Achievement queue, Preview Achievements, Screenshots & Recordings); every row grouped under a `DialogControlsSectionHeader`; dropped the toast-disabled disclaimer, the "(yours)" theme suffix, and the "Test captures" button; tier preview labels/rules now theme-driven instead of hardcoding bronze/silver/gold.
-5. **"Steam default" as the shipped default theme** — commit `bac1703`. `theme: ""` (was `"steam_tiers"`) means no theme loaded, Steam's own stock toast and chime; the settings panel's Theme dropdown lists it as the first option. Answers the user's question about theme modularity: a theme file's fields were already independently optional (set only `sound`, only `icons`, etc.), but keeping Steam's *own* native banner rendering specifically requires selecting "Steam default" — any theme file always replaces the banner with ours.
-6. **Consistent row spacing, dropped capture status line, reactive toasts-off warning** — commit `664afc3`. Every row now passes `bottomSeparator="none"` except the last in its group (fixes group headers sitting flush against the row above, and groups looking unevenly spaced); removed the "No game is being recorded" status line; the settings panel now reactively warns and disables itself when Steam's own toasts are globally off (polled every 2s while mounted, cheap — replaces the earlier static disclaimer). Item 4 ("force achievements even with Steam toasts off") was investigated and declined: `ProcessNotification` returns early in that state and calls nothing this plugin hooks — no event exists to react to (same conclusion as the prior plan's Q5).
-
-7. **Queue/lifetime rebuild, "Steam default" ownership** — see [enhanced-achievements/CHANGELOG.md](enhanced-achievements/CHANGELOG.md) § Unreleased › Fixed. Scheduler (`banner/queue.ts`) owns banner lifetime; desktop popups held via Steam's `fnNotificationResolved` ([steam-components.md § Toast lifetime](docs/steam-components.md#resolution-signatures--toast-windows)); queued sounds play with their banner; previews tagged by id; `claims()` owns achievement toasts while hooked.
-
-### 1.0 release: remaining (audit items done, see enhanced-achievements/CHANGELOG.md § 1.0.0)
+### enhanced-achievements 1.0 release: remaining (audit items done, see enhanced-achievements/CHANGELOG.md § 1.0.0)
 
 - [ ] **Visual check of the settings panel** (not automatable here): theme dropdown on three rows (label, description, full-width dropdown); a theme-problem line appears only for a broken theme.
 - [ ] U7 in-game overlay with a real unlock: the popup hold assumes the overlay honours `fnNotificationResolved` (code-read, unverified). Worst case: Steam's timer.
@@ -134,8 +113,8 @@ Deploy is a user action (`dev.ps1`). Then:
 ### Next, in this order (user decisions A and B, 2026-09-24)
 
 - [ ] **1. P4 hardening**: [plan](docs/plans/steam-cartridges-p4-hardening.md) (goes first: the other two are cut on top of it)
-    - [ ] H1 metadata shape guard (the `metadata.ts:231` TypeError) · H2 wall-clock throttle · H3 offline breaker, 8 s timeout, 5 min retry · H4 skip missing store items · H5 per-slot art record, no orphans · H6 replay racing views
-    - [ ] Offline gates: `tsc`, `test:ts` 28/28, Lua 71 + 86 PASS
+    - [x] H1 metadata shape guard (the `metadata.ts:231` TypeError) · H2 wall-clock throttle · H3 offline breaker, 8 s timeout, 5 min retry · H4 skip missing store items · H5 per-slot art record, no orphans · H6 replay racing views
+    - [x] Offline gates: `tsc`, `test:ts` 28/28, Lua 71 + 86 PASS
     - [ ] Live verification (plan § 7)
 - [ ] **2. ADR-0036 policy change** (no collection → Steam Store, web fallback, per-collection include/exclude): [parity plan Part A](docs/plans/steam-cartridges-parity.md#4-part-a-adr-0036-policy-change)
     - [ ] Config v2 rules and title patterns, fixed default `steam-store`, sticky resolutions
@@ -146,7 +125,7 @@ Deploy is a user action (`dev.ps1`). Then:
     - [ ] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
     - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
     - [ ] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
-      (Part F now includes the controller addendum, Steps 37a–37i: Steam data > emulator inference > "Default to full controller support" setting, off > no badge; live check § 9 item 5b)
+          (Part F now includes the controller addendum, Steps 37a–37i: Steam data > emulator inference > "Default to full controller support" setting, off > no badge; live check § 9 item 5b)
     - [ ] **Parity gate: `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL`** (baseline 2026-09-25: 4 PASS / 13 FAIL), plus plan § 9 items 1–7
     - [ ] Open questions for the user: plan § 12 Q2–Q4 (Full Controller default for local data, Manage/Properties, tags/languages/ratings)
 - [ ] ⛔ **P5** achievements (Steam native, RetroAchievements): **blocked on the parity gate** (user decision B)

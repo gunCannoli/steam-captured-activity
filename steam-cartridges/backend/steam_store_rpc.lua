@@ -4,6 +4,7 @@
 --- Only calls for steam-store games reach here (the frontend gates on the
 --- bucket, ADR-0032), so the network is never touched for anything else.
 
+local fs          = require("fs")
 local utils       = require("utils")
 local steam_paths = require("steam_paths")
 local shortcuts   = require("shortcuts")
@@ -38,8 +39,19 @@ RPC.SteamStoreGetState = method("SteamStoreGetState", function(_)
   return store.get_state()
 end)
 
+--- `exists(name)` for files in <user>/config/grid, or nil when paths are unknown.
+local function grid_exists()
+  local paths = steam_paths.resolve()
+  if not paths or not paths.user_root then return nil end
+  local grid = fs.join(paths.user_root, "config", "grid")
+  return function(name) return fs.exists(fs.join(grid, name)) == true end
+end
+
 RPC.SteamStoreGetMapping = method("SteamStoreGetMapping", function(data)
-  local entry = store.get(need(data, "appid"))
+  local appid = need(data, "appid")
+  local exists = grid_exists()
+  if exists then pcall(store.prune_missing_slots, appid, exists) end
+  local entry = store.get(appid)
   return { mapping = entry.mapping, rejected = entry.rejected, applied = entry.applied }
 end)
 
@@ -96,7 +108,8 @@ RPC.SteamStoreGetAppDetails = method("SteamStoreGetAppDetails", function(data)
 end)
 
 RPC.SteamStoreRecordArtwork = method("SteamStoreRecordArtwork", function(data)
-  store.record_artwork(need(data, "appid"), need(data, "steam_appid"), data.slots or {})
+  local ok, err = store.record_artwork(need(data, "appid"), need(data, "steam_appid"), data.slots or {}, nil, data.failed or {})
+  if not ok then return { error = err } end
   return { ok = true }
 end)
 
@@ -104,9 +117,10 @@ end)
 RPC.SteamStoreDownloadImage = method("SteamStoreDownloadImage", function(data)
   local url = tostring(need(data, "url"))
   if not url:match("^https://[%w%.%-]*steamstatic%.com/") then error("url not allowed") end
+  if throttle.is_offline() then error("offline") end -- P4 H3: no timeout per view while offline
   local http = require("http")
   throttle.acquire()
-  local res = http.get(url, { headers = { ["User-Agent"] = throttle.USER_AGENT }, timeout = 20 })
+  local res = http.get(url, { headers = { ["User-Agent"] = throttle.USER_AGENT }, timeout = throttle.TIMEOUT })
   if not res or res.status ~= 200 or not res.body then error("download failed") end
   local ext = url:match("%.(%w+)[%?]?[^/]*$") or "jpg"
   return { base64 = utils.base64_encode(res.body), ext = ext:lower() == "png" and "png" or "jpg" }

@@ -9,7 +9,9 @@ import {
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { applyCustomArtworkFromUrls } from "../artwork/artwork";
 import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
+import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
+import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
 import { storeEnrichedAppIds } from "./enriched";
 import { knownAppName, matchKnownNative } from "./known-apps";
 import { cdnArtworkUrls } from "./resolve";
@@ -19,10 +21,15 @@ import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store
 const processed = new Set<number>();
 /** Metadata already fetched this session, re-applied on later views. */
 const metaCache = new Map<number, ConsolidatedMetadata>();
+/** A lookup that failed (offline, HTTP error) may run again on a view after this time (P4 H3). */
+const RETRY_MS = 5 * 60_000;
+const retryAt = new Map<number, number>();
+/** Games whose failed art slots were already retried this session (P4 H5). */
+const artRetried = new Set<number>();
 
 async function resolveMapping(
     appid: number,
-): Promise<{ mapping: StoreMapping | null; applied: StoreApplied | null; retry?: boolean }> {
+): Promise<{ mapping: StoreMapping | null; applied: StoreApplied | null; retry?: boolean; error?: boolean }> {
     const state = await rpc.steamStoreGetMapping(appid);
     if (state.mapping) return { mapping: state.mapping, applied: state.applied };
 
@@ -44,6 +51,7 @@ async function resolveMapping(
         logger.info(`Steam Store: ${found.suggestions.length} suggestion(s) for "${title}"; accept one in settings.`);
     } else if (found.error) {
         logger.warn(`Steam Store search failed for "${title}": ${found.error}`);
+        return { mapping: null, applied: null, error: true };
     }
     return { mapping: null, applied: null };
 }
@@ -66,25 +74,37 @@ async function loadNative(appid: number, steamAppid: number): Promise<Loaded> {
     }
     if (!metadata) {
         const res = await rpc.steamStoreGetAppDetails(steamAppid, appid).catch(() => null);
-        metadata = res?.metadata ?? null;
+        metadata = res?.metadata ? normalizeMetadata(res.metadata) : null;
     }
     return { metadata, urls };
 }
 
 async function applyArtwork(appid: number, mapping: StoreMapping, applied: StoreApplied | null, urls: Loaded["urls"]) {
+    const plan = artworkPlan(applied, mapping.steam_appid, artRetried.has(appid));
+    if (applied?.steam_appid === mapping.steam_appid) artRetried.add(appid);
+    if (plan.write.length === 0) return;
+
+    const apps = (window as any).SteamClient?.Apps; // call on the object; never extract the method
     // A different game was mapped before: clear only the slots this plugin wrote.
-    if (applied && applied.steam_appid !== mapping.steam_appid) {
-        const apps = (window as any).SteamClient?.Apps;
-        for (const slot of applied.slots) {
+    for (const slot of plan.clear) {
+        try {
+            await apps?.ClearCustomArtworkForApp?.(appid, slot);
+        } catch {}
+    }
+    const written = await applyCustomArtworkFromUrls(appid, pickUrls(urls, plan.write));
+    const { slots, failed } = mergeArtResult(applied, mapping.steam_appid, plan, written);
+    const res = await rpc.steamStoreRecordArtwork(appid, mapping.steam_appid, slots, failed);
+    if (res?.error) {
+        // The mapping was cleared while we were writing: remove what we just wrote (P4 H5).
+        for (const slot of written) {
             try {
                 await apps?.ClearCustomArtworkForApp?.(appid, slot);
             } catch {}
         }
+        logger.warn(`Steam Store: art for ${appid} discarded (${res.error}).`);
+        return;
     }
-    const slots = await applyCustomArtworkFromUrls(appid, urls);
-    // Record only what succeeded; a failed slot (404, size limit) stays unrecorded.
-    await rpc.steamStoreRecordArtwork(appid, mapping.steam_appid, slots);
-    logger.info(`Steam Store: applied ${slots.length} art slot(s) from ${mapping.steam_appid} to ${appid}.`);
+    logger.info(`Steam Store: applied ${written.length} art slot(s) from ${mapping.steam_appid} to ${appid}; ${failed.length} failed.`);
 }
 
 /** Desktop and Big Picture entry point for a steam-store game. */
@@ -96,15 +116,20 @@ export async function handleSteamStoreView(appid: number): Promise<void> {
         enrichGameDetails(appid, cached);
         storeEnrichedAppIds.add(appid);
     }
-    if (processed.has(appid)) return;
+    if (processed.has(appid)) {
+        const at = retryAt.get(appid);
+        if (at === undefined || Date.now() < at) return;
+        retryAt.delete(appid);
+    }
     processed.add(appid);
 
     try {
-        const { mapping, applied, retry } = await resolveMapping(appid);
+        const { mapping, applied, retry, error } = await resolveMapping(appid);
         if (retry) {
             processed.delete(appid);
             return;
         }
+        if (error) retryAt.set(appid, Date.now() + RETRY_MS);
         if (!mapping) return;
 
         const { metadata, urls } = await loadNative(appid, mapping.steam_appid);
@@ -115,9 +140,7 @@ export async function handleSteamStoreView(appid: number): Promise<void> {
             logger.warn(`Steam Store: no metadata for ${mapping.steam_appid}.`);
         }
 
-        if (applied?.steam_appid !== mapping.steam_appid) {
-            await applyArtwork(appid, mapping, applied, urls);
-        }
+        await applyArtwork(appid, mapping, applied, urls);
     } catch (err) {
         logger.warn(`Steam Store view failed for ${appid}:`, err);
     }
@@ -128,6 +151,8 @@ function forget(appid: number): void {
     processed.delete(appid);
     metaCache.delete(appid);
     storeEnrichedAppIds.delete(appid);
+    retryAt.delete(appid);
+    artRetried.delete(appid);
 }
 
 /**
@@ -137,7 +162,7 @@ function forget(appid: number): void {
 export async function clearSteamStore(appid: number, reject: boolean) {
     const res = await rpc.steamStoreClearMapping(appid, reject);
     const apps = (window as any).SteamClient?.Apps; // call on the object; never extract the method
-    for (const slot of res.slots ?? []) {
+    for (const slot of slotList(res.slots)) {
         try {
             await apps?.ClearCustomArtworkForApp?.(appid, slot);
         } catch (err) {

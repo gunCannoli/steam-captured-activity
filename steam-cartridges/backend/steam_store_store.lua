@@ -162,10 +162,51 @@ function M.reject(appid, steam_appid)
   M.remove_suggestion(appid, steam_appid) -- saves
 end
 
-function M.record_artwork(appid, steam_appid, slots, now)
+--- Record the art slots this plugin wrote (and the attempted slots that failed).
+--- Refused with (false, "no mapping") unless the shortcut is still mapped to that
+--- same native app: a view that finishes after the user pressed Clear must not
+--- resurrect applied_artwork (P4 H5; the orphan seen live on 2315502503).
+function M.record_artwork(appid, steam_appid, slots, now, failed)
   local s, k = load(), key(appid)
-  s.applied_artwork[k] = { steam_appid = tonumber(steam_appid), slots = slots or {}, at = now or os.time() }
+  local mapping = s.mappings[k]
+  if not mapping or tonumber(mapping.steam_appid) ~= tonumber(steam_appid) then
+    return false, "no mapping"
+  end
+  s.applied_artwork[k] = { steam_appid = tonumber(steam_appid), slots = slots or {}, failed = failed or {}, at = now or os.time() }
   save()
+  return true
+end
+
+--- Grid file names Steam writes for a custom art slot (SetCustomArtworkForApp).
+local SLOT_SUFFIX = { [0] = "p", [1] = "_hero", [2] = "_logo", [3] = "" }
+
+function M.slot_files(appid, slot)
+  local suffix = SLOT_SUFFIX[tonumber(slot)]
+  if suffix == nil then return {} end
+  local base = key(appid) .. suffix
+  return { base .. ".png", base .. ".jpg", base .. ".jpeg" }
+end
+
+--- Drop recorded slots whose grid file is gone: the user removed that art in
+--- Steam, the user wins, and the slot is never written again (P4 H5).
+--- `exists(name)` checks one grid file name. Returns the pruned entry or nil.
+function M.prune_missing_slots(appid, exists)
+  local s, k = load(), key(appid)
+  local applied = s.applied_artwork[k]
+  if not applied then return nil end
+  local keep, changed = {}, false
+  for _, slot in ipairs(applied.slots or {}) do
+    local present = false
+    for _, name in ipairs(M.slot_files(appid, slot)) do
+      if exists(name) then present = true break end
+    end
+    if present then keep[#keep + 1] = slot else changed = true end
+  end
+  if changed then
+    applied.slots = keep
+    save()
+  end
+  return applied
 end
 
 function M.is_negative(norm_title, now)

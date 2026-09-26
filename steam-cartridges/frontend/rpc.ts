@@ -141,6 +141,8 @@ export interface StoreSuggestion {
 export interface StoreApplied {
     steam_appid: number;
     slots: number[];
+    /** Slots attempted but not written (retried once per session, P4 H5). */
+    failed?: number[];
     at?: number;
 }
 export interface StoreState {
@@ -205,8 +207,8 @@ export const rpc = {
             appid,
             force,
         }),
-    steamStoreRecordArtwork: (appid: number, steam_appid: number, slots: number[]) =>
-        call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots }),
+    steamStoreRecordArtwork: (appid: number, steam_appid: number, slots: number[], failed: number[]) =>
+        call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots, failed }),
     steamStoreDownloadImage: (url: string) =>
         call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url }),
 };

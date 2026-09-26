@@ -106,6 +106,8 @@ export async function loadStoreItem(steamAppid: number, timeoutMs = 8000): Promi
     const cache = (window as any).StoreItemCache;
     if (!cache?.QueueAppRequest) return null;
     try {
+        // Steam already failed to load it (delisted or unknown): go straight to the fallback (P4 H4).
+        if (cache.BIsAppMissing?.(steamAppid)) return null;
         if (!cache.BHasApp?.(steamAppid)) {
             cache.QueueAppRequest(steamAppid, {
                 include_assets: true,

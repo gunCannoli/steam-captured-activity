@@ -4,6 +4,7 @@ import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
+import { normalizeMetadata } from "./normalize";
 import { gameInfoPlan } from "./policy";
 import {
     collectionsReady,
@@ -63,8 +64,9 @@ export async function handleWebScrapingView(appid: number): Promise<void> {
             return;
         }
 
-        libraryCache.set(appid, res.metadata);
-        const applied = enrichGameDetails(appid, res.metadata);
+        const clean = normalizeMetadata(res.metadata);
+        libraryCache.set(appid, clean);
+        const applied = enrichGameDetails(appid, clean);
         if (applied) {
             logger.info(
                 `Successfully enriched Game Info for ${appid} from ${res.source || "db"}.`,
@@ -110,11 +112,12 @@ export async function initGameInfo(): Promise<void> {
             for (const [key, meta] of Object.entries(all.library)) {
                 const appid = Number(key);
                 if (Number.isFinite(appid) && appid >= NON_STEAM_APPID_MIN) {
-                    libraryCache.set(appid, meta);
+                    const clean = normalizeMetadata(meta);
+                    libraryCache.set(appid, clean);
                     const { bucket, via } = getBucket(appid);
                     if (
                         gameInfoPlan(bucket, via).applyLocal &&
-                        enrichGameDetails(appid, meta)
+                        enrichGameDetails(appid, clean)
                     ) {
                         count++;
                     }

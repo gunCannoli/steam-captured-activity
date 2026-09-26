@@ -229,6 +229,33 @@ do
   throttle.now, throttle.sleep = saved_now, saved_sleep
 end
 
+-- ---------- offline circuit breaker (P4 H3) ----------
+print("offline breaker")
+do
+  local clock = 1000
+  local saved_now, saved_sleep = throttle.now, throttle.sleep
+  throttle.now = function() return clock end
+  throttle.sleep = function(s) clock = clock + s end
+  throttle._reset()
+  local http = require("http")
+  local saved_get = http.get
+  local body, err = throttle.http_get("https://store.steampowered.com/x")
+  check("transport failure -> offline", body == nil and err == "offline", err)
+  local hits = 0
+  http.get = function() hits = hits + 1; return { status = 200, body = "{}" } end
+  body, err = throttle.http_get("https://store.steampowered.com/x")
+  check("breaker open: fails fast without a request", body == nil and err == "offline" and hits == 0)
+  clock = clock + throttle.OFFLINE_SECONDS + 1
+  body = throttle.http_get("https://store.steampowered.com/x")
+  check("breaker closes after OFFLINE_SECONDS", body == "{}" and hits == 1)
+  http.get = function() return { status = 404 } end
+  body, err = throttle.http_get("https://store.steampowered.com/x")
+  check("HTTP error does not open the breaker", err == "HTTP 404" and not throttle.is_offline(), err)
+  http.get = saved_get
+  throttle.now, throttle.sleep = saved_now, saved_sleep
+  throttle._reset()
+end
+
 -- ---------- store round trip ----------
 print("store")
 local path = TMP .. "/sc_steam_store_test_" .. os.time() .. ".json"
@@ -241,6 +268,14 @@ store._reset() -- force a reload from disk
 local e = store.get(SC)
 check("mapping survives reload", e.mapping and e.mapping.steam_appid == 2820820)
 check("applied slots survive reload", e.applied and #e.applied.slots == 3 and e.applied.slots[3] == 3)
+check("record refused for another native app (P4 H5)", select(2, store.record_artwork(SC, 1, { 0 }, 102)) == "no mapping")
+check("slot file names", table.concat(store.slot_files(SC, 1), ",") == "4263274102_hero.png,4263274102_hero.jpg,4263274102_hero.jpeg")
+local pruned = store.prune_missing_slots(SC, function(name) return name ~= "4263274102_hero.png" and name ~= "4263274102_hero.jpg" and name ~= "4263274102_hero.jpeg" end)
+check("prune drops a slot whose file is gone", #pruned.slots == 2 and pruned.slots[1] == 0 and pruned.slots[2] == 3)
+store._reset()
+check("pruning is persisted", #store.get(SC).applied.slots == 2)
+store.record_artwork(SC, 2820820, { 0, 1, 3 }, 103, { 2 })
+check("failed slots recorded", store.get(SC).applied.failed[1] == 2)
 local cleared = store.clear(SC, true)
 check("clear returns steam_appid + recorded slots", cleared.steam_appid == 2820820 and #cleared.slots == 3)
 e = store.get(SC)
@@ -306,6 +341,8 @@ out = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = EMU, reject =
 check("clear via RPC returns steam_appid", out.steam_appid == 99)
 out = json.decode(RPC.SteamStoreGetMapping(json.encode({ appid = EMU })))
 check("GetMapping reports the rejection", out.mapping == nil and out.rejected[1] == 99)
+out = json.decode(RPC.SteamStoreRecordArtwork(json.encode({ appid = EMU, steam_appid = 99, slots = { 0 } })))
+check("RecordArtwork without a mapping is refused (P4 H5)", out.error == "no mapping")
 store.add_suggestions(EMU, { { steam_appid = 55, name = "S", reason = "near" } })
 RPC.SteamStoreRejectSuggestion(json.encode({ appid = EMU, steam_appid = 55 }))
 out = json.decode(RPC.SteamStoreGetMapping(json.encode({ appid = EMU })))

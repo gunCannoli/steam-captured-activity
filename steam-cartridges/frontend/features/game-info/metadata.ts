@@ -227,8 +227,8 @@ export function enrichGameDetails(
             refreshGameInfoInstances();
             logger.info(
                 `Enriched native Game Info & Categories for ${appid} ("${meta.title}"): ` +
-                    `[Dev: ${(meta.developers || []).join(", ") || "none"}, ` +
-                    `Franchise: ${(meta.franchises || []).join(", ") || "none"}, ` +
+                    `[Dev: ${developers.join(", ") || "none"}, ` +
+                    `Franchise: ${franchises.join(", ") || "none"}, ` +
                     `Modes: ${meta.categories?.single_player ? "Single " : ""}${meta.categories?.multiplayer ? "Multi " : ""}${meta.categories?.coop ? "Co-op " : ""}]`,
             );
         }
