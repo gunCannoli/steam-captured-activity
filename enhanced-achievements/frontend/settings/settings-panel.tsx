@@ -187,7 +187,7 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                 />
             </ItemRow>
             <ItemRow>
-                <Field disabled={disabled} childrenContainerWidth="max" padding="none">
+                <Field disabled={disabled} childrenContainerWidth="max">
                     <Dropdown
                         rgOptions={options}
                         selectedOption={theme}
