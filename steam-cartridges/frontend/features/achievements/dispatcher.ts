@@ -1,40 +1,5 @@
 import { logger } from "../../logger";
-
-interface WebpackRequire {
-    (id: string): unknown;
-    m: Record<string, unknown>;
-}
-
-type ChunkGlobal = Array<[string[], Record<string, unknown>, ((r: WebpackRequire) => void)?]>;
-
-let cachedRequire: WebpackRequire | undefined;
-let requireResolved = false;
-
-function getSteamRequire(): WebpackRequire | undefined {
-    if (requireResolved) return cachedRequire;
-    requireResolved = true;
-
-    try {
-        const chunks = (window as any).webpackChunksteamui as ChunkGlobal | undefined;
-        if (!Array.isArray(chunks)) return undefined;
-
-        const key = `__nsga_ach_disp_${Date.now()}`;
-        let captured: WebpackRequire | undefined;
-
-        chunks.push([
-            [key],
-            { [key]: (_m: unknown, _e: unknown, r: WebpackRequire) => (captured = r) },
-            (r) => {
-                (r as unknown as { s: string }).s = key;
-            },
-        ]);
-
-        cachedRequire = captured;
-    } catch (e) {
-        logger.warn("Could not capture webpack require in achievement dispatcher:", e);
-    }
-    return cachedRequire;
-}
+import { steamRequire } from "../../steam/modules";
 
 interface AchievementProtoResolution {
     ProtoClass: any;
@@ -51,13 +16,13 @@ let cachedProto: AchievementProtoResolution | undefined;
 function resolveAchievementProto(): AchievementProtoResolution | undefined {
     if (cachedProto) return cachedProto;
 
-    const req = getSteamRequire();
+    const req = steamRequire();
     if (!req || !req.m) return undefined;
 
     for (const [id, factory] of Object.entries(req.m)) {
         if (!factory) continue;
         const src = factory.toString();
-        if (src.includes("set_achievement_id") && src.includes("global_achieved_pct")) {
+        if (src.includes("achievement_id") && src.includes("global_achieved_pct")) {
             try {
                 const mod = req(id) as Record<string, any>;
                 if (!mod) continue;
@@ -67,7 +32,11 @@ function resolveAchievementProto(): AchievementProtoResolution | undefined {
 
                 for (const key of Object.keys(mod)) {
                     const val = mod[key];
-                    if (val?.prototype && typeof val.prototype.set_achievement_id === "function") {
+                    if (
+                        val?.prototype &&
+                        typeof val.prototype.set_achievement_id === "function" &&
+                        typeof val.prototype.set_global_achieved_pct === "function"
+                    ) {
                         ProtoClass = val;
                     }
                     if (val && typeof val === "object" && typeof val.ok === "number") {

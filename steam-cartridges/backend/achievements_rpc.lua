@@ -1,8 +1,9 @@
 --- RPC endpoints for the native achievements subsystem (P5).
 --- Wrapped via rpc.method for safe JSON marshalling.
 
-local core  = require("rpc")
-local store = require("achievements_store")
+local core     = require("rpc")
+local store    = require("achievements_store")
+local observer = require("achievements_observer")
 
 local method = core.method
 
@@ -27,6 +28,15 @@ RPC.CartridgesAchievementsReset = method("CartridgesAchievementsReset", function
   local shortcut_appid = data.shortcut_appid
   if not shortcut_appid then error("missing shortcut_appid") end
   return store.reset(shortcut_appid)
+end)
+
+RPC.CartridgesAchievementsCheckUnlocks = method("CartridgesAchievementsCheckUnlocks", function(data)
+  local shortcut_appid = data.shortcut_appid
+  local native_appid = data.native_appid
+  local game_title = data.game_title
+  if not shortcut_appid then error("missing shortcut_appid") end
+  if not native_appid then error("missing native_appid") end
+  return observer.check_unlocks(shortcut_appid, native_appid, game_title)
 end)
 
 return RPC

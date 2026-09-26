@@ -17,15 +17,12 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges P5 — native achievements.**
-- **Session 1 (The Backbone, UI Sinks & Test RPC):** COMPLETE & live-verified (2026-09-26). Keyless schema ingestion, local persistence, native right-column section restoration, Big Picture progress cache, toast dispatching, launch notification, and settings panel test trigger.
-- **Session 2 (In-Game Observers & Local File Watchers):** Next up. File watchers for local emulator saves (Goldberg/CODEX/RUNE), GOG SQLite DB reader (`galaxy-2.0.db`), and engine runtime log tailers (Unity/Unreal/Godot).
-Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md).
-Architecture: [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md).
+**steam-cartridges P6 — optional SteamGridDB rules.** SteamGridDB integration for custom capsules, hero artwork, and logos when Steam Store does not supply them.
+Plan: [docs/plans/steam-cartridges-art-plan.md](docs/plans/steam-cartridges-art-plan.md).
 
 ## Next
 
-- **steam-cartridges P6** — optional SteamGridDB rules. Blocked on P5.
+- **steam-cartridges P5 Polish (Session 3)** — Optional: Steam Game Recording timeline markers on unlock, and deep Post-Game Summary styling checks.
 - **enhanced-achievements 1.0 release** — audit items done
   (`enhanced-achievements/CHANGELOG.md` § 1.0.0); remaining: visual settings-panel
   check, U7 in-game overlay verification, stale `themes/ps5.json` cleanup,

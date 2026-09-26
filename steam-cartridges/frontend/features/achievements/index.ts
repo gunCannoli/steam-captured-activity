@@ -11,6 +11,7 @@ import {
 import type { SteamAppAchievements } from "./types";
 
 import { dispatchLaunchToast, handleAppLaunchAchievements } from "./launch-toast";
+import { checkObserverUnlocks, startAchievementsObserver } from "./observer-session";
 
 export {
     ensureAchievementsStoreHooked,
@@ -19,6 +20,9 @@ export {
     getLocalUnlocks,
     dispatchLaunchToast,
     handleAppLaunchAchievements,
+    dispatchAchievementToast,
+    checkObserverUnlocks,
+    startAchievementsObserver,
 };
 
 /**

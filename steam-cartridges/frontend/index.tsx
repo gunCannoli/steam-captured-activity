@@ -7,6 +7,7 @@ import {
     PopupType,
 } from "steambrew-utils/watchers";
 import { logger } from "./logger";
+import { rpc } from "./rpc";
 import {
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
@@ -33,6 +34,9 @@ import {
     getLocalAchievements,
     getLocalSchema,
     handleAppLaunchAchievements,
+    checkObserverUnlocks,
+    startAchievementsObserver,
+    dispatchAchievementToast,
 } from "./features/achievements";
 import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
@@ -52,6 +56,9 @@ export {
     resetAchievements,
     getLocalAchievements,
     getLocalSchema,
+    checkObserverUnlocks,
+    startAchievementsObserver,
+    dispatchAchievementToast,
 };
 
 export { registerSummaryProvider } from "./steam/summary";
@@ -254,8 +261,17 @@ async function init() {
     onAppLaunch((app, { onQuit }) => {
         if (app.appid < NON_STEAM_APPID_MIN) return;
 
-        // Launch Notification ("Local Achievements Enabled")
+        // Startup notification if enabled ("Local Achievements Enabled")
         handleAppLaunchAchievements(app.appid);
+
+        // Start active observer session while game is running
+        void rpc.steamStoreGetMapping(app.appid).then((res) => {
+            const nativeAppId = res?.mapping?.steam_appid;
+            if (nativeAppId) {
+                const stopObserver = startAchievementsObserver(app.appid, nativeAppId, app.display_name);
+                onQuit(() => stopObserver());
+            }
+        }).catch((e) => logger.warn("Failed resolving mapping for achievement observer:", e));
 
         onQuit(() => {
             logger.info(`${app.display_name} closed; refreshing its activity.`);

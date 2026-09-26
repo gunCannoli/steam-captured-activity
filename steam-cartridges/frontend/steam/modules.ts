@@ -31,7 +31,7 @@ let cachedRequire: WebpackRequire | undefined;
 let requireResolved = false;
 
 /** Capture Steam's webpack require. Cached; safe to call repeatedly. */
-function steamRequire(): WebpackRequire | undefined {
+export function steamRequire(): WebpackRequire | undefined {
   if (requireResolved) return cachedRequire;
   requireResolved = true;
 

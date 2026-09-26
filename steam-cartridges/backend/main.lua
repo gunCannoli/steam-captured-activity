@@ -47,9 +47,10 @@ SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
 SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
 
 -- Native Achievements subsystem (P5).
-CartridgesAchievementsGet    = ACH_RPC.CartridgesAchievementsGet
-CartridgesAchievementsUnlock = ACH_RPC.CartridgesAchievementsUnlock
-CartridgesAchievementsReset  = ACH_RPC.CartridgesAchievementsReset
+CartridgesAchievementsGet          = ACH_RPC.CartridgesAchievementsGet
+CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock
+CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
+CartridgesAchievementsCheckUnlocks = ACH_RPC.CartridgesAchievementsCheckUnlocks
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

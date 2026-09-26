@@ -231,7 +231,27 @@ export const rpc = {
             "CartridgesAchievementsReset",
             { shortcut_appid },
         ),
+    cartridgesAchievementsCheckUnlocks: (shortcut_appid: number, native_appid: number, game_title?: string) =>
+        call<CheckUnlocksResponse>("CartridgesAchievementsCheckUnlocks", {
+            shortcut_appid,
+            native_appid,
+            game_title,
+        }),
 };
+
+export interface DetectedUnlockItem {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    global_pct?: number;
+    rtime_unlocked?: number;
+}
+
+export interface CheckUnlocksResponse {
+    new_unlocks?: DetectedUnlockItem[];
+    error?: string;
+}
 
 export interface AchievementSchemaItem {
     id: string;
