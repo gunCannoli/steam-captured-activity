@@ -1,12 +1,14 @@
 # steam-cartridges — research & implementation plan
 
 **Status:** P0–P4 and native parity (Parts A–H) are implemented and
-live-verified (see [TASK.md](../TASK.md) and [CHANGELOG.md](../CHANGELOG.md)
-for the verification record; their phase plans are closed and removed per
-[docs/plans/README.md](plans/README.md)). P5 (native achievements) is next,
-blocked on the open bug tracked in TASK.md. ADRs 0032–0038
-are written; where they refine this doc (config shape, frontend-only bucket
-resolution, data folder, default bucket, native sections), the ADRs win.
+live-verified (see [CHANGELOG.md](../CHANGELOG.md) for the verification
+record; their phase plans are closed and removed per
+[docs/plans/README.md](plans/README.md)). P5 (native achievements) is next
+(unblocked 2026-09-26) — see [TASK.md](../TASK.md) for current status and
+[docs/plans/steam-cartridges-achievements-plan.md](plans/steam-cartridges-achievements-plan.md)
+for the plan. ADRs 0032–0038 are written; where they refine this doc (config
+shape, frontend-only bucket resolution, data folder, default bucket, native
+sections), the ADRs win.
 
 `steam-cartridges` merges [`non-steam-games-activity`](../non-steam-games-activity/)
 and [`steamgriddb-artwork`](../steamgriddb-artwork/) into one plugin that owns
@@ -342,8 +344,9 @@ Routines 1–3 in [AGENTS.md](../AGENTS.md). Phases 0–2 are prerequisites; 3+ 
   badge policy and native links/news/community-content open the native app (Parts F–H,
   ADR-0038).
 - **Exit (gate for Phase 5):** `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL`
-  for Jotunnslayer (2315502503 → 2820820) — **verified live 2026-09-26** (see TASK.md).
-  P5 itself is blocked on a separate open bug: [docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md).
+  for Jotunnslayer (2315502503 → 2820820) — **verified live 2026-09-26** (see CHANGELOG.md).
+  A Friends-section crash on unowned mapped native apps found in this same area was
+  fixed the same day (CHANGELOG.md); P5 is unblocked.
 
 ### Phase 5 — Achievements
 

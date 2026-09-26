@@ -469,8 +469,8 @@ if (app.appid < NON_STEAM_APP_APPID_MASK) return; // a real Steam game — skip
 
 ### `appStore.GetAppOverviewByAppID` has multiple callers — patch the method carefully, or not at all
 
-**✅ Verified live 2026-09-26**, fixing the Friends-section crash
-([docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md)).
+**✅ Verified live 2026-09-26**, fixing the Friends-section crash (see
+CHANGELOG.md's 2026-09-26 entry for the full live-verification record).
 
 `appStore.GetAppOverviewByAppID(appid)` returns `null` for **every unowned
 app** — an app not in the local user's library, not owned, and not a small
@@ -521,9 +521,8 @@ about a `null` result**:
 
 ### `appStore.m_mapApps` is the global, enumerated backing store for the entire library — never write into it
 
-**✅ Verified live 2026-09-26** (two reverted attempts before the fix above;
-full writeup in
-[docs/plans/steam-cartridges-friends-boat-crash.md § 2](plans/steam-cartridges-friends-boat-crash.md#2-attempted-fixes-this-session--both-reverted-do-not-repeat-verbatim)).
+**✅ Verified live 2026-09-26** (two reverted attempts before the fix above,
+detailed inline below).
 
 It is tempting to "fix" a missing `AppOverview` by inserting a synthetic
 same-prototype stub directly into `appStore.m_mapApps` keyed by the missing

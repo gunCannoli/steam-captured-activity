@@ -2293,8 +2293,10 @@ dropped them as "out of scope".
   surfaces either.
 - **P5 gate:** `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL` plus the
   Big Picture and regression checks (Routines 2/3, AGENTS.md) — **met, verified
-  live 2026-09-26** (see TASK.md). P5 itself remains blocked on a separate open
-  bug: [docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md).
+  live 2026-09-26** (see CHANGELOG.md). A Friends-section crash on unowned mapped
+  native apps found in this same area was fixed the same day (see CHANGELOG.md
+  and [knowledgebase.md's `appStore.GetAppOverviewByAppID` entry](knowledgebase.md#appstoregetappoverviewbyappid-has-multiple-callers--patch-the-method-carefully-or-not-at-all)
+  for the reusable lesson); P5 is unblocked.
 
 ### Consequences
 

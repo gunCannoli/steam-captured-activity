@@ -1445,8 +1445,12 @@ breadcrumbs; resolve by the signatures at the end). Subjects: shortcut
 2315502503 (Jotunnslayer, Epic copy, Game Info enriched), native 2820820 (not
 owned), 435150 (owned). Used by
 [ADR-0038](decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app).
-A live bug found in this same area (the Friends section, unowned native apps)
-is tracked in [docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md).
+A live crash found in this same area (the Friends section, unowned native apps —
+Steam's own `ne(appid)` helper in module 2326 calling
+`appStore.GetAppOverviewByAppID(appid).BIsApplicationOrTool()` with no null guard)
+was fixed 2026-09-26; see
+[knowledgebase.md's `appStore.GetAppOverviewByAppID` entry](knowledgebase.md#appstoregetappoverviewbyappid-has-multiple-callers--patch-the-method-carefully-or-not-at-all)
+for the reusable lesson and CHANGELOG.md for the fix record.
 
 ### Store categories and feature badges
 
