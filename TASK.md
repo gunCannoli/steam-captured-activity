@@ -16,7 +16,7 @@ theme Steam's toasts and sounds.
 
 ## Status
 
-| Native Achievements (P5) | ⛔ Blocked on the Friends-section crash fix (see Active Failures & Blockers) |
+| Native Achievements (P5) | ⬜ Unblocked 2026-09-26 (Friends-section crash fixed) — not yet started |
 | Provider contract (Phase 9) | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md)) |
 
 ---
@@ -83,14 +83,14 @@ Parent plan: [docs/steam-cartridges.md](docs/steam-cartridges.md). ADRs
           size limits and real clear behaviour; `os.rename` overwrite semantics
           in Millennium's Lua; real `storesearch`/`appdetails` response shapes
           against the hand-shaped fixtures (re-record with curl).
-- [ ] ⛔ **P5** achievements (Steam native, RetroAchievements): **blocked** on
-      fixing the Friends-section crash below first (parity gate itself is
-      green).
-- [ ] ⛔ **P6** optional SteamGridDB rules: blocked on P5
+- [ ] **P5** achievements (Steam native, RetroAchievements): unblocked
+      2026-09-26 (parity gate green, Friends-section crash fixed) — not yet
+      started.
+- [ ] **P6** optional SteamGridDB rules: blocked on P5
 
 ## Active Failures & Blockers
 
-- OPEN BUG (found live 2026-09-26, pre-existing on commit `13dad17`, not a new regression): opening a mapped shortcut's Game Info page (Jotunnslayer 2315502503 -> native 2820820) throws `TypeError: Cannot read properties of null (reading 'BIsApplicationOrTool')` in Steam's own Friends module (module 2326's `ne()` helper, no null guard), shown to the user as a red error card in the right sidebar. Root cause: our Friends redirect (`native-sections-core.ts` `nativeDetails()`) hands Steam's own code the *native* appid, and for an unowned native app `appStore.GetAppOverviewByAppID` returns `null`; Steam's helper doesn't guard against that. Two fix attempts (a same-prototype `appStore.m_mapApps` stub) were tried and reverted: the first threw on a getter-only field (`selected_per_client_data`); the second avoided that but broke the **entire library's rendering** (writing into the global `m_mapApps` map broke something else's `.find()`/`.appid` enumeration — user-reported live). Full root cause, both failed attempts, and untried ideas are written up in [docs/plans/steam-cartridges-friends-boat-crash.md](docs/plans/steam-cartridges-friends-boat-crash.md). Client is currently back to the clean `13dad17` baseline (verified: `git diff` empty, parity gate 17/17).
+(none open)
 
 ### Phase 9: Provider Contract & Multi-Plugin Architecture
 

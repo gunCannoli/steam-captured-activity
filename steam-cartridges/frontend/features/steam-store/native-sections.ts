@@ -1,4 +1,4 @@
-import { beforePatch, findModuleByExport } from "@steambrew/client";
+import { afterPatch, beforePatch, findModuleByExport } from "@steambrew/client";
 import { logger } from "../../logger";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
 import { getSteamRequire } from "../game-info/game-info-patch";
@@ -47,6 +47,7 @@ export function setNativeAppid(appid: number, nativeAppid: number | undefined): 
     nativeFor.set(appid, nativeAppid);
     shortcutFor.set(nativeAppid, appid);
     wrapNavigators();
+    wrapAppOverviewLookup();
 }
 
 const nativeOf = (appid: number) => nativeFor.get(appid);
@@ -56,7 +57,72 @@ const wrappedNavigators = new WeakSet<object>();
 let navigatorPatches = 0;
 let navRedirects = 0;
 
-const isKnownApp = (appid: number): boolean => !!(window as any).appStore?.GetAppOverviewByAppID?.(appid);
+/**
+ * Marks `UNOWNED_NATIVE_APP_FALLBACK` so every OTHER consumer of
+ * `GetAppOverviewByAppID` besides the Friends crash (isKnownApp included) can
+ * tell it apart from a real AppOverview and keep treating that appid as
+ * unowned/unknown. Without this tag, `isKnownApp` (used by
+ * `navigationTarget` below) saw the fallback's truthiness and treated the
+ * unowned native app as "known", which suppressed the Navigator.App ->
+ * shortcut redirect and regressed check 16 in scratch/check_parity.mjs
+ * (found live 2026-09-26 while executing this fix — see
+ * steam-cartridges-friends-boat-crash.md § 12).
+ */
+const FALLBACK_TAG = Symbol("steam-cartridges.unowned-native-app-fallback");
+
+const isKnownApp = (appid: number): boolean => {
+    const overview = (window as any).appStore?.GetAppOverviewByAppID?.(appid);
+    return !!overview && (overview as any)[FALLBACK_TAG] !== true;
+};
+
+/**
+ * Duck-typed fallback for a mapped native app Steam has no AppOverview for
+ * (the native game is unowned). Steam's own Friends section (module 2326,
+ * function `ne`) calls `appStore.GetAppOverviewByAppID(appid).BIsApplicationOrTool()`
+ * with no null guard, and only ever reads that one method off the result
+ * (confirmed live 2026-09-26, all 3 call sites in that module — see
+ * steam-cartridges-friends-boat-crash.md § 1/§ 4). `false` is correct, not
+ * just safe: a mapped native app is a game, never a "tool" (ADR-0038).
+ * Tagged with FALLBACK_TAG (see above) so it never masquerades as a real,
+ * owned AppOverview to any other consumer of the same store method.
+ */
+const UNOWNED_NATIVE_APP_FALLBACK = { BIsApplicationOrTool: () => false, [FALLBACK_TAG]: true };
+
+/** appStore.GetAppOverviewByAppID already patched (idempotent, one appStore). */
+let appOverviewPatched = false;
+
+/**
+ * Patch `appStore.GetAppOverviewByAppID` once so a call for one of our own
+ * mapped *native* appids never returns null to Steam's own code — only for
+ * appids in `shortcutFor` (i.e. appids our Friends/links/community redirect
+ * can ever hand to Steam), and only when the real result is already null.
+ * Every other appid, including an unmapped one or the same native appid once
+ * it becomes owned, falls through to the real AppOverview unchanged.
+ *
+ * Deliberately patches the READ METHOD, never `appStore.m_mapApps` itself
+ * (that map is the shared, globally-enumerated backing store for the whole
+ * library grid/collections UI — a same-prototype stub inserted there broke
+ * library-wide rendering in an earlier attempt at this fix; see
+ * steam-cartridges-friends-boat-crash.md § 2 Attempt 2). Mirrors
+ * wrapNavigators() below and plugins.md guardrail 5.3's "Immunize via
+ * Prototype Hook" pattern (hook the method, not the shared map).
+ */
+function wrapAppOverviewLookup(): void {
+    if (appOverviewPatched) return;
+    const store = (window as any).appStore;
+    if (!store || typeof store.GetAppOverviewByAppID !== "function") return;
+    try {
+        afterPatch(store, "GetAppOverviewByAppID", (args: unknown[], ret: unknown) => {
+            if (ret !== null && ret !== undefined) return ret;
+            const appid = args[0];
+            if (typeof appid !== "number" || !shortcutFor.has(appid)) return ret;
+            return UNOWNED_NATIVE_APP_FALLBACK;
+        });
+        appOverviewPatched = true;
+    } catch (err) {
+        logger.warn("Could not patch appStore.GetAppOverviewByAppID; unowned native Friends sections may still crash.", err);
+    }
+}
 
 /**
  * Patch `Navigator.App` of every Steam UI window once (SDK patcher, so the
