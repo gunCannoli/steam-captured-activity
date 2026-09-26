@@ -80,6 +80,8 @@ export interface ConsolidatedMetadata {
     original_release_date?: number;
     genres?: string[];
     categories?: GameCategories;
+    /** Steam's own player + controller category ids (StoreItemCache); filtered by category-policy.ts. */
+    store_category_ids?: number[];
     custom_override?: boolean;
     /** Set by the Steam Store bucket. */
     source?: string;
@@ -169,6 +171,9 @@ export const rpc = {
             success: boolean;
             library: Record<string, ConsolidatedMetadata>;
         }>("GetAllMetadata"),
+    /** Controller support inferred from each shortcut's emulator (parity plan F); unknown games are absent. */
+    getControllerInference: () =>
+        call<{ games?: Record<string, boolean> }>("GetControllerInference"),
     saveGameMetadata: (appid: number, metadata: ConsolidatedMetadata) =>
         call<{ success: boolean; metadata: ConsolidatedMetadata }>(
             "SaveGameMetadata",

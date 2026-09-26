@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linksOverview, nativeDetails, redirectProps } from '../frontend/features/steam-store/native-sections-core.ts';
+import {
+    linksOverview,
+    nativeDetails,
+    navigationTarget,
+    redirectProps,
+} from '../frontend/features/steam-store/native-sections-core.ts';
 
 const SHORTCUT = 2315502503;
 const NATIVE = 2820820;
@@ -66,4 +71,22 @@ test('proxies are stable per (target, native) so React sees one object', () => {
     assert.equal(linksOverview(ov, NATIVE), linksOverview(ov, NATIVE));
     const d = { unAppID: SHORTCUT };
     assert.equal(nativeDetails(d, NATIVE), nativeDetails(d, NATIVE));
+});
+
+test('event: the partner event overlay gets the native appid (parity H1)', () => {
+    const props: Record<string, any> = { appid: SHORTCUT, initialEventID: '692016318956700209', showAppIcon: true };
+    assert.equal(redirectProps('event', props, nativeOf), NATIVE);
+    assert.equal(props.appid, NATIVE);
+    assert.equal(props.initialEventID, '692016318956700209');
+    assert.equal(redirectProps('event', { appid: 435150 }, nativeOf), undefined);
+});
+
+test('navigationTarget: an unowned mapped native app opens its shortcut (parity G2)', () => {
+    const shortcutOf = (n: number) => (n === NATIVE ? SHORTCUT : undefined);
+    const unknown = () => false;
+    assert.equal(navigationTarget(NATIVE, unknown, shortcutOf), SHORTCUT);
+    assert.equal(navigationTarget(NATIVE, () => true, shortcutOf), undefined, 'an owned native keeps its own page');
+    assert.equal(navigationTarget(435150, unknown, shortcutOf), undefined, 'unmapped');
+    assert.equal(navigationTarget(SHORTCUT, unknown, shortcutOf), undefined, 'a shortcut appid is never redirected');
+    assert.equal(navigationTarget('2820820', unknown, shortcutOf), undefined);
 });

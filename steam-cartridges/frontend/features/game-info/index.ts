@@ -1,8 +1,10 @@
 import { logger } from "../../logger";
 import { rpc, type ConsolidatedMetadata } from "../../rpc";
+import { onSettingChange } from "../../settings/settings";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
+import { loadControllerInference } from "./controller";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
 import { normalizeMetadata } from "./normalize";
 import { gameInfoPlan } from "./policy";
@@ -101,6 +103,9 @@ export async function initGameInfo(): Promise<void> {
     // Bypass Big Picture native shortcut filter on Game Info tab
     patchGameInfoComponent();
 
+    // Controller support per shortcut from its emulator, before any badge is written (ADR-0038 addendum).
+    await loadControllerInference();
+
     // Preload all cached metadata into appDetailsStore immediately. Local data
     // applies to every shortcut that is not steam-store (ADR-0035), so this does
     // not wait for collections; getBucket returns 'pending' until they load
@@ -147,6 +152,17 @@ export async function initGameInfo(): Promise<void> {
         for (const [appid, meta] of libraryCache) {
             const { bucket, via } = getBucket(appid);
             if (!enrichedAppIds.has(appid) && gameInfoPlan(bucket, via).applyLocal) {
+                enrichGameDetails(appid, meta);
+            }
+        }
+    });
+
+    // ===== "Default to full controller support" (no restart needed) =====
+    onSettingChange((key) => {
+        if (key !== "defaultFullController") return;
+        for (const [appid, meta] of libraryCache) {
+            // Steam Store data never depends on the setting (ADR-0038 addendum).
+            if (enrichedAppIds.has(appid) && !storeEnrichedAppIds.has(appid)) {
                 enrichGameDetails(appid, meta);
             }
         }

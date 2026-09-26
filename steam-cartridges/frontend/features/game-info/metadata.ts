@@ -1,5 +1,7 @@
 import { logger } from "../../logger";
 import type { ConsolidatedMetadata } from "../../rpc";
+import { MANAGED_CATEGORY_IDS, badgeCategoryIds } from "./category-policy";
+import { controllerContext } from "./controller";
 import {
     enrichedAppIds,
     clearAppCategories,
@@ -81,7 +83,7 @@ export function revertGameDetails(appid: number): void {
         const overview = getAppStore()?.GetAppOverviewByAppID?.(appid);
         if (overview) {
             if (overview.m_setStoreCategories?.delete) {
-                for (const catId of Object.values(STEAM_CATEGORIES)) overview.m_setStoreCategories.delete(catId);
+                for (const catId of MANAGED_CATEGORY_IDS) overview.m_setStoreCategories.delete(catId);
             }
             if (saved && "xbox_controller_support" in saved) {
                 overview.rt_original_release_date = saved.rt_original_release_date;
@@ -160,27 +162,9 @@ export function enrichGameDetails(
         }
 
         // 2. Populate appCategoriesCache and AppOverview (Categories, Game Modes, Controller Support, Release Date)
-        const cats = meta.categories || {};
-        const catSet = new Set<number>();
-        if (cats.single_player) catSet.add(STEAM_CATEGORIES.SINGLE_PLAYER);
-        if (cats.multiplayer) catSet.add(STEAM_CATEGORIES.MULTIPLAYER);
-        if (cats.coop) catSet.add(STEAM_CATEGORIES.COOP);
-        if (cats.split_screen) {
-            catSet.add(STEAM_CATEGORIES.SPLIT_SCREEN);
-            if (cats.coop) catSet.add(STEAM_CATEGORIES.SPLIT_SCREEN_COOP);
-        }
-        if (cats.full_controller !== false) {
-            catSet.add(STEAM_CATEGORIES.FULL_CONTROLLER);
-        }
-        if (cats.partial_controller) {
-            catSet.add(STEAM_CATEGORIES.PARTIAL_CONTROLLER);
-        }
-        if (cats.achievements) {
-            catSet.add(STEAM_CATEGORIES.ACHIEVEMENTS);
-        }
-        if (cats.remote_play_together) {
-            catSet.add(STEAM_CATEGORIES.REMOTE_PLAY_TOGETHER);
-        }
+        // Only categories true of the game itself: no Steam services (ADR-0038, parity plan F).
+        // Controller: Steam Store data > emulator inference > the default setting > none (ADR-0038 addendum).
+        const catSet = new Set<number>(badgeCategoryIds(meta, controllerContext(appid)));
 
         setAppCategories(appid, catSet);
 
@@ -198,7 +182,7 @@ export function enrichGameDetails(
                 ) {
                     overview.m_setStoreCategories = new Set<number>();
                 } else {
-                    for (const catId of Object.values(STEAM_CATEGORIES)) {
+                    for (const catId of MANAGED_CATEGORY_IDS) {
                         overview.m_setStoreCategories.delete(catId);
                     }
                 }
@@ -207,10 +191,16 @@ export function enrichGameDetails(
                     overview.m_setStoreCategories.add(catId);
                 }
 
-                if (cats.full_controller !== false) {
+                // Steam's controller field follows the badge: 2 full, 1 partial, else Steam's own value.
+                if (catSet.has(28)) {
                     overview.xbox_controller_support = 2;
-                } else if (cats.partial_controller) {
+                } else if (catSet.has(18)) {
                     overview.xbox_controller_support = 1;
+                } else {
+                    const saved = originals.get(appid);
+                    if (saved && "xbox_controller_support" in saved) {
+                        overview.xbox_controller_support = saved.xbox_controller_support;
+                    }
                 }
 
                 // Release Date

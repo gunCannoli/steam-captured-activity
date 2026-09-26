@@ -13,6 +13,7 @@ local igdb = require("web_igdb")
 local metadata_db = require("web_metadata_db")
 local steam_paths = require("steam_paths")
 local shortcuts = require("shortcuts")
+local controllers = require("emulator_controllers")
 
 local M = {}
 
@@ -130,6 +131,18 @@ end
 function M.GetAllMetadata()
   local all = metadata_db.get_all()
   return json.encode({ success = true, library = all })
+end
+
+--- Controller support inferred from each shortcut's emulator (parity plan Part F,
+--- ADR-0038 addendum): { games = { ["<appid>"] = true|false } }; unknown games
+--- are left out. Never fails: an unreadable shortcuts.vdf gives an empty map.
+function M.GetControllerInference()
+  local ok, games = pcall(function()
+    local paths = steam_paths.resolve()
+    if not paths or not paths.shortcuts then return {} end
+    return controllers.for_entries(shortcuts.parse(paths.shortcuts) or {})
+  end)
+  return json.encode({ games = ok and games or {} })
 end
 
 --- Save user manual edits to library_metadata.json

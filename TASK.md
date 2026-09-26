@@ -123,8 +123,8 @@ Deploy is a user action (`dev.ps1`). Then:
 - [ ] **3. Native parity, Jotunnslayer vs 2820820**: [parity plan Parts B–E](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps), then [Parts F–H](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app) (user decisions 2026-09-25, [ADR-0038](docs/decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app))
     - [x] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
     - [x] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42
-    - [ ] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
-    - [ ] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
+    - [x] F badge policy · G header links and `Navigator.App` redirect · H news click-through, Community Content from the native app
+    - [x] Offline gates: `tsc`, `test:ts` 50/50, Lua 71 + 86 + 25
           (Part F now includes the controller addendum, Steps 37a–37i: Steam data > emulator inference > "Default to full controller support" setting, off > no badge; live check § 9 item 5b)
     - [ ] **Parity gate: `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL`** (baseline 2026-09-25: 4 PASS / 13 FAIL), plus plan § 9 items 1–7
     - [ ] Open questions for the user: plan § 12 Q2–Q4 (Full Controller default for local data, Manage/Properties, tags/languages/ratings)

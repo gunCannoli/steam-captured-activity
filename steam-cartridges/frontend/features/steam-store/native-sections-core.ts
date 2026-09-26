@@ -9,7 +9,7 @@
  * ADR-0009). A shortcut without a match gets Steam's stock behaviour: no links
  * (a shortcut's own appid has no store page).
  */
-export type RedirectKind = 'links' | 'friends' | 'community';
+export type RedirectKind = 'links' | 'friends' | 'community' | 'event';
 
 export const SHORTCUT_MIN = 0x8000_0000;
 
@@ -87,10 +87,30 @@ export function redirectProps(
         props.details = nativeDetails(d, native);
         return native;
     }
+    // community (Community Content `{appid}`) and event (partner event overlay
+    // `{appid, initialEventID}`, which renders only when appid is the event's app).
     const appid = props.appid;
     if (!(appid >= SHORTCUT_MIN)) return undefined;
     const native = nativeOf(appid);
     if (native === undefined) return undefined;
     props.appid = native;
     return native;
+}
+
+/**
+ * Where Steam's `Navigator.App(appid)` should go (parity plan G2). It returns
+ * early for an appid missing from appStore, which is every unowned native app,
+ * so a click on a native news card or on the event overlay's app icon does
+ * nothing (live 2026-09-25). For a native app mapped from a shortcut, open the
+ * shortcut instead. Undefined = leave the call alone. O(1).
+ */
+export function navigationTarget(
+    appid: unknown,
+    isKnown: (appid: number) => boolean,
+    shortcutOf: (nativeAppid: number) => number | undefined,
+): number | undefined {
+    if (typeof appid !== 'number' || appid >= SHORTCUT_MIN) return undefined;
+    const shortcut = shortcutOf(appid);
+    if (shortcut === undefined || isKnown(appid)) return undefined;
+    return shortcut;
 }

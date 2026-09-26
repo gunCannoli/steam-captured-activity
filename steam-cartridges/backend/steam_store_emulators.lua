@@ -17,8 +17,19 @@ function M.basename(exe)
   return (base:gsub("%.%w+$", ""):lower())
 end
 
+--- The program of a command line, as basename(). Steam's Exe field holds the
+--- whole command for a RetroArch shortcut (`"...\retroarch.exe" -L core "rom"`),
+--- so only the first token (quoted, or up to ".exe", or up to a space) counts.
+function M.program(cmd)
+  local s = tostring(cmd or ""):gsub("^%s+", "")
+  local first = s:match('^"([^"]*)"')
+    or s:match("^(.-%.[eE][xX][eE])%s") or s:match("^(.-%.[eE][xX][eE])$")
+    or s:match("^(%S*)")
+  return M.basename(first)
+end
+
 function M.is_emulator(exe)
-  local b = M.basename(exe)
+  local b = M.program(exe)
   if EMULATORS[b] then return true end
   -- Suffixed builds: "dolphin-x64", "rpcs3-qt", "pcsx2-qt".
   local head = b:match("^(%w+)[%-_ ]")

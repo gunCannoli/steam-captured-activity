@@ -31,6 +31,7 @@ RefreshGameMetadata  = WEB_RPC.RefreshGameMetadata
 GetAllMetadata       = WEB_RPC.GetAllMetadata
 SaveGameMetadata     = WEB_RPC.SaveGameMetadata
 GetArtworkForGame    = WEB_RPC.GetArtworkForGame
+GetControllerInference = WEB_RPC.GetControllerInference
 
 -- Steam Store bucket (P3). Flat files, prefixed names.
 SteamStoreGetState       = STORE_RPC.SteamStoreGetState

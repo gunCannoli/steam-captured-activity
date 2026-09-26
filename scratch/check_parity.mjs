@@ -1,8 +1,9 @@
-// Parity gate (docs/plans/steam-cartridges-parity.md § 5): compares a non-Steam
+// Parity gate (docs/plans/steam-cartridges-parity.md § 6): compares a non-Steam
 // shortcut with the Steam data Steam itself holds for its native app, surface by
 // surface, and prints PASS/FAIL per line. Read-only: it navigates the desktop
-// client (A -> B -> A, Routine 2) and reads Steam's stores; it never writes
-// settings, the library, collections or artwork.
+// client (A -> B -> A, Routine 2; check 16 opens and closes one news overlay the
+// way a click does) and reads Steam's stores; it never writes settings, the
+// library, collections or artwork.
 //
 //   node scratch/check_parity.mjs [shortcutAppid] [nativeAppid] [otherNativeAppid]
 //
@@ -47,6 +48,32 @@ const check = (label, ok, detail = '') => {
     results.push(ok);
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
 };
+
+// Badge policy (ADR-0038; same lists as frontend/features/game-info/category-policy.ts).
+const ALLOWED_CATEGORIES = [1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49, 18, 28, 55, 56, 57, 58];
+const STEAM_ONLY_CATEGORIES = [22, 23, 29, 30, 42, 43, 44, 59, 62];
+
+// Links bar entries on the desktop page: the props Steam's link component gets (url, or link id + appid).
+const LINKS = String.raw`JSON.stringify([...document.querySelectorAll('[role="link"]')].map((el) => {
+    const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+    let f = key ? el[key] : null;
+    for (let i = 0; f && i < 6; i++, f = f.return) {
+        const p = f.memoizedProps;
+        if (p && typeof p.label === 'string' && ('url' in p || 'link' in p)) return { label: p.label, url: p.url ?? null, link: p.link ?? null, appid: p.appid ?? null };
+    }
+    return null;
+}).filter(Boolean))`;
+
+// The appid Steam's Community Content loader fetches for (its own state, not ours).
+const COMMUNITY_LOADER = String.raw`(() => {
+    const el = document.querySelector('[class*="CommunityContentContainer"]');
+    const key = el && Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+    for (let f = key ? el[key] : null, i = 0; f && i < 12; i++, f = f.return) {
+        const loader = f.stateNode && f.stateNode.m_loader;
+        if (loader && 'm_unAppID' in loader) return JSON.stringify(loader.m_unAppID);
+    }
+    return 'null';
+})()`;
 
 const HEADS = String.raw`JSON.stringify([...new Set([...document.querySelectorAll('h2, h3, [class*="SectionTitle"]')].map((e) => e.textContent.trim()).filter(Boolean))])`;
 async function open(appid) {
@@ -97,10 +124,15 @@ try {
             const ad = appDetailsStore.GetAppData(${S});
             const ov = appStore.GetAppOverviewByAppID(${S});
             const diag = P.nativeSectionsDiagnostics?.() ?? null;
+            // Event identity: unUniqueID is a per-store counter (the native news event is 1), so key
+            // news by its announcement GID and anything else by type, time, actor and id.
             const events = (appid) => {
                 const e = appActivityStore.m_mapAppActivity.get(appid);
                 const out = [];
-                for (const day of e?.m_mapActivityByDay?.values() ?? []) for (const ev of day.m_rgEvents ?? []) out.push(String(ev.unUniqueID ?? ev.m_gidAnnouncement ?? ''));
+                for (const day of e?.m_mapActivityByDay?.values() ?? []) for (const ev of day.m_rgEvents ?? []) {
+                    const actor = ev.steamIDActor?.ConvertTo64BitString?.() ?? '';
+                    out.push(ev.announcementGID ? 'news:' + ev.announcementGID : [ev.eEventType, ev.rtEventTime, actor, ev.unUniqueID].join(':'));
+                }
                 return out;
             };
             return JSON.stringify({
@@ -113,6 +145,8 @@ try {
                 orig: ov?.rt_original_release_date ?? 0,
                 cats: [...(ov?.m_setStoreCategories ?? [])],
                 logoPosition: ad?.customImageInfo?.logoPosition ?? null,
+                denied: ${JSON.stringify(STEAM_ONLY_CATEGORIES)}.filter((id) => ov?.m_setStoreCategories?.has(id) || ov?.BHasStoreCategory?.(id)),
+                notAllowed: [...(ov?.m_setStoreCategories ?? [])].filter((id) => !${JSON.stringify(ALLOWED_CATEGORIES)}.includes(id)),
                 diag,
                 nativeEvents: events(${N}),
                 shortcutEvents: events(${S}),
@@ -120,6 +154,9 @@ try {
         })()`),
     );
     const heads = JSON.parse(await desk.ev(HEADS));
+    const links = JSON.parse(await desk.ev(LINKS));
+    const linkUrls = JSON.parse(await shared.ev(`JSON.stringify(${JSON.stringify(links)}.map((l) => l.url || urlStore.ResolveURL(l.link, l.appid) || ''))`));
+    const communityAppid = JSON.parse(await desk.ev(COMMUNITY_LOADER));
 
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     check(`1. Steam Store match: ${S} -> ${N}`, st.mapping?.steam_appid === N, st.mapping ? `mapped to ${st.mapping.steam_appid}` : 'no mapping');
@@ -156,6 +193,55 @@ try {
     );
     check('12. Your Stuff media section present', heads.includes('Recordings and Screenshots'));
     check('13. Notes section present', heads.includes('Notes'));
+    check(
+        '14. Badges: no Steam-only category, only allowed ones (ADR-0038)',
+        st.cats.length > 0 && st.denied.length === 0 && st.notAllowed.length === 0,
+        `categories ${st.cats.join(',') || 'none'}; Steam-only ${st.denied.join(',') || 'none'}; not allowed ${st.notAllowed.join(',') || 'none'}`,
+    );
+    const toNative = (u) => (u.includes(`/app/${N}`) || u.includes(`appid=${N}`)) && !u.includes(String(S));
+    const linkIds = new Set(links.map((l) => l.link).filter(Boolean));
+    const needIds = ['GameHub', 'GameHubDiscussions', 'GameHubGuides', 'HelpAppPage'];
+    check(
+        '15. Header links (Store Page, Community Hub, Discussions, Guides, Support) open the native app',
+        linkUrls.length > 0 && linkUrls.every(toNative) && needIds.every((id) => linkIds.has(id)) && linkUrls.some((u) => u.includes(`store.steampowered.com/app/${N}`)),
+        linkUrls.map((u, i) => `${links[i].label}=${toNative(u) ? 'native' : u}`).join(' | ') || 'no links',
+    );
+
+    // Last: it navigates. Exactly what Steam's news card does on click: Navigator.App(event.appid, { gidPartnerEvent }).
+    const click = JSON.parse(
+        await shared.ev(`(async () => {
+            const e = appActivityStore.m_mapAppActivity.get(${N});
+            let news = null;
+            for (const day of e?.m_mapActivityByDay?.values() ?? []) for (const ev of day.m_rgEvents ?? []) if (ev.announcementGID && !news) news = ev;
+            if (!news) return JSON.stringify({ error: 'no native news event' });
+            const model = await news.GetEvent();
+            const nav = SteamUIStore.WindowStore.MainWindowInstance?.Navigator;
+            if (!model || !nav) return JSON.stringify({ error: 'no event model or navigator' });
+            nav.App(model.appid, { gidPartnerEvent: model.GID });
+            let loc = null;
+            for (let i = 0; i < 20; i++) {
+                await new Promise((r) => setTimeout(r, 250));
+                loc = MainWindowBrowserManager.m_lastLocation;
+                if (loc?.state?.event_to_show?.eventid === model.GID) break;
+            }
+            const P = ${plugin};
+            let redirected = null;
+            for (let i = 0; i < 20; i++) {
+                redirected = P.nativeSectionsDiagnostics?.()?.lastNative?.event ?? null;
+                if (redirected === ${N}) break;
+                await new Promise((r) => setTimeout(r, 250));
+            }
+            const out = { path: loc?.pathname ?? null, eventid: loc?.state?.event_to_show?.eventid ?? null, gid: model.GID, redirected };
+            if (out.eventid) MainWindowBrowserManager.m_history.replace(loc.pathname, {}); // close the overlay
+            return JSON.stringify(out);
+        })()`),
+    );
+    check(
+        '16. Native news click opens the event on the shortcut page',
+        !click.error && click.path === `/library/app/${S}` && click.eventid === click.gid && click.redirected === N,
+        click.error ?? `path ${click.path}, event ${click.eventid ? 'shown' : 'not shown'}, overlay appid ${click.redirected}`,
+    );
+    check('17. Community Content loads the native app (Steam loader m_unAppID)', communityAppid === N, `loader ${communityAppid}`);
 } finally {
     const p = JSON.parse(prev ?? 'null');
     if (p) await shared.ev(`(MILLENNIUM_API.Navigation.Navigate(${JSON.stringify(p)}), true)`).catch(() => {});

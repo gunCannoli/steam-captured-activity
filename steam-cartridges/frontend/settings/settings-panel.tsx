@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, TextField } from '@steambrew/client';
+import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, TextField, ToggleField } from '@steambrew/client';
 import { useSetting } from './settings';
 import { rpc, type StoreState } from '../rpc';
 import {
@@ -247,6 +247,21 @@ function SteamStore() {
     );
 }
 
+function GameInfo() {
+    const [defaultFull, setDefaultFull] = useSetting('defaultFullController');
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Game Info</DialogControlsSectionHeader>
+            <ToggleField
+                label="Default to full controller support"
+                description="Shows Full Controller Support for games without Steam Store data whose emulator is not recognised. Steam Store data and recognised emulators always decide first."
+                checked={defaultFull}
+                onChange={setDefaultFull}
+            />
+        </DialogControlsSection>
+    );
+}
+
 function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) => void }) {
     const report = bucketReport();
     const nameOf = (id: string) => report.collections.find((c) => c.id === id)?.name ?? id;
@@ -292,6 +307,7 @@ export function SettingsPanel() {
             <Buckets cfg={cfg} save={save} />
             <Overrides cfg={cfg} save={save} />
             <SteamStore />
+            <GameInfo />
             <Warnings cfg={cfg} save={save} />
         </>
     );

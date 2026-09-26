@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { cdnArtworkUrls, matchKnownApp, normalizeTitle } from '../frontend/features/steam-store/resolve.ts';
-import { categoryIds, metadataFromStoreItem } from '../frontend/features/steam-store/store-item.ts';
+import { categoryIds, gameCategoryIds, metadataFromStoreItem } from '../frontend/features/steam-store/store-item.ts';
 
 // Shared with tests/test_steam_store.lua so the two normalisers cannot drift.
 const cases: { normalize: [string, string][] } = JSON.parse(
@@ -85,4 +85,25 @@ test('StoreItemCache accessors win over raw fields; both release dates kept (par
     assert.equal(meta?.original_release_date, 1737464732);
     const noOriginal = metadataFromStoreItem({ m_strName: 'x', m_ReleaseInfo: { steam_release_date: 5 } }, 1, 2);
     assert.equal(noOriginal?.original_release_date, 5);
+});
+
+test('store_category_ids: player + controller groups only, accessor first (parity F)', () => {
+    const raw = {
+        supported_player_categoryids: [2, 1, 9, 39, 24],
+        feature_categoryids: [22, 29, 23, 44, 62],
+        controller_categoryids: [{ categoryid: 28 }],
+    };
+    assert.deepEqual(gameCategoryIds({ m_StoreCategories: raw }), [2, 1, 9, 39, 24, 28]);
+    assert.deepEqual(
+        gameCategoryIds({
+            m_StoreCategories: raw,
+            GetStoreCategories_SupportedPlayers: () => [2],
+            GetStoreCategories_Controller: () => { throw new Error('not loaded'); },
+        }),
+        [2, 28],
+        'a throwing accessor falls back to the raw group',
+    );
+    assert.equal(gameCategoryIds({ m_strName: 'x' }), undefined, 'no category data: the flags decide');
+    const meta = metadataFromStoreItem({ m_strName: 'Jotunnslayer', m_StoreCategories: raw }, 2820820, 2315502503);
+    assert.deepEqual(meta?.store_category_ids, [2, 1, 9, 39, 24, 28]);
 });

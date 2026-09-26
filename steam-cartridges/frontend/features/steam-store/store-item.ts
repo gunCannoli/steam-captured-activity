@@ -39,6 +39,29 @@ export function categoryIds(raw: unknown): number[] {
     return out;
 }
 
+/**
+ * The ids of Steam's `supported_player_categoryids` and `controller_categoryids`
+ * groups (accessor first, raw field second). The `feature_categoryids` group
+ * (Steam services) is never read (parity plan F, ADR-0038). Undefined when the
+ * item carries no category data at all (the flags decide then).
+ */
+export function gameCategoryIds(item: any): number[] | undefined {
+    if (!item?.m_StoreCategories && typeof item?.GetStoreCategories_SupportedPlayers !== 'function') return undefined;
+    const group = (method: string, field: string): number[] => {
+        try {
+            const v = item?.[method]?.();
+            if (Array.isArray(v)) return categoryIds(v);
+        } catch {
+            /* fall through to the raw field */
+        }
+        return categoryIds(item?.m_StoreCategories?.[field]);
+    };
+    return [
+        ...group('GetStoreCategories_SupportedPlayers', 'supported_player_categoryids'),
+        ...group('GetStoreCategories_Controller', 'controller_categoryids'),
+    ];
+}
+
 /** Pure: a StoreItemCache item -> ConsolidatedMetadata (explicit flags; achievements always false). */
 export function metadataFromStoreItem(item: any, steamAppid: number, shortcutAppid: number): ConsolidatedMetadata | null {
     const title = item?.m_strName;
@@ -84,6 +107,7 @@ export function metadataFromStoreItem(item: any, steamAppid: number, shortcutApp
         release_date: release || original,
         original_release_date: original || release,
         categories,
+        store_category_ids: gameCategoryIds(item),
         source: 'steam-store',
         steam_appid: steamAppid,
     };

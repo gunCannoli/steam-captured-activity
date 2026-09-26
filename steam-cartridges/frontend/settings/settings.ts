@@ -7,7 +7,8 @@ import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig } from '../features
  * Plugin settings over Millennium's Configuration API. The ONLY module that
  * talks to `pluginConfig` (steam-cartridges.md section 9).
  *
- * One key today: `buckets` (ADR-0033). Reads come from an in-memory copy.
+ * Keys: `buckets` (ADR-0033) and `defaultFullController` (ADR-0038 addendum).
+ * Reads come from an in-memory copy.
  *
  * Millennium#903 workaround (ported from enhanced-achievements): `set`/`delete`
  * persist but reject with "type must be string", and `get`/`getAll` fail. So we
@@ -17,16 +18,19 @@ import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig } from '../features
 
 export interface Settings {
     buckets: BucketsConfig;
+    /** Full Controller Support for a shortcut that neither Steam nor its emulator decides (ADR-0038 addendum). */
+    defaultFullController: boolean;
 }
 export type SettingKey = keyof Settings;
 
-export const DEFAULTS: Settings = { buckets: DEFAULT_BUCKETS };
+export const DEFAULTS: Settings = { buckets: DEFAULT_BUCKETS, defaultFullController: false };
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     buckets: validateConfig,
+    defaultFullController: (raw) => raw === true,
 };
 
-const current: Settings = { buckets: DEFAULT_BUCKETS };
+const current: Settings = { buckets: DEFAULT_BUCKETS, defaultFullController: false };
 const listeners = new Set<(key: SettingKey) => void>();
 
 function apply(key: string, value: unknown): void {

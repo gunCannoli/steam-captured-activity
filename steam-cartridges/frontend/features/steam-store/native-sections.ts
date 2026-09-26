@@ -1,8 +1,8 @@
-import { findModuleByExport } from "@steambrew/client";
+import { beforePatch, findModuleByExport } from "@steambrew/client";
 import { logger } from "../../logger";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
 import { getSteamRequire } from "../game-info/game-info-patch";
-import { redirectProps, type RedirectKind } from "./native-sections-core";
+import { navigationTarget, redirectProps, type RedirectKind } from "./native-sections-core";
 
 /**
  * Hands Steam's own Links, Friends and Community sections the native appid of
@@ -14,7 +14,9 @@ import { redirectProps, type RedirectKind } from "./native-sections-core";
  * the section stays stock. Verified 2026-09-24: links -> module exporting the
  * links bar used by desktop and Big Picture Game Info; friends -> the module
  * with the Friends section (desktop `{details}`, Big Picture `{details}`);
- * community -> the Community Content section (`{appid}`).
+ * community -> the Community Content section (`{appid}`). Verified 2026-09-25:
+ * event -> the partner event overlay (`{appid, initialEventID}`, desktop and
+ * Big Picture), which renders only when `appid` is the event's own app.
  *
  * The jsx handler is O(1) (guardrail 2): one Map lookup on the element type,
  * then one on the appid.
@@ -23,21 +25,65 @@ const SIGNATURES: [RedirectKind, string[]][] = [
     ["links", ['"#AppDetails_Links_Store"', '"primarylinks"']],
     ["friends", ['"CommunityFriendsThatPlay"', '"#AppDetails_SectionTitle_Friends"']],
     ["community", ['"#AppDetails_SectionTitle_Community"', "LoadAdditionalContent"]],
+    ["event", ['"LibraryAppPartnerEventsPage unmounting"', "LoadAdjacentPartnerEvents"]],
 ];
 
 /** Element type -> kind. Every export of a matched module (only matching props are touched). */
 const TYPES = new Map<unknown, RedirectKind>();
 /** Shortcut appid -> native appid, for mapped steam-store games. */
 const nativeFor = new Map<number, number>();
-const counts: Record<RedirectKind, number> = { links: 0, friends: 0, community: 0 };
+const counts: Record<RedirectKind, number> = { links: 0, friends: 0, community: 0, event: 0 };
 const lastNative: Partial<Record<RedirectKind, number>> = {};
+/** Native appid -> shortcut appid, for the Navigator.App redirect (parity plan G2). */
+const shortcutFor = new Map<number, number>();
 
 export function setNativeAppid(appid: number, nativeAppid: number | undefined): void {
-    if (nativeAppid === undefined) nativeFor.delete(appid);
-    else nativeFor.set(appid, nativeAppid);
+    const previous = nativeFor.get(appid);
+    if (previous !== undefined && shortcutFor.get(previous) === appid) shortcutFor.delete(previous);
+    if (nativeAppid === undefined) {
+        nativeFor.delete(appid);
+        return;
+    }
+    nativeFor.set(appid, nativeAppid);
+    shortcutFor.set(nativeAppid, appid);
+    wrapNavigators();
 }
 
 const nativeOf = (appid: number) => nativeFor.get(appid);
+
+/** Navigators already patched (one per Steam UI window: desktop, Big Picture). */
+const wrappedNavigators = new WeakSet<object>();
+let navigatorPatches = 0;
+let navRedirects = 0;
+
+const isKnownApp = (appid: number): boolean => !!(window as any).appStore?.GetAppOverviewByAppID?.(appid);
+
+/**
+ * Patch `Navigator.App` of every Steam UI window once (SDK patcher, so the
+ * chain stays unpatchable). Steam's native news cards and the event overlay's
+ * app icon call `Navigator.App(<native appid>)`, a no-op for an unowned app;
+ * a mapped native appid is sent to its shortcut instead. Called on each mapped
+ * view, so a Big Picture window opened later is picked up. Not a hot path.
+ */
+function wrapNavigators(): void {
+    try {
+        const windows = (window as any).SteamUIStore?.WindowStore?.SteamUIWindows ?? [];
+        for (const w of windows) {
+            const nav = w?.Navigator;
+            if (!nav || typeof nav.App !== "function" || wrappedNavigators.has(nav)) continue;
+            beforePatch(nav, "App", (args: unknown[]) => {
+                const target = navigationTarget(args[0], isKnownApp, (n) => shortcutFor.get(n));
+                if (target === undefined) return;
+                args[0] = target;
+                navRedirects++;
+            });
+            wrappedNavigators.add(nav);
+            navigatorPatches++;
+        }
+    } catch (err) {
+        logger.warn("Could not patch Steam's Navigator; native links stay stock.", err);
+    }
+}
 
 function resolveTypes(): void {
     const req = getSteamRequire();
@@ -45,7 +91,7 @@ function resolveTypes(): void {
         logger.warn("Webpack require unavailable; native sections stay stock.");
         return;
     }
-    const hits: Record<RedirectKind, string[]> = { links: [], friends: [], community: [] };
+    const hits: Record<RedirectKind, string[]> = { links: [], friends: [], community: [], event: [] };
     for (const id of Object.keys(req.m)) {
         let src: string;
         try {
@@ -121,6 +167,8 @@ export function nativeSectionsDiagnostics(): {
     lastNative: Partial<Record<RedirectKind, number>>;
     mapped: Record<number, number>;
     jsx: JsxHookDiagnostics[];
+    navigatorPatches: number;
+    navRedirects: number;
 } {
     return {
         kinds: [...new Set(TYPES.values())],
@@ -128,5 +176,7 @@ export function nativeSectionsDiagnostics(): {
         lastNative: { ...lastNative },
         mapped: Object.fromEntries(nativeFor),
         jsx: hook?.diagnostics() ?? [],
+        navigatorPatches,
+        navRedirects,
     };
 }
