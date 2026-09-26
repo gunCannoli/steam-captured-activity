@@ -34,6 +34,7 @@ Display behaviour for this theme's banners.
   (`"fade"` — the same as before), `"none"` (no animation for that state), or
   independent control: `{"in": "slide", "out": "fade"}`. Default when omitted:
   `{"in": "slide", "out": "fade"}`.
+    - `"slide"` mirrors the anchor: from the right edge for `*_right`, the left edge for `*_left`.
     - `"slide"`, `"up"`, `"down"`: enter and exit both move (the exit is the
       reverse motion of the entrance), not just fade.
     - `"ps5"`: slides in from the screen edge the banner is anchored to (and

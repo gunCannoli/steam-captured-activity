@@ -57,6 +57,8 @@ export const BANNER_CSS = `
 /* --- entrance (ea-in-*) --- */
 .ea-in-fade  { --ea-in-name: ea-in-fade; }
 .ea-in-slide { --ea-in-name: ea-in-slide; }
+/* slide mirrors the anchor: left-anchored banners enter from the left edge. */
+.ea-in-slide.ea-pos-top_left, .ea-in-slide.ea-pos-bottom_left { --ea-in-name: ea-in-slide-left; }
 .ea-in-up    { --ea-in-name: ea-in-up; }
 .ea-in-down  { --ea-in-name: ea-in-down; }
 .ea-in-none  { --ea-in-name: none; }
@@ -69,6 +71,7 @@ export const BANNER_CSS = `
 /* --- exit (ea-out-*) --- */
 .ea-out-fade  { --ea-out-name: ea-out-fade; }
 .ea-out-slide { --ea-out-name: ea-out-slide; }
+.ea-out-slide.ea-pos-top_left, .ea-out-slide.ea-pos-bottom_left { --ea-out-name: ea-out-slide-left; }
 .ea-out-up    { --ea-out-name: ea-out-up; }
 .ea-out-down  { --ea-out-name: ea-out-down; }
 .ea-out-none  { --ea-out-name: none; }

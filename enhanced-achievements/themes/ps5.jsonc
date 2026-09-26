@@ -7,7 +7,7 @@
         "layout": "custom",
         "position": "top_right",
         "display_time_ms": 4000,
-        "animation": "ps5", // slide in from the right edge, slide back out
+        "animation": "ps5", // slide + fade in from the anchored edge (right here), and back out the same way
         "text_align": "left",
     },
 

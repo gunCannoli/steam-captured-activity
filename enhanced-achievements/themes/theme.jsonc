@@ -39,8 +39,9 @@
 
         // Entrance and exit animation. Default { "in": "slide", "out": "fade" }.
         // One name for both ("fade") or an object for each: { "in": ..., "out": ... }.
-        //   "slide" | "fade" | "up" | "down" | "none"
-        //   "ps5"   slides in from the anchored edge and back out (direction from "position")
+        //   "slide"  slide + fade from the anchored side edge (right for *_right, left for *_left)
+        //   "fade" | "up" | "down" | "none"
+        //   "ps5"    slide + fade from the anchored edge, slower; *_center slides vertically
         "animation": { "in": "ps5", "out": "ps5" },
 
         // Text alignment for every tier (a tier's text.align overrides it).
@@ -177,9 +178,8 @@
                 "border": [2, "#40c4ff", 12],
             },
             "text": {
-                // Only in this tier, a plain string replaces the words instead of
-                // the style (the style still comes from "normal"). Also accepted
-                // as "title_text" / "desc_text". Defaults below.
+                // Steam lacks a built-in 100% completion achievement, so define
+                // the custom title and description here.
                 "title": "100% Complete",
                 "desc": "You've unlocked all achievements!",
             },
