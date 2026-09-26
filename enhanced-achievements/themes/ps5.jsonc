@@ -25,10 +25,10 @@
                 "scale": [100, 100],
                 "background_color": ["#1F1F1F", "#0F0F0F"],
                 "gradient_angle": 90,
-                "border": [0, "#8a2be2", 15], // no stroke, rounded 15 px corners
-                "margin": [5, 5], // 5 px in from the top and right edges
-                "padding": [5, 10],
-                "gap": [10, 2],
+                "border": [0, "#8a2be2", 8], // no stroke, rounded 8 px corners
+                "margin": [5], // 5 px in from the top and right edges ([5] = both)
+                "padding": [5],
+                "gap": [10, 5],
             },
             "text": {
                 "title": ["#ffffff", 120, "regular"],
@@ -36,7 +36,7 @@
             },
             "icons": {
                 "achievement": [true, 100, 0], // the achievement's own art
-                "system": [true, 60, 2000], // Steam logo at 60%, ripple every 2 s
+                "system": [true, 120, 2000], // Steam logo at 120%, ripple every 2 s
                 "rarity": ["assets/trophy_bronze.svg", 100, 0],
             },
             "sound": null, // Steam's own chime

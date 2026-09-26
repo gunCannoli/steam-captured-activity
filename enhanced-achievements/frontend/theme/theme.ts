@@ -178,8 +178,9 @@ function pair(raw: unknown, fallback: [number, number], min: number, max: number
         return [v, v];
     }
     if (Array.isArray(raw)) {
-        // A missing second value keeps its default (`[5]` padding = [5, 10]); existing themes rely on it.
-        return [num(raw[0], min, max) ?? fallback[0], num(raw[1], min, max) ?? fallback[1]];
+        // `[v]` means both values, like a bare `v`; `[a, b]` sets each.
+        const first = num(raw[0], min, max) ?? fallback[0];
+        return [first, raw.length === 1 ? first : (num(raw[1], min, max) ?? fallback[1])];
     }
     return fallback;
 }

@@ -52,6 +52,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- **`[v]` in `scale`, `margin`, `padding` and `gap` now means both values**,
+  like a bare `v` (`[5]` = `[5, 5]`); `[a, b]` still sets each. Previously
+  `[5]` padding was `[5, 10]`.
 - **Theme dropdown is three rows**: "Available themes", the description,
   then the dropdown across the full row width.
 - With a theme loaded, Steam's achievement toast duration is the banner's

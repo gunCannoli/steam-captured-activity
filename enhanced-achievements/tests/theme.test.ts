@@ -308,8 +308,9 @@ test('text shorthand: a tier overriding only the words keeps the inherited title
     assert.equal(t.tiers.exceptional.text.descText, 'All done');
 });
 
-test('pairs: a one-element array keeps the default second value (existing themes rely on it)', () => {
-    const t = resolveTheme({ themes: { normal: { banner: { padding: [5], gap: [8] } } } });
-    assert.deepEqual(t.tiers.normal.banner.padding, [5, 10]);
-    assert.deepEqual(t.tiers.normal.banner.gap, [8, 2]);
+test('pairs: a bare number or a one-element array sets both values; two elements set each', () => {
+    const t = resolveTheme({ themes: { normal: { banner: { margin: 7, padding: [5], gap: [10, 5] } } } });
+    assert.deepEqual(t.tiers.normal.banner.margin, [7, 7]);
+    assert.deepEqual(t.tiers.normal.banner.padding, [5, 5]);
+    assert.deepEqual(t.tiers.normal.banner.gap, [10, 5]);
 });

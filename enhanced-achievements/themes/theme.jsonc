@@ -82,7 +82,7 @@
             // ---- banner: the box itself ----------------------------------------
             // ("box" is accepted as an older name for "banner".)
             "banner": {
-                // [width %, height %] of the box, 25-400. One plain number = both. Default [100, 100].
+                // [width %, height %] of the box, 25-400. One number (5 or [5]) = both. Default [100, 100].
                 // Only the box grows or shrinks; text and icons keep their own sizes.
                 "scale": [100, 100],
 
@@ -105,16 +105,15 @@
                 // effect (kept so older themes load without warnings).
                 "glow": ["#000000", 0, 0],
 
-                // [vertical px, horizontal px], -100-200. One plain number = both. Default [0, 0].
-                // (In these pairs, a one-element array like [5] sets only the first value.)
+                // [vertical px, horizontal px], -100-200. One number (5 or [5]) = both. Default [0, 0].
                 // Pushes the banner inward from its anchored corner. The horizontal
                 // value is ignored for "top_center" / "bottom_center".
                 "margin": [8, 8],
 
-                // [vertical px, horizontal px] inside the box, 0-100. One plain number = both. Default [6, 10].
+                // [vertical px, horizontal px] inside the box, 0-100. One number (5 or [5]) = both. Default [6, 10].
                 "padding": [6, 10],
 
-                // [between columns px, between text rows px], 0-100. One plain number = both. Default [10, 2].
+                // [between columns px, between text rows px], 0-100. One number (5 or [5]) = both. Default [10, 2].
                 "gap": [10, 2],
             },
 
@@ -181,7 +180,7 @@
                 // Only in this tier, a plain string replaces the words instead of
                 // the style (the style still comes from "normal"). Also accepted
                 // as "title_text" / "desc_text". Defaults below.
-                "title": "100% Completed",
+                "title": "100% Complete",
                 "desc": "You've unlocked all achievements!",
             },
             "icons": {
