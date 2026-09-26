@@ -117,9 +117,9 @@ Deploy is a user action (`dev.ps1`). Then:
     - [x] Offline gates: `tsc`, `test:ts` 28/28, Lua 71 + 86 PASS
     - [ ] Live verification (plan § 7)
 - [ ] **2. ADR-0036 policy change** (no collection → Steam Store, web fallback, per-collection include/exclude): [parity plan Part A](docs/plans/steam-cartridges-parity.md#4-part-a-adr-0036-policy-change)
-    - [ ] Config v2 rules and title patterns, fixed default `steam-store`, sticky resolutions
-    - [ ] Store first, web fallback on no match; settings panel
-    - [ ] Offline gates: `tsc`, `test:ts` 35/35
+    - [x] Config v2 rules and title patterns, fixed default `steam-store`, sticky resolutions
+    - [x] Store first, web fallback on no match; settings panel
+    - [x] Offline gates: `tsc`, `test:ts` 35/35
 - [ ] **3. Native parity, Jotunnslayer vs 2820820**: [parity plan Parts B–E](docs/plans/steam-cartridges-parity.md#5-parts-be-close-the-parity-gaps), then [Parts F–H](docs/plans/steam-cartridges-parity.md#5b-parts-fh-only-true-badges-links-news-and-community-content-open-the-native-app) (user decisions 2026-09-25, [ADR-0038](docs/decisions.md#adr-0038-a-mapped-shortcut-shows-only-what-is-true-of-its-copy-its-links-news-and-community-content-open-the-native-app))
     - [ ] B Game Info fields · C Links / Friends / Community sections · D native news in the activity feed · E logo position
     - [ ] `scratch/check_parity.mjs` · offline gates: `tsc`, `test:ts` 42/42

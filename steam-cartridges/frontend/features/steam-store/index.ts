@@ -107,9 +107,17 @@ async function applyArtwork(appid: number, mapping: StoreMapping, applied: Store
     logger.info(`Steam Store: applied ${written.length} art slot(s) from ${mapping.steam_appid} to ${appid}; ${failed.length} failed.`);
 }
 
-/** Desktop and Big Picture entry point for a steam-store game. */
-export async function handleSteamStoreView(appid: number): Promise<void> {
-    if (appid < NON_STEAM_APPID_MIN) return;
+/** Per-session answer to "did the Steam Store supply this game's Game Info?" (ADR-0036). */
+const matched = new Map<number, boolean>();
+
+/**
+ * Desktop and Big Picture entry point for a steam-store game. Resolves to
+ * true when store data was applied, false when there is no Steam match (or its
+ * data could not load; the caller then falls back to web scraping, ADR-0036),
+ * undefined when it is not known yet (title not available).
+ */
+export async function handleSteamStoreView(appid: number): Promise<boolean | undefined> {
+    if (appid < NON_STEAM_APPID_MIN) return undefined;
 
     const cached = metaCache.get(appid);
     if (cached) {
@@ -118,7 +126,7 @@ export async function handleSteamStoreView(appid: number): Promise<void> {
     }
     if (processed.has(appid)) {
         const at = retryAt.get(appid);
-        if (at === undefined || Date.now() < at) return;
+        if (at === undefined || Date.now() < at) return matched.get(appid);
         retryAt.delete(appid);
     }
     processed.add(appid);
@@ -127,10 +135,13 @@ export async function handleSteamStoreView(appid: number): Promise<void> {
         const { mapping, applied, retry, error } = await resolveMapping(appid);
         if (retry) {
             processed.delete(appid);
-            return;
+            return undefined;
         }
         if (error) retryAt.set(appid, Date.now() + RETRY_MS);
-        if (!mapping) return;
+        if (!mapping) {
+            matched.set(appid, false);
+            return false;
+        }
 
         const { metadata, urls } = await loadNative(appid, mapping.steam_appid);
         if (metadata) {
@@ -138,11 +149,15 @@ export async function handleSteamStoreView(appid: number): Promise<void> {
             if (enrichGameDetails(appid, metadata)) storeEnrichedAppIds.add(appid);
         } else {
             logger.warn(`Steam Store: no metadata for ${mapping.steam_appid}.`);
+            retryAt.set(appid, Date.now() + RETRY_MS);
         }
+        matched.set(appid, metadata !== null);
 
         await applyArtwork(appid, mapping, applied, urls);
+        return metadata !== null;
     } catch (err) {
         logger.warn(`Steam Store view failed for ${appid}:`, err);
+        return matched.get(appid);
     }
 }
 
@@ -153,6 +168,7 @@ function forget(appid: number): void {
     storeEnrichedAppIds.delete(appid);
     retryAt.delete(appid);
     artRetried.delete(appid);
+    matched.delete(appid);
 }
 
 /**

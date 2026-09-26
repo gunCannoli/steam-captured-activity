@@ -36,7 +36,10 @@ export async function onSourceView(appid: number): Promise<void> {
             return;
         }
         if (bucket === "steam-store") {
-            await handleSteamStoreView(appid);
+            // ADR-0036: Steam Store first; no Steam match -> web scraping fallback;
+            // not known yet (title missing) -> local Game Info only.
+            const matched = await handleSteamStoreView(appid);
+            if (matched !== true) await handleWebScrapingView(appid, matched);
         } else {
             // web-scraping or none. Came from steam-store: drop its Game Info first;
             // the handler then applies local data (and fetches for web-scraping only).

@@ -26,15 +26,15 @@ const libraryCache = new Map<number, ConsolidatedMetadata>();
 const processedApps = new Set<number>();
 
 /**
- * Game Info for one view of a shortcut that is not steam-store (dispatched by
- * features/source-view.ts). Local DB for every such shortcut; the web fetch
- * only for web-scraping games (ADR-0035, ADR-0032).
+ * Game Info for one view of a shortcut without store data (dispatched by
+ * features/source-view.ts). Local DB always; the web fetch for web-scraping
+ * games and for steam-store games with no Steam match (ADR-0035, ADR-0036).
  */
-export async function handleWebScrapingView(appid: number): Promise<void> {
+export async function handleWebScrapingView(appid: number, storeMatched?: boolean): Promise<void> {
     if (appid < NON_STEAM_APPID_MIN) return;
 
     const { bucket, via } = getBucket(appid);
-    const plan = gameInfoPlan(bucket, via);
+    const plan = gameInfoPlan(bucket, via, storeMatched);
 
     if (plan.applyLocal && libraryCache.has(appid)) {
         enrichGameDetails(appid, libraryCache.get(appid)!);

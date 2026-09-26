@@ -9,60 +9,102 @@ import {
     setSteamStoreMapping,
 } from '../features/steam-store';
 import { refreshKnownApps } from '../features/steam-store/known-apps';
-import { bucketReport, listCollections, listShortcuts, shortcutName, type Bucket, type BucketsConfig } from '../features/buckets';
+import { splitPatterns } from '../features/buckets/resolve';
+import {
+    bucketReport,
+    listCollections,
+    listShortcuts,
+    shortcutName,
+    type Bucket,
+    type BucketsConfig,
+    type CollectionRule,
+} from '../features/buckets';
 
 /**
  * Settings panel (Millennium `definePlugin` content). SDK components only, no
  * custom CSS. Reads the in-memory settings copy and live collections.
+ * Bucket model: ADR-0036 (default Steam Store, web fallback, per-collection
+ * rules with include / exclude title patterns).
  */
 
-const BUCKET_LABEL: Record<Bucket, string> = { 'steam-store': 'Steam Store', 'web-scraping': 'Web Scraping', none: 'Neither' };
+const BUCKET_LABEL: Record<Bucket, string> = {
+    'steam-store': 'Steam Store',
+    'web-scraping': 'Web Scraping',
+    none: 'Neither (no fetching)',
+};
 const OPTIONS = (Object.keys(BUCKET_LABEL) as Bucket[]).map((b) => ({ data: b, label: BUCKET_LABEL[b] }));
+
+/** A collection without a rule uses the default. */
+type Choice = Bucket | 'default';
+const CHOICES: { data: Choice; label: string }[] = [{ data: 'default', label: 'Default (Steam Store, web fallback)' }, ...OPTIONS];
+
+const PATTERN_HELP = 'Comma-separated. Plain text matches anywhere in the title; * and ? are wildcards over the whole title.';
+
+function PatternField({ label, value, onCommit }: { label: string; value: string[]; onCommit: (text: string) => void }) {
+    const joined = value.join(', ');
+    const [text, setText] = useState(joined);
+    useEffect(() => setText(joined), [joined]);
+    return (
+        <>
+            <TextField label={label} description={PATTERN_HELP} value={text} onChange={(e) => setText(e.target.value)} />
+            <ButtonItem label={`Save "${label}"`} disabled={text === joined} onClick={() => onCommit(text)}>
+                Save
+            </ButtonItem>
+        </>
+    );
+}
 
 function Buckets({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) => void }) {
     const collections = listCollections().filter((c) => !c.id.startsWith('type-') && c.id !== 'uncategorized');
-    const assignedOrder = cfg.assignments.map((a) => a.id);
+    const order = cfg.rules.map((r) => r.id);
     const rows = [...collections].sort((a, b) => {
-        const ia = assignedOrder.indexOf(a.id);
-        const ib = assignedOrder.indexOf(b.id);
+        const ia = order.indexOf(a.id);
+        const ib = order.indexOf(b.id);
         return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
     });
 
-    const setBucket = (id: string, name: string, bucket: Bucket) => {
-        const rest = cfg.assignments.filter((a) => a.id !== id);
-        const existing = cfg.assignments.findIndex((a) => a.id === id);
-        if (bucket === 'none') return save({ ...cfg, assignments: rest });
-        const entry = { id, name, bucket };
+    const setChoice = (id: string, name: string, choice: Choice) => {
+        const existing = cfg.rules.findIndex((r) => r.id === id);
+        const rest = cfg.rules.filter((r) => r.id !== id);
+        if (choice === 'default') return save({ ...cfg, rules: rest });
+        const prev = cfg.rules[existing];
+        const entry: CollectionRule = { id, name, bucket: choice, include: prev?.include ?? [], exclude: prev?.exclude ?? [] };
         const next = [...rest];
         next.splice(existing < 0 ? next.length : existing, 0, entry);
-        save({ ...cfg, assignments: next });
+        save({ ...cfg, rules: next });
     };
+    const setPatterns = (id: string, field: 'include' | 'exclude', text: string) =>
+        save({ ...cfg, rules: cfg.rules.map((r) => (r.id === id ? { ...r, [field]: splitPatterns(text) } : r)) });
     const move = (id: string, delta: number) => {
-        const list = [...cfg.assignments];
+        const list = [...cfg.rules];
         const i = list.findIndex((a) => a.id === id);
         const j = i + delta;
         if (i < 0 || j < 0 || j >= list.length) return;
         [list[i], list[j]] = [list[j]!, list[i]!];
-        save({ ...cfg, assignments: list });
+        save({ ...cfg, rules: list });
     };
 
     return (
         <DialogControlsSection>
             <DialogControlsSectionHeader>Buckets</DialogControlsSectionHeader>
+            <div>Games no rule claims use the Steam Store. A game with no Steam match falls back to Web Scraping.</div>
+            <div>A game's bucket is kept for the session: collection changes apply after a restart or after any change here.</div>
             {rows.length === 0 && <div>No collections found yet.</div>}
             {rows.map((c) => {
-                const a = cfg.assignments.find((x) => x.id === c.id);
+                const rule = cfg.rules.find((x) => x.id === c.id);
                 return (
                     <div key={c.id}>
                         <DropdownItem
                             label={c.name}
-                            description={`${c.shortcutCount} shortcut(s)${c.dynamic ? ', dynamic' : ''}${a ? `, precedence ${assignedOrder.indexOf(c.id) + 1}` : ''}`}
-                            rgOptions={OPTIONS}
-                            selectedOption={a?.bucket ?? 'none'}
-                            onChange={(o) => setBucket(c.id, c.name, o.data as Bucket)}
+                            description={`${c.shortcutCount} shortcut(s)${c.dynamic ? ', dynamic' : ''}${rule ? `, precedence ${order.indexOf(c.id) + 1}` : ''}`}
+                            rgOptions={CHOICES}
+                            selectedOption={rule?.bucket ?? 'default'}
+                            onChange={(o) => setChoice(c.id, c.name, o.data as Choice)}
                         />
-                        {a && (
+                        {rule && (
                             <>
+                                <PatternField label="Only titles matching" value={rule.include} onCommit={(t) => setPatterns(c.id, 'include', t)} />
+                                <PatternField label="Except titles matching" value={rule.exclude} onCommit={(t) => setPatterns(c.id, 'exclude', t)} />
                                 <ButtonItem label="Higher precedence" onClick={() => move(c.id, -1)}>Up</ButtonItem>
                                 <ButtonItem label="Lower precedence" onClick={() => move(c.id, 1)}>Down</ButtonItem>
                             </>
@@ -111,7 +153,8 @@ function Overrides({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig)
 
 function SteamStore() {
     const [state, setState] = useState<StoreState | null>(null);
-    const [manual, setManual] = useState<Record<number, string>>({});
+    const [target, setTarget] = useState<number | undefined>(undefined);
+    const [typed, setTyped] = useState('');
     const [error, setError] = useState<string | null>(null);
     const reload = () => {
         rpc.steamStoreGetState().then(setState).catch((e) => setError(String(e)));
@@ -121,7 +164,17 @@ function SteamStore() {
         reload();
     }, []);
 
-    const games = Object.entries(bucketReport().games).filter(([, g]) => g.bucket === 'steam-store').map(([id]) => Number(id));
+    // Only games with something to show: a match, suggestions, or art we wrote
+    // (including art left behind without a match; P4 H5). Every shortcut is
+    // steam-store by default (ADR-0036), so listing them all would be ~200 rows.
+    const ids = new Set<number>(
+        [
+            ...Object.keys(state?.mappings ?? {}),
+            ...Object.keys(state?.suggestions ?? {}),
+            ...Object.keys(state?.applied_artwork ?? {}),
+        ].map(Number),
+    );
+    const games = [...ids].sort((a, b) => shortcutName(a).localeCompare(shortcutName(b)));
     const run = (fn: () => Promise<unknown>) => () => {
         setError(null);
         fn().then(reload).catch((e) => setError(String(e)));
@@ -131,20 +184,27 @@ function SteamStore() {
         <DialogControlsSection>
             <DialogControlsSectionHeader>Steam Store</DialogControlsSectionHeader>
             {error && <div>{error}</div>}
-            {games.length === 0 && <div>No games are in the Steam Store bucket.</div>}
+            {games.length === 0 && <div>No Steam matches yet. Open a game's page to look it up.</div>}
             {games.map((appid) => {
                 const key = String(appid);
                 const mapping = state?.mappings[key];
+                const applied = state?.applied_artwork[key];
                 const suggestions = state?.suggestions[key] ?? [];
-                const typed = manual[appid] ?? '';
+                const status = mapping
+                    ? `${mapping.name || 'Steam app'} (${mapping.steam_appid}, ${mapping.source})`
+                    : applied
+                      ? `artwork from ${applied.steam_appid} but no match`
+                      : 'no match';
                 return (
                     <div key={appid}>
                         <div>
-                            {shortcutName(appid)}:{' '}
-                            {mapping ? `${mapping.name || 'Steam app'} (${mapping.steam_appid}, ${mapping.source})` : 'no match'}
+                            {shortcutName(appid)}: {status}
                         </div>
-                        {mapping && (
-                            <ButtonItem label="Clear this match and its artwork; it will not be applied again" onClick={run(() => clearSteamStore(appid, true))}>
+                        {(mapping || applied) && (
+                            <ButtonItem
+                                label="Clear this match and the artwork it wrote; a cleared match is not applied again"
+                                onClick={run(() => clearSteamStore(appid, !!mapping))}
+                            >
                                 Clear
                             </ButtonItem>
                         )}
@@ -161,26 +221,28 @@ function SteamStore() {
                                 </ButtonItem>
                             </div>
                         ))}
-                        <TextField
-                            label="Steam appid"
-                            mustBeNumeric
-                            value={typed}
-                            onChange={(e) => setManual({ ...manual, [appid]: e.target.value })}
-                        />
-                        <ButtonItem
-                            label="Use this Steam game"
-                            disabled={!/^\d+$/.test(typed)}
-                            onClick={run(async () => {
-                                const res = await setSteamStoreMapping(appid, Number(typed));
-                                if (res.error) throw new Error(res.error);
-                                setManual({ ...manual, [appid]: '' });
-                            })}
-                        >
-                            Set
-                        </ButtonItem>
                     </div>
                 );
             })}
+            <DropdownItem
+                label="Match a game by hand"
+                rgOptions={listShortcuts().map((s) => ({ data: s.appid, label: s.name }))}
+                selectedOption={target}
+                onChange={(o) => setTarget(o.data as number)}
+            />
+            <TextField label="Steam appid" mustBeNumeric value={typed} onChange={(e) => setTyped(e.target.value)} />
+            <ButtonItem
+                label="Use this Steam game"
+                disabled={target === undefined || !/^\d+$/.test(typed)}
+                onClick={run(async () => {
+                    if (target === undefined) return;
+                    const res = await setSteamStoreMapping(target, Number(typed));
+                    if (res.error) throw new Error(res.error);
+                    setTyped('');
+                })}
+            >
+                Set
+            </ButtonItem>
         </DialogControlsSection>
     );
 }
@@ -202,9 +264,7 @@ function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) 
                     {m.relinkId && (
                         <ButtonItem
                             label={`A collection named "${m.name}" exists`}
-                            onClick={() =>
-                                save({ ...cfg, assignments: cfg.assignments.map((a) => (a.id === m.id ? { ...a, id: m.relinkId! } : a)) })
-                            }
+                            onClick={() => save({ ...cfg, rules: cfg.rules.map((a) => (a.id === m.id ? { ...a, id: m.relinkId! } : a)) })}
                         >
                             Re-link
                         </ButtonItem>
@@ -212,7 +272,7 @@ function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) 
                 </div>
             ))}
             {report.unbucketedWithMetadata > 0 && (
-                <div>{report.unbucketedWithMetadata} game(s) have cached metadata but no bucket: they show their saved Game Info, but it is never refreshed from the web.</div>
+                <div>{report.unbucketedWithMetadata} game(s) with saved metadata are set to Neither: they show their saved Game Info, but it is never refreshed.</div>
             )}
             {report.conflicts.length === 0 && report.missing.length === 0 && report.unbucketedWithMetadata === 0 && <div>No warnings.</div>}
         </DialogControlsSection>

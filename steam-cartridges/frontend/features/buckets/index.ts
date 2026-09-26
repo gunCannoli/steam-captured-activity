@@ -4,7 +4,7 @@ import { pendingOr } from './ready';
 import { findConflicts, resolveBucket, SHORTCUT_MIN, type Bucket, type Resolution } from './resolve';
 
 export { waitForCollections, listCollections, invalidateMembership, collectionsReady } from './collections';
-export type { Bucket, BucketsConfig, Resolution } from './resolve';
+export type { Bucket, BucketsConfig, CollectionRule, Resolution } from './resolve';
 
 let metadataAppids: () => Iterable<number> = () => [];
 /** game-info registers its cache here (avoids an import cycle). */
@@ -12,16 +12,45 @@ export function setMetadataAppidSource(fn: () => Iterable<number>): void {
     metadataAppids = fn;
 }
 
-/** Current settings + live collections. */
+/** The shortcut's display title (O(1) appStore lookup), for rule patterns. */
+function titleOf(appid: number): string | undefined {
+    try {
+        const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
+        return typeof name === 'string' ? name : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Resolutions are sticky for the session (ADR-0036) and dropped only when the
+ * bucket settings change. Our own Game Info enrichment adds store categories,
+ * which feed Steam's dynamic collections; without this a game could leave a
+ * rule's collection because we enriched it, and flip bucket on the next view.
+ * `pending` is never memoised.
+ */
+const memo = new Map<number, Resolution>();
+
+/** Current settings + live collections, memoised per session. */
 export function getBucket(appid: number): Resolution {
+    const hit = memo.get(appid);
+    if (hit) return hit;
     const cfg = setting('buckets');
-    if (appid >= SHORTCUT_MIN && cfg.overrides[String(appid)]) return resolveBucket(appid, cfg, membersOf);
-    return pendingOr<Resolution>(cfg.assignments.length > 0, collectionsReady(), () => resolveBucket(appid, cfg, membersOf)) as Resolution;
+    const r =
+        appid >= SHORTCUT_MIN && cfg.overrides[String(appid)]
+            ? resolveBucket(appid, cfg, membersOf, titleOf)
+            : (pendingOr<Resolution>(cfg.rules.length > 0, collectionsReady(), () =>
+                  resolveBucket(appid, cfg, membersOf, titleOf),
+              ) as Resolution);
+    if (r.via !== 'pending') memo.set(appid, r);
+    return r;
 }
 
 export function onBucketsChanged(fn: () => void): () => void {
     return onSettingChange((key) => {
-        if (key === 'buckets') fn();
+        if (key !== 'buckets') return;
+        memo.clear();
+        fn();
     });
 }
 
@@ -56,7 +85,7 @@ export function bucketReport(): BucketReport {
     const ready = collectionsReady();
     const live = listCollections();
     const liveIds = new Set(live.map((c) => c.id));
-    const assigned = new Map(cfg.assignments.map((a) => [a.id, a.bucket] as const));
+    const assigned = new Map(cfg.rules.map((a) => [a.id, a.bucket] as const));
     const shortcuts = listShortcuts();
     const appids = shortcuts.map((s) => s.appid);
 
@@ -71,15 +100,15 @@ export function bucketReport(): BucketReport {
     }
     return {
         ready,
-        collections: live.map((c) => ({ ...c, bucket: assigned.get(c.id) ?? 'none' })),
-        conflicts: findConflicts(cfg, membersOf, appids).map(({ appid, resolution }) => ({
+        collections: live.map((c) => ({ ...c, bucket: assigned.get(c.id) ?? cfg.default })),
+        conflicts: findConflicts(cfg, membersOf, appids, titleOf).map(({ appid, resolution }) => ({
             appid,
             name: shortcutName(appid),
             collectionIds: resolution.conflict!.collectionIds,
             buckets: resolution.conflict!.buckets,
             using: resolution.bucket,
         })),
-        missing: cfg.assignments
+        missing: cfg.rules
             .filter((a) => !liveIds.has(a.id))
             .map((a) => ({ id: a.id, name: a.name, bucket: a.bucket, relinkId: live.find((c) => c.name === a.name)?.id })),
         unbucketedWithMetadata: [...metadataAppids()].filter((id) => getBucket(id).bucket === 'none').length,
