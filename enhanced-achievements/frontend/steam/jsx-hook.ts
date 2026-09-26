@@ -19,6 +19,15 @@ import { beforePatch, callOriginal, replacePatch } from '@steambrew/client';
  *    (`runtime.jsx(SENTINEL, {})`) checks whether calls still reach our handler.
  * 3. Only if neither finds it is the patch re-installed.
  *
+ * When: on a 5 s timer, and within a microtask of any write to `jsx`/`jsxs`
+ * (the write guard below). The guard exists because Millennium itself drops
+ * every plugin's patch: its FCTrampoline swaps `SP_JSX_FACTORY.jsx`/`jsxs` for
+ * stubs while rendering some components (every toast window does), then
+ * "removes stubs" by restoring a copy it took when the trampoline was created,
+ * before any plugin patched (verified live 2026-09-25, docs/plugins.md). With
+ * only the timer, anything rendered in the next ≤5 s lost our patch; a queued
+ * achievement banner re-rendered by the toast stack fell back to Steam's toast.
+ *
  * Handlers run for every element in the client (guardrail 2): keep them O(1).
  */
 
@@ -48,6 +57,66 @@ export interface JsxHookOptions {
 const SENTINEL = function EnhancedPluginsJsxSentinel() {
     return null;
 };
+
+const GUARD_KEY = '__enhancedPluginsJsxGuard';
+
+interface WriteGuard {
+    /** Called (batched, in a microtask) after any write to `jsx` or `jsxs`. */
+    onWrite: Set<() => void>;
+}
+
+/**
+ * Turn `runtime.jsx`/`jsxs` into accessors that behave exactly like the plain
+ * properties (the getter returns what was last set, so the SDK patcher and
+ * Millennium work unchanged) but tell every registered plugin after a write.
+ * The check runs in a microtask, never inside the setter: the SDK patcher
+ * attaches `__millenniumPatch` to the new function *after* assigning it, so
+ * the chain is only walkable once the writer's synchronous code is done.
+ *
+ * One guard per runtime, shared by every plugin that has this file (stored on
+ * the runtime itself). Returns null when the properties cannot take an
+ * accessor; the 5 s timer then still heals, just later.
+ *
+ * The getter is on the hot path of every element Steam creates: it only
+ * returns a closure variable (O(1), guardrail 2).
+ */
+function writeGuard(runtime: Runtime): WriteGuard | null {
+    const holder = runtime as unknown as Record<string, WriteGuard | undefined>;
+    if (holder[GUARD_KEY]) return holder[GUARD_KEY]!;
+    const names = ['jsx', 'jsxs'] as const;
+    const descriptors = names.map((name) => Object.getOwnPropertyDescriptor(runtime, name));
+    if (descriptors.some((d) => !d || !d.configurable || d.get || d.set || typeof d.value !== 'function')) return null;
+
+    const guard: WriteGuard = { onWrite: new Set() };
+    let pending = false;
+    const notify = () => {
+        pending = false;
+        for (const fn of guard.onWrite) {
+            try {
+                fn();
+            } catch {
+                /* one plugin's heal must not stop another's */
+            }
+        }
+    };
+    names.forEach((name, i) => {
+        let value = descriptors[i]!.value as JsxFn;
+        Object.defineProperty(runtime, name, {
+            configurable: true,
+            enumerable: descriptors[i]!.enumerable,
+            get: () => value,
+            set: (next: JsxFn) => {
+                value = next;
+                if (!pending) {
+                    pending = true;
+                    queueMicrotask(notify);
+                }
+            },
+        });
+    });
+    Object.defineProperty(runtime, GUARD_KEY, { value: guard });
+    return guard;
+}
 
 /** Walk SDK patch links from the top; stops at the base or at a foreign (non-SDK) wrapper. */
 function walk(top: Patched | undefined, target: Patched | undefined): { found: boolean; depth: number } {
@@ -112,6 +181,9 @@ export function keepJsxPatched(runtime: Runtime, options: JsxHookOptions): { dia
 
     ensure();
     const timer = setInterval(ensure, intervalMs);
+    // Heal right after any write (e.g. Millennium restoring a stale jsx), not ≤5 s later.
+    const guard = writeGuard(runtime);
+    guard?.onWrite.add(ensure);
 
     return {
         diagnostics: () =>
@@ -121,6 +193,7 @@ export function keepJsxPatched(runtime: Runtime, options: JsxHookOptions): { dia
             }),
         dispose: () => {
             clearInterval(timer);
+            guard?.onWrite.delete(ensure);
             for (const name of ['jsx', 'jsxs'] as const) {
                 try {
                     state[name].unpatch?.();

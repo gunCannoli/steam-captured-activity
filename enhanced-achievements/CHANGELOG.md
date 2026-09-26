@@ -7,59 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-### Fixed
-
-- **Achievement queue fell apart under rapid unlocks/previews** (lost
-  position and style). Root causes: `Banner` returned `null` for a queued
-  toast *before* its remaining hooks, so when its turn came React threw
-  ("rendered more hooks") and the error boundary showed Steam's unpinned
-  stock toast; a queued popup sat empty at Steam's stack position showing
-  Steam's bare gradient box; a toast promoted while the previous popup was
-  still closing was pinned to stack slot 1; Steam's own timer closed queued
-  popups before their turn; and an `animation.out: "none"` theme never
-  released the queue (no `animationend`). Rebuilt on a toast scheduler
-  (`banner/queue.ts`, `waiting → showing → done`, own timers) that is the
-  single owner of banner lifetime. The banner holds its desktop popup open
-  through Steam's own `fnNotificationResolved` until it is done (with a cap),
-  so the entrance, `display_time_ms` and exit are exact. A waiting popup is
-  pinned as an invisible 1×1 window with Steam's chrome hidden. With the queue
-  on, every banner uses the anchor slot. Animation lengths now come from one
-  table (`banner/timing.ts`) shared by the CSS and the scheduler.
-- **Queued toasts' sounds all played at once on arrival**; each now plays
-  when its banner appears.
-- **Rapid tier previews could swap tiers** (a single time-window `forced`
-  tier was consumed by whichever toast rendered first). Previews now post
-  their own payload with the tier in the id (`EA_PREVIEW_<tier>`), dressed in
-  one of the game's real highlighted achievements (cached per app). Captures
-  skip previews by id, replacing a 10 s suppression window that could also
-  swallow a real unlock right after a preview.
-- **"Steam default" did not look like Steam's toast** when
-  enhanced-notifications is installed: `claims()` returned false for every
-  feature with no theme loaded, so enhanced-notifications painted its own
-  border, radius and glow on achievement toasts. While this plugin's hooks
-  are live it now owns achievement toasts: "Steam default", a failed theme,
-  and a theme without a sound or `display_time_ms` all mean "Steam's own".
-  Only the banner is handed back, and only if a theme is loaded but the
-  toast patch is not live.
-- A theme reload while a toast is on screen no longer changes that toast
-  mid-flight (theme snapshotted per toast).
-- The synthetic 100% toast is scheduled at most once per unlock (Steam can
-  call `PlayNotificationSound` more than once per toast).
-
-### Tests
-
-- `tests/queue-stress.mjs` (new, live): "Steam default" stays stock with
-  enhanced-notifications installed; a 5-preview burst with the queue on
-  shows exactly one banner at a time, at one spot, in order, with its own
-  tier, never Steam's fallback, one sound per toast about 5 s apart; with the queue off
-  every toast keeps its own tier.
-- `tests/queue.test.ts` rewritten for the scheduler (FIFO under bursts,
-  idempotent remounts, timer-driven end, gap, overflow).
-- `tests/tiers.mjs`: the completion case updated to the synthetic-100%
-  design (since `fe25714`): the completing unlock keeps its rarity tier,
-  then a separate exceptional toast must appear.
+## [1.0.0] - 2026-09-25
 
 ### Added
+
+- **JSONC themes.** Theme files may be `.jsonc` or `.json`, and both accept
+  `//` and `/* */` comments and trailing commas (`theme/jsonc.ts`; parse
+  errors still point at the right line). With both `name.jsonc` and
+  `name.json` in one folder, the `.jsonc` wins.
+- **`themes/theme.jsonc`**: every option, with a comment explaining each
+  array position, range and default, in a working theme ("theme" in the dropdown).
+- **`themes/ps5.jsonc`** replaces `ps5.json`: commented, explicit pairs,
+  resolves identically (the no-op `glow` and unused `layout.text` dropped).
+- Theme load failures and theme warnings show under the theme dropdown
+  (only when there is a problem; nothing surfaced them since the status line
+  was removed).
+
 
 - **The settings panel now warns and greys out when Steam's toast
   notifications are off entirely** (Steam Settings -> Notifications),
@@ -70,7 +33,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   that's now replaced by this always-current state, hidden entirely when
   toasts are on or when the state can't be detected on this Steam build.
 
+
+- **`animation.in` / `animation.out`**, independently settable entrance and
+  exit transitions (`"animation": {"in": "slide", "out": "fade"}`), instead of
+  one name that had to cover both. A bare string (`"fade"`) still means both
+  states use it — no behaviour change for existing themes.
+- **`"ps5"` animation preset**: slides in from the screen edge the banner is
+  anchored to (and back out the same way) plus a fade, like a PS5 trophy
+  popup. `top_center`/`bottom_center` slide vertically instead.
+- **One-at-a-time achievement toast queue.** Only one themed banner is ever
+  visible; a second (or later) unlock waits for the current one's exit
+  animation to finish, then shows 100ms later — not the theme's configured
+  delay. Bounded to 5 queued toasts; past that, a new unlock shows immediately
+  rather than risking Steam auto-hiding an unshown popup on its own timer.
+  **Off by default** — new setting **"One achievement at a time"**
+  (`queue.enabled`); off falls back to Steam's own default (toasts can show
+  side by side, as before).
+
 ### Changed
+
+- **Theme dropdown is three rows**: "Available themes", the description,
+  then the dropdown across the full row width.
+- With a theme loaded, Steam's achievement toast duration is the banner's
+  whole lifetime (entrance + `display_time_ms` + exit), so Big Picture, where
+  Steam times the toast, no longer cuts the exit animation short (verified live).
+
 
 - **Settings panel rebuilt on `PanelSection`/`PanelSectionRow`, not
   `DialogControlsSection`/`DialogControlsSectionHeader`.** Two earlier
@@ -121,6 +108,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Shortened several settings descriptions (theme reload/open, capture
   toggles) and dropped the theme dropdown's "(yours)" suffix on user themes.
 
+
+- **The `recording.duration_s` (clip length) slider now starts at 0 s**, was 5 s.
+- **Every settings-panel row now shows its control above its description**
+  (SDK `layout="below"`, no custom CSS) instead of the two overlapping on one
+  line.
+
+
+- **`position` values are now snake_case** (`top_right`, `bottom_center`, …)
+  for consistency with every other multi-word value in the schema. Pre-alpha,
+  so the old run-together spellings (`topright`, …) are a breaking change, not
+  deprecated — update your theme files.
+- **`text-align` is now `text_align`**, for the same reason and with the same
+  breaking change.
+- **`applyPosition()` / `SetNotificationPosition` removed.** It rewrote
+  Steam's global (all-toasts) notification position and did not reliably take
+  effect; window placement is now done per-toast-popup only (see Fixed, above).
+
 ### Removed
 
 - **The static Steam-toast-notifications-disabled disclaimer** in the settings
@@ -134,32 +138,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   as exports for the live regression test (`tests/captures.mjs`); there is no
   longer a settings-panel control for it.
 
-### Added
-
-- **`animation.in` / `animation.out`**, independently settable entrance and
-  exit transitions (`"animation": {"in": "slide", "out": "fade"}`), instead of
-  one name that had to cover both. A bare string (`"fade"`) still means both
-  states use it — no behaviour change for existing themes.
-- **`"ps5"` animation preset**: slides in from the screen edge the banner is
-  anchored to (and back out the same way) plus a fade, like a PS5 trophy
-  popup. `top_center`/`bottom_center` slide vertically instead.
-- **One-at-a-time achievement toast queue.** Only one themed banner is ever
-  visible; a second (or later) unlock waits for the current one's exit
-  animation to finish, then shows 100ms later — not the theme's configured
-  delay. Bounded to 5 queued toasts; past that, a new unlock shows immediately
-  rather than risking Steam auto-hiding an unshown popup on its own timer.
-  **Off by default** — new setting **"One achievement at a time"**
-  (`queue.enabled`); off falls back to Steam's own default (toasts can show
-  side by side, as before).
-
-### Changed
-
-- **The `recording.duration_s` (clip length) slider now starts at 0 s**, was 5 s.
-- **Every settings-panel row now shows its control above its description**
-  (SDK `layout="below"`, no custom CSS) instead of the two overlapping on one
-  line.
-
-### Removed
 
 - **The outline glow effect** (`banner.glow`'s `spread`/`pulseMs`). It rendered
   clipped by the banner's own `overflow: hidden` (looking like an inner
@@ -170,6 +148,62 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   has no visual effect.
 
 ### Fixed
+
+- **Themed banners randomly fell back to Steam's toast** when any other toast
+  appeared (worst with the queue, whose toasts live longer). Millennium core
+  restores a stale `jsx` whenever a toast window renders, dropping every
+  plugin's jsx patch until the 5 s re-check. `steam/jsx-hook.ts` now heals
+  within a microtask of any write (docs/plugins.md § Sharing the jsx runtime).
+  Same fix shipped to steam-cartridges.
+- A game-completing unlock no longer captures twice (the synthetic 100% toast
+  skipped captures).
+- "Steam default" restores Steam's own toast duration even when
+  enhanced-notifications wrote it first (shared pristine-duration record).
+- `"sound": null` no longer warns; it means Steam's chime.
+- A tier that overrides only `text.title`/`text.desc` words (`exceptional`)
+  keeps the style inherited from `normal` instead of the default style.
+- `npm run check` passes again (unused `status` in the settings panel).
+- Tests: `captures.mjs` restores exactly the settings stored before it ran
+  (it used to wipe them); `tiers.mjs` waits for a clear screen per case;
+  `bigpicture.mjs` also checks the exit animation completes.
+
+- **Achievement queue fell apart under rapid unlocks/previews** (lost
+  position and style). Root causes: `Banner` returned `null` for a queued
+  toast *before* its remaining hooks, so when its turn came React threw
+  ("rendered more hooks") and the error boundary showed Steam's unpinned
+  stock toast; a queued popup sat empty at Steam's stack position showing
+  Steam's bare gradient box; a toast promoted while the previous popup was
+  still closing was pinned to stack slot 1; Steam's own timer closed queued
+  popups before their turn; and an `animation.out: "none"` theme never
+  released the queue (no `animationend`). Rebuilt on a toast scheduler
+  (`banner/queue.ts`, `waiting → showing → done`, own timers) that is the
+  single owner of banner lifetime. The banner holds its desktop popup open
+  through Steam's own `fnNotificationResolved` until it is done (with a cap),
+  so the entrance, `display_time_ms` and exit are exact. A waiting popup is
+  pinned as an invisible 1×1 window with Steam's chrome hidden. With the queue
+  on, every banner uses the anchor slot. Animation lengths now come from one
+  table (`banner/timing.ts`) shared by the CSS and the scheduler.
+- **Queued toasts' sounds all played at once on arrival**; each now plays
+  when its banner appears.
+- **Rapid tier previews could swap tiers** (a single time-window `forced`
+  tier was consumed by whichever toast rendered first). Previews now post
+  their own payload with the tier in the id (`EA_PREVIEW_<tier>`), dressed in
+  one of the game's real highlighted achievements (cached per app). Captures
+  skip previews by id, replacing a 10 s suppression window that could also
+  swallow a real unlock right after a preview.
+- **"Steam default" did not look like Steam's toast** when
+  enhanced-notifications is installed: `claims()` returned false for every
+  feature with no theme loaded, so enhanced-notifications painted its own
+  border, radius and glow on achievement toasts. While this plugin's hooks
+  are live it now owns achievement toasts: "Steam default", a failed theme,
+  and a theme without a sound or `display_time_ms` all mean "Steam's own".
+  Only the banner is handed back, and only if a theme is loaded but the
+  toast patch is not live.
+- A theme reload while a toast is on screen no longer changes that toast
+  mid-flight (theme snapshotted per toast).
+- The synthetic 100% toast is scheduled at most once per unlock (Steam can
+  call `PlayNotificationSound` more than once per toast).
+
 
 - **The ripple now starts at the icon's own edge and expands outward**,
   instead of already 35% inflated and drifting further — a ring collapsed
@@ -194,17 +228,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   third argument is a DPI multiplier, not a boolean), so at DPR 1.25 the
   banner landed about 20% short of its intended offset.
 
-### Changed
+### Tests
 
-- **`position` values are now snake_case** (`top_right`, `bottom_center`, …)
-  for consistency with every other multi-word value in the schema. Pre-alpha,
-  so the old run-together spellings (`topright`, …) are a breaking change, not
-  deprecated — update your theme files.
-- **`text-align` is now `text_align`**, for the same reason and with the same
-  breaking change.
-- **`applyPosition()` / `SetNotificationPosition` removed.** It rewrote
-  Steam's global (all-toasts) notification position and did not reliably take
-  effect; window placement is now done per-toast-popup only (see Fixed, above).
+- `tests/queue-stress.mjs` (new, live): "Steam default" stays stock with
+  enhanced-notifications installed; a 5-preview burst with the queue on
+  shows exactly one banner at a time, at one spot, in order, with its own
+  tier, never Steam's fallback, one sound per toast about 5 s apart; with the queue off
+  every toast keeps its own tier.
+- `tests/queue.test.ts` rewritten for the scheduler (FIFO under bursts,
+  idempotent remounts, timer-driven end, gap, overflow).
+- `tests/tiers.mjs`: the completion case updated to the synthetic-100%
+  design (since `fe25714`): the completing unlock keeps its rarity tier,
+  then a separate exceptional toast must appear.
 
 ## [0.1.0-alpha.1] - 2026-09-24
 

@@ -15,6 +15,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
 
+// The user's own stored settings, restored exactly at the end (never wiped).
+const before_ = (await stored()) ?? {};
 try {
     // 1. recordingDiagnostics() resolves the service and the live store.
     const diag = JSON.parse(await plugin('recordingDiagnostics()').then((r) => JSON.stringify(r)));
@@ -73,11 +75,13 @@ try {
         console.log('SKIP  RUNNING=1 scenario (no game/recording set up for this run)');
     }
 } finally {
-    // 7. Restore settings and dry-run mode.
+    // 7. Restore dry-run mode and exactly the settings stored before the test.
     await plugin('setCaptureDryRun(false)');
     await plugin('resetSettings()');
-    const left = await stored();
-    check('settings reset, nothing left stored', left && Object.keys(left).length === 0, JSON.stringify(left));
+    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
+    const left = (await stored()) ?? {};
+    const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+    check('settings restored to what was stored before the test', sorted(left) === sorted(before_), `${JSON.stringify(before_)} -> ${JSON.stringify(left)}`);
     cdp.close();
 }
 process.exitCode = failed ? 1 : 0;

@@ -178,12 +178,29 @@ function pair(raw: unknown, fallback: [number, number], min: number, max: number
         return [v, v];
     }
     if (Array.isArray(raw)) {
-        return [
-            num(raw[0], min, max) ?? fallback[0],
-            num(raw[1], min, max) ?? fallback[1],
-        ];
+        // A missing second value keeps its default (`[5]` padding = [5, 10]); existing themes rely on it.
+        return [num(raw[0], min, max) ?? fallback[0], num(raw[1], min, max) ?? fallback[1]];
     }
     return fallback;
+}
+
+/**
+ * `text.title` / `text.desc` may be a style array or, as a shorthand, the
+ * replacement text itself. Move the text form to `title_text` / `desc_text`
+ * *before* inheritance, so a tier that only overrides the words (the usual
+ * `exceptional: { text: { title: "100% Complete" } }`) keeps normal's title
+ * style instead of replacing the style array with a string.
+ */
+function normalizeTextShorthand(raw: Json): Json {
+    if (!isObject(raw.text)) return raw;
+    const text: Json = { ...raw.text };
+    for (const part of ['title', 'desc'] as const) {
+        if (typeof text[part] === 'string') {
+            text[`${part}_text`] ??= text[part];
+            delete text[part];
+        }
+    }
+    return { ...raw, text };
 }
 
 /** `[source, scale, ripple]` or `[source, ripple]` or bare `source` shorthand. */
@@ -247,7 +264,8 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: Te
     let sound: SoundSpec | null = null;
     if (Array.isArray(raw.sound) && typeof raw.sound[0] === 'string' && raw.sound[0]) {
         sound = { path: raw.sound[0], volumePct: num(raw.sound[1], 0, 100) ?? 100 };
-    } else if (raw.sound !== undefined) {
+    } else if (raw.sound !== undefined && raw.sound !== null) {
+        // null is an explicit "Steam's chime"; anything else unusable is a typo.
         warnings.push(`${tier}.sound is not ["path", volume]; using Steam's chime.`);
     }
 
@@ -358,7 +376,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
 
     const warnings: string[] = [];
     const settings = isObject(raw.settings) ? raw.settings : {};
-    const normal = raw.themes.normal;
+    const normal = normalizeTextShorthand(raw.themes.normal);
 
     let textAlign = oneOf(settings.text_align, TEXT_ALIGNS);
     if (settings.text_align !== undefined && !textAlign) {
@@ -371,7 +389,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     for (const tier of TIERS) {
         const own = raw.themes[tier];
         if (own !== undefined && !isObject(own)) warnings.push(`themes.${tier} is not an object; inheriting normal.`);
-        const merged = tier === 'normal' ? normal : mergeTier(normal, isObject(own) ? own : {});
+        const merged = tier === 'normal' ? { ...normal } : mergeTier(normal, isObject(own) ? normalizeTextShorthand(own) : {});
         // `threshold` is per tier and never inherited from normal.
         if (tier !== 'normal') merged.threshold = isObject(own) ? own.threshold : undefined;
         tiers[tier] = resolveTier(tier, merged, warnings, themeTextAlign);

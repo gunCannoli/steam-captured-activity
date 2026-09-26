@@ -19,7 +19,7 @@ theme Steam's toasts and sounds.
 | Area                                      | State                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Core (`non-steam-games-activity`)         | ✅ Shipped — [README § Status](non-steam-games-activity/README.md#status)                               |
-| `enhanced-achievements` `0.1.0-alpha.1`   | 🧪 Queue/lifetime rebuild + "Steam default" ownership fix deployed and verified live 2026-09-25 (`tests/queue-stress.mjs` 16/16). Preparing 1.0 — see the release checklist below. |
+| `enhanced-achievements` `1.0.0`           | ✅ 1.0.0 ready 2026-09-25: queue/lifetime rebuild, Steam-default ownership, JSONC themes, jsx write guard; all live suites pass (desktop + Big Picture). Remaining: visual panel check, overlay U7, publish. |
 | `enhanced-notifications` `0.1.0-alpha.1`  | 🧪 Alpha — all toast types, desktop + Big Picture; awaiting user testing                                |
 | Native Achievements (Phase 5)             | 🔬 Hook points verified in Steam client; not implemented                                                |
 | Provider contract (Phase 9)               | ⬜ Architecture planned ([docs/millennium-architecture.md](docs/millennium-architecture.md))            |
@@ -42,24 +42,14 @@ is just the index.
 
 7. **Queue/lifetime rebuild, "Steam default" ownership** — see [enhanced-achievements/CHANGELOG.md](enhanced-achievements/CHANGELOG.md) § Unreleased › Fixed. Scheduler (`banner/queue.ts`) owns banner lifetime; desktop popups held via Steam's `fnNotificationResolved` ([steam-components.md § Toast lifetime](docs/steam-components.md#resolution-signatures--toast-windows)); queued sounds play with their banner; previews tagged by id; `claims()` owns achievement toasts while hooked.
 
-### 1.0 release checklist (audit 2026-09-25)
+### 1.0 release: remaining (audit items done, see enhanced-achievements/CHANGELOG.md § 1.0.0)
 
-Blockers:
-- [ ] `npm run check` fails: `status` unused in `settings-panel.tsx` (from `9fb71ea`). With the status line gone, theme load failures and theme warnings are no longer shown anywhere in the UI; decide where they surface.
-- [ ] Bump `version` in `package.json` and `plugin.json` (`0.1.0-alpha.1` → `1.0.0`); move CHANGELOG § Unreleased to `[1.0.0]`.
-- [ ] Run `tests/bigpicture.mjs` against this build: the queue and lifetime rebuild was verified on desktop only. In Big Picture, Steam times the toast, so a long `ps5` entrance/exit can still be cut short there.
-- [ ] U7 in-game overlay with a real unlock: the popup hold assumes the overlay honours `fnNotificationResolved` (code-read, unverified). Worst case it falls back to Steam's timer.
-
-Should fix:
-- [ ] `tests/captures.mjs` ends with `resetSettings()` and wipes the user's stored settings; snapshot and restore them instead.
-- [ ] `tests/tiers.mjs` reads the first toast window it finds, so it fails if a previous toast is still closing; wait for no toasts first (as `queue-stress.mjs` does).
-- [ ] A game-completing unlock captures twice: the synthetic 100% toast also runs `onUnlock` 1.5 s later (clips merge, screenshots don't). Skip captures for `EA_100_PERCENT`.
-- [ ] enhanced-achievements records `originalDurationMs` at startup; if enhanced-notifications wrote the achievement type's `toastDurationMS` first, "Steam default" restores EN's value instead of Steam's. Read it from a stand-in or restore Steam's default `5000`.
-- [ ] Queue on: waiting popups are invisible 1×1 windows but still count in Steam's desktop stack, so other toast types (friends, downloads) may stack above an empty slot while a burst drains. Verify with a mixed burst.
-
-Nice to have:
-- [ ] `@steambrew/ttc` 2.8.7 → 3.3.7 (build warns). Upgrade before 1.0 only if a full live pass follows.
-- [ ] `LoadAssets` accepts absolute paths from a theme file (any allowed-type file ≤ 8 MB on disk, displayed locally only). Consider confining assets to the theme's folder, since themes are shared.
+- [ ] **Visual check of the settings panel** (not automatable here): theme dropdown on three rows (label, description, full-width dropdown); a theme-problem line appears only for a broken theme.
+- [ ] U7 in-game overlay with a real unlock: the popup hold assumes the overlay honours `fnNotificationResolved` (code-read, unverified). Worst case: Steam's timer.
+- [ ] Your user-folder `themes/ps5.json` shadows the new bundled `ps5.jsonc` and has no `assets/` beside it (trophy icons missing). Delete it or copy the assets.
+- [ ] Report the Millennium FCTrampoline stale-`jsx` restore upstream (docs/plugins.md § Sharing the jsx runtime). No AI attribution (Routine 6).
+- [ ] Optional: `@steambrew/ttc` 2.8.7 → 3.3.7, only with a full live pass after.
+- [ ] Tag/publish 1.0.0 (`dev.ps1 -Package`, U9 fresh install).
 
 - [ ] **User's live smoke test** across all rounds — not yet run.
 - [ ] Open questions (not blocking, defaults already applied): default animation pair, `ps5` timings, queue overflow behaviour (plan 2 § 9); `queue.enabled` default off vs on, `duration_s: 0` edge case (plan 3 § 9).

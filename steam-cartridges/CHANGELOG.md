@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- `steam/jsx-hook.ts` (shared with enhanced-achievements): heals within a microtask of any write to `jsx`/`jsxs`, not only on the 5 s timer. Millennium core restores a stale `jsx` whenever a toast window renders, dropping every plugin's patch for up to 5 s (docs/plugins.md § Sharing the jsx runtime). Verified: `scratch/jsx_chain.js` 9/9.
+
 - Steam Store bucket (P3): games in a Steam Store collection get native art and Game Info from an exact, unique title match (known natives, then store search); suggestions and manual appid in settings; Clear removes the match and only the art this plugin wrote.
 - Buckets (P2): ordered collection assignments + per-game overrides in one `buckets` config key; Game Info and IGDB lookups now run only for Web Scraping games, and revert live when a collection changes. Settings panel added. **Games need a bucket to keep Game Info.**
 - Merged `steamgriddb-artwork` (web metadata, Game Info, artwork RPCs) and renamed to `steam-cartridges`. Data folder `<Steam>/millennium/config/steam-cartridges`; no RPC renamed.

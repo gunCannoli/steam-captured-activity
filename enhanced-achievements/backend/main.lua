@@ -67,14 +67,19 @@ local function is_absolute(path)
   return path:match("^%a:[/\\]") ~= nil or path:sub(1, 1) == "/" or path:sub(1, 2) == "\\\\"
 end
 
---- Names (without .json) of every theme, user themes shadowing bundled ones.
+--- Theme file extensions, in lookup order: a .jsonc and a .json with the same
+--- name in one folder resolve to the .jsonc. Both parse as JSONC in the frontend.
+local THEME_EXTENSIONS = { ".jsonc", ".json" }
+local IS_THEME_EXTENSION = { [".jsonc"] = true, [".json"] = true }
+
+--- Names (without extension) of every theme, user themes shadowing bundled ones.
 local function list_themes()
   local seen, out = {}, {}
   for _, entry in ipairs(theme_dirs()) do
     if fs.is_directory(entry.dir) then
       for _, item in ipairs(fs.list(entry.dir) or {}) do
         local path = type(item) == "table" and item.path or item
-        if type(path) == "string" and fs.extension(path):lower() == ".json" then
+        if type(path) == "string" and IS_THEME_EXTENSION[fs.extension(path):lower()] then
           local name = fs.stem(path)
           if not seen[name] then
             seen[name] = true
@@ -92,12 +97,13 @@ end
 local function find_theme(name)
   if type(name) ~= "string" or name == "" or name:find("[/\\]") or name:find("%.%.") then return nil end
   for _, entry in ipairs(theme_dirs()) do
-    local path = fs.join(entry.dir, name .. ".json")
-    if fs.is_file(path) then return path, entry.dir, entry.source end
+    for _, ext in ipairs(THEME_EXTENSIONS) do
+      local path = fs.join(entry.dir, name .. ext)
+      if fs.is_file(path) then return path, entry.dir, entry.source end
+    end
   end
   return nil
 end
-
 ListThemes = method("ListThemes", function(_)
   return { themes = list_themes(), userDir = user_themes_dir() }
 end)
@@ -110,8 +116,10 @@ LoadTheme = method("LoadTheme", function(data)
 end)
 
 --- Asset paths -> data URLs. Relative paths resolve against the theme's own
---- folder. A missing, oversized or disallowed asset maps to false (not an
---- error), so one bad path degrades one icon or sound, not the whole theme.
+--- folder; absolute paths are allowed (users keep shared asset libraries
+--- elsewhere). Assets are only ever shown or played locally, and only the
+--- MIME types above load. A missing, oversized or disallowed asset maps to
+--- false (not an error), so one bad path degrades one icon or sound, not the whole theme.
 LoadAssets = method("LoadAssets", function(data)
   local out = {}
   local dir = type(data.dir) == "string" and data.dir or ""

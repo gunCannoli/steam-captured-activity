@@ -40,6 +40,20 @@ const names = new Map<number, string>();
 const configs = new Map<number, TypeConfig>();
 const originalDurations = new Map<number, number | undefined>();
 
+/**
+ * Steam's own `toastDurationMS` for a type config, before any plugin wrote it.
+ * SAME HELPER in enhanced-achievements (plugins may not import each other):
+ * the first plugin to see a config records its value in a shared global
+ * WeakMap, so whichever loads second still restores Steam's value, not the
+ * other plugin's.
+ */
+function pristineDuration(config: object & { toastDurationMS?: number }): number | undefined {
+    const g = globalThis as { __enhancedPristineToastDurations?: WeakMap<object, number | undefined> };
+    const stash = (g.__enhancedPristineToastDurations ??= new WeakMap());
+    if (!stash.has(config)) stash.set(config, config.toastDurationMS);
+    return stash.get(config);
+}
+
 /** Every known type name (for building the whole theme's CSS once). */
 export function knownTypeNames(): string[] {
     return [...names.values()];
@@ -176,7 +190,7 @@ function discoverConfigs(p: NotificationStoreProto): void {
         const config = captured as TypeConfig | undefined; // assigned in standIn
         if (config && typeof config === 'object') {
             configs.set(eType, config);
-            originalDurations.set(eType, config.toastDurationMS);
+            originalDurations.set(eType, pristineDuration(config));
         }
     }
 }

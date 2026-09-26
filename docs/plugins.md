@@ -331,8 +331,23 @@ Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
 - **Never hand-roll a wrapper** (`runtime.jsx = function…`): it has no
   `__millenniumPatch` link, so it breaks both the chain walk and the SDK's `unpatch()`.
 - Handlers run for every element: O(1) only (guardrail 2).
+- **Millennium itself drops every plugin's patch, all the time.** Its
+  FCTrampoline (core `chunk-index.js`) swaps `SP_JSX_FACTORY.jsx`/`jsxs` for
+  stubs while rendering some components, then restores a copy it took when the
+  trampoline was *created*, before any plugin patched. Every toast window
+  triggers it (verified live 2026-09-25: a single downloads toast dropped all
+  plugins' patches within ~130 ms). A 5 s re-check alone leaves up to 5 s in
+  which anything rendered loses the patch; that is how a queued achievement
+  banner fell back to Steam's toast. So `keepJsxPatched` also installs a
+  shared **write guard**: `jsx`/`jsxs` become accessors (the getter returns
+  exactly what was last set, so the SDK patcher and Millennium behave as
+  before) whose setter schedules every plugin's re-check in a microtask. After
+  the fix, 5 ms sampling never caught the patch dead. Upstream fix would be to
+  restore the value current at stub time; not yet reported.
 - Verify with `node scratch/jsx_chain.js`: steady depth, foreign wrapper on top,
-  dropped reference, and a banner still rendering.
+  dropped reference, and a banner still rendering. Toast-triggered drops:
+  `jsxDiagnostics()` installs rise by 2 per toast (stub + restore) while `live`
+  stays true.
 
 ### Core architectural principles
 

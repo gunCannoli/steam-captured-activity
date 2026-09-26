@@ -1,10 +1,15 @@
 # Theme Schema (`themes.md`)
 
 Reference for every section, key, and tuple format in an `enhanced-achievements`
-theme file. The bundled default is [themes/steam_tiers.json](themes/steam_tiers.json)
-(colour-coded tiers, no local asset paths). Fuller, asset-based examples live in
-[examples/](examples/) — see [examples/README.md](examples/README.md) for how to
-use one.
+theme file. **[themes/theme.jsonc](themes/theme.jsonc) is the commented version
+of this page**: every option, with what each array position means, in a working
+theme you can copy and trim. Bundled themes: `theme`, [ps5](themes/ps5.jsonc) and
+[steam_tiers](themes/steam_tiers.json) (colour-coded tiers). Fuller, asset-based
+examples live in [examples/](examples/) — see [examples/README.md](examples/README.md).
+
+**File format:** `.jsonc` or `.json`. Both accept JSONC: `//` and `/* */`
+comments and trailing commas. If a folder has both `name.jsonc` and
+`name.json`, the `.jsonc` is used.
 
 A **theme** only describes how an unlock looks and sounds. What the plugin does
 (which theme is active, feature toggles, auto-capture defaults) is a plugin setting,
@@ -41,18 +46,19 @@ Display behaviour for this theme's banners.
 
 ## Root: `layout` (Optional, used with `"layout": "custom"`)
 
-Configures anchor positioning for internal elements:
+Places each icon (`achievement`, `system`, `rarity`); the text is always the
+middle column:
 ```json
 "layout": {
     "achievement": "left",
     "system": "right",
-    "text": "center",
     "rarity": "title_left"
 }
 ```
 
-- **Fixed Zones**: `"left"`, `"right"`, `"center"`.
+- **Outer zones**: `"left"`, `"right"` (also `"achievement_left"`, `"achievement_right"`: the same zones, placed after a `left`/`right` icon).
 - **Sub-Element Anchors**: `"title_left"`, `"title_right"`, `"desc_left"`, `"desc_right"`.
+- `"center"` and a `"text"` key are accepted for older themes but place nothing.
   When an element is anchored to another (such as `"rarity": "title_left"`), its height is automatically matched to the reference element's size (e.g. font line-height).
 
 ---
@@ -107,7 +113,7 @@ Colours accept `#rgb`, `#rrggbb` and `#rrggbbaa`.
 - **`title`** and **`desc`**: `["#hex", size_pct, style]` or custom string overrides.
     - `size_pct`: relative to the base font size (`100` = base, `120` = 20% larger).
     - `style`: `"bold"`, `"regular"` or `"italic"`.
-    - Custom strings: In `exceptional` (or any tier), `"title": "100% Complete"` and `"desc": "You've unlocked all achievements!"` specify the exact headline and subtitle text.
+    - Custom strings (`exceptional` only; other tiers always show the achievement's own name and description): `"title": "100% Complete"` and `"desc": "You've unlocked all achievements!"` set the words, while the style is still inherited from `normal`. `title_text` / `desc_text` are the same thing, spelled out.
 
 ### `icons`
 
@@ -167,7 +173,7 @@ you never need to edit it manually.
 }
 ```
 
-- **`theme`**: file name (without `.json`) of the active theme in `themes/`, or
+- **`theme`**: file name (without `.jsonc`/`.json`) of the active theme in `themes/`, or
   `""` for **Steam default** — no theme loaded, Steam's own stock toast and
   chime, untouched — also by enhanced-notifications, which leaves achievement
   toasts to this plugin whenever it is installed. `""` is the shipped default; the settings panel's Theme
@@ -198,7 +204,7 @@ Themes load from two folders; a user theme with the same name wins:
 
 ## Sharing themes
 
-A theme is one `.json` file plus the assets it references. Put them in one
+A theme is one `.jsonc`/`.json` file plus the assets it references. Put them in one
 folder with relative paths (`assets/gold.png`) and share that folder. To install,
 drop it into the themes folder and pick it in the settings panel.
 
@@ -207,3 +213,7 @@ drop it into the themes folder and pick it in the settings panel.
 - **Big Picture** uses Steam's own 300×80 toast frame and placement. `scale`
   and `position` do not apply there; only the desktop and in-game overlay
   toast windows are resized and repositioned.
+- **Achievement queue and other toasts.** Steam shows at most 3 desktop toasts
+  at once, and a queued achievement keeps its (invisible) toast open until its
+  turn. While a burst of 3+ unlocks drains, a friend or download toast can
+  wait for a free spot (about one banner's display time).

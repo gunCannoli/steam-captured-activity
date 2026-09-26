@@ -145,7 +145,7 @@ function usePanelDisabled(): boolean {
 function ThemeSection({ disabled }: { disabled: boolean }) {
     const [theme, setTheme] = useSetting("theme");
     const [themes, setThemes] = useState<ThemeEntry[]>([]);
-    const [status, setStatus] = useState(describeTheme());
+    const [problem, setProblem] = useState(themeProblem());
 
     const refresh = async () => {
         try {
@@ -158,7 +158,7 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
 
     useEffect(() => {
         void refresh();
-        return onThemeChange(() => setStatus(describeTheme()));
+        return onThemeChange(() => setProblem(themeProblem()));
     }, []);
 
     const options: { data: string; label: string }[] = [
@@ -175,21 +175,33 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
 
     return (
         <PanelSection title="Theme">
+            {/* Three rows: label, description, then the dropdown across the full
+                row. Two Fields rather than one with childrenLayout="below", so the
+                order does not depend on where Steam's Field puts the description. */}
             <ItemRow>
                 <Field
                     label="Available themes"
                     description="Select a theme to choose the notification style"
                     disabled={disabled}
-                    childrenContainerWidth="max"
-                >
+                    bottomSeparator="none"
+                />
+            </ItemRow>
+            <ItemRow>
+                <Field disabled={disabled} childrenContainerWidth="max" padding="none">
                     <Dropdown
                         rgOptions={options}
                         selectedOption={theme}
                         disabled={disabled}
+                        contextMenuPositionOptions={{ bMatchWidth: true }}
                         onChange={(o) => setTheme(o.data as string)}
                     />
                 </Field>
             </ItemRow>
+            {problem && (
+                <ItemRow>
+                    <DialogBodyText>{problem}</DialogBodyText>
+                </ItemRow>
+            )}
 
             <ButtonRow
                 label="Reload themes"
@@ -263,20 +275,20 @@ function PreviewSection({ disabled }: { disabled: boolean }) {
     );
 }
 
-function describeTheme(): string {
+/** A problem with the selected theme worth showing under the dropdown, or null when all is well. */
+function themeProblem(): string | null {
     const loaded = activeTheme();
 
     if (!loaded) {
         return setting("theme")
-            ? "Could not load this theme: using Steam's stock toast and chime"
-            : "Using Steam's own toast and chime";
+            ? "Could not load this theme (see the log): using Steam's stock toast and chime."
+            : null;
     }
 
     const warnings = loaded.theme.warnings.length;
-
-    return `Select a theme to choose the achievements notification style${
-        warnings ? `, ${warnings} warning(s) in the log` : ""
-    }.`;
+    return warnings
+        ? `Loaded with ${warnings} warning${warnings === 1 ? "" : "s"} (see the log): the affected fields use their defaults.`
+        : null;
 }
 
 function CapturesSection({ disabled }: { disabled: boolean }) {

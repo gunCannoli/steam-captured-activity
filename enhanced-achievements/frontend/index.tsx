@@ -4,7 +4,7 @@ import { initSettings } from './settings/settings';
 
 // Named exports are published by Millennium on window.PLUGIN_LIST[<plugin>],
 // which is how tests/*.mjs drive the same code paths as the settings panel.
-export { resetSettings, setSetting } from './settings/settings';
+export { allSettings, resetSettings, setSetting } from './settings/settings';
 export { previewTier, fireTestUnlock, fireExceptionalCompletionToast } from './steam/notifications';
 export { activeTheme } from './theme/active-theme';
 export { claims } from './claims';

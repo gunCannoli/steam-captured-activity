@@ -28,6 +28,22 @@ try {
         failed = true;
     }
     if (process.env.SCREENSHOT) await win.screenshot(process.env.SCREENSHOT);
+
+    // Big Picture times the toast itself (no popup hold there), so Steam's
+    // duration must cover the whole banner: the exit animation has to finish
+    // (opacity ~0) before Steam removes the banner, never be cut mid-way.
+    if (result.found) {
+        let last = null;
+        for (let t = 0; t < 30_000; t += 100) {
+            const s = await win.evaluate(`(() => { const b = document.querySelector('.ea-banner'); return b ? Number(getComputedStyle(b).opacity) : null; })()`);
+            if (s === null) break;
+            last = s;
+            await new Promise((r) => setTimeout(r, 100));
+        }
+        const ok = last !== null && last < 0.1;
+        console.log(`${ok ? 'PASS' : 'FAIL'}  exit animation finished before Steam removed the banner  (last opacity ${last})`);
+        if (!ok) failed = true;
+    }
     win.close();
 } finally {
     cdp.close();

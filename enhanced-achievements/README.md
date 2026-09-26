@@ -68,14 +68,16 @@ Five minutes, no game required for the first four:
    **Reload themes**, then **Preview** again to see the change.
 4. Start any game with Game Recording on (Steam Settings -> In-Game ->
    Recording), enable **Screenshot on unlock** and/or **Save clip on unlock**,
-   then unlock (or preview) an achievement for that game. Check Steam's
+   then unlock an achievement for that game (previews never capture). Check Steam's
    Screenshots/Recordings for the game shortly after.
 
 ## Themes
 
-A theme is one `.json` file plus the images and sounds it uses. The format is
-documented in [themes.md](themes.md). The bundled default,
-[themes/steam_tiers.json](themes/steam_tiers.json), needs no local files. Fuller,
+A theme is one `.jsonc` (or `.json`) file plus the images and sounds it uses.
+Comments are allowed in both. Start from
+[themes/theme.jsonc](themes/theme.jsonc): every option, commented, in a working
+theme. The full reference is [themes.md](themes.md). Also bundled:
+[ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json). Fuller,
 asset-based examples are in [examples/](examples/) (not installed; copy what you
 need into your own themes folder).
 
@@ -83,10 +85,10 @@ Put your themes in `<Steam>/millennium/config/enhanced-achievements/themes/`
 (**Open themes folder** takes you there). That folder survives plugin updates.
 A theme there with the same name as a bundled one replaces it.
 
-To share a theme, share its folder: the `.json` and an `assets/` folder, with
+To share a theme, share its folder: the `.jsonc` and an `assets/` folder, with
 paths in the theme written relative to it (`"assets/gold.png"`).
 
-The workflow is: edit the JSON, press **Reload themes**, press **Preview**.
+The workflow is: edit the theme file, press **Reload themes**, press **Preview**.
 
 ## Known limitations
 

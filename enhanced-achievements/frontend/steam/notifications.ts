@@ -1,6 +1,7 @@
 import { logger } from '../logger';
 import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
-import { completesGame, selectTier, TIERS, type Tier } from '../theme/theme';
+import { completesGame, selectTier, TIERS, type ResolvedTheme, type Tier } from '../theme/theme';
+import { bannerTiming } from '../banner/timing';
 import { onUnlock } from '../capture/captures';
 import { phaseOf, subscribe } from '../banner/queue';
 
@@ -166,9 +167,10 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
         try {
             if (isAchievementUnlock(n)) {
                 const tier = tierFor(n);
-                // Previews never capture (A2.4); decided by id, so a real unlock
-                // right after a preview still captures.
-                if (!previewTierOf(n)) onUnlock(n, tier);
+                // Previews never capture (A2.4), and the synthetic 100% toast does not
+                // capture again: the unlock that triggered it already did. Decided by
+                // id, so a real unlock right after either still captures.
+                if (!previewTierOf(n) && n.data.achievement_id?.() !== COMPLETION_ID) onUnlock(n, tier);
 
                 // An unlock that completes the game schedules the synthetic 100%
                 // completion toast right after, once. Previews and that toast itself
@@ -272,16 +274,41 @@ function discoverAchievementType(p: NotificationStoreProto): void {
         if (className === ACHIEVEMENT_CLASS) {
             achievementType = eType;
             achievementConfig = config;
-            originalDurationMs = config.toastDurationMS;
+            originalDurationMs = pristineDuration(config);
             return;
         }
     }
 }
 
+/**
+ * Steam's own `toastDurationMS` for a type config, before any plugin wrote it.
+ * SAME HELPER in enhanced-notifications (plugins may not import each other):
+ * the first plugin to see a config records its value in a shared global
+ * WeakMap, so whichever loads second still restores Steam's value, not the
+ * other plugin's.
+ */
+function pristineDuration(config: object & { toastDurationMS?: number }): number | undefined {
+    const g = globalThis as { __enhancedPristineToastDurations?: WeakMap<object, number | undefined> };
+    const stash = (g.__enhancedPristineToastDurations ??= new WeakMap());
+    if (!stash.has(config)) stash.set(config, config.toastDurationMS);
+    return stash.get(config);
+}
+
+/** How long a themed banner is fully visible: the theme's `display_time_ms`, else Steam's own duration. */
+export function themedDisplayMs(theme: ResolvedTheme): number {
+    return theme.displayTimeMs ?? (originalDurationMs || 5000); // Steam: `toastDurationMS || 5e3`
+}
+
+/**
+ * With a theme, Steam's toast lasts the banner's whole lifetime (entrance +
+ * display + exit), so where Steam times the toast itself (Big Picture) the
+ * exit animation is never cut short; on desktop the banner holds its popup
+ * anyway. Without a theme: Steam's own duration.
+ */
 function applyDuration(): void {
     if (!achievementConfig) return;
-    const themed = activeTheme()?.theme.displayTimeMs;
-    achievementConfig.toastDurationMS = themed ?? originalDurationMs;
+    const theme = activeTheme()?.theme;
+    achievementConfig.toastDurationMS = theme ? bannerTiming(theme.animation, themedDisplayMs(theme)).totalMs : originalDurationMs;
 }
 
 // --- synthetic toasts -------------------------------------------------------------

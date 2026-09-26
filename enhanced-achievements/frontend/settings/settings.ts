@@ -151,6 +151,11 @@ export async function initSettings(): Promise<void> {
     }
 }
 
+/** A copy of every current value (tests snapshot and restore settings with it). */
+export function allSettings(): Settings {
+    return { ...current };
+}
+
 /** O(1) read from the in-memory copy. */
 export function setting<K extends SettingKey>(key: K): Settings[K] {
     return current[key];

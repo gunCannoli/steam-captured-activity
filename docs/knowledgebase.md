@@ -88,6 +88,13 @@ in Millennium's `config.json` under `plugins.enabledPlugins` (**✅ verified**).
 - `findClassModule(predicate)` — get Steam's hashed CSS class map at runtime.
 - `beforePatch(obj, method, fn)` / `afterPatch` / `replacePatch` — monkey-patch
   Steam methods; returns `{ unpatch }` and links wrappers via `__millenniumPatch`.
+  They assign with a plain `obj[method] = fn`, then read `obj[method]` back to
+  attach `__millenniumPatch`, so an accessor on the property works only if its
+  getter returns exactly what was set (verified in `build/utils/patcher.js`).
+  **⚠️ Millennium core overwrites `SP_JSX_FACTORY.jsx`/`jsxs` with a stale copy**
+  whenever its FCTrampoline renders (every toast window does), dropping every
+  plugin's jsx patch (verified live 2026-09-25). See
+  [plugins.md § Sharing the jsx runtime](plugins.md#sharing-the-jsx-runtime-between-plugins).
 - **A real component library** (**✅ verified**, `@steambrew/client@5.8.5`,
   `build/components/*.d.ts`) — easy to miss because the reference plugin barely
   uses it: `Button`, `ButtonItem`, `Carousel`, `ControlsList`, `Dialog`,

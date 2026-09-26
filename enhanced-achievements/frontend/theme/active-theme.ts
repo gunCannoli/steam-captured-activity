@@ -1,6 +1,7 @@
 import { logger } from '../logger';
 import { rpc } from '../rpc';
 import { setting, onSettingChange } from '../settings/settings';
+import { parseJsonc } from './jsonc';
 import { resolveTheme, type ResolvedTheme, type Tier } from './theme';
 
 /**
@@ -57,7 +58,7 @@ async function load(name: string): Promise<void> {
     }
     try {
         const file = await rpc.loadTheme(name);
-        const theme = resolveTheme(JSON.parse(file.text));
+        const theme = resolveTheme(parseJsonc(file.text));
         for (const warning of theme.warnings) logger.warn(`Theme "${name}": ${warning}`);
 
         const assets = new Map<string, string>();

@@ -52,8 +52,23 @@ async function bannerTier() {
     }
 }
 
+/** Each case must start on a clean screen, or bannerTier() could read a toast still closing. */
+async function waitForNoToasts(maxMs = 30_000) {
+    for (let t = 0; t < maxMs; t += 500) {
+        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
+        if (!targets.some((x) => /notificationtoasts/i.test(x.title))) return true;
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    return false;
+}
+
 try {
     for (const [i, c] of cases.entries()) {
+        if (!(await waitForNoToasts())) {
+            failed = true;
+            console.log(`FAIL  ${c.label}: a previous toast never cleared`);
+            continue;
+        }
         // A fresh, never-seen appid so tier memos and caches cannot leak between cases.
         const appid = 900000 + i;
         await cdp.evaluate(`(() => {

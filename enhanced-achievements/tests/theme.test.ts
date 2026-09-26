@@ -4,27 +4,29 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { completesGame, mergeTier, resolveTheme, selectTier } from '../frontend/theme/theme.ts';
+import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
 const examplesDir = new URL('../examples/', import.meta.url);
-const load = (dir: URL, name: string) => JSON.parse(readFileSync(new URL(name, dir), 'utf8'));
+const load = (dir: URL, name: string) => parseJsonc(readFileSync(new URL(name, dir), 'utf8'));
+const isTheme = (f: string) => f.endsWith('.json') || f.endsWith('.jsonc');
 
 test('every bundled theme resolves without throwing', () => {
-    for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
+    for (const file of readdirSync(themesDir).filter(isTheme)) {
         const theme = resolveTheme(load(themesDir, file));
         assert.equal(Object.keys(theme.tiers).length, 4, file);
     }
 });
 
 test('every example theme resolves without throwing', () => {
-    for (const file of readdirSync(examplesDir).filter((f) => f.endsWith('.json'))) {
+    for (const file of readdirSync(examplesDir).filter(isTheme)) {
         const theme = resolveTheme(load(examplesDir, file));
         assert.equal(Object.keys(theme.tiers).length, 4, file);
     }
 });
 
 test("every bundled theme's assets exist, relative to themes/", () => {
-    for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
+    for (const file of readdirSync(themesDir).filter(isTheme)) {
         const theme = resolveTheme(load(themesDir, file));
         for (const rel of theme.assetPaths) {
             assert.ok(!/^[a-zA-Z]:[\\/]/.test(rel) && !rel.startsWith('/'), `${file}: asset path must be relative, got "${rel}"`);
@@ -252,4 +254,62 @@ test('completesGame reads the pre-unlock cache entry', () => {
     assert.equal(completesGame({ unlocked: 97, total: 97, all_unlocked: true }), false);
     assert.equal(completesGame(undefined), false);
     assert.equal(completesGame({ unlocked: 0, total: 0 }), false);
+});
+
+// --- JSONC --------------------------------------------------------------------
+
+test('jsonc: line and block comments and trailing commas are ignored', () => {
+    const text = '{\n  // a comment\n  "a": [1, 2,], /* block\n spanning */ "b": { "c": true, },\n}\n';
+    assert.deepEqual(parseJsonc(text), { a: [1, 2], b: { c: true } });
+});
+
+test('jsonc: comment-like text inside strings is kept', () => {
+    const text = '{ "url": "https://x.test/a//b", "s": "/* not a comment */", "q": "say \\"hi\\" // still string" }';
+    assert.deepEqual(parseJsonc(text), { url: 'https://x.test/a//b', s: '/* not a comment */', q: 'say "hi" // still string' });
+});
+
+test('jsonc: a leading BOM is accepted', () => {
+    assert.deepEqual(parseJsonc('﻿{"a":1}'), { a: 1 });
+});
+
+test('jsonc: stripping keeps line structure, so parse errors point at the real line', () => {
+    const text = '{\n  // c\n  "a": 1 /* x */\n}';
+    assert.equal(stripJsonc(text).split('\n').length, text.split('\n').length);
+    assert.equal(stripJsonc(text).length, text.length);
+});
+
+test('jsonc: a comma inside a string before } is not treated as trailing', () => {
+    assert.deepEqual(parseJsonc('{"a": ",", "b": [","]}'), { a: ',', b: [','] });
+});
+
+// --- resolver fixes ---------------------------------------------------------------
+
+test('every bundled theme resolves with no warnings', () => {
+    for (const file of readdirSync(themesDir).filter(isTheme)) {
+        assert.deepEqual(resolveTheme(load(themesDir, file)).warnings, [], file);
+    }
+});
+
+test('sound: null means Steam chime, silently', () => {
+    const t = resolveTheme({ themes: { normal: { sound: null } } });
+    assert.equal(t.tiers.normal.sound, null);
+    assert.deepEqual(t.warnings, []);
+});
+
+test('text shorthand: a tier overriding only the words keeps the inherited title style', () => {
+    const t = resolveTheme({
+        themes: {
+            normal: { text: { title: ['#123456', 120, 'regular'] } },
+            exceptional: { text: { title: '100% Complete', desc: 'All done' } },
+        },
+    });
+    assert.deepEqual(t.tiers.exceptional.text.title, { color: '#123456', sizePct: 120, style: 'regular' });
+    assert.equal(t.tiers.exceptional.text.titleText, '100% Complete');
+    assert.equal(t.tiers.exceptional.text.descText, 'All done');
+});
+
+test('pairs: a one-element array keeps the default second value (existing themes rely on it)', () => {
+    const t = resolveTheme({ themes: { normal: { banner: { padding: [5], gap: [8] } } } });
+    assert.deepEqual(t.tiers.normal.banner.padding, [5, 10]);
+    assert.deepEqual(t.tiers.normal.banner.gap, [8, 2]);
 });
