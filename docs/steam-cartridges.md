@@ -1,13 +1,10 @@
 # steam-cartridges — research & implementation plan
 
-**Status:** P0–P3 implemented offline (live verification pending); P4 and the
-native-parity work are planned. Implementation tasks move into
-[TASK.md](../TASK.md) one phase at a time; decisions get ADRs in
-[decisions.md](decisions.md) when a phase starts.
-Phase plans: [P0](plans/steam-cartridges-p0-research.md) ·
-[P1](plans/steam-cartridges-p1-merger.md) · [P2](plans/steam-cartridges-p2-buckets.md) ·
-[P3](plans/steam-cartridges-p3-steam-store.md) · [P4](plans/steam-cartridges-p4-hardening.md) ·
-[parity (ADR-0036 policy + P5 gate)](plans/steam-cartridges-parity.md). ADRs 0032–0037
+**Status:** P0–P4 and native parity (Parts A–H) are implemented and
+live-verified (see [TASK.md](../TASK.md) and [CHANGELOG.md](../CHANGELOG.md)
+for the verification record; their phase plans are closed and removed per
+[docs/plans/README.md](plans/README.md)). P5 (native achievements) is next,
+blocked on the open bug tracked in TASK.md. ADRs 0032–0038
 are written; where they refine this doc (config shape, frontend-only bucket
 resolution, data folder, default bucket, native sections), the ADRs win.
 
@@ -92,7 +89,7 @@ to Web Scraping by default (§4).
 | Portrait / hero / logo / wide capsule | Steam CDN `library_600x900`, `library_hero`, `logo`, `header` | `SetCustomArtworkForApp` (frontend; already used) — preferred over the linker's disk write into `grid/` |
 | Description, developers, publishers, release date, categories, genres | `appdetails` | Existing `game-info-patch.ts` path |
 | Achievements schema | Steam (see Phase 5) | Steam's own achievement stores |
-| Links, friends who play, community content, news | Steam's own sections and activity store, fed the native appid | [ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity), [parity plan](plans/steam-cartridges-parity.md) C/D. Reviews, tags, store media: store page only (Store Page link) |
+| Links, friends who play, community content, news | Steam's own sections and activity store, fed the native appid | [ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity). Reviews, tags, store media: store page only (Store Page link) |
 
 Reuse the linker's `fetch_game_data` (10 lines of real logic) and its CDN image list;
 do not port its 3.5k-line UI — `steam-cartridges` renders through Steam's own sections.
@@ -103,8 +100,7 @@ Epic and Xbox auth, friends-who-play, partner-event/news scraping, community hub
 scraping, status-update posting. They need accounts and network, fight the "core needs
 nothing" rule, and overlap what Steam already shows once artwork/ids resolve. The
 *data* is not dropped for mapped games: Steam's own sections load it for the native
-appid ([ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity);
-per-feature adopt/adapt/drop table in [parity plan § 2](plans/steam-cartridges-parity.md#2-researchgame-data-linker-adopt--adapt--drop)).
+appid ([ADR-0037](decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity)).
 
 ---
 
@@ -333,19 +329,21 @@ Routines 1–3 in [AGENTS.md](../AGENTS.md). Phases 0–2 are prerequisites; 3+ 
   `SetCustomArtworkForApp`, Game Info tab fed from native data. Clear/undo per game.
 - **Exit:** an Epic copy of a known Steam game shows full native art/info; retro game untouched.
 
-### Phase 4 — Hardening
+### Phase 4 — Hardening (done)
 
 - Two-way navigation test (Routine 2) across both buckets; negative cache for failed
-  resolves; rate limits; offline behaviour (core still works).
-- Plan: [plans/steam-cartridges-p4-hardening.md](plans/steam-cartridges-p4-hardening.md). Runs **before** the parity work.
+  resolves; rate limits; offline behaviour (core still works). Implemented and
+  offline-gated; see CHANGELOG.md for the verification record.
 
-### Native parity (the P5 gate)
+### Native parity (the P5 gate — done)
 
 - ADR-0036 policy change (Part A), then Game Info fields, Steam's own Links / Friends /
-  Community sections, native news and the logo for mapped games (Parts B–E):
-  [plans/steam-cartridges-parity.md](plans/steam-cartridges-parity.md).
-- **Exit (gate for Phase 5):** `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL`
-  for Jotunnslayer (2315502503 → 2820820), plus the plan's Big Picture and regression checks.
+  Community sections, native news and the logo for mapped games (Parts B–E), then
+  badge policy and native links/news/community-content open the native app (Parts F–H,
+  ADR-0038).
+- **Exit (gate for Phase 5):** `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL`
+  for Jotunnslayer (2315502503 → 2820820) — **verified live 2026-09-26** (see TASK.md).
+  P5 itself is blocked on a separate open bug: [docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md).
 
 ### Phase 5 — Achievements
 

@@ -16,7 +16,7 @@ import { activeTheme, cssFor, onThemeChange } from '../theme/active-theme';
  *   the toast stays stock.
  *
  * Toast windows come from two different sources, per mode
- * (docs/plans/enhanced-notifications-toast-window-bugfix.md):
+ * (fixed and verified live 2026-09-24, see docs/steam-components.md § Toast windows):
  * - Desktop and the in-game overlay: Steam opens one popup per notification
  *   through its popup manager, so `Millennium.AddWindowCreateHook` sees it.
  * - Big Picture: one persistent BrowserView popup, created via
@@ -29,9 +29,8 @@ import { activeTheme, cssFor, onThemeChange } from '../theme/active-theme';
  *
  * Why not wrap the dispatcher element through react/jsx-runtime, as
  * enhanced-achievements does? Verified live 2026-09-24: for these toasts the
- * wrapped element was not the one React committed (see
- * docs/plans/enhanced-notifications-plan.md § 3). This approach needs no React
- * interception at all, which is also less risky.
+ * wrapped element was not the one React committed. This approach needs no
+ * React interception at all, which is also less risky.
  */
 
 interface Popup {
@@ -130,8 +129,7 @@ function onPopup(popup: Popup): void {
  * Walk up a `GamepadToastPlaceholder` element's React fiber looking for a hook
  * whose state is Big Picture's `BrowserViewPopup` object (duck-typed on Steam's
  * method names, never a minified identifier). Verified live: two `.return`
- * hops, hook 0 (docs/plans/enhanced-notifications-toast-window-bugfix.md).
- * Bounded so a shape change degrades to "not found", never a hang.
+ * hops, hook 0. Bounded so a shape change degrades to "not found", never a hang.
  */
 function viewWindowFromFiber(el: Element): Window | null {
     const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
@@ -148,11 +146,10 @@ function viewWindowFromFiber(el: Element): Window | null {
 }
 
 /**
- * Find Big Picture's persistent toast window: not in `g_PopupManager` itself
- * (docs/plans/enhanced-notifications-toast-window-bugfix.md), so it is reached
- * via the `GamepadToastPlaceholder` div Steam renders into windows that ARE in
- * the popup manager (the Big Picture main window). Runs once per toast shown,
- * no new timers.
+ * Find Big Picture's persistent toast window: not in `g_PopupManager` itself,
+ * so it is reached via the `GamepadToastPlaceholder` div Steam renders into
+ * windows that ARE in the popup manager (the Big Picture main window). Runs
+ * once per toast shown, no new timers.
  */
 function scanBigPictureToastWindows(): void {
     if (!placeholderSelector) return;

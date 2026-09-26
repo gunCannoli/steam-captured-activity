@@ -5,7 +5,7 @@
  * plain Node. The schema is documented for users in themes.md; keep the two in step.
  *
  * Everything here runs once per theme load. At toast time the hooks only pick
- * one of four pre-resolved tiers (docs/plans/enhanced-achievements-plan.md, guardrail 5).
+ * one of four pre-resolved tiers (docs/plugins.md guardrails).
  */
 
 export const TIERS = ['normal', 'magic', 'rare', 'exceptional'] as const;

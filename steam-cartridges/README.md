@@ -128,7 +128,7 @@ shortcut was played, for games Steam never launched itself.
 | ----------------- | ------- | ----------------------------------------------------- |
 | `GetLibraryStats` | `{}`    | `{ "<appid>": { screenshots, newest } }` for the grid |
 | `GetDiagnostics`  | `{}`    | what the backend can see — use this first             |
-| `SteamStore*`     | see plan | Steam Store bucket: `GetState`, `GetMapping`, `SetMapping`, `SaveKnownMatch`, `Search`, `ClearMapping`, `RejectSuggestion`, `GetAppDetails`, `RecordArtwork`, `DownloadImage` ([P3 plan](../docs/plans/steam-cartridges-p3-steam-store.md)) |
+| `SteamStore*`     | see `backend/steam_store_rpc.lua` | Steam Store bucket: `GetState`, `GetMapping`, `SetMapping`, `SaveKnownMatch`, `Search`, `ClearMapping`, `RejectSuggestion`, `GetAppDetails`, `RecordArtwork`, `DownloadImage` |
 
 ## Develop
 

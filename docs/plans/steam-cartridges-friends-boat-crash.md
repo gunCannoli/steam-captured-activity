@@ -223,11 +223,10 @@ appid) — never a durable entry in the shared data map.
    (empty/stock) data instead of crashing — a real parity loss (check 9 in
    `scratch/check_parity.mjs` would need to tolerate "no friends section for
    an unowned native app" rather than expect it to always redirect), but zero
-   risk of the library-wide blast radius from Attempt 2. Re-read
-   `docs/plans/steam-cartridges-parity.md` § 12 (deferred/open questions) —
-   this may already be an acceptable trade-off given ADR-0037/ADR-0038's
-   "only true-of-the-copy" framing (an unowned game genuinely has no friends
-   data to show).
+   risk of the library-wide blast radius from Attempt 2. This may already be
+   an acceptable trade-off given ADR-0037/ADR-0038's "only true-of-the-copy"
+   framing (an unowned game genuinely has no friends data to show) — see
+   [docs/decisions.md](../decisions.md) for both ADRs.
 3. Check whether Steam already has an **owned-vs-unowned aware** path for
    this exact case elsewhere (e.g. a "View Store Page" fallback UI Steam uses
    for wishlist/unowned apps might reuse a safe stub Steam itself

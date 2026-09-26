@@ -13,7 +13,7 @@ import { CAPTURE_RANGES } from '../capture/plan';
  * so updated defaults still reach everyone who never touched that setting.
  *
  * Reads are served from an in-memory copy: hooks run per toast and must never
- * do an IPC round trip (docs/plans/enhanced-achievements-plan.md, guardrail 5).
+ * do an IPC round trip (docs/plugins.md guardrails).
  *
  * Millennium v3.4.1 bug workaround (Millennium#903; docs/knowledgebase.md §
  * Plugin settings): the FFI metrics recorder reads the numeric config

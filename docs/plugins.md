@@ -525,9 +525,9 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   registered. For an unregistered BrowserView popup, find a handle in a registered window's React
   tree (e.g. the `GamepadToastPlaceholder` element) and walk its fiber to a hook holding the popup
   object, duck-typed on its methods (`GetViewWindow()`) — never a minified name. Reference:
-  `enhanced-notifications/frontend/style/injector.ts` and
-  [plans/enhanced-notifications-toast-window-bugfix.md](plans/enhanced-notifications-toast-window-bugfix.md).
-  Check the UI mode before trusting a live test ([steam-debug.md § 4](steam-debug.md#4-big-picture-mode-gamepad-ui-quirks--traps)).
+  `enhanced-notifications/frontend/style/injector.ts` (fixed and verified live 2026-09-24; see
+  CHANGELOG.md). Check the UI mode before trusting a live test
+  ([steam-debug.md § 4](steam-debug.md#4-big-picture-mode-gamepad-ui-quirks--traps)).
 
 ### 13. Never read a Steam MobX computed before its source exists
 

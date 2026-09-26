@@ -4,7 +4,8 @@ import type { BannerStyle, Layout, ToastPosition } from '../theme/theme';
  * Banner window geometry. Pure: no Steam or SDK imports (tests/geometry.test.ts).
  *
  * All values are CSS px in the toast popup's `screen.avail*` space, the space
- * Steam's own toast loop uses (docs/plans/enhanced-achievements-banner-geometry-fix.md § 2.2).
+ * Steam's own toast loop uses (verified live 2026-09-25, see
+ * docs/steam-components.md § Desktop toast stack).
  */
 
 export const STACK_GAP_PX = 8;

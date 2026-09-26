@@ -22,10 +22,10 @@ import { initNotificationSettingsDetection } from './steam/notification-settings
 /**
  * enhanced-achievements: themed achievement toasts and sounds.
  *
- * Scope (docs/plans/enhanced-achievements-plan.md § 5): hooks only NotificationStore
- * and the toast dispatcher. It never touches AppOverview, StoreItemCache, the
- * section registry or the activity/spotlight stores that
- * non-steam-games-activity feeds, and never imports from that plugin.
+ * Scope: hooks only NotificationStore and the toast dispatcher. It never
+ * touches AppOverview, StoreItemCache, the section registry or the
+ * activity/spotlight stores that steam-cartridges feeds, and never imports
+ * from that plugin.
  */
 async function init(): Promise<void> {
     await initSettings();

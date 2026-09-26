@@ -18,10 +18,10 @@ export { toastsEnabled } from './steam/notification-settings';
 /**
  * enhanced-notifications: restyles every Steam notification toast in place.
  *
- * Scope (docs/plans/enhanced-notifications-plan.md): hooks only NotificationStore
- * (sound, durations) and adds a scoped <style> to toast windows. It never touches
- * AppOverview, StoreItemCache, the section registry or the activity/spotlight
- * stores, and never imports from another plugin.
+ * Scope: hooks only NotificationStore (sound, durations) and adds a scoped
+ * <style> to toast windows. It never touches AppOverview, StoreItemCache, the
+ * section registry or the activity/spotlight stores, and never imports from
+ * another plugin.
  */
 async function init(): Promise<void> {
     await initSettings();

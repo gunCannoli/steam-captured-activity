@@ -5,7 +5,7 @@ import { findModules } from './webpack';
 /**
  * CSS selectors for Steam's toast parts, resolved from its CSS modules.
  *
- * Verified live (docs/plans/enhanced-notifications-plan.md § 2): the same keys
+ * Verified live: the same keys
  * (`StandardTemplateContainer`, `Title`, `Body`, …) exist in FOUR CSS modules
  * with different hashes, and different toast types use different modules. So
  * each key collects its hashed class from EVERY module that defines it, as
@@ -33,11 +33,12 @@ const TOAST_MODULE_KEYS = ['StandardTemplateContainer', 'DesktopToastPopup', 'Ga
 
 /**
  * Big Picture's toast window is not reachable through the popup manager
- * (docs/plans/enhanced-notifications-toast-window-bugfix.md): it is a single
- * persistent BrowserView popup, found instead via a `GamepadToastPlaceholder`
- * div Steam renders into the Big Picture main window. Resolved in the same
- * scan/pass as the theme selectors, kept out of `PARTS`/`ToastSelectors`
- * (which feed CSS) since it locates a window, not a style target.
+ * (fixed and verified live 2026-09-24, see docs/steam-components.md § Toast
+ * windows): it is a single persistent BrowserView popup, found instead via a
+ * `GamepadToastPlaceholder` div Steam renders into the Big Picture main
+ * window. Resolved in the same scan/pass as the theme selectors, kept out of
+ * `PARTS`/`ToastSelectors` (which feed CSS) since it locates a window, not a
+ * style target.
  */
 const PLACEHOLDER_KEY = 'GamepadToastPlaceholder';
 

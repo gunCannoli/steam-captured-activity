@@ -2189,7 +2189,7 @@ ADR-0032 turned that into "no bucket, no network". With that default,
 *Jotunnslayer: Hordes of Hel* (an Epic copy of native app 2820820) shows local
 IGDB data for the wrong product (the Conan DLC: its description and an
 Apr 8, 2026 release date) and none of Steam's own data. Parity baseline, live
-2026-09-24: 3 PASS / 10 FAIL ([parity plan § 1](plans/steam-cartridges-parity.md#1-parity-gap-analysis-live-2026-09-24)).
+2026-09-24: 3 PASS / 10 FAIL (superseded 2026-09-26: 17 PASS / 0 FAIL, see TASK.md).
 
 The user decided (2026-09-24): games in no collection are still bucketed; the
 default is Steam Store; metadata scraping is the fallback when there is no Steam
@@ -2236,7 +2236,7 @@ because we enriched it.
   on the Steam Store **lazily, when its page is viewed**: `StoreItemCache`
   (Steam's own transport) and the backend `storesearch` (at most 1 request/s on
   the wall clock, 8 s timeout, offline circuit breaker, 7-day negative cache;
-  [P4](plans/steam-cartridges-p4-hardening.md)). There is no startup sweep. IGDB
+  P4 hardening, implemented — see CHANGELOG.md). There is no startup sweep. IGDB
   is reached only for the fallback, and only with credentials. `none` (rule or
   override) still means no network for that game.
 - **Local tier (amends ADR-0035).** Local Game Info shows for every shortcut
@@ -2267,9 +2267,7 @@ because we enriched it.
 The user decided (2026-09-24) that P5 (achievements) starts only when the page of
 *Jotunnslayer: Hordes of Hel* (Epic shortcut 2315502503) holds as much data as
 native app 2820820, and that there are no user-created achievements. Live
-(2026-09-25, `scratch/check_parity.mjs` from the
-[parity plan](plans/steam-cartridges-parity.md#1-parity-gap-analysis-live-2026-09-24)):
-3 PASS / 10 FAIL. Besides Game Info fields, the shortcut lacks the store links,
+(2026-09-25, `scratch/check_parity.mjs`): 3 PASS / 10 FAIL. Besides Game Info fields, the shortcut lacks the store links,
 Friends who play, Community Content and the app's news, all of which Steam's own
 section components render for any appid. `research/game-data-linker` rebuilt
 these by scraping (`fetch_news`, `fetch_partner_events`,
@@ -2293,9 +2291,10 @@ dropped them as "out of scope".
   tags, requirements, languages, reviews, metacritic) are not rebuilt; the Store
   Page link reaches them. An unowned native app shows none of the owner-only
   surfaces either.
-- **P5 gate:** `node scratch/check_parity.mjs` prints `13 PASS / 0 FAIL` plus the
-  Big Picture and regression checks in
-  [parity plan § 9](plans/steam-cartridges-parity.md#9-live-verification-and-exit-criteria-the-p5-gate).
+- **P5 gate:** `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL` plus the
+  Big Picture and regression checks (Routines 2/3, AGENTS.md) — **met, verified
+  live 2026-09-26** (see TASK.md). P5 itself remains blocked on a separate open
+  bug: [docs/plans/steam-cartridges-friends-boat-crash.md](plans/steam-cartridges-friends-boat-crash.md).
 
 ### Consequences
 

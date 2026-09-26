@@ -5,12 +5,15 @@ import { logger } from '../logger';
  *
  * Steam's toast stack moves every toast popup each frame of its fade-in and
  * fade-out, anchored with its own position setting and a fixed 283 px width
- * (docs/plans/enhanced-achievements-banner-geometry-fix.md § 2.1). Instead of
- * racing it, this replaces **that popup's own** `SteamClient.Window.MoveTo`
- * (an own, writable property; verified live) so Steam keeps the timing and we
- * decide the place. Nothing global is patched, and the popup is destroyed with the toast.
+ * (verified live 2026-09-25, see docs/steam-components.md § Desktop toast
+ * stack). Instead of racing it, this replaces **that popup's own**
+ * `SteamClient.Window.MoveTo` (an own, writable property; verified live) so
+ * Steam keeps the timing and we decide the place. Nothing global is patched,
+ * and the popup is destroyed with the toast.
  *
- * Big Picture's single persistent toast popup is never pinned (§ 3.4).
+ * Big Picture's single persistent toast popup is never pinned (it is not
+ * registered with Steam's per-toast popup manager — see docs/steam-components.md
+ * § Toast windows).
  */
 
 type MoveTo = (x: number, y: number, dpi?: number | boolean) => void;
