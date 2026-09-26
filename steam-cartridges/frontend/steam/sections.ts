@@ -38,6 +38,8 @@ const RESTORED_SECTIONS = [
     "postgamesummary",
     // Fed by us via appActivityStore; renders chronological per-day activity cards.
     "activity",
+    // Fed by us via appDetailsStore; renders native achievement sidebar and progress.
+    "achievements",
 ] as const;
 
 /**

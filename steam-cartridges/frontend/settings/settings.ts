@@ -16,21 +16,37 @@ import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig } from '../features
  * reading back, and notify our own listeners. `usePluginConfig` is not used.
  */
 
+export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
+
 export interface Settings {
     buckets: BucketsConfig;
     /** Full Controller Support for a shortcut that neither Steam nor its emulator decides (ADR-0038 addendum). */
     defaultFullController: boolean;
+    /** Game start notification when achievements tracking is active. */
+    localAchievementsNotifyOnLaunch: LaunchNotifyOption;
 }
 export type SettingKey = keyof Settings;
 
-export const DEFAULTS: Settings = { buckets: DEFAULT_BUCKETS, defaultFullController: false };
+export const DEFAULTS: Settings = {
+    buckets: DEFAULT_BUCKETS,
+    defaultFullController: false,
+    localAchievementsNotifyOnLaunch: 'all_runs',
+};
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     buckets: validateConfig,
     defaultFullController: (raw) => raw === true,
+    localAchievementsNotifyOnLaunch: (raw) => {
+        if (raw === 'off' || raw === 'first_run' || raw === 'all_runs') return raw;
+        return 'all_runs';
+    },
 };
 
-const current: Settings = { buckets: DEFAULT_BUCKETS, defaultFullController: false };
+const current: Settings = {
+    buckets: DEFAULT_BUCKETS,
+    defaultFullController: false,
+    localAchievementsNotifyOnLaunch: 'all_runs',
+};
 const listeners = new Set<(key: SettingKey) => void>();
 
 function apply(key: string, value: unknown): void {

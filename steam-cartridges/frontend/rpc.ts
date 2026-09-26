@@ -218,4 +218,43 @@ export const rpc = {
         call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots, failed }),
     steamStoreDownloadImage: (url: string) =>
         call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url }),
+
+    cartridgesAchievementsGet: (shortcut_appid: number, native_appid: number) =>
+        call<AchievementStateResponse>("CartridgesAchievementsGet", { shortcut_appid, native_appid }),
+    cartridgesAchievementsUnlock: (shortcut_appid: number, achievement_id: string, unlock_time?: number) =>
+        call<{ ok: boolean; unlocks: Record<string, AchievementUnlockRecord>; error?: string }>(
+            "CartridgesAchievementsUnlock",
+            { shortcut_appid, achievement_id, unlock_time },
+        ),
+    cartridgesAchievementsReset: (shortcut_appid: number) =>
+        call<{ ok: boolean; unlocks: Record<string, AchievementUnlockRecord>; error?: string }>(
+            "CartridgesAchievementsReset",
+            { shortcut_appid },
+        ),
 };
+
+export interface AchievementSchemaItem {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    global_pct: number;
+}
+
+export interface AchievementSchemaRecord {
+    native_appid: number;
+    total: number;
+    achievements: AchievementSchemaItem[];
+    fetched_at?: number;
+}
+
+export interface AchievementUnlockRecord {
+    unlocked_time: number;
+}
+
+export interface AchievementStateResponse {
+    schema?: AchievementSchemaRecord;
+    unlocks?: Record<string, AchievementUnlockRecord>;
+    error?: string;
+}
+

@@ -17,19 +17,11 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges P5 — native achievements.** Two pieces, in order:
-
-1. **Mirror the native app's real Steam achievements onto the shortcut**
-   (schema + owned-user progress, read-only, same "borrow the native app's
-   section" pattern as Friends/Links/Community). Not started — mechanism
-   (redirect vs. fetch-and-feed) still open, next agent decides live.
-   Plan: [docs/plans/steam-cartridges-native-achievements-mirror-plan.md](docs/plans/steam-cartridges-native-achievements-mirror-plan.md).
-   ADR: [ADR-0038 addendum, 2026-09-26](docs/decisions.md#addendum-2026-09-26-user-decision-achievements-on-steam-belong-to-the-steam-copy-never-narrowed-to-the-feature-badge-the-achievements-section-itself-is-in-scope).
-2. **Agnostic local-unlock detector** (reads local saves/logs for any
-   storefront, triggers the real Steam achievement). Not ready — design only,
-   depends on (1) shipping first. Architecture:
-   [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md).
-   Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md).
+**steam-cartridges P5 — native achievements.**
+- **Session 1 (The Backbone, UI Sinks & Test RPC):** COMPLETE & live-verified (2026-09-26). Keyless schema ingestion, local persistence, native right-column section restoration, Big Picture progress cache, toast dispatching, launch notification, and settings panel test trigger.
+- **Session 2 (In-Game Observers & Local File Watchers):** Next up. File watchers for local emulator saves (Goldberg/CODEX/RUNE), GOG SQLite DB reader (`galaxy-2.0.db`), and engine runtime log tailers (Unity/Unreal/Godot).
+Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md).
+Architecture: [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md).
 
 ## Next
 

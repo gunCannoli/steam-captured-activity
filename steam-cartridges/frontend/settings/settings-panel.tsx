@@ -10,6 +10,7 @@ import {
 } from '../features/steam-store';
 import { refreshKnownApps } from '../features/steam-store/known-apps';
 import { splitPatterns } from '../features/buckets/resolve';
+import { getLocalAchievements, triggerAchievement } from '../features/achievements';
 import {
     bucketReport,
     listCollections,
@@ -294,6 +295,50 @@ function Warnings({ cfg, save }: { cfg: BucketsConfig; save: (c: BucketsConfig) 
     );
 }
 
+const LAUNCH_NOTIFY_OPTIONS = [
+    { data: 'all_runs', label: 'All game runs (default)' },
+    { data: 'first_run', label: 'First game run only' },
+    { data: 'off', label: 'Off (never notify)' },
+];
+
+function AchievementsSettings() {
+    const [policy, setPolicy] = useSetting('localAchievementsNotifyOnLaunch');
+    const [testStatus, setTestStatus] = useState<string>('');
+
+    const handleTestUnlock = async () => {
+        setTestStatus('Unlocking...');
+        const shortcuts = listShortcuts();
+        const target = shortcuts.find((s) => getLocalAchievements(s.appid)) || shortcuts[0];
+        if (!target) {
+            setTestStatus('No non-Steam shortcuts found');
+            return;
+        }
+        const ok = await triggerAchievement(target.appid);
+        setTestStatus(ok ? `Unlocked on ${target.name}!` : 'Unlock failed (no schema)');
+        setTimeout(() => setTestStatus(''), 4000);
+    };
+
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>Local Achievements</DialogControlsSectionHeader>
+            <DropdownItem
+                label="Launch Notification"
+                description="Shows a native Steam toast notification on game start when achievements tracking is active."
+                rgOptions={LAUNCH_NOTIFY_OPTIONS}
+                selectedOption={policy}
+                onChange={(opt: any) => setPolicy(opt.data)}
+            />
+            <ButtonItem
+                label="Test Native Toast & Unlock"
+                description={testStatus || "Simulates an in-game achievement unlock to test notification toast, audio, and UI updates."}
+                onClick={handleTestUnlock}
+            >
+                Test Unlock
+            </ButtonItem>
+        </DialogControlsSection>
+    );
+}
+
 export function SettingsPanel() {
     const [cfg, save] = useSetting('buckets');
     const [, tick] = useState(0);
@@ -308,7 +353,9 @@ export function SettingsPanel() {
             <Overrides cfg={cfg} save={save} />
             <SteamStore />
             <GameInfo />
+            <AchievementsSettings />
             <Warnings cfg={cfg} save={save} />
         </>
     );
 }
+

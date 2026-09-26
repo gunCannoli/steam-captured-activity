@@ -19,6 +19,7 @@ local metadata_db = require("web_metadata_db")
 local RPC     = require("rpc")
 local WEB_RPC = require("web_rpc")
 local STORE_RPC = require("steam_store_rpc")
+local ACH_RPC   = require("achievements_rpc")
 
 -- Millennium exposes globals to the frontend as callable methods.
 GetLibraryStats = RPC.GetLibraryStats
@@ -44,6 +45,11 @@ SteamStoreRejectSuggestion = STORE_RPC.SteamStoreRejectSuggestion
 SteamStoreGetAppDetails  = STORE_RPC.SteamStoreGetAppDetails
 SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
 SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
+
+-- Native Achievements subsystem (P5).
+CartridgesAchievementsGet    = ACH_RPC.CartridgesAchievementsGet
+CartridgesAchievementsUnlock = ACH_RPC.CartridgesAchievementsUnlock
+CartridgesAchievementsReset  = ACH_RPC.CartridgesAchievementsReset
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

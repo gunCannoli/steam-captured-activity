@@ -1,0 +1,206 @@
+# steam-cartridges Native Achievements
+
+**This doc's job:** reference architecture for the native achievements system in
+`steam-cartridges` (Phase 5). It explains how non-Steam shortcuts mirror Steam Store
+achievement schemas, how in-game unlocks are detected out-of-process without third-party
+storefront APIs, how Steam's native UI sinks and toast engine are fed, and how to add support
+for new game engines, emulators, or local save formats.
+
+For the active multi-session execution plan, see
+[docs/plans/steam-cartridges-achievements-plan.md](plans/steam-cartridges-achievements-plan.md).
+For Steam client internal traces (section registry, NotificationStore, AppDetailsStore), see
+[docs/steam-components.md](steam-components.md § Native achievement UI & backing store).
+
+---
+
+## 1. System Overview & Invariants
+
+```
+                                    ┌────────────────────────────────────────────────────────┐
+                                    │               NON-STEAM GAME SHORTCUT                  │
+                                    │    (e.g. Jotunnslayer from Epic, GOG, or DRM-free)     │
+                                    └──────────────────────────┬─────────────────────────────┘
+                                                               │
+                                         Mapped via Steam Store Search / Mapping
+                                                               │
+                                                               ▼
+                                    ┌────────────────────────────────────────────────────────┐
+                                    │              NATIVE STEAM APPID SCHEMA                 │
+                                    │       Keyless fetch from Steam CDN / AppDetails        │
+                                    │ (API names, display titles, descriptions, icons, %)    │
+                                    └──────────────────────────┬─────────────────────────────┘
+                                                               │
+                                       ┌───────────────────────┴───────────────────────┐
+                                       │                                               │
+                                       ▼                                               ▼
+                        ┌───────────────────────────────┐               ┌───────────────────────────────┐
+                        │       IN-GAME OBSERVER        │               │       STEAM NATIVE SINKS      │
+                        │                               │               │                               │
+                        │ 1. Steamworks Relay / Shim    │   Dispatches  │ 1. NotificationStore.OnToast  │
+                        │ 2. Windows Notification Listen│ ────────────► │ 2. Desktop Sidebar Section    │
+                        │ 3. Multi-Engine Log Tailers   │     Unlock    │ 3. Post-Game Summary Banner   │
+                        │ 4. Local Emulator Saves       │     Event     │ 4. Big Picture Play Bar       │
+                        │ 5. Local Test Mock RPC        │               │ 5. enhanced-achievements Hook │
+                        └───────────────────────────────┘               └───────────────────────────────┘
+```
+
+### Core Invariants
+1. **Zero Third-Party Storefront APIs in Core:** `steam-cartridges` core never requires Epic Games OAuth, EA App tokens, or Xbox Live credentials. All detection is strictly local and out-of-process.
+2. **Never Inject into Game Binaries:** We never hook game memory, inject DLLs into running games, or create remote threads. All detection is passive (file watching, directory checks, engine log tailing, OS-level notifications).
+3. **Steam Native Components Only (ADR-0009 & ADR-0022):** We never render custom HTML recreation of achievements. We restore Steam's native `"achievements"` section in `CAppDetailsSections` and feed `AppDetailsStore.GetAchievements` so Steam's own React components render the UI.
+4. **Offline Resilience:** Local unlocks and cached schemas are saved in `<steam>/millennium/config/steam-cartridges/achievements.json`. Once fetched, achievements work completely offline.
+
+---
+
+## 2. Schema Mirroring & Storage
+
+When a non-Steam shortcut is added to Steam:
+1. `steam-cartridges` resolves the shortcut to its Steam Store counterpart (e.g. *Jotunnslayer: Hordes of Hel* shortcut `2315502503` $	o$ native AppID `2820820`).
+2. The schema fetcher queries Steam's public CDN / Community data for the native AppID:
+   - Schema fields: `api_name`, `name`, `description`, `icon_unlocked`, `icon_locked`, `global_pct`.
+   - Source 1 (in-client): `appDetailsStore.RequestAppDetails(nativeAppId)`.
+   - Source 2 (public CDN): `https://steamcommunity.com/stats/<nativeAppId>/achievements/` and `https://api.steampowered.com/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/?gameid=<nativeAppId>`.
+3. The schema and player's unlock status are persisted locally:
+   ```json
+   {
+     "shortcuts": {
+       "2315502503": {
+         "schema_appid": 2820820,
+         "unlocked": {
+           "ACH_FIRST_KILL": { "rtime_unlocked": 1727364800 },
+           "ACH_WIN_RUN": { "rtime_unlocked": 1727368400 }
+         },
+         "first_launch_notified": true
+       }
+     }
+   }
+   ```
+
+---
+
+## 3. The In-Game Observer Architecture
+
+When a game is launched from Steam, `steam-cartridges` launches an out-of-process observer session. The observer monitors active local channels for achievement events:
+
+### Channel 1: Local Steamworks Relay (`steam_api64.dll` Local Relay)
+- **Target:** Games containing `steam_api64.dll` or using a local Steam wrapper.
+- **Protocol:** When the game invokes `SteamUserStats()->SetAchievement("ACH_NAME")`, the local DLL relays the event to a local loopback port (`127.0.0.1:42421`) or writes to a local file.
+- **Latency:** $< 1$ ms.
+
+### Channel 2: Windows OS Notification Listener (Storefront Toast Observer)
+- **Target:** Legitimate storefront versions (Epic Games Store, EA App, Xbox App, GOG Galaxy).
+- **Mechanism:** Uses the Windows 10/11 `Windows.UI.Notifications.Management.UserNotificationListener` API.
+- **Operation:** When the storefront launcher displays a toast on Windows (*"Achievement Unlocked: Master of Hel"*), the listener captures the title text, matches it against the mirrored Steam schema, and passes it to the Steam sink pipeline.
+- **Epic Suppression Strategy:** Disabling in-game overlay notifications (`Shift + F3`) prevents Epic from drawing over the game, while Windows notification settings can be muted, allowing **only** Steam's toast and chime to sound.
+
+### Channel 3: Multi-Engine Runtime Log & Data Tailers
+- **Target:** Games built on Unity, Unreal Engine, Godot, GameMaker, or Ren'Py.
+- **Operation:** When the game boots, `steam-cartridges` identifies the engine from folder signatures and tails the engine's active runtime log:
+  - **Unity:** `%USERPROFILE%\AppData\LocalLow\[Company]\[Product]\Player.log`
+  - **Unreal Engine:** `%LOCALAPPDATA%\[Project]\Saved\Logs\[Project].log`
+  - **Godot Engine:** `%APPDATA%\Godot\app_userdata\[Project]\logs\godot.log`
+  - **GameMaker:** `%LOCALAPPDATA%\[Project]\` (sandboxed `.ini` / `.json` saves & `debug.log`)
+  - **Ren'Py:** `%APPDATA%\RenPy\[Project]\log.txt` and `persistent`
+
+### Channel 4: Local Save & Emulator Watcher
+- **Target:** Steam emulators (Goldberg, CODEX, RUNE, GSE, DarkSiders) and GOG Galaxy SQLite database.
+- **Goldberg:** Monitors `%appdata%\Goldberg SteamEmu Saves\<AppID>\achievements.json`.
+- **CODEX / RUNE:** Monitors `%PUBLIC%\Documents\Steam\<Emu>\<AppID>\achievements.ini`.
+- **GOG Galaxy:** Monitors `C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db` table `UserAchievements` in read-only WAL mode.
+
+---
+
+## 4. The Steam Native Sinks
+
+Once an unlock event is detected, `steam-cartridges` feeds Steam's native subsystems:
+
+### 1. Toast Notification & Audio (`NotificationStore`)
+Dispatched via `window.NotificationStore.OnNotification(id, eType, binaryPayload)`:
+- Steam opens its native desktop popup (`notificationtoasts_<n>_desktop`) or Big Picture portal.
+- Steam plays navigation sound 5 (the achievement chime).
+- If `enhanced-achievements` is active, it intercepts the toast, selects the theme tier (Bronze/Silver/Gold/Platinum), and renders the styled banner.
+- If Steam Game Recording is active, Steam places an `Achievement` marker on the timeline.
+
+### 2. Desktop Right-Column "Achievements" Section
+- In `steam-cartridges/frontend/steam/sections.ts`, `"achievements"` is re-enabled in `CAppDetailsSections.GetSections()` for shortcuts that have achievement data.
+- `AppDetailsStore.GetAchievements(shortcutAppId)` is wrapped to return:
+  ```ts
+  {
+      nTotal: totalAchievements,
+      nAchieved: unlockedCount,
+      vecHighlight: unlockedList.slice(0, 5),
+      vecAchieved: unlockedList,
+      vecUnachieved: lockedList
+  }
+  ```
+- Steam natively renders the completion percentage bar, badge cards, and locked list.
+
+### 3. Post-Game Summary Banner
+- In `CAppSpotlightStore` (module `74827`), achievements unlocked during the current session are added via `m_session.AddAchievement(achievement, unlockTimestamp)`.
+- When the game process exits, Steam renders the achievement card in the hero card strip beside screenshots and clips.
+
+### 4. Big Picture Play Bar Progress
+- Updated via `window.appAchievementProgressCache.m_achievementProgress.mapCache.set(shortcutAppId, { unlocked, total, all_unlocked })`.
+- Big Picture immediately renders the quick stats (e.g. `5 / 25 Achievements`) under the "Play" button.
+
+---
+
+## 5. "Local Achievements Enabled" Game-Launch Notification
+
+When a non-Steam game launches and `steam-cartridges` confirms achievement tracking is active:
+- Steam displays a custom native launch toast:
+  - **Header:** `{steam-cartridges icon} Local Achievements Enabled`
+  - **Body:** `Enjoy your game!`
+  - **Audio:** Steam navigation chime.
+- **Settings (`settings.ts`):** `localAchievementsNotifyOnLaunch`:
+  - `off`: Never show the startup toast.
+  - `first_run`: Show only on the first boot of that game with achievements enabled.
+  - `all_runs`: Show on every launch (default).
+
+---
+
+## 6. How to Add Support for a New Engine or Emulator
+
+To support a new game engine, local emulator, or save format, follow this recipe:
+
+### Adding an Emulator or Save Format (File-Based Reader)
+1. Add the path resolver in `backend/achievements_readers.lua`:
+   ```lua
+   function readers.check_my_emulator(appid, game_dir)
+       local p = utils.expand_path("%APPDATA%/MyEmu/" .. appid .. "/achievements.json")
+       if fs.exists(p) then return p end
+       return nil
+   end
+   ```
+2. Implement the parser function returning a list of `{ api_name = string, earned = boolean, rtime = number }`.
+3. Register the path with the active file watcher pool.
+
+### Adding a Game Engine (Log Tailer)
+1. Define the identifying signature in `backend/achievements_engines.lua`:
+   ```lua
+   {
+       name = "MyEngine",
+       detect = function(game_dir) return fs.exists(game_dir .. "/myengine.dll") end,
+       log_path = function(company, title)
+           return utils.expand_path("%LOCALAPPDATA%/" .. title .. "/logs/game.log")
+       end,
+       pattern = "Achievement Granted: ([A-Za-z0-9_]+)"
+   }
+   ```
+2. When the shortcut launches, if `detect` is true, the observer spawns a file tailer on `log_path`.
+
+---
+
+## 7. Testing & Verification
+
+1. **Automated Unit Tests:**
+   - `steam-cartridges/tests/achievements-schema.test.ts`: Verifies keyless schema ingestion and local JSON persistence.
+   - `steam-cartridges/tests/test_achievements.lua`: Hermetic Lua tests for file parsers (Goldberg, CODEX, GOG DB query logic).
+2. **Automated CDP Live Tests (`scratch/test_fake_achievement.mjs`):**
+   - Connects to Steam DevTools on `127.0.0.1:8080`.
+   - Triggers `cartridges:trigger_fake_achievement(shortcutAppId, "ACH_WIN_RUN")`.
+   - Asserts:
+     - Steam toast popup window opens.
+     - `AppDetailsStore.GetAchievements().nAchieved` increments.
+     - `appAchievementProgressCache` updates.
+     - Navigation cycle (Game A $	o$ Game B $	o$ Game A) maintains unlocked state.

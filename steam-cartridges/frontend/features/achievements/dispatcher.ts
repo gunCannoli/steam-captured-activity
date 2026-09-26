@@ -1,0 +1,143 @@
+import { logger } from "../../logger";
+
+interface WebpackRequire {
+    (id: string): unknown;
+    m: Record<string, unknown>;
+}
+
+type ChunkGlobal = Array<[string[], Record<string, unknown>, ((r: WebpackRequire) => void)?]>;
+
+let cachedRequire: WebpackRequire | undefined;
+let requireResolved = false;
+
+function getSteamRequire(): WebpackRequire | undefined {
+    if (requireResolved) return cachedRequire;
+    requireResolved = true;
+
+    try {
+        const chunks = (window as any).webpackChunksteamui as ChunkGlobal | undefined;
+        if (!Array.isArray(chunks)) return undefined;
+
+        const key = `__nsga_ach_disp_${Date.now()}`;
+        let captured: WebpackRequire | undefined;
+
+        chunks.push([
+            [key],
+            { [key]: (_m: unknown, _e: unknown, r: WebpackRequire) => (captured = r) },
+            (r) => {
+                (r as unknown as { s: string }).s = key;
+            },
+        ]);
+
+        cachedRequire = captured;
+    } catch (e) {
+        logger.warn("Could not capture webpack require in achievement dispatcher:", e);
+    }
+    return cachedRequire;
+}
+
+interface AchievementProtoResolution {
+    ProtoClass: any;
+    typeId: number;
+}
+
+let cachedProto: AchievementProtoResolution | undefined;
+
+/**
+ * Resolves the protobuf class for CClientNotificationAchievement and notification type ID (5).
+ * Uses real prototype method signatures ("set_achievement_id" & "global_achieved_pct")
+ * which survive Steam build minification (ADR-0005).
+ */
+function resolveAchievementProto(): AchievementProtoResolution | undefined {
+    if (cachedProto) return cachedProto;
+
+    const req = getSteamRequire();
+    if (!req || !req.m) return undefined;
+
+    for (const [id, factory] of Object.entries(req.m)) {
+        if (!factory) continue;
+        const src = factory.toString();
+        if (src.includes("set_achievement_id") && src.includes("global_achieved_pct")) {
+            try {
+                const mod = req(id) as Record<string, any>;
+                if (!mod) continue;
+
+                let ProtoClass: any;
+                let typeId = 5;
+
+                for (const key of Object.keys(mod)) {
+                    const val = mod[key];
+                    if (val?.prototype && typeof val.prototype.set_achievement_id === "function") {
+                        ProtoClass = val;
+                    }
+                    if (val && typeof val === "object" && typeof val.ok === "number") {
+                        typeId = val.ok;
+                    }
+                }
+
+                if (ProtoClass) {
+                    cachedProto = { ProtoClass, typeId };
+                    return cachedProto;
+                }
+            } catch (err) {
+                logger.warn(`Failed evaluating achievement proto module ${id}:`, err);
+            }
+        }
+    }
+
+    return undefined;
+}
+
+export interface ToastAchievementPayload {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    global_pct?: number;
+    rtime_unlocked?: number;
+}
+
+/**
+ * Dispatches a native Steam achievement toast popup and chime via NotificationStore.OnNotification.
+ */
+export function dispatchAchievementToast(
+    shortcutAppId: number,
+    item: ToastAchievementPayload,
+): boolean {
+    const store = (window as any).NotificationStore;
+    if (!store || typeof store.OnNotification !== "function") {
+        logger.warn("NotificationStore.OnNotification is unavailable.");
+        return false;
+    }
+
+    const res = resolveAchievementProto();
+    if (!res) {
+        logger.warn("Could not resolve Steam achievement notification protobuf.");
+        return false;
+    }
+
+    try {
+        const { ProtoClass, typeId } = res;
+        const msg = new ProtoClass();
+        msg.set_achievement_id(item.id);
+        msg.set_appid(shortcutAppId);
+        msg.set_name(item.name);
+        msg.set_description(item.description);
+        msg.set_image_url(item.icon);
+        msg.set_achieved(true);
+        msg.set_rtime_unlocked(item.rtime_unlocked ?? Math.floor(Date.now() / 1000));
+        msg.set_global_achieved_pct(item.global_pct ?? 0);
+
+        const binary = msg.serializeBinary();
+        const notifId = typeof store.m_nNextTestNotificationID === "number"
+            ? store.m_nNextTestNotificationID++
+            : Math.floor(Date.now() % 1000000);
+
+        store.OnNotification(notifId, typeId, binary);
+        logger.info(`Dispatched native achievement toast for shortcut ${shortcutAppId}: "${item.name}"`);
+        return true;
+    } catch (e) {
+        logger.error("Failed to dispatch achievement toast:", e);
+        return false;
+    }
+}

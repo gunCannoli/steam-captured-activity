@@ -22,6 +22,7 @@ import { clearLogoPosition, ensureLogoPosition } from "./logo";
 import { setNativeAppid } from "./native-sections";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
+import { loadAchievementsForApp } from "../achievements";
 
 /** Appids handled this session (one lookup per game per session, as in the web path). */
 const processed = new Set<number>();
@@ -121,7 +122,7 @@ async function applyArtwork(
 }
 
 /** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
-const NATIVE_SECTIONS = ["friends", "community"] as const;
+const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
 
 /** Per-session answer to "did the Steam Store supply this game's Game Info?" (ADR-0036). */
 const matched = new Map<number, boolean>();
@@ -166,6 +167,7 @@ export async function handleSteamStoreView(appid: number): Promise<boolean | und
         setExtraSections(appid, NATIVE_SECTIONS);
         refreshGameInfoInstances(); // guardrail 11: the sections already rendered with the shortcut appid
         void patchLibraryApp(appid);
+        void loadAchievementsForApp(appid, mapping.steam_appid);
 
         const { metadata, urls } = await loadNative(appid, mapping.steam_appid);
         if (metadata) {

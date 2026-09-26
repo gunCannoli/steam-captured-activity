@@ -25,6 +25,15 @@ import { NON_STEAM_APPID_MIN, appIdFromPath } from "./steam/route";
 import { initGameInfo } from "./features/game-info";
 import { initSourceView } from "./features/source-view";
 import { installNativeSections } from "./features/steam-store/native-sections";
+import {
+    initAchievements,
+    loadAchievementsForApp,
+    triggerAchievement,
+    resetAchievements,
+    getLocalAchievements,
+    getLocalSchema,
+    handleAppLaunchAchievements,
+} from "./features/achievements";
 import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 
@@ -35,6 +44,15 @@ export {
     setSteamStoreMapping,
     steamStoreState,
 } from "./features/steam-store";
+
+export {
+    initAchievements,
+    loadAchievementsForApp,
+    triggerAchievement,
+    resetAchievements,
+    getLocalAchievements,
+    getLocalSchema,
+};
 
 export { registerSummaryProvider } from "./steam/summary";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
@@ -101,6 +119,9 @@ async function init() {
     // Steam's own Links / Friends / Community sections read the native appid
     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
     installNativeSections();
+
+    // ===== Native Achievements Subsystem =====
+    initAchievements();
 
     // ===== Game Info (ex steamgriddb-artwork) =====
     // Not awaited: the two halves load independently, as the two plugins did
@@ -232,6 +253,9 @@ async function init() {
 
     onAppLaunch((app, { onQuit }) => {
         if (app.appid < NON_STEAM_APPID_MIN) return;
+
+        // Launch Notification ("Local Achievements Enabled")
+        handleAppLaunchAchievements(app.appid);
 
         onQuit(() => {
             logger.info(`${app.display_name} closed; refreshing its activity.`);
