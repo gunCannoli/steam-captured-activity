@@ -188,3 +188,77 @@ export function findConflicts(
     }
     return out;
 }
+
+// ---------------------------------------------------------------------------
+// General Multi-Service Routing Engine
+// ---------------------------------------------------------------------------
+
+export type ServiceTarget =
+    | 'all'
+    | 'steam-store'
+    | 'screenscraper'
+    | 'igdb'
+    | 'retroachievements'
+    | 'rpcs3'
+    | 'none';
+
+export type RuleAction = 'include' | 'exclude';
+
+export type ConditionType = 'collection' | 'game_name' | 'regex';
+
+export interface RoutingRule {
+    id: string;
+    name: string;
+    service: ServiceTarget;
+    action: RuleAction;
+    conditionType: ConditionType;
+    pattern: string;
+    enabled?: boolean;
+}
+
+export function matchesRegex(text: string, pattern: string): boolean {
+    try {
+        const re = new RegExp(pattern, 'i');
+        return re.test(text);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Evaluates whether a given service is allowed for a shortcut based on ordered rules.
+ */
+export function isServiceAllowed(
+    service: ServiceTarget,
+    _appid: number,
+    title: string,
+    collectionIds: string[],
+    rules: RoutingRule[],
+): boolean {
+    if (!rules || rules.length === 0) return true;
+
+    for (const rule of rules) {
+        if (rule.enabled === false) continue;
+        if (rule.service !== 'all' && rule.service !== service) continue;
+
+        let matched = false;
+        if (rule.conditionType === 'collection') {
+            matched = collectionIds.some((cid) =>
+                cid.toLowerCase() === rule.pattern.toLowerCase() ||
+                matchesPattern(cid, rule.pattern)
+            );
+        } else if (rule.conditionType === 'game_name') {
+            matched = matchesPattern(title, rule.pattern);
+        } else if (rule.conditionType === 'regex') {
+            matched = matchesRegex(title, rule.pattern);
+        }
+
+        if (matched) {
+            if (rule.action === 'exclude') return false;
+            if (rule.action === 'include') return true;
+        }
+    }
+
+    return true;
+}
+

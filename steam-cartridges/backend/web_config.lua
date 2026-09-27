@@ -128,6 +128,47 @@ function config.get_retroachievements_credentials()
   return nil
 end
 
+--- Resolve ScreenScraper credentials from .env if provided
+---@return table|nil { user = string, pass = string, dev_user = string, dev_pw = string }
+function config.get_screenscraper_credentials()
+  local env_map = get_env_map()
+  local u = env_map["screenscraper_user"] or env_map["screenscraper_dev_user"]
+  local p = env_map["screenscraper_pass"] or env_map["screenscraper_dev_pw"]
+  if (u and #u > 0) or (p and #p > 0) then
+    return {
+      user = u or "",
+      pass = p or "",
+      dev_user = env_map["screenscraper_dev_user"] or "",
+      dev_pw = env_map["screenscraper_dev_pw"] or "",
+    }
+  end
+  return nil
+end
+
+--- Save key-value pairs into data_dir .env
+function config.save_credentials(map)
+  if type(map) ~= "table" then return false end
+  local env_path = data_dir.file(".env")
+  local current = parse_env_all(env_path) or {}
+  for k, v in pairs(map) do
+    local key = tostring(k):lower():gsub("%s", "")
+    local val = tostring(v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if #val > 0 then
+      current[key] = val
+    else
+      current[key] = nil
+    end
+  end
+  local lines = {}
+  for k, v in pairs(current) do
+    table.insert(lines, k .. "=" .. v)
+  end
+  table.sort(lines)
+  local ok = utils.write_file(env_path, table.concat(lines, "\n") .. "\n")
+  cached_env = current
+  return ok ~= false
+end
+
 --- Set or update the API key locally
 ---@param new_key string
 ---@return boolean success

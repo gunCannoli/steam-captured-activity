@@ -1,22 +1,27 @@
 import { useEffect, useState } from 'react';
 import { pluginConfig, subscribePluginConfig } from '@steambrew/client';
 import { logger } from '../logger';
-import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig } from '../features/buckets/resolve';
-
-/**
- * Plugin settings over Millennium's Configuration API. The ONLY module that
- * talks to `pluginConfig` (steam-cartridges.md section 9).
- *
- * Keys: `buckets` (ADR-0033) and `defaultFullController` (ADR-0038 addendum).
- * Reads come from an in-memory copy.
- *
- * Millennium#903 workaround (ported from enhanced-achievements): `set`/`delete`
- * persist but reject with "type must be string", and `get`/`getAll` fail. So we
- * read via the `PluginConfig_GetAll` FFI when `getAll` fails, confirm writes by
- * reading back, and notify our own listeners. `usePluginConfig` is not used.
- */
+import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig, type RoutingRule } from '../features/buckets/resolve';
 
 export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
+
+export interface ServicesConfig {
+    steamStoreEnabled: boolean;
+    screenscraperEnabled: boolean;
+    igdbEnabled: boolean;
+    retroachievementsEnabled: boolean;
+    rpcs3Enabled: boolean;
+}
+
+export const DEFAULT_SERVICES: ServicesConfig = {
+    steamStoreEnabled: true,
+    screenscraperEnabled: true,
+    igdbEnabled: true,
+    retroachievementsEnabled: true,
+    rpcs3Enabled: true,
+};
+
+export type ControllerOverride = 'full' | 'partial' | 'none' | 'auto';
 
 export interface Settings {
     buckets: BucketsConfig;
@@ -26,6 +31,12 @@ export interface Settings {
     localAchievementsNotifyOnLaunch: LaunchNotifyOption;
     /** RetroAchievements Hardcore Mode (strict rules, leaderboards, standard badge icons). Default true. */
     raHardcoreMode: boolean;
+    /** General routing rules engine for multi-service targeting. */
+    routingRules: RoutingRule[];
+    /** Service enablement toggles. */
+    services: ServicesConfig;
+    /** Per-game controller overrides. */
+    controllerOverrides: Record<string, ControllerOverride>;
 }
 export type SettingKey = keyof Settings;
 
@@ -34,6 +45,9 @@ export const DEFAULTS: Settings = {
     defaultFullController: false,
     localAchievementsNotifyOnLaunch: 'all_runs',
     raHardcoreMode: true,
+    routingRules: [],
+    services: DEFAULT_SERVICES,
+    controllerOverrides: {},
 };
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
@@ -44,6 +58,19 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
         return 'all_runs';
     },
     raHardcoreMode: (raw) => raw !== false,
+    routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
+    services: (raw) => {
+        if (!raw || typeof raw !== 'object') return DEFAULT_SERVICES;
+        const r = raw as Partial<ServicesConfig>;
+        return {
+            steamStoreEnabled: r.steamStoreEnabled !== false,
+            screenscraperEnabled: r.screenscraperEnabled !== false,
+            igdbEnabled: r.igdbEnabled !== false,
+            retroachievementsEnabled: r.retroachievementsEnabled !== false,
+            rpcs3Enabled: r.rpcs3Enabled !== false,
+        };
+    },
+    controllerOverrides: (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, ControllerOverride>) : {}),
 };
 
 const current: Settings = {
@@ -51,6 +78,9 @@ const current: Settings = {
     defaultFullController: false,
     localAchievementsNotifyOnLaunch: 'all_runs',
     raHardcoreMode: true,
+    routingRules: [],
+    services: DEFAULT_SERVICES,
+    controllerOverrides: {},
 };
 const listeners = new Set<(key: SettingKey) => void>();
 

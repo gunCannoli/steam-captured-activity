@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Settings Panel Redesign: Metadata, Achievements, Rules, and Revision**:
+  - Adopted `enhanced-achievements` visual patterns (`PanelSection`, `PanelSectionRow`, `ItemRow`, `Field`, `DialogButton`, `Toggle`, `Dropdown`).
+  - `{Metadata}`: Support for Steam Store Mirror, ScreenScraper (with auto-discovered `.env` dev credentials), and Twitch/IGDB credentials, with persistent `.env` storage via `SaveServiceCredentials`.
+  - `{Achievements}`: Service cards for Steam Store Mirror, RetroAchievements, and Multi-Emulator status (RPCS3, RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP), Hardcore Mode toggle, and live test toast trigger.
+  - `{Rules}`: Rule builder for targeting services with `include`/`exclude` actions against `game_name`, `collection`, and `regex` patterns.
+  - `{Revision}`: Game audit counting shortcuts with missing controller support, store mapping, or achievements, with interactive inline fix drawer supporting per-game controller overrides (`full`, `partial`, `none`, `auto`).
+
 - **RPCS3 Local PlayStation 3 Trophies & Multi-Emulator Settings (Phase 5)**:
   - Local offline PlayStation 3 trophy support for RPCS3: parses `TROPCONF.SFM` XML schema (titles, descriptions, Sony trophy types P/G/S/B, hidden status) and `TROPUSR.DAT` binary unlock database (32-byte record stride, timestamps).
   - RPCS3 observer: tails `RPCS3.log` for `{Emu.Trophy} Trophy Unlocked` patterns and directly polls `TROPUSR.DAT` for zero-latency detection.

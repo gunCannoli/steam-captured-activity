@@ -28,16 +28,30 @@ function M.get_shortcut_info(appid)
 end
 local get_shortcut_info = M.get_shortcut_info
 
---- Check status of providers (Twitch/IGDB & SteamGridDB)
+--- Check status of providers (Twitch/IGDB, SteamGridDB, ScreenScraper, RetroAchievements)
 function M.GetStatus()
   local twitch = config.get_twitch_credentials()
   local sgdb_key = config.get_api_key()
+  local ss = config.get_screenscraper_credentials()
+  local ra = config.get_retroachievements_credentials()
   return json.encode({
     has_twitch = twitch ~= nil,
     has_sgdb = sgdb_key ~= nil and #sgdb_key > 0,
+    has_screenscraper = ss ~= nil,
+    has_retroachievements = ra ~= nil,
     status = twitch ~= nil and "ready" or "needs_credentials",
     db_count = metadata_db.count(),
   })
+end
+
+--- Save service credentials (Twitch, ScreenScraper, RetroAchievements, SGDB)
+function M.SaveServiceCredentials(payload_json)
+  local ok, data = pcall(json.decode, payload_json or "")
+  if not ok or type(data) ~= "table" then
+    return json.encode({ success = false, error = "invalid_payload" })
+  end
+  local ok_save = config.save_credentials(data)
+  return json.encode({ success = ok_save })
 end
 
 --- Get consolidated game metadata (checks local JSON DB first, fetches from IGDB if missing)

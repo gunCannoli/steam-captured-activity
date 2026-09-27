@@ -57,10 +57,14 @@ export function portableCategoryIds(ids: Iterable<unknown>): number[] {
 export interface ControllerContext {
     inferred?: boolean;
     defaultFull?: boolean;
+    override?: 'full' | 'partial' | 'none' | 'auto';
 }
 
-/** Full Controller Support (28) from the emulator first, then the user's default; else none. */
+/** Full Controller Support (28) from override first, then emulator, then user's default; else none. */
 export function inferredControllerIds(ctx: ControllerContext = {}): number[] {
+    if (ctx.override === 'full') return [28];
+    if (ctx.override === 'partial') return [18];
+    if (ctx.override === 'none') return [];
     if (ctx.inferred === true) return [28];
     if (ctx.inferred === false) return [];
     return ctx.defaultFull === true ? [28] : [];

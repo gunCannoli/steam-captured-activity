@@ -16,15 +16,13 @@ theme Steam's toasts and sounds.
 ---
 
 ## Now
-
-**steam-cartridges P5 — native achievements & RetroAchievements provider (Complete).**
-- Native PC & Emulator Saves: Keyless schema ingestion, out-of-process in-game observers (CODEX/Goldberg/RUNE/Unity/Godot), native toasts (`NotificationStore.OnNotification`), Big Picture play bar, and individual full-screen achievements page (`AchievementsFullStore`) implemented and verified live (*Jotunnslayer* `2315502503`).
-- RetroAchievements & Multi-Emulator Providers: Universal ROM/disc hasher (`ra_hasher.js`), auto-credential discovery across RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP, RPCS3 local PS3 trophies (`TROPCONF.SFM`/`TROPUSR.DAT`), `.env` API fallback, Hardcore/Softcore toggle, and settings panel verified live (*Super Mario World* `2713503983` and *Castlevania SotN* `2162501062`).
-- Plans & References:
-  - Native Achievements Architecture: [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md)
-  - Native Achievements Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md)
-  - Retro Games Architecture: [docs/steam-cartridges-retrogames-achievements.md](docs/steam-cartridges-retrogames-achievements.md)
-  - Retro Games Plan: [docs/plans/steam-cartridges-retrogames-achievements-plan.md](docs/plans/steam-cartridges-retrogames-achievements-plan.md)
+ 
+**steam-cartridges Settings Panel Redesign & Service Routing (Complete).**
+- Redesigned settings panel into 4 structured sections (`{Metadata}`, `{Achievements}`, `{Rules}`, `{Revision}`) matching `enhanced-achievements` visual patterns (`PanelSection`, `PanelSectionRow`, `Field`, `DialogButton`, `Toggle`, `Dropdown`).
+- ScreenScraper, Twitch/IGDB, and RetroAchievements credential management with auto-discovery and persistent storage in `<data_dir>/.env` via `SaveServiceCredentials`.
+- Dynamic routing rules engine supporting inclusion/exclusion by game name, collection, and regex patterns.
+- Revision audit drawer for detecting and fixing shortcuts with unknown tags or missing controller support (`full`, `partial`, `none`, `auto`).
+- Plan & Verification: [docs/plans/steam-cartridges-settings-redesign-plan.md](docs/plans/steam-cartridges-settings-redesign-plan.md) (59/59 unit tests pass, CDP live mount verified).
 
 ## Next
 

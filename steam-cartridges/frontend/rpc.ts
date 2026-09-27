@@ -49,6 +49,8 @@ export interface Diagnostics {
 export interface ProviderStatus {
     has_twitch: boolean;
     has_sgdb: boolean;
+    has_screenscraper?: boolean;
+    has_retroachievements?: boolean;
     status: "ready" | "needs_credentials";
     db_count: number;
 }
@@ -164,6 +166,8 @@ export const rpc = {
   getDiagnostics: () => call<Diagnostics>('GetDiagnostics'),
 
     getStatus: () => call<ProviderStatus>("GetStatus"),
+    saveServiceCredentials: (credentials: Record<string, string>) =>
+        call<{ success: boolean; error?: string }>("SaveServiceCredentials", credentials),
     getGameMetadata: (appid: number, title: string) =>
         call<MetadataResponse>("GetGameMetadata", { appid, title }),
     getAllMetadata: () =>
