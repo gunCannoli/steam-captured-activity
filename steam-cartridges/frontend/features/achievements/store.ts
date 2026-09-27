@@ -262,8 +262,11 @@ export function updateShortcutState(
     schema: AchievementSchemaRecord | undefined,
     unlocks: Record<string, AchievementUnlockRecord> = {},
 ): SteamAppAchievements | null {
-    if (nativeAppId > 0 && schema) {
-        schemasMap.set(nativeAppId, schema);
+    if (schema) {
+        if (nativeAppId > 0) {
+            schemasMap.set(nativeAppId, schema);
+        }
+        schemasMap.set(shortcutAppId, schema);
     }
     unlocksMap.set(shortcutAppId, unlocks);
 

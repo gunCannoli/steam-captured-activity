@@ -17,7 +17,9 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges P5 — native achievements.** Keyless schema ingestion, out-of-process in-game observers (CODEX/Goldberg/RUNE/Unity/Godot), native toasts (`NotificationStore.OnNotification`), Big Picture play bar, and individual full-screen achievements page (`AchievementsFullStore`) implemented and verified live against *Jotunnslayer* (`2315502503`).
+**steam-cartridges P5 — native achievements & RetroAchievements provider.**
+- Native PC & Emulator Saves: Keyless schema ingestion, out-of-process in-game observers (CODEX/Goldberg/RUNE/Unity/Godot), native toasts (`NotificationStore.OnNotification`), Big Picture play bar, and individual full-screen achievements page (`AchievementsFullStore`) implemented and verified live (*Jotunnslayer* `2315502503`).
+- RetroAchievements & Emulators: Zero-friction credential discovery from `retroarch.cfg`, ROM hash extraction (`ra_hasher.js`), schema and unlock ingestion (`retroachievements.lua`), and real-time RetroArch log observer verified live (*Super Mario World* `2713503983`).
 Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md). Reference: [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md).
 
 ## Next

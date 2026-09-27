@@ -9,6 +9,17 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`steam-cartridges` RetroAchievements & Emulator Observer Engine (2026-09-26)**:
+  - *Zero-Friction Authentication*: Reads `cheevos_username` and `cheevos_token` dynamically from `C:\emu\RetroArch\retroarch.cfg` (or `%APPDATA%\RetroArch\retroarch.cfg`) without prompting the user for credentials or exposing secrets in code, logs, or repository.
+  - *ROM Hash Extraction (`ra_hasher.js`)*: Automatically extracts ROM paths from shortcut launch configurations, handles in-memory zip deflation, and strips 512-byte copier/SMC headers (`fileSize % 1024 == 512`) to produce canonical RetroAchievements MD5 hashes recognized by `dorequest.php?r=gameid`.
+  - *Schema & Unlocks Ingestion (`retroachievements.lua`)*: Queries RetroAchievements `r=patch` and `r=unlocks` for full achievement lists, descriptions, point values, official badge CDN URLs, and existing player unlock state. Persists schemas under `"ra_<game_id>"` and binds shortcuts in `achievements.json`.
+  - *Out-of-Process Emulator Log Observer*: Added incremental log tailing across RetroArch (`C:\emu\RetroArch\logs\retroarch.log`), DuckStation (`duckstation.log`), and PCSX2 (`emulog.txt`). Detects `[INFO] [RCHEEVOS] Awarded achievement <ID>: "<Title>"` events in real time.
+  - *Live Verification via CDP*:
+    - Loaded *Super Mario World* (`2713503983`): Ingested all 149 achievements and badge images from RetroAchievements.
+    - Big Picture individual achievements page rendered genuine badge artwork, titles, and descriptions.
+    - Live unlock simulation (`scratch/test_ra_observer.mjs`) appended `[INFO] [RCHEEVOS] Awarded achievement 2304: "All Exits"` to `retroarch.log`. Observer immediately detected it, fired a native Steam achievement toast with sound, and updated Big Picture live to `1 OF 149 ACHIEVEMENTS EARNED (1%)` with unlock timestamp.
+
+
 - **`steam-cartridges` Native Achievements: Big Picture & Desktop Full-Screen Individual Achievements Page Hook (`AchievementsFullStore`) (2026-09-26)**:
   - *User Report & Root Cause*: Clicking any achievement item for a non-Steam game navigates to `/routes/library/app/<appid>/achievements/my/individual`. Component `re` (module `10709`) invokes `(0, _.hj)(appid, accountid)` (module `32179`), querying singleton store `p6` (`AchievementsFullStore`). For non-Steam shortcuts (`appid >= NON_STEAM_APPID_MIN`), Steam's RPC `SteamClient.Apps.GetMyAchievementsForApp` fails with error code `8` (`k_EResultFail`), storing `{ error: 8 }` in `m_mapMyAchievements` and causing the UI to display `"Failed to load achievement data"` with a Retry button.
   - *Resolution*: Added dynamic signature resolution for `AchievementsFullStore` (`resolveSingleton<AchievementsFullStore>("AchievementsFullStore", ["GetMyAchievements", "GetGlobalAchievements", "LoadMyAchievements"])` in `frontend/features/achievements/store.ts`). Monkey-patched `LoadMyAchievements`, `GetMyAchievements`, `GetGlobalAchievements`, and `GetPlayerAchievements` on its prototype to intercept queries for shortcut appids and feed local mirrored schema, unlock timestamps, and global percentages directly into `m_mapMyAchievements` and `m_mapGlobalAchievements`, bypassing the failing Steam RPC.

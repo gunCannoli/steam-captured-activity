@@ -165,7 +165,37 @@ When a non-Steam game launches and `steam-cartridges` confirms achievement track
 
 ---
 
-## 6. How to Add Support for a New Engine or Emulator
+## 6. RetroAchievements & Emulators (RetroArch / DuckStation / PCSX2)
+
+For retro games launched through emulators (e.g. SNES, Genesis, PS1, PS2) where achievements exist on [RetroAchievements.org](https://retroachievements.org):
+
+### 1. Zero-Friction Credential Discovery
+- Reads `cheevos_username` and `cheevos_token` dynamically from `C:\emu\RetroArch\retroarch.cfg` (or `%APPDATA%\RetroArch\retroarch.cfg`).
+- Never asks the user to enter credentials, and never commits or logs tokens.
+- Communicates directly with `retroachievements.org/dorequest.php` with `User-Agent: RetroArch/1.19.0`.
+
+### 2. ROM Hashing & Game Identification (`ra_hasher.js`)
+- Given a shortcut command line (`retroarch.exe -L cores\<core>.dll "<rom>"`), extracts the target ROM path.
+- Handles both plain ROMs and `.zip` archives (extracts raw uncompressed stream in-memory).
+- Detects and strips 512-byte copier/SMC headers (`fileSize % 1024 == 512`) to produce the canonical MD5 recognized by RetroAchievements.
+- Queries `dorequest.php?r=gameid&m=<md5>` to retrieve the canonical `GameID`.
+
+### 3. Schema Ingestion & Persistence
+- Fetches full patch data (`r=patch&g=<id>&u=<u>&t=<t>`) including titles, descriptions, points, and official badge URLs (`https://media.retroachievements.org/Badge/<badge>.png`).
+- Fetches existing user unlocks (`r=unlocks&g=<id>&h=0&u=<u>&t=<t>`).
+- Persists schema under key `ra_<game_id>` and records shortcut binding in `achievements.json`.
+- Feeds Steam's Big Picture individual achievements page, progress bar, and desktop sidebar.
+
+### 4. Real-Time In-Game Observer
+- RetroArch logs achievements in real time to `C:\emu\RetroArch\logs\retroarch.log` (when `log_to_file = "true"` and `cheevos_verbose_enable = "true"`).
+- Observer incrementally tails `retroarch.log`, `duckstation.log`, and PCSX2 `emulog.txt` from last byte offset.
+- Regex pattern detects:
+  `[INFO] [RCHEEVOS] Awarded achievement <ID>: "<Title>"`
+- Matches `<ID>` to schema item, records unlock timestamp, dispatches native Steam toast (`NotificationStore.OnNotification`), and updates Steam's store caches live.
+
+---
+
+## 7. How to Add Support for a New Engine or Emulator
 
 To support a new game engine, local emulator, or save format, follow this recipe:
 

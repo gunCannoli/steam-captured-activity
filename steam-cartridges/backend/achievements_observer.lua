@@ -133,8 +133,11 @@ function M.scan_log_for_unlocks(filepath)
 
   local detected = {}
   for line in new_bytes:gmatch("[^\r\n]+") do
-    -- Search for common achievement trigger patterns across Unity / Godot / Unreal
-    local ach = line:match("[aA]chievement%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
+    -- Search for common achievement trigger patterns across Unity / Godot / Unreal / RetroArch / DuckStation
+    local ach = line:match("[aA]warded achievement%s*(%d+)")
+             or line:match("%[RCHEEVOS%]%s*Awarded achievement%s*(%d+)")
+             or line:match("%[CHEEVOS%]%s*Awarded achievement%s*(%d+)")
+             or line:match("[aA]chievement%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
              or line:match("[aA]ward%a*%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
              or line:match("[uU]nlock%a*%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
              or line:match("[uU]nlock[aA]chievement%s*%(%s*['\"]([^'\"]+)['\"]")
@@ -183,11 +186,18 @@ end
 function M.check_unlocks(shortcut_appid, native_appid, game_title)
   local s_appid = tonumber(shortcut_appid) or 0
   local n_appid = tonumber(native_appid) or 0
-  if s_appid <= 0 or n_appid <= 0 then
+  if s_appid <= 0 then
     return { new_unlocks = {} }
   end
 
-  local st = store.get_or_fetch(s_appid, n_appid)
+  local st = nil
+  if n_appid > 0 then
+    st = store.get_or_fetch(s_appid, n_appid)
+  end
+  if not st or not st.schema or not st.schema.achievements then
+    local ra = require("retroachievements")
+    st = ra.get_or_fetch(s_appid)
+  end
   if not st or not st.schema or not st.schema.achievements then
     return { new_unlocks = {} }
   end
@@ -201,40 +211,57 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
   local localappdata = os.getenv("LOCALAPPDATA") or ""
   local userprofile = os.getenv("USERPROFILE") or ""
 
-  -- 1. Check Emulator INI / JSON Paths
-  local emu_files = {
-    -- CODEX
-    public_dir .. "\\Documents\\Steam\\CODEX\\" .. tostring(n_appid) .. "\\achievements.ini",
-    appdata .. "\\Steam\\CODEX\\" .. tostring(n_appid) .. "\\achievements.ini",
-    -- RUNE
-    public_dir .. "\\Documents\\Steam\\RUNE\\" .. tostring(n_appid) .. "\\achievements.ini",
-    appdata .. "\\Steam\\RUNE\\" .. tostring(n_appid) .. "\\achievements.ini",
-    -- Generic / GSE
-    public_dir .. "\\Documents\\Steam\\" .. tostring(n_appid) .. "\\achievements.ini",
-    appdata .. "\\Steam\\" .. tostring(n_appid) .. "\\achievements.ini",
-    -- Goldberg JSON
-    appdata .. "\\Goldberg SteamEmu Saves\\" .. tostring(n_appid) .. "\\achievements.json",
-  }
+  -- 1. Check Emulator INI / JSON Paths (if native_appid > 0)
+  if n_appid > 0 then
+    local emu_files = {
+      -- CODEX
+      public_dir .. "\\Documents\\Steam\\CODEX\\" .. tostring(n_appid) .. "\\achievements.ini",
+      appdata .. "\\Steam\\CODEX\\" .. tostring(n_appid) .. "\\achievements.ini",
+      -- RUNE
+      public_dir .. "\\Documents\\Steam\\RUNE\\" .. tostring(n_appid) .. "\\achievements.ini",
+      appdata .. "\\Steam\\RUNE\\" .. tostring(n_appid) .. "\\achievements.ini",
+      -- Generic / GSE
+      public_dir .. "\\Documents\\Steam\\" .. tostring(n_appid) .. "\\achievements.ini",
+      appdata .. "\\Steam\\" .. tostring(n_appid) .. "\\achievements.ini",
+      -- Goldberg JSON
+      appdata .. "\\Goldberg SteamEmu Saves\\" .. tostring(n_appid) .. "\\achievements.json",
+    }
 
-  for _, path in ipairs(emu_files) do
-    if file_exists(path) then
-      local content = read_file(path)
-      if content then
-        local parsed = path:match("%.json$")
-          and M.parse_goldberg_achievements(content)
-          or M.parse_ini_achievements(content)
-        for id, info in pairs(parsed) do
-          candidate_unlocks[id] = info
+    for _, path in ipairs(emu_files) do
+      if file_exists(path) then
+        local content = read_file(path)
+        if content then
+          local parsed = path:match("%.json$")
+            and M.parse_goldberg_achievements(content)
+            or M.parse_ini_achievements(content)
+          for id, info in pairs(parsed) do
+            candidate_unlocks[id] = info
+          end
         end
       end
     end
   end
 
-  -- 2. Check Engine Logs (Unity / Godot) if game_title provided
+  -- 2. Check RetroArch and Emulator Runtime Logs
+  local emu_logs = {
+    "C:\\emu\\RetroArch\\logs\\retroarch.log",
+    appdata .. "\\RetroArch\\logs\\retroarch.log",
+    userprofile .. "\\Documents\\DuckStation\\duckstation.log",
+    appdata .. "\\duckstation\\duckstation.log",
+    userprofile .. "\\Documents\\PCSX2\\logs\\emulog.txt",
+    appdata .. "\\PCSX2\\logs\\emulog.txt",
+  }
+  for _, logpath in ipairs(emu_logs) do
+    if file_exists(logpath) then
+      local detected = M.scan_log_for_unlocks(logpath)
+      for id, info in pairs(detected) do
+        candidate_unlocks[id] = info
+      end
+    end
+  end
+
+  -- 3. Check Engine Logs (Unity / Godot) if game_title provided
   if game_title and #game_title > 0 and userprofile and #userprofile > 0 then
-    local title_norm = normalize(game_title)
-    local unity_log_pattern = userprofile .. "\\AppData\\LocalLow"
-    -- Check common direct paths if game title matches
     local possible_logs = {
       userprofile .. "\\AppData\\LocalLow\\" .. game_title .. "\\Player.log",
       appdata .. "\\Godot\\app_userdata\\" .. game_title .. "\\logs\\godot.log",

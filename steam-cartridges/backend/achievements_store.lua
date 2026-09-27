@@ -170,14 +170,34 @@ function M.fetch_schema(native_appid, http_get_json, http_get_html)
   return schema
 end
 
+local function to_schema_key(id)
+  if type(id) == "string" and id:match("^ra_") then
+    return id
+  end
+  return tostring(math.floor(tonumber(id) or 0))
+end
+
 function M.get_schema(native_appid)
   local s = load()
-  return s.schemas[tostring(math.floor(tonumber(native_appid) or 0))]
+  return s.schemas[to_schema_key(native_appid)]
 end
 
 function M.save_schema(native_appid, schema)
   local s = load()
-  s.schemas[tostring(math.floor(tonumber(native_appid) or 0))] = schema
+  s.schemas[to_schema_key(native_appid)] = schema
+  save()
+end
+
+function M.bind_schema(shortcut_appid, schema_id)
+  local s = load()
+  local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))
+  local sc = s.shortcuts[sc_key]
+  if not sc then
+    sc = { schema_appid = schema_id, unlocks = {} }
+    s.shortcuts[sc_key] = sc
+  else
+    sc.schema_appid = schema_id
+  end
   save()
 end
 
@@ -186,13 +206,13 @@ function M.get_state(shortcut_appid, native_appid)
   local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))
   local sc = s.shortcuts[sc_key]
   if not sc and native_appid then
-    sc = { schema_appid = tonumber(native_appid) or 0, unlocks = {} }
+    sc = { schema_appid = native_appid, unlocks = {} }
     s.shortcuts[sc_key] = sc
     save()
   end
 
-  local schema_id = sc and sc.schema_appid or (native_appid and tonumber(native_appid))
-  local schema = schema_id and s.schemas[tostring(schema_id)] or nil
+  local schema_id = sc and sc.schema_appid or native_appid
+  local schema = schema_id and s.schemas[to_schema_key(schema_id)] or nil
   return {
     schema = schema,
     unlocks = sc and sc.unlocks or {},

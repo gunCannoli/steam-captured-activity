@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **RetroAchievements & Emulator Observer Engine (Phase 5)**:
+  - Integration with RetroAchievements for retro shortcuts (RetroArch, DuckStation, PCSX2).
+  - Zero-friction auth: dynamically reads `cheevos_username` and `cheevos_token` from local `retroarch.cfg`.
+  - ROM hash extractor (`ra_hasher.js`): zip deflation, SMC copier header stripping, and MD5 computation to identify RetroAchievements `GameID`.
+  - Ingests official patch data (badge URLs, titles, descriptions, points) and user unlock history into `achievements.json`.
+  - Out-of-process real-time log observer tails `retroarch.log`, `duckstation.log`, and `emulog.txt` for `[RCHEEVOS]` unlock events, triggering native Steam notification toasts and updating Big Picture UI.
+
 - **Native Achievements & Big Picture Full-Screen Page (Phase 5)**:
   - Non-Steam shortcuts mirror native Steam Store achievement schemas (titles, descriptions, icons, global unlock percentages).
   - Out-of-process in-game observers detect achievements in real time from local emulator saves (Goldberg, CODEX, RUNE, GSE) and engine runtime logs (Unity `Player.log`, Godot `godot.log`, Unreal `Saved/Logs`) with zero DLL injection.

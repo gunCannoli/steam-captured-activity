@@ -266,11 +266,9 @@ async function init() {
 
         // Start active observer session while game is running
         void rpc.steamStoreGetMapping(app.appid).then((res) => {
-            const nativeAppId = res?.mapping?.steam_appid;
-            if (nativeAppId) {
-                const stopObserver = startAchievementsObserver(app.appid, nativeAppId, app.display_name);
-                onQuit(() => stopObserver());
-            }
+            const nativeAppId = res?.mapping?.steam_appid || 0;
+            const stopObserver = startAchievementsObserver(app.appid, nativeAppId, app.display_name);
+            onQuit(() => stopObserver());
         }).catch((e) => logger.warn("Failed resolving mapping for achievement observer:", e));
 
         onQuit(() => {

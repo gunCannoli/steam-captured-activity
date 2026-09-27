@@ -11,6 +11,7 @@ import { handleWebScrapingView } from "./game-info";
 import { setAppViewTrigger } from "./game-info/game-info-patch";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { storeEnrichedAppIds } from "./steam-store/enriched";
+import { loadAchievementsForApp } from "./achievements";
 
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
 const inflight = new Set<number>();
@@ -33,18 +34,23 @@ export async function onSourceView(appid: number): Promise<void> {
             // Local Game Info only until collections load (ADR-0035); replayed then.
             deferred.add(appid);
             await handleWebScrapingView(appid);
+            void loadAchievementsForApp(appid, 0);
             return;
         }
         if (bucket === "steam-store") {
             // ADR-0036: Steam Store first; no Steam match -> web scraping fallback;
             // not known yet (title missing) -> local Game Info only.
             const matched = await handleSteamStoreView(appid);
-            if (matched !== true) await handleWebScrapingView(appid, matched);
+            if (matched !== true) {
+                await handleWebScrapingView(appid, matched);
+                void loadAchievementsForApp(appid, 0);
+            }
         } else {
             // web-scraping or none. Came from steam-store: drop its Game Info first;
             // the handler then applies local data (and fetches for web-scraping only).
             if (storeEnrichedAppIds.has(appid)) leaveSteamStore(appid);
             await handleWebScrapingView(appid);
+            void loadAchievementsForApp(appid, 0);
         }
     } finally {
         inflight.delete(appid);

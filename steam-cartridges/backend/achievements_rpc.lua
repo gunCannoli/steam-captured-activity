@@ -11,9 +11,23 @@ local RPC = {}
 
 RPC.CartridgesAchievementsGet = method("CartridgesAchievementsGet", function(data)
   local shortcut_appid = data.shortcut_appid
-  local native_appid = data.native_appid
+  local native_appid = tonumber(data.native_appid) or 0
   if not shortcut_appid then error("missing shortcut_appid") end
-  return store.get_or_fetch(shortcut_appid, native_appid)
+  
+  if native_appid > 0 then
+    local res = store.get_or_fetch(shortcut_appid, native_appid)
+    if res and res.schema then return res end
+  end
+
+  -- Fallback to RetroAchievements (for retro games/emulators)
+  local ra = require("retroachievements")
+  local ra_res, err = ra.get_or_fetch(shortcut_appid)
+  if ra_res and ra_res.schema then return ra_res end
+
+  if native_appid > 0 then
+    return store.get_or_fetch(shortcut_appid, native_appid)
+  end
+  return { schema = nil, unlocks = {}, error = err }
 end)
 
 RPC.CartridgesAchievementsUnlock = method("CartridgesAchievementsUnlock", function(data)
@@ -32,10 +46,9 @@ end)
 
 RPC.CartridgesAchievementsCheckUnlocks = method("CartridgesAchievementsCheckUnlocks", function(data)
   local shortcut_appid = data.shortcut_appid
-  local native_appid = data.native_appid
+  local native_appid = tonumber(data.native_appid) or 0
   local game_title = data.game_title
   if not shortcut_appid then error("missing shortcut_appid") end
-  if not native_appid then error("missing native_appid") end
   return observer.check_unlocks(shortcut_appid, native_appid, game_title)
 end)
 
