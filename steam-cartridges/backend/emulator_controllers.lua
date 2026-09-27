@@ -53,7 +53,7 @@ M.CORES_WITHOUT_CONTROLLER = set([[
 --- systems. `retroarch` is decided by its core; `mame` also runs computers: not inferred.
 M.EMULATORS_WITH_CONTROLLER = set([[
   dolphin primehack cemu pcsx2 rpcs3 duckstation ppsspp yuzu ryujinx
-  xemu xenia flycast melonds citra vita3k mednafen
+  xemu xenia flycast melonds citra vita3k mednafen shadps4
 ]])
 
 --- Core name from a command line: `-L cores\snes9x_libretro.dll` -> "snes9x".

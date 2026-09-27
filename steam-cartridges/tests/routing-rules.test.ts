@@ -57,6 +57,31 @@ test('isServiceAllowed: include rule permits service and regex matching', () => 
     assert.equal(isServiceAllowed('steam-store', 125, 'Final Fantasy VII (PC)', [], rules), true);
 });
 
+test('isServiceAllowed: multi-service selection and console_emulators alias', () => {
+    const rules: RoutingRule[] = [
+        {
+            id: 'rule-multi',
+            name: 'Disable scraping for emulated ROMs',
+            service: 'screenscraper,igdb,console_emulators',
+            action: 'exclude',
+            conditionType: 'collection',
+            pattern: 'SNES, GBA, Genesis',
+            enabled: true,
+        },
+    ];
+
+    // Matches 'SNES' from comma-separated pattern for screenscraper
+    assert.equal(isServiceAllowed('screenscraper', 101, 'Mario World', ['SNES'], rules), false);
+    // Matches 'GBA' for console_emulators
+    assert.equal(isServiceAllowed('console_emulators', 102, 'Metroid Fusion', ['GBA'], rules), false);
+    // console_emulators alias covers legacy 'rpcs3' service target as well
+    assert.equal(isServiceAllowed('rpcs3', 103, 'Persona 5', ['Genesis'], rules), false);
+    // Service not in the rule (e.g. steam_store) remains allowed
+    assert.equal(isServiceAllowed('steam_store', 101, 'Mario World', ['SNES'], rules), true);
+    // Non-matching collection remains allowed
+    assert.equal(isServiceAllowed('screenscraper', 104, 'PS5 Game', ['PlayStation 5'], rules), true);
+});
+
 test('inferredControllerIds: controller overrides take precedence', () => {
     // Normal emulator inference
     assert.deepEqual(inferredControllerIds({ inferred: true }), [28]);

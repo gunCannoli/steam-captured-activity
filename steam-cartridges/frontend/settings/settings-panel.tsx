@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     DialogButton,
     Dropdown,
@@ -13,6 +13,7 @@ import { rpc, type ProviderStatus, type RetroStatusResponse } from "../rpc";
 import {
     listCollections,
     listShortcuts,
+    membersOf,
     shortcutName,
 } from "../features/buckets";
 import {
@@ -20,9 +21,15 @@ import {
     type ServiceTarget,
     type RuleAction,
     type ConditionType,
+    isServiceAllowed,
+    matchesRegex,
 } from "../features/buckets/resolve";
+import { type ConsolidatedMetadata } from "../rpc";
 import { getLocalAchievements } from "../features/achievements";
-import { getInferredControllerSupport } from "../features/game-info/controller";
+import {
+    loadControllerInference,
+    getInferredControllerSupport,
+} from "../features/game-info/controller";
 
 /**
  * Compact row wrapper to reduce inter-item vertical spacing and
@@ -404,20 +411,8 @@ function MetadataSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
                         Service
                     </span>
                     <Dropdown
@@ -534,14 +529,14 @@ function MetadataSection() {
 // ===========================================================================
 
 interface AchievementSourceDef {
-    id: "steam_store" | "retroachievements" | "rpcs3";
+    id: "steam_store" | "retroachievements" | "console_emulators";
     label: string;
 }
 
 const ALL_ACHIEVEMENT_SOURCES: AchievementSourceDef[] = [
     { id: "steam_store", label: "Steam Store Mirror" },
     { id: "retroachievements", label: "RetroAchievements" },
-    { id: "rpcs3", label: "Console Emulators" },
+    { id: "console_emulators", label: "Console Emulators" },
 ];
 
 function AchievementsSection() {
@@ -553,7 +548,7 @@ function AchievementsSection() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEmuModal, setShowEmuModal] = useState(false);
     const [sourceToRegister, setSourceToRegister] = useState<
-        "steam_store" | "retroachievements" | "rpcs3"
+        "steam_store" | "retroachievements" | "console_emulators"
     >("retroachievements");
 
     // RA credentials input
@@ -575,21 +570,21 @@ function AchievementsSection() {
     const activeRaUser =
         retroStatus?.emulators?.find((e) => e.authenticated && e.username)
             ?.username ||
-        (retroStatus?.env_fallback
-            ? retroStatus.env_username || "Configured in .env"
-            : null);
+            (retroStatus?.env_fallback
+                ? retroStatus.env_username || "Configured in .env"
+                : null);
 
     // Active sources calculation
     const activeSources: AchievementSourceDef[] = [];
-    const [steamStoreSrc, raSrc, rpcs3Src] = ALL_ACHIEVEMENT_SOURCES;
+    const [steamStoreSrc, raSrc, emuSrc] = ALL_ACHIEVEMENT_SOURCES;
     if (steamStoreSrc && services.steamStoreEnabled !== false) {
         activeSources.push(steamStoreSrc);
     }
     if (raSrc && services.retroachievementsEnabled !== false && activeRaUser) {
         activeSources.push(raSrc);
     }
-    if (rpcs3Src && services.rpcs3Enabled !== false) {
-        activeSources.push(rpcs3Src);
+    if (emuSrc && (services.emulatorsEnabled !== false && services.rpcs3Enabled !== false)) {
+        activeSources.push(emuSrc);
     }
 
     const availableToAdd = ALL_ACHIEVEMENT_SOURCES.filter(
@@ -597,14 +592,18 @@ function AchievementsSection() {
     );
 
     const handleRemoveSource = (
-        id: "steam_store" | "retroachievements" | "rpcs3",
+        id: "steam_store" | "retroachievements" | "console_emulators",
     ) => {
         if (id === "steam_store") {
             setServices({ ...services, steamStoreEnabled: false });
         } else if (id === "retroachievements") {
             setServices({ ...services, retroachievementsEnabled: false });
-        } else if (id === "rpcs3") {
-            setServices({ ...services, rpcs3Enabled: false });
+        } else if (id === "console_emulators") {
+            setServices({
+                ...services,
+                emulatorsEnabled: false,
+                rpcs3Enabled: false,
+            });
         }
     };
 
@@ -623,7 +622,7 @@ function AchievementsSection() {
 
         if (sourceToRegister === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
-            setRaMsg("✓ Steam Store & PC saves enabled!");
+            setRaMsg("✓ Steam Store Mirror enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSavingRa(false);
@@ -632,9 +631,13 @@ function AchievementsSection() {
             return;
         }
 
-        if (sourceToRegister === "rpcs3") {
-            setServices({ ...services, rpcs3Enabled: true });
-            setRaMsg("✓ Console Emulators & RPCS3 enabled!");
+        if (sourceToRegister === "console_emulators") {
+            setServices({
+                ...services,
+                emulatorsEnabled: true,
+                rpcs3Enabled: true,
+            });
+            setRaMsg("✓ Console Emulators enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSavingRa(false);
@@ -699,7 +702,7 @@ function AchievementsSection() {
                                 gap: "8px",
                             }}
                         >
-                            {src.id === "rpcs3" && (
+                            {src.id === "console_emulators" && (
                                 <DialogButton
                                     onClick={() => setShowEmuModal(true)}
                                     style={{
@@ -752,20 +755,8 @@ function AchievementsSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
                         Source
                     </span>
                     <Dropdown
@@ -803,9 +794,9 @@ function AchievementsSection() {
                     </div>
                 )}
 
-                {sourceToRegister === "rpcs3" && (
+                {sourceToRegister === "console_emulators" && (
                     <div style={{ fontSize: "12px", opacity: 0.8 }}>
-                        Parses offline PS3 TROPCONF/TROPUSR trophies and tails
+                        Parses offline PS3 / PS4 trophies (RPCS3, shadPS4) and tails
                         DuckStation, PCSX2, Dolphin, PPSSPP, and RPCS3 emulator
                         logs.
                     </div>
@@ -927,8 +918,8 @@ function AchievementsSection() {
 // ===========================================================================
 
 const LAUNCH_NOTIFY_OPTIONS = [
-    { data: "all_runs", label: "Always" },
-    { data: "first_run", label: "First run" },
+    { data: "all_runs", label: "All game runs (default)" },
+    { data: "first_run", label: "First run only" },
     { data: "off", label: "Off" },
 ];
 
@@ -993,12 +984,13 @@ function ActivitySection() {
 
 const SERVICE_OPTIONS = [
     { data: "all", label: "All Services" },
-    { data: "steam-store", label: "Steam Store Mirror" },
+    { data: "steam_store", label: "Steam Store Mirror" },
     { data: "retroachievements", label: "RetroAchievements" },
+    { data: "console_emulators", label: "Console Emulators" },
     { data: "screenscraper", label: "ScreenScraper" },
-    { data: "igdb", label: "IGDB / Web Metadata" },
-    { data: "rpcs3", label: "Emulators Trophies" },
-    { data: "none", label: "None (Disable Fetching)" },
+    { data: "igdb", label: "IGDB" },
+    { data: "steamgriddb", label: "SteamGridDB" },
+    { data: "recording", label: "Recording" },
 ];
 
 const ACTION_OPTIONS = [
@@ -1012,6 +1004,15 @@ const CONDITION_OPTIONS = [
     { data: "regex", label: "Regex Pattern" },
 ];
 
+const REGEX_EXAMPLES = [
+    { pattern: "^Mario.*", desc: "Starts with Mario" },
+    { pattern: ".*(Remake|Remaster).*", desc: "Remakes & Remasters" },
+    { pattern: ".*(Demo|Beta|Trial).*", desc: "Demos & Betas" },
+    { pattern: ".*(Disc|CD)\\s*\\d+.*", desc: "Multi-disc games" },
+    { pattern: ".*\\[.*\\].*", desc: "Bracket tags [USA, En...]" },
+    { pattern: "CUSA\\d{5}", desc: "PS4 Title IDs (shadPS4)" },
+];
+
 function RulesSection() {
     const [rules, setRules] = useSetting("routingRules");
     const [showAddModal, setShowAddModal] = useState(false);
@@ -1019,7 +1020,7 @@ function RulesSection() {
 
     // Rule builder state
     const [name, setName] = useState("");
-    const [service, setService] = useState<ServiceTarget>("all");
+    const [selectedServices, setSelectedServices] = useState<string[]>(["all"]);
     const [action, setAction] = useState<RuleAction>("include");
     const [conditionType, setConditionType] =
         useState<ConditionType>("collection");
@@ -1037,17 +1038,17 @@ function RulesSection() {
     });
 
     const filteredCollections = collections.filter((c) =>
-        c.name.toLowerCase().includes(suggestionFilter.toLowerCase()),
+        c.name.toLowerCase().includes(suggestionFilter.toLowerCase())
     );
     const filteredShortcuts = uniqueShortcuts.filter((s) =>
-        s.name.toLowerCase().includes(suggestionFilter.toLowerCase()),
+        s.name.toLowerCase().includes(suggestionFilter.toLowerCase())
     );
 
     const selectedParts = new Set(
         pattern
             .split(",")
             .map((s) => s.trim())
-            .filter(Boolean),
+            .filter(Boolean)
     );
 
     const toggleSuggestion = (itemName: string) => {
@@ -1062,10 +1063,28 @@ function RulesSection() {
         }
     };
 
+    const toggleService = (svcKey: string) => {
+        if (svcKey === "all") {
+            setSelectedServices(["all"]);
+            return;
+        }
+        let next = selectedServices.filter((s) => s !== "all");
+        if (next.includes(svcKey)) {
+            next = next.filter((s) => s !== svcKey);
+        } else {
+            next.push(svcKey);
+        }
+        if (next.length === 0 || next.length === SERVICE_OPTIONS.length - 1) {
+            setSelectedServices(["all"]);
+        } else {
+            setSelectedServices(next);
+        }
+    };
+
     const handleOpenAdd = () => {
         setEditingIndex(null);
         setName("");
-        setService("all");
+        setSelectedServices(["all"]);
         setAction("include");
         setConditionType("collection");
         setPattern("");
@@ -1078,7 +1097,17 @@ function RulesSection() {
         if (!r) return;
         setEditingIndex(idx);
         setName(r.name || "");
-        setService(r.service);
+        if (!r.service || r.service === "all") {
+            setSelectedServices(["all"]);
+        } else {
+            const split = r.service
+                .split(",")
+                .map((s) =>
+                    s.trim() === "rpcs3" ? "console_emulators" : s.trim()
+                )
+                .filter(Boolean);
+            setSelectedServices(split.length > 0 ? split : ["all"]);
+        }
         setAction(r.action);
         setConditionType(r.conditionType);
         setPattern(r.pattern);
@@ -1088,27 +1117,70 @@ function RulesSection() {
 
     const handleSaveRule = () => {
         if (!name.trim() || !pattern.trim()) return;
+        const chosenService = selectedServices.includes("all")
+            ? "all"
+            : selectedServices.join(",");
         const ruleData: RoutingRule = {
             id:
                 editingIndex !== null && rules[editingIndex]
                     ? rules[editingIndex].id
                     : "rule_" + Date.now(),
             name: name.trim(),
-            service,
+            service: chosenService as ServiceTarget,
             action,
             conditionType,
             pattern: pattern.trim(),
             enabled: true,
         };
 
+        const copy = [...rules];
         if (editingIndex !== null) {
-            const copy = [...rules];
             copy[editingIndex] = ruleData;
-            setRules(copy);
         } else {
-            setRules([...rules, ruleData]);
+            copy.push(ruleData);
         }
+        setRules(copy);
         setShowAddModal(false);
+
+        // Find matching shortcuts to scrape metadata & achievements in background
+        const patternParts = pattern
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
+        const collMembersMap: Record<string, Set<number>> = {};
+        for (const c of collections) {
+            const members = membersOf(c.id);
+            collMembersMap[c.name.toLowerCase()] = new Set(members ? Array.from(members) : []);
+        }
+
+        const matchedShortcuts = shortcuts.filter((sc) => {
+            if (conditionType === "regex") {
+                return matchesRegex(pattern, sc.name);
+            }
+            if (conditionType === "game_name") {
+                const sName = sc.name.toLowerCase();
+                return patternParts.some(
+                    (p) => sName.includes(p) || sName === p
+                );
+            }
+            if (conditionType === "collection") {
+                return patternParts.some((colPattern) => {
+                    const set = collMembersMap[colPattern];
+                    return set ? set.has(sc.appid) : false;
+                });
+            }
+            return true;
+        });
+
+        setTimeout(() => {
+            for (const sc of matchedShortcuts) {
+                rpc.getGameMetadata(sc.appid, sc.name).catch(() => {});
+                rpc.cartridgesAchievementsGet(sc.appid, sc.appid).catch(() => {});
+            }
+            window.dispatchEvent(
+                new CustomEvent("steam-cartridges:rule-updated")
+            );
+        }, 100);
     };
 
     const handleDelete = (index: number) => {
@@ -1162,13 +1234,7 @@ function RulesSection() {
                         >
                             {rule.name}
                         </span>
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: "6px",
-                                flexShrink: 0,
-                            }}
-                        >
+                        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                             <DialogButton
                                 onClick={() => handleOpenEdit(idx)}
                                 style={{
@@ -1213,11 +1279,7 @@ function RulesSection() {
 
             {/* Add / Edit Rule Modal */}
             <SettingsModal
-                title={
-                    editingIndex !== null
-                        ? "Edit Routing Rule"
-                        : "Add Routing Rule"
-                }
+                title={editingIndex !== null ? "Edit Routing Rule" : "Add Routing Rule"}
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
@@ -1227,53 +1289,50 @@ function RulesSection() {
                     onChange={(e) => setName(e.target.value)}
                 />
 
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
-                        Service
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Services
                     </span>
-                    <Dropdown
-                        rgOptions={SERVICE_OPTIONS}
-                        selectedOption={service}
-                        onChange={(o) => setService(o.data as ServiceTarget)}
-                        contextMenuPositionOptions={{ bMatchWidth: true }}
-                    />
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        {SERVICE_OPTIONS.map((opt) => {
+                            const isSel =
+                                opt.data === "all"
+                                    ? selectedServices.includes("all")
+                                    : !selectedServices.includes("all") &&
+                                      selectedServices.includes(opt.data);
+                            return (
+                                <button
+                                    key={opt.data}
+                                    type="button"
+                                    onClick={() => toggleService(opt.data)}
+                                    style={{
+                                        background: isSel
+                                            ? "rgba(102, 192, 244, 0.3)"
+                                            : "rgba(255, 255, 255, 0.08)",
+                                        border: isSel
+                                            ? "1px solid #66c0f4"
+                                            : "1px solid rgba(255, 255, 255, 0.1)",
+                                        color: isSel ? "#66c0f4" : "#fff",
+                                        borderRadius: "4px",
+                                        padding: "3px 8px",
+                                        fontSize: "11px",
+                                        cursor: "pointer",
+                                        fontWeight: isSel ? 600 : 400,
+                                    }}
+                                >
+                                    {isSel ? "✓ " : ""}
+                                    {opt.label}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
                         Action
                     </span>
-                    <div
-                        style={{
-                            fontSize: "11px",
-                            opacity: 0.7,
-                            marginTop: "-2px",
-                        }}
-                    >
+                    <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "-2px" }}>
                         {action === "include"
                             ? "Only apply to matches"
                             : "Never apply to matches"}
@@ -1286,20 +1345,8 @@ function RulesSection() {
                     />
                 </div>
 
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
                         Condition
                     </span>
                     <Dropdown
@@ -1312,11 +1359,36 @@ function RulesSection() {
                     />
                 </div>
 
-                <TextField
-                    label="Pattern"
-                    value={pattern}
-                    onChange={(e) => setPattern(e.target.value)}
-                />
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Pattern
+                    </span>
+                    <textarea
+                        rows={Math.min(
+                            6,
+                            Math.max(2, Math.ceil((pattern.length || 1) / 36))
+                        )}
+                        value={pattern}
+                        onChange={(e) => setPattern(e.target.value)}
+                        placeholder={
+                            conditionType === "regex"
+                                ? "^Mario.*"
+                                : "e.g. Mario, Sonic, Zelda"
+                        }
+                        style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            background: "rgba(0, 0, 0, 0.4)",
+                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                            borderRadius: "4px",
+                            color: "#fff",
+                            padding: "6px 10px",
+                            fontSize: "12px",
+                            fontFamily: "inherit",
+                            resize: "vertical",
+                        }}
+                    />
+                </div>
                 <div
                     style={{
                         fontSize: "11px",
@@ -1325,9 +1397,73 @@ function RulesSection() {
                         marginBottom: "4px",
                     }}
                 >
-                    Separate multiple items with commas (e.g. Mario, Sonic,
-                    Zelda).
+                    {conditionType === "regex"
+                        ? "Regular expression pattern matched against game titles."
+                        : "Separate multiple items with commas (e.g. Mario, Sonic, Zelda)."}
                 </div>
+
+                {conditionType === "regex" && (
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "6px",
+                        }}
+                    >
+                        <span style={{ fontSize: "11px", opacity: 0.7 }}>
+                            Regex Examples (click to apply):
+                        </span>
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: "6px",
+                                flexWrap: "wrap",
+                                maxHeight: "130px",
+                                overflowY: "auto",
+                                padding: "2px 0",
+                            }}
+                        >
+                            {REGEX_EXAMPLES.map((ex) => (
+                                <button
+                                    key={ex.pattern}
+                                    type="button"
+                                    onClick={() => setPattern(ex.pattern)}
+                                    style={{
+                                        background:
+                                            pattern === ex.pattern
+                                                ? "rgba(102, 192, 244, 0.3)"
+                                                : "rgba(255, 255, 255, 0.08)",
+                                        border:
+                                            pattern === ex.pattern
+                                                ? "1px solid #66c0f4"
+                                                : "1px solid rgba(255, 255, 255, 0.1)",
+                                        color:
+                                            pattern === ex.pattern
+                                                ? "#66c0f4"
+                                                : "#fff",
+                                        borderRadius: "4px",
+                                        padding: "3px 8px",
+                                        fontSize: "11px",
+                                        cursor: "pointer",
+                                        textAlign: "left",
+                                    }}
+                                    title={ex.desc}
+                                >
+                                    <code>{ex.pattern}</code>
+                                    <span
+                                        style={{
+                                            opacity: 0.6,
+                                            marginLeft: "6px",
+                                            fontSize: "10px",
+                                        }}
+                                    >
+                                        ({ex.desc})
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {(conditionType === "collection" ||
                     conditionType === "game_name") && (
@@ -1345,9 +1481,7 @@ function RulesSection() {
                                     : "Filter Games"
                             }
                             value={suggestionFilter}
-                            onChange={(e) =>
-                                setSuggestionFilter(e.target.value)
-                            }
+                            onChange={(e) => setSuggestionFilter(e.target.value)}
                         />
                         <div
                             style={{
@@ -1367,9 +1501,7 @@ function RulesSection() {
                                             <button
                                                 key={c.id}
                                                 type="button"
-                                                onClick={() =>
-                                                    toggleSuggestion(c.name)
-                                                }
+                                                onClick={() => toggleSuggestion(c.name)}
                                                 style={{
                                                     background: isSel
                                                         ? "rgba(102, 192, 244, 0.3)"
@@ -1377,9 +1509,7 @@ function RulesSection() {
                                                     border: isSel
                                                         ? "1px solid #66c0f4"
                                                         : "1px solid rgba(255, 255, 255, 0.1)",
-                                                    color: isSel
-                                                        ? "#66c0f4"
-                                                        : "#fff",
+                                                    color: isSel ? "#66c0f4" : "#fff",
                                                     borderRadius: "4px",
                                                     padding: "2px 8px",
                                                     fontSize: "11px",
@@ -1408,9 +1538,7 @@ function RulesSection() {
                                         <button
                                             key={s.appid}
                                             type="button"
-                                            onClick={() =>
-                                                toggleSuggestion(s.name)
-                                            }
+                                            onClick={() => toggleSuggestion(s.name)}
                                             style={{
                                                 background: isSel
                                                     ? "rgba(102, 192, 244, 0.3)"
@@ -1418,9 +1546,7 @@ function RulesSection() {
                                                 border: isSel
                                                     ? "1px solid #66c0f4"
                                                     : "1px solid rgba(255, 255, 255, 0.1)",
-                                                color: isSel
-                                                    ? "#66c0f4"
-                                                    : "#fff",
+                                                color: isSel ? "#66c0f4" : "#fff",
                                                 borderRadius: "4px",
                                                 padding: "2px 8px",
                                                 fontSize: "11px",
@@ -1496,28 +1622,96 @@ function RevisionSection() {
     const [controllerOverrides, setControllerOverrides] = useSetting(
         "controllerOverrides",
     );
+    const [rules] = useSetting("routingRules");
+    const [metadataLib, setMetadataLib] = useState<
+        Record<string, ConsolidatedMetadata>
+    >({});
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
-    const [filter, setFilter] = useState<"all" | "controller" | "achievements">(
-        "all",
-    );
+    const [filter, setFilter] = useState<
+        "all" | "controller" | "achievements" | "not_scraped"
+    >("all");
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
     const [steamIdInput, setSteamIdInput] = useState("");
     const [fixMsg, setFixMsg] = useState("");
+    const [isScanningAll, setIsScanningAll] = useState(false);
 
     const shortcuts = listShortcuts();
 
-    // Inspect each shortcut for missing info
-    const flagged: FlaggedShortcut[] = [];
-    for (const sc of shortcuts) {
-        const override = controllerOverrides[String(sc.appid)];
-        const achievements = getLocalAchievements(sc.appid);
-        const inferred = getInferredControllerSupport(sc.appid);
+    const refreshAuditData = useCallback(async () => {
+        await loadControllerInference();
+        try {
+            const res = await rpc.getAllMetadata();
+            if (res?.library) {
+                setMetadataLib(res.library);
+            }
+        } catch {
+            // ignore
+        }
+    }, []);
 
+    useEffect(() => {
+        refreshAuditData();
+        const onRuleUpdated = () => refreshAuditData();
+        window.addEventListener("steam-cartridges:rule-updated", onRuleUpdated);
+        return () =>
+            window.removeEventListener(
+                "steam-cartridges:rule-updated",
+                onRuleUpdated
+            );
+    }, [refreshAuditData]);
+
+    const collections = listCollections();
+    const collMap: Record<number, string[]> = {};
+    for (const c of collections) {
+        const members = membersOf(c.id);
+        if (members) {
+            for (const appid of members) {
+                if (!collMap[appid]) collMap[appid] = [];
+                collMap[appid].push(c.name);
+            }
+        }
+    }
+
+    const flagged: FlaggedShortcut[] = [];
+    const notScraped: { appid: number; name: string }[] = [];
+
+    for (const sc of shortcuts) {
+        const collNames = collMap[sc.appid] || [];
+        // Check if excluded by routing rules
+        const isAllowed = isServiceAllowed(
+            "all",
+            sc.appid,
+            sc.name,
+            collNames,
+            rules
+        );
+        if (!isAllowed) {
+            continue; // Excluded by rule: do not count in issues or not-scraped
+        }
+
+        const meta = metadataLib[String(sc.appid)] || metadataLib[sc.appid];
+        const achievements = getLocalAchievements(sc.appid);
+        const isScraped = !!meta || (achievements && achievements.nTotal > 0);
+
+        if (!isScraped) {
+            notScraped.push({ appid: sc.appid, name: sc.name });
+            continue; // Do NOT count unscraped games as issues!
+        }
+
+        const override = controllerOverrides[String(sc.appid)];
+        const inferred = getInferredControllerSupport(sc.appid);
         const hasWeirdName = /\[.*?\]|\(.*?\)/.test(sc.name);
-        // Only mark missing controller if user hasn't explicitly set full/none/partial AND emulator hasn't inferred support
+        const hasControllerSupport =
+            override === "full" ||
+            override === "partial" ||
+            (override !== "none" && inferred === true) ||
+            meta?.categories?.full_controller === true ||
+            meta?.categories?.partial_controller === true;
         const missingController =
-            (!override || override === "auto") && inferred !== true;
-        const noAchievements = !achievements || achievements.nTotal === 0;
+            !hasControllerSupport && (!override || override === "auto");
+        const noAchievements =
+            (!achievements || achievements.nTotal === 0) &&
+            !meta?.categories?.achievements;
 
         if (missingController || hasWeirdName || noAchievements) {
             flagged.push({
@@ -1529,7 +1723,7 @@ function RevisionSection() {
         }
     }
 
-    const filtered = flagged.filter((f) => {
+    const filteredIssues = flagged.filter((f) => {
         if (filter === "controller") return f.missingController;
         if (filter === "achievements") return f.noAchievements;
         return true;
@@ -1546,7 +1740,7 @@ function RevisionSection() {
 
     const handleLinkSteamApp = async (
         shortcutAppId: number,
-        steamAppId: number,
+        steamAppId: number
     ) => {
         setFixMsg("Linking to Steam Store...");
         const res = await rpc.steamStoreSetMapping(shortcutAppId, steamAppId);
@@ -1558,9 +1752,52 @@ function RevisionSection() {
         }
     };
 
+    const handleScanAllUnscraped = async () => {
+        setIsScanningAll(true);
+        setFixMsg(`Scanning ${notScraped.length} unscraped games...`);
+        for (const item of notScraped) {
+            await rpc.getGameMetadata(item.appid, item.name).catch(() => {});
+            await rpc
+                .cartridgesAchievementsGet(item.appid, item.appid)
+                .catch(() => {});
+        }
+        await refreshAuditData();
+        setIsScanningAll(false);
+        setFixMsg("Batch scan complete!");
+        setTimeout(() => setFixMsg(""), 3000);
+    };
+
+    const handleScanSingle = async (appid: number, name: string) => {
+        setFixMsg(`Scanning ${name}...`);
+        await rpc.getGameMetadata(appid, name).catch(() => {});
+        await rpc
+            .cartridgesAchievementsGet(appid, appid)
+            .catch(() => {});
+        await refreshAuditData();
+        setFixMsg(`Scanned ${name}`);
+        setTimeout(() => setFixMsg(""), 2000);
+    };
+
     return (
         <PanelSection title="Library Audit">
             {/* 3-Row Layout matching theme */}
+            <ItemRow>
+                <Field
+                    label="Not scraped:"
+                    description="Games awaiting initial metadata & achievement fetch"
+                    bottomSeparator="none"
+                >
+                    <span
+                        style={{
+                            color: notScraped.length > 0 ? "#66c0f4" : "#8ba5b7",
+                            fontWeight: 700,
+                            fontSize: "14px",
+                        }}
+                    >
+                        {notScraped.length}
+                    </span>
+                </Field>
+            </ItemRow>
             <ItemRow>
                 <Field
                     label="Issues detected:"
@@ -1579,28 +1816,30 @@ function RevisionSection() {
                 </Field>
             </ItemRow>
             <ItemRow>
-                <Field childrenContainerWidth="max">
+                <div style={{ marginTop: "4px" }}>
                     <DialogButton
                         onClick={() => setIsAuditModalOpen(true)}
                         style={{
-                            width: "100%",
+                            padding: "0 14px",
+                            minWidth: 0,
+                            width: "auto",
                         }}
                     >
                         Review
                     </DialogButton>
-                </Field>
+                </div>
             </ItemRow>
 
             {/* Audit & Fix Modal */}
             <SettingsModal
-                title={`Library Audit (${flagged.length} issues)`}
+                title={`Library Audit (${flagged.length} issues, ${notScraped.length} unscraped)`}
                 isOpen={isAuditModalOpen}
                 onClose={() => setIsAuditModalOpen(false)}
                 width="620px"
                 maxHeight="85vh"
             >
                 {/* Filter Tabs */}
-                <div style={{ display: "flex", gap: "6px" }}>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                     <button
                         type="button"
                         onClick={() => setFilter("all")}
@@ -1617,7 +1856,7 @@ function RevisionSection() {
                             cursor: "pointer",
                         }}
                     >
-                        All ({flagged.length})
+                        All Issues ({flagged.length})
                     </button>
                     <button
                         type="button"
@@ -1635,7 +1874,8 @@ function RevisionSection() {
                             cursor: "pointer",
                         }}
                     >
-                        Unknown Input
+                        Unknown Input (
+                        {flagged.filter((f) => f.missingController).length})
                     </button>
                     <button
                         type="button"
@@ -1653,9 +1893,62 @@ function RevisionSection() {
                             cursor: "pointer",
                         }}
                     >
-                        No Achievements
+                        No Achievements (
+                        {flagged.filter((f) => f.noAchievements).length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilter("not_scraped")}
+                        style={{
+                            background:
+                                filter === "not_scraped"
+                                    ? "rgba(102, 192, 244, 0.25)"
+                                    : "rgba(0, 0, 0, 0.25)",
+                            border:
+                                filter === "not_scraped"
+                                    ? "1px solid #66c0f4"
+                                    : "none",
+                            color:
+                                filter === "not_scraped" ? "#66c0f4" : "#fff",
+                            borderRadius: "4px",
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Not Scraped ({notScraped.length})
                     </button>
                 </div>
+
+                {filter === "not_scraped" && (
+                    <div
+                        style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "4px 0",
+                        }}
+                    >
+                        <span style={{ fontSize: "11px", opacity: 0.7 }}>
+                            {notScraped.length} game(s) awaiting initial
+                            scraping.
+                        </span>
+                        <DialogButton
+                            onClick={handleScanAllUnscraped}
+                            disabled={isScanningAll || notScraped.length === 0}
+                            style={{
+                                padding: "0 10px",
+                                minWidth: 0,
+                                width: "auto",
+                                fontSize: "11px",
+                            }}
+                        >
+                            {isScanningAll
+                                ? "Scanning..."
+                                : "🔄 Scan All Unscraped"}
+                        </DialogButton>
+                    </div>
+                )}
 
                 {fixMsg && (
                     <div
@@ -1679,21 +1972,27 @@ function RevisionSection() {
                         overflowY: "auto",
                     }}
                 >
-                    {filtered.map((item) => {
-                        const currentOverride =
-                            controllerOverrides[String(item.appid)] || "auto";
-                        return (
+                    {filter === "not_scraped" ? (
+                        notScraped.length === 0 ? (
                             <div
-                                key={item.appid}
                                 style={{
-                                    background: "rgba(255, 255, 255, 0.03)",
-                                    border: "1px solid rgba(255, 255, 255, 0.06)",
-                                    borderRadius: "4px",
-                                    padding: "8px 10px",
+                                    fontSize: "12px",
+                                    opacity: 0.6,
+                                    padding: "8px 0",
+                                    fontStyle: "italic",
                                 }}
                             >
+                                All games in your library have been scraped.
+                            </div>
+                        ) : (
+                            notScraped.map((item) => (
                                 <div
+                                    key={item.appid}
                                     style={{
+                                        background: "rgba(255, 255, 255, 0.03)",
+                                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                                        borderRadius: "4px",
+                                        padding: "8px 10px",
                                         display: "flex",
                                         justifyContent: "space-between",
                                         alignItems: "center",
@@ -1719,130 +2018,32 @@ function RevisionSection() {
                                         </span>
                                     </div>
                                     <div
-                                        style={{ display: "flex", gap: "4px" }}
-                                    >
-                                        {item.missingController && (
-                                            <span
-                                                style={{
-                                                    background: "#e5a00d",
-                                                    color: "#000",
-                                                    fontSize: "10px",
-                                                    padding: "1px 5px",
-                                                    borderRadius: "3px",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Missing Input
-                                            </span>
-                                        )}
-                                        {item.noAchievements && (
-                                            <span
-                                                style={{
-                                                    background:
-                                                        "rgba(255, 255, 255, 0.1)",
-                                                    color: "#aaa",
-                                                    fontSize: "10px",
-                                                    padding: "1px 5px",
-                                                    borderRadius: "3px",
-                                                }}
-                                            >
-                                                No Achievements
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        gap: "12px",
-                                        marginTop: "6px",
-                                        alignItems: "center",
-                                        flexWrap: "wrap",
-                                    }}
-                                >
-                                    <div
                                         style={{
                                             display: "flex",
+                                            gap: "8px",
                                             alignItems: "center",
-                                            gap: "6px",
                                         }}
                                     >
                                         <span
-                                            style={{
-                                                fontSize: "11px",
-                                                opacity: 0.75,
-                                            }}
-                                        >
-                                            Input:
-                                        </span>
-                                        <Dropdown
-                                            rgOptions={
-                                                CONTROLLER_OVERRIDE_OPTIONS
-                                            }
-                                            selectedOption={currentOverride}
-                                            onChange={(o) =>
-                                                handleSetController(
-                                                    item.appid,
-                                                    o.data as ControllerOverride,
-                                                )
-                                            }
-                                            contextMenuPositionOptions={{
-                                                bMatchWidth: true,
-                                            }}
-                                        />
-                                    </div>
-
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "6px",
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                fontSize: "11px",
-                                                opacity: 0.75,
-                                            }}
-                                        >
-                                            Link Steam AppID:
-                                        </span>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g. 2820820"
-                                            value={
-                                                targetAppId === item.appid
-                                                    ? steamIdInput
-                                                    : ""
-                                            }
-                                            onChange={(e) => {
-                                                setTargetAppId(item.appid);
-                                                setSteamIdInput(e.target.value);
-                                            }}
                                             style={{
                                                 background:
-                                                    "rgba(0, 0, 0, 0.4)",
-                                                border: "1px solid rgba(255, 255, 255, 0.15)",
-                                                color: "#fff",
+                                                    "rgba(102, 192, 244, 0.2)",
+                                                color: "#66c0f4",
+                                                fontSize: "10px",
+                                                padding: "1px 5px",
                                                 borderRadius: "3px",
-                                                padding: "3px 6px",
-                                                fontSize: "11px",
-                                                width: "90px",
+                                                fontWeight: 600,
                                             }}
-                                        />
+                                        >
+                                            Not Scraped
+                                        </span>
                                         <DialogButton
-                                            onClick={() => {
-                                                const num = parseInt(
-                                                    steamIdInput,
-                                                    10,
-                                                );
-                                                if (num > 0)
-                                                    handleLinkSteamApp(
-                                                        item.appid,
-                                                        num,
-                                                    );
-                                            }}
+                                            onClick={() =>
+                                                handleScanSingle(
+                                                    item.appid,
+                                                    item.name
+                                                )
+                                            }
                                             style={{
                                                 padding: "0 8px",
                                                 minWidth: 0,
@@ -1850,13 +2051,209 @@ function RevisionSection() {
                                                 fontSize: "11px",
                                             }}
                                         >
-                                            Link
+                                            Scrape
                                         </DialogButton>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            ))
+                        )
+                    ) : filteredIssues.length === 0 ? (
+                        <div
+                            style={{
+                                fontSize: "12px",
+                                opacity: 0.6,
+                                padding: "8px 0",
+                                fontStyle: "italic",
+                            }}
+                        >
+                            No issues detected for this filter.
+                        </div>
+                    ) : (
+                        filteredIssues.map((item) => {
+                            const currentOverride =
+                                controllerOverrides[String(item.appid)] ||
+                                "auto";
+                            return (
+                                <div
+                                    key={item.appid}
+                                    style={{
+                                        background: "rgba(255, 255, 255, 0.03)",
+                                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                                        borderRadius: "4px",
+                                        padding: "8px 10px",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        <div>
+                                            <span
+                                                style={{
+                                                    fontWeight: 600,
+                                                    fontSize: "13px",
+                                                }}
+                                            >
+                                                {item.name}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize: "11px",
+                                                    opacity: 0.6,
+                                                    marginLeft: "6px",
+                                                }}
+                                            >
+                                                ({item.appid})
+                                            </span>
+                                        </div>
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                gap: "4px",
+                                            }}
+                                        >
+                                            {item.missingController && (
+                                                <span
+                                                    style={{
+                                                        background: "#e5a00d",
+                                                        color: "#000",
+                                                        fontSize: "10px",
+                                                        padding: "1px 5px",
+                                                        borderRadius: "3px",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    Missing Input
+                                                </span>
+                                            )}
+                                            {item.noAchievements && (
+                                                <span
+                                                    style={{
+                                                        background:
+                                                            "rgba(255, 255, 255, 0.1)",
+                                                        color: "#aaa",
+                                                        fontSize: "10px",
+                                                        padding: "1px 5px",
+                                                        borderRadius: "3px",
+                                                    }}
+                                                >
+                                                    No Achievements
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            gap: "12px",
+                                            marginTop: "6px",
+                                            alignItems: "center",
+                                            flexWrap: "wrap",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    fontSize: "11px",
+                                                    opacity: 0.75,
+                                                }}
+                                            >
+                                                Input:
+                                            </span>
+                                            <Dropdown
+                                                rgOptions={
+                                                    CONTROLLER_OVERRIDE_OPTIONS
+                                                }
+                                                selectedOption={currentOverride}
+                                                onChange={(o) =>
+                                                    handleSetController(
+                                                        item.appid,
+                                                        o.data as ControllerOverride
+                                                    )
+                                                }
+                                                contextMenuPositionOptions={{
+                                                    bMatchWidth: true,
+                                                }}
+                                            />
+                                        </div>
+
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    fontSize: "11px",
+                                                    opacity: 0.75,
+                                                }}
+                                            >
+                                                Link Steam AppID:
+                                            </span>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. 2820820"
+                                                value={
+                                                    targetAppId === item.appid
+                                                        ? steamIdInput
+                                                        : ""
+                                                }
+                                                onChange={(e) => {
+                                                    setTargetAppId(item.appid);
+                                                    setSteamIdInput(
+                                                        e.target.value
+                                                    );
+                                                }}
+                                                style={{
+                                                    background:
+                                                        "rgba(0, 0, 0, 0.4)",
+                                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                                    color: "#fff",
+                                                    borderRadius: "3px",
+                                                    padding: "3px 6px",
+                                                    fontSize: "11px",
+                                                    width: "90px",
+                                                }}
+                                            />
+                                            <DialogButton
+                                                onClick={() => {
+                                                    const num = parseInt(
+                                                        steamIdInput,
+                                                        10
+                                                    );
+                                                    if (num > 0)
+                                                        handleLinkSteamApp(
+                                                            item.appid,
+                                                            num
+                                                        );
+                                                }}
+                                                style={{
+                                                    padding: "0 8px",
+                                                    minWidth: 0,
+                                                    width: "auto",
+                                                    fontSize: "11px",
+                                                }}
+                                            >
+                                                Link
+                                            </DialogButton>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
 
                 <div

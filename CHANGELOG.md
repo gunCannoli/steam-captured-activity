@@ -7,7 +7,30 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
-## [Unreleased]
+- **`steam-cartridges` shadPS4 Trophies, Console Emulators Rename, Multi-Service Rules & Library Audit Partitioning (2026-09-27)**:
+  - *shadPS4 Trophy Support*:
+    - Added local PlayStation 4 trophy provider support for games launched via shadPS4 (`backend/ps4_trophies.lua`).
+    - Scans shadPS4 user trophy directories across AppData and portable install paths (`user/trophy/[CUSA_ID]`, `home/1000/trophy/[CUSA_ID]`).
+    - Parses Sony `TROP.XML` metadata schema and binary `TROPUSR.DAT` unlock database (32-byte stride).
+    - Integrated with `backend/achievements_rpc.lua`, achievements observer log tailing (`user/log/shadps4.log`), emulator controller inference, and emulator status reporting.
+  - *Console Emulators Unification*:
+    - Renamed `rpcs3` component ID and label to `console_emulators` and `"Console Emulators"` across settings, rules, and sources.
+    - Added backward-compatible alias resolution between `console_emulators` and `rpcs3` in `resolve.ts` and `settings.ts`.
+  - *Multi-Service Selection in Rule Setup*:
+    - Replaced single-service dropdown with interactive multi-service toggle chips in Add/Edit Routing Rule modal.
+    - Updated `RoutingRule.service` and `isServiceAllowed()` to support comma-separated multi-service matching.
+  - *Regex Examples & Suggestions*:
+    - Added clickable regex example chips with descriptions (`^Mario.*`, `.*(Remake|Remaster).*`, `.*(Demo|Beta|Trial).*`, `.*(Disc|CD)\\s*\\d+.*`, `.*\\[.*\\].*`, `CUSA\\d{5}`) when condition type is `regex`.
+  - *Dynamic Expanding Pattern Textarea*:
+    - Replaced single-line text input with dynamic auto-expanding `<textarea>` (2 to 6 rows) based on pattern length.
+  - *Shortened Steam Store Label*:
+    - Shortened `"Steam Store Mirror & PC Saves"` to `"Steam Store Mirror"`.
+  - *Rule Creation Re-scrape & Library Audit Refinement*:
+    - Saving a routing rule triggers a background update/scrape of achievements and metadata for affected shortcuts, updating audit numbers in real-time.
+    - Partitioned library audit into `"Not scraped:"` and `"Issues detected:"`. Unscraped games are counted separately and do not trigger false positive issue warnings.
+    - Shortcuts excluded by routing rules are skipped from both counts.
+    - Added `"Not Scraped"` filter tab in `AuditModal` with single-game `[ Scrape ]` and batch `[ 🔄 Scan All Unscraped ]` controls.
+    - Aligned `[ Review ]` button width to standard dialog button sizing.
 
 - **`steam-cartridges` Settings Panel Modal & Layout UX Refinements (2026-09-27)**:
   - *Library Audit Button Width Alignment*:

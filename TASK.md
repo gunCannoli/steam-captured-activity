@@ -17,10 +17,11 @@ theme Steam's toasts and sounds.
 
 ## Now
  
-**steam-cartridges Minimal Settings Panel Redesign (Complete).**
-- Refactored settings panel into a super minimal, non-bloated interface matching `enhanced-achievements`.
-- Active-only service lists with `[ Remove ]` buttons, dynamic `+ Add Service` / `+ Add Source` visibility (hidden when all added), and dedicated Steam-themed modal overlays for service registration, routing rules, emulator status, and library audit.
-- Routine 1 & 2 multi-tab smoke test and CDP modal interaction suite 100% passing.
+**steam-cartridges Settings Enhancements & shadPS4 Trophies (Complete).**
+- Implemented shadPS4 trophy support (`backend/ps4_trophies.lua`) parsing `TROP.XML` and binary `TROPUSR.DAT` for offline PS4 trophy unlocks.
+- Renamed `rpcs3` component to `console_emulators` ("Console Emulators") across backend, frontend, rules, and settings with backward-compatible fallback aliases.
+- Enhanced routing rule setup with interactive multi-service toggle chips, dynamic expanding pattern `<textarea>` (2 to 6 rows), clickable regex suggestions/examples, and background re-scrape on save.
+- Refined Library Audit with separate "Not scraped:" count, zero false-positive issues for unscraped games, routing rule exclusions, and batch scraping. All 61 unit tests and type checks pass.
 
 **steam-cartridges Community Section & Retro Media (Ready for Execution).**
 - Plan & Architecture: [docs/plans/steam-cartridges-community-plan.md](docs/plans/steam-cartridges-community-plan.md).

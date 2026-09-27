@@ -289,6 +289,22 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     end
   end
 
+  -- Check shadPS4 local TROPUSR.DAT if PS4 title
+  if st.schema.ps4_title_id then
+    local ps4 = require("ps4_trophies")
+    local trop_dir = ps4.find_trophy_dir(sc_match and sc_match.exe or exe_dir, sc_match and sc_match.launch_options)
+    if trop_dir then
+      local usr_path = trop_dir .. "/TROPUSR.DAT"
+      if file_exists(usr_path) then
+        local usr_data = read_file(usr_path)
+        local parsed = usr_data and ps4.parse_tropusr(usr_data) or {}
+        for id, info in pairs(parsed) do
+          candidate_unlocks[id] = info
+        end
+      end
+    end
+  end
+
   local emu_logs = {
     -- Dynamic log path next to emulator exe
     #exe_dir > 0 and (exe_dir .. "/duckstation.log"),
@@ -301,6 +317,8 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     #exe_dir > 0 and (exe_dir .. "/ppsspp.log"),
     #exe_dir > 0 and (exe_dir .. "/RPCS3.log"),
     #exe_dir > 0 and (exe_dir .. "/rpcs3.log"),
+    #exe_dir > 0 and (exe_dir .. "/user/log/shadps4.log"),
+    #exe_dir > 0 and (exe_dir .. "/shadps4.log"),
     -- Standard known install locations
     "C:\\emu\\RetroArch\\logs\\retroarch.log",
     appdata .. "\\RetroArch\\logs\\retroarch.log",
@@ -320,6 +338,9 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     "C:\\emu\\rpcs3\\RPCS3.log",
     appdata .. "\\rpcs3\\RPCS3.log",
     localappdata .. "\\rpcs3\\RPCS3.log",
+    "C:\\emu\\shadps4\\user\\log\\shadps4.log",
+    appdata .. "\\shadps4\\user\\log\\shadps4.log",
+    localappdata .. "\\shadps4\\user\\log\\shadps4.log",
   }
   for _, logpath in ipairs(emu_logs) do
     if logpath and file_exists(logpath) then

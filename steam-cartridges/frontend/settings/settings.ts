@@ -10,7 +10,8 @@ export interface ServicesConfig {
     screenscraperEnabled: boolean;
     igdbEnabled: boolean;
     retroachievementsEnabled: boolean;
-    rpcs3Enabled: boolean;
+    emulatorsEnabled: boolean;
+    rpcs3Enabled?: boolean;
 }
 
 export const DEFAULT_SERVICES: ServicesConfig = {
@@ -18,6 +19,7 @@ export const DEFAULT_SERVICES: ServicesConfig = {
     screenscraperEnabled: true,
     igdbEnabled: true,
     retroachievementsEnabled: true,
+    emulatorsEnabled: true,
     rpcs3Enabled: true,
 };
 
@@ -69,13 +71,15 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
     services: (raw) => {
         if (!raw || typeof raw !== 'object') return DEFAULT_SERVICES;
-        const r = raw as Partial<ServicesConfig>;
+        const r = raw as any;
+        const emu = r.emulatorsEnabled !== undefined ? r.emulatorsEnabled !== false : r.rpcs3Enabled !== false;
         return {
             steamStoreEnabled: r.steamStoreEnabled !== false,
             screenscraperEnabled: r.screenscraperEnabled !== false,
             igdbEnabled: r.igdbEnabled !== false,
             retroachievementsEnabled: r.retroachievementsEnabled !== false,
-            rpcs3Enabled: r.rpcs3Enabled !== false,
+            emulatorsEnabled: emu,
+            rpcs3Enabled: emu,
         };
     },
     controllerOverrides: (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, ControllerOverride>) : {}),

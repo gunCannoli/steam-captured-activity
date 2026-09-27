@@ -3,7 +3,7 @@ import { collectionsReady, listCollections, membersOf, type CollectionInfo } fro
 import { pendingOr } from './ready';
 import { findConflicts, resolveBucket, SHORTCUT_MIN, type Bucket, type Resolution } from './resolve';
 
-export { waitForCollections, listCollections, invalidateMembership, collectionsReady } from './collections';
+export { waitForCollections, listCollections, membersOf, invalidateMembership, collectionsReady } from './collections';
 export type { Bucket, BucketsConfig, CollectionRule, Resolution } from './resolve';
 
 let metadataAppids: () => Iterable<number> = () => [];

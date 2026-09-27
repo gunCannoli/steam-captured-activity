@@ -837,6 +837,31 @@ function M.get_emulator_status()
     authenticated = rpcs3_found,
   })
 
+  -- 7. shadPS4 (PS4)
+  local shad_paths = {
+    "C:/emu/shadps4/user/trophy",
+    appdata .. "/shadps4/user/trophy",
+    appdata .. "/shadps4/home/1000/trophy",
+    "C:/emu/shadps4/shadps4.exe",
+    appdata .. "/shadps4/shadps4.exe",
+    localappdata .. "/shadps4/shadps4.exe",
+  }
+  local shad_found, shad_p = false, nil
+  for _, p in ipairs(shad_paths) do
+    if file_exists(p) then
+      shad_found = true
+      shad_p = p
+      break
+    end
+  end
+  table.insert(list, {
+    name = "shadPS4 (PS4)",
+    detected = shad_found,
+    path = shad_p or "C:/emu/shadps4",
+    username = shad_found and "Local Trophy DB" or nil,
+    authenticated = shad_found,
+  })
+
   -- Check .env fallback
   local web_cfg = require("web_config")
   local env_creds = web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()

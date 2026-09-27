@@ -199,6 +199,7 @@ export type ServiceTarget =
     | 'screenscraper'
     | 'igdb'
     | 'retroachievements'
+    | 'console_emulators'
     | 'rpcs3'
     | 'none';
 
@@ -209,7 +210,7 @@ export type ConditionType = 'collection' | 'game_name' | 'regex';
 export interface RoutingRule {
     id: string;
     name: string;
-    service: ServiceTarget;
+    service: ServiceTarget | string;
     action: RuleAction;
     conditionType: ConditionType;
     pattern: string;
@@ -239,7 +240,15 @@ export function isServiceAllowed(
 
     for (const rule of rules) {
         if (rule.enabled === false) continue;
-        if (rule.service !== 'all' && rule.service !== service) continue;
+        const targetServices = (rule.service || 'all').split(',').map((s) => s.trim().toLowerCase());
+        const svc = service.toLowerCase();
+        const matchesService =
+            targetServices.includes('all') ||
+            targetServices.includes(svc) ||
+            (svc === 'console_emulators' && targetServices.includes('rpcs3')) ||
+            (svc === 'rpcs3' && targetServices.includes('console_emulators'));
+
+        if (!matchesService) continue;
 
         let matched = false;
         const subPatterns = rule.pattern.split(',').map((s) => s.trim()).filter(Boolean);

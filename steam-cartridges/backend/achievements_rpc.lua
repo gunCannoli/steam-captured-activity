@@ -24,7 +24,12 @@ RPC.CartridgesAchievementsGet = method("CartridgesAchievementsGet", function(dat
   local ps3_res = ps3.get_or_fetch(shortcut_appid)
   if ps3_res and ps3_res.schema then return ps3_res end
 
-  -- 2. Fallback to RetroAchievements (for retro games/emulators)
+  -- 2. Try shadPS4 local PlayStation 4 trophies
+  local ps4 = require("ps4_trophies")
+  local ps4_res = ps4.get_or_fetch(shortcut_appid)
+  if ps4_res and ps4_res.schema then return ps4_res end
+
+  -- 3. Fallback to RetroAchievements (for retro games/emulators)
   local ra = require("retroachievements")
   local hardcore = data.hardcore ~= false
   local ra_res, err = ra.get_or_fetch(shortcut_appid, hardcore)
