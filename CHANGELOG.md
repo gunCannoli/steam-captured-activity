@@ -9,6 +9,23 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`steam-cartridges` Native Activity Feed Events & Support Link Isolation (2026-09-27)**:
+  - *Native Activity Feed Events for Shortcuts*:
+    - Injected synthetic Steam native activity feed events: `ReceivedNewGame` (type 3: `{user avatar and name} added {game icon} {game name} to their library`) and `PlayedGameFirstTime` (type 30: `{user avatar and name} played {game icon} {game name} for the first time`).
+    - Events integrate seamlessly into chronological day buckets (`m_mapActivityByDay`) using `createActivityDay`, proper `V.prototype` inheritance, and explicit MobX properties (`BSupportsCommentThreads: () => false`, `BUserCanDelete: () => false`, `BIsValid: () => true`).
+    - Uses Steam's loopback icon CDN (`https://steamloopback.host/appimage/${appid}_icon.jpg`) and mirrors `StoreItemCache` names and assets so genuine game capsules/icons render in the activity feed.
+    - Persists initial timestamps in `localStorage['steam-cartridges:activity-timestamps']` with launch time and screenshot-based play evidence fallbacks.
+    - Added user settings toggles in `{Activity}` panel: `activityShowAddedToLibrary` and `activityShowFirstPlayed`.
+  - *Support Link Removal from Non-Native Games*:
+    - Stripped the "Support" (`helpwithgame` / `HelpAppPage`) button from the Game Info action bar on non-Steam shortcuts (both mapped and unmapped) in `native-sections-core.ts` and `native-sections.ts`, ensuring non-native games never link to Valve's support endpoint while preserving store, community hub, and guides links.
+  - *Scoped Headline Patch*:
+    - Scoped `" captured"` string replacement in `headline-patch.ts` strictly to screenshot/clip events (`eEventType === 13 || undefined`), allowing native localized strings for types 3 and 30 (`added ... to their library`, `played ... for the first time`) to render untouched.
+  - *Retro Community & Media Architecture Plan*:
+    - Authored `docs/plans/steam-cartridges-community-plan.md` detailing integration of ScreenScraper (screenshots, fanart, title screens, wheel logos, digital game manuals) and IGDB (community hub, gameplay trailers with video player, walkthroughs, discussions) for retro games.
+  - *Verification*:
+    - 60/60 unit tests passing (`npm run test:ts`), TypeScript typecheck clean (`npm run check`), prod bundle built (`npm run build`).
+    - Live CDP verification across Big Picture Mode: AM2R displayed `{user} added AM2R - Another Metroid 2 Remake to their library` and `{user} played AM2R - Another Metroid 2 Remake for the first time` with genuine game icon; Support link successfully removed from Game Info bar; Routine 1 & Routine 2 multi-tab smoke test 100% passing (`scratch/check_all_tabs.js`).
+
 - **`steam-cartridges` Settings Panel Redesign: Metadata, Achievements, Rules, and Revision (2026-09-26)**:
   - *Styling Parity with `enhanced-achievements`*: Refactored the settings panel using Steam's native `@steambrew/client` components (`PanelSection`, `PanelSectionRow`, `Field`, `DialogButton`, `Toggle`, `Dropdown`, `TextField`). Reduced vertical padding and preserved card separation across all control types via compact row wrapper pattern.
   - *Metadata Services Section (`{Metadata}`)*: Added service cards for Steam Store Mirror (keyless), ScreenScraper (auto-discovers developer credentials from `.env`, user/password input), and Twitch/IGDB (client ID & secret). Added "+ Add Metadata Service" flow and persistent credential storage via backend RPC `SaveServiceCredentials` writing to `<data_dir>/.env`.

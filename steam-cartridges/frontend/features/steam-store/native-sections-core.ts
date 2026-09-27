@@ -114,3 +114,29 @@ export function navigationTarget(
     if (shortcut === undefined || isKnown(appid)) return undefined;
     return shortcut;
 }
+
+/**
+ * Strips the 'Support' (*helpwithgame*) link from the game info links bar
+ * for non-native games (shortcuts, whether mapped to a native app or unmapped).
+ * Real native games retain their support link unchanged.
+ */
+export function cleanLinksProps(
+    props: Record<string, any> | null | undefined,
+    isShortcutOrMapped: (appid: number) => boolean,
+): boolean {
+    if (!props || !Array.isArray(props.links)) return false;
+    const links = props.links as Array<{ link?: string; url?: string; appid?: number }>;
+    const hasSupport = links.some(
+        (l) => l?.link === 'HelpAppPage' || String(l?.url || '').includes('HelpWithGame') || String(l?.url || '').includes('help.steampowered.com')
+    );
+    if (!hasSupport) return false;
+
+    const targetAppid = props.overview?.appid ?? links.find((l) => typeof l.appid === 'number')?.appid;
+    if (typeof targetAppid === 'number' && (targetAppid >= SHORTCUT_MIN || isShortcutOrMapped(targetAppid))) {
+        props.links = links.filter(
+            (l) => l?.link !== 'HelpAppPage' && !String(l?.url || '').includes('HelpWithGame') && !String(l?.url || '').includes('help.steampowered.com')
+        );
+        return true;
+    }
+    return false;
+}

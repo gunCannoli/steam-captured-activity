@@ -46,7 +46,10 @@ function handleHeadlineIntercept(_type: unknown, props: unknown): void {
     // Steam's EventHeadline renders:
     // <span className="ActorName">{persona}</span><span className="HeaderChildren">{children}</span>
     // Replacing UGC string (" shared X screenshots") with " captured" aligns with native phrasing (" achieved").
-    Object.assign(p, { children: ' captured' });
+    // Native events like AddedToLibrary (type 3) and PlayedFirstTime (type 30) retain Steam's native phrases.
+    if (p.event.eEventType === 13 || p.event.eEventType === undefined) {
+      Object.assign(p, { children: ' captured' });
+    }
   }
 }
 

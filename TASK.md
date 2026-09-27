@@ -17,15 +17,16 @@ theme Steam's toasts and sounds.
 
 ## Now
  
-**steam-cartridges Settings Panel Redesign & Service Routing (Complete).**
-- Redesigned settings panel into 4 structured sections (`{Metadata}`, `{Achievements}`, `{Rules}`, `{Revision}`) matching `enhanced-achievements` visual patterns (`PanelSection`, `PanelSectionRow`, `Field`, `DialogButton`, `Toggle`, `Dropdown`).
-- ScreenScraper, Twitch/IGDB, and RetroAchievements credential management with auto-discovery and persistent storage in `<data_dir>/.env` via `SaveServiceCredentials`.
-- Dynamic routing rules engine supporting inclusion/exclusion by game name, collection, and regex patterns.
-- Revision audit drawer for detecting and fixing shortcuts with unknown tags or missing controller support (`full`, `partial`, `none`, `auto`).
-- Plan & Verification: [docs/plans/steam-cartridges-settings-redesign-plan.md](docs/plans/steam-cartridges-settings-redesign-plan.md) (59/59 unit tests pass, CDP live mount verified).
+**steam-cartridges Community Section & Retro Media (Ready for Execution).**
+- Plan & Architecture: [docs/plans/steam-cartridges-community-plan.md](docs/plans/steam-cartridges-community-plan.md).
+- Integration of ScreenScraper (Media & Manuals) and IGDB (Trailers & Discussions) into non-Steam games' Community / Community Content tab.
+- Native Activity events (`ReceivedNewGame` and `PlayedGameFirstTime`) and Support link removal shipped & verified.
 
 ## Next
 
+- **steam-cartridges Community Phase 1** — ScreenScraper Media & Manuals backend provider (`backend/screenscraper_media.lua`) and RPC endpoints.
+- **steam-cartridges Community Phase 2** — IGDB Video Trailers & Discussions provider (`backend/igdb_community.lua`).
+- **steam-cartridges Community Phase 3 & 4** — Frontend Community Content tab restoration and video/manual viewers.
 - **steam-cartridges P6** — optional SteamGridDB rules. Blocked on P5.
 - **enhanced-achievements 1.0 release** — audit items done
   (`enhanced-achievements/CHANGELOG.md` § 1.0.0); remaining: visual settings-panel

@@ -114,7 +114,11 @@ try {
     }
     ok('3. Your Stuff: media items', stuff.media > 0, stuff.media);
 
-    const info = await view(shared, `/library/app/${A}/tab/GameInfo`, nameA);
+    let info = await view(shared, `/library/app/${A}/tab/GameInfo`, nameA);
+    for (let i = 0; i < 20 && !info.description; i++) {
+        await wait(500);
+        info = await read();
+    }
     ok('4. Game Info: no error boundary', !info.errorBoundary);
     const bucket = await shared.evaluate(`PLUGIN_LIST['steam-cartridges-dev'].bucketReport().games[${A}]?.bucket ?? 'none'`);
     // ADR-0035: local Game Info shows in every bucket, including none. AM2R has a

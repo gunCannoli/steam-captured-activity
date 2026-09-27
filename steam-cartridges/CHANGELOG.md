@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Native Activity Feed Events & Support Link Isolation (2026-09-27)**:
+  - Added native activity feed events for non-Steam shortcuts: `{User} added {Game} to their library` (`eEventType = 3`) and `{User} played {Game} for the first time` (`eEventType = 30`).
+  - Integrated into daily activity buckets with proper `AppActivityDay` prototypes, `m_rgEvents` sorting, and icon asset hooks.
+  - Added settings toggles: `activityShowAddedToLibrary` and `activityShowFirstPlayed` with persistence in Millennium settings.
+  - Removed "Support" (*helpwithgame*) link button from the Game Info action bar for non-Steam shortcuts (both mapped and unmapped) to isolate Valve support endpoints.
+  - Scoped headline hook so capture headlines show `" captured"` without clobbering native library/play headlines.
+
 - **Settings Panel Redesign: Metadata, Achievements, Rules, and Revision**:
   - Adopted `enhanced-achievements` visual patterns (`PanelSection`, `PanelSectionRow`, `ItemRow`, `Field`, `DialogButton`, `Toggle`, `Dropdown`).
   - `{Metadata}`: Support for Steam Store Mirror, ScreenScraper (with auto-discovered `.env` dev credentials), and Twitch/IGDB credentials, with persistent `.env` storage via `SaveServiceCredentials`.

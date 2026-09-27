@@ -37,6 +37,10 @@ export interface Settings {
     services: ServicesConfig;
     /** Per-game controller overrides. */
     controllerOverrides: Record<string, ControllerOverride>;
+    /** Show native activity card when a non-Steam game is added to the library. Default true. */
+    activityShowAddedToLibrary: boolean;
+    /** Show native activity card when a non-Steam game is played for the first time. Default true. */
+    activityShowFirstPlayed: boolean;
 }
 export type SettingKey = keyof Settings;
 
@@ -48,6 +52,8 @@ export const DEFAULTS: Settings = {
     routingRules: [],
     services: DEFAULT_SERVICES,
     controllerOverrides: {},
+    activityShowAddedToLibrary: true,
+    activityShowFirstPlayed: true,
 };
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
@@ -58,6 +64,8 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
         return 'all_runs';
     },
     raHardcoreMode: (raw) => raw !== false,
+    activityShowAddedToLibrary: (raw) => raw !== false,
+    activityShowFirstPlayed: (raw) => raw !== false,
     routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
     services: (raw) => {
         if (!raw || typeof raw !== 'object') return DEFAULT_SERVICES;
@@ -81,6 +89,8 @@ const current: Settings = {
     routingRules: [],
     services: DEFAULT_SERVICES,
     controllerOverrides: {},
+    activityShowAddedToLibrary: true,
+    activityShowFirstPlayed: true,
 };
 const listeners = new Set<(key: SettingKey) => void>();
 

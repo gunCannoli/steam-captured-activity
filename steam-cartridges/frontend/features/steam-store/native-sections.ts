@@ -2,7 +2,7 @@ import { afterPatch, beforePatch, findModuleByExport } from "@steambrew/client";
 import { logger } from "../../logger";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
 import { getSteamRequire } from "../game-info/game-info-patch";
-import { navigationTarget, redirectProps, type RedirectKind } from "./native-sections-core";
+import { cleanLinksProps, navigationTarget, redirectProps, type RedirectKind } from "./native-sections-core";
 
 /**
  * Hands Steam's own Links, Friends and Community sections the native appid of
@@ -211,9 +211,14 @@ export function installNativeSections(): void {
         hook = keepJsxPatched(runtime, {
             label: "steam-cartridges.native-sections",
             observe: (type, props) => {
+                const p = props as Record<string, any> | null | undefined;
+                if (!p) return;
+                if (Array.isArray(p.links)) {
+                    cleanLinksProps(p, (n) => shortcutFor.has(n));
+                }
                 const kind = TYPES.get(type);
                 if (kind === undefined) return;
-                const used = redirectProps(kind, props as Record<string, any>, nativeOf);
+                const used = redirectProps(kind, p, nativeOf);
                 if (used !== undefined) {
                     counts[kind]++;
                     lastNative[kind] = used;

@@ -1,4 +1,5 @@
 import { logger } from "../logger";
+import { setting } from "../settings/settings";
 import {
     appActivityStore,
     clipsSince,
@@ -13,6 +14,87 @@ import {
     type SteamClip,
     type SteamScreenshot,
 } from "./stores";
+
+const ACTIVITY_TIMESTAMPS_KEY = "steam-cartridges:activity-timestamps";
+
+interface AppActivityTimestamps {
+    addedToLibrary?: number;
+    firstPlayed?: number;
+}
+
+function getActivityTimestamps(appid: number): AppActivityTimestamps {
+    try {
+        const raw = localStorage.getItem(ACTIVITY_TIMESTAMPS_KEY);
+        if (raw) {
+            const data = JSON.parse(raw);
+            return data[appid] || {};
+        }
+    } catch {
+        // ignore
+    }
+    return {};
+}
+
+function saveActivityTimestamps(appid: number, patch: Partial<AppActivityTimestamps>): void {
+    try {
+        const raw = localStorage.getItem(ACTIVITY_TIMESTAMPS_KEY);
+        const data = raw ? JSON.parse(raw) : {};
+        data[appid] = { ...data[appid], ...patch };
+        localStorage.setItem(ACTIVITY_TIMESTAMPS_KEY, JSON.stringify(data));
+    } catch {
+        // ignore
+    }
+}
+
+function getCommunityIconUrl(appid: number, overview: any): string {
+    if (overview?.icon_data) {
+        return overview.icon_data.startsWith("data:")
+            ? overview.icon_data
+            : `data:image/png;base64,${overview.icon_data}`;
+    }
+    return `https://steamloopback.host/appimage/${appid}_icon.jpg`;
+}
+
+function createActivityDay(dayBegin: number): AppActivityDay {
+    const eventsList: any[] = [];
+    return {
+        m_rtDayBegin: dayBegin,
+        get dayBegin() {
+            return this.m_rtDayBegin;
+        },
+        set dayBegin(v: number) {
+            this.m_rtDayBegin = v;
+        },
+        m_rgEvents: eventsList,
+        get events() {
+            return this.m_rgEvents.filter((e: any) => e.BIsValid());
+        },
+        BHasEvents() {
+            return this.events.length > 0;
+        },
+        get isValid() {
+            return this.events.length > 0;
+        },
+        GetLatestEventTime() {
+            return this.m_rgEvents.length
+                ? this.m_rgEvents[0].rtEventTime
+                : this.m_rtDayBegin;
+        },
+        GetEarliestEventTime() {
+            return this.m_rgEvents.length
+                ? this.m_rgEvents[this.m_rgEvents.length - 1].rtEventTime
+                : this.m_rtDayBegin;
+        },
+        SortEvents() {
+            this.m_rgEvents.sort(
+                (a: any, b: any) => (b.rtEventTime ?? 0) - (a.rtEventTime ?? 0),
+            );
+        },
+        AddEvent(e: any) {
+            this.m_rgEvents.push(e);
+        },
+    };
+}
 
 /**
  * The Per-Day Activity Feed API.
@@ -130,12 +212,15 @@ export async function publishActivity(
     appid: number,
     gameid: string,
 ): Promise<number> {
+    const showAdded = setting("activityShowAddedToLibrary") !== false;
+    const showFirstPlayed = setting("activityShowFirstPlayed") !== false;
+
     const [screenshots, clips, nativeDays] = await Promise.all([
         screenshotsSince(appid, 0),
         clipsSince(gameid, 0),
         nativeActivityDays(nativeActivitySource.get(appid)),
     ]);
-    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0) return 0;
+    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0 && !showAdded && !showFirstPlayed) return 0;
 
     const actStore = appActivityStore();
     const storeCache = storeItemCache();
@@ -154,15 +239,20 @@ export async function publishActivity(
     }
     ensureStoreCacheHooked();
 
+    const overview = (window as any).appStore?.GetAppOverviewByAppID?.(appid);
+    const displayName = overview?.display_name || "";
+    const iconUrl = getCommunityIconUrl(appid, overview);
+
     // 1. Ensure fake StoreItem exists in StoreItemCache so dt's visibility guard passes
-    if (!storeCache.m_mapApps.has(appid)) {
+    let fakeApp = storeCache.m_mapApps.get(appid);
+    if (!fakeApp) {
         const sampleApp = storeCache.m_mapApps.values().next().value;
-        const fakeApp = Object.create(
+        fakeApp = Object.create(
             sampleApp ? Object.getPrototypeOf(sampleApp) : Object.prototype,
         );
         fakeApp.m_unID = fakeApp.m_unAppID = appid;
         fakeApp.m_bVisible = true;
-        fakeApp.m_strName = "";
+        fakeApp.m_strName = displayName;
         fakeApp.m_eItemType = 0;
         fakeApp.m_eAppType = 1;
         fakeApp.m_rgStoreTags = [];
@@ -175,13 +265,13 @@ export async function publishActivity(
         };
         fakeApp.BIsVisible = () => true;
         fakeApp.BIsApplicationOrTool = () => false;
-        fakeApp.GetName = () => "";
-        fakeApp.GetAssets = () => ({ GetCommunityIconURL: () => "" });
         fakeApp.BContainDataRequest = () => true;
 
         storeCache.m_mapApps.set(appid, fakeApp);
         injectedStoreApps.add(appid);
     }
+    fakeApp.GetName = () => displayName;
+    fakeApp.GetAssets = () => ({ GetCommunityIconURL: () => iconUrl });
 
     // 2. Resolve event class constructor
     const V = screenshotEventClass();
@@ -262,62 +352,17 @@ export async function publishActivity(
     }
 
     appActivity.m_mapActivityByDay.clear();
-    const sampleDay = sampleEntry?.appActivityByDay?.[0];
-    const CDay = sampleDay?.constructor as
-        | (new () => AppActivityDay)
-        | undefined;
     const fileIdsForApp: string[] = [];
 
     for (const [dayBegin, dayMedia] of byDay.entries()) {
         let day: AppActivityDay | undefined =
             appActivity.m_mapActivityByDay.get(dayBegin);
         if (!day) {
-            if (CDay) {
-                const createdDay = new CDay();
-                createdDay.m_rtDayBegin = dayBegin;
-                day = createdDay;
-            } else {
-                const eventsList: any[] = [];
-                day = {
-                    m_rtDayBegin: dayBegin,
-                    get dayBegin() {
-                        return this.m_rtDayBegin;
-                    },
-                    set dayBegin(v: number) {
-                        this.m_rtDayBegin = v;
-                    },
-                    m_rgEvents: eventsList,
-                    get events() {
-                        return this.m_rgEvents.filter((e: any) => e.BIsValid());
-                    },
-                    BHasEvents() {
-                        return this.events.length > 0;
-                    },
-                    get isValid() {
-                        return this.events.length > 0;
-                    },
-                    GetLatestEventTime() {
-                        return this.m_rgEvents.length
-                            ? this.m_rgEvents[0].rtEventTime
-                            : this.m_rtDayBegin;
-                    },
-                    GetEarliestEventTime() {
-                        return this.m_rgEvents.length
-                            ? this.m_rgEvents[this.m_rgEvents.length - 1]
-                                  .rtEventTime
-                            : this.m_rtDayBegin;
-                    },
-                    SortEvents() {
-                        this.m_rgEvents.sort(
-                            (a: any, b: any) => b.rtEventTime - a.rtEventTime,
-                        );
-                    },
-                    AddEvent(e: any) {
-                        this.m_rgEvents.push(e);
-                    },
-                };
-            }
-            appActivity.m_mapActivityByDay.set(dayBegin, day!);
+            day = createActivityDay(dayBegin);
+            appActivity.m_mapActivityByDay.set(dayBegin, day);
+        }
+        if (!Array.isArray(day.m_rgEvents)) {
+            day.m_rgEvents = [];
         }
 
         if (!day) continue;
@@ -371,6 +416,8 @@ export async function publishActivity(
         };
         fakeEvent.GetActiveCommentThread = () => null;
         fakeEvent.GetParentalFeature = () => 0;
+        fakeEvent.BSupportsCommentThreads = () => false;
+        fakeEvent.BUserCanDelete = () => false;
 
         if (day.m_rgEvents?.clear) {
             day.m_rgEvents.clear();
@@ -383,16 +430,16 @@ export async function publishActivity(
 
     // Native news and friend events for a mapped shortcut (parity plan D): Steam's
     // own event objects, added to the same local day as our captures.
-    const NativeDay = (CDay ?? nativeDays[0]?.[1]?.constructor) as (new () => AppActivityDay) | undefined;
     let nativeEvents = 0;
     for (const [nativeKey, nativeDay] of nativeDays) {
         const dayBegin = getLocalMidnight(nativeKey);
         let day = appActivity.m_mapActivityByDay.get(dayBegin);
         if (!day) {
-            if (!NativeDay) continue;
-            day = new NativeDay();
-            day.m_rtDayBegin = dayBegin;
+            day = createActivityDay(dayBegin);
             appActivity.m_mapActivityByDay.set(dayBegin, day);
+        }
+        if (!Array.isArray(day.m_rgEvents)) {
+            day.m_rgEvents = [];
         }
         for (const event of [...(nativeDay.m_rgEvents ?? [])]) {
             day.m_rgEvents.push(event);
@@ -401,11 +448,137 @@ export async function publishActivity(
         day.SortEvents?.();
     }
 
+    // 6. Synthetic native activity events: Added to Library and Played First Time
+    let syntheticCount = 0;
+    if (showAdded || showFirstPlayed) {
+        const storedTimestamps = getActivityTimestamps(appid);
+        const mediaTimestamps = mediaItems.map((m) => m.timestamp);
+        const earliestMedia = mediaTimestamps.length > 0 ? Math.min(...mediaTimestamps) : undefined;
+        const now = Math.floor(Date.now() / 1000);
+
+        let addedTime = storedTimestamps.addedToLibrary;
+        if (!addedTime) {
+            if (earliestMedia) {
+                addedTime = earliestMedia - 3600;
+            } else if (overview?.rt_last_time_played && overview.rt_last_time_played > 0) {
+                addedTime = overview.rt_last_time_played - 3600;
+            } else {
+                addedTime = now;
+            }
+            saveActivityTimestamps(appid, { addedToLibrary: addedTime });
+        }
+
+        const hasPlayEvidence = (overview?.minutes_playtime_forever && overview.minutes_playtime_forever > 0) ||
+            (overview?.rt_last_time_played && overview.rt_last_time_played > 0) ||
+            mediaItems.length > 0;
+
+        let firstPlayedTime = storedTimestamps.firstPlayed;
+        if (hasPlayEvidence && !firstPlayedTime) {
+            if (overview?.rt_last_time_played && overview.rt_last_time_played > 0) {
+                const playtimeSec = (overview.minutes_playtime_forever || 1) * 60;
+                firstPlayedTime = overview.rt_last_time_played - playtimeSec;
+                if (earliestMedia && earliestMedia < firstPlayedTime) {
+                    firstPlayedTime = earliestMedia;
+                }
+            } else if (earliestMedia) {
+                firstPlayedTime = earliestMedia;
+            } else {
+                firstPlayedTime = addedTime + 60;
+            }
+            if (firstPlayedTime < addedTime) {
+                addedTime = firstPlayedTime - 3600;
+                saveActivityTimestamps(appid, { addedToLibrary: addedTime });
+            }
+            saveActivityTimestamps(appid, { firstPlayed: firstPlayedTime });
+        }
+
+        const getOrCreateDay = (time: number): AppActivityDay => {
+            const dayBegin = getLocalMidnight(time);
+            let day = appActivity.m_mapActivityByDay.get(dayBegin);
+            if (!day) {
+                day = createActivityDay(dayBegin);
+                appActivity.m_mapActivityByDay.set(dayBegin, day);
+            }
+            if (!Array.isArray(day.m_rgEvents)) {
+                day.m_rgEvents = [];
+            }
+            return day;
+        };
+
+        if (showAdded && addedTime) {
+            const addedDay = getOrCreateDay(addedTime);
+            if (addedDay) {
+                const addedEvent = Object.create(V ? V.prototype : Object.prototype);
+                addedEvent.eEventType = 3; // ReceivedNewGame
+                addedEvent.gameid = appid.toString();
+                Object.defineProperty(addedEvent, "appid", {
+                    get: () => appid,
+                    configurable: true,
+                });
+                addedEvent.unUniqueID = `added_${appid}_${addedTime}`;
+                addedEvent.rtEventTime = addedTime;
+                addedEvent.steamIDActor = currentSteamID;
+                addedEvent.steamIDTarget = currentSteamID;
+                addedEvent.bIsGameActivity = false;
+                addedEvent.bIsNonSteam = true;
+                addedEvent.BIsValid = () => true;
+                addedEvent.GetFilteredAppIds = () => [appid];
+                addedEvent.commentThreads = [];
+                addedEvent.activeThread = 0;
+                addedEvent.GetActiveCommentThread = () => null;
+                addedEvent.GetParentalFeature = () => 0;
+                addedEvent.BSupportsCommentThreads = () => false;
+                addedEvent.BUserCanDelete = () => false;
+
+                addedDay.m_rgEvents.push(addedEvent);
+                syntheticCount++;
+            }
+        }
+
+        if (showFirstPlayed && hasPlayEvidence && firstPlayedTime) {
+            const playedDay = getOrCreateDay(firstPlayedTime);
+            if (playedDay) {
+                const playedEvent = Object.create(V ? V.prototype : Object.prototype);
+                playedEvent.eEventType = 30; // PlayedGameFirstTime
+                playedEvent.gameid = appid.toString();
+                Object.defineProperty(playedEvent, "appid", {
+                    get: () => appid,
+                    configurable: true,
+                });
+                playedEvent.unUniqueID = `played_${appid}_${firstPlayedTime}`;
+                playedEvent.rtEventTime = firstPlayedTime;
+                playedEvent.steamIDActor = currentSteamID;
+                playedEvent.steamIDTarget = currentSteamID;
+                playedEvent.bIsGameActivity = false;
+                playedEvent.bIsNonSteam = true;
+                playedEvent.BIsValid = () => true;
+                playedEvent.BIsApplicationOrTool = () => false;
+                playedEvent.commentThreads = [];
+                playedEvent.activeThread = 0;
+                playedEvent.GetActiveCommentThread = () => null;
+                playedEvent.GetParentalFeature = () => 0;
+                playedEvent.BSupportsCommentThreads = () => false;
+                playedEvent.BUserCanDelete = () => false;
+
+                playedDay.m_rgEvents.push(playedEvent);
+                syntheticCount++;
+            }
+        }
+    }
+
+    // Sort events in each day chronologically descending
+    for (const day of appActivity.m_mapActivityByDay.values()) {
+        day.SortEvents?.();
+        if (Array.isArray(day.m_rgEvents)) {
+            day.m_rgEvents.sort((a: any, b: any) => (b.rtEventTime ?? 0) - (a.rtEventTime ?? 0));
+        }
+    }
+
     registeredFilesByApp.set(appid, fileIdsForApp);
     logger.info(
-        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)) and ${nativeEvents} native event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
+        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
     );
-    return mediaItems.length + nativeEvents;
+    return mediaItems.length + nativeEvents + syntheticCount;
 }
 
 /** Drop an app's activity feed entries and associated fake store/workshop records. */

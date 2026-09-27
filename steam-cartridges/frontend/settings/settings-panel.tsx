@@ -1132,6 +1132,42 @@ function RevisionSection() {
 }
 
 // ===========================================================================
+// Activity Feed Section
+// ===========================================================================
+
+function ActivitySection() {
+    const [showAdded, setShowAdded] = useSetting('activityShowAddedToLibrary');
+    const [showFirstPlayed, setShowFirstPlayed] = useSetting('activityShowFirstPlayed');
+
+    return (
+        <PanelSection title="Activity Feed">
+            <ItemRow>
+                <Field
+                    label="Added to Library"
+                    description="Show native activity card when a non-Steam game is added to the library"
+                >
+                    <SteamToggle
+                        value={showAdded}
+                        onChange={setShowAdded}
+                    />
+                </Field>
+            </ItemRow>
+            <ItemRow>
+                <Field
+                    label="First Time Played"
+                    description="Show native activity card when a non-Steam game is played for the first time"
+                >
+                    <SteamToggle
+                        value={showFirstPlayed}
+                        onChange={setShowFirstPlayed}
+                    />
+                </Field>
+            </ItemRow>
+        </PanelSection>
+    );
+}
+
+// ===========================================================================
 // Main SettingsPanel Export
 // ===========================================================================
 
@@ -1148,6 +1184,7 @@ export function SettingsPanel() {
         <>
             <MetadataSection />
             <AchievementsSection />
+            <ActivitySection />
             <RulesSection />
             <RevisionSection />
         </>
