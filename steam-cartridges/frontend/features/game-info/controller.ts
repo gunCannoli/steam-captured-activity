@@ -27,3 +27,8 @@ export async function loadControllerInference(): Promise<void> {
 export function controllerContext(appid: number): ControllerContext {
     return { inferred: inferred.get(appid), defaultFull: setting("defaultFullController") };
 }
+
+/** Check if a shortcut was inferred to have controller support by its emulator */
+export function getInferredControllerSupport(appid: number): boolean | undefined {
+    return inferred.get(appid);
+}

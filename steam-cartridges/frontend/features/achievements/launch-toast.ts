@@ -8,7 +8,7 @@ const notifiedShortcuts = new Set<number>();
  * Dispatches a native Steam notification toast when game launches with active achievements.
  */
 export function dispatchLaunchToast(
-    title: string = "Local Achievements Enabled",
+    title: string = "Achievements Enabled",
     body: string = "Enjoy your game!",
     icon?: string,
 ): boolean {
@@ -58,5 +58,5 @@ export function handleAppLaunchAchievements(shortcutAppId: number): void {
         notifiedShortcuts.add(shortcutAppId);
     }
 
-    dispatchLaunchToast("Local Achievements Enabled", "Enjoy your game!");
+    dispatchLaunchToast("Achievements Enabled", "Enjoy your game!");
 }

@@ -242,13 +242,18 @@ export function isServiceAllowed(
         if (rule.service !== 'all' && rule.service !== service) continue;
 
         let matched = false;
+        const subPatterns = rule.pattern.split(',').map((s) => s.trim()).filter(Boolean);
+        const patternsToTest = subPatterns.length > 0 ? subPatterns : [rule.pattern.trim()];
+
         if (rule.conditionType === 'collection') {
             matched = collectionIds.some((cid) =>
-                cid.toLowerCase() === rule.pattern.toLowerCase() ||
-                matchesPattern(cid, rule.pattern)
+                patternsToTest.some((pat) =>
+                    cid.toLowerCase() === pat.toLowerCase() ||
+                    matchesPattern(cid, pat)
+                )
             );
         } else if (rule.conditionType === 'game_name') {
-            matched = matchesPattern(title, rule.pattern);
+            matched = patternsToTest.some((pat) => matchesPattern(title, pat));
         } else if (rule.conditionType === 'regex') {
             matched = matchesRegex(title, rule.pattern);
         }

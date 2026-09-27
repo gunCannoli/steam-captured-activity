@@ -9,7 +9,24 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
-- **`steam-cartridges` Minimal Settings Panel & Modal Overlays (2026-09-27)**:
+- **`steam-cartridges` Settings Panel Layout Refinements & Library Audit Fix (2026-09-27)**:
+  - *2-Column Streamlining & Thin Layout Optimization*:
+    - Removed redundant `✓ Active` and status badges from active metadata and achievement lists, converting rows from cramped 3-column elements to clean 2-column rows (`[Service Name]` on left, `[Remove]` button on right).
+    - Shortened service labels: `ScreenScraper (screenscraper.fr)` -> `ScreenScraper`, `IGDB (Twitch API)` -> `IGDB`.
+    - Removed `RetroAchievements Hardcore` setting, `Test Notification` button row, and `Default to Full Controller Support` toggle.
+  - *Dedicated Notifications Section & 3-Row Achievement Support*:
+    - Moved launch notification into a dedicated `<PanelSection title="Notifications">`.
+    - Implemented 3-row layout matching `enhanced-achievements` Theme section: Row 1 label `Achievement Support`, Row 2 description `Shows a notification on startup of games with supported achievements.`, Row 3 full-width Dropdown (`all_runs`, `first_run`, `off`).
+    - Updated launch toast notification title and subtitle: Title `Achievements Enabled`, Subtitle `Enjoy your game!`.
+  - *Library Audit 3-Row Layout & 220 Retrogames Fix*:
+    - Investigated 220 retrogames reporting missing input/controller support: audit inspection previously only checked manual overrides and ignored emulator inference. Added `getInferredControllerSupport` export in `controller.ts` and updated audit logic to check emulator inference (`inferred === true`). Console and handheld emulators (SNES, Genesis, NES, GBA, PS1, N64) are now correctly identified as having controller support.
+    - Updated Library Audit to 3-row layout: Row 1 `Issues detected:` with count rendered in amber text (without background badge), Row 2 description `Number of games that require complete information`, Row 3 full-width `[ Review ]` button.
+  - *Routing Rules Enhancements*:
+    - Comma-separated pattern matching: Updated `isServiceAllowed` in `resolve.ts` to support comma-separated patterns (e.g. `Mario, Sonic, Zelda`) across collections and title matching.
+    - Added explanation note in rule modal: `Separate multiple items with commas (e.g. Mario, Sonic, Zelda).`
+    - Expanded collection suggestions to list all user collections.
+    - Stacked modal dropdowns (`Service`, `Action`, `Condition`) to single-column full width.
+    - Updated rule list row: Col 1 rule name/pattern, Col 2 `[ ✏️ ]` (edit) and `[ 🗑️ ]` (delete) buttons with rule editing dialog support.
   - *Super Minimal Layout*: Refactored settings panel into a clean, minimal UI matching `enhanced-achievements`. Removed all verbose paragraph texts and reduced field descriptions to single crisp phrases.
   - *Active Services & Dynamic Add/Remove*:
     - `{Metadata}` and `{Achievements}` sections display only active services with status badges and `[ Remove ]` buttons.

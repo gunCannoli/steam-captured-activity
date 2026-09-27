@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
     DialogButton,
     Dropdown,
@@ -7,29 +7,30 @@ import {
     PanelSectionRow,
     TextField,
     Toggle as SteamToggle,
-} from '@steambrew/client';
-import { useSetting, type ControllerOverride } from './settings';
-import { rpc, type ProviderStatus, type RetroStatusResponse } from '../rpc';
+} from "@steambrew/client";
+import { useSetting, type ControllerOverride } from "./settings";
+import { rpc, type ProviderStatus, type RetroStatusResponse } from "../rpc";
 import {
     listCollections,
     listShortcuts,
     shortcutName,
-} from '../features/buckets';
+} from "../features/buckets";
 import {
     type RoutingRule,
     type ServiceTarget,
     type RuleAction,
     type ConditionType,
-} from '../features/buckets/resolve';
-import { getLocalAchievements } from '../features/achievements';
+} from "../features/buckets/resolve";
+import { getLocalAchievements } from "../features/achievements";
+import { getInferredControllerSupport } from "../features/game-info/controller";
 
 /**
  * Compact row wrapper to reduce inter-item vertical spacing and
  * preserve card separation across all control types (reference: enhanced-achievements).
  */
 const ITEM_ROW_STYLE: React.CSSProperties = {
-    margin: '0',
-    padding: '0',
+    margin: "0",
+    padding: "0",
 };
 
 function ItemRow({ children }: { children: React.ReactNode }) {
@@ -56,39 +57,11 @@ function ToggleRow({
     return (
         <ItemRow>
             <Field label={label} description={description} disabled={disabled}>
-                <SteamToggle value={value} disabled={disabled} onChange={onChange} />
-            </Field>
-        </ItemRow>
-    );
-}
-
-function ButtonRow({
-    label,
-    description,
-    buttonLabel,
-    disabled,
-    onClick,
-}: {
-    label: string;
-    description?: string;
-    buttonLabel: string;
-    disabled?: boolean;
-    onClick: () => void;
-}) {
-    return (
-        <ItemRow>
-            <Field label={label} description={description} disabled={disabled}>
-                <DialogButton
+                <SteamToggle
+                    value={value}
                     disabled={disabled}
-                    onClick={onClick}
-                    style={{
-                        padding: '0 16px',
-                        minWidth: 0,
-                        width: 'auto',
-                    }}
-                >
-                    {buttonLabel}
-                </DialogButton>
+                    onChange={onChange}
+                />
             </Field>
         </ItemRow>
     );
@@ -111,16 +84,16 @@ function SettingsModal({
     isOpen,
     onClose,
     children,
-    width = '520px',
-    maxHeight = '85vh',
+    width = "520px",
+    maxHeight = "85vh",
 }: SettingsModalProps) {
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
+            if (e.key === "Escape") onClose();
         };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
     }, [isOpen, onClose]);
 
     if (!isOpen) return null;
@@ -128,58 +101,66 @@ function SettingsModal({
     return (
         <div
             style={{
-                position: 'fixed',
+                position: "fixed",
                 top: 0,
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'rgba(0, 0, 0, 0.75)',
-                backdropFilter: 'blur(3px)',
+                background: "rgba(0, 0, 0, 0.75)",
+                backdropFilter: "blur(3px)",
                 zIndex: 10000,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '20px',
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "20px",
             }}
             onClick={onClose}
         >
             <div
                 style={{
-                    background: '#1b2838',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '6px',
-                    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.85)',
+                    background: "#1b2838",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    borderRadius: "6px",
+                    boxShadow: "0 12px 40px rgba(0, 0, 0, 0.85)",
                     width,
-                    maxWidth: '94vw',
+                    maxWidth: "94vw",
                     maxHeight,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
                 <div
                     style={{
-                        padding: '12px 18px',
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        background: 'rgba(0, 0, 0, 0.25)',
+                        padding: "12px 18px",
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        background: "rgba(0, 0, 0, 0.25)",
                     }}
                 >
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>{title}</span>
+                    <span
+                        style={{
+                            fontSize: "14px",
+                            fontWeight: 700,
+                            color: "#fff",
+                        }}
+                    >
+                        {title}
+                    </span>
                     <button
                         type="button"
                         onClick={onClose}
                         style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#8b929a',
-                            fontSize: '18px',
-                            cursor: 'pointer',
-                            padding: '0 4px',
+                            background: "transparent",
+                            border: "none",
+                            color: "#8b929a",
+                            fontSize: "18px",
+                            cursor: "pointer",
+                            padding: "0 4px",
                             lineHeight: 1,
                         }}
                     >
@@ -190,12 +171,12 @@ function SettingsModal({
                 {/* Body */}
                 <div
                     style={{
-                        padding: '16px 18px',
-                        overflowY: 'auto',
+                        padding: "16px 18px",
+                        overflowY: "auto",
                         flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px',
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "12px",
                     }}
                 >
                     {children}
@@ -210,35 +191,39 @@ function SettingsModal({
 // ===========================================================================
 
 interface MetadataServiceDef {
-    id: 'steam_store' | 'screenscraper' | 'igdb';
+    id: "steam_store" | "screenscraper" | "igdb";
     label: string;
 }
 
 const ALL_METADATA_SERVICES: MetadataServiceDef[] = [
-    { id: 'steam_store', label: 'Steam Store Mirror' },
-    { id: 'screenscraper', label: 'ScreenScraper (screenscraper.fr)' },
-    { id: 'igdb', label: 'IGDB (Twitch API)' },
+    { id: "steam_store", label: "Steam Store Mirror" },
+    { id: "screenscraper", label: "ScreenScraper" },
+    { id: "igdb", label: "IGDB" },
 ];
 
 function MetadataSection() {
-    const [services, setServices] = useSetting('services');
+    const [services, setServices] = useSetting("services");
     const [status, setStatus] = useState<ProviderStatus | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
 
     // Form inputs in modal
-    const [selectedService, setSelectedService] = useState<'steam_store' | 'screenscraper' | 'igdb'>('steam_store');
-    const [ssUser, setSsUser] = useState('');
-    const [ssPass, setSsPass] = useState('');
-    const [ssDevUser, setSsDevUser] = useState('');
-    const [ssDevPw, setSsDevPw] = useState('');
-    const [igdbId, setIgdbId] = useState('');
-    const [igdbSecret, setIgdbSecret] = useState('');
+    const [selectedService, setSelectedService] = useState<
+        "steam_store" | "screenscraper" | "igdb"
+    >("steam_store");
+    const [ssUser, setSsUser] = useState("");
+    const [ssPass, setSsPass] = useState("");
+    const [ssDevUser, setSsDevUser] = useState("");
+    const [ssDevPw, setSsDevPw] = useState("");
+    const [igdbId, setIgdbId] = useState("");
+    const [igdbSecret, setIgdbSecret] = useState("");
 
-    const [statusMsg, setStatusMsg] = useState('');
+    const [statusMsg, setStatusMsg] = useState("");
     const [isSaving, setIsSaving] = useState(false);
 
     const refresh = () => {
-        rpc.getStatus().then(setStatus).catch(() => {});
+        rpc.getStatus()
+            .then(setStatus)
+            .catch(() => {});
     };
 
     useEffect(() => {
@@ -251,7 +236,11 @@ function MetadataSection() {
     if (steamStoreService && services.steamStoreEnabled !== false) {
         activeServices.push(steamStoreService);
     }
-    if (ssService && services.screenscraperEnabled !== false && status?.has_screenscraper) {
+    if (
+        ssService &&
+        services.screenscraperEnabled !== false &&
+        status?.has_screenscraper
+    ) {
         activeServices.push(ssService);
     }
     if (igdbService && services.igdbEnabled !== false && status?.has_twitch) {
@@ -262,12 +251,14 @@ function MetadataSection() {
         (s) => !activeServices.some((active) => active.id === s.id),
     );
 
-    const handleRemoveService = (id: 'steam_store' | 'screenscraper' | 'igdb') => {
-        if (id === 'steam_store') {
+    const handleRemoveService = (
+        id: "steam_store" | "screenscraper" | "igdb",
+    ) => {
+        if (id === "steam_store") {
             setServices({ ...services, steamStoreEnabled: false });
-        } else if (id === 'screenscraper') {
+        } else if (id === "screenscraper") {
             setServices({ ...services, screenscraperEnabled: false });
-        } else if (id === 'igdb') {
+        } else if (id === "igdb") {
             setServices({ ...services, igdbEnabled: false });
         }
     };
@@ -276,29 +267,29 @@ function MetadataSection() {
         const first = availableToAdd[0];
         if (first) {
             setSelectedService(first.id);
-            setStatusMsg('');
+            setStatusMsg("");
             setShowAddModal(true);
         }
     };
 
     const handleRegisterService = async () => {
         setIsSaving(true);
-        setStatusMsg('Checking API connection...');
+        setStatusMsg("Checking API connection...");
 
-        if (selectedService === 'steam_store') {
+        if (selectedService === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
-            setStatusMsg('✓ Steam Store Mirror enabled!');
+            setStatusMsg("✓ Steam Store Mirror enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSaving(false);
-                setStatusMsg('');
+                setStatusMsg("");
             }, 1000);
             return;
         }
 
-        if (selectedService === 'screenscraper') {
+        if (selectedService === "screenscraper") {
             if (!ssUser.trim() || !ssPass.trim()) {
-                setStatusMsg('Username and password are required.');
+                setStatusMsg("Username and password are required.");
                 setIsSaving(false);
                 return;
             }
@@ -311,23 +302,23 @@ function MetadataSection() {
             if (res.success) {
                 setServices({ ...services, screenscraperEnabled: true });
                 refresh();
-                setStatusMsg('✓ ScreenScraper registered & verified!');
+                setStatusMsg("✓ ScreenScraper registered & verified!");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSaving(false);
-                    setStatusMsg('');
-                    setSsPass('');
+                    setStatusMsg("");
+                    setSsPass("");
                 }, 1200);
             } else {
-                setStatusMsg('Failed to save credentials.');
+                setStatusMsg("Failed to save credentials.");
                 setIsSaving(false);
             }
             return;
         }
 
-        if (selectedService === 'igdb') {
+        if (selectedService === "igdb") {
             if (!igdbId.trim() || !igdbSecret.trim()) {
-                setStatusMsg('Client ID and Secret are required.');
+                setStatusMsg("Client ID and Secret are required.");
                 setIsSaving(false);
                 return;
             }
@@ -338,15 +329,15 @@ function MetadataSection() {
             if (res.success) {
                 setServices({ ...services, igdbEnabled: true });
                 refresh();
-                setStatusMsg('✓ IGDB registered & verified!');
+                setStatusMsg("✓ IGDB registered & verified!");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSaving(false);
-                    setStatusMsg('');
-                    setIgdbSecret('');
+                    setStatusMsg("");
+                    setIgdbSecret("");
                 }, 1200);
             } else {
-                setStatusMsg('Failed to save credentials.');
+                setStatusMsg("Failed to save credentials.");
                 setIsSaving(false);
             }
             return;
@@ -357,7 +348,14 @@ function MetadataSection() {
         <PanelSection title="Metadata">
             {activeServices.length === 0 && (
                 <ItemRow>
-                    <div style={{ opacity: 0.6, fontSize: '12px', padding: '4px 0', fontStyle: 'italic' }}>
+                    <div
+                        style={{
+                            opacity: 0.6,
+                            fontSize: "12px",
+                            padding: "4px 0",
+                            fontStyle: "italic",
+                        }}
+                    >
                         No metadata services active.
                     </div>
                 </ItemRow>
@@ -367,20 +365,17 @@ function MetadataSection() {
             {activeServices.map((svc) => (
                 <ItemRow key={svc.id}>
                     <Field label={svc.label}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ color: '#a4d007', fontSize: '12px', fontWeight: 600 }}>✓ Active</span>
-                            <DialogButton
-                                onClick={() => handleRemoveService(svc.id)}
-                                style={{
-                                    padding: '0 12px',
-                                    minWidth: 0,
-                                    width: 'auto',
-                                    color: '#eb4b4b',
-                                }}
-                            >
-                                Remove
-                            </DialogButton>
-                        </div>
+                        <DialogButton
+                            onClick={() => handleRemoveService(svc.id)}
+                            style={{
+                                padding: "0 12px",
+                                minWidth: 0,
+                                width: "auto",
+                                color: "#eb4b4b",
+                            }}
+                        >
+                            Remove
+                        </DialogButton>
                     </Field>
                 </ItemRow>
             ))}
@@ -388,10 +383,14 @@ function MetadataSection() {
             {/* Only show Add Service button if unadded services remain */}
             {availableToAdd.length > 0 && (
                 <ItemRow>
-                    <div style={{ marginTop: '4px' }}>
+                    <div style={{ marginTop: "4px" }}>
                         <DialogButton
                             onClick={handleOpenAddModal}
-                            style={{ padding: '0 14px', minWidth: 0, width: 'auto' }}
+                            style={{
+                                padding: "0 14px",
+                                minWidth: 0,
+                                width: "auto",
+                            }}
                         >
                             + Add Service
                         </DialogButton>
@@ -407,20 +406,31 @@ function MetadataSection() {
             >
                 <Field label="Service">
                     <Dropdown
-                        rgOptions={availableToAdd.map((s) => ({ data: s.id, label: s.label }))}
+                        rgOptions={availableToAdd.map((s) => ({
+                            data: s.id,
+                            label: s.label,
+                        }))}
                         selectedOption={selectedService}
                         onChange={(o) => setSelectedService(o.data as any)}
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
                 </Field>
 
-                {selectedService === 'steam_store' && (
-                    <div style={{ fontSize: '12px', opacity: 0.8, padding: '4px 0' }}>
-                        Steam Store Mirror extracts Game Info, descriptions, genres, and release dates directly from Steam Store matching. No API key required.
+                {selectedService === "steam_store" && (
+                    <div
+                        style={{
+                            fontSize: "12px",
+                            opacity: 0.8,
+                            padding: "4px 0",
+                        }}
+                    >
+                        Steam Store Mirror extracts Game Info, descriptions,
+                        genres, and release dates directly from Steam Store
+                        matching. No API key required.
                     </div>
                 )}
 
-                {selectedService === 'screenscraper' && (
+                {selectedService === "screenscraper" && (
                     <>
                         <TextField
                             label="Account Username"
@@ -447,7 +457,7 @@ function MetadataSection() {
                     </>
                 )}
 
-                {selectedService === 'igdb' && (
+                {selectedService === "igdb" && (
                     <>
                         <TextField
                             label="Twitch Client ID"
@@ -464,22 +474,37 @@ function MetadataSection() {
                 )}
 
                 {statusMsg && (
-                    <div style={{ fontSize: '12px', color: statusMsg.startsWith('✓') ? '#a4d007' : '#eb4b4b' }}>
+                    <div
+                        style={{
+                            fontSize: "12px",
+                            color: statusMsg.startsWith("✓")
+                                ? "#a4d007"
+                                : "#eb4b4b",
+                        }}
+                    >
                         {statusMsg}
                     </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
                     <DialogButton
                         disabled={isSaving}
                         onClick={handleRegisterService}
-                        style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
                     >
                         Register
                     </DialogButton>
                     <DialogButton
                         onClick={() => setShowAddModal(false)}
-                        style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
                     >
                         Cancel
                     </DialogButton>
@@ -493,53 +518,51 @@ function MetadataSection() {
 // 2. {Achievements} Sources Section
 // ===========================================================================
 
-const LAUNCH_NOTIFY_OPTIONS = [
-    { data: 'all_runs', label: 'All game runs (default)' },
-    { data: 'first_run', label: 'First run only' },
-    { data: 'off', label: 'Off' },
-];
-
 interface AchievementSourceDef {
-    id: 'steam_store' | 'retroachievements' | 'rpcs3';
+    id: "steam_store" | "retroachievements" | "rpcs3";
     label: string;
 }
 
 const ALL_ACHIEVEMENT_SOURCES: AchievementSourceDef[] = [
-    { id: 'steam_store', label: 'Steam Store Mirror & PC Saves' },
-    { id: 'retroachievements', label: 'RetroAchievements' },
-    { id: 'rpcs3', label: 'Console Emulators & RPCS3' },
+    { id: "steam_store", label: "Steam Store Mirror & PC Saves" },
+    { id: "retroachievements", label: "RetroAchievements" },
+    { id: "rpcs3", label: "Console Emulators & RPCS3" },
 ];
 
 function AchievementsSection() {
-    const [services, setServices] = useSetting('services');
-    const [policy, setPolicy] = useSetting('localAchievementsNotifyOnLaunch');
-    const [hardcore, setHardcore] = useSetting('raHardcoreMode');
-    const [retroStatus, setRetroStatus] = useState<RetroStatusResponse | null>(null);
+    const [services, setServices] = useSetting("services");
+    const [retroStatus, setRetroStatus] = useState<RetroStatusResponse | null>(
+        null,
+    );
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEmuModal, setShowEmuModal] = useState(false);
-    const [sourceToRegister, setSourceToRegister] = useState<'steam_store' | 'retroachievements' | 'rpcs3'>('retroachievements');
+    const [sourceToRegister, setSourceToRegister] = useState<
+        "steam_store" | "retroachievements" | "rpcs3"
+    >("retroachievements");
 
     // RA credentials input
-    const [raUser, setRaUser] = useState('');
-    const [raToken, setRaToken] = useState('');
-    const [raMsg, setRaMsg] = useState('');
+    const [raUser, setRaUser] = useState("");
+    const [raToken, setRaToken] = useState("");
+    const [raMsg, setRaMsg] = useState("");
     const [isSavingRa, setIsSavingRa] = useState(false);
 
-    const [toastStatus, setToastStatus] = useState('');
-
     const refreshRetro = () => {
-        rpc.cartridgesAchievementsGetRetroStatus().then(setRetroStatus).catch(() => {});
+        rpc.cartridgesAchievementsGetRetroStatus()
+            .then(setRetroStatus)
+            .catch(() => {});
     };
 
     useEffect(() => {
         refreshRetro();
     }, []);
 
-    const detectedCount = retroStatus?.emulators?.filter((e) => e.detected).length ?? 0;
     const activeRaUser =
-        retroStatus?.emulators?.find((e) => e.authenticated && e.username)?.username ||
-        (retroStatus?.env_fallback ? (retroStatus.env_username || 'Configured in .env') : null);
+        retroStatus?.emulators?.find((e) => e.authenticated && e.username)
+            ?.username ||
+        (retroStatus?.env_fallback
+            ? retroStatus.env_username || "Configured in .env"
+            : null);
 
     // Active sources calculation
     const activeSources: AchievementSourceDef[] = [];
@@ -558,12 +581,14 @@ function AchievementsSection() {
         (s) => !activeSources.some((active) => active.id === s.id),
     );
 
-    const handleRemoveSource = (id: 'steam_store' | 'retroachievements' | 'rpcs3') => {
-        if (id === 'steam_store') {
+    const handleRemoveSource = (
+        id: "steam_store" | "retroachievements" | "rpcs3",
+    ) => {
+        if (id === "steam_store") {
             setServices({ ...services, steamStoreEnabled: false });
-        } else if (id === 'retroachievements') {
+        } else if (id === "retroachievements") {
             setServices({ ...services, retroachievementsEnabled: false });
-        } else if (id === 'rpcs3') {
+        } else if (id === "rpcs3") {
             setServices({ ...services, rpcs3Enabled: false });
         }
     };
@@ -572,40 +597,40 @@ function AchievementsSection() {
         const first = availableToAdd[0];
         if (first) {
             setSourceToRegister(first.id);
-            setRaMsg('');
+            setRaMsg("");
             setShowAddModal(true);
         }
     };
 
     const handleRegisterSource = async () => {
         setIsSavingRa(true);
-        setRaMsg('Checking API connection...');
+        setRaMsg("Checking API connection...");
 
-        if (sourceToRegister === 'steam_store') {
+        if (sourceToRegister === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
-            setRaMsg('✓ Steam Store & PC saves enabled!');
+            setRaMsg("✓ Steam Store & PC saves enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSavingRa(false);
-                setRaMsg('');
+                setRaMsg("");
             }, 1000);
             return;
         }
 
-        if (sourceToRegister === 'rpcs3') {
+        if (sourceToRegister === "rpcs3") {
             setServices({ ...services, rpcs3Enabled: true });
-            setRaMsg('✓ Console Emulators & RPCS3 enabled!');
+            setRaMsg("✓ Console Emulators & RPCS3 enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSavingRa(false);
-                setRaMsg('');
+                setRaMsg("");
             }, 1000);
             return;
         }
 
-        if (sourceToRegister === 'retroachievements') {
+        if (sourceToRegister === "retroachievements") {
             if (!raUser.trim() || !raToken.trim()) {
-                setRaMsg('Username and API token are required.');
+                setRaMsg("Username and API token are required.");
                 setIsSavingRa(false);
                 return;
             }
@@ -616,49 +641,33 @@ function AchievementsSection() {
             if (res.success) {
                 setServices({ ...services, retroachievementsEnabled: true });
                 refreshRetro();
-                setRaMsg('✓ RetroAchievements verified & connected!');
+                setRaMsg("✓ RetroAchievements verified & connected!");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSavingRa(false);
-                    setRaMsg('');
-                    setRaToken('');
+                    setRaMsg("");
+                    setRaToken("");
                 }, 1200);
             } else {
-                setRaMsg('Failed to save credentials.');
+                setRaMsg("Failed to save credentials.");
                 setIsSavingRa(false);
             }
             return;
         }
     };
 
-    const handleTestToast = () => {
-        setToastStatus('Toast sent!');
-        const shortcuts = listShortcuts();
-        const target = shortcuts.find((s) => getLocalAchievements(s.appid)) || shortcuts[0];
-        const targetAppId = target ? target.appid : 2713503983;
-
-        window.dispatchEvent(
-            new CustomEvent('cartridges:trigger_fake_achievement', {
-                detail: {
-                    shortcutAppId: targetAppId,
-                    achievement: {
-                        id: 'test_achievement_' + Date.now(),
-                        name: 'Retro Champion',
-                        description: 'Simulated real-time unlock and native notification chime!',
-                        icon: 'https://media.retroachievements.org/Badge/00001.png',
-                        global_pct: 100,
-                    },
-                },
-            }),
-        );
-        setTimeout(() => setToastStatus(''), 2500);
-    };
-
     return (
         <PanelSection title="Achievements">
             {activeSources.length === 0 && (
                 <ItemRow>
-                    <div style={{ opacity: 0.6, fontSize: '12px', padding: '4px 0', fontStyle: 'italic' }}>
+                    <div
+                        style={{
+                            opacity: 0.6,
+                            fontSize: "12px",
+                            padding: "4px 0",
+                            fontStyle: "italic",
+                        }}
+                    >
                         No achievement sources active.
                     </div>
                 </ItemRow>
@@ -668,35 +677,33 @@ function AchievementsSection() {
             {activeSources.map((src) => (
                 <ItemRow key={src.id}>
                     <Field label={src.label}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {src.id === 'steam_store' && (
-                                <span style={{ color: '#a4d007', fontSize: '12px', fontWeight: 600 }}>✓ Active</span>
-                            )}
-                            {src.id === 'retroachievements' && (
-                                <span style={{ color: '#66c0f4', fontSize: '12px', fontWeight: 600 }}>
-                                    ✓ {activeRaUser}
-                                </span>
-                            )}
-                            {src.id === 'rpcs3' && (
-                                <>
-                                    <span style={{ color: detectedCount > 0 ? '#a4d007' : '#888', fontSize: '12px', fontWeight: 600 }}>
-                                        {detectedCount} detected
-                                    </span>
-                                    <DialogButton
-                                        onClick={() => setShowEmuModal(true)}
-                                        style={{ padding: '0 10px', minWidth: 0, width: 'auto', fontSize: '11px' }}
-                                    >
-                                        Status
-                                    </DialogButton>
-                                </>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                            }}
+                        >
+                            {src.id === "rpcs3" && (
+                                <DialogButton
+                                    onClick={() => setShowEmuModal(true)}
+                                    style={{
+                                        padding: "0 10px",
+                                        minWidth: 0,
+                                        width: "auto",
+                                        fontSize: "11px",
+                                    }}
+                                >
+                                    Status
+                                </DialogButton>
                             )}
                             <DialogButton
                                 onClick={() => handleRemoveSource(src.id)}
                                 style={{
-                                    padding: '0 10px',
+                                    padding: "0 10px",
                                     minWidth: 0,
-                                    width: 'auto',
-                                    color: '#eb4b4b',
+                                    width: "auto",
+                                    color: "#eb4b4b",
                                 }}
                             >
                                 Remove
@@ -709,42 +716,20 @@ function AchievementsSection() {
             {/* Only show Add Source button if unadded sources remain */}
             {availableToAdd.length > 0 && (
                 <ItemRow>
-                    <div style={{ marginTop: '4px' }}>
+                    <div style={{ marginTop: "4px" }}>
                         <DialogButton
                             onClick={handleOpenAddModal}
-                            style={{ padding: '0 14px', minWidth: 0, width: 'auto' }}
+                            style={{
+                                padding: "0 14px",
+                                minWidth: 0,
+                                width: "auto",
+                            }}
                         >
                             + Add Source
                         </DialogButton>
                     </div>
                 </ItemRow>
             )}
-
-            {/* Single Settings Toggles */}
-            <ToggleRow
-                label="RetroAchievements Hardcore"
-                description="Enforce competitive rules without cheats or save states"
-                value={hardcore}
-                onChange={setHardcore}
-            />
-
-            <ItemRow>
-                <Field label="Launch Notification" description="Display native toast on game launch">
-                    <Dropdown
-                        rgOptions={LAUNCH_NOTIFY_OPTIONS}
-                        selectedOption={policy}
-                        onChange={(o) => setPolicy(o.data as any)}
-                        contextMenuPositionOptions={{ bMatchWidth: true }}
-                    />
-                </Field>
-            </ItemRow>
-
-            <ButtonRow
-                label="Test Notification"
-                description={toastStatus || 'Verify native achievement notification popup and chime'}
-                buttonLabel="Test Toast"
-                onClick={handleTestToast}
-            />
 
             {/* Add Source Modal */}
             <SettingsModal
@@ -754,14 +739,17 @@ function AchievementsSection() {
             >
                 <Field label="Source">
                     <Dropdown
-                        rgOptions={availableToAdd.map((s) => ({ data: s.id, label: s.label }))}
+                        rgOptions={availableToAdd.map((s) => ({
+                            data: s.id,
+                            label: s.label,
+                        }))}
                         selectedOption={sourceToRegister}
                         onChange={(o) => setSourceToRegister(o.data as any)}
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
                 </Field>
 
-                {sourceToRegister === 'retroachievements' && (
+                {sourceToRegister === "retroachievements" && (
                     <>
                         <TextField
                             label="Username"
@@ -777,35 +765,54 @@ function AchievementsSection() {
                     </>
                 )}
 
-                {sourceToRegister === 'steam_store' && (
-                    <div style={{ fontSize: '12px', opacity: 0.8 }}>
-                        Passively scans local emulator saves (Goldberg, CODEX, RUNE, GSE) and engine runtime logs (Unity, Godot, Unreal).
+                {sourceToRegister === "steam_store" && (
+                    <div style={{ fontSize: "12px", opacity: 0.8 }}>
+                        Passively scans local emulator saves (Goldberg, CODEX,
+                        RUNE, GSE) and engine runtime logs (Unity, Godot,
+                        Unreal).
                     </div>
                 )}
 
-                {sourceToRegister === 'rpcs3' && (
-                    <div style={{ fontSize: '12px', opacity: 0.8 }}>
-                        Parses offline PS3 TROPCONF/TROPUSR trophies and tails DuckStation, PCSX2, Dolphin, PPSSPP, and RPCS3 emulator logs.
+                {sourceToRegister === "rpcs3" && (
+                    <div style={{ fontSize: "12px", opacity: 0.8 }}>
+                        Parses offline PS3 TROPCONF/TROPUSR trophies and tails
+                        DuckStation, PCSX2, Dolphin, PPSSPP, and RPCS3 emulator
+                        logs.
                     </div>
                 )}
 
                 {raMsg && (
-                    <div style={{ fontSize: '12px', color: raMsg.startsWith('✓') ? '#a4d007' : '#eb4b4b' }}>
+                    <div
+                        style={{
+                            fontSize: "12px",
+                            color: raMsg.startsWith("✓")
+                                ? "#a4d007"
+                                : "#eb4b4b",
+                        }}
+                    >
                         {raMsg}
                     </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
                     <DialogButton
                         disabled={isSavingRa}
                         onClick={handleRegisterSource}
-                        style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
                     >
                         Register
                     </DialogButton>
                     <DialogButton
                         onClick={() => setShowAddModal(false)}
-                        style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
                     >
                         Cancel
                     </DialogButton>
@@ -819,33 +826,64 @@ function AchievementsSection() {
                 onClose={() => setShowEmuModal(false)}
                 width="480px"
             >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        fontSize: "12px",
+                    }}
+                >
                     {retroStatus?.emulators?.map((emu) => (
                         <div
                             key={emu.name}
                             style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                padding: '6px 10px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                borderRadius: '4px',
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "6px 10px",
+                                background: "rgba(255, 255, 255, 0.03)",
+                                borderRadius: "4px",
                             }}
                         >
-                            <span style={{ color: emu.detected ? '#a4d007' : '#888', fontWeight: 600 }}>
-                                {emu.detected ? '✓' : '✗'} {emu.name}
+                            <span
+                                style={{
+                                    color: emu.detected ? "#a4d007" : "#888",
+                                    fontWeight: 600,
+                                }}
+                            >
+                                {emu.detected ? "✓" : "✗"} {emu.name}
                             </span>
-                            <span style={{ color: emu.authenticated ? '#66c0f4' : '#aaa' }}>
+                            <span
+                                style={{
+                                    color: emu.authenticated
+                                        ? "#66c0f4"
+                                        : "#aaa",
+                                }}
+                            >
                                 {emu.authenticated
                                     ? `Logged in (${emu.username})`
                                     : emu.detected
-                                    ? 'Local / Unauthenticated'
-                                    : 'Not Detected'}
+                                      ? "Local / Unauthenticated"
+                                      : "Not Detected"}
                             </span>
                         </div>
                     ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                    <DialogButton onClick={() => setShowEmuModal(false)} style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}>
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginTop: "8px",
+                    }}
+                >
+                    <DialogButton
+                        onClick={() => setShowEmuModal(false)}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
+                    >
                         Close
                     </DialogButton>
                 </div>
@@ -855,12 +893,51 @@ function AchievementsSection() {
 }
 
 // ===========================================================================
-// 3. {Activity} Feed Section
+// 3. {Notifications} Section
+// ===========================================================================
+
+const LAUNCH_NOTIFY_OPTIONS = [
+    { data: "all_runs", label: "All game runs (default)" },
+    { data: "first_run", label: "First run only" },
+    { data: "off", label: "Off" },
+];
+
+function NotificationsSection() {
+    const [policy, setPolicy] = useSetting("localAchievementsNotifyOnLaunch");
+
+    return (
+        <PanelSection title="Notifications">
+            {/* 3-Row layout matching theme section */}
+            <ItemRow>
+                <Field
+                    label="Achievement Support"
+                    description="Shows a notification on startup of games with supported achievements."
+                    bottomSeparator="none"
+                />
+            </ItemRow>
+            <ItemRow>
+                <Field childrenContainerWidth="max">
+                    <Dropdown
+                        rgOptions={LAUNCH_NOTIFY_OPTIONS}
+                        selectedOption={policy}
+                        onChange={(o) => setPolicy(o.data as any)}
+                        contextMenuPositionOptions={{ bMatchWidth: true }}
+                    />
+                </Field>
+            </ItemRow>
+        </PanelSection>
+    );
+}
+
+// ===========================================================================
+// 4. {Activity} Feed Section
 // ===========================================================================
 
 function ActivitySection() {
-    const [showAdded, setShowAdded] = useSetting('activityShowAddedToLibrary');
-    const [showFirstPlayed, setShowFirstPlayed] = useSetting('activityShowFirstPlayed');
+    const [showAdded, setShowAdded] = useSetting("activityShowAddedToLibrary");
+    const [showFirstPlayed, setShowFirstPlayed] = useSetting(
+        "activityShowFirstPlayed",
+    );
 
     return (
         <PanelSection title="Activity Feed">
@@ -885,53 +962,85 @@ function ActivitySection() {
 // ===========================================================================
 
 const SERVICE_OPTIONS = [
-    { data: 'all', label: 'All Services' },
-    { data: 'steam-store', label: 'Steam Store Mirror' },
-    { data: 'retroachievements', label: 'RetroAchievements' },
-    { data: 'screenscraper', label: 'ScreenScraper' },
-    { data: 'igdb', label: 'IGDB / Web Metadata' },
-    { data: 'rpcs3', label: 'RPCS3 Local Trophies' },
-    { data: 'none', label: 'None (Disable Fetching)' },
+    { data: "all", label: "All Services" },
+    { data: "steam-store", label: "Steam Store Mirror" },
+    { data: "retroachievements", label: "RetroAchievements" },
+    { data: "screenscraper", label: "ScreenScraper" },
+    { data: "igdb", label: "IGDB / Web Metadata" },
+    { data: "rpcs3", label: "RPCS3 Local Trophies" },
+    { data: "none", label: "None (Disable Fetching)" },
 ];
 
 const ACTION_OPTIONS = [
-    { data: 'include', label: 'Inclusion (Only apply to match)' },
-    { data: 'exclude', label: 'Exclusion (Never apply to match)' },
+    { data: "include", label: "Inclusion (Only apply to match)" },
+    { data: "exclude", label: "Exclusion (Never apply to match)" },
 ];
 
 const CONDITION_OPTIONS = [
-    { data: 'collection', label: 'Collection Name' },
-    { data: 'game_name', label: 'Game Title (Substring / Wildcard)' },
-    { data: 'regex', label: 'Regex Pattern' },
+    { data: "collection", label: "Collection" },
+    { data: "game_name", label: "Game Title" },
+    { data: "regex", label: "Regex Pattern" },
 ];
 
 function RulesSection() {
-    const [rules, setRules] = useSetting('routingRules');
+    const [rules, setRules] = useSetting("routingRules");
     const [showAddModal, setShowAddModal] = useState(false);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
     // Rule builder state
-    const [name, setName] = useState('');
-    const [service, setService] = useState<ServiceTarget>('all');
-    const [action, setAction] = useState<RuleAction>('include');
-    const [conditionType, setConditionType] = useState<ConditionType>('collection');
-    const [pattern, setPattern] = useState('');
+    const [name, setName] = useState("");
+    const [service, setService] = useState<ServiceTarget>("all");
+    const [action, setAction] = useState<RuleAction>("include");
+    const [conditionType, setConditionType] =
+        useState<ConditionType>("collection");
+    const [pattern, setPattern] = useState("");
 
-    const collections = listCollections().filter((c) => !c.id.startsWith('type-') && c.id !== 'uncategorized');
+    // Show all collections in suggestions
+    const collections = listCollections();
 
-    const handleAddRule = () => {
+    const handleOpenAdd = () => {
+        setEditingIndex(null);
+        setName("");
+        setService("all");
+        setAction("include");
+        setConditionType("collection");
+        setPattern("");
+        setShowAddModal(true);
+    };
+
+    const handleOpenEdit = (idx: number) => {
+        const r = rules[idx];
+        if (!r) return;
+        setEditingIndex(idx);
+        setName(r.name || "");
+        setService(r.service);
+        setAction(r.action);
+        setConditionType(r.conditionType);
+        setPattern(r.pattern);
+        setShowAddModal(true);
+    };
+
+    const handleSaveRule = () => {
         if (!pattern.trim()) return;
-        const newRule: RoutingRule = {
-            id: 'rule_' + Date.now(),
-            name: name.trim() || `${action === 'include' ? 'Include' : 'Exclude'} ${service} for ${pattern}`,
+        const ruleData: RoutingRule = {
+            id: editingIndex !== null && rules[editingIndex] ? rules[editingIndex].id : "rule_" + Date.now(),
+            name:
+                name.trim() ||
+                `${action === "include" ? "Include" : "Exclude"} ${service} for ${pattern}`,
             service,
             action,
             conditionType,
             pattern: pattern.trim(),
             enabled: true,
         };
-        setRules([...rules, newRule]);
-        setName('');
-        setPattern('');
+
+        if (editingIndex !== null) {
+            const copy = [...rules];
+            copy[editingIndex] = ruleData;
+            setRules(copy);
+        } else {
+            setRules([...rules, ruleData]);
+        }
         setShowAddModal(false);
     };
 
@@ -945,74 +1054,117 @@ function RulesSection() {
         <PanelSection title="Routing Rules">
             {rules.length === 0 && (
                 <ItemRow>
-                    <div style={{ opacity: 0.6, fontSize: '12px', padding: '4px 0', fontStyle: 'italic' }}>
+                    <div
+                        style={{
+                            opacity: 0.6,
+                            fontSize: "12px",
+                            padding: "4px 0",
+                            fontStyle: "italic",
+                        }}
+                    >
                         No custom routing rules defined.
                     </div>
                 </ItemRow>
             )}
 
-            {/* Compact Rule Rows */}
+            {/* Compact Rule Rows: Col 1 Name, Col 2 [ ✏️ ] [ 🗑️ ] */}
             {rules.map((rule, idx) => (
                 <ItemRow key={rule.id}>
                     <div
                         style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 10px',
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid rgba(255, 255, 255, 0.06)',
-                            borderRadius: '4px',
-                            fontSize: '12px',
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "6px 10px",
+                            background: "rgba(255, 255, 255, 0.03)",
+                            border: "1px solid rgba(255, 255, 255, 0.06)",
+                            borderRadius: "4px",
+                            fontSize: "12px",
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                marginRight: "8px",
+                            }}
+                        >
                             <span style={{ fontWeight: 600 }}>#{idx + 1}</span>
                             <span
                                 style={{
-                                    fontSize: '10px',
-                                    padding: '1px 5px',
-                                    borderRadius: '3px',
-                                    background: rule.action === 'include' ? 'rgba(164, 208, 7, 0.2)' : 'rgba(235, 75, 75, 0.2)',
-                                    color: rule.action === 'include' ? '#a4d007' : '#eb4b4b',
+                                    fontSize: "10px",
+                                    padding: "1px 5px",
+                                    borderRadius: "3px",
+                                    background:
+                                        rule.action === "include"
+                                            ? "rgba(164, 208, 7, 0.2)"
+                                            : "rgba(235, 75, 75, 0.2)",
+                                    color:
+                                        rule.action === "include"
+                                            ? "#a4d007"
+                                            : "#eb4b4b",
                                     fontWeight: 700,
                                 }}
                             >
                                 {rule.action.toUpperCase()}
                             </span>
-                            <span style={{ color: '#66c0f4' }}>{rule.service}</span>
-                            <span style={{ opacity: 0.7 }}>&quot;{rule.pattern}&quot;</span>
+                            <span style={{ color: "#66c0f4" }}>
+                                {rule.service}
+                            </span>
+                            <span style={{ opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                &quot;{rule.pattern}&quot;
+                            </span>
                         </div>
-                        <DialogButton
-                            onClick={() => handleDelete(idx)}
-                            style={{
-                                padding: '0 8px',
-                                minWidth: 0,
-                                width: 'auto',
-                                color: '#eb4b4b',
-                                fontSize: '11px',
-                            }}
-                        >
-                            ✕
-                        </DialogButton>
+                        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                            <DialogButton
+                                onClick={() => handleOpenEdit(idx)}
+                                style={{
+                                    padding: "0 8px",
+                                    minWidth: 0,
+                                    width: "auto",
+                                    fontSize: "12px",
+                                }}
+                            >
+                                ✏️
+                            </DialogButton>
+                            <DialogButton
+                                onClick={() => handleDelete(idx)}
+                                style={{
+                                    padding: "0 8px",
+                                    minWidth: 0,
+                                    width: "auto",
+                                    fontSize: "12px",
+                                }}
+                            >
+                                🗑️
+                            </DialogButton>
+                        </div>
                     </div>
                 </ItemRow>
             ))}
 
             <ItemRow>
-                <div style={{ marginTop: '4px' }}>
+                <div style={{ marginTop: "4px" }}>
                     <DialogButton
-                        onClick={() => setShowAddModal(true)}
-                        style={{ padding: '0 14px', minWidth: 0, width: 'auto' }}
+                        onClick={handleOpenAdd}
+                        style={{
+                            padding: "0 14px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
                     >
                         + Add Rule
                     </DialogButton>
                 </div>
             </ItemRow>
 
-            {/* Add Rule Modal */}
+            {/* Add / Edit Rule Modal */}
             <SettingsModal
-                title="Add Routing Rule"
+                title={editingIndex !== null ? "Edit Routing Rule" : "Add Routing Rule"}
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
@@ -1021,7 +1173,8 @@ function RulesSection() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                 />
-                <Field label="Target Service">
+
+                <Field label="Service" childrenContainerWidth="max">
                     <Dropdown
                         rgOptions={SERVICE_OPTIONS}
                         selectedOption={service}
@@ -1029,7 +1182,8 @@ function RulesSection() {
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
                 </Field>
-                <Field label="Action">
+
+                <Field label="Action" childrenContainerWidth="max">
                     <Dropdown
                         rgOptions={ACTION_OPTIONS}
                         selectedOption={action}
@@ -1037,36 +1191,68 @@ function RulesSection() {
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
                 </Field>
-                <Field label="Condition Type">
+
+                <Field label="Condition" childrenContainerWidth="max">
                     <Dropdown
                         rgOptions={CONDITION_OPTIONS}
                         selectedOption={conditionType}
-                        onChange={(o) => setConditionType(o.data as ConditionType)}
+                        onChange={(o) =>
+                            setConditionType(o.data as ConditionType)
+                        }
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
                 </Field>
+
                 <TextField
                     label="Pattern"
                     value={pattern}
                     onChange={(e) => setPattern(e.target.value)}
                 />
+                <div
+                    style={{
+                        fontSize: "11px",
+                        opacity: 0.7,
+                        marginTop: "-4px",
+                        marginBottom: "4px",
+                    }}
+                >
+                    Separate multiple items with commas (e.g. Mario, Sonic, Zelda).
+                </div>
 
-                {conditionType === 'collection' && collections.length > 0 && (
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '-4px' }}>
-                        <span style={{ fontSize: '11px', opacity: 0.7 }}>Suggestions:</span>
+                {conditionType === "collection" && collections.length > 0 && (
+                    <div
+                        style={{
+                            display: "flex",
+                            gap: "6px",
+                            flexWrap: "wrap",
+                            marginTop: "2px",
+                        }}
+                    >
+                        <span style={{ fontSize: "11px", opacity: 0.7 }}>
+                            Suggestions:
+                        </span>
                         {collections.map((c) => (
                             <button
                                 key={c.id}
                                 type="button"
-                                onClick={() => setPattern(c.name)}
+                                onClick={() => {
+                                    if (!pattern.trim()) {
+                                        setPattern(c.name);
+                                    } else {
+                                        const parts = pattern.split(",").map((s) => s.trim()).filter(Boolean);
+                                        if (!parts.includes(c.name)) {
+                                            setPattern([...parts, c.name].join(", "));
+                                        }
+                                    }
+                                }}
                                 style={{
-                                    background: 'rgba(255, 255, 255, 0.08)',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    color: '#fff',
-                                    borderRadius: '4px',
-                                    padding: '2px 8px',
-                                    fontSize: '11px',
-                                    cursor: 'pointer',
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                                    color: "#fff",
+                                    borderRadius: "4px",
+                                    padding: "2px 8px",
+                                    fontSize: "11px",
+                                    cursor: "pointer",
                                 }}
                             >
                                 {c.name}
@@ -1075,11 +1261,25 @@ function RulesSection() {
                     </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                    <DialogButton onClick={handleAddRule} style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}>
+                <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                    <DialogButton
+                        onClick={handleSaveRule}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
+                    >
                         Save Rule
                     </DialogButton>
-                    <DialogButton onClick={() => setShowAddModal(false)} style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}>
+                    <DialogButton
+                        onClick={() => setShowAddModal(false)}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
+                    >
                         Cancel
                     </DialogButton>
                 </div>
@@ -1100,20 +1300,23 @@ interface FlaggedShortcut {
 }
 
 const CONTROLLER_OVERRIDE_OPTIONS = [
-    { data: 'auto', label: 'Default / Auto' },
-    { data: 'full', label: 'Full Controller Support' },
-    { data: 'partial', label: 'Partial Controller Support' },
-    { data: 'none', label: 'Keyboard & Mouse Only' },
+    { data: "auto", label: "Default / Auto" },
+    { data: "full", label: "Full Controller Support" },
+    { data: "partial", label: "Partial Controller Support" },
+    { data: "none", label: "Keyboard & Mouse Only" },
 ];
 
 function RevisionSection() {
-    const [controllerOverrides, setControllerOverrides] = useSetting('controllerOverrides');
-    const [defaultFullController, setDefaultFullController] = useSetting('defaultFullController');
+    const [controllerOverrides, setControllerOverrides] = useSetting(
+        "controllerOverrides",
+    );
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
-    const [filter, setFilter] = useState<'all' | 'controller' | 'achievements'>('all');
+    const [filter, setFilter] = useState<"all" | "controller" | "achievements">(
+        "all",
+    );
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
-    const [steamIdInput, setSteamIdInput] = useState('');
-    const [fixMsg, setFixMsg] = useState('');
+    const [steamIdInput, setSteamIdInput] = useState("");
+    const [fixMsg, setFixMsg] = useState("");
 
     const shortcuts = listShortcuts();
 
@@ -1122,9 +1325,11 @@ function RevisionSection() {
     for (const sc of shortcuts) {
         const override = controllerOverrides[String(sc.appid)];
         const achievements = getLocalAchievements(sc.appid);
+        const inferred = getInferredControllerSupport(sc.appid);
 
         const hasWeirdName = /\[.*?\]|\(.*?\)/.test(sc.name);
-        const missingController = !override || override === 'auto';
+        // Only mark missing controller if user hasn't explicitly set full/none/partial AND emulator hasn't inferred support
+        const missingController = (!override || override === "auto") && inferred !== true;
         const noAchievements = !achievements || achievements.nTotal === 0;
 
         if (missingController || hasWeirdName || noAchievements) {
@@ -1138,64 +1343,75 @@ function RevisionSection() {
     }
 
     const filtered = flagged.filter((f) => {
-        if (filter === 'controller') return f.missingController;
-        if (filter === 'achievements') return f.noAchievements;
+        if (filter === "controller") return f.missingController;
+        if (filter === "achievements") return f.noAchievements;
         return true;
     });
 
     const handleSetController = (appid: number, val: ControllerOverride) => {
-        setControllerOverrides({ ...controllerOverrides, [String(appid)]: val });
+        setControllerOverrides({
+            ...controllerOverrides,
+            [String(appid)]: val,
+        });
         setFixMsg(`Updated controller support for ${shortcutName(appid)}`);
-        setTimeout(() => setFixMsg(''), 2500);
+        setTimeout(() => setFixMsg(""), 2500);
     };
 
-    const handleLinkSteamApp = async (shortcutAppId: number, steamAppId: number) => {
-        setFixMsg('Linking to Steam Store...');
+    const handleLinkSteamApp = async (
+        shortcutAppId: number,
+        steamAppId: number,
+    ) => {
+        setFixMsg("Linking to Steam Store...");
         const res = await rpc.steamStoreSetMapping(shortcutAppId, steamAppId);
         if (res.mapping) {
-            setFixMsg('Mapped successfully!');
-            setTimeout(() => setFixMsg(''), 2500);
+            setFixMsg("Mapped successfully!");
+            setTimeout(() => setFixMsg(""), 2500);
         } else {
-            setFixMsg(res.error || 'Failed to map Steam App');
+            setFixMsg(res.error || "Failed to map Steam App");
         }
     };
 
     return (
         <PanelSection title="Library Audit">
+            {/* 3-Row Layout matching theme */}
             <ItemRow>
                 <Field
-                    label="Shortcut Audit"
-                    description="Scans for missing input support, titles, or achievements"
+                    label="Issues detected:"
+                    bottomSeparator="none"
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span
-                            style={{
-                                background: flagged.length > 0 ? '#e5a00d' : '#a4d007',
-                                color: '#000',
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                            }}
-                        >
-                            {flagged.length} {flagged.length === 1 ? 'issue' : 'issues'}
-                        </span>
-                        <DialogButton
-                            onClick={() => setIsAuditModalOpen(true)}
-                            style={{ padding: '0 14px', minWidth: 0, width: 'auto' }}
-                        >
-                            Review & Fix
-                        </DialogButton>
-                    </div>
+                    <span
+                        style={{
+                            color: flagged.length > 0 ? "#e5a00d" : "#a4d007",
+                            fontWeight: 700,
+                            fontSize: "14px",
+                        }}
+                    >
+                        {flagged.length}
+                    </span>
                 </Field>
             </ItemRow>
-
-            <ToggleRow
-                label="Default to Full Controller Support"
-                description="Assumes gamepad support when neither Steam nor emulator specifies it"
-                value={defaultFullController}
-                onChange={setDefaultFullController}
-            />
+            <ItemRow>
+                <div
+                    style={{
+                        fontSize: "12px",
+                        opacity: 0.75,
+                        padding: "0 0 8px 0",
+                    }}
+                >
+                    Number of games that require complete information
+                </div>
+            </ItemRow>
+            <ItemRow>
+                <DialogButton
+                    onClick={() => setIsAuditModalOpen(true)}
+                    style={{
+                        width: "100%",
+                        padding: "0 14px",
+                    }}
+                >
+                    Review
+                </DialogButton>
+            </ItemRow>
 
             {/* Audit & Fix Modal */}
             <SettingsModal
@@ -1206,48 +1422,57 @@ function RevisionSection() {
                 maxHeight="85vh"
             >
                 {/* Filter Tabs */}
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: "flex", gap: "6px" }}>
                     <button
                         type="button"
-                        onClick={() => setFilter('all')}
+                        onClick={() => setFilter("all")}
                         style={{
-                            background: filter === 'all' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.25)',
-                            border: 'none',
-                            color: '#fff',
-                            borderRadius: '4px',
-                            padding: '4px 10px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
+                            background:
+                                filter === "all"
+                                    ? "rgba(255, 255, 255, 0.15)"
+                                    : "rgba(0, 0, 0, 0.25)",
+                            border: "none",
+                            color: "#fff",
+                            borderRadius: "4px",
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            cursor: "pointer",
                         }}
                     >
                         All ({flagged.length})
                     </button>
                     <button
                         type="button"
-                        onClick={() => setFilter('controller')}
+                        onClick={() => setFilter("controller")}
                         style={{
-                            background: filter === 'controller' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.25)',
-                            border: 'none',
-                            color: '#fff',
-                            borderRadius: '4px',
-                            padding: '4px 10px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
+                            background:
+                                filter === "controller"
+                                    ? "rgba(255, 255, 255, 0.15)"
+                                    : "rgba(0, 0, 0, 0.25)",
+                            border: "none",
+                            color: "#fff",
+                            borderRadius: "4px",
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            cursor: "pointer",
                         }}
                     >
                         Unknown Input
                     </button>
                     <button
                         type="button"
-                        onClick={() => setFilter('achievements')}
+                        onClick={() => setFilter("achievements")}
                         style={{
-                            background: filter === 'achievements' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.25)',
-                            border: 'none',
-                            color: '#fff',
-                            borderRadius: '4px',
-                            padding: '4px 10px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
+                            background:
+                                filter === "achievements"
+                                    ? "rgba(255, 255, 255, 0.15)"
+                                    : "rgba(0, 0, 0, 0.25)",
+                            border: "none",
+                            color: "#fff",
+                            borderRadius: "4px",
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            cursor: "pointer",
                         }}
                     >
                         No Achievements
@@ -1255,81 +1480,197 @@ function RevisionSection() {
                 </div>
 
                 {fixMsg && (
-                    <div style={{ color: '#66c0f4', fontSize: '12px', padding: '2px 0' }}>{fixMsg}</div>
+                    <div
+                        style={{
+                            color: "#66c0f4",
+                            fontSize: "12px",
+                            padding: "2px 0",
+                        }}
+                    >
+                        {fixMsg}
+                    </div>
                 )}
 
                 {/* Filtered Items */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '55vh', overflowY: 'auto' }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                        maxHeight: "55vh",
+                        overflowY: "auto",
+                    }}
+                >
                     {filtered.map((item) => {
-                        const currentOverride = controllerOverrides[String(item.appid)] || 'auto';
+                        const currentOverride =
+                            controllerOverrides[String(item.appid)] || "auto";
                         return (
                             <div
                                 key={item.appid}
                                 style={{
-                                    background: 'rgba(255, 255, 255, 0.03)',
-                                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                                    borderRadius: '4px',
-                                    padding: '8px 10px',
+                                    background: "rgba(255, 255, 255, 0.03)",
+                                    border: "1px solid rgba(255, 255, 255, 0.06)",
+                                    borderRadius: "4px",
+                                    padding: "8px 10px",
                                 }}
                             >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                    }}
+                                >
                                     <div>
-                                        <span style={{ fontWeight: 600, fontSize: '13px' }}>{item.name}</span>
-                                        <span style={{ fontSize: '11px', opacity: 0.6, marginLeft: '6px' }}>
+                                        <span
+                                            style={{
+                                                fontWeight: 600,
+                                                fontSize: "13px",
+                                            }}
+                                        >
+                                            {item.name}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: "11px",
+                                                opacity: 0.6,
+                                                marginLeft: "6px",
+                                            }}
+                                        >
                                             ({item.appid})
                                         </span>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                    <div
+                                        style={{ display: "flex", gap: "4px" }}
+                                    >
                                         {item.missingController && (
-                                            <span style={{ background: '#e5a00d', color: '#000', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                                            <span
+                                                style={{
+                                                    background: "#e5a00d",
+                                                    color: "#000",
+                                                    fontSize: "10px",
+                                                    padding: "1px 5px",
+                                                    borderRadius: "3px",
+                                                    fontWeight: 600,
+                                                }}
+                                            >
                                                 Missing Input
                                             </span>
                                         )}
                                         {item.noAchievements && (
-                                            <span style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#aaa', fontSize: '10px', padding: '1px 5px', borderRadius: '3px' }}>
+                                            <span
+                                                style={{
+                                                    background:
+                                                        "rgba(255, 255, 255, 0.1)",
+                                                    color: "#aaa",
+                                                    fontSize: "10px",
+                                                    padding: "1px 5px",
+                                                    borderRadius: "3px",
+                                                }}
+                                            >
                                                 No Achievements
                                             </span>
                                         )}
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '12px', marginTop: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontSize: '11px', opacity: 0.75 }}>Input:</span>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        gap: "12px",
+                                        marginTop: "6px",
+                                        alignItems: "center",
+                                        flexWrap: "wrap",
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: "11px",
+                                                opacity: 0.75,
+                                            }}
+                                        >
+                                            Input:
+                                        </span>
                                         <Dropdown
-                                            rgOptions={CONTROLLER_OVERRIDE_OPTIONS}
+                                            rgOptions={
+                                                CONTROLLER_OVERRIDE_OPTIONS
+                                            }
                                             selectedOption={currentOverride}
-                                            onChange={(o) => handleSetController(item.appid, o.data as ControllerOverride)}
-                                            contextMenuPositionOptions={{ bMatchWidth: true }}
+                                            onChange={(o) =>
+                                                handleSetController(
+                                                    item.appid,
+                                                    o.data as ControllerOverride,
+                                                )
+                                            }
+                                            contextMenuPositionOptions={{
+                                                bMatchWidth: true,
+                                            }}
                                         />
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontSize: '11px', opacity: 0.75 }}>Link Steam AppID:</span>
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: "11px",
+                                                opacity: 0.75,
+                                            }}
+                                        >
+                                            Link Steam AppID:
+                                        </span>
                                         <input
                                             type="text"
                                             placeholder="e.g. 2820820"
-                                            value={targetAppId === item.appid ? steamIdInput : ''}
+                                            value={
+                                                targetAppId === item.appid
+                                                    ? steamIdInput
+                                                    : ""
+                                            }
                                             onChange={(e) => {
                                                 setTargetAppId(item.appid);
                                                 setSteamIdInput(e.target.value);
                                             }}
                                             style={{
-                                                background: 'rgba(0, 0, 0, 0.4)',
-                                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                                color: '#fff',
-                                                borderRadius: '3px',
-                                                padding: '3px 6px',
-                                                fontSize: '11px',
-                                                width: '90px',
+                                                background:
+                                                    "rgba(0, 0, 0, 0.4)",
+                                                border: "1px solid rgba(255, 255, 255, 0.15)",
+                                                color: "#fff",
+                                                borderRadius: "3px",
+                                                padding: "3px 6px",
+                                                fontSize: "11px",
+                                                width: "90px",
                                             }}
                                         />
                                         <DialogButton
                                             onClick={() => {
-                                                const num = parseInt(steamIdInput, 10);
-                                                if (num > 0) handleLinkSteamApp(item.appid, num);
+                                                const num = parseInt(
+                                                    steamIdInput,
+                                                    10,
+                                                );
+                                                if (num > 0)
+                                                    handleLinkSteamApp(
+                                                        item.appid,
+                                                        num,
+                                                    );
                                             }}
-                                            style={{ padding: '0 8px', minWidth: 0, width: 'auto', fontSize: '11px' }}
+                                            style={{
+                                                padding: "0 8px",
+                                                minWidth: 0,
+                                                width: "auto",
+                                                fontSize: "11px",
+                                            }}
                                         >
                                             Link
                                         </DialogButton>
@@ -1340,8 +1681,21 @@ function RevisionSection() {
                     })}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                    <DialogButton onClick={() => setIsAuditModalOpen(false)} style={{ padding: '0 16px', minWidth: 0, width: 'auto' }}>
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginTop: "8px",
+                    }}
+                >
+                    <DialogButton
+                        onClick={() => setIsAuditModalOpen(false)}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                        }}
+                    >
                         Done
                     </DialogButton>
                 </div>
@@ -1367,6 +1721,7 @@ export function SettingsPanel() {
         <>
             <MetadataSection />
             <AchievementsSection />
+            <NotificationsSection />
             <ActivitySection />
             <RulesSection />
             <RevisionSection />
