@@ -219,8 +219,8 @@ export const rpc = {
     steamStoreDownloadImage: (url: string) =>
         call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url }),
 
-    cartridgesAchievementsGet: (shortcut_appid: number, native_appid: number) =>
-        call<AchievementStateResponse>("CartridgesAchievementsGet", { shortcut_appid, native_appid }),
+    cartridgesAchievementsGet: (shortcut_appid: number, native_appid: number, hardcore?: boolean) =>
+        call<AchievementStateResponse>("CartridgesAchievementsGet", { shortcut_appid, native_appid, hardcore }),
     cartridgesAchievementsUnlock: (shortcut_appid: number, achievement_id: string, unlock_time?: number) =>
         call<{ ok: boolean; unlocks: Record<string, AchievementUnlockRecord>; error?: string }>(
             "CartridgesAchievementsUnlock",
@@ -237,6 +237,8 @@ export const rpc = {
             native_appid,
             game_title,
         }),
+    cartridgesAchievementsGetRetroStatus: () =>
+        call<RetroStatusResponse>("CartridgesAchievementsGetRetroStatus"),
 };
 
 export interface DetectedUnlockItem {
@@ -277,4 +279,19 @@ export interface AchievementStateResponse {
     unlocks?: Record<string, AchievementUnlockRecord>;
     error?: string;
 }
+
+export interface EmulatorStatusItem {
+    name: string;
+    detected: boolean;
+    path?: string;
+    username?: string;
+    authenticated: boolean;
+}
+
+export interface RetroStatusResponse {
+    emulators: EmulatorStatusItem[];
+    env_fallback: boolean;
+    env_username?: string;
+}
+
 

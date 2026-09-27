@@ -51,6 +51,7 @@ CartridgesAchievementsGet          = ACH_RPC.CartridgesAchievementsGet
 CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock
 CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
 CartridgesAchievementsCheckUnlocks = ACH_RPC.CartridgesAchievementsCheckUnlocks
+CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroStatus
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

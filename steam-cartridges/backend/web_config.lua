@@ -64,15 +64,14 @@ end
 
 local function get_env_map()
   if cached_env then return cached_env end
-  local m = parse_env_all(data_dir.file(".env"))
-  if m and next(m) then
-    cached_env = m
-    return m
-  end
-  m = config.find_legacy_env()
-  if m then
-    cached_env = m
-    return m
+  local legacy = config.find_legacy_env() or {}
+  local stored = parse_env_all(data_dir.file(".env")) or {}
+  local merged = {}
+  for k, v in pairs(legacy) do merged[k] = v end
+  for k, v in pairs(stored) do merged[k] = v end
+  if next(merged) then
+    cached_env = merged
+    return merged
   end
   return {}
 end
@@ -113,6 +112,18 @@ function config.get_twitch_credentials()
   local sec = env_map["twitch_client_secret"]
   if id and #id > 0 and sec and #sec > 0 then
     return { client_id = id, client_secret = sec }
+  end
+  return nil
+end
+
+--- Resolve RetroAchievements credentials from .env if provided
+---@return table|nil { token = string, username = string }
+function config.get_retroachievements_credentials()
+  local env_map = get_env_map()
+  local api = env_map["retroachievements_api"] or env_map["ra_api_key"] or env_map["ra_key"]
+  local user = env_map["retroachievements_user"] or env_map["ra_username"] or env_map["ra_user"]
+  if api and #api > 0 then
+    return { token = api, username = (user and #user > 0) and user or "RetroAchievementsUser" }
   end
   return nil
 end

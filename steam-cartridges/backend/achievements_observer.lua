@@ -145,6 +145,10 @@ function M.scan_log_for_unlocks(filepath)
              or line:match("[uU]nlock%a*%s*[:=]+%s*['\"]?([%w_%-]+)['\"]?")
              or line:match("[uU]nlock[aA]chievement%s*%(%s*['\"]([^'\"]+)['\"]")
              or line:match("[sS]et[aA]chievement%s*%(%s*['\"]([^'\"]+)['\"]")
+             or line:match("[tT]rophy [uU]nlocked:%s*[%w_]+%s*%[(%d+)%]")
+             or line:match("%{Emu%.Trophy%}%s*[tT]rophy%s*[uU]nlocked:%s*[%w_]+%s*%[(%d+)%]")
+             or line:match("[tT]rophy [uU]nlocked:%s*([%w_%-]+)")
+             or line:match("[tT]rophy%s*(%d+)%s*[uU]nlocked")
     if ach and #ach > 0 then
       detected[ach] = { unlocked_time = os.time() }
     end
@@ -193,9 +197,15 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     return { new_unlocks = {} }
   end
 
-  local st = nil
-  if n_appid > 0 then
-    st = store.get_or_fetch(s_appid, n_appid)
+  local st = store.get_state(s_appid)
+  if not st or not st.schema or not st.schema.achievements then
+    if n_appid > 0 then
+      st = store.get_or_fetch(s_appid, n_appid)
+    end
+  end
+  if not st or not st.schema or not st.schema.achievements then
+    local ps3 = require("ps3_trophies")
+    st = ps3.get_or_fetch(s_appid)
   end
   if not st or not st.schema or not st.schema.achievements then
     local ra = require("retroachievements")
@@ -245,8 +255,9 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     end
   end
 
-  -- 2. Check RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP Runtime Logs
+  -- 2. Check RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP, RPCS3 Runtime Logs & Trophies
   local exe_dir = ""
+  local sc_match = nil
   local steam_paths = require("steam_paths")
   local shortcuts = require("shortcuts")
   local sp_paths = steam_paths.resolve()
@@ -254,9 +265,26 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     local list = shortcuts.parse(sp_paths.shortcuts) or {}
     for _, sc in ipairs(list) do
       if sc.appid == s_appid and sc.exe then
+        sc_match = sc
         local s = tostring(sc.exe):gsub("\\", "/")
         exe_dir = s:match("^(.*)/[^/]+$") or ""
         break
+      end
+    end
+  end
+
+  -- Check RPCS3 local TROPUSR.DAT if PS3 title
+  if st.schema.ps3_title_id then
+    local ps3 = require("ps3_trophies")
+    local trop_dir = ps3.find_trophy_dir(sc_match and sc_match.exe or exe_dir, sc_match and sc_match.launch_options)
+    if trop_dir then
+      local usr_path = trop_dir .. "/TROPUSR.DAT"
+      if file_exists(usr_path) then
+        local usr_data = read_file(usr_path)
+        local parsed = usr_data and ps3.parse_tropusr(usr_data) or {}
+        for id, info in pairs(parsed) do
+          candidate_unlocks[id] = info
+        end
       end
     end
   end
@@ -271,6 +299,8 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     #exe_dir > 0 and (exe_dir .. "/logs/emulog.txt"),
     #exe_dir > 0 and (exe_dir .. "/emulog.txt"),
     #exe_dir > 0 and (exe_dir .. "/ppsspp.log"),
+    #exe_dir > 0 and (exe_dir .. "/RPCS3.log"),
+    #exe_dir > 0 and (exe_dir .. "/rpcs3.log"),
     -- Standard known install locations
     "C:\\emu\\RetroArch\\logs\\retroarch.log",
     appdata .. "\\RetroArch\\logs\\retroarch.log",
@@ -287,6 +317,9 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     appdata .. "\\Dolphin Emulator\\Logs\\dolphin.log",
     "C:\\emu\\PPSSPP\\memstick\\PSP\\SYSTEM\\ppsspp.log",
     appdata .. "\\PPSSPP\\PSP\\SYSTEM\\ppsspp.log",
+    "C:\\emu\\rpcs3\\RPCS3.log",
+    appdata .. "\\rpcs3\\RPCS3.log",
+    localappdata .. "\\rpcs3\\RPCS3.log",
   }
   for _, logpath in ipairs(emu_logs) do
     if logpath and file_exists(logpath) then

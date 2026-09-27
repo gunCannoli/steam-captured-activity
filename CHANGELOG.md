@@ -9,29 +9,17 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
-- **`steam-cartridges` Retro Games Achievements: Multi-Console Hasher & Standalone Emulators (Phases 1 & 2) (2026-09-26)**:
-  - *Universal ROM/Disc Hasher Expansion (`ra_hasher.js`)*:
-    - Added N64 endian normalization: detects big-endian `.z64` (`0x80371240`), byte-swapped `.v64` (`0x37804012`), and little-endian `.n64` (`0x40123780`), normalizing byte streams to big-endian before MD5.
-    - Added NES iNES 16-byte header stripping (`NES\x1a`).
-    - Added Sega Genesis SMD 512-byte header stripping & 16KB block de-interleaving.
-    - Added multi-disc `.m3u` playlist resolver: extracts first active disc file and resolves relative path.
-    - Added ISO-9660 Sector 16 Primary Volume Descriptor parser: reads `SYSTEM.CNF`, resolves boot executable (`SLUS_...`, `SCUS_...`, etc.) via directory records, and hashes only the boot binary stream.
-    - Added fast `.chd` detection: skips loading large compressed disc images into memory and routes to console title matching.
-  - *Console Detection & Title Matching Fallback (`retroachievements.lua`)*:
-    - Added `M.detect_console_id`: maps cores and launch paths to RetroAchievements console IDs (PS1=12, SNES=3, GBA=5, Arcade=27, Genesis=1, N64=2, NES=7, GameCube=16, PSP=41).
-    - Added `M.find_game_id_by_title`: queries and caches console games list (`r=gameslist&c=<id>`), performing normalized exact and substring title matching.
-    - Verified live with *Castlevania: Symphony of the Night* (PS1 `.chd`, `2162501062`), ingesting 106 achievements with badge artwork into Steam stores.
-  - *Multi-Emulator Credentials Discovery (`retroachievements.lua`)*:
-    - Keylessly auto-discovers active credentials across DuckStation (`settings.ini`), PCSX2 (`inis/PCSX2.ini`), Dolphin / Primehack (`RetroAchievements.ini` / `Dolphin.ini`), PPSSPP (`ppsspp.ini`), and RetroArch (`retroarch.cfg`).
-    - Prioritizes the emulator launching the specific game with automatic fallback to any configured emulator credentials.
-    - Gracefully handles unauthenticated state: fetches full public schema without credentials so non-logged-in players still view all achievements.
-  - *Multi-Emulator Out-of-Process Log Observer (`achievements_observer.lua`)*:
-    - Added trigger pattern matching for RetroArch (`[INFO] [RCHEEVOS] Awarded achievement <ID>`), DuckStation (`[Cheevos] Awarded achievement <ID>`, `Awarded achievement <ID>`, `Achievement <ID> unlocked`), PCSX2 (`[Achievements] Unlocked <ID>`, `[Achievements] Awarded <ID>`), Dolphin (`[Achievements] Awarded <ID>`, `[Achievements] Unlocked <ID>`), and PPSSPP (`Achievement <ID> unlocked`).
-    - Dynamically resolves log candidates in the emulator executable's own install directory alongside standard Windows install locations.
-    - Verified live with `scratch/test_duckstation_observer.mjs`: simulated DuckStation unlock detected out-of-process, resolved against schema, and persisted to `achievements_store`.
-  - *Test & Smoke Verifications*:
-    - `check_all_tabs.js`: Post-Game Summary, Activity feed, Your Stuff, Game Info all PASS.
-    - `npm run check` (0 errors) & `npm run test:ts` (54/54 PASS).
+- **`steam-cartridges` RPCS3 Local PlayStation 3 Trophies & Multi-Emulator Settings (Phase 3 & 4) (2026-09-26)**:
+  - *RPCS3 Local Trophy Provider (`ps3_trophies.lua`)*: Parses PlayStation 3 offline XML trophy definitions (`TROPCONF.SFM`) for trophy titles, descriptions, hidden states, and Sony trophy types (Platinum: 300 pts, Gold: 90 pts, Silver: 30 pts, Bronze: 15 pts), and parses binary unlock records (`TROPUSR.DAT`) with 32-byte strides and Unix timestamps. Integrated into `achievements_rpc.lua` and observed via direct binary polling and `RPCS3.log` trigger patterns (`{Emu.Trophy} Trophy Unlocked: NPWR...`). Verified against offline fixture suite (`scratch/test_ps3_trophies.mjs`).
+  - *Hardcore/Softcore Mode Toggle (`settings.ts` & `settings-panel.tsx`)*: Added `raHardcoreMode: boolean` (default: `true`), enforcing authentic RetroAchievements leaderboard standards (`h=1` for Hardcore unlocks, `h=0` for Softcore unlocks) and propagating cleanly to `retroachievements.lua` queries.
+  - *Multi-Emulator Status & Credentials Overview*: Added `CartridgesAchievementsGetRetroStatus` RPC endpoint and Settings UI table displaying live detection and authentication state across RetroArch, DuckStation, PCSX2, Dolphin/Primehack, PPSSPP, and RPCS3, plus `.env` fallback detection (`retroachievements_api`).
+  - *Interactive Test Toast Action*: Added "Test Retro Toast Notification" button and `cartridges:trigger_fake_achievement` custom window event dispatching real-time native achievement popups and sound.
+  - *Live Verification via CDP*:
+    - `scratch/test_retro_status_rpc.mjs`: Successfully queried live emulator status from running Steam: RetroArch (`gunCannoli`, auth: true), DuckStation (`limapaulo`, auth: true), Dolphin (detected: true), `.env` fallback (detected: true).
+    - Simulated test toast fired immediately with native chime and visual toast popup.
+    - Routine 1 & 2 multi-tab smoke verification (`scratch/check_all_tabs.js`): All tabs PASS (Post-Game Summary, Activity feed 3/3 cards, Your Stuff 8/8 media items, Game Info without error boundaries or grey shortcut warning, and A -> B -> A two-way navigation lifecycle intact).
+
+- **`steam-cartridges` RetroAchievements & Emulator Observer Engine (2026-09-26)**:
   - *Zero-Friction Authentication*: Reads `cheevos_username` and `cheevos_token` dynamically from `C:\emu\RetroArch\retroarch.cfg` (or `%APPDATA%\RetroArch\retroarch.cfg`) without prompting the user for credentials or exposing secrets in code, logs, or repository.
   - *ROM Hash Extraction (`ra_hasher.js`)*: Automatically extracts ROM paths from shortcut launch configurations, handles in-memory zip deflation, and strips 512-byte copier/SMC headers (`fileSize % 1024 == 512`) to produce canonical RetroAchievements MD5 hashes recognized by `dorequest.php?r=gameid`.
   - *Schema & Unlocks Ingestion (`retroachievements.lua`)*: Queries RetroAchievements `r=patch` and `r=unlocks` for full achievement lists, descriptions, point values, official badge CDN URLs, and existing player unlock state. Persists schemas under `"ra_<game_id>"` and binds shortcuts in `achievements.json`.

@@ -17,10 +17,9 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges P5 — native achievements & RetroAchievements provider.**
+**steam-cartridges P5 — native achievements & RetroAchievements provider (Complete).**
 - Native PC & Emulator Saves: Keyless schema ingestion, out-of-process in-game observers (CODEX/Goldberg/RUNE/Unity/Godot), native toasts (`NotificationStore.OnNotification`), Big Picture play bar, and individual full-screen achievements page (`AchievementsFullStore`) implemented and verified live (*Jotunnslayer* `2315502503`).
-- RetroAchievements & Emulators (Phases 1 & 2 Complete): Multi-console ROM/disc hasher expansion (N64, NES, Genesis SMD, .m3u, ISO-9660 PVD boot extraction), console title matching fallback, standalone emulator credential discovery (DuckStation, PCSX2, Dolphin, PPSSPP, RetroArch), and real-time log tailer verified live (*Super Mario World* `2713503983`, *Castlevania: Symphony of the Night* `2162501062`).
-- Retro Achievements Next: Phase 3 (RPCS3 Local Trophy Provider) & Phase 4 (Settings Panel Hardcore/Softcore Toggle).
+- RetroAchievements & Multi-Emulator Providers: Universal ROM/disc hasher (`ra_hasher.js`), auto-credential discovery across RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP, RPCS3 local PS3 trophies (`TROPCONF.SFM`/`TROPUSR.DAT`), `.env` API fallback, Hardcore/Softcore toggle, and settings panel verified live (*Super Mario World* `2713503983` and *Castlevania SotN* `2162501062`).
 - Plans & References:
   - Native Achievements Architecture: [docs/steam-cartridges-achievements.md](docs/steam-cartridges-achievements.md)
   - Native Achievements Plan: [docs/plans/steam-cartridges-achievements-plan.md](docs/plans/steam-cartridges-achievements-plan.md)

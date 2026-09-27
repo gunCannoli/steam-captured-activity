@@ -12,6 +12,7 @@ import type { SteamAppAchievements } from "./types";
 
 import { dispatchLaunchToast, handleAppLaunchAchievements } from "./launch-toast";
 import { checkObserverUnlocks, startAchievementsObserver } from "./observer-session";
+import { setting } from "../../settings/settings";
 
 export {
     ensureAchievementsStoreHooked,
@@ -25,10 +26,30 @@ export {
     startAchievementsObserver,
 };
 
+let fakeListenerRegistered = false;
+
 /**
  * Initializes the native achievements subsystem on plugin load.
  */
 export function initAchievements(): void {
+    if (!fakeListenerRegistered && typeof window !== 'undefined') {
+        fakeListenerRegistered = true;
+        window.addEventListener('cartridges:trigger_fake_achievement', (e: Event) => {
+            const detail = (e as CustomEvent)?.detail;
+            const targetAppId = detail?.shortcutAppId || detail?.appid;
+            const achievement = detail?.achievement || {
+                id: 'fake_achievement_' + Date.now(),
+                name: 'Retro Champion',
+                description: 'Unlocked an achievement via RetroAchievements emulator!',
+                icon: 'https://media.retroachievements.org/Badge/00001.png',
+                global_pct: 100,
+            };
+            if (targetAppId) {
+                dispatchAchievementToast(targetAppId, achievement);
+            }
+        });
+    }
+
     if (ensureAchievementsStoreHooked()) return;
 
     let attempts = 0;
@@ -50,7 +71,8 @@ export async function loadAchievementsForApp(
     ensureAchievementsStoreHooked();
 
     try {
-        const res = await rpc.cartridgesAchievementsGet(shortcutAppId, nativeAppId);
+        const hardcore = setting('raHardcoreMode');
+        const res = await rpc.cartridgesAchievementsGet(shortcutAppId, nativeAppId, hardcore);
         if (res.error) {
             logger.warn(`Failed loading achievements for shortcut ${shortcutAppId}:`, res.error);
             return null;

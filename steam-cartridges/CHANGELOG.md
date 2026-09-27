@@ -7,12 +7,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
-- **Retro Games Achievements: Multi-Console Hasher & Standalone Emulators (Phases 1 & 2)**:
-  - Universal ROM/Disc Hasher (`ra_hasher.js`): N64 endian normalization (`.z64`, `.v64`, `.n64`), NES iNES 16-byte header strip, Genesis SMD 512-byte header strip & 16KB block de-interleaving, `.m3u` playlist resolution to Disc 1, ISO-9660 Sector 16 PVD boot binary extraction (`SYSTEM.CNF`), and fast `.chd` detection.
-  - Console detection & title matching fallback (`retroachievements.lua`): detects console ID across PlayStation, SNES, GBA, Arcade, Genesis, N64, NES, GameCube/Primehack, PSP. Resolves `GameID` for compressed discs and arcade sets.
-  - Multi-emulator auto-discovery: reads active credentials keylessly across DuckStation (`settings.ini`), PCSX2 (`inis/PCSX2.ini`), Dolphin / Primehack (`RetroAchievements.ini` / `Dolphin.ini`), PPSSPP (`ppsspp.ini`), and RetroArch (`retroarch.cfg`).
-  - Standalone emulator log observer (`achievements_observer.lua`): real-time incremental log tailer supports trigger signatures across RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP, and game engines. Dynamically discovers logs next to emulator executables.
-  - Live verified against *Castlevania: Symphony of the Night* (GameID 11240, 106 achievements) and *Super Mario World* (GameID 228, 149 achievements), with live out-of-process DuckStation unlock detection verified via CDP.
+- **RPCS3 Local PlayStation 3 Trophies & Multi-Emulator Settings (Phase 5)**:
+  - Local offline PlayStation 3 trophy support for RPCS3: parses `TROPCONF.SFM` XML schema (titles, descriptions, Sony trophy types P/G/S/B, hidden status) and `TROPUSR.DAT` binary unlock database (32-byte record stride, timestamps).
+  - RPCS3 observer: tails `RPCS3.log` for `{Emu.Trophy} Trophy Unlocked` patterns and directly polls `TROPUSR.DAT` for zero-latency detection.
+  - Multi-emulator auto-discovery & authentication: detects credentials and install paths across RetroArch, DuckStation, PCSX2, Dolphin/Primehack, PPSSPP, and RPCS3, plus `.env` fallback detection (`retroachievements_api`).
+  - Added `raHardcoreMode: boolean` setting (default `true`), enforcing official RetroAchievements hardcore leaderboard rules and passing `h=1` (hardcore) vs `h=0` (softcore) to unlock queries.
+  - Interactive settings panel: live emulator detection table and "Test Retro Toast Notification" button dispatching `cartridges:trigger_fake_achievement`.
+
+- **RetroAchievements & Emulator Observer Engine (Phase 5)**:
+  - Integration with RetroAchievements for retro shortcuts (RetroArch, DuckStation, PCSX2).
+  - Zero-friction auth: dynamically reads `cheevos_username` and `cheevos_token` from local `retroarch.cfg`.
+  - ROM hash extractor (`ra_hasher.js`): zip deflation, SMC copier header stripping, and MD5 computation to identify RetroAchievements `GameID`.
+  - Ingests official patch data (badge URLs, titles, descriptions, points) and user unlock history into `achievements.json`.
+  - Out-of-process real-time log observer tails `retroarch.log`, `duckstation.log`, and `emulog.txt` for `[RCHEEVOS]` unlock events, triggering native Steam notification toasts and updating Big Picture UI.
 
 - **Native Achievements & Big Picture Full-Screen Page (Phase 5)**:
   - Non-Steam shortcuts mirror native Steam Store achievement schemas (titles, descriptions, icons, global unlock percentages).

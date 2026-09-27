@@ -19,9 +19,15 @@ RPC.CartridgesAchievementsGet = method("CartridgesAchievementsGet", function(dat
     if res and res.schema then return res end
   end
 
-  -- Fallback to RetroAchievements (for retro games/emulators)
+  -- 1. Try RPCS3 local PlayStation 3 trophies
+  local ps3 = require("ps3_trophies")
+  local ps3_res = ps3.get_or_fetch(shortcut_appid)
+  if ps3_res and ps3_res.schema then return ps3_res end
+
+  -- 2. Fallback to RetroAchievements (for retro games/emulators)
   local ra = require("retroachievements")
-  local ra_res, err = ra.get_or_fetch(shortcut_appid)
+  local hardcore = data.hardcore ~= false
+  local ra_res, err = ra.get_or_fetch(shortcut_appid, hardcore)
   if ra_res and ra_res.schema then return ra_res end
 
   if native_appid > 0 then
@@ -50,6 +56,11 @@ RPC.CartridgesAchievementsCheckUnlocks = method("CartridgesAchievementsCheckUnlo
   local game_title = data.game_title
   if not shortcut_appid then error("missing shortcut_appid") end
   return observer.check_unlocks(shortcut_appid, native_appid, game_title)
+end)
+
+RPC.CartridgesAchievementsGetRetroStatus = method("CartridgesAchievementsGetRetroStatus", function(data)
+  local ra = require("retroachievements")
+  return ra.get_emulator_status()
 end)
 
 return RPC

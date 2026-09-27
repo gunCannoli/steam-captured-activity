@@ -24,6 +24,8 @@ export interface Settings {
     defaultFullController: boolean;
     /** Game start notification when achievements tracking is active. */
     localAchievementsNotifyOnLaunch: LaunchNotifyOption;
+    /** RetroAchievements Hardcore Mode (strict rules, leaderboards, standard badge icons). Default true. */
+    raHardcoreMode: boolean;
 }
 export type SettingKey = keyof Settings;
 
@@ -31,6 +33,7 @@ export const DEFAULTS: Settings = {
     buckets: DEFAULT_BUCKETS,
     defaultFullController: false,
     localAchievementsNotifyOnLaunch: 'all_runs',
+    raHardcoreMode: true,
 };
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
@@ -40,12 +43,14 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
         if (raw === 'off' || raw === 'first_run' || raw === 'all_runs') return raw;
         return 'all_runs';
     },
+    raHardcoreMode: (raw) => raw !== false,
 };
 
 const current: Settings = {
     buckets: DEFAULT_BUCKETS,
     defaultFullController: false,
     localAchievementsNotifyOnLaunch: 'all_runs',
+    raHardcoreMode: true,
 };
 const listeners = new Set<(key: SettingKey) => void>();
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, TextField, ToggleField } from '@steambrew/client';
 import { useSetting } from './settings';
-import { rpc, type StoreState } from '../rpc';
+import { rpc, type StoreState, type RetroStatusResponse } from '../rpc';
 import {
     acceptSteamStoreSuggestion,
     clearSteamStore,
@@ -339,6 +339,84 @@ function AchievementsSettings() {
     );
 }
 
+function RetroAchievementsSettings() {
+    const [hardcore, setHardcore] = useSetting('raHardcoreMode');
+    const [retroStatus, setRetroStatus] = useState<RetroStatusResponse | null>(null);
+    const [toastMsg, setToastMsg] = useState<string>('');
+
+    useEffect(() => {
+        rpc.cartridgesAchievementsGetRetroStatus()
+            .then(setRetroStatus)
+            .catch(() => {});
+    }, []);
+
+    const handleTestRetroToast = () => {
+        const shortcuts = listShortcuts();
+        const target = shortcuts.find((s) =>
+            s.name?.toLowerCase().includes('mario') ||
+            s.name?.toLowerCase().includes('castlevania') ||
+            getLocalAchievements(s.appid)
+        ) || shortcuts[0];
+        const targetAppId = target ? target.appid : 2713503983;
+
+        window.dispatchEvent(
+            new CustomEvent('cartridges:trigger_fake_achievement', {
+                detail: {
+                    shortcutAppId: targetAppId,
+                    achievement: {
+                        id: 'retro_test_' + Date.now(),
+                        name: 'Retro Champion',
+                        description: 'Unlocked achievement via RetroAchievements emulator!',
+                        icon: 'https://media.retroachievements.org/Badge/00001.png',
+                        global_pct: 100,
+                    },
+                },
+            }),
+        );
+        setToastMsg('Retro toast dispatched!');
+        setTimeout(() => setToastMsg(''), 3500);
+    };
+
+    return (
+        <DialogControlsSection>
+            <DialogControlsSectionHeader>RetroAchievements & Emulators</DialogControlsSectionHeader>
+            <ToggleField
+                label="RetroAchievements Hardcore Mode"
+                description="Enforces strict competitive rules (no save states or cheat codes) and records authentic Hardcore unlocks and badges on RetroAchievements.org."
+                checked={hardcore}
+                onChange={setHardcore}
+            />
+            {retroStatus && (
+                <div style={{ margin: '8px 0 12px 0', padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', fontSize: '12px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>Detected Emulators & Profiles:</div>
+                    {retroStatus.emulators.map((emu) => (
+                        <div key={emu.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                            <span style={{ color: emu.detected ? '#a4d007' : '#888' }}>
+                                {emu.detected ? '✓' : '✗'} {emu.name}
+                            </span>
+                            <span style={{ color: emu.authenticated ? '#66c0f4' : '#aaa' }}>
+                                {emu.authenticated ? (emu.username ? `User: ${emu.username}` : 'Authenticated') : (emu.detected ? 'No Login Found' : 'Not Detected')}
+                            </span>
+                        </div>
+                    ))}
+                    {retroStatus.env_fallback && (
+                        <div style={{ marginTop: '6px', paddingTop: '4px', borderTop: '1px solid rgba(255,255,255,0.1)', color: '#66c0f4' }}>
+                            ✓ Fallback API Key: Configured in .env ({retroStatus.env_username || 'Active'})
+                        </div>
+                    )}
+                </div>
+            )}
+            <ButtonItem
+                label="Test Retro Toast Notification"
+                description={toastMsg || "Fires a simulated RetroAchievements unlock toast popup and audio chime."}
+                onClick={handleTestRetroToast}
+            >
+                Test Retro Toast
+            </ButtonItem>
+        </DialogControlsSection>
+    );
+}
+
 export function SettingsPanel() {
     const [cfg, save] = useSetting('buckets');
     const [, tick] = useState(0);
@@ -354,6 +432,7 @@ export function SettingsPanel() {
             <SteamStore />
             <GameInfo />
             <AchievementsSettings />
+            <RetroAchievementsSettings />
             <Warnings cfg={cfg} save={save} />
         </>
     );

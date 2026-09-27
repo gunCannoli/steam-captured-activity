@@ -23,6 +23,22 @@ local M = {}
 --- Default RetroArch install directory on this machine
 local DEFAULT_RA_DIR = "C:/emu/RetroArch"
 
+local function count_keys(tbl)
+  local c = 0
+  for _ in pairs(tbl or {}) do c = c + 1 end
+  return c
+end
+
+local function file_exists(p)
+  if not p or #p == 0 then return false end
+  local f = io.open(p, "rb")
+  if f then
+    f:close()
+    return true
+  end
+  return false
+end
+
 --- Parses standard INI text into a 2D map: data[section_name][key_name] = value
 function M.parse_ini(text)
   local data = {}
@@ -286,6 +302,18 @@ function M.get_credentials(exe_hint)
     end
   end
 
+  -- Check .env credentials if no emulator config had tokens
+  local web_cfg = require("web_config")
+  local env_creds = web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()
+  if env_creds and env_creds.token and #env_creds.token > 0 then
+    return {
+      username = env_creds.username,
+      token = env_creds.token,
+      emulator = "env",
+      cfg_path = ".env",
+    }
+  end
+
   return { username = nil, token = nil, emulator = nil }
 end
 
@@ -473,11 +501,13 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
 end
 
 --- Fetches full game schema and user unlocks from RetroAchievements
-function M.fetch_game_data(game_id, username, token)
+function M.fetch_game_data(game_id, username, token, hardcore)
   local gid = tonumber(game_id) or 0
   if gid <= 0 then return nil, "invalid game id" end
   local u = tostring(username or "")
   local t = tostring(token or "")
+  local is_hardcore = (hardcore ~= false)
+  local h_val = is_hardcore and 1 or 0
 
   -- 1. Fetch Game Schema (Titles, Badges, Points, Conditions)
   local patch_url = "https://retroachievements.org/dorequest.php?r=patch&g=" .. tostring(gid)
@@ -514,12 +544,12 @@ function M.fetch_game_data(game_id, username, token)
     })
   end
 
-  -- 2. Fetch User Unlocks
+  -- 2. Fetch User Unlocks (h=1 for Hardcore, h=0 for Softcore)
   local unlocks = {}
   if #u > 0 and #t > 0 then
     local unl_url = string.format(
-      "https://retroachievements.org/dorequest.php?r=unlocks&g=%d&h=0&u=%s&t=%s",
-      gid, utils.url_encode(u), utils.url_encode(t)
+      "https://retroachievements.org/dorequest.php?r=unlocks&g=%d&h=%d&u=%s&t=%s",
+      gid, h_val, utils.url_encode(u), utils.url_encode(t)
     )
     local u_ok, u_res = pcall(http.get, unl_url, {
       headers = { ["User-Agent"] = "RetroArch/1.19.0" },
@@ -544,6 +574,7 @@ function M.fetch_game_data(game_id, username, token)
     title = patch.Title or "",
     total = #achievements,
     fetched_at = os.time(),
+    hardcore = is_hardcore,
     achievements = achievements,
   }
 
@@ -551,14 +582,17 @@ function M.fetch_game_data(game_id, username, token)
 end
 
 --- Main entry point: gets cached or fetches RetroAchievements data for a shortcut
-function M.get_or_fetch(shortcut_appid)
+function M.get_or_fetch(shortcut_appid, hardcore)
   local s_appid = tonumber(shortcut_appid) or 0
   if s_appid <= 0 then return nil, "invalid shortcut_appid" end
+  local is_hardcore = (hardcore ~= false)
 
   -- 1. Check existing state in achievements.json
   local st = store.get_state(s_appid)
   if st and st.schema and st.schema.ra_game_id and st.schema.ra_game_id > 0 then
-    return st
+    if st.schema.hardcore == nil or st.schema.hardcore == is_hardcore then
+      return st
+    end
   end
 
   -- 2. Resolve shortcut from shortcuts.vdf
@@ -608,7 +642,7 @@ function M.get_or_fetch(shortcut_appid)
   end
 
   -- 7. Fetch full Schema & Unlocks (works with or without credentials)
-  local schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token)
+  local schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore)
   if not schema then
     return nil, "cannot fetch game data"
   end
@@ -628,11 +662,192 @@ function M.get_or_fetch(shortcut_appid)
   final_state.unlocks = unlocks
 
   logger:info(string.format(
-    "RetroAchievements: loaded '%s' (GameID %d) via %s for shortcut %d: %d achievements, %d unlocked",
-    schema.title, game_id, creds.emulator or "public", s_appid, schema.total, #utils.keys(unlocks)
+    "RetroAchievements: loaded '%s' (GameID %d, %s) via %s for shortcut %d: %d achievements, %d unlocked",
+    schema.title, game_id, is_hardcore and "hardcore" or "softcore", creds.emulator or "public", s_appid, schema.total, count_keys(unlocks)
   ))
 
   return final_state
+end
+
+--- Returns detection and authentication status for all supported retro emulators
+function M.get_emulator_status()
+  local list = {}
+  local appdata = (os.getenv("APPDATA") or ""):gsub("\\", "/")
+  local localappdata = (os.getenv("LOCALAPPDATA") or ""):gsub("\\", "/")
+  local userprofile = (os.getenv("USERPROFILE") or ""):gsub("\\", "/")
+
+  -- 1. RetroArch
+  local ra_conf = M.get_retroarch_config()
+  local ra_detected = (ra_conf ~= nil) or file_exists("C:/emu/RetroArch/retroarch.exe") or file_exists(appdata .. "/RetroArch/retroarch.exe")
+  local ra_auth = (ra_conf and ra_conf.username and #ra_conf.username > 0 and ra_conf.token and #ra_conf.token > 0) or false
+  table.insert(list, {
+    name = "RetroArch",
+    detected = ra_detected,
+    path = ra_conf and ra_conf.cfg_path or "C:/emu/RetroArch",
+    username = ra_conf and ra_conf.username or nil,
+    authenticated = ra_auth,
+  })
+
+  -- 2. DuckStation
+  local duck_paths = {
+    "C:/emu/duckstation/settings.ini",
+    userprofile .. "/Documents/DuckStation/settings.ini",
+    appdata .. "/DuckStation/settings.ini",
+    localappdata .. "/DuckStation/settings.ini",
+  }
+  local duck_found, duck_user, duck_auth, duck_p = false, nil, false, nil
+  for _, p in ipairs(duck_paths) do
+    if file_exists(p) then
+      duck_found = true
+      duck_p = p
+      local text = utils.read_file(p)
+      if text then
+        local ini = M.parse_ini(text)
+        local cheevos = ini["cheevos"] or ini["achievements"]
+        if cheevos and cheevos["username"] then
+          duck_user = cheevos["username"]
+          duck_auth = (cheevos["token"] or cheevos["usertoken"]) ~= nil
+        end
+      end
+      break
+    end
+  end
+  table.insert(list, {
+    name = "DuckStation",
+    detected = duck_found or file_exists("C:/emu/duckstation/duckstation-qt-x64-ReleaseLTCG.exe") or file_exists("C:/emu/duckstation/duckstation-nogui-x64-ReleaseLTCG.exe"),
+    path = duck_p or "C:/emu/duckstation",
+    username = duck_user,
+    authenticated = duck_auth,
+  })
+
+  -- 3. PCSX2
+  local pcsx2_paths = {
+    "C:/emu/PCSX2/inis/PCSX2.ini",
+    userprofile .. "/Documents/PCSX2/inis/PCSX2.ini",
+    appdata .. "/PCSX2/inis/PCSX2.ini",
+    localappdata .. "/PCSX2/inis/PCSX2.ini",
+  }
+  local pcsx2_found, pcsx2_user, pcsx2_auth, pcsx2_p = false, nil, false, nil
+  for _, p in ipairs(pcsx2_paths) do
+    if file_exists(p) then
+      pcsx2_found = true
+      pcsx2_p = p
+      local text = utils.read_file(p)
+      if text then
+        local ini = M.parse_ini(text)
+        local cheevos = ini["achievements"]
+        if cheevos and cheevos["username"] then
+          pcsx2_user = cheevos["username"]
+          pcsx2_auth = cheevos["token"] ~= nil
+        end
+      end
+      break
+    end
+  end
+  table.insert(list, {
+    name = "PCSX2",
+    detected = pcsx2_found or file_exists("C:/emu/PCSX2/pcsx2-qtx64.exe"),
+    path = pcsx2_p or "C:/emu/PCSX2",
+    username = pcsx2_user,
+    authenticated = pcsx2_auth,
+  })
+
+  -- 4. Dolphin / Primehack
+  local dol_paths = {
+    "C:/emu/Primehack/User/Config/RetroAchievements.ini",
+    "C:/emu/Primehack/User/Config/Dolphin.ini",
+    appdata .. "/Dolphin Emulator/Config/RetroAchievements.ini",
+    userprofile .. "/Documents/Dolphin Emulator/Config/RetroAchievements.ini",
+  }
+  local dol_found, dol_user, dol_auth, dol_p = false, nil, false, nil
+  for _, p in ipairs(dol_paths) do
+    if file_exists(p) then
+      dol_found = true
+      dol_p = p
+      local text = utils.read_file(p)
+      if text then
+        local ini = M.parse_ini(text)
+        local cheevos = ini["achievements"]
+        if cheevos and cheevos["username"] then
+          dol_user = cheevos["username"]
+          dol_auth = cheevos["token"] ~= nil
+        end
+      end
+      break
+    end
+  end
+  table.insert(list, {
+    name = "Dolphin / Primehack",
+    detected = dol_found or file_exists("C:/emu/Primehack/Dolphin.exe"),
+    path = dol_p or "C:/emu/Primehack",
+    username = dol_user,
+    authenticated = dol_auth,
+  })
+
+  -- 5. PPSSPP
+  local ppsspp_paths = {
+    "C:/emu/PPSSPP/memstick/PSP/SYSTEM/ppsspp.ini",
+    appdata .. "/PPSSPP/PSP/SYSTEM/ppsspp.ini",
+  }
+  local ppsspp_found, ppsspp_user, ppsspp_auth, ppsspp_p = false, nil, false, nil
+  for _, p in ipairs(ppsspp_paths) do
+    if file_exists(p) then
+      ppsspp_found = true
+      ppsspp_p = p
+      local text = utils.read_file(p)
+      if text then
+        local ini = M.parse_ini(text)
+        local cheevos = ini["achievements"]
+        if cheevos and (cheevos["achievementsusername"] or cheevos["username"]) then
+          ppsspp_user = cheevos["achievementsusername"] or cheevos["username"]
+          ppsspp_auth = (cheevos["achievementsusertoken"] or cheevos["token"]) ~= nil
+        end
+      end
+      break
+    end
+  end
+  table.insert(list, {
+    name = "PPSSPP",
+    detected = ppsspp_found or file_exists("C:/emu/PPSSPP/PPSSPPWindows64.exe"),
+    path = ppsspp_p or "C:/emu/PPSSPP",
+    username = ppsspp_user,
+    authenticated = ppsspp_auth,
+  })
+
+  -- 6. RPCS3 (PS3)
+  local rpcs3_paths = {
+    "C:/emu/rpcs3/dev_hdd0/home/00000001/trophy",
+    appdata .. "/rpcs3/dev_hdd0/home/00000001/trophy",
+    "C:/emu/rpcs3/rpcs3.exe",
+    appdata .. "/rpcs3/rpcs3.exe",
+  }
+  local rpcs3_found, rpcs3_p = false, nil
+  for _, p in ipairs(rpcs3_paths) do
+    if file_exists(p) then
+      rpcs3_found = true
+      rpcs3_p = p
+      break
+    end
+  end
+  table.insert(list, {
+    name = "RPCS3 (PS3)",
+    detected = rpcs3_found,
+    path = rpcs3_p or "C:/emu/rpcs3",
+    username = rpcs3_found and "Local Trophy DB" or nil,
+    authenticated = rpcs3_found,
+  })
+
+  -- Check .env fallback
+  local web_cfg = require("web_config")
+  local env_creds = web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()
+  local env_fallback = (env_creds and env_creds.token ~= nil and #env_creds.token > 0) or false
+  local env_username = env_creds and env_creds.username or nil
+
+  return {
+    emulators = list,
+    env_fallback = env_fallback,
+    env_username = env_username,
+  }
 end
 
 return M
