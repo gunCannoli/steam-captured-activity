@@ -21,6 +21,7 @@ import {
     type ServiceTarget,
     type RuleAction,
     type ConditionType,
+    type AutoRoutingProfile,
     isServiceAllowed,
     matchesRegex,
 } from "../features/buckets/resolve";
@@ -1042,6 +1043,7 @@ const REGEX_EXAMPLES = [
 
 function RulesSection() {
     const [rules, setRules] = useSetting("routingRules");
+    const [autoMode, setAutoMode] = useSetting("autoRoutingMode");
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
@@ -1237,6 +1239,18 @@ function RulesSection() {
 
     return (
         <PanelSection title="Routing Rules">
+            <ToggleRow
+                label="Auto Mode"
+                description="Automatically routes services (RetroAchievements, Emulators, Steam Store Mirror, Web Scraping) based on emulator command line and executable"
+                value={autoMode}
+                onChange={(val) => {
+                    setAutoMode(val);
+                    window.dispatchEvent(
+                        new CustomEvent("steam-cartridges:rule-updated"),
+                    );
+                }}
+            />
+
             {rules.length === 0 && (
                 <ItemRow>
                     <div
@@ -1741,6 +1755,7 @@ interface FlaggedShortcut {
     missingController: boolean;
     noAchievements: boolean;
     inferred?: boolean;
+    profile?: AutoRoutingProfile;
 }
 
 const CONTROLLER_OVERRIDE_OPTIONS = [
@@ -1755,6 +1770,10 @@ function RevisionSection() {
         "controllerOverrides",
     );
     const [rules] = useSetting("routingRules");
+    const [autoModeEnabled] = useSetting("autoRoutingMode");
+    const [autoProfiles, setAutoProfiles] = useState<
+        Record<string, AutoRoutingProfile>
+    >({});
     const [metadataLib, setMetadataLib] = useState<
         Record<string, ConsolidatedMetadata>
     >({});
@@ -1774,6 +1793,14 @@ function RevisionSection() {
 
     const refreshAuditData = useCallback(async () => {
         await loadControllerInference();
+        try {
+            const profRes = await rpc.getAutoRoutingProfiles();
+            if (profRes?.profiles) {
+                setAutoProfiles(profRes.profiles);
+            }
+        } catch {
+            // ignore
+        }
         try {
             const infRes = await rpc.getControllerInference();
             if (infRes?.games) {
@@ -1816,20 +1843,27 @@ function RevisionSection() {
     }
 
     const flagged: FlaggedShortcut[] = [];
-    const notScraped: { appid: number; name: string }[] = [];
+    const notScraped: { appid: number; name: string; profile?: AutoRoutingProfile }[] = [];
 
     for (const sc of shortcuts) {
         const collNames = collMap[sc.appid] || [];
-        // Check if excluded by routing rules
+        const profile =
+            autoProfiles[String(sc.appid)] ||
+            autoProfiles[String(sc.appid >>> 0)] ||
+            autoProfiles[String(sc.appid | 0)];
+
+        // Check if excluded by routing rules or auto mode
         const isAllowed = isServiceAllowed(
             "all",
             sc.appid,
             sc.name,
             collNames,
             rules,
+            autoModeEnabled,
+            profile,
         );
         if (!isAllowed) {
-            continue; // Excluded by rule: do not count in issues or not-scraped
+            continue; // Excluded by rule / auto mode: do not count in issues or not-scraped
         }
 
         const meta = metadataLib[String(sc.appid)] || metadataLib[sc.appid];
@@ -1837,7 +1871,7 @@ function RevisionSection() {
         const isScraped = !!meta || (achievements && achievements.nTotal > 0);
 
         if (!isScraped) {
-            notScraped.push({ appid: sc.appid, name: sc.name });
+            notScraped.push({ appid: sc.appid, name: sc.name, profile });
             continue; // Do NOT count unscraped games as issues!
         }
 
@@ -1846,6 +1880,7 @@ function RevisionSection() {
             controllerInference[String(sc.appid)] ??
             controllerInference[String(sc.appid >>> 0)] ??
             controllerInference[String(sc.appid | 0)] ??
+            (profile?.category === "retroarch" || profile?.category === "console_emulator" ? true : undefined) ??
             getInferredControllerSupport(sc.appid);
         const hasWeirdName = /\[.*?\]|\(.*?\)/.test(sc.name);
         const hasControllerSupport =
@@ -1856,7 +1891,14 @@ function RevisionSection() {
             meta?.categories?.partial_controller === true;
         const missingController =
             !hasControllerSupport && (!override || override === "auto");
+
+        const achievementsAllowed =
+            isServiceAllowed("retroachievements", sc.appid, sc.name, collNames, rules, autoModeEnabled, profile) ||
+            isServiceAllowed("console_emulators", sc.appid, sc.name, collNames, rules, autoModeEnabled, profile) ||
+            isServiceAllowed("steam_store", sc.appid, sc.name, collNames, rules, autoModeEnabled, profile);
+
         const noAchievements =
+            achievementsAllowed &&
             (!achievements || achievements.nTotal === 0) &&
             !meta?.categories?.achievements;
 
@@ -1867,6 +1909,7 @@ function RevisionSection() {
                 missingController,
                 noAchievements,
                 inferred,
+                profile,
             });
         }
     }
@@ -1910,7 +1953,7 @@ function RevisionSection() {
                 batch.map(async (item) => {
                     await rpc.refreshGameMetadata(item.appid, item.name).catch(() => {});
                     await rpc
-                        .cartridgesAchievementsGet(item.appid, item.appid)
+                        .cartridgesAchievementsGet(item.appid, 0)
                         .catch(() => {});
                 })
             );
@@ -1925,7 +1968,7 @@ function RevisionSection() {
     const handleScanSingle = async (appid: number, name: string) => {
         setFixMsg(`Scanning ${name}...`);
         await rpc.refreshGameMetadata(appid, name).catch(() => {});
-        await rpc.cartridgesAchievementsGet(appid, appid).catch(() => {});
+        await rpc.cartridgesAchievementsGet(appid, 0).catch(() => {});
         await refreshAuditData();
         setFixMsg(`Scanned ${name}`);
         setTimeout(() => setFixMsg(""), 2000);
@@ -2174,10 +2217,38 @@ function RevisionSection() {
                                     <div
                                         style={{
                                             display: "flex",
-                                            gap: "8px",
+                                            gap: "6px",
                                             alignItems: "center",
                                         }}
                                     >
+                                        {item.profile && (
+                                            <span
+                                                style={{
+                                                    background:
+                                                        item.profile.category === "retroarch"
+                                                            ? "rgba(102, 192, 244, 0.15)"
+                                                            : item.profile.category === "console_emulator"
+                                                            ? "rgba(163, 112, 247, 0.15)"
+                                                            : "rgba(255, 255, 255, 0.08)",
+                                                    color:
+                                                        item.profile.category === "retroarch"
+                                                            ? "#66c0f4"
+                                                            : item.profile.category === "console_emulator"
+                                                            ? "#a370f7"
+                                                            : "#bbb",
+                                                    fontSize: "10px",
+                                                    padding: "1px 5px",
+                                                    borderRadius: "3px",
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                {item.profile.category === "retroarch"
+                                                    ? "Retro"
+                                                    : item.profile.category === "console_emulator"
+                                                    ? item.profile.program || "Emulator"
+                                                    : "PC"}
+                                            </span>
+                                        )}
                                         <span
                                             style={{
                                                 background:
@@ -2267,8 +2338,37 @@ function RevisionSection() {
                                             style={{
                                                 display: "flex",
                                                 gap: "4px",
+                                                alignItems: "center",
                                             }}
                                         >
+                                            {item.profile && (
+                                                <span
+                                                    style={{
+                                                        background:
+                                                            item.profile.category === "retroarch"
+                                                                ? "rgba(102, 192, 244, 0.15)"
+                                                                : item.profile.category === "console_emulator"
+                                                                ? "rgba(163, 112, 247, 0.15)"
+                                                                : "rgba(255, 255, 255, 0.08)",
+                                                        color:
+                                                            item.profile.category === "retroarch"
+                                                                ? "#66c0f4"
+                                                                : item.profile.category === "console_emulator"
+                                                                ? "#a370f7"
+                                                                : "#bbb",
+                                                        fontSize: "10px",
+                                                        padding: "1px 5px",
+                                                        borderRadius: "3px",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {item.profile.category === "retroarch"
+                                                        ? "Retro"
+                                                        : item.profile.category === "console_emulator"
+                                                        ? item.profile.program || "Emulator"
+                                                        : "PC"}
+                                                </span>
+                                            )}
                                             {item.missingController && (
                                                 <span
                                                     style={{

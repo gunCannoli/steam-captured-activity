@@ -35,6 +35,8 @@ export interface Settings {
     raHardcoreMode: boolean;
     /** General routing rules engine for multi-service targeting. */
     routingRules: RoutingRule[];
+    /** Automatic routing based on shortcut executable and emulator info. Default true. */
+    autoRoutingMode: boolean;
     /** Service enablement toggles. */
     services: ServicesConfig;
     /** Per-game controller overrides. */
@@ -52,6 +54,7 @@ export const DEFAULTS: Settings = {
     localAchievementsNotifyOnLaunch: 'all_runs',
     raHardcoreMode: true,
     routingRules: [],
+    autoRoutingMode: true,
     services: DEFAULT_SERVICES,
     controllerOverrides: {},
     activityShowAddedToLibrary: true,
@@ -69,6 +72,7 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     activityShowAddedToLibrary: (raw) => raw !== false,
     activityShowFirstPlayed: (raw) => raw !== false,
     routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
+    autoRoutingMode: (raw) => raw !== false,
     services: (raw) => {
         if (!raw || typeof raw !== 'object') return DEFAULT_SERVICES;
         const r = raw as any;
@@ -91,6 +95,7 @@ const current: Settings = {
     localAchievementsNotifyOnLaunch: 'all_runs',
     raHardcoreMode: true,
     routingRules: [],
+    autoRoutingMode: true,
     services: DEFAULT_SERVICES,
     controllerOverrides: {},
     activityShowAddedToLibrary: true,

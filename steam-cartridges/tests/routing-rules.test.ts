@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
     matchesRegex,
     isServiceAllowed,
+    isServiceAllowedByAutoMode,
     type RoutingRule,
+    type AutoRoutingProfile,
 } from '../frontend/features/buckets/resolve.ts';
 import { inferredControllerIds } from '../frontend/features/game-info/category-policy.ts';
 
@@ -99,3 +101,79 @@ test('inferredControllerIds: controller overrides take precedence', () => {
     assert.deepEqual(inferredControllerIds({ inferred: true, override: 'auto' }), [28]);
     assert.deepEqual(inferredControllerIds({ inferred: false, override: 'auto' }), []);
 });
+
+test('isServiceAllowedByAutoMode: validates baseline rules per category', () => {
+    // RetroArch (e.g. FBNeo, SNES, Genesis)
+    assert.equal(isServiceAllowedByAutoMode('retroachievements', 'retroarch'), true);
+    assert.equal(isServiceAllowedByAutoMode('screenscraper', 'retroarch'), true);
+    assert.equal(isServiceAllowedByAutoMode('igdb', 'retroarch'), true);
+    assert.equal(isServiceAllowedByAutoMode('steamgriddb', 'retroarch'), true);
+    assert.equal(isServiceAllowedByAutoMode('steam_store', 'retroarch'), false);
+    assert.equal(isServiceAllowedByAutoMode('steam-store', 'retroarch'), false);
+    assert.equal(isServiceAllowedByAutoMode('console_emulators', 'retroarch'), false);
+    assert.equal(isServiceAllowedByAutoMode('rpcs3', 'retroarch'), false);
+
+    // Console Emulators (e.g. RPCS3, shadPS4, DuckStation, PCSX2)
+    assert.equal(isServiceAllowedByAutoMode('console_emulators', 'console_emulator'), true);
+    assert.equal(isServiceAllowedByAutoMode('rpcs3', 'console_emulator'), true);
+    assert.equal(isServiceAllowedByAutoMode('screenscraper', 'console_emulator'), true);
+    assert.equal(isServiceAllowedByAutoMode('steam_store', 'console_emulator'), false);
+    assert.equal(isServiceAllowedByAutoMode('retroachievements', 'console_emulator'), false);
+
+    // PC games
+    assert.equal(isServiceAllowedByAutoMode('steam_store', 'pc'), true);
+    assert.equal(isServiceAllowedByAutoMode('steam-store', 'pc'), true);
+    assert.equal(isServiceAllowedByAutoMode('igdb', 'pc'), true);
+    assert.equal(isServiceAllowedByAutoMode('steamgriddb', 'pc'), true);
+    assert.equal(isServiceAllowedByAutoMode('screenscraper', 'pc'), false);
+    assert.equal(isServiceAllowedByAutoMode('retroachievements', 'pc'), false);
+    assert.equal(isServiceAllowedByAutoMode('console_emulators', 'pc'), false);
+});
+
+test('isServiceAllowed: auto mode integration and custom rule precedence', () => {
+    const retroProfile: AutoRoutingProfile = {
+        appid: 1001,
+        title: '1944: The Loop Master',
+        target: 'C:\\emu\\RetroArch\\retroarch.exe',
+        category: 'retroarch',
+        emulator: 'RetroArch',
+        core: 'fbneo_libretro',
+        platform: 'arcade',
+    };
+
+    const pcProfile: AutoRoutingProfile = {
+        appid: 1002,
+        title: 'AM2R',
+        target: 'C:\\Games\\AM2R\\AM2R.exe',
+        category: 'pc',
+    };
+
+    // With auto mode off, everything defaults to allowed if no rules
+    assert.equal(isServiceAllowed('steam_store', 1001, '1944', [], [], false, retroProfile), true);
+
+    // With auto mode on and no custom rules:
+    // RetroArch game has steam_store disallowed and retroachievements allowed
+    assert.equal(isServiceAllowed('steam_store', 1001, '1944', [], [], true, retroProfile), false);
+    assert.equal(isServiceAllowed('retroachievements', 1001, '1944', [], [], true, retroProfile), true);
+    assert.equal(isServiceAllowed('screenscraper', 1001, '1944', [], [], true, retroProfile), true);
+
+    // PC game has steam_store allowed and retroachievements disallowed
+    assert.equal(isServiceAllowed('steam_store', 1002, 'AM2R', [], [], true, pcProfile), true);
+    assert.equal(isServiceAllowed('retroachievements', 1002, 'AM2R', [], [], true, pcProfile), false);
+
+    // Custom user rule overrides auto mode (e.g. user explicitly includes steam_store for 1944)
+    const customRules: RoutingRule[] = [
+        {
+            id: 'rule-custom-include',
+            name: 'Force Steam Store for 1944',
+            service: 'steam_store',
+            action: 'include',
+            conditionType: 'game_name',
+            pattern: '1944*',
+            enabled: true,
+        },
+    ];
+
+    assert.equal(isServiceAllowed('steam_store', 1001, '1944: The Loop Master', [], customRules, true, retroProfile), true);
+});
+

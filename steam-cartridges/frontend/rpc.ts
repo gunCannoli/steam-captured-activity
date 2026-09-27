@@ -160,6 +160,11 @@ export interface StoreState {
 
 // ---------------------------------------------------------------------------
 
+export interface AutoRoutingProfile {
+    category: 'retroarch' | 'console_emulator' | 'pc';
+    program?: string;
+}
+
 export const rpc = {
   getLibraryStats: () => call<Record<string, LibraryStat>>('GetLibraryStats'),
 
@@ -180,6 +185,9 @@ export const rpc = {
     /** Controller support inferred from each shortcut's emulator (parity plan F); unknown games are absent. */
     getControllerInference: () =>
         call<{ games?: Record<string, boolean> }>("GetControllerInference"),
+    /** Auto-routing category profiles inferred from shortcut executable and launch options. */
+    getAutoRoutingProfiles: () =>
+        call<{ profiles?: Record<string, AutoRoutingProfile> }>("GetAutoRoutingProfiles"),
     saveGameMetadata: (appid: number, metadata: ConsolidatedMetadata) =>
         call<{ success: boolean; metadata: ConsolidatedMetadata }>(
             "SaveGameMetadata",

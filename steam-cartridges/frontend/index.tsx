@@ -40,9 +40,10 @@ import {
 } from "./features/achievements";
 import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
+import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
 
 export { setSetting, resetSettings };
-export { bucketReport } from "./features/buckets";
+export { bucketReport, loadAutoRoutingProfiles };
 export {
     clearSteamStore,
     setSteamStoreMapping,
@@ -133,6 +134,7 @@ async function init() {
     // ===== Game Info (ex steamgriddb-artwork) =====
     // Not awaited: the two halves load independently, as the two plugins did
     // (ADR-0010), and a failure here must not affect activity.
+    void loadAutoRoutingProfiles();
     initSourceView();
     void initGameInfo().catch((e) =>
         logger.error("Game Info feature failed; activity is unaffected.", e),

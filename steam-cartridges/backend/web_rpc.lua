@@ -14,6 +14,7 @@ local metadata_db = require("web_metadata_db")
 local steam_paths = require("steam_paths")
 local shortcuts = require("shortcuts")
 local controllers = require("emulator_controllers")
+local emulators = require("steam_store_emulators")
 
 local M = {}
 
@@ -175,6 +176,52 @@ function M.GetControllerInference()
     return controllers.for_entries(shortcuts.parse(paths.shortcuts) or {})
   end)
   return json.encode({ games = ok and games or {} })
+end
+
+--- Classify shortcuts for Auto Mode routing:
+--- "retroarch" -> RetroArch / libretro cores (retroachievements + web scraping)
+--- "console_emulator" -> Standalone emulators with native achievements (console_emulators + web scraping)
+--- "pc" -> Native PC game (steam_store mirror + local achievements)
+function M.GetAutoRoutingProfiles()
+  local ok, profiles = pcall(function()
+    local paths = steam_paths.resolve()
+    if not paths or not paths.shortcuts then return {} end
+    local entries = shortcuts.parse(paths.shortcuts) or {}
+    local out = {}
+    for _, entry in ipairs(entries) do
+      if entry.appid then
+        local cmd = tostring(entry.exe or "") .. " " .. tostring(entry.launch_options or "")
+        local program = emulators.program(entry.exe)
+        local head = program:match("^(%w+)[%-_ ]")
+        local is_retro = program == "retroarch" or head == "retroarch" or cmd:lower():find("retroarch") ~= nil or cmd:lower():find("_libretro") ~= nil
+        local is_emu = emulators.is_emulator(entry.exe) or (head and emulators.is_emulator(head))
+
+        local category = "pc"
+        if is_retro then
+          category = "retroarch"
+        elseif is_emu then
+          category = "console_emulator"
+        else
+          category = "pc"
+        end
+
+        local profile = {
+          category = category,
+          program = program,
+        }
+
+        local u_key = tostring(entry.appid)
+        out[u_key] = profile
+        local num = tonumber(entry.appid)
+        if num and num >= 2147483648 then
+          local s_key = tostring(num - 4294967296)
+          out[s_key] = profile
+        end
+      end
+    end
+    return out
+  end)
+  return json.encode({ profiles = ok and profiles or {} })
 end
 
 --- Save user manual edits to library_metadata.json

@@ -143,6 +143,7 @@ export function resolveBucket(
     cfg: BucketsConfig,
     membersOf: MembersOf,
     titleOf: TitleOf = () => undefined,
+    autoProfile?: AutoRoutingProfile,
 ): Resolution {
     if (!(appid >= SHORTCUT_MIN)) return { bucket: 'none', via: 'not-a-shortcut' };
 
@@ -167,7 +168,12 @@ export function resolveBucket(
         ids.push(rule.id);
         buckets.push(rule.bucket);
     }
-    if (!winner) return { bucket: cfg.default, via: 'default' };
+    if (!winner) {
+        if (autoProfile?.category === 'retroarch' || autoProfile?.category === 'console_emulator') {
+            return { bucket: 'web-scraping', via: 'default' };
+        }
+        return { bucket: cfg.default, via: 'default' };
+    }
 
     const res: Resolution = { bucket: winner.bucket, via: 'collection', collectionId: winner.id };
     if (new Set(buckets).size > 1) res.conflict = { collectionIds: ids, buckets };
@@ -196,6 +202,7 @@ export function findConflicts(
 export type ServiceTarget =
     | 'all'
     | 'steam-store'
+    | 'steam_store'
     | 'screenscraper'
     | 'igdb'
     | 'retroachievements'
@@ -226,51 +233,106 @@ export function matchesRegex(text: string, pattern: string): boolean {
     }
 }
 
+export type AutoCategory = 'retroarch' | 'console_emulator' | 'pc';
+
+export interface AutoRoutingProfile {
+    category: AutoCategory;
+    program?: string;
+}
+
 /**
- * Evaluates whether a given service is allowed for a shortcut based on ordered rules.
+ * Checks whether a service is allowed under auto-mode defaults:
+ * - retroarch: retroachievements + web scraping (screenscraper, igdb, steamgriddb). No steam_store, no console_emulators.
+ * - console_emulator: console_emulators + web scraping (screenscraper, igdb, steamgriddb). No steam_store, no retroachievements.
+ * - pc: steam_store + local achievements. No retroachievements, no console_emulators, no screenscraper.
+ */
+export function isServiceAllowedByAutoMode(
+    service: ServiceTarget | string,
+    category?: AutoCategory,
+): boolean {
+    if (!category) return true;
+    const svc = service.toLowerCase().replace(/-/g, '_');
+    if (svc === 'all') return true;
+
+    if (category === 'retroarch') {
+        if (svc === 'retroachievements') return true;
+        if (svc === 'screenscraper' || svc === 'igdb' || svc === 'steamgriddb') return true;
+        if (svc === 'steam_store' || svc === 'console_emulators' || svc === 'rpcs3') return false;
+        return true;
+    }
+
+    if (category === 'console_emulator') {
+        if (svc === 'console_emulators' || svc === 'rpcs3') return true;
+        if (svc === 'screenscraper' || svc === 'igdb' || svc === 'steamgriddb') return true;
+        if (svc === 'steam_store' || svc === 'retroachievements') return false;
+        return true;
+    }
+
+    if (category === 'pc') {
+        if (svc === 'steam_store') return true;
+        if (svc === 'igdb' || svc === 'steamgriddb') return true;
+        if (svc === 'screenscraper' || svc === 'retroachievements' || svc === 'console_emulators' || svc === 'rpcs3') return false;
+        return true;
+    }
+
+    return true;
+}
+
+/**
+ * Evaluates whether a given service is allowed for a shortcut based on ordered rules,
+ * falling back to Auto Mode classification if enabled.
  */
 export function isServiceAllowed(
     service: ServiceTarget,
     _appid: number,
     title: string,
     collectionIds: string[],
-    rules: RoutingRule[],
+    rules: RoutingRule[] = [],
+    autoModeEnabled = false,
+    autoProfile?: AutoRoutingProfile,
 ): boolean {
-    if (!rules || rules.length === 0) return true;
+    if (rules && rules.length > 0) {
+        for (const rule of rules) {
+            if (rule.enabled === false) continue;
+            const targetServices = (rule.service || 'all').split(',').map((s) => s.trim().toLowerCase());
+            const svc = service.toLowerCase();
+            const matchesService =
+                targetServices.includes('all') ||
+                targetServices.includes(svc) ||
+                (svc === 'console_emulators' && targetServices.includes('rpcs3')) ||
+                (svc === 'rpcs3' && targetServices.includes('console_emulators')) ||
+                (svc === 'steam_store' && targetServices.includes('steam-store')) ||
+                (svc === 'steam-store' && targetServices.includes('steam_store'));
 
-    for (const rule of rules) {
-        if (rule.enabled === false) continue;
-        const targetServices = (rule.service || 'all').split(',').map((s) => s.trim().toLowerCase());
-        const svc = service.toLowerCase();
-        const matchesService =
-            targetServices.includes('all') ||
-            targetServices.includes(svc) ||
-            (svc === 'console_emulators' && targetServices.includes('rpcs3')) ||
-            (svc === 'rpcs3' && targetServices.includes('console_emulators'));
+            if (!matchesService) continue;
 
-        if (!matchesService) continue;
+            let matched = false;
+            const subPatterns = rule.pattern.split(',').map((s) => s.trim()).filter(Boolean);
+            const patternsToTest = subPatterns.length > 0 ? subPatterns : [rule.pattern.trim()];
 
-        let matched = false;
-        const subPatterns = rule.pattern.split(',').map((s) => s.trim()).filter(Boolean);
-        const patternsToTest = subPatterns.length > 0 ? subPatterns : [rule.pattern.trim()];
+            if (rule.conditionType === 'collection') {
+                matched = collectionIds.some((cid) =>
+                    patternsToTest.some((pat) =>
+                        cid.toLowerCase() === pat.toLowerCase() ||
+                        matchesPattern(cid, pat)
+                    )
+                );
+            } else if (rule.conditionType === 'game_name') {
+                matched = patternsToTest.some((pat) => matchesPattern(title, pat));
+            } else if (rule.conditionType === 'regex') {
+                matched = matchesRegex(title, rule.pattern);
+            }
 
-        if (rule.conditionType === 'collection') {
-            matched = collectionIds.some((cid) =>
-                patternsToTest.some((pat) =>
-                    cid.toLowerCase() === pat.toLowerCase() ||
-                    matchesPattern(cid, pat)
-                )
-            );
-        } else if (rule.conditionType === 'game_name') {
-            matched = patternsToTest.some((pat) => matchesPattern(title, pat));
-        } else if (rule.conditionType === 'regex') {
-            matched = matchesRegex(title, rule.pattern);
+            if (matched) {
+                if (rule.action === 'exclude') return false;
+                if (rule.action === 'include') return true;
+            }
         }
+    }
 
-        if (matched) {
-            if (rule.action === 'exclude') return false;
-            if (rule.action === 'include') return true;
-        }
+    // No custom rule matched: apply auto-mode default if enabled
+    if (autoModeEnabled && autoProfile?.category) {
+        return isServiceAllowedByAutoMode(service, autoProfile.category);
     }
 
     return true;

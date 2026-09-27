@@ -16,29 +16,20 @@ theme Steam's toasts and sounds.
 ---
 
 ## Now
- 
-**steam-cartridges Settings Enhancements, Controller Inference & Arcade Scraping (Complete).**
-- Fixed arcade title scraping in `backend/web_igdb.lua` for regional slash-separated titles (`Aero Fighters 3 / Sonic Wings 3` -> `Aero Fighters 3`, `Sengoku 3 / Sengoku Densho 2001 (set 1)` -> `Sengoku 3`) and added ROM filename fallback search.
-- Corrected emulator controller inference across unsigned/signed 32-bit appid formats and hooked into React state in `RevisionSection` with explicit "(Detected: Full Controller)" indicators.
-- Added live batched re-scraping and sync status on routing rule save/delete with automated audit count refreshes.
-- Removed extraneous `"recording"` entry from `SERVICE_OPTIONS`. All 61 tests and type checks pass.
+
+**steam-cartridges Auto-Mode Routing & Classification (Complete).**
+
+- Added Auto-Mode toggle and classification engine (`retroarch`, `console_emulator`, `pc`).
+- Retro shortcuts map to retroachievements + web scraping; standalone emulators map to console_emulators + web scraping; PC games map to steam_store mirror + local achievements.
+- Verified live over CDP across 200+ library shortcuts; all 63 unit tests pass.
 
 **steam-cartridges Community Section & Retro Media (Ready for Execution).**
+
 - Plan & Architecture: [docs/plans/steam-cartridges-community-plan.md](docs/plans/steam-cartridges-community-plan.md).
 - Integration of ScreenScraper (Media & Manuals) and IGDB (Trailers & Discussions) into non-Steam games' Community / Community Content tab.
 
-
 ## Next
 
-- **steam-cartridges Community Phase 1** — ScreenScraper Media & Manuals backend provider (`backend/screenscraper_media.lua`) and RPC endpoints.
-- **steam-cartridges Community Phase 2** — IGDB Video Trailers & Discussions provider (`backend/igdb_community.lua`).
-- **steam-cartridges Community Phase 3 & 4** — Frontend Community Content tab restoration and video/manual viewers.
-- **steam-cartridges P6** — optional SteamGridDB rules. Blocked on P5.
-- **enhanced-achievements 1.0 release** — audit items done
-  (`enhanced-achievements/CHANGELOG.md` § 1.0.0); remaining: visual settings-panel
-  check, U7 in-game overlay verification, stale `themes/ps5.json` cleanup,
-  report the Millennium FCTrampoline bug upstream (no AI attribution — Routine 6),
-  optional `@steambrew/ttc` bump, then tag/publish 1.0.0.
 - **Phase 9 — provider contract.** Formalize the `retroachievements`/`steamgriddb`/`retroarch`
   IPC contract per [ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it)
   and [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently).

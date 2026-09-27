@@ -2,8 +2,10 @@ import { onSettingChange, setting } from '../../settings/settings';
 import { collectionsReady, listCollections, membersOf, type CollectionInfo } from './collections';
 import { pendingOr } from './ready';
 import { findConflicts, resolveBucket, SHORTCUT_MIN, type Bucket, type Resolution } from './resolve';
+import { getAutoRoutingProfile } from './auto-routing';
 
 export { waitForCollections, listCollections, membersOf, invalidateMembership, collectionsReady } from './collections';
+export { loadAutoRoutingProfiles, getAutoRoutingProfile, getAllAutoRoutingProfiles } from './auto-routing';
 export type { Bucket, BucketsConfig, CollectionRule, Resolution } from './resolve';
 
 let metadataAppids: () => Iterable<number> = () => [];
@@ -36,11 +38,13 @@ export function getBucket(appid: number): Resolution {
     const hit = memo.get(appid);
     if (hit) return hit;
     const cfg = setting('buckets');
+    const autoMode = setting('autoRoutingMode');
+    const autoProf = autoMode ? getAutoRoutingProfile(appid) : undefined;
     const r =
         appid >= SHORTCUT_MIN && cfg.overrides[String(appid)]
-            ? resolveBucket(appid, cfg, membersOf, titleOf)
+            ? resolveBucket(appid, cfg, membersOf, titleOf, autoProf)
             : (pendingOr<Resolution>(cfg.rules.length > 0, collectionsReady(), () =>
-                  resolveBucket(appid, cfg, membersOf, titleOf),
+                  resolveBucket(appid, cfg, membersOf, titleOf, autoProf),
               ) as Resolution);
     if (r.via !== 'pending') memo.set(appid, r);
     return r;
@@ -48,7 +52,7 @@ export function getBucket(appid: number): Resolution {
 
 export function onBucketsChanged(fn: () => void): () => void {
     return onSettingChange((key) => {
-        if (key !== 'buckets') return;
+        if (key !== 'buckets' && key !== 'autoRoutingMode') return;
         memo.clear();
         fn();
     });

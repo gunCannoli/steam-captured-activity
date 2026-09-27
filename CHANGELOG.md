@@ -7,6 +7,26 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Auto-Mode Routing & Game Classification Engine (2026-09-27)**:
+  - *Auto-Mode Routing Toggle & Service Filtering*:
+    - Added an Auto-Mode toggle (`autoRoutingMode: boolean`, default `true`) in Settings under Routing Rules.
+    - When enabled, automatically infers which services are allowed for each non-Steam shortcut based on its executable target and launch options:
+      - **Retro games** (e.g. RetroArch running arcade/console cores): Enables `retroachievements` + web scraping metadata (`igdb`, `screenscraper`, `steamgriddb`); disallows `steam_store` and `console_emulators`.
+      - **Console Emulators** (RPCS3, shadPS4, DuckStation, PCSX2, Dolphin, etc.): Enables `console_emulators` + web scraping metadata; disallows `steam_store` and `retroachievements`.
+      - **PC Games / No Emulator Info** (native PC games like AM2R): Enables `steam_store` mirror + local achievements; disallows `retroachievements`, `console_emulators`, and `screenscraper`.
+    - Custom user rules seamlessly override auto-mode baselines when defined.
+  - *Backend Classification RPC*:
+    - Implemented `GetAutoRoutingProfiles` in `backend/web_rpc.lua` parsing `shortcuts.vdf` and mapping each shortcut into `"retroarch"`, `"console_emulator"`, or `"pc"` profiles, keyed by both unsigned and signed 32-bit integer string appids.
+    - Exported RPC in `backend/main.lua` and typed in `frontend/rpc.ts`.
+  - *Frontend Auto-Routing Resolution & Invalidation*:
+    - Created `frontend/features/buckets/auto-routing.ts` to cache profiles and initialize eagerly on startup.
+    - Integrated auto profile lookups into `getBucket(appid)` and `isServiceAllowed()`.
+    - Updated `RevisionSection` in `settings-panel.tsx` with auto badges (`[Retro]`, `[Emulator]`, `[PC]`) and bypassed false-positive achievement missing warnings if achievements are disallowed by auto-mode or rules.
+  - *Verified*:
+    - All 63 unit tests pass (`routing-rules.test.ts`, `buckets.test.ts`, etc.).
+    - Verified live against 200+ shortcuts via CDP (`scratch/test_autorouting_rpc.js`).
+    - Verified two-way navigation lifecycle and multi-tab smoke test (`scratch/test_nav_cycle.js`, `scratch/check_all_tabs.js`).
+
 - **`steam-cartridges` Arcade Metadata Scraping, Emulator Controller Inference & Rule Sync Fixes (2026-09-27)**:
   - *Arcade Metadata & Title Cleaning*:
     - Fixed scraping failures for arcade ROMs with slash-separated alternative regional titles (`Aero Fighters 3 / Sonic Wings 3` -> `Aero Fighters 3`, `Sengoku 3 / Sengoku Densho 2001 (set 1)` -> `Sengoku 3`) in `backend/web_igdb.lua`.
