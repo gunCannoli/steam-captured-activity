@@ -85,6 +85,13 @@ local function clean_title(name)
   cleaned = cleaned:gsub("%.%w%w%w?%w?$", "") -- strip extensions
   cleaned = cleaned:gsub("%b()", "")          -- strip (USA), (Rev 1), etc.
   cleaned = cleaned:gsub("%b[]", "")          -- strip [v1.0], etc.
+  -- Strip regional slash alternatives: "Aero Fighters 3 / Sonic Wings 3" -> "Aero Fighters 3"
+  if cleaned:find("/") then
+    local first = cleaned:match("^(.-)%s*/")
+    if first and #first:gsub("%s+", "") >= 2 then
+      cleaned = first
+    end
+  end
   cleaned = cleaned:gsub("[%.%_]", " ")       -- replace dots/underscores
   cleaned = cleaned:gsub('"', "")             -- strip quotes
   cleaned = cleaned:match("^%s*(.-)%s*$") or ""
@@ -361,13 +368,25 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
 
   local results = query_igdb(query)
 
-  -- Fallback: if no matches and title has a colon/dash, try prefix
+  -- Fallback 1: if no matches and title has a colon/dash, try prefix
   if not results or #results == 0 then
     local prefix = clean:match("^(.-)%s*[:%-]")
     if prefix and #prefix >= 3 then
       logger:info("Retrying IGDB search with title prefix: '" .. prefix .. "'")
       local pquery = fields .. 'search "' .. escape_query(prefix) .. '"; limit 10;'
       results = query_igdb(pquery)
+    end
+  end
+
+  -- Fallback 2: if no matches and shortcut contains an arcade/emulator ROM filename, try ROM name
+  if (not results or #results == 0) and shortcut_info then
+    local cmd = tostring(shortcut_info.exe or "") .. " " .. tostring(shortcut_info.launch_options or "")
+    local rom = cmd:match("([^/\\]+)%.[zZ][iI][pP]") or cmd:match("([^/\\]+)%.7[zZ]")
+      or cmd:match("([^/\\]+)%.[cC][hH][dD]") or cmd:match("([^/\\]+)%.[cC][uU][eE]")
+    if rom and #rom >= 2 and rom:lower() ~= clean:lower() then
+      logger:info("Retrying IGDB search with ROM name: '" .. rom .. "'")
+      local rquery = fields .. 'search "' .. escape_query(rom) .. '"; limit 10;'
+      results = query_igdb(rquery)
     end
   end
 

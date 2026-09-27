@@ -17,11 +17,11 @@ theme Steam's toasts and sounds.
 
 ## Now
  
-**steam-cartridges Settings Enhancements & shadPS4 Trophies (Complete).**
-- Implemented shadPS4 trophy support (`backend/ps4_trophies.lua`) parsing `TROP.XML` and binary `TROPUSR.DAT` for offline PS4 trophy unlocks.
-- Renamed `rpcs3` component to `console_emulators` ("Console Emulators") across backend, frontend, rules, and settings with backward-compatible fallback aliases.
-- Enhanced routing rule setup with interactive multi-service toggle chips, dynamic expanding pattern `<textarea>` (2 to 6 rows), clickable regex suggestions/examples, and background re-scrape on save.
-- Refined Library Audit with separate "Not scraped:" count, zero false-positive issues for unscraped games, routing rule exclusions, and batch scraping. All 61 unit tests and type checks pass.
+**steam-cartridges Settings Enhancements, Controller Inference & Arcade Scraping (Complete).**
+- Fixed arcade title scraping in `backend/web_igdb.lua` for regional slash-separated titles (`Aero Fighters 3 / Sonic Wings 3` -> `Aero Fighters 3`, `Sengoku 3 / Sengoku Densho 2001 (set 1)` -> `Sengoku 3`) and added ROM filename fallback search.
+- Corrected emulator controller inference across unsigned/signed 32-bit appid formats and hooked into React state in `RevisionSection` with explicit "(Detected: Full Controller)" indicators.
+- Added live batched re-scraping and sync status on routing rule save/delete with automated audit count refreshes.
+- Removed extraneous `"recording"` entry from `SERVICE_OPTIONS`. All 61 tests and type checks pass.
 
 **steam-cartridges Community Section & Retro Media (Ready for Execution).**
 - Plan & Architecture: [docs/plans/steam-cartridges-community-plan.md](docs/plans/steam-cartridges-community-plan.md).

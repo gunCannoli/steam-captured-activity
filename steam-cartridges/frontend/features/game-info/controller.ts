@@ -25,10 +25,17 @@ export async function loadControllerInference(): Promise<void> {
 
 /** O(1): what decides the controller badge of a shortcut without Steam Store data. */
 export function controllerContext(appid: number): ControllerContext {
-    return { inferred: inferred.get(appid), defaultFull: setting("defaultFullController") };
+    return {
+        inferred: getInferredControllerSupport(appid),
+        defaultFull: setting("defaultFullController"),
+    };
 }
 
 /** Check if a shortcut was inferred to have controller support by its emulator */
 export function getInferredControllerSupport(appid: number): boolean | undefined {
-    return inferred.get(appid);
+    return (
+        inferred.get(appid) ??
+        inferred.get(appid >>> 0) ??
+        inferred.get(appid | 0)
+    );
 }

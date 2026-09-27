@@ -63,6 +63,7 @@ function M.core(cmd)
   local s = tostring(cmd or ""):gsub("\\", "/")
   local path = s:match('%-L%s+"([^"]+)"') or s:match("%-L%s+(%S+)")
     or s:match('%-%-libretro[=%s]+"([^"]+)"') or s:match("%-%-libretro[=%s]+(%S+)")
+    or s:match('cores/([^/%s]+%.[dD][lL][lL])') or s:match('cores/([^/%s]+%.so)')
   if not path then return nil end
   local base = (path:match("([^/]*)$") or path):lower()
   return (base:gsub("%.%w+$", ""):gsub("_libretro$", ""))
@@ -77,9 +78,17 @@ function M.infer(entry)
   local program = emulators.program(entry.exe)
   local head = program:match("^(%w+)[%-_ ]")
   if program == "retroarch" or head == "retroarch" then
-    local core = M.core(tostring(entry.exe or "") .. " " .. tostring(entry.launch_options or ""))
+    local full_cmd = tostring(entry.exe or "") .. " " .. tostring(entry.launch_options or "")
+    local core = M.core(full_cmd)
     if core and M.CORES_WITH_CONTROLLER[core] then return true end
     if core and M.CORES_WITHOUT_CONTROLLER[core] then return false end
+    -- If RetroArch is running a standard console/arcade ROM, default to controller
+    local lower = full_cmd:lower()
+    if lower:find("%.zip") or lower:find("%.7z") or lower:find("%.sfc") or lower:find("%.smc")
+      or lower:find("%.nes") or lower:find("%.gba") or lower:find("%.gbc") or lower:find("%.bin")
+      or lower:find("%.iso") or lower:find("%.chd") or lower:find("%.cue") then
+      return true
+    end
     return nil
   end
   if M.EMULATORS_WITH_CONTROLLER[program] or (head and M.EMULATORS_WITH_CONTROLLER[head]) then
@@ -89,13 +98,22 @@ function M.infer(entry)
 end
 
 --- { ["<appid>"] = true|false } for every shortcut with an inference (unknown ones are left out).
+--- Stores both unsigned and signed 32-bit int keys so JS lookups never miss.
 ---@param entries table[]
 ---@return table<string, boolean>
 function M.for_entries(entries)
   local out = {}
   for _, entry in ipairs(entries or {}) do
     local value = M.infer(entry)
-    if value ~= nil and entry.appid then out[tostring(entry.appid)] = value end
+    if value ~= nil and entry.appid then
+      local u_key = tostring(entry.appid)
+      out[u_key] = value
+      local num = tonumber(entry.appid)
+      if num and num >= 2147483648 then
+        local s_key = tostring(num - 4294967296)
+        out[s_key] = value
+      end
+    end
   end
   return out
 end

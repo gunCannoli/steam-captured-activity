@@ -7,7 +7,23 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
-- **`steam-cartridges` shadPS4 Trophies, Console Emulators Rename, Multi-Service Rules & Library Audit Partitioning (2026-09-27)**:
+- **`steam-cartridges` Arcade Metadata Scraping, Emulator Controller Inference & Rule Sync Fixes (2026-09-27)**:
+  - *Arcade Metadata & Title Cleaning*:
+    - Fixed scraping failures for arcade ROMs with slash-separated alternative regional titles (`Aero Fighters 3 / Sonic Wings 3` -> `Aero Fighters 3`, `Sengoku 3 / Sengoku Densho 2001 (set 1)` -> `Sengoku 3`) in `backend/web_igdb.lua`.
+    - Added fallback search using the ROM file basename extracted from shortcut command lines (e.g. `1944.zip` -> `1944`, `sonicwi3.zip` -> `sonicwi3`) when title search returns no matches.
+    - Verified 100% IGDB metadata resolution across FBNeo/RetroArch arcade shortcuts.
+  - *Emulator Controller Inference & Audit Clarity*:
+    - Enhanced `backend/emulator_controllers.lua` with core fallback regexes matching `cores/xxx_libretro.dll` without strict `-L` flags, and defaulted RetroArch commands running console/arcade ROMs (`.zip`, `.7z`, `.sfc`, `.nes`, `.gba`, `.bin`, `.iso`, etc.) to full controller support.
+    - Exported both unsigned and signed 32-bit integer string keys in `GetControllerInference` to ensure JavaScript lookups never miss due to signedness.
+    - Tracked `controllerInference` in React state in `RevisionSection`, preventing race conditions where inference loaded after initial mount.
+    - Added explicit inline indicator ("Detected: Full Controller") next to the Input override dropdown in the audit dialog, clarifying that emulator input was correctly inferred and clearing `missingController` warnings for 218 shortcuts.
+  - *Rule Change Sync & Scrape Refresh*:
+    - Exposed `refreshGameMetadata` in `frontend/rpc.ts` and enhanced `backend/web_rpc.lua` with `decode_payload` supporting both direct and nested Millennium `{ payload = "..." }` parameters.
+    - Updated `RulesSection.handleSaveRule` to actively re-scrape metadata and achievements for matched shortcuts in batches of 4, providing live visual sync progress ("Syncing rule: re-scraping N game(s)..." -> "Synced N game(s) successfully!").
+    - Dispatched `steam-cartridges:rule-updated` on rule save and delete, automatically updating audit counts.
+  - *Service Cleanup*:
+    - Removed extraneous local timeline `"recording"` service from `SERVICE_OPTIONS` in routing rules.
+
   - *shadPS4 Trophy Support*:
     - Added local PlayStation 4 trophy provider support for games launched via shadPS4 (`backend/ps4_trophies.lua`).
     - Scans shadPS4 user trophy directories across AppData and portable install paths (`user/trophy/[CUSA_ID]`, `home/1000/trophy/[CUSA_ID]`).

@@ -411,8 +411,20 @@ function MetadataSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Service
                     </span>
                     <Dropdown
@@ -570,9 +582,9 @@ function AchievementsSection() {
     const activeRaUser =
         retroStatus?.emulators?.find((e) => e.authenticated && e.username)
             ?.username ||
-            (retroStatus?.env_fallback
-                ? retroStatus.env_username || "Configured in .env"
-                : null);
+        (retroStatus?.env_fallback
+            ? retroStatus.env_username || "Configured in .env"
+            : null);
 
     // Active sources calculation
     const activeSources: AchievementSourceDef[] = [];
@@ -583,7 +595,11 @@ function AchievementsSection() {
     if (raSrc && services.retroachievementsEnabled !== false && activeRaUser) {
         activeSources.push(raSrc);
     }
-    if (emuSrc && (services.emulatorsEnabled !== false && services.rpcs3Enabled !== false)) {
+    if (
+        emuSrc &&
+        services.emulatorsEnabled !== false &&
+        services.rpcs3Enabled !== false
+    ) {
         activeSources.push(emuSrc);
     }
 
@@ -755,8 +771,20 @@ function AchievementsSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Source
                     </span>
                     <Dropdown
@@ -796,9 +824,9 @@ function AchievementsSection() {
 
                 {sourceToRegister === "console_emulators" && (
                     <div style={{ fontSize: "12px", opacity: 0.8 }}>
-                        Parses offline PS3 / PS4 trophies (RPCS3, shadPS4) and tails
-                        DuckStation, PCSX2, Dolphin, PPSSPP, and RPCS3 emulator
-                        logs.
+                        Parses offline PS3 / PS4 trophies (RPCS3, shadPS4) and
+                        tails DuckStation, PCSX2, Dolphin, PPSSPP, and RPCS3
+                        emulator logs.
                     </div>
                 )}
 
@@ -918,8 +946,8 @@ function AchievementsSection() {
 // ===========================================================================
 
 const LAUNCH_NOTIFY_OPTIONS = [
-    { data: "all_runs", label: "All game runs (default)" },
-    { data: "first_run", label: "First run only" },
+    { data: "all_runs", label: "Always" },
+    { data: "first_run", label: "First run" },
     { data: "off", label: "Off" },
 ];
 
@@ -990,7 +1018,6 @@ const SERVICE_OPTIONS = [
     { data: "screenscraper", label: "ScreenScraper" },
     { data: "igdb", label: "IGDB" },
     { data: "steamgriddb", label: "SteamGridDB" },
-    { data: "recording", label: "Recording" },
 ];
 
 const ACTION_OPTIONS = [
@@ -1026,6 +1053,7 @@ function RulesSection() {
         useState<ConditionType>("collection");
     const [pattern, setPattern] = useState("");
     const [suggestionFilter, setSuggestionFilter] = useState("");
+    const [syncStatus, setSyncStatus] = useState("");
 
     // Collections & Shortcuts for suggestions
     const collections = listCollections();
@@ -1038,17 +1066,17 @@ function RulesSection() {
     });
 
     const filteredCollections = collections.filter((c) =>
-        c.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+        c.name.toLowerCase().includes(suggestionFilter.toLowerCase()),
     );
     const filteredShortcuts = uniqueShortcuts.filter((s) =>
-        s.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+        s.name.toLowerCase().includes(suggestionFilter.toLowerCase()),
     );
 
     const selectedParts = new Set(
         pattern
             .split(",")
             .map((s) => s.trim())
-            .filter(Boolean)
+            .filter(Boolean),
     );
 
     const toggleSuggestion = (itemName: string) => {
@@ -1103,7 +1131,7 @@ function RulesSection() {
             const split = r.service
                 .split(",")
                 .map((s) =>
-                    s.trim() === "rpcs3" ? "console_emulators" : s.trim()
+                    s.trim() === "rpcs3" ? "console_emulators" : s.trim(),
                 )
                 .filter(Boolean);
             setSelectedServices(split.length > 0 ? split : ["all"]);
@@ -1115,7 +1143,7 @@ function RulesSection() {
         setShowAddModal(true);
     };
 
-    const handleSaveRule = () => {
+    const handleSaveRule = async () => {
         if (!name.trim() || !pattern.trim()) return;
         const chosenService = selectedServices.includes("all")
             ? "all"
@@ -1150,7 +1178,9 @@ function RulesSection() {
         const collMembersMap: Record<string, Set<number>> = {};
         for (const c of collections) {
             const members = membersOf(c.id);
-            collMembersMap[c.name.toLowerCase()] = new Set(members ? Array.from(members) : []);
+            collMembersMap[c.name.toLowerCase()] = new Set(
+                members ? Array.from(members) : [],
+            );
         }
 
         const matchedShortcuts = shortcuts.filter((sc) => {
@@ -1160,7 +1190,7 @@ function RulesSection() {
             if (conditionType === "game_name") {
                 const sName = sc.name.toLowerCase();
                 return patternParts.some(
-                    (p) => sName.includes(p) || sName === p
+                    (p) => sName.includes(p) || sName === p,
                 );
             }
             if (conditionType === "collection") {
@@ -1172,21 +1202,37 @@ function RulesSection() {
             return true;
         });
 
-        setTimeout(() => {
-            for (const sc of matchedShortcuts) {
-                rpc.getGameMetadata(sc.appid, sc.name).catch(() => {});
-                rpc.cartridgesAchievementsGet(sc.appid, sc.appid).catch(() => {});
+        if (matchedShortcuts.length > 0) {
+            setSyncStatus(`Syncing rule: re-scraping ${matchedShortcuts.length} matching game(s)...`);
+            const batchSize = 4;
+            for (let i = 0; i < matchedShortcuts.length; i += batchSize) {
+                const batch = matchedShortcuts.slice(i, i + batchSize);
+                await Promise.all(
+                    batch.map(async (sc) => {
+                        await rpc.refreshGameMetadata(sc.appid, sc.name).catch(() => {});
+                        await rpc.cartridgesAchievementsGet(sc.appid, sc.appid).catch(() => {});
+                    })
+                );
+                setSyncStatus(`Syncing: ${Math.min(i + batchSize, matchedShortcuts.length)} / ${matchedShortcuts.length}...`);
             }
-            window.dispatchEvent(
-                new CustomEvent("steam-cartridges:rule-updated")
-            );
-        }, 100);
+            setSyncStatus(`Synced ${matchedShortcuts.length} game(s) successfully!`);
+            setTimeout(() => setSyncStatus(""), 4000);
+        } else {
+            setSyncStatus("Rule saved (0 matching shortcuts)");
+            setTimeout(() => setSyncStatus(""), 3000);
+        }
+        window.dispatchEvent(
+            new CustomEvent("steam-cartridges:rule-updated"),
+        );
     };
 
     const handleDelete = (index: number) => {
         const copy = [...rules];
         copy.splice(index, 1);
         setRules(copy);
+        window.dispatchEvent(
+            new CustomEvent("steam-cartridges:rule-updated"),
+        );
     };
 
     return (
@@ -1234,7 +1280,13 @@ function RulesSection() {
                         >
                             {rule.name}
                         </span>
-                        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: "6px",
+                                flexShrink: 0,
+                            }}
+                        >
                             <DialogButton
                                 onClick={() => handleOpenEdit(idx)}
                                 style={{
@@ -1263,7 +1315,7 @@ function RulesSection() {
             ))}
 
             <ItemRow>
-                <div style={{ marginTop: "4px" }}>
+                <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
                     <DialogButton
                         onClick={handleOpenAdd}
                         style={{
@@ -1274,12 +1326,21 @@ function RulesSection() {
                     >
                         + Add Rule
                     </DialogButton>
+                    {syncStatus && (
+                        <span style={{ fontSize: "11px", color: "#66c0f4", fontWeight: 600 }}>
+                            {syncStatus}
+                        </span>
+                    )}
                 </div>
             </ItemRow>
 
             {/* Add / Edit Rule Modal */}
             <SettingsModal
-                title={editingIndex !== null ? "Edit Routing Rule" : "Add Routing Rule"}
+                title={
+                    editingIndex !== null
+                        ? "Edit Routing Rule"
+                        : "Add Routing Rule"
+                }
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
@@ -1289,11 +1350,29 @@ function RulesSection() {
                     onChange={(e) => setName(e.target.value)}
                 />
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Services
                     </span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    <div
+                        style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "6px",
+                        }}
+                    >
                         {SERVICE_OPTIONS.map((opt) => {
                             const isSel =
                                 opt.data === "all"
@@ -1328,11 +1407,29 @@ function RulesSection() {
                     </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Action
                     </span>
-                    <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "-2px" }}>
+                    <div
+                        style={{
+                            fontSize: "11px",
+                            opacity: 0.7,
+                            marginTop: "-2px",
+                        }}
+                    >
                         {action === "include"
                             ? "Only apply to matches"
                             : "Never apply to matches"}
@@ -1345,8 +1442,20 @@ function RulesSection() {
                     />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Condition
                     </span>
                     <Dropdown
@@ -1359,14 +1468,26 @@ function RulesSection() {
                     />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Pattern
                     </span>
                     <textarea
                         rows={Math.min(
                             6,
-                            Math.max(2, Math.ceil((pattern.length || 1) / 36))
+                            Math.max(2, Math.ceil((pattern.length || 1) / 36)),
                         )}
                         value={pattern}
                         onChange={(e) => setPattern(e.target.value)}
@@ -1481,7 +1602,9 @@ function RulesSection() {
                                     : "Filter Games"
                             }
                             value={suggestionFilter}
-                            onChange={(e) => setSuggestionFilter(e.target.value)}
+                            onChange={(e) =>
+                                setSuggestionFilter(e.target.value)
+                            }
                         />
                         <div
                             style={{
@@ -1501,7 +1624,9 @@ function RulesSection() {
                                             <button
                                                 key={c.id}
                                                 type="button"
-                                                onClick={() => toggleSuggestion(c.name)}
+                                                onClick={() =>
+                                                    toggleSuggestion(c.name)
+                                                }
                                                 style={{
                                                     background: isSel
                                                         ? "rgba(102, 192, 244, 0.3)"
@@ -1509,7 +1634,9 @@ function RulesSection() {
                                                     border: isSel
                                                         ? "1px solid #66c0f4"
                                                         : "1px solid rgba(255, 255, 255, 0.1)",
-                                                    color: isSel ? "#66c0f4" : "#fff",
+                                                    color: isSel
+                                                        ? "#66c0f4"
+                                                        : "#fff",
                                                     borderRadius: "4px",
                                                     padding: "2px 8px",
                                                     fontSize: "11px",
@@ -1538,7 +1665,9 @@ function RulesSection() {
                                         <button
                                             key={s.appid}
                                             type="button"
-                                            onClick={() => toggleSuggestion(s.name)}
+                                            onClick={() =>
+                                                toggleSuggestion(s.name)
+                                            }
                                             style={{
                                                 background: isSel
                                                     ? "rgba(102, 192, 244, 0.3)"
@@ -1546,7 +1675,9 @@ function RulesSection() {
                                                 border: isSel
                                                     ? "1px solid #66c0f4"
                                                     : "1px solid rgba(255, 255, 255, 0.1)",
-                                                color: isSel ? "#66c0f4" : "#fff",
+                                                color: isSel
+                                                    ? "#66c0f4"
+                                                    : "#fff",
                                                 borderRadius: "4px",
                                                 padding: "2px 8px",
                                                 fontSize: "11px",
@@ -1609,6 +1740,7 @@ interface FlaggedShortcut {
     name: string;
     missingController: boolean;
     noAchievements: boolean;
+    inferred?: boolean;
 }
 
 const CONTROLLER_OVERRIDE_OPTIONS = [
@@ -1626,6 +1758,9 @@ function RevisionSection() {
     const [metadataLib, setMetadataLib] = useState<
         Record<string, ConsolidatedMetadata>
     >({});
+    const [controllerInference, setControllerInference] = useState<
+        Record<string, boolean>
+    >({});
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [filter, setFilter] = useState<
         "all" | "controller" | "achievements" | "not_scraped"
@@ -1639,6 +1774,14 @@ function RevisionSection() {
 
     const refreshAuditData = useCallback(async () => {
         await loadControllerInference();
+        try {
+            const infRes = await rpc.getControllerInference();
+            if (infRes?.games) {
+                setControllerInference(infRes.games);
+            }
+        } catch {
+            // ignore
+        }
         try {
             const res = await rpc.getAllMetadata();
             if (res?.library) {
@@ -1656,7 +1799,7 @@ function RevisionSection() {
         return () =>
             window.removeEventListener(
                 "steam-cartridges:rule-updated",
-                onRuleUpdated
+                onRuleUpdated,
             );
     }, [refreshAuditData]);
 
@@ -1683,7 +1826,7 @@ function RevisionSection() {
             sc.appid,
             sc.name,
             collNames,
-            rules
+            rules,
         );
         if (!isAllowed) {
             continue; // Excluded by rule: do not count in issues or not-scraped
@@ -1699,7 +1842,11 @@ function RevisionSection() {
         }
 
         const override = controllerOverrides[String(sc.appid)];
-        const inferred = getInferredControllerSupport(sc.appid);
+        const inferred =
+            controllerInference[String(sc.appid)] ??
+            controllerInference[String(sc.appid >>> 0)] ??
+            controllerInference[String(sc.appid | 0)] ??
+            getInferredControllerSupport(sc.appid);
         const hasWeirdName = /\[.*?\]|\(.*?\)/.test(sc.name);
         const hasControllerSupport =
             override === "full" ||
@@ -1719,6 +1866,7 @@ function RevisionSection() {
                 name: sc.name,
                 missingController,
                 noAchievements,
+                inferred,
             });
         }
     }
@@ -1740,7 +1888,7 @@ function RevisionSection() {
 
     const handleLinkSteamApp = async (
         shortcutAppId: number,
-        steamAppId: number
+        steamAppId: number,
     ) => {
         setFixMsg("Linking to Steam Store...");
         const res = await rpc.steamStoreSetMapping(shortcutAppId, steamAppId);
@@ -1755,11 +1903,18 @@ function RevisionSection() {
     const handleScanAllUnscraped = async () => {
         setIsScanningAll(true);
         setFixMsg(`Scanning ${notScraped.length} unscraped games...`);
-        for (const item of notScraped) {
-            await rpc.getGameMetadata(item.appid, item.name).catch(() => {});
-            await rpc
-                .cartridgesAchievementsGet(item.appid, item.appid)
-                .catch(() => {});
+        const batchSize = 4;
+        for (let i = 0; i < notScraped.length; i += batchSize) {
+            const batch = notScraped.slice(i, i + batchSize);
+            await Promise.all(
+                batch.map(async (item) => {
+                    await rpc.refreshGameMetadata(item.appid, item.name).catch(() => {});
+                    await rpc
+                        .cartridgesAchievementsGet(item.appid, item.appid)
+                        .catch(() => {});
+                })
+            );
+            setFixMsg(`Scanned ${Math.min(i + batchSize, notScraped.length)} / ${notScraped.length}...`);
         }
         await refreshAuditData();
         setIsScanningAll(false);
@@ -1769,10 +1924,8 @@ function RevisionSection() {
 
     const handleScanSingle = async (appid: number, name: string) => {
         setFixMsg(`Scanning ${name}...`);
-        await rpc.getGameMetadata(appid, name).catch(() => {});
-        await rpc
-            .cartridgesAchievementsGet(appid, appid)
-            .catch(() => {});
+        await rpc.refreshGameMetadata(appid, name).catch(() => {});
+        await rpc.cartridgesAchievementsGet(appid, appid).catch(() => {});
         await refreshAuditData();
         setFixMsg(`Scanned ${name}`);
         setTimeout(() => setFixMsg(""), 2000);
@@ -1789,7 +1942,8 @@ function RevisionSection() {
                 >
                     <span
                         style={{
-                            color: notScraped.length > 0 ? "#66c0f4" : "#8ba5b7",
+                            color:
+                                notScraped.length > 0 ? "#66c0f4" : "#8ba5b7",
                             fontWeight: 700,
                             fontSize: "14px",
                         }}
@@ -2041,7 +2195,7 @@ function RevisionSection() {
                                             onClick={() =>
                                                 handleScanSingle(
                                                     item.appid,
-                                                    item.name
+                                                    item.name,
                                                 )
                                             }
                                             style={{
@@ -2178,13 +2332,35 @@ function RevisionSection() {
                                                 onChange={(o) =>
                                                     handleSetController(
                                                         item.appid,
-                                                        o.data as ControllerOverride
+                                                        o.data as ControllerOverride,
                                                     )
                                                 }
                                                 contextMenuPositionOptions={{
                                                     bMatchWidth: true,
                                                 }}
                                             />
+                                            {item.inferred === true && (
+                                                <span
+                                                    style={{
+                                                        fontSize: "11px",
+                                                        color: "#66c0f4",
+                                                        marginLeft: "4px",
+                                                    }}
+                                                >
+                                                    (Detected: Full Controller)
+                                                </span>
+                                            )}
+                                            {item.inferred === false && (
+                                                <span
+                                                    style={{
+                                                        fontSize: "11px",
+                                                        color: "#8ba5b7",
+                                                        marginLeft: "4px",
+                                                    }}
+                                                >
+                                                    (Detected: K&M)
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div
@@ -2213,7 +2389,7 @@ function RevisionSection() {
                                                 onChange={(e) => {
                                                     setTargetAppId(item.appid);
                                                     setSteamIdInput(
-                                                        e.target.value
+                                                        e.target.value,
                                                     );
                                                 }}
                                                 style={{
@@ -2231,12 +2407,12 @@ function RevisionSection() {
                                                 onClick={() => {
                                                     const num = parseInt(
                                                         steamIdInput,
-                                                        10
+                                                        10,
                                                     );
                                                     if (num > 0)
                                                         handleLinkSteamApp(
                                                             item.appid,
-                                                            num
+                                                            num,
                                                         );
                                                 }}
                                                 style={{

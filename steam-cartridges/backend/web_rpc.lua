@@ -44,10 +44,28 @@ function M.GetStatus()
   })
 end
 
+--- Robust payload decoder handling raw JSON, tables, and nested Millennium { payload = "..." }
+local function decode_payload(payload_json)
+  if type(payload_json) == "table" then
+    if type(payload_json.payload) == "string" then
+      local ok, inner = pcall(json.decode, payload_json.payload)
+      if ok and type(inner) == "table" then return inner end
+    end
+    return payload_json
+  end
+  local ok, req = pcall(json.decode, payload_json or "{}")
+  if not ok or type(req) ~= "table" then return nil end
+  if type(req.payload) == "string" then
+    local ok_inner, inner = pcall(json.decode, req.payload)
+    if ok_inner and type(inner) == "table" then return inner end
+  end
+  return req
+end
+
 --- Save service credentials (Twitch, ScreenScraper, RetroAchievements, SGDB)
 function M.SaveServiceCredentials(payload_json)
-  local ok, data = pcall(json.decode, payload_json or "")
-  if not ok or type(data) ~= "table" then
+  local data = decode_payload(payload_json)
+  if not data then
     return json.encode({ success = false, error = "invalid_payload" })
   end
   local ok_save = config.save_credentials(data)
@@ -57,8 +75,8 @@ end
 --- Get consolidated game metadata (checks local JSON DB first, fetches from IGDB if missing)
 ---@param payload_json string JSON string with { appid = number, title = string }
 function M.GetGameMetadata(payload_json)
-  local ok, req = pcall(json.decode, payload_json)
-  if not ok or type(req) ~= "table" then
+  local req = decode_payload(payload_json)
+  if not req or not req.appid then
     return json.encode({ error = "invalid_payload", message = "Invalid JSON payload" })
   end
 
@@ -125,8 +143,8 @@ end
 --- Force refresh / re-query metadata from IGDB, updating the local database
 ---@param payload_json string JSON string with { appid = number, title = string }
 function M.RefreshGameMetadata(payload_json)
-  local ok, req = pcall(json.decode, payload_json)
-  if not ok or type(req) ~= "table" or not req.appid then
+  local req = decode_payload(payload_json)
+  if not req or not req.appid then
     return json.encode({ error = "invalid_payload" })
   end
   local appid = tonumber(req.appid)
@@ -162,8 +180,8 @@ end
 --- Save user manual edits to library_metadata.json
 ---@param payload_json string JSON string with { appid = number, metadata = table }
 function M.SaveGameMetadata(payload_json)
-  local ok, req = pcall(json.decode, payload_json)
-  if not ok or type(req) ~= "table" or not req.appid or not req.metadata then
+  local req = decode_payload(payload_json)
+  if not req or not req.appid or not req.metadata then
     return json.encode({ error = "invalid_payload" })
   end
 
@@ -180,8 +198,8 @@ function M.GetArtworkForGame(payload_json)
     return json.encode({ error = "missing_api_key", message = "SteamGridDB API key is not configured" })
   end
 
-  local ok, req = pcall(json.decode, payload_json)
-  if not ok or type(req) ~= "table" then
+  local req = decode_payload(payload_json)
+  if not req then
     return json.encode({ error = "invalid_payload", message = "Invalid JSON payload" })
   end
 

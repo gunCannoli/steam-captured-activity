@@ -170,6 +170,8 @@ export const rpc = {
         call<{ success: boolean; error?: string }>("SaveServiceCredentials", credentials),
     getGameMetadata: (appid: number, title: string) =>
         call<MetadataResponse>("GetGameMetadata", { appid, title }),
+    refreshGameMetadata: (appid: number, title: string) =>
+        call<MetadataResponse>("RefreshGameMetadata", { appid, title }),
     getAllMetadata: () =>
         call<{
             success: boolean;
