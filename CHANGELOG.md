@@ -9,7 +9,29 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
-- **`steam-cartridges` RetroAchievements & Emulator Observer Engine (2026-09-26)**:
+- **`steam-cartridges` Retro Games Achievements: Multi-Console Hasher & Standalone Emulators (Phases 1 & 2) (2026-09-26)**:
+  - *Universal ROM/Disc Hasher Expansion (`ra_hasher.js`)*:
+    - Added N64 endian normalization: detects big-endian `.z64` (`0x80371240`), byte-swapped `.v64` (`0x37804012`), and little-endian `.n64` (`0x40123780`), normalizing byte streams to big-endian before MD5.
+    - Added NES iNES 16-byte header stripping (`NES\x1a`).
+    - Added Sega Genesis SMD 512-byte header stripping & 16KB block de-interleaving.
+    - Added multi-disc `.m3u` playlist resolver: extracts first active disc file and resolves relative path.
+    - Added ISO-9660 Sector 16 Primary Volume Descriptor parser: reads `SYSTEM.CNF`, resolves boot executable (`SLUS_...`, `SCUS_...`, etc.) via directory records, and hashes only the boot binary stream.
+    - Added fast `.chd` detection: skips loading large compressed disc images into memory and routes to console title matching.
+  - *Console Detection & Title Matching Fallback (`retroachievements.lua`)*:
+    - Added `M.detect_console_id`: maps cores and launch paths to RetroAchievements console IDs (PS1=12, SNES=3, GBA=5, Arcade=27, Genesis=1, N64=2, NES=7, GameCube=16, PSP=41).
+    - Added `M.find_game_id_by_title`: queries and caches console games list (`r=gameslist&c=<id>`), performing normalized exact and substring title matching.
+    - Verified live with *Castlevania: Symphony of the Night* (PS1 `.chd`, `2162501062`), ingesting 106 achievements with badge artwork into Steam stores.
+  - *Multi-Emulator Credentials Discovery (`retroachievements.lua`)*:
+    - Keylessly auto-discovers active credentials across DuckStation (`settings.ini`), PCSX2 (`inis/PCSX2.ini`), Dolphin / Primehack (`RetroAchievements.ini` / `Dolphin.ini`), PPSSPP (`ppsspp.ini`), and RetroArch (`retroarch.cfg`).
+    - Prioritizes the emulator launching the specific game with automatic fallback to any configured emulator credentials.
+    - Gracefully handles unauthenticated state: fetches full public schema without credentials so non-logged-in players still view all achievements.
+  - *Multi-Emulator Out-of-Process Log Observer (`achievements_observer.lua`)*:
+    - Added trigger pattern matching for RetroArch (`[INFO] [RCHEEVOS] Awarded achievement <ID>`), DuckStation (`[Cheevos] Awarded achievement <ID>`, `Awarded achievement <ID>`, `Achievement <ID> unlocked`), PCSX2 (`[Achievements] Unlocked <ID>`, `[Achievements] Awarded <ID>`), Dolphin (`[Achievements] Awarded <ID>`, `[Achievements] Unlocked <ID>`), and PPSSPP (`Achievement <ID> unlocked`).
+    - Dynamically resolves log candidates in the emulator executable's own install directory alongside standard Windows install locations.
+    - Verified live with `scratch/test_duckstation_observer.mjs`: simulated DuckStation unlock detected out-of-process, resolved against schema, and persisted to `achievements_store`.
+  - *Test & Smoke Verifications*:
+    - `check_all_tabs.js`: Post-Game Summary, Activity feed, Your Stuff, Game Info all PASS.
+    - `npm run check` (0 errors) & `npm run test:ts` (54/54 PASS).
   - *Zero-Friction Authentication*: Reads `cheevos_username` and `cheevos_token` dynamically from `C:\emu\RetroArch\retroarch.cfg` (or `%APPDATA%\RetroArch\retroarch.cfg`) without prompting the user for credentials or exposing secrets in code, logs, or repository.
   - *ROM Hash Extraction (`ra_hasher.js`)*: Automatically extracts ROM paths from shortcut launch configurations, handles in-memory zip deflation, and strips 512-byte copier/SMC headers (`fileSize % 1024 == 512`) to produce canonical RetroAchievements MD5 hashes recognized by `dorequest.php?r=gameid`.
   - *Schema & Unlocks Ingestion (`retroachievements.lua`)*: Queries RetroAchievements `r=patch` and `r=unlocks` for full achievement lists, descriptions, point values, official badge CDN URLs, and existing player unlock state. Persists schemas under `"ra_<game_id>"` and binds shortcuts in `achievements.json`.

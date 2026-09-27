@@ -133,13 +133,16 @@ function M.scan_log_for_unlocks(filepath)
 
   local detected = {}
   for line in new_bytes:gmatch("[^\r\n]+") do
-    -- Search for common achievement trigger patterns across Unity / Godot / Unreal / RetroArch / DuckStation
-    local ach = line:match("[aA]warded achievement%s*(%d+)")
-             or line:match("%[RCHEEVOS%]%s*Awarded achievement%s*(%d+)")
+    -- Search for common achievement trigger patterns across Unity / Godot / Unreal / RetroArch / DuckStation / PCSX2 / Dolphin / PPSSPP
+    local ach = line:match("%[RCHEEVOS%]%s*Awarded achievement%s*(%d+)")
              or line:match("%[CHEEVOS%]%s*Awarded achievement%s*(%d+)")
-             or line:match("[aA]chievement%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
-             or line:match("[aA]ward%a*%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
-             or line:match("[uU]nlock%a*%s*[:=]%s*['\"]?([%w_%-]+)['\"]?")
+             or line:match("[aA]warded achievement%s*(%d+)")
+             or line:match("%[Achievements%]%s*Unlocked%s*(%d+)")
+             or line:match("%[Achievements%]%s*Awarded%s*(%d+)")
+             or line:match("[aA]chievement%s*(%d+)%s*unlocked")
+             or line:match("[aA]chievement%s*[:=]+%s*['\"]?([%w_%-]+)['\"]?")
+             or line:match("[aA]ward%a*%s*[:=]+%s*['\"]?([%w_%-]+)['\"]?")
+             or line:match("[uU]nlock%a*%s*[:=]+%s*['\"]?([%w_%-]+)['\"]?")
              or line:match("[uU]nlock[aA]chievement%s*%(%s*['\"]([^'\"]+)['\"]")
              or line:match("[sS]et[aA]chievement%s*%(%s*['\"]([^'\"]+)['\"]")
     if ach and #ach > 0 then
@@ -242,17 +245,51 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     end
   end
 
-  -- 2. Check RetroArch and Emulator Runtime Logs
+  -- 2. Check RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP Runtime Logs
+  local exe_dir = ""
+  local steam_paths = require("steam_paths")
+  local shortcuts = require("shortcuts")
+  local sp_paths = steam_paths.resolve()
+  if sp_paths and sp_paths.shortcuts then
+    local list = shortcuts.parse(sp_paths.shortcuts) or {}
+    for _, sc in ipairs(list) do
+      if sc.appid == s_appid and sc.exe then
+        local s = tostring(sc.exe):gsub("\\", "/")
+        exe_dir = s:match("^(.*)/[^/]+$") or ""
+        break
+      end
+    end
+  end
+
   local emu_logs = {
+    -- Dynamic log path next to emulator exe
+    #exe_dir > 0 and (exe_dir .. "/duckstation.log"),
+    #exe_dir > 0 and (exe_dir .. "/logs/duckstation.log"),
+    #exe_dir > 0 and (exe_dir .. "/logs/retroarch.log"),
+    #exe_dir > 0 and (exe_dir .. "/User/Logs/dolphin.log"),
+    #exe_dir > 0 and (exe_dir .. "/Logs/dolphin.log"),
+    #exe_dir > 0 and (exe_dir .. "/logs/emulog.txt"),
+    #exe_dir > 0 and (exe_dir .. "/emulog.txt"),
+    #exe_dir > 0 and (exe_dir .. "/ppsspp.log"),
+    -- Standard known install locations
     "C:\\emu\\RetroArch\\logs\\retroarch.log",
     appdata .. "\\RetroArch\\logs\\retroarch.log",
+    "C:\\emu\\duckstation\\duckstation.log",
     userprofile .. "\\Documents\\DuckStation\\duckstation.log",
     appdata .. "\\duckstation\\duckstation.log",
+    localappdata .. "\\duckstation\\duckstation.log",
+    "C:\\emu\\PCSX2\\logs\\emulog.txt",
     userprofile .. "\\Documents\\PCSX2\\logs\\emulog.txt",
     appdata .. "\\PCSX2\\logs\\emulog.txt",
+    localappdata .. "\\PCSX2\\logs\\emulog.txt",
+    "C:\\emu\\Primehack\\User\\Logs\\dolphin.log",
+    userprofile .. "\\Documents\\Dolphin Emulator\\Logs\\dolphin.log",
+    appdata .. "\\Dolphin Emulator\\Logs\\dolphin.log",
+    "C:\\emu\\PPSSPP\\memstick\\PSP\\SYSTEM\\ppsspp.log",
+    appdata .. "\\PPSSPP\\PSP\\SYSTEM\\ppsspp.log",
   }
   for _, logpath in ipairs(emu_logs) do
-    if file_exists(logpath) then
+    if logpath and file_exists(logpath) then
       local detected = M.scan_log_for_unlocks(logpath)
       for id, info in pairs(detected) do
         candidate_unlocks[id] = info
