@@ -9,6 +9,23 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`steam-cartridges` Settings Panel Modal & Layout UX Refinements (2026-09-27)**:
+  - *Library Audit Button Width Alignment*:
+    - Wrapped the `[ Review ]` button in `<Field childrenContainerWidth="max">` inside `ItemRow` to match the exact padding and margins of all settings rows, fixing button overhang.
+  - *Stacked Modal Dropdowns*:
+    - Converted dropdowns in Add Service, Add Source, and Add Rule dialogs from 2-column flex rows into stacked single-column containers (`display: "flex", flexDirection: "column"`), ensuring full-width dropdown inputs aligned with text fields.
+  - *Trash Icon Buttons*:
+    - Replaced `"Remove"` text buttons with compact `🗑️` icon buttons in active metadata and achievement service lists.
+  - *Streamlined Rule List & Mandatory Rule Name*:
+    - Compacted routing rule rows to show only `{rule name}` on the left with text truncation, and `[ ✏️ ] [ 🗑️ ]` on the right, eliminating horizontal crowding in the narrow settings panel.
+    - Made Rule Name mandatory during rule creation and editing (`!name.trim() || !pattern.trim()`).
+  - *Filterable Rule Suggestions for Collections & Games*:
+    - Added a filter input field above suggestions when condition is `collection` or `game_name`.
+    - Shows all collections or all non-Steam shortcuts as clickable chips that toggle inclusion into the comma-separated pattern list.
+  - *Shortened Action Labels & Dynamic Description*:
+    - Simplified action dropdown items to `"Inclusion"` and `"Exclusion"`.
+    - Added an explanatory description row directly beneath the Action label (`"Only apply to matches"` vs `"Never apply to matches"`).
+
 - **`steam-cartridges` Settings Panel Layout Refinements & Library Audit Fix (2026-09-27)**:
   - *2-Column Streamlining & Thin Layout Optimization*:
     - Removed redundant `✓ Active` and status badges from active metadata and achievement lists, converting rows from cramped 3-column elements to clean 2-column rows (`[Service Name]` on left, `[Remove]` button on right).

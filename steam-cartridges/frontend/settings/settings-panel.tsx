@@ -368,13 +368,13 @@ function MetadataSection() {
                         <DialogButton
                             onClick={() => handleRemoveService(svc.id)}
                             style={{
-                                padding: "0 12px",
+                                padding: "0 8px",
                                 minWidth: 0,
                                 width: "auto",
-                                color: "#eb4b4b",
+                                fontSize: "12px",
                             }}
                         >
-                            Remove
+                            🗑️
                         </DialogButton>
                     </Field>
                 </ItemRow>
@@ -404,7 +404,10 @@ function MetadataSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <Field label="Service">
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Service
+                    </span>
                     <Dropdown
                         rgOptions={availableToAdd.map((s) => ({
                             data: s.id,
@@ -414,7 +417,7 @@ function MetadataSection() {
                         onChange={(o) => setSelectedService(o.data as any)}
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
-                </Field>
+                </div>
 
                 {selectedService === "steam_store" && (
                     <div
@@ -700,13 +703,13 @@ function AchievementsSection() {
                             <DialogButton
                                 onClick={() => handleRemoveSource(src.id)}
                                 style={{
-                                    padding: "0 10px",
+                                    padding: "0 8px",
                                     minWidth: 0,
                                     width: "auto",
-                                    color: "#eb4b4b",
+                                    fontSize: "12px",
                                 }}
                             >
-                                Remove
+                                🗑️
                             </DialogButton>
                         </div>
                     </Field>
@@ -737,7 +740,10 @@ function AchievementsSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <Field label="Source">
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Source
+                    </span>
                     <Dropdown
                         rgOptions={availableToAdd.map((s) => ({
                             data: s.id,
@@ -747,7 +753,7 @@ function AchievementsSection() {
                         onChange={(o) => setSourceToRegister(o.data as any)}
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
-                </Field>
+                </div>
 
                 {sourceToRegister === "retroachievements" && (
                     <>
@@ -972,8 +978,8 @@ const SERVICE_OPTIONS = [
 ];
 
 const ACTION_OPTIONS = [
-    { data: "include", label: "Inclusion (Only apply to match)" },
-    { data: "exclude", label: "Exclusion (Never apply to match)" },
+    { data: "include", label: "Inclusion" },
+    { data: "exclude", label: "Exclusion" },
 ];
 
 const CONDITION_OPTIONS = [
@@ -994,9 +1000,43 @@ function RulesSection() {
     const [conditionType, setConditionType] =
         useState<ConditionType>("collection");
     const [pattern, setPattern] = useState("");
+    const [suggestionFilter, setSuggestionFilter] = useState("");
 
-    // Show all collections in suggestions
+    // Collections & Shortcuts for suggestions
     const collections = listCollections();
+    const shortcuts = listShortcuts();
+    const seenShortcutNames = new Set<string>();
+    const uniqueShortcuts = shortcuts.filter((s) => {
+        if (!s.name || seenShortcutNames.has(s.name)) return false;
+        seenShortcutNames.add(s.name);
+        return true;
+    });
+
+    const filteredCollections = collections.filter((c) =>
+        c.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+    );
+    const filteredShortcuts = uniqueShortcuts.filter((s) =>
+        s.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+    );
+
+    const selectedParts = new Set(
+        pattern
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+    );
+
+    const toggleSuggestion = (itemName: string) => {
+        const parts = pattern
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        if (parts.includes(itemName)) {
+            setPattern(parts.filter((p) => p !== itemName).join(", "));
+        } else {
+            setPattern([...parts, itemName].join(", "));
+        }
+    };
 
     const handleOpenAdd = () => {
         setEditingIndex(null);
@@ -1005,6 +1045,7 @@ function RulesSection() {
         setAction("include");
         setConditionType("collection");
         setPattern("");
+        setSuggestionFilter("");
         setShowAddModal(true);
     };
 
@@ -1017,16 +1058,18 @@ function RulesSection() {
         setAction(r.action);
         setConditionType(r.conditionType);
         setPattern(r.pattern);
+        setSuggestionFilter("");
         setShowAddModal(true);
     };
 
     const handleSaveRule = () => {
-        if (!pattern.trim()) return;
+        if (!name.trim() || !pattern.trim()) return;
         const ruleData: RoutingRule = {
-            id: editingIndex !== null && rules[editingIndex] ? rules[editingIndex].id : "rule_" + Date.now(),
-            name:
-                name.trim() ||
-                `${action === "include" ? "Include" : "Exclude"} ${service} for ${pattern}`,
+            id:
+                editingIndex !== null && rules[editingIndex]
+                    ? rules[editingIndex].id
+                    : "rule_" + Date.now(),
+            name: name.trim(),
             service,
             action,
             conditionType,
@@ -1082,43 +1125,19 @@ function RulesSection() {
                             fontSize: "12px",
                         }}
                     >
-                        <div
+                        <span
                             style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
                                 marginRight: "8px",
+                                fontWeight: 500,
+                                color: "#e1e7ee",
                             }}
+                            title={rule.name}
                         >
-                            <span style={{ fontWeight: 600 }}>#{idx + 1}</span>
-                            <span
-                                style={{
-                                    fontSize: "10px",
-                                    padding: "1px 5px",
-                                    borderRadius: "3px",
-                                    background:
-                                        rule.action === "include"
-                                            ? "rgba(164, 208, 7, 0.2)"
-                                            : "rgba(235, 75, 75, 0.2)",
-                                    color:
-                                        rule.action === "include"
-                                            ? "#a4d007"
-                                            : "#eb4b4b",
-                                    fontWeight: 700,
-                                }}
-                            >
-                                {rule.action.toUpperCase()}
-                            </span>
-                            <span style={{ color: "#66c0f4" }}>
-                                {rule.service}
-                            </span>
-                            <span style={{ opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                &quot;{rule.pattern}&quot;
-                            </span>
-                        </div>
+                            {rule.name}
+                        </span>
                         <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                             <DialogButton
                                 onClick={() => handleOpenEdit(idx)}
@@ -1169,30 +1188,44 @@ function RulesSection() {
                 onClose={() => setShowAddModal(false)}
             >
                 <TextField
-                    label="Rule Name (Optional)"
+                    label="Rule Name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                 />
 
-                <Field label="Service" childrenContainerWidth="max">
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Service
+                    </span>
                     <Dropdown
                         rgOptions={SERVICE_OPTIONS}
                         selectedOption={service}
                         onChange={(o) => setService(o.data as ServiceTarget)}
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
-                </Field>
+                </div>
 
-                <Field label="Action" childrenContainerWidth="max">
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Action
+                    </span>
+                    <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "-2px" }}>
+                        {action === "include"
+                            ? "Only apply to matches"
+                            : "Never apply to matches"}
+                    </div>
                     <Dropdown
                         rgOptions={ACTION_OPTIONS}
                         selectedOption={action}
                         onChange={(o) => setAction(o.data as RuleAction)}
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
-                </Field>
+                </div>
 
-                <Field label="Condition" childrenContainerWidth="max">
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                        Condition
+                    </span>
                     <Dropdown
                         rgOptions={CONDITION_OPTIONS}
                         selectedOption={conditionType}
@@ -1201,7 +1234,7 @@ function RulesSection() {
                         }
                         contextMenuPositionOptions={{ bMatchWidth: true }}
                     />
-                </Field>
+                </div>
 
                 <TextField
                     label="Pattern"
@@ -1219,51 +1252,117 @@ function RulesSection() {
                     Separate multiple items with commas (e.g. Mario, Sonic, Zelda).
                 </div>
 
-                {conditionType === "collection" && collections.length > 0 && (
+                {(conditionType === "collection" ||
+                    conditionType === "game_name") && (
                     <div
                         style={{
                             display: "flex",
+                            flexDirection: "column",
                             gap: "6px",
-                            flexWrap: "wrap",
-                            marginTop: "2px",
                         }}
                     >
-                        <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                            Suggestions:
-                        </span>
-                        {collections.map((c) => (
-                            <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => {
-                                    if (!pattern.trim()) {
-                                        setPattern(c.name);
-                                    } else {
-                                        const parts = pattern.split(",").map((s) => s.trim()).filter(Boolean);
-                                        if (!parts.includes(c.name)) {
-                                            setPattern([...parts, c.name].join(", "));
-                                        }
-                                    }
-                                }}
-                                style={{
-                                    background: "rgba(255, 255, 255, 0.08)",
-                                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                                    color: "#fff",
-                                    borderRadius: "4px",
-                                    padding: "2px 8px",
-                                    fontSize: "11px",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                {c.name}
-                            </button>
-                        ))}
+                        <TextField
+                            label={
+                                conditionType === "collection"
+                                    ? "Filter Collections"
+                                    : "Filter Games"
+                            }
+                            value={suggestionFilter}
+                            onChange={(e) => setSuggestionFilter(e.target.value)}
+                        />
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: "6px",
+                                flexWrap: "wrap",
+                                maxHeight: "130px",
+                                overflowY: "auto",
+                                padding: "2px 0",
+                            }}
+                        >
+                            {conditionType === "collection" ? (
+                                filteredCollections.length > 0 ? (
+                                    filteredCollections.map((c) => {
+                                        const isSel = selectedParts.has(c.name);
+                                        return (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => toggleSuggestion(c.name)}
+                                                style={{
+                                                    background: isSel
+                                                        ? "rgba(102, 192, 244, 0.3)"
+                                                        : "rgba(255, 255, 255, 0.08)",
+                                                    border: isSel
+                                                        ? "1px solid #66c0f4"
+                                                        : "1px solid rgba(255, 255, 255, 0.1)",
+                                                    color: isSel ? "#66c0f4" : "#fff",
+                                                    borderRadius: "4px",
+                                                    padding: "2px 8px",
+                                                    fontSize: "11px",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                {c.name}
+                                            </button>
+                                        );
+                                    })
+                                ) : (
+                                    <div
+                                        style={{
+                                            fontSize: "11px",
+                                            opacity: 0.6,
+                                            fontStyle: "italic",
+                                        }}
+                                    >
+                                        No matching collections
+                                    </div>
+                                )
+                            ) : filteredShortcuts.length > 0 ? (
+                                filteredShortcuts.map((s) => {
+                                    const isSel = selectedParts.has(s.name);
+                                    return (
+                                        <button
+                                            key={s.appid}
+                                            type="button"
+                                            onClick={() => toggleSuggestion(s.name)}
+                                            style={{
+                                                background: isSel
+                                                    ? "rgba(102, 192, 244, 0.3)"
+                                                    : "rgba(255, 255, 255, 0.08)",
+                                                border: isSel
+                                                    ? "1px solid #66c0f4"
+                                                    : "1px solid rgba(255, 255, 255, 0.1)",
+                                                color: isSel ? "#66c0f4" : "#fff",
+                                                borderRadius: "4px",
+                                                padding: "2px 8px",
+                                                fontSize: "11px",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {s.name}
+                                        </button>
+                                    );
+                                })
+                            ) : (
+                                <div
+                                    style={{
+                                        fontSize: "11px",
+                                        opacity: 0.6,
+                                        fontStyle: "italic",
+                                    }}
+                                >
+                                    No matching games
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
                     <DialogButton
                         onClick={handleSaveRule}
+                        disabled={!name.trim() || !pattern.trim()}
                         style={{
                             padding: "0 16px",
                             minWidth: 0,
@@ -1377,6 +1476,7 @@ function RevisionSection() {
             <ItemRow>
                 <Field
                     label="Issues detected:"
+                    description="Number of games that require complete information"
                     bottomSeparator="none"
                 >
                     <span
@@ -1391,26 +1491,16 @@ function RevisionSection() {
                 </Field>
             </ItemRow>
             <ItemRow>
-                <div
-                    style={{
-                        fontSize: "12px",
-                        opacity: 0.75,
-                        padding: "0 0 8px 0",
-                    }}
-                >
-                    Number of games that require complete information
-                </div>
-            </ItemRow>
-            <ItemRow>
-                <DialogButton
-                    onClick={() => setIsAuditModalOpen(true)}
-                    style={{
-                        width: "100%",
-                        padding: "0 14px",
-                    }}
-                >
-                    Review
-                </DialogButton>
+                <Field childrenContainerWidth="max">
+                    <DialogButton
+                        onClick={() => setIsAuditModalOpen(true)}
+                        style={{
+                            width: "100%",
+                        }}
+                    >
+                        Review
+                    </DialogButton>
+                </Field>
             </ItemRow>
 
             {/* Audit & Fix Modal */}
