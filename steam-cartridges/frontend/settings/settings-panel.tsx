@@ -404,8 +404,20 @@ function MetadataSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Service
                     </span>
                     <Dropdown
@@ -527,9 +539,9 @@ interface AchievementSourceDef {
 }
 
 const ALL_ACHIEVEMENT_SOURCES: AchievementSourceDef[] = [
-    { id: "steam_store", label: "Steam Store Mirror & PC Saves" },
+    { id: "steam_store", label: "Steam Store Mirror" },
     { id: "retroachievements", label: "RetroAchievements" },
-    { id: "rpcs3", label: "Console Emulators & RPCS3" },
+    { id: "rpcs3", label: "Console Emulators" },
 ];
 
 function AchievementsSection() {
@@ -740,8 +752,20 @@ function AchievementsSection() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Source
                     </span>
                     <Dropdown
@@ -903,8 +927,8 @@ function AchievementsSection() {
 // ===========================================================================
 
 const LAUNCH_NOTIFY_OPTIONS = [
-    { data: "all_runs", label: "All game runs (default)" },
-    { data: "first_run", label: "First run only" },
+    { data: "all_runs", label: "Always" },
+    { data: "first_run", label: "First run" },
     { data: "off", label: "Off" },
 ];
 
@@ -973,7 +997,7 @@ const SERVICE_OPTIONS = [
     { data: "retroachievements", label: "RetroAchievements" },
     { data: "screenscraper", label: "ScreenScraper" },
     { data: "igdb", label: "IGDB / Web Metadata" },
-    { data: "rpcs3", label: "RPCS3 Local Trophies" },
+    { data: "rpcs3", label: "Emulators Trophies" },
     { data: "none", label: "None (Disable Fetching)" },
 ];
 
@@ -1013,17 +1037,17 @@ function RulesSection() {
     });
 
     const filteredCollections = collections.filter((c) =>
-        c.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+        c.name.toLowerCase().includes(suggestionFilter.toLowerCase()),
     );
     const filteredShortcuts = uniqueShortcuts.filter((s) =>
-        s.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+        s.name.toLowerCase().includes(suggestionFilter.toLowerCase()),
     );
 
     const selectedParts = new Set(
         pattern
             .split(",")
             .map((s) => s.trim())
-            .filter(Boolean)
+            .filter(Boolean),
     );
 
     const toggleSuggestion = (itemName: string) => {
@@ -1138,7 +1162,13 @@ function RulesSection() {
                         >
                             {rule.name}
                         </span>
-                        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: "6px",
+                                flexShrink: 0,
+                            }}
+                        >
                             <DialogButton
                                 onClick={() => handleOpenEdit(idx)}
                                 style={{
@@ -1183,7 +1213,11 @@ function RulesSection() {
 
             {/* Add / Edit Rule Modal */}
             <SettingsModal
-                title={editingIndex !== null ? "Edit Routing Rule" : "Add Routing Rule"}
+                title={
+                    editingIndex !== null
+                        ? "Edit Routing Rule"
+                        : "Add Routing Rule"
+                }
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
             >
@@ -1193,8 +1227,20 @@ function RulesSection() {
                     onChange={(e) => setName(e.target.value)}
                 />
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Service
                     </span>
                     <Dropdown
@@ -1205,11 +1251,29 @@ function RulesSection() {
                     />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Action
                     </span>
-                    <div style={{ fontSize: "11px", opacity: 0.7, marginTop: "-2px" }}>
+                    <div
+                        style={{
+                            fontSize: "11px",
+                            opacity: 0.7,
+                            marginTop: "-2px",
+                        }}
+                    >
                         {action === "include"
                             ? "Only apply to matches"
                             : "Never apply to matches"}
@@ -1222,8 +1286,20 @@ function RulesSection() {
                     />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <span style={{ fontSize: "12px", color: "#e1e7ee", fontWeight: 600 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: "12px",
+                            color: "#e1e7ee",
+                            fontWeight: 600,
+                        }}
+                    >
                         Condition
                     </span>
                     <Dropdown
@@ -1249,7 +1325,8 @@ function RulesSection() {
                         marginBottom: "4px",
                     }}
                 >
-                    Separate multiple items with commas (e.g. Mario, Sonic, Zelda).
+                    Separate multiple items with commas (e.g. Mario, Sonic,
+                    Zelda).
                 </div>
 
                 {(conditionType === "collection" ||
@@ -1268,7 +1345,9 @@ function RulesSection() {
                                     : "Filter Games"
                             }
                             value={suggestionFilter}
-                            onChange={(e) => setSuggestionFilter(e.target.value)}
+                            onChange={(e) =>
+                                setSuggestionFilter(e.target.value)
+                            }
                         />
                         <div
                             style={{
@@ -1288,7 +1367,9 @@ function RulesSection() {
                                             <button
                                                 key={c.id}
                                                 type="button"
-                                                onClick={() => toggleSuggestion(c.name)}
+                                                onClick={() =>
+                                                    toggleSuggestion(c.name)
+                                                }
                                                 style={{
                                                     background: isSel
                                                         ? "rgba(102, 192, 244, 0.3)"
@@ -1296,7 +1377,9 @@ function RulesSection() {
                                                     border: isSel
                                                         ? "1px solid #66c0f4"
                                                         : "1px solid rgba(255, 255, 255, 0.1)",
-                                                    color: isSel ? "#66c0f4" : "#fff",
+                                                    color: isSel
+                                                        ? "#66c0f4"
+                                                        : "#fff",
                                                     borderRadius: "4px",
                                                     padding: "2px 8px",
                                                     fontSize: "11px",
@@ -1325,7 +1408,9 @@ function RulesSection() {
                                         <button
                                             key={s.appid}
                                             type="button"
-                                            onClick={() => toggleSuggestion(s.name)}
+                                            onClick={() =>
+                                                toggleSuggestion(s.name)
+                                            }
                                             style={{
                                                 background: isSel
                                                     ? "rgba(102, 192, 244, 0.3)"
@@ -1333,7 +1418,9 @@ function RulesSection() {
                                                 border: isSel
                                                     ? "1px solid #66c0f4"
                                                     : "1px solid rgba(255, 255, 255, 0.1)",
-                                                color: isSel ? "#66c0f4" : "#fff",
+                                                color: isSel
+                                                    ? "#66c0f4"
+                                                    : "#fff",
                                                 borderRadius: "4px",
                                                 padding: "2px 8px",
                                                 fontSize: "11px",
@@ -1428,7 +1515,8 @@ function RevisionSection() {
 
         const hasWeirdName = /\[.*?\]|\(.*?\)/.test(sc.name);
         // Only mark missing controller if user hasn't explicitly set full/none/partial AND emulator hasn't inferred support
-        const missingController = (!override || override === "auto") && inferred !== true;
+        const missingController =
+            (!override || override === "auto") && inferred !== true;
         const noAchievements = !achievements || achievements.nTotal === 0;
 
         if (missingController || hasWeirdName || noAchievements) {
