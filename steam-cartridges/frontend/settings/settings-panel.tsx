@@ -1241,7 +1241,7 @@ function RulesSection() {
         <PanelSection title="Routing Rules">
             <ToggleRow
                 label="Auto Mode"
-                description="Automatically routes services (RetroAchievements, Emulators, Steam Store Mirror, Web Scraping) based on emulator command line and executable"
+                description="Auto fetches metadata and achievements of the enabled services"
                 value={autoMode}
                 onChange={(val) => {
                     setAutoMode(val);
@@ -1958,8 +1958,8 @@ function RevisionSection() {
                 })
             );
             setFixMsg(`Scanned ${Math.min(i + batchSize, notScraped.length)} / ${notScraped.length}...`);
+            await refreshAuditData();
         }
-        await refreshAuditData();
         setIsScanningAll(false);
         setFixMsg("Batch scan complete!");
         setTimeout(() => setFixMsg(""), 3000);
@@ -2013,7 +2013,15 @@ function RevisionSection() {
                 </Field>
             </ItemRow>
             <ItemRow>
-                <div style={{ marginTop: "4px" }}>
+                <div
+                    style={{
+                        marginTop: "4px",
+                        display: "flex",
+                        gap: "8px",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                    }}
+                >
                     <DialogButton
                         onClick={() => setIsAuditModalOpen(true)}
                         style={{
@@ -2024,8 +2032,36 @@ function RevisionSection() {
                     >
                         Review
                     </DialogButton>
+                    {notScraped.length > 0 && (
+                        <DialogButton
+                            onClick={handleScanAllUnscraped}
+                            disabled={isScanningAll}
+                            style={{
+                                padding: "0 14px",
+                                minWidth: 0,
+                                width: "auto",
+                            }}
+                        >
+                            {isScanningAll
+                                ? "Scanning..."
+                                : `🔄 Scan All Unscraped (${notScraped.length})`}
+                        </DialogButton>
+                    )}
                 </div>
             </ItemRow>
+            {fixMsg && !isAuditModalOpen && (
+                <ItemRow>
+                    <div
+                        style={{
+                            color: "#66c0f4",
+                            fontSize: "12px",
+                            padding: "2px 0",
+                        }}
+                    >
+                        {fixMsg}
+                    </div>
+                </ItemRow>
+            )}
 
             {/* Audit & Fix Modal */}
             <SettingsModal
