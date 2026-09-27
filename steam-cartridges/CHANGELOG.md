@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Minimal Settings Panel & Modal Overlays (2026-09-27)**:
+  - Redesigned settings panel into a clean, minimal UI matching `enhanced-achievements`. Removed all verbose paragraph texts and reduced descriptions to single phrases.
+  - Active-only service lists: `{Metadata}` and `{Achievements}` display only active services with `[ Remove ]` buttons.
+  - Dynamic `+ Add Service` / `+ Add Source`: automatically hidden when all available services are added; shown when unadded services exist.
+  - Popups & modals: registration forms, rule creation, emulator status table, and library audit lists open in clean Steam-themed modal overlays (`SettingsModal`) instead of bloating the main panel.
+
 - **Native Activity Feed Events & Support Link Isolation (2026-09-27)**:
   - Added native activity feed events for non-Steam shortcuts: `{User} added {Game} to their library` (`eEventType = 3`) and `{User} played {Game} for the first time` (`eEventType = 30`).
   - Integrated into daily activity buckets with proper `AppActivityDay` prototypes, `m_rgEvents` sorting, and icon asset hooks.

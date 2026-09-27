@@ -17,10 +17,15 @@ theme Steam's toasts and sounds.
 
 ## Now
  
+**steam-cartridges Minimal Settings Panel Redesign (Complete).**
+- Refactored settings panel into a super minimal, non-bloated interface matching `enhanced-achievements`.
+- Active-only service lists with `[ Remove ]` buttons, dynamic `+ Add Service` / `+ Add Source` visibility (hidden when all added), and dedicated Steam-themed modal overlays for service registration, routing rules, emulator status, and library audit.
+- Routine 1 & 2 multi-tab smoke test and CDP modal interaction suite 100% passing.
+
 **steam-cartridges Community Section & Retro Media (Ready for Execution).**
 - Plan & Architecture: [docs/plans/steam-cartridges-community-plan.md](docs/plans/steam-cartridges-community-plan.md).
 - Integration of ScreenScraper (Media & Manuals) and IGDB (Trailers & Discussions) into non-Steam games' Community / Community Content tab.
-- Native Activity events (`ReceivedNewGame` and `PlayedGameFirstTime`) and Support link removal shipped & verified.
+
 
 ## Next
 

@@ -9,6 +9,20 @@ This repo is private and unversioned; entries are grouped by date.
 
 ## [Unreleased]
 
+- **`steam-cartridges` Minimal Settings Panel & Modal Overlays (2026-09-27)**:
+  - *Super Minimal Layout*: Refactored settings panel into a clean, minimal UI matching `enhanced-achievements`. Removed all verbose paragraph texts and reduced field descriptions to single crisp phrases.
+  - *Active Services & Dynamic Add/Remove*:
+    - `{Metadata}` and `{Achievements}` sections display only active services with status badges and `[ Remove ]` buttons.
+    - `+ Add Service` and `+ Add Source` buttons render only when unadded services exist; automatically hidden when all available services are active.
+  - *Modal Overlays for Workflows*:
+    - Service registration forms open in Steam-themed popup modals (`SettingsModal`) with credentials inputs, API verification, and inline feedback.
+    - Rules creation modal (`AddRuleModal`) cleanly isolates routing rule construction.
+    - Library Audit (`AuditModal`) replaces massive inline list with a dedicated dialog featuring filter tabs (`All`, `Unknown Input`, `No Achievements`), per-game controller dropdowns, and Steam AppID linking.
+    - Console emulators table moved to dedicated `[ Status ]` modal.
+  - *Verification*:
+    - `tsc --noEmit` clean, 60/60 unit tests pass (`npm run test:ts`), prod bundle built (`npm run build`).
+    - Live CDP automated verification (`scratch/test_minimal_modals.mjs`): verified dynamic `+ Add Service` hiding when all added, appearance on removal, modal display, and full Routine 1 & 2 multi-tab smoke test passing (`scratch/check_all_tabs.js`).
+
 - **`steam-cartridges` Native Activity Feed Events & Support Link Isolation (2026-09-27)**:
   - *Native Activity Feed Events for Shortcuts*:
     - Injected synthetic Steam native activity feed events: `ReceivedNewGame` (type 3: `{user avatar and name} added {game icon} {game name} to their library`) and `PlayedGameFirstTime` (type 30: `{user avatar and name} played {game icon} {game name} for the first time`).
