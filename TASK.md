@@ -46,9 +46,6 @@ that order; the plan's § 0 is the execution manual).
 
 ## Waiting on the user
 
-- **Lua interpreter** for the backend tests: `tools/lua/` is missing on this machine,
-  so `tests/test_backend.lua` cannot run. Blocks migration steps M4–M7
-  (plan § 12 K5).
 - Alpha testing checklist (U1–U9, real hardware/real unlocks only) —
   [phase7-and-alpha-plan.md § User test checklist](docs/plans/phase7-and-alpha-plan.md#user-test-checklist-only-the-user-can-verify).
 

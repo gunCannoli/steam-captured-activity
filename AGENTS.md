@@ -140,7 +140,7 @@ last), see [steam-debug.md § Cost-Efficient Debugging](docs/steam-debug.md#7-co
 
 ### Routine 4: Build & Run
 
-Backend tests: `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua` inside `steam-cartridges/` (Lua from `tools/lua/`; fixture counts track the live library).
+Backend tests: `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua` inside `steam-cartridges/` (LuaJIT 2.1 at `C:\dev\tools\lua`, on the user `PATH`; fixture counts track the live library).
 
 Run commands inside the respective plugin directory (`steam-cartridges`):
 

@@ -666,9 +666,11 @@ see [steam-debug.md](steam-debug.md).
 
 ## 5. Test
 
-Millennium ships only its embedded Lua VM, so get a standalone interpreter from
-[luabinaries](https://luabinaries.sourceforge.net/) to test backend logic outside
-Steam. Put it in `tools/lua/` (gitignored).
+Millennium ships only its embedded Lua VM, so backend tests need a standalone
+interpreter. Use **LuaJIT 2.1**, not plain Lua: the backend uses LuaJIT's `ffi`
+(`silent_exec.lua`), which PUC Lua (e.g. luabinaries) does not have. On this machine
+it is at `C:\dev\tools\lua` (on the user `PATH`; `lua` and `luajit` both work), built from
+the official source with MinGW; its `README.txt` says how to rebuild it.
 
 The pattern used by `steam-cartridges`: a harness stubs Millennium's
 `fs` / `utils` / `logger` / `millennium` / `json` modules, then the **real**

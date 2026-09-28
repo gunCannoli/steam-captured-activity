@@ -52,10 +52,10 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Ready** (after M0c) | `docs/steam-cartridges/kernel.md` |
 | M2 | Sensors (view, lifecycle, collections, owned apps) | Spec | `docs/steam-cartridges/sensors.md` |
 | M3.1–M3.10 | Surfaces, one per step | Spec | `docs/steam-cartridges/surfaces.md` (one section per surface) |
-| M4 | Resolver service + RPC facade | Spec · Blocked (K5) | `service-resolver.md`, `rpc.md` |
-| M5 | Metadata service | Spec · Blocked (K5) | `service-metadata.md` |
-| M6 | Achievements service | Spec · Blocked (K5) | `service-achievements.md` |
-| M7 | Freshness + ingestion | Spec · Blocked (K5) | `service-freshness.md` |
+| M4 | Resolver service + RPC facade | Spec | `service-resolver.md`, `rpc.md` |
+| M5 | Metadata service | Spec | `service-metadata.md` |
+| M6 | Achievements service | Spec | `service-achievements.md` |
+| M7 | Freshness + ingestion | Spec | `service-freshness.md` |
 | M8 | Settings split | Spec | `settings.md` |
 | M9 | Cleanup + docs | Spec | all |
 
@@ -71,7 +71,7 @@ that M0b-2 (Spec) may be skipped until an architect makes it Ready; M0c and M1 d
 | Steam | `C:\game\steam` (DevTools `http://127.0.0.1:8080`; use `127.0.0.1`, never `localhost`) |
 | Deployed dev plugin | `C:\game\steam\millennium\plugins\steam-cartridges-dev` (created by `dev.ps1`) |
 | Node | v24 (built-in `WebSocket`; the `scratch/arch-m0` scripts need no npm packages) |
-| Lua | **not installed** (`tools/lua/` missing). Lua tests cannot run (§ 12 K5) |
+| Lua | LuaJIT 2.1 at `C:\dev\tools\lua` (on the user `PATH`; `lua` and `luajit` both work; built from source 2026-09-28, see its `README.txt`) |
 | Test shortcuts | AM2R `4263274102` (unmapped, local metadata, captures) · WUCHANG: Fallen Feathers `3135033888` (mapped → native `2277560`) · Jotunnslayer `2315502503` (mapped → `2820820`) |
 
 Commands, run from `C:\game\millennium\steam-cartridges` unless stated otherwise:
@@ -627,7 +627,7 @@ the baseline changes only through an accepted ADR).
 | --- | --- |
 | `npm run check` | exit 0, no output |
 | `npm run test:ts` | `ℹ tests 64` · `ℹ pass 64` · `ℹ fail 0` |
-| Lua tests | cannot run: no interpreter (`tools/lua/` missing; § 12 K5) |
+| Lua tests (run 2026-09-28 with `C:\dev\tools\lua`) | `test_steam_store.lua` ALL PASS · `test_emulator_controllers.lua` ALL PASS · `test_backend.lua` 76 PASS, **2 FAIL** (§ 12 K7, K8) |
 | Cross-area imports in `frontend/` | 51 (list: `scratch/arch-m0/m0c/architecture.test.ts` regenerates it) |
 | Expected test counts after each Ready step (dry-run, cumulative) | M0a 64 · M0b-1 71 · M0c 73 · M1 81 |
 | Live (M0a+M0b-1 applied, then reverted) | `PASS render loop` · Properties OK ×3 · nav cycle 6/6 · `check_all_tabs.js` 11/11 (4 runs with the M0c fix) |
@@ -1635,7 +1635,7 @@ During M3, a surface still gets its data from today's feature modules through a
 backend record. Each M3 step's exit: § 0.5 PASS, its allowlist edges removed, its
 section added to `docs/steam-cartridges/surfaces.md`.
 
-### M4 — Resolver service + RPC facade (Spec · Blocked K5)
+### M4 — Resolver service + RPC facade (Spec)
 
 **Design:** backend `resolve_policy.lua` (port of `features/buckets/resolve.ts` +
 `auto-routing.ts`; port the TS tests `buckets.test.ts`, `routing-rules.test.ts` to Lua
@@ -1648,7 +1648,7 @@ keeps them registered). Frontend: `ports/backend.ts` replaces direct `rpc` impor
 the moved features. Exit: Jotunnslayer parity (`node scratch/check_parity.mjs` → `17 PASS / 0 FAIL`),
 § 0.5 PASS, Lua tests pass. Docs: `service-resolver.md`, `rpc.md`.
 
-### M5 — Metadata service (Spec · Blocked K5)
+### M5 — Metadata service (Spec)
 
 Sources behind `{ id, supports(ctx), fetch(ctx) → { status, data, ttl } }`:
 `src_steam_appdetails` (from `steam_store_appdetails.lua` + `steam_store_normalize.lua`),
@@ -1658,7 +1658,7 @@ half). Storage stays `library_metadata.json` (`custom_override` preserved). The
 (`node scratch/audit_missing_metadata.mjs` → 0 missing), AM2R Game Info intact with
 bucket `none` (ADR-0035), § 0.5 PASS. Doc: `service-metadata.md`.
 
-### M6 — Achievements service (Spec · Blocked K5)
+### M6 — Achievements service (Spec)
 
 Sources: `src_steam_schema`, `src_retroachievements` (`retroachievements.lua`),
 `src_ps3_trophies`, `src_ps4_trophies`, `src_engine_logs` + emulator channels
@@ -1676,7 +1676,7 @@ Exit: Animaniacs `0/98`, Castlevania: Aria of Sorrow 66 achievements, AM2R shows
 achievements and logs nothing (`unsupported` is silent, ADR-0014), a real unlock toast
 (user test). Doc: `service-achievements.md` replaces `docs/steam-cartridges-achievements.md`.
 
-### M7 — Freshness + ingestion (Spec · Blocked K5)
+### M7 — Freshness + ingestion (Spec)
 
 Backend `fresh_policy.lua`: per-part `checkedAt`, TTL 24 h, negative TTL separate;
 per-source throttle and circuit breaker (from `steam_store_throttle.lua` and
@@ -1802,5 +1802,7 @@ Executing agents add to this list instead of fixing things outside their step.
 | K2 | A plain PC game (AM2R) goes through RetroAchievements and logs `Failed loading achievements for shortcut …: cannot extract rom path` on every view; should be `unsupported` and silent (ADR-0014) | `count_cycle.mjs` phase A output | M6 |
 | K3 | `liveInstances` in `game-info-patch.ts` never drops unmounted component instances (slow leak; `forceUpdate` on them is a no-op) | source read | M3.3 |
 | K4 | "Mark as Private" is enabled for an enriched shortcut and would send the shortcut appid to the private-apps service | [steam-components.md § Header buttons](../steam-components.md#header-buttons-manage-and-properties) | M3.4 (decide) |
-| K5 | No Lua interpreter on this machine: `tools/lua/` is missing and `lua`/`luajit` are not on `PATH`, so `tests/test_backend.lua` and `tests/test_steam_store.lua` cannot run. AGENTS.md Routine 4 assumes `tools/lua/` | `which lua luajit` → nothing | **User**: provide a LuaJIT/Lua 5.1 binary in `tools/lua/`. Blocks M4–M7 |
+| K5 | **Resolved 2026-09-28:** LuaJIT 2.1 installed at `C:\dev\tools\lua` and added to the user `PATH`. Was: no Lua interpreter on this machine: `tools/lua/` is missing and `lua`/`luajit` are not on `PATH`, so `tests/test_backend.lua` and `tests/test_steam_store.lua` cannot run. AGENTS.md Routine 4 assumes `tools/lua/` | `which lua luajit` → nothing | **User**: provide a LuaJIT/Lua 5.1 binary in `tools/lua/`. Blocks M4–M7 |
+| K7 | `achievements_observer.get_possible_folder_names` (commit `22bac99`, never run: there was no Lua until K5 was fixed) turns `"WUCHANG: Fallen Feathers"` into `"WUCHANG -  Fallen Feathers"` (two spaces), and its `[:\xe2\x80\x93\xe2\x80\x94]` byte class replaces **each byte** of an en/em dash, so `"A – B"` becomes `"A  -  -  -  B"` | `test_backend.lua`: `FAIL keeps colon-to-dash normalized title`; `lua -e` repro | M6 (or a bugfix plan before it) |
+| K8 | `test_backend.lua` fixture `FIXTURE.retroarch = 216`; the live library now has 215 RetroArch shortcuts (library-dependent fixture, AGENTS.md Routine 4) | `FAIL retroarch shortcut count -> 215` | Update the fixture to the live count in the next backend step, after confirming the user removed one on purpose |
 | K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | M3.3 moves them to `Surface.render` |
