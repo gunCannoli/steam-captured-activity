@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Desktop Game Info Drawer & ⓘ Button Toggle Restoration (2026-09-28)**:
+  - PlayBar ⓘ Button Restoration: Restored the native ⓘ ("Show game details" / "Hide game details") button on the desktop PlayBar (`XC` / `be` in module `56262`) for non-Steam shortcuts.
+  - Section Filter Optimization: Re-enabled `"info"` in `RESTORED_SECTIONS` and automatically drop the redundant grey shortcut explanation `"nonsteam"` once metadata is populated, letting the native Game Info accordion expand cleanly without warnings.
+  - MobX `@observer` Prototype Bypass Resolution: Discovered that Steam decorates class components with MobX's `makeClassComponentObserver`, caching unpatched renders on instance properties. Implemented prototype `props` accessor descriptors (`get`/`set`) across `k`, `targetG`, and `targetPlayBar`, ensuring all MobX reaction renders access a scoped proxy with `BIsModOrShortcut: () => false` without prototype pollution on `AppOverview.prototype`.
+  - Dynamic Instance Refresh: Upgraded `refreshGameInfoInstances` to strip stale own-property `props` and force component re-renders when route or metadata state changes.
+
 - **Data Flow & Architecture Remediation (2026-09-28)**:
   - RetroAchievements Schema & Authenticated Matching: Added `User-Agent: RetroArch/1.19.0` to bypass Cloudflare 403 blocks; rewrote `find_game_id_by_title` to support JSON object dictionary responses (`{ ["11336"] = "Alundra" }`); appended credentials `&u=` and `&t=` to `patch_url` to eliminate HTTP 401 `invalid_credentials`; normalized signed int32 `shortcut_appid` in `M.get_or_fetch`.
   - Console Emulators Auto-Mode: Enabled `retroachievements` in Auto-Mode for `console_emulator` category (DuckStation, PCSX2, Dolphin, PPSSPP).

@@ -7,6 +7,29 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Desktop Game Info Drawer & ⓘ Button Toggle Restoration (2026-09-28)**:
+  - *Root Cause Analysis*:
+    - In desktop Steam (normal mode), the ⓘ ("Show game details" / "Hide game details") toggle button on the PlayBar (`XC` / `be` in module `56262`) and the Game Info accordion drawer (`G` and `k` in module `15448`) were missing for non-Steam shortcuts.
+    - Two gating mechanisms hid them:
+      1. Section Filter: `CAppDetailsSections.prototype.GetSections` stripped `"info"` whenever `overview.BIsModOrShortcut() === true`.
+      2. PlayBar Gate: The PlayBar component (`XC` in module `56262`) inspected `!overview.BIsModOrShortcut()` to decide whether to render the ⓘ toggle button item.
+    - MobX `@observer` Class Prototype Bypass Trap: Steam wraps class components `XC` and `k` with `makeClassComponentObserver` (`y.PA` in module `41230`). On initial mount, MobX attaches an own-property `this.render` directly to the instance closing over the original unpatched render function. Patching `Component.prototype.render` after module load was completely bypassed by subsequent MobX reaction re-renders because JavaScript resolves instance own-properties before prototype properties.
+  - *Fix & Prototype `props` Accessor Remediation*:
+    - **Section Registry Restoration (`frontend/steam/sections.ts`)**: Added `"info"` to `RESTORED_SECTIONS`. When metadata is enriched for a shortcut, the redundant grey shortcut explanation `"nonsteam"` is dropped, allowing the native `"info"` accordion drawer to render cleanly without warning boxes.
+    - **Prototype `props` Accessor Pattern (`frontend/features/game-info/game-info-patch.ts`)**: Created `hookComponentProps(componentClass, options)` which defines an accessor descriptor (`get`/`set`) for `props` on `componentClass.prototype`. When `super(e)` runs in `constructor(e)`, `this.props = e` invokes the prototype setter rather than creating an instance own-property. When any render (including MobX's instance reactions) accesses `this.props.overview`, the prototype getter returns a scoped Proxy (`BIsModOrShortcut: () => false`) without touching `AppOverview.prototype`.
+    - **Hooked Components**: Applied `hookComponentProps` to `k` (Game Info inner), `targetG` (Game Info accordion container), and `targetPlayBar` (`XC` / `be`, PlayBar component in module `56262`).
+    - **Live Instance Migration (`refreshGameInfoInstances`)**: Updated `refreshGameInfoInstances()` to detect and delete any legacy own-property `props` on mounted instances and trigger `forceUpdate()`.
+    - **Documentation**: Documented the MobX `@observer` prototype bypass trap and the prototype `props` accessor pattern in `docs/steam-components.md`.
+  - *Verification*:
+    - `npm run check` passes with 0 errors.
+    - `npm run test:ts` passes 64/64 tests.
+    - Live CDP toggle cycle test (`scratch/test_clean_toggle_cycle.mjs`):
+      - Initial state: Drawer collapsed (`AppDetailsCollapsed`, `height: 0`).
+      - Click ⓘ: Drawer expands (`AppDetailsExpanded`, `height: 179px`), displays description, developer, publisher, release date, badges; `hasNonsteamWarning: false`.
+      - Click ⓘ again: Drawer collapses cleanly (`AppDetailsCollapsed`, `height: 0`).
+    - Two-way navigation lifecycle (`scratch/test_nav_cycle.js`): All 6 checks PASS.
+    - Multi-tab smoke test (`scratch/check_all_tabs.js`): All 4 core views PASS without error boundaries.
+
 - **Millennium Settings Panel Navigation Resolution & Build Guardrail (2026-09-28)**:
   - *Root Cause Analysis*:
     - Millennium's frontend runtime indexes plugin settings panels under `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS[pluginName]`, where `pluginName` is baked into the JS bundle from `plugin.json` by `millennium-ttc` (`__millennium_internal_plugin_name_do_not_use_or_change__ = pluginName`).

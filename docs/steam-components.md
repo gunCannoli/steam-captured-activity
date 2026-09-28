@@ -1457,12 +1457,18 @@ if (!hasMetadata && overview.BIsModOrShortcut()) {
 }
 ```
 
-Two independent failure modes caused non-Steam games to display the grey shortcut warning:
+Three independent failure modes caused non-Steam games to display the grey shortcut warning or miss Game Info on desktop:
 1. **CEF Signed int32 Mismatch:** Steam CEF passes `overview.appid` as a signed 32-bit integer (e.g. `3858889198` becomes `-436078098`). Store queries and cached Map lookups without bitwise normalization (`appid >>> 0`) missed cached records.
 2. **Asynchronous Navigation Race:** When a user navigates directly to Game Info or switches tabs before background scraping/route listeners finish, `GetAppData(appid)` returns undefined.
+3. **MobX `@observer` Prototype Render Trap:** Steam wraps class components `XC` (PlayBar, module 56262) and `k` (Game Info, module 15448) with MobX's `makeClassComponentObserver` (`y.PA`). On first render, MobX attaches an own-property `this.render` directly to the instance, closing over the original unpatched render function. Patching `Component.prototype.render` after module load is bypassed because own properties take precedence over prototype properties during re-renders.
 
-**Remediation Pattern (On-Demand Synchronous Enrichment):**
-Patching `k.prototype.render` to perform synchronous lookup against cached library metadata (`getCachedLibraryMetadata(rawAppid)`) and injecting it immediately into `appData.descriptionsData` and `appData.associationData` before `super.render()` ensures the native about-the-game section, developer credits, publisher credits, and release dates render synchronously on the first paint cycle.
+**Remediation Pattern (Prototype `props` Accessor & Synchronous Enrichment):**
+1. **Prototype `props` Accessor:** By defining an accessor descriptor (`get`/`set`) for `props` on `Component.prototype` (`k.prototype` and `targetPlayBar.prototype`), constructor assignments (`this.props = e`) invoke the prototype setter rather than creating an instance own-property. Every subsequent render (including inside MobX instance reactions) accesses `this.props.overview`, invoking the prototype getter which returns the scoped proxy (`BIsModOrShortcut: () => false`) without touching `AppOverview.prototype` (preserving Guardrail 1).
+2. **Desktop Game Info Drawer & ⓘ Button:**
+   - Desktop Game Info is not a tab like Big Picture (`/tab/GameInfo`), but an accordion drawer rendered by `x.b` in module `15448` (wrapping `k`) under the hero banner.
+   - It is controlled by the ⓘ button on the desktop PlayBar (`XC` in module `56262`) via `onGameInfoToggle`.
+   - In stock Steam, the ⓘ button is guarded by `!t.BIsModOrShortcut()`, and the `"info"` section is stripped from `CAppDetailsSections.GetSections()` for shortcuts (`s = ["nonsteam", "notes", "screenshots"]`).
+   - Restoring `"info"` in `RESTORED_SECTIONS` and hooking `props` on `targetPlayBar.prototype` and `k.prototype` fully restores the native ⓘ toggle button and expandable drawer on desktop normal mode.
 
 ### Community media & Workshop store
 

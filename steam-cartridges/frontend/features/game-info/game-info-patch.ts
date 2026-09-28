@@ -146,7 +146,7 @@ export function refreshGameInfoInstances(): void {
     for (const doc of docs) {
         try {
             const el = doc.querySelector(
-                '[class*="Shortcut"], [class*="GameInfoContainer"], [class*="InnerContainer"], [class*="FeaturesList"]',
+                '[class*="Shortcut"], [class*="GameInfoContainer"], [class*="InnerContainer"], [class*="FeaturesList"], [class*="PlayBar"], [class*="AppButtonsContainer"], [class*="AppGameInfoContainer"]',
             );
             if (!el) continue;
             const key = Object.keys(el).find(
@@ -162,9 +162,23 @@ export function refreshGameInfoInstances(): void {
                     (fiber.type.name === "k" ||
                         fiber.type.name === "G" ||
                         fiber.type.name === "ct" ||
+                        fiber.type.name === "be" ||
+                        Boolean(fiber.type.s_setGameInfoVisible) ||
+                        typeof fiber.type.prototype?.onCollapseStarted ===
+                            "function" ||
                         typeof fiber.type === "function")
                 ) {
-                    fiber.stateNode?.forceUpdate?.();
+                    const inst = fiber.stateNode;
+                    if (inst) {
+                        if (
+                            Object.prototype.hasOwnProperty.call(inst, "props")
+                        ) {
+                            const cur = inst.props;
+                            delete inst.props;
+                            inst.props = cur;
+                        }
+                        inst.forceUpdate?.();
+                    }
                 }
                 fiber = fiber.return;
             }
@@ -292,61 +306,205 @@ export function ensureAppOverviewHooked(overview: any): boolean {
  * with `BIsModOrShortcut = () => false` on props, allowing Steam's native Description,
  * Stats, and FeaturesList blocks to render without mutating the underlying AppOverview instance.
  */
+/**
+ * Hooks a React class component's prototype `props` descriptor.
+ *
+ * In Steam's CEF environment, components wrapped with MobX's `@observer` decorator
+ * (`mobx-react` `makeClassComponentObserver`) attach an own-property `this.render` on
+ * each component instance during its first render. That instance reaction captures the
+ * class's original unpatched render function in a closure, bypassing subsequent prototype
+ * method patches.
+ *
+ * By defining a getter/setter for `props` on the component's prototype:
+ * 1. `super(e)` in the constructor sets `this.props = e`, invoking our prototype setter
+ *    without creating an instance own-property.
+ * 2. Any subsequent render (called directly or through MobX's instance reaction) accesses
+ *    `this.props.overview`, invoking our prototype getter.
+ * 3. The getter supplies a scoped Proxy where `BIsModOrShortcut: () => false` solely to
+ *    the component, without touching `AppOverview.prototype` (preserving Guardrail 1).
+ */
+function hookComponentProps(
+    componentClass: any,
+    options: {
+        requireMetadata?: boolean;
+        onView?: boolean;
+    },
+): void {
+    if (
+        !componentClass ||
+        typeof componentClass !== "function" ||
+        !componentClass.prototype
+    ) {
+        return;
+    }
+    if (componentClass.__nsga_props_hooked) return;
+    componentClass.__nsga_props_hooked = true;
+
+    try {
+        Object.defineProperty(componentClass.prototype, "props", {
+            get() {
+                liveInstances.add(this);
+                const rawProps = this._nsga_raw_props;
+                if (!rawProps) return rawProps;
+                const overview = rawProps.overview;
+                if (!overview) return rawProps;
+                ensureAppOverviewHooked(overview);
+
+                if (
+                    isNonSteamAppId(overview.appid) ||
+                    (typeof overview.BIsModOrShortcut === "function" &&
+                        overview.BIsModOrShortcut())
+                ) {
+                    const rawAppid = overview.appid >>> 0;
+                    if (options.onView) {
+                        onTriggerAppView?.(rawAppid);
+                    }
+
+                    if (options.requireMetadata) {
+                        const store = getAppDetailsStore();
+                        let appData =
+                            store?.GetAppData?.(overview.appid) ||
+                            store?.GetAppData?.(rawAppid);
+
+                        if (
+                            !appData?.descriptionsData?.strSnippet &&
+                            onGetMetadata &&
+                            onEnrichGameDetails
+                        ) {
+                            const meta =
+                                onGetMetadata(rawAppid) ||
+                                onGetMetadata(overview.appid);
+                            if (meta) {
+                                onEnrichGameDetails(rawAppid, meta);
+                                appData =
+                                    store?.GetAppData?.(overview.appid) ||
+                                    store?.GetAppData?.(rawAppid);
+                            }
+                        }
+
+                        const hasMetadata =
+                            isAppEnriched(overview.appid) ||
+                            Boolean(
+                                appData?.descriptionsData?.strSnippet ||
+                                    appData?.descriptionsData?.strFullDescription ||
+                                    appData?.associationData?.rgDevelopers?.length ||
+                                    appData?.associationData?.rgPublishers?.length ||
+                                    appData?.associationData?.rgFranchises?.length,
+                            );
+
+                        if (!hasMetadata) {
+                            return rawProps;
+                        }
+                    }
+
+                    if (
+                        this._nsga_patched_props &&
+                        this._nsga_last_raw_props === rawProps
+                    ) {
+                        return this._nsga_patched_props;
+                    }
+                    this._nsga_last_raw_props = rawProps;
+                    this._nsga_patched_props = new Proxy(rawProps, {
+                        get(target, prop, receiver) {
+                            if (prop === "overview") {
+                                return createPatchedOverview(overview);
+                            }
+                            return Reflect.get(target, prop, receiver);
+                        },
+                    });
+                    return this._nsga_patched_props;
+                }
+                return rawProps;
+            },
+            set(newProps) {
+                this._nsga_raw_props = newProps;
+                this._nsga_last_raw_props = undefined;
+                this._nsga_patched_props = undefined;
+            },
+            configurable: true,
+        });
+    } catch (e) {
+        logger.warn("Could not define props descriptor on component:", e);
+    }
+}
+
+/**
+ * Patch the inner GameInfo component (k) inside module 15448.
+ *
+ * Steam's native Game Info tab (Big Picture / GamepadUI) renders an inner component
+ * that explicitly tests `overview.BIsModOrShortcut()`. If true, Steam drops the
+ * descriptions (snippet and full description), developers, publishers, franchises,
+ * and release date.
+ *
+ * When this shortcut has enriched metadata in appDetailsStore, we proxy `overview`
+ * with `BIsModOrShortcut = () => false` on props, allowing Steam's native Description,
+ * Stats, and FeaturesList blocks to render without mutating the underlying AppOverview instance.
+ */
 function patchKComponent(k: any): boolean {
     if (!k || typeof k !== "function" || !k.prototype) return false;
     if (k.__nsga_gameinfo_patched) return true;
     k.__nsga_gameinfo_patched = true;
 
+    // 1. Prototype props descriptor (intercepts both MobX instance reactions and normal renders)
+    hookComponentProps(k, { requireMetadata: true });
+
+    // 2. Wrap k.prototype.render as secondary fallback
     const origKRender = k.prototype.render;
-    if (typeof origKRender !== "function") return false;
+    if (typeof origKRender === "function") {
+        k.prototype.render = function () {
+            liveInstances.add(this);
+            const overview = this.props?.overview;
+            if (overview) {
+                ensureAppOverviewHooked(overview);
+            }
+            if (
+                overview &&
+                (isNonSteamAppId(overview.appid) ||
+                    (typeof overview.BIsModOrShortcut === "function" &&
+                        overview.BIsModOrShortcut()))
+            ) {
+                const rawAppid = overview.appid >>> 0;
+                const store = getAppDetailsStore();
+                let appData =
+                    store?.GetAppData?.(overview.appid) ||
+                    store?.GetAppData?.(rawAppid);
 
-    k.prototype.render = function () {
-        liveInstances.add(this);
-        const overview = this.props?.overview;
-        if (overview) {
-            ensureAppOverviewHooked(overview);
-        }
-        if (
-            overview &&
-            (isNonSteamAppId(overview.appid) ||
-                (typeof overview.BIsModOrShortcut === "function" &&
-                    overview.BIsModOrShortcut()))
-        ) {
-            const rawAppid = overview.appid >>> 0;
-            const store = getAppDetailsStore();
-            let appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+                if (
+                    !appData?.descriptionsData?.strSnippet &&
+                    onGetMetadata &&
+                    onEnrichGameDetails
+                ) {
+                    const meta =
+                        onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
+                    if (meta) {
+                        onEnrichGameDetails(rawAppid, meta);
+                    }
+                }
 
-            if (!appData?.descriptionsData?.strSnippet && onGetMetadata && onEnrichGameDetails) {
-                const meta = onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
-                if (meta) {
-                    onEnrichGameDetails(rawAppid, meta);
-                    appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+                const hasMetadata =
+                    isAppEnriched(overview.appid) ||
+                    Boolean(
+                        appData?.descriptionsData?.strSnippet ||
+                            appData?.descriptionsData?.strFullDescription ||
+                            appData?.associationData?.rgDevelopers?.length ||
+                            appData?.associationData?.rgPublishers?.length ||
+                            appData?.associationData?.rgFranchises?.length,
+                    );
+
+                if (hasMetadata) {
+                    this.props = {
+                        ...this.props,
+                        overview: createPatchedOverview(overview),
+                    };
                 }
             }
 
-            const hasMetadata =
-                isAppEnriched(overview.appid) ||
-                Boolean(
-                    appData?.descriptionsData?.strSnippet ||
-                    appData?.descriptionsData?.strFullDescription ||
-                    appData?.associationData?.rgDevelopers?.length ||
-                    appData?.associationData?.rgPublishers?.length ||
-                    appData?.associationData?.rgFranchises?.length,
-                );
-
-            if (hasMetadata) {
-                this.props = {
-                    ...this.props,
-                    overview: createPatchedOverview(overview),
-                };
-            }
-        }
-
-        return origKRender.apply(this, arguments);
-    };
+            return origKRender.apply(this, arguments);
+        };
+    }
 
     logger.info(
-        "Successfully patched Steam Game Info inner component (k.prototype.render).",
+        "Successfully patched Steam Game Info inner component (k.prototype.props & render).",
     );
     return true;
 }
@@ -370,6 +528,7 @@ export function patchGameInfoComponent(): boolean {
         }
 
         let targetG: any = undefined;
+        let targetPlayBar: any = undefined;
 
         for (const id of Object.keys(req.m)) {
             let mod: any;
@@ -385,16 +544,23 @@ export function patchGameInfoComponent(): boolean {
                 if (typeof exp === "function" && exp.prototype) {
                     const proto = exp.prototype;
                     if (
+                        !targetG &&
                         typeof proto.onCollapseStarted === "function" &&
                         typeof proto.onCollapseComplete === "function" &&
                         typeof proto.setBoxHeight === "function"
                     ) {
                         targetG = exp;
-                        break;
+                    }
+                    if (
+                        !targetPlayBar &&
+                        exp.s_setGameInfoVisible instanceof Set &&
+                        Array.isArray(exp.s_rgFakeDetails)
+                    ) {
+                        targetPlayBar = exp;
                     }
                 }
             }
-            if (targetG) break;
+            if (targetG && targetPlayBar) break;
         }
 
         if (!targetG) {
@@ -430,61 +596,111 @@ export function patchGameInfoComponent(): boolean {
             );
         }
 
-        // 2. Wrap G.prototype.render as an enduring safety guard
+        // 2. Hook targetG (prototype props descriptor + render fallback)
         if (!targetG.__nsga_g_patched) {
             targetG.__nsga_g_patched = true;
+            hookComponentProps(targetG, {
+                requireMetadata: true,
+                onView: true,
+            });
+
             const origGRender = targetG.prototype.render;
-            targetG.prototype.render = function () {
-                liveInstances.add(this);
-                const overview = this.props?.overview;
-                if (overview) {
-                    ensureAppOverviewHooked(overview);
-                }
-                if (
-                    overview &&
-                    (isNonSteamAppId(overview.appid) ||
-                        (typeof overview.BIsModOrShortcut === "function" &&
-                            overview.BIsModOrShortcut()))
-                ) {
-                    const rawAppid = overview.appid >>> 0;
-                    onTriggerAppView?.(rawAppid);
+            if (typeof origGRender === "function") {
+                targetG.prototype.render = function () {
+                    liveInstances.add(this);
+                    const overview = this.props?.overview;
+                    if (overview) {
+                        ensureAppOverviewHooked(overview);
+                    }
+                    if (
+                        overview &&
+                        (isNonSteamAppId(overview.appid) ||
+                            (typeof overview.BIsModOrShortcut === "function" &&
+                                overview.BIsModOrShortcut()))
+                    ) {
+                        const rawAppid = overview.appid >>> 0;
+                        onTriggerAppView?.(rawAppid);
 
-                    const store = getAppDetailsStore();
-                    let appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+                        const store = getAppDetailsStore();
+                        let appData =
+                            store?.GetAppData?.(overview.appid) ||
+                            store?.GetAppData?.(rawAppid);
 
-                    if (!appData?.descriptionsData?.strSnippet && onGetMetadata && onEnrichGameDetails) {
-                        const meta = onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
-                        if (meta) {
-                            onEnrichGameDetails(rawAppid, meta);
-                            appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+                        if (
+                            !appData?.descriptionsData?.strSnippet &&
+                            onGetMetadata &&
+                            onEnrichGameDetails
+                        ) {
+                            const meta =
+                                onGetMetadata(rawAppid) ||
+                                onGetMetadata(overview.appid);
+                            if (meta) {
+                                onEnrichGameDetails(rawAppid, meta);
+                                appData =
+                                    store?.GetAppData?.(overview.appid) ||
+                                    store?.GetAppData?.(rawAppid);
+                            }
+                        }
+
+                        const hasMetadata =
+                            isAppEnriched(overview.appid) ||
+                            Boolean(
+                                appData?.descriptionsData?.strSnippet ||
+                                    appData?.descriptionsData?.strFullDescription ||
+                                    appData?.associationData?.rgDevelopers?.length ||
+                                    appData?.associationData?.rgPublishers?.length ||
+                                    appData?.associationData?.rgFranchises?.length,
+                            );
+
+                        if (hasMetadata) {
+                            this.props = {
+                                ...this.props,
+                                overview: createPatchedOverview(overview),
+                            };
                         }
                     }
 
-                    const hasMetadata =
-                        isAppEnriched(overview.appid) ||
-                        Boolean(
-                            appData?.descriptionsData?.strSnippet ||
-                            appData?.descriptionsData?.strFullDescription ||
-                            appData?.associationData?.rgDevelopers?.length ||
-                            appData?.associationData?.rgPublishers?.length ||
-                            appData?.associationData?.rgFranchises?.length,
-                        );
+                    const vdom = origGRender.apply(this, arguments);
+                    const kChild = vdom?.props?.children?.[0]?.type;
+                    if (kChild) {
+                        patchKComponent(kChild);
+                    }
+                    return vdom;
+                };
+            }
+        }
 
-                    if (hasMetadata) {
+        // 3. Hook targetPlayBar (prototype props descriptor + render fallback)
+        // Restores native ⓘ "Show/Hide game details" button on Desktop normal mode PlayBar
+        if (targetPlayBar && !targetPlayBar.__nsga_playbar_patched) {
+            targetPlayBar.__nsga_playbar_patched = true;
+            hookComponentProps(targetPlayBar, { requireMetadata: false });
+
+            const origPlayBarRender = targetPlayBar.prototype.render;
+            if (typeof origPlayBarRender === "function") {
+                targetPlayBar.prototype.render = function () {
+                    liveInstances.add(this);
+                    const overview = this.props?.overview;
+                    if (overview) {
+                        ensureAppOverviewHooked(overview);
+                    }
+                    if (
+                        overview &&
+                        (isNonSteamAppId(overview.appid) ||
+                            (typeof overview.BIsModOrShortcut === "function" &&
+                                overview.BIsModOrShortcut()))
+                    ) {
                         this.props = {
                             ...this.props,
                             overview: createPatchedOverview(overview),
                         };
                     }
-                }
-
-                const vdom = origGRender.apply(this, arguments);
-                const kChild = vdom?.props?.children?.[0]?.type;
-                if (kChild) {
-                    patchKComponent(kChild);
-                }
-                return vdom;
-            };
+                    return origPlayBarRender.apply(this, arguments);
+                };
+            }
+            logger.info(
+                "Successfully patched Steam PlayBar component (show/hide game details ⓘ button restored).",
+            );
         }
 
         hasPatchedGameInfo = true;

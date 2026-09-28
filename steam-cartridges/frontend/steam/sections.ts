@@ -1,6 +1,7 @@
 import { logger } from "../logger";
 import { appDetailsSections } from "./stores";
 import { isNonSteamAppId } from "./route";
+import { isAppEnriched } from "../features/game-info/game-info-patch";
 
 /**
  * Re-enable the app detail sections Steam hides from non-Steam games.
@@ -33,6 +34,10 @@ import { isNonSteamAppId } from "./route";
  * - `activity`: Fed by us via appActivityStore; renders chronological per-day
  *   activity cards. (Previously blocked by storeApp.BIsVisible(), now solved via
  *   StoreItemCache stubbing per ADR-0030).
+ * - `achievements`: Fed by us via appDetailsStore; renders native achievement
+ *   sidebar and progress.
+ * - `info`: Desktop Game Info accordion drawer (synopsis, description, developer,
+ *   publisher, release date, category badges), toggled by the ⓘ button.
  */
 const RESTORED_SECTIONS = [
     // Fed by us via the spotlight store; renders screenshots and clips.
@@ -41,6 +46,8 @@ const RESTORED_SECTIONS = [
     "activity",
     // Fed by us via appDetailsStore; renders native achievement sidebar and progress.
     "achievements",
+    // Desktop Game Info accordion drawer
+    "info",
 ] as const;
 
 /**
@@ -210,7 +217,10 @@ export function patchSections(): boolean {
             // Only drop a section once we have something in its place; otherwise the
             // page loses an explanation and gains nothing. Empty today - see
             // REPLACED_SECTIONS.
-            if (appid !== undefined && appsWithContent.has(appid)) {
+            if (
+                appid !== undefined &&
+                (appsWithContent.has(appid) || isAppEnriched(appid))
+            ) {
                 for (const name of REPLACED_SECTIONS) sections.delete(name);
             }
 
