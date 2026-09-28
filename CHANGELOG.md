@@ -7,6 +7,25 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Silent Background Scraping, Stacked Progress Bar & Audit Synchronization (2026-09-27)**:
+  - *Silent Process Execution (Zero CMD Windows)*:
+    - Created `backend/silent_exec.lua` using Win32 `kernel32.CreateProcessA` with `CREATE_NO_WINDOW = 0x08000000` via LuaJIT `ffi`.
+    - Integrated `silent_exec` and in-memory `rom_md5_cache` into `backend/retroachievements.lua` (`ra_hasher.js`), completely eliminating black console window popups when computing ROM hashes.
+  - *Progress Bar Layout*:
+    - Restructured `<SyncProgressBar />` in `settings-panel.tsx` into a vertical stacked layout (Row 1: status count & percentage, Row 2: active game title, Row 3: full-width progress bar), preventing text squishing and clipping in narrow sidebar panels.
+  - *Library Audit Visibility & Value Updates*:
+    - Hid `RevisionSection` during active background scraping (`{!syncProgress.isSyncing && <RevisionSection />}`), and restored it immediately when scraping finishes.
+    - Added module-level caching and `isAuditLoaded` state guard in `RevisionSection` to eliminate initial render flashes and race-condition sync triggers.
+    - Added unsigned and signed 32-bit appid lookups (`sc.appid >>> 0`, `sc.appid | 0`) for `metadataLib`, `achievementsMap`, and controller overrides, fixing a bug where 176 games with negative signed appids failed to match existing `library_metadata.json` records and falsely showed as "Not Scraped".
+  - *Prevention of Repeated 219 Game Scrapes*:
+    - Tracked `checkedAchievements` and `checkedStore` sets in `sync-manager.ts` so games without achievements are registered as checked and not queried in an endless loop.
+    - Added signed/unsigned appid checks for `existingMeta` so games with cached metadata are never flagged as needing scrape.
+    - Increased debounce delay to 500ms so rapid settings changes (such as deleting multiple rules) coalesce into a single pass.
+  - *Verified*:
+    - All 63 unit tests pass (`npm run test:ts`).
+    - Multi-tab smoke verification and two-way navigation lifecycle pass with 100% assertions green (`scratch/test_nav_cycle.js`, `scratch/check_all_tabs.js`).
+    - Verified silent `CartridgesAchievementsGet` and instant `GetAllMetadata` over CDP (`127.0.0.1:8080`).
+
 - **`steam-cartridges` Auto-Mode Routing & Game Classification Engine (2026-09-27)**:
   - *Auto-Mode Routing Toggle & Service Filtering*:
     - Added an Auto-Mode toggle (`autoRoutingMode: boolean`, default `true`) in Settings under Routing Rules with concise description: `"Auto fetches metadata and achievements of the enabled services"`.

@@ -1721,6 +1721,11 @@ const CONTROLLER_OVERRIDE_OPTIONS = [
     { data: "none", label: "Keyboard & Mouse Only" },
 ];
 
+let cachedMetadataLib: Record<string, ConsolidatedMetadata> | null = null;
+let cachedAutoProfiles: Record<string, AutoRoutingProfile> | null = null;
+let cachedControllerInference: Record<string, boolean> | null = null;
+let isInitialAuditLoaded = false;
+
 function RevisionSection() {
     const [controllerOverrides, setControllerOverrides] = useSetting(
         "controllerOverrides",
@@ -1729,13 +1734,14 @@ function RevisionSection() {
     const [autoModeEnabled] = useSetting("autoRoutingMode");
     const [autoProfiles, setAutoProfiles] = useState<
         Record<string, AutoRoutingProfile>
-    >({});
+    >(() => cachedAutoProfiles || {});
     const [metadataLib, setMetadataLib] = useState<
         Record<string, ConsolidatedMetadata>
-    >({});
+    >(() => cachedMetadataLib || {});
     const [controllerInference, setControllerInference] = useState<
         Record<string, boolean>
-    >({});
+    >(() => cachedControllerInference || {});
+    const [isAuditLoaded, setIsAuditLoaded] = useState(isInitialAuditLoaded);
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [filter, setFilter] = useState<
         "all" | "controller" | "achievements" | "not_scraped"
@@ -1751,6 +1757,7 @@ function RevisionSection() {
         try {
             const profRes = await rpc.getAutoRoutingProfiles();
             if (profRes?.profiles) {
+                cachedAutoProfiles = profRes.profiles;
                 setAutoProfiles(profRes.profiles);
             }
         } catch {
@@ -1759,6 +1766,7 @@ function RevisionSection() {
         try {
             const infRes = await rpc.getControllerInference();
             if (infRes?.games) {
+                cachedControllerInference = infRes.games;
                 setControllerInference(infRes.games);
             }
         } catch {
@@ -1767,11 +1775,14 @@ function RevisionSection() {
         try {
             const res = await rpc.getAllMetadata();
             if (res?.library) {
+                cachedMetadataLib = res.library;
                 setMetadataLib(res.library);
             }
         } catch {
             // ignore
         }
+        isInitialAuditLoaded = true;
+        setIsAuditLoaded(true);
     }, []);
 
     useEffect(() => {
@@ -1821,8 +1832,14 @@ function RevisionSection() {
             continue; // Excluded by rule / auto mode: do not count in issues or not-scraped
         }
 
-        const meta = metadataLib[String(sc.appid)] || metadataLib[sc.appid];
-        const achievements = getLocalAchievements(sc.appid);
+        const meta =
+            metadataLib[String(sc.appid)] ||
+            metadataLib[String(sc.appid >>> 0)] ||
+            metadataLib[String(sc.appid | 0)];
+        const achievements =
+            getLocalAchievements(sc.appid) ||
+            getLocalAchievements(sc.appid >>> 0) ||
+            getLocalAchievements(sc.appid | 0);
         const isScraped = !!meta || (achievements && achievements.nTotal > 0);
 
         if (!isScraped) {
@@ -1830,7 +1847,10 @@ function RevisionSection() {
             continue; // Do NOT count unscraped games as issues!
         }
 
-        const override = controllerOverrides[String(sc.appid)];
+        const override =
+            controllerOverrides[String(sc.appid)] ||
+            controllerOverrides[String(sc.appid >>> 0)] ||
+            controllerOverrides[String(sc.appid | 0)];
         const inferred =
             controllerInference[String(sc.appid)] ??
             controllerInference[String(sc.appid >>> 0)] ??
@@ -1900,10 +1920,10 @@ function RevisionSection() {
 
     // Automatically trigger background scraping when Auto-Mode is enabled and games await scraping
     useEffect(() => {
-        if (autoModeEnabled && notScraped.length > 0) {
+        if (isAuditLoaded && autoModeEnabled && notScraped.length > 0) {
             triggerSync(500);
         }
-    }, [autoModeEnabled, notScraped.length]);
+    }, [isAuditLoaded, autoModeEnabled, notScraped.length]);
 
     const handleScanSingle = async (appid: number, name: string) => {
         setFixMsg(`Scanning ${name}...`);
@@ -2526,11 +2546,11 @@ function SyncProgressBar() {
                     progress.phase === "complete"
                         ? "1px solid rgba(164, 208, 7, 0.4)"
                         : "1px solid rgba(102, 192, 244, 0.3)",
-                padding: "10px 16px",
+                padding: "10px 14px",
                 zIndex: 100,
                 display: "flex",
                 flexDirection: "column",
-                gap: "6px",
+                gap: "5px",
                 marginTop: "16px",
                 borderRadius: "4px",
                 boxShadow: "0 -4px 16px rgba(0, 0, 0, 0.4)",
@@ -2539,14 +2559,14 @@ function SyncProgressBar() {
             <div
                 style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: "12px",
+                    flexDirection: "column",
+                    gap: "2px",
                 }}
             >
                 <span
                     style={{
                         fontWeight: 600,
+                        fontSize: "12px",
                         color:
                             progress.phase === "complete"
                                 ? "#a4d007"
@@ -2557,12 +2577,11 @@ function SyncProgressBar() {
                         ? `✓ Scrape & mirror complete (${progress.total} games)`
                         : `🔄 Scraping & Mirroring: ${progress.current} / ${progress.total} games (${percent}%)`}
                 </span>
-                {progress.isSyncing && (
+                {progress.isSyncing && progress.currentGame ? (
                     <span
                         style={{
                             color: "#8ba5b7",
                             fontSize: "11px",
-                            maxWidth: "240px",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -2570,7 +2589,7 @@ function SyncProgressBar() {
                     >
                         {progress.currentGame}
                     </span>
-                )}
+                ) : null}
             </div>
             {progress.isSyncing && (
                 <div
@@ -2599,6 +2618,7 @@ function SyncProgressBar() {
 
 export function SettingsPanel() {
     const [, tick] = useState(0);
+    const syncProgress = useSyncProgress();
 
     // Periodic refresh so live collections and shortcuts remain synced
     useEffect(() => {
@@ -2613,7 +2633,7 @@ export function SettingsPanel() {
             <NotificationsSection />
             <ActivitySection />
             <RulesSection />
-            <RevisionSection />
+            {!syncProgress.isSyncing && <RevisionSection />}
             <SyncProgressBar />
         </>
     );

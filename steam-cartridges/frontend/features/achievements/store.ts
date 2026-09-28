@@ -278,13 +278,13 @@ export function updateShortcutState(
 }
 
 export function getLocalAchievements(shortcutAppId: number): SteamAppAchievements | undefined {
-    return achievementsMap.get(shortcutAppId);
+    return achievementsMap.get(shortcutAppId) ?? achievementsMap.get(shortcutAppId >>> 0) ?? achievementsMap.get(shortcutAppId | 0);
 }
 
 export function getLocalSchema(nativeAppId: number): AchievementSchemaRecord | undefined {
-    return schemasMap.get(nativeAppId);
+    return schemasMap.get(nativeAppId) ?? schemasMap.get(nativeAppId >>> 0) ?? schemasMap.get(nativeAppId | 0);
 }
 
 export function getLocalUnlocks(shortcutAppId: number): Record<string, AchievementUnlockRecord> | undefined {
-    return unlocksMap.get(shortcutAppId);
+    return unlocksMap.get(shortcutAppId) ?? unlocksMap.get(shortcutAppId >>> 0) ?? unlocksMap.get(shortcutAppId | 0);
 }

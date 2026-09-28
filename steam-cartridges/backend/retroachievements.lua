@@ -354,9 +354,13 @@ function M.extract_rom_path(cmd, launch_options)
   return nil
 end
 
---- Computes the ROM MD5 using ra_hasher.js helper
+local silent_exec = require("silent_exec")
+local rom_md5_cache = {}
+
+--- Computes the ROM MD5 using ra_hasher.js helper silently (no cmd window)
 function M.compute_rom_md5(rom_path)
   if not rom_path then return nil, "missing rom path" end
+  if rom_md5_cache[rom_path] then return rom_md5_cache[rom_path] end
   
   -- Find ra_hasher.js in the backend directory
   local script_path = "steam-cartridges/backend/ra_hasher.js"
@@ -369,16 +373,9 @@ function M.compute_rom_md5(rom_path)
   end
 
   local cmd = string.format('node "%s" "%s"', script_path, rom_path)
-  local pipe = io.popen(cmd)
-  if not pipe then
-    return nil, "failed to spawn hasher"
-  end
-
-  local output = pipe:read("*a")
-  pipe:close()
-
+  local output, err = silent_exec.run(cmd)
   if not output or #output == 0 then
-    return nil, "empty hasher output"
+    return nil, err or "empty hasher output"
   end
 
   local ok, data = pcall(json.decode, output)
@@ -391,6 +388,7 @@ function M.compute_rom_md5(rom_path)
   end
 
   if type(data.md5) == "string" and #data.md5 > 0 then
+    rom_md5_cache[rom_path] = data.md5
     return data.md5
   end
   return nil

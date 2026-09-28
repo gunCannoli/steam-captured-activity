@@ -64,6 +64,8 @@ interface SyncItem {
 let isRunning = false;
 let pendingRerun = false;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const checkedAchievements = new Set<number>();
+const checkedStore = new Set<number>();
 
 /**
  * Evaluates library shortcuts against current settings/rules and scrapes/mirrors
@@ -153,18 +155,43 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
                 isServiceAllowed('console_emulators', sc.appid, sc.name, collNames, rules, autoMode, profile);
 
             // Check metadata
-            const existingMeta = metadataLib[String(sc.appid)];
-            const needsMetadata = Boolean((igdbAllowed || screenscraperAllowed) && (!existingMeta || options?.forceAll));
+            const existingMeta =
+                metadataLib[String(sc.appid)] ||
+                metadataLib[String(sc.appid >>> 0)] ||
+                metadataLib[String(sc.appid | 0)];
+            const needsMetadata = Boolean(
+                (igdbAllowed || screenscraperAllowed) &&
+                (!existingMeta || options?.forceAll)
+            );
 
             // Check Steam Store mapping
-            const existingStoreMapping = storeMappings[String(sc.appid)];
-            const needsStore = Boolean(steamStoreAllowed && (!existingStoreMapping || options?.forceAll));
+            const existingStoreMapping =
+                storeMappings[String(sc.appid)] ||
+                storeMappings[String(sc.appid >>> 0)] ||
+                storeMappings[String(sc.appid | 0)];
+            const alreadyCheckedStore =
+                checkedStore.has(sc.appid) ||
+                checkedStore.has(sc.appid >>> 0) ||
+                checkedStore.has(sc.appid | 0);
+            const needsStore = Boolean(
+                steamStoreAllowed &&
+                !alreadyCheckedStore &&
+                (!existingStoreMapping || options?.forceAll)
+            );
 
             // Check Achievements
-            const existingAchievements = getLocalAchievements(sc.appid);
+            const existingAchievements =
+                getLocalAchievements(sc.appid) ||
+                getLocalAchievements(sc.appid >>> 0) ||
+                getLocalAchievements(sc.appid | 0);
+            const alreadyCheckedAchievements =
+                checkedAchievements.has(sc.appid) ||
+                checkedAchievements.has(sc.appid >>> 0) ||
+                checkedAchievements.has(sc.appid | 0);
             const needsAchievements = Boolean(
                 (retroachievementsAllowed || consoleEmuAllowed) &&
-                (!existingAchievements || existingAchievements.nTotal === 0 || options?.forceAll)
+                !alreadyCheckedAchievements &&
+                (!existingAchievements || options?.forceAll)
             );
 
             if (needsMetadata || needsStore || needsAchievements) {
@@ -205,9 +232,15 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
                         tasks.push(rpc.refreshGameMetadata(item.appid, item.name).catch(() => {}));
                     }
                     if (item.needsStore) {
+                        checkedStore.add(item.appid);
+                        checkedStore.add(item.appid >>> 0);
+                        checkedStore.add(item.appid | 0);
                         tasks.push(rpc.steamStoreSearch(item.appid, item.name).catch(() => {}));
                     }
                     if (item.needsAchievements) {
+                        checkedAchievements.add(item.appid);
+                        checkedAchievements.add(item.appid >>> 0);
+                        checkedAchievements.add(item.appid | 0);
                         tasks.push(rpc.cartridgesAchievementsGet(item.appid, 0).catch(() => {}));
                     }
 
@@ -260,7 +293,7 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
 /**
  * Debounced trigger to queue a background sync whenever settings or rules change.
  */
-export function triggerSync(delayMs = 350): void {
+export function triggerSync(delayMs = 500): void {
     if (debounceTimer) {
         clearTimeout(debounceTimer);
     }
