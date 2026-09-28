@@ -7,6 +7,35 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Data Flow & Architecture Remediation (`steam-cartridges-dataflow-audit-plan.md`) (2026-09-28)**:
+  - *RetroAchievements Schema & Authenticated Matching Remediation (Step 1)*:
+    - Expanded `ra_hasher.js` search candidates to include deployed `-dev` plugin paths (`millennium/plugins/steam-cartridges-dev/backend/ra_hasher.js`).
+    - Added `user_agent = "RetroArch/1.19.0"` to `M.get_game_id_by_md5`, `M.find_game_id_by_title`, and `M.fetch_game_data` to bypass Cloudflare/WAF 403 blocks.
+    - Rewrote `M.find_game_id_by_title` to iterate `pairs(list)` with an `extract_entry` helper supporting both object dictionaries (`{ ["11336"] = "Alundra" }`) and array formats returned by `dorequest.php?r=gameslist`.
+    - Fixed HTTP 401 `invalid_credentials` in `M.fetch_game_data`: Appended `&u=` and `&t=` credentials to `patch_url`.
+    - Normalized signed int32 `shortcut_appid` in `M.get_or_fetch` (`if s_appid < 0 then s_appid = s_appid + 0x100000000 end`).
+    - *Verified live*: Castlevania: Aria of Sorrow (`3327111222`) resolved 66 achievements; Alundra (`3858889198`) resolved 82 achievements.
+  - *Console Emulators Auto-Mode Resolution (Step 2)*:
+    - Updated `isServiceAllowedByAutoMode` in `resolve.ts` to return `true` for `svc === 'retroachievements'` when `category === 'console_emulator'`, enabling RetroAchievements support for DuckStation, PCSX2, Dolphin, and PPSSPP.
+    - Updated unit test in `routing-rules.test.ts`.
+  - *Route and Source View AppId Normalization (Step 3)*:
+    - Added and exported `isNonSteamAppId(appid: number): boolean` (`(appid >>> 0) >= NON_STEAM_APPID_MIN`) in `route.ts`.
+    - Normalized `rawAppid = appid >>> 0` at entry of `onSourceView` in `source-view.ts` and updated `watchGamepadAppid`.
+  - *Synchronous On-Demand Details Enrichment & Signed Int32 Cache Lookup (Step 4)*:
+    - Exported `getCachedLibraryMetadata(appid)` in `features/game-info/index.ts` checking unsigned uint32, raw, and signed int32 keys.
+    - Exported `isAppEnriched`, `markAppEnriched`, and `unmarkAppEnriched` in `game-info-patch.ts`, storing both signed and unsigned keys in `enrichedAppIds`.
+    - Updated `ensureAppOverviewHooked`: `BIsModOrShortcut` checks `isAppEnriched(this.appid)`; `BHasStoreCategory` checks normalized unsigned/signed keys.
+    - Updated `patchKComponent` and `targetG.prototype.render`: Added synchronous on-demand enrichment using `onGetMetadata` and `onEnrichGameDetails` when `!appData?.descriptionsData?.strSnippet`. Completely eliminated `#AppDetails_Shortcut_Explanation` ("Detailed information is unavailable because it is a non-Steam game or mod") for non-Steam shortcuts across all buckets.
+    - Updated `enrichGameDetails` and `revertGameDetails` in `metadata.ts` to manage signed and unsigned keys symmetrically.
+  - *Scraper Batch Expansion & Error Threshold (Step 5)*:
+    - Increased `MAX_BATCH_ITEMS` from 25 to 100 in `sync-manager.ts` to support large non-Steam libraries without starving subsequent games.
+    - Increased consecutive error ceiling from 3 to 5 before tripping the 15-minute circuit breaker.
+  - *Verification Suite*:
+    - All 64 unit tests pass (`npm run test:ts`).
+    - TypeScript compiles cleanly (`npm run check`).
+    - Two-way navigation lifecycle passes 100% (`scratch/test_nav_cycle.js`).
+    - Multi-tab smoke verification passes 100% (`scratch/check_all_tabs.js`) across Desktop and Big Picture Mode.
+
 - **`steam-cartridges` Library Audit Layout Revert & Click Handling Fix (2026-09-27)**:
   - *Layout & Action Button Revert*:
     - Reverted row-level action buttons back to the clean 3-row structure: Row 1 "Not scraped: {count}", Row 2 "Issues detected: {count}", Row 3 single centered "Review" button.

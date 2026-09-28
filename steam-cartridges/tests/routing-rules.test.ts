@@ -118,7 +118,7 @@ test('isServiceAllowedByAutoMode: validates baseline rules per category', () => 
     assert.equal(isServiceAllowedByAutoMode('rpcs3', 'console_emulator'), true);
     assert.equal(isServiceAllowedByAutoMode('screenscraper', 'console_emulator'), true);
     assert.equal(isServiceAllowedByAutoMode('steam_store', 'console_emulator'), false);
-    assert.equal(isServiceAllowedByAutoMode('retroachievements', 'console_emulator'), false);
+    assert.equal(isServiceAllowedByAutoMode('retroachievements', 'console_emulator'), true);
 
     // PC games
     assert.equal(isServiceAllowedByAutoMode('steam_store', 'pc'), true);

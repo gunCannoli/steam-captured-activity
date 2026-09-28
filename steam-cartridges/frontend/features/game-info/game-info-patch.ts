@@ -2,6 +2,23 @@ import { logger } from "../../logger";
 
 export const enrichedAppIds = new Set<number>();
 
+export function isAppEnriched(appid: number): boolean {
+    if (typeof appid !== "number") return false;
+    return enrichedAppIds.has(appid) || enrichedAppIds.has(appid >>> 0) || enrichedAppIds.has(appid | 0);
+}
+
+export function markAppEnriched(appid: number): void {
+    enrichedAppIds.add(appid);
+    enrichedAppIds.add(appid >>> 0);
+    enrichedAppIds.add(appid | 0);
+}
+
+export function unmarkAppEnriched(appid: number): void {
+    enrichedAppIds.delete(appid);
+    enrichedAppIds.delete(appid >>> 0);
+    enrichedAppIds.delete(appid | 0);
+}
+
 interface WebpackRequire {
     (id: string): any;
     m: Record<string, unknown>;
@@ -46,9 +63,19 @@ export function getSteamRequire(): WebpackRequire | undefined {
 let cachedDetailsStore: any = undefined;
 let cachedAppStore: any = undefined;
 let onTriggerAppView: ((appid: number) => void) | undefined;
+let onGetMetadata: ((appid: number) => any) | undefined;
+let onEnrichGameDetails: ((appid: number, meta: any) => boolean) | undefined;
 
 export function setAppViewTrigger(fn: (appid: number) => void): void {
     onTriggerAppView = fn;
+}
+
+export function setMetadataResolver(
+    getMeta: (appid: number) => any,
+    enrich: (appid: number, meta: any) => boolean,
+): void {
+    onGetMetadata = getMeta;
+    onEnrichGameDetails = enrich;
 }
 
 export function setCachedStores(detailsStore?: any, appStore?: any): void {
@@ -178,16 +205,22 @@ const appCategoriesCache = new Map<number, Set<number>>();
 
 export function setAppCategories(appid: number, categories: Set<number>): void {
     appCategoriesCache.set(appid, categories);
+    appCategoriesCache.set(appid >>> 0, categories);
+    appCategoriesCache.set(appid | 0, categories);
 }
 
 export function clearAppCategories(appid: number): void {
     appCategoriesCache.delete(appid);
+    appCategoriesCache.delete(appid >>> 0);
+    appCategoriesCache.delete(appid | 0);
 }
 
 export function getCachedCategoriesForApp(
     appid: number,
 ): Set<number> | undefined {
-    return appCategoriesCache.get(appid);
+    return appCategoriesCache.get(appid) ||
+        appCategoriesCache.get(appid >>> 0) ||
+        appCategoriesCache.get(appid | 0);
 }
 
 /**
@@ -207,7 +240,7 @@ export function ensureAppOverviewHooked(overview: any): boolean {
             curr.__nsga_bismod_hooked = true;
             const origBIsMod = curr.BIsModOrShortcut;
             curr.BIsModOrShortcut = function () {
-                if (enrichedAppIds.has(this.appid)) {
+                if (isAppEnriched(this.appid)) {
                     return false;
                 }
                 return origBIsMod.apply(this, arguments);
@@ -243,7 +276,9 @@ export function ensureAppOverviewHooked(overview: any): boolean {
                 ) {
                     return true;
                 }
-                const cached = appCategoriesCache.get(this.appid);
+                const cached = appCategoriesCache.get(this.appid) ||
+                    appCategoriesCache.get(this.appid >>> 0) ||
+                    appCategoriesCache.get(this.appid | 0);
                 if (cached && cached.has(catId)) {
                     return true;
                 }
@@ -290,10 +325,20 @@ function patchKComponent(k: any): boolean {
             typeof overview.BIsModOrShortcut === "function" &&
             overview.BIsModOrShortcut()
         ) {
+            const rawAppid = overview.appid >>> 0;
             const store = getAppDetailsStore();
-            const appData = store?.GetAppData?.(overview.appid);
+            let appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+
+            if (!appData?.descriptionsData?.strSnippet && onGetMetadata && onEnrichGameDetails) {
+                const meta = onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
+                if (meta) {
+                    onEnrichGameDetails(rawAppid, meta);
+                    appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+                }
+            }
+
             const hasMetadata =
-                enrichedAppIds.has(overview.appid) ||
+                isAppEnriched(overview.appid) ||
                 Boolean(
                     appData?.descriptionsData?.strSnippet ||
                     appData?.descriptionsData?.strFullDescription ||
@@ -413,12 +458,22 @@ export function patchGameInfoComponent(): boolean {
                     typeof overview.BIsModOrShortcut === "function" &&
                     overview.BIsModOrShortcut()
                 ) {
-                    onTriggerAppView?.(overview.appid);
+                    const rawAppid = overview.appid >>> 0;
+                    onTriggerAppView?.(rawAppid);
 
                     const store = getAppDetailsStore();
-                    const appData = store?.GetAppData?.(overview.appid);
+                    let appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+
+                    if (!appData?.descriptionsData?.strSnippet && onGetMetadata && onEnrichGameDetails) {
+                        const meta = onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
+                        if (meta) {
+                            onEnrichGameDetails(rawAppid, meta);
+                            appData = store?.GetAppData?.(overview.appid) || store?.GetAppData?.(rawAppid);
+                        }
+                    }
+
                     const hasMetadata =
-                        enrichedAppIds.has(overview.appid) ||
+                        isAppEnriched(overview.appid) ||
                         Boolean(
                             appData?.descriptionsData?.strSnippet ||
                             appData?.descriptionsData?.strFullDescription ||

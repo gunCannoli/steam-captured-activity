@@ -18,11 +18,16 @@ import {
 import {
     patchGameInfoComponent,
     setCachedStores,
+    setMetadataResolver,
     enrichedAppIds,
 } from "./game-info-patch";
 
 /** In-memory cache of library metadata */
 const libraryCache = new Map<number, ConsolidatedMetadata>();
+
+export function getCachedLibraryMetadata(appid: number): ConsolidatedMetadata | undefined {
+    return libraryCache.get(appid >>> 0) || libraryCache.get(appid) || libraryCache.get(appid | 0);
+}
 
 /** Set of appids we have already enriched this session */
 const processedApps = new Set<number>();
@@ -102,6 +107,7 @@ export async function initGameInfo(): Promise<void> {
 
     // Bypass Big Picture native shortcut filter on Game Info tab
     patchGameInfoComponent();
+    setMetadataResolver(getCachedLibraryMetadata, enrichGameDetails);
 
     // Controller support per shortcut from its emulator, before any badge is written (ADR-0038 addendum).
     await loadControllerInference();

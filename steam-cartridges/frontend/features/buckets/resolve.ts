@@ -264,7 +264,8 @@ export function isServiceAllowedByAutoMode(
     if (category === 'console_emulator') {
         if (svc === 'console_emulators' || svc === 'rpcs3') return true;
         if (svc === 'screenscraper' || svc === 'igdb' || svc === 'steamgriddb') return true;
-        if (svc === 'steam_store' || svc === 'retroachievements') return false;
+        if (svc === 'retroachievements') return true;
+        if (svc === 'steam_store') return false;
         return true;
     }
 

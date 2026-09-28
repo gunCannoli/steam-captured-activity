@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Data Flow & Architecture Remediation (2026-09-28)**:
+  - RetroAchievements Schema & Authenticated Matching: Added `User-Agent: RetroArch/1.19.0` to bypass Cloudflare 403 blocks; rewrote `find_game_id_by_title` to support JSON object dictionary responses (`{ ["11336"] = "Alundra" }`); appended credentials `&u=` and `&t=` to `patch_url` to eliminate HTTP 401 `invalid_credentials`; normalized signed int32 `shortcut_appid` in `M.get_or_fetch`.
+  - Console Emulators Auto-Mode: Enabled `retroachievements` in Auto-Mode for `console_emulator` category (DuckStation, PCSX2, Dolphin, PPSSPP).
+  - Synchronous On-Demand Game Info Enrichment: Fixed signed int32 vs unsigned uint32 AppId lookup mismatch (`appid >>> 0`) in `game-info-patch.ts`, eliminating the grey shortcut explanation `#AppDetails_Shortcut_Explanation` ("Detailed information is unavailable because it is a non-Steam game or mod") and rendering description, developers, publishers, and release date synchronously upon Game Info component mount.
+  - Scraper Batch Expansion: Increased `MAX_BATCH_ITEMS` to 100 and decoupled non-fatal scrape errors from premature circuit breaker trips (raised error threshold to 5).
+
 - **Minimal Settings Panel & Modal Overlays (2026-09-27)**:
   - Redesigned settings panel into a clean, minimal UI matching `enhanced-achievements`. Removed all verbose paragraph texts and reduced descriptions to single phrases.
   - Active-only service lists: `{Metadata}` and `{Achievements}` display only active services with `[ Remove ]` buttons.

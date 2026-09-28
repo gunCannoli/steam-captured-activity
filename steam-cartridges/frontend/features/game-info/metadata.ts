@@ -3,7 +3,8 @@ import type { ConsolidatedMetadata } from "../../rpc";
 import { MANAGED_CATEGORY_IDS, badgeCategoryIds } from "./category-policy";
 import { controllerContext } from "./controller";
 import {
-    enrichedAppIds,
+    markAppEnriched,
+    unmarkAppEnriched,
     clearAppCategories,
     ensureAppOverviewHooked,
     getAppDetailsStore,
@@ -91,11 +92,13 @@ export function revertGameDetails(appid: number): void {
                 overview.xbox_controller_support = saved.xbox_controller_support;
             }
         }
+        const uAppid = appid >>> 0;
         originals.delete(appid);
+        originals.delete(uAppid);
         clearAppCategories(appid);
-        enrichedAppIds.delete(appid);
+        unmarkAppEnriched(appid);
         try {
-            getAppDetailsStore()?.AppDetailsChanged?.(appid);
+            getAppDetailsStore()?.AppDetailsChanged?.(uAppid);
         } catch {}
         refreshGameInfoInstances();
         logger.info(`Reverted Game Info enrichment for ${appid}.`);
@@ -116,7 +119,8 @@ export function enrichGameDetails(
 ): boolean {
     try {
         let touched = false;
-        enrichedAppIds.add(appid);
+        const uAppid = appid >>> 0;
+        markAppEnriched(uAppid);
 
         const developers = toArray<string>(meta.developers);
         const publishers = toArray<string>(meta.publishers);
@@ -125,9 +129,9 @@ export function enrichGameDetails(
         // 1. Populate appDetailsStore (Big Picture Game Info tab & details)
         const detailsStore = getAppDetailsStore();
         if (detailsStore?.GetAppData) {
-            const appData = detailsStore.GetAppData(appid);
+            const appData = detailsStore.GetAppData(uAppid) || detailsStore.GetAppData(appid) || detailsStore.GetAppData(appid | 0);
             if (appData) {
-                recordOriginals(appid, appData, undefined);
+                recordOriginals(uAppid, appData, undefined);
                 // Descriptions (canonical description for snippet and full description)
                 const desc = meta.description || "";
                 appData.descriptionsData = {
@@ -154,7 +158,7 @@ export function enrichGameDetails(
                 // Notify mobx observers if available
                 if (typeof detailsStore.AppDetailsChanged === "function") {
                     try {
-                        detailsStore.AppDetailsChanged(appid);
+                        detailsStore.AppDetailsChanged(uAppid);
                     } catch {}
                 }
                 touched = true;
@@ -164,15 +168,15 @@ export function enrichGameDetails(
         // 2. Populate appCategoriesCache and AppOverview (Categories, Game Modes, Controller Support, Release Date)
         // Only categories true of the game itself: no Steam services (ADR-0038, parity plan F).
         // Controller: Steam Store data > emulator inference > the default setting > none (ADR-0038 addendum).
-        const catSet = new Set<number>(badgeCategoryIds(meta, controllerContext(appid)));
+        const catSet = new Set<number>(badgeCategoryIds(meta, controllerContext(uAppid)));
 
-        setAppCategories(appid, catSet);
+        setAppCategories(uAppid, catSet);
 
         const appStore = getAppStore();
         if (appStore?.GetAppOverviewByAppID) {
-            const overview = appStore.GetAppOverviewByAppID(appid);
+            const overview = appStore.GetAppOverviewByAppID(uAppid) || appStore.GetAppOverviewByAppID(appid) || appStore.GetAppOverviewByAppID(appid | 0);
             if (overview) {
-                recordOriginals(appid, undefined, overview);
+                recordOriginals(uAppid, undefined, overview);
                 ensureAppOverviewHooked(overview);
 
                 // Ensure m_setStoreCategories is an active Set and clear previous managed categories
@@ -197,7 +201,7 @@ export function enrichGameDetails(
                 } else if (catSet.has(18)) {
                     overview.xbox_controller_support = 1;
                 } else {
-                    const saved = originals.get(appid);
+                    const saved = originals.get(uAppid) || originals.get(appid);
                     if (saved && "xbox_controller_support" in saved) {
                         overview.xbox_controller_support = saved.xbox_controller_support;
                     }

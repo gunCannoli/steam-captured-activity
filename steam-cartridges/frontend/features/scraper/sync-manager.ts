@@ -65,7 +65,7 @@ const SYNC_HISTORY_KEY = 'steam_cartridges_sync_history_v1';
 const COOLDOWN_NEGATIVE_MS = 24 * 60 * 60 * 1000; // 24 hours negative cache
 const COOLDOWN_POSITIVE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days if data exists
 const MIN_FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000; // At most 1 full library background scan per 15 minutes
-const MAX_BATCH_ITEMS = 25; // Cap per background run to avoid massive API bursts
+const MAX_BATCH_ITEMS = 100; // Cap per background run to support large libraries
 
 interface SyncHistoryEntry {
     checkedAt: number;
@@ -341,8 +341,8 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
 
             if (itemHadError) {
                 consecutiveErrors++;
-                if (consecutiveErrors >= 3) {
-                    logger.warn('3 consecutive scrape errors; pausing sync to protect APIs.');
+                if (consecutiveErrors >= 5) {
+                    logger.warn('5 consecutive API scrape errors; pausing sync to protect APIs.');
                     circuitBreakerUntil = Date.now() + 15 * 60 * 1000;
                     break;
                 }

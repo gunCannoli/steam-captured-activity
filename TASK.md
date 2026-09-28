@@ -17,18 +17,15 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges Complete Data Flow & Architecture Audit (Plan Ready for Execution).**
-
-- Plan & Architecture: [docs/plans/steam-cartridges-dataflow-audit-plan.md](docs/plans/steam-cartridges-dataflow-audit-plan.md).
-- Solves root cause for missing metadata and achievements on `Alundra`, `Castlevania: Aria of Sorrow`, and 217 retro/native games.
-- Addresses RetroAchievements 403 Forbidden User-Agent bug, dictionary title parsing on `.chd` discs, signed/unsigned int32 AppId lookup mismatch, on-demand details store injection, and simplifies parallel store caches.
+**Phase 9 — provider contract.** Formalize the `retroachievements`/`steamgriddb`/`retroarch`
+IPC contract per [ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it)
+and [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently).
+Architecture: [docs/millennium-architecture.md](docs/millennium-architecture.md).
 
 ## Next
 
-- **Phase 9 — provider contract.** Formalize the `retroachievements`/`steamgriddb`/`retroarch`
-  IPC contract per [ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it)
-  and [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently).
-  Architecture: [docs/millennium-architecture.md](docs/millennium-architecture.md).
+- **Provider Plugin Extraction**: Extract `retroachievements` and `screenscraper`/`igdb`
+  into standalone provider plugins communicating via the Phase 9 IPC contract.
 
 ## Waiting on the user
 

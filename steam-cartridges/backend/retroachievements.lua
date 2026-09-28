@@ -363,13 +363,25 @@ function M.compute_rom_md5(rom_path)
   if rom_md5_cache[rom_path] then return rom_md5_cache[rom_path] end
   
   -- Find ra_hasher.js in the backend directory
-  local script_path = "steam-cartridges/backend/ra_hasher.js"
-  local f = io.open(script_path, "r")
-  if not f then
-    -- Try relative to current script
-    script_path = "C:/game/millennium/steam-cartridges/backend/ra_hasher.js"
-  else
-    f:close()
+  local millennium = require("millennium")
+  local sp = millennium and millennium.steam_path and millennium.steam_path() or "C:/game/steam"
+  local candidates = {
+    "steam-cartridges/backend/ra_hasher.js",
+    "C:/game/millennium/steam-cartridges/backend/ra_hasher.js",
+    sp .. "/millennium/plugins/steam-cartridges-dev/backend/ra_hasher.js",
+    sp .. "/millennium/plugins/steam-cartridges/backend/ra_hasher.js",
+  }
+  local script_path = nil
+  for _, p in ipairs(candidates) do
+    local f = io.open(p, "r")
+    if f then
+      f:close()
+      script_path = p
+      break
+    end
+  end
+  if not script_path then
+    script_path = "steam-cartridges/backend/ra_hasher.js"
   end
 
   local cmd = string.format('node "%s" "%s"', script_path, rom_path)
@@ -400,6 +412,7 @@ function M.get_game_id_by_md5(md5)
   local url = "https://retroachievements.org/dorequest.php?r=gameid&m=" .. tostring(md5)
   
   local ok, res = pcall(http.get, url, {
+    user_agent = "RetroArch/1.19.0",
     headers = {
       ["User-Agent"] = "RetroArch/1.19.0",
       ["Accept"] = "application/json",
@@ -461,7 +474,11 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
   if not list then
     local url = "https://retroachievements.org/dorequest.php?r=gameslist&c=" .. tostring(console_id)
     local ok, res = pcall(http.get, url, {
-      headers = { ["User-Agent"] = "RetroArch/1.19.0" },
+      user_agent = "RetroArch/1.19.0",
+      headers = {
+        ["User-Agent"] = "RetroArch/1.19.0",
+        ["Accept"] = "application/json",
+      },
       timeout = 10,
     })
     if ok and res and res.status == 200 and res.body then
@@ -473,24 +490,35 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
     end
   end
 
-  if not list or #list == 0 then return nil end
+  if not list or type(list) ~= "table" then return nil end
 
   local norm_target = normalize_title(target_title)
   if #norm_target == 0 then return nil end
 
+  local function extract_entry(k, v)
+    if type(v) == "table" then
+      return tonumber(v.ID or v.id or k), tostring(v.Title or v.title or "")
+    elseif type(v) == "string" then
+      return tonumber(k), v
+    end
+    return nil, ""
+  end
+
   -- 1. Exact match on normalized title
-  for _, g in ipairs(list) do
-    if g.Title and normalize_title(g.Title) == norm_target then
-      return g.ID
+  for k, v in pairs(list) do
+    local gid, gtitle = extract_entry(k, v)
+    if gid and normalize_title(gtitle) == norm_target then
+      return gid
     end
   end
 
   -- 2. Substring match (either target inside title or title inside target)
-  for _, g in ipairs(list) do
-    if g.Title then
-      local norm_g = normalize_title(g.Title)
+  for k, v in pairs(list) do
+    local gid, gtitle = extract_entry(k, v)
+    if gid then
+      local norm_g = normalize_title(gtitle)
       if #norm_g >= 5 and (norm_target:find(norm_g, 1, true) or norm_g:find(norm_target, 1, true)) then
-        return g.ID
+        return gid
       end
     end
   end
@@ -509,7 +537,11 @@ function M.fetch_game_data(game_id, username, token, hardcore)
 
   -- 1. Fetch Game Schema (Titles, Badges, Points, Conditions)
   local patch_url = "https://retroachievements.org/dorequest.php?r=patch&g=" .. tostring(gid)
+  if #u > 0 and #t > 0 then
+    patch_url = patch_url .. "&u=" .. utils.url_encode(u) .. "&t=" .. utils.url_encode(t)
+  end
   local p_ok, p_res = pcall(http.get, patch_url, {
+    user_agent = "RetroArch/1.19.0",
     headers = {
       ["User-Agent"] = "RetroArch/1.19.0",
       ["Accept"] = "application/json",
@@ -582,7 +614,8 @@ end
 --- Main entry point: gets cached or fetches RetroAchievements data for a shortcut
 function M.get_or_fetch(shortcut_appid, hardcore)
   local s_appid = tonumber(shortcut_appid) or 0
-  if s_appid <= 0 then return nil, "invalid shortcut_appid" end
+  if s_appid == 0 then return nil, "invalid shortcut_appid" end
+  if s_appid < 0 then s_appid = s_appid + 0x100000000 end
   local is_hardcore = (hardcore ~= false)
 
   -- 1. Check existing state in achievements.json
