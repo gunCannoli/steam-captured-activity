@@ -2,6 +2,7 @@ import { afterPatch } from '@steambrew/client';
 import { Steam, waitFor } from 'steambrew-utils';
 import { logger } from '../logger';
 import { rpc } from '../rpc';
+import { isNonSteamAppId } from '../steam/route';
 
 /**
  * Fills in recent-activity timestamps for non-Steam games from their captures.
@@ -151,7 +152,7 @@ export async function register(): Promise<VoidFunction | undefined> {
       for (const app of apps as Steam.AppOverview[]) {
         // Cheap early-out: this runs on every overview change, including
         // large batches during startup.
-        if (app?.appid >= 0x8000_0000) enrich(app);
+        if (app?.appid && isNonSteamAppId(app.appid)) enrich(app);
       }
 
       return ret;
@@ -187,7 +188,7 @@ async function enrichLoadedApps(): Promise<void> {
 
     let updated = 0;
     for (const app of apps) {
-      if (app?.appid >= 0x8000_0000 && enrich(app)) updated++;
+      if (app?.appid && isNonSteamAppId(app.appid) && enrich(app)) updated++;
     }
 
     logger.info(`Filled in last-played for ${updated} of ${stats.size} game(s) with captures.`);

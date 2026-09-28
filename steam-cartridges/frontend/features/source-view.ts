@@ -5,7 +5,7 @@ import {
     PopupType,
 } from "steambrew-utils/watchers";
 import { watchGamepadAppid } from "../steam/gamepad-appid";
-import { NON_STEAM_APPID_MIN, appIdFromPath, isNonSteamAppId } from "../steam/route";
+import { appIdFromPath, isNonSteamAppId } from "../steam/route";
 import { getBucket, waitForCollections } from "./buckets";
 import { handleWebScrapingView } from "./game-info";
 import { setAppViewTrigger } from "./game-info/game-info-patch";
@@ -25,7 +25,7 @@ const rerun = new Set<number>();
 /** Route a view of a shortcut to the handler for its bucket (ADR-0033). */
 export async function onSourceView(appid: number): Promise<void> {
     const rawAppid = appid >>> 0;
-    if (rawAppid < NON_STEAM_APPID_MIN) return;
+    if (!isNonSteamAppId(rawAppid)) return;
     if (inflight.has(rawAppid)) {
         rerun.add(rawAppid);
         return;
@@ -86,7 +86,7 @@ export function initSourceView(): void {
             () => Steam.MainWindowBrowserManager?.m_lastLocation,
             ({ pathname }) => {
                 const appid = appIdFromPath(pathname);
-                if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
+                if (appid !== undefined && isNonSteamAppId(appid)) {
                     void onSourceView(appid);
                 }
             },

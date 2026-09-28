@@ -1259,10 +1259,13 @@ Steam does not require custom HTML to show achievements. It already possesses a 
     - In `CAppDetailsSections.GetSections()`, the `"achievements"` key maps to `I.tm` (module `57665`, class `H`).
     - Component `H.render()` calls `AppDetailsStore.GetAchievements(this.unAppID)` (module `78057`, export `H`).
     - If `achievements.vecHighlight` and `achievements.nTotal > 0` are present, Steam renders the native achievement panel with percentage bar (`HighlightDiv`, `AllAchieved`), featured unlocked badges, and collapsible locked list.
+    - **MobX Reactivity Requirement:** Component `H` observes `this.GetAppData(e).details?.achievements`. When achievements arrive asynchronously via RPC, writing `appData.details.achievements = achievements`, calling `appDetailsStore.AppDetailsChanged(appid)`, and calling `refreshSections()` ensures MobX re-renders the panel immediately.
 2. **Post-Game Summary Strip:**
     - `CGamePlaySession.prototype.AddAchievement(achievement, unlockTimestamp)` in `CAppSpotlightStore` (module `74827`) pushes achievements directly into the session card strip alongside screenshots and clips.
 3. **Big Picture Play Bar Progress:**
     - Big Picture reads `{ unlocked, total }` directly from `window.appAchievementProgressCache.m_achievementProgress.mapCache.get(appid)` to populate the quick stats bar under the Play button.
+4. **Full-Page Achievements View (Desktop & Big Picture):**
+    - Full-page views query `AchievementsFullStore` (module `32179` / `p6`). Feeding `m_mapMyAchievements` and `m_mapGlobalAchievements` prevents "Failed to load achievement data" errors when users click "View My Achievements" or open `/library/app/<appid>/achievements`.
 
 ### Achievement notifications (`NotificationStore`)
 

@@ -308,6 +308,7 @@ shortcut** — show it, or skip it, but do not crash.
 Example live values:
 - *Alundra*: unsigned uint32 `3858889198` ➔ CEF signed int32 `-436078098`.
 - *Castlevania: Aria of Sorrow*: unsigned uint32 `3327111222` ➔ CEF signed int32 `-967856074`.
+- *Animaniacs*: unsigned uint32 `3048673328` ➔ CEF signed int32 `-1246293968`.
 
 This causes silent failure across several layers if not normalized:
 1. `Map.get(appid)` / `Set.has(appid)` fails when indexed by unsigned but queried by signed.
@@ -321,6 +322,19 @@ This causes silent failure across several layers if not normalized:
   local s_appid = tonumber(shortcut_appid) or 0
   if s_appid < 0 then s_appid = s_appid + 0x100000000 end
   ```
+
+### Shortcut Icon Loading Mechanism (RequestIconDataForApp)
+
+**✅ Verified.** Steam uses lazy loading for shortcut icons in its desktop library sidebar and grid:
+1. `AppOverview.prototype.icon_data` is initially `undefined` for shortcuts until queried or scrolled into view.
+2. In module `1776`, Steam's `GetIconURLForApp(e)` checks:
+   ```javascript
+   e.BIsModOrShortcut() && void 0 === e.icon_data ? (SteamClient.Apps.RequestIconDataForApp(e.appid), null) : ...
+   ```
+3. If `e.BIsModOrShortcut()` is true, Steam calls `SteamClient.Apps.RequestIconDataForApp(e.appid)`.
+4. Asynchronously, Steam writes the base64-encoded icon data directly into `e.icon_data` and sets `e.icon_data_format` (e.g. `"png"`, `"ico"`, `"jpg"`).
+5. Subsequent calls to `GetIconURLForApp(e)` return `data:image/${e.icon_data_format};base64,${e.icon_data}`.
+6. **Critical Failure Mode:** If `AppOverview.prototype.BIsModOrShortcut` is hooked to return `false`, Steam treats the shortcut as a regular Steam game and searches for CDN asset `icon_hash`. Since shortcuts have no CDN hash, Steam returns `null` and displays the generic grey fallback icon for all non-Steam games across the library!
 
 ### Steam's own capture store
 

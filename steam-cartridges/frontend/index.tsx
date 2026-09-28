@@ -22,7 +22,7 @@ import { watchGamepadAppid } from "./steam/gamepad-appid";
 import { installHeadlinePatch } from "./steam/headline-patch";
 import { installActivityCardsPatch } from "./steam/activity-cards-patch";
 import { ensureStoreCacheHooked } from "./steam/activity";
-import { NON_STEAM_APPID_MIN, appIdFromPath } from "./steam/route";
+import { appIdFromPath, isNonSteamAppId } from "./steam/route";
 import { initGameInfo } from "./features/game-info";
 import { initSourceView } from "./features/source-view";
 import { installNativeSections } from "./features/steam-store/native-sections";
@@ -161,7 +161,7 @@ async function init() {
                 ({ pathname }) => {
                     const appid = appIdFromPath(pathname);
 
-                    if (appid !== undefined && appid >= NON_STEAM_APPID_MIN) {
+                    if (appid !== undefined && isNonSteamAppId(appid)) {
                         current = appid;
                         void patchLibraryApp(appid);
                     } else if (current !== undefined) {
@@ -232,7 +232,7 @@ async function init() {
             let current: number | undefined;
 
             const stopWatching = watchGamepadAppid((appid) => {
-                if (appid >= NON_STEAM_APPID_MIN) {
+                if (isNonSteamAppId(appid)) {
                     if (current !== undefined && current !== appid) {
                         unpatchLibraryApp(current);
                     }
@@ -262,7 +262,7 @@ async function init() {
     // invalidate then rather than polling (ADR-0007).
 
     onAppLaunch((app, { onQuit }) => {
-        if (app.appid < NON_STEAM_APPID_MIN) return;
+        if (!isNonSteamAppId(app.appid)) return;
 
         // Startup notification if enabled ("Local Achievements Enabled")
         handleAppLaunchAchievements(app.appid);

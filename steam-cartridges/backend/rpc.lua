@@ -21,6 +21,24 @@ local captures    = require("captures")
 
 local RPC = {}
 
+--- Robust payload decoder handling raw JSON, tables, and nested Millennium { payload = "..." }
+local function decode_payload(payload_json)
+  if type(payload_json) == "table" then
+    if type(payload_json.payload) == "string" then
+      local ok, inner = pcall(json.decode, payload_json.payload)
+      if ok and type(inner) == "table" then return inner end
+    end
+    return payload_json
+  end
+  local ok, req = pcall(json.decode, payload_json or "{}")
+  if not ok or type(req) ~= "table" then return {} end
+  if type(req.payload) == "string" then
+    local ok_inner, inner = pcall(json.decode, req.payload)
+    if ok_inner and type(inner) == "table" then return inner end
+  end
+  return req
+end
+
 --- Wrap a handler so it decodes/encodes JSON and never throws across the
 --- boundary.
 ---
@@ -31,8 +49,7 @@ local RPC = {}
 ---@return fun(payload: string): string
 local function method(name, func)
   return function(payload)
-    local ok, data = pcall(json.decode, payload or "{}")
-    if not ok or type(data) ~= "table" then data = {} end
+    local data = decode_payload(payload) or {}
 
     local success, result = pcall(func, data)
     if not success then

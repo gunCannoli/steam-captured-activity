@@ -92,8 +92,14 @@ local function clean_title(name)
       cleaned = first
     end
   end
-  cleaned = cleaned:gsub("[%.%_]", " ")       -- replace dots/underscores
+  cleaned = cleaned:gsub("_", " ")            -- replace underscores
+  -- Normalize "Mother 1 + 2" -> "Mother 1+2"
+  cleaned = cleaned:gsub("%s*%+%s*", "+")
+  -- Normalize single-letter dotted acronyms: "E. V. O." -> "E.V.O."
+  cleaned = cleaned:gsub("([%a])%.%s+([%a])%.", "%1.%2.")
+  cleaned = cleaned:gsub("([%a])%.%s+([%a])%f[%A]", "%1.%2")
   cleaned = cleaned:gsub('"', "")             -- strip quotes
+  cleaned = cleaned:gsub("%s+", " ")          -- collapse multiple spaces
   cleaned = cleaned:match("^%s*(.-)%s*$") or ""
   return cleaned
 end
@@ -331,11 +337,23 @@ local function score_candidate(cand, clean_lower, hints)
     end
   end
 
+  local raw_cand_name = tostring(cand.name or ""):lower()
+  if not clean_lower:find("pack") and not clean_lower:find("collection") and not clean_lower:find("bundle") then
+    if raw_cand_name:find("action pack") or raw_cand_name:find("collection") or raw_cand_name:find("bundle") then
+      score = score - 120
+    end
+  end
+
   local summary = cand.summary or ""
   if #summary > 150 then
     score = score + 30
   elseif #summary > 0 and #summary < 80 then
     score = score - 40
+  elseif #summary == 0 then
+    local parent_summary = (cand.parent_game and cand.parent_game.summary) or ""
+    if #parent_summary == 0 then
+      score = score - 150
+    end
   end
   if summary:lower():find("port of") then
     score = score - 60
@@ -364,7 +382,7 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
   logger:info("Searching IGDB for: '" .. clean .. "' (raw: '" .. raw_title .. "', hints: " .. table.concat(hints, ", ") .. ")")
 
   local fields = "fields name, slug, summary, storyline, category, parent_game.name, parent_game.summary, first_release_date, platforms.name, platforms.abbreviation, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise.name, franchises.name, game_modes.name, genres.name, themes.name; "
-  local query = fields .. 'search "' .. escape_query(clean) .. '"; limit 10;'
+  local query = fields .. 'search "' .. escape_query(clean) .. '"; limit 30;'
 
   local results = query_igdb(query)
 
@@ -373,8 +391,28 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
     local prefix = clean:match("^(.-)%s*[:%-]")
     if prefix and #prefix >= 3 then
       logger:info("Retrying IGDB search with title prefix: '" .. prefix .. "'")
-      local pquery = fields .. 'search "' .. escape_query(prefix) .. '"; limit 10;'
+      local pquery = fields .. 'search "' .. escape_query(prefix) .. '"; limit 30;'
       results = query_igdb(pquery)
+    end
+  end
+
+  -- Fallback 1b: if no matches and title has a colon/dash, try suffix (e.g. "Search for Eden")
+  if not results or #results == 0 then
+    local suffix = clean:match("[:%-]%s*(.+)$")
+    if suffix and #suffix >= 3 then
+      logger:info("Retrying IGDB search with title suffix: '" .. suffix .. "'")
+      local squery = fields .. 'search "' .. escape_query(suffix) .. '"; limit 30;'
+      results = query_igdb(squery)
+    end
+  end
+
+  -- Fallback 1c: if title contains "in <base_game>" (ROM hacks like "Patrick Star in Mario Kart Super Circuit")
+  if not results or #results == 0 then
+    local base = clean:match("%f[%a][iI]n%s+(.+)$")
+    if base and #base >= 3 then
+      logger:info("Retrying IGDB search with base game from ROM hack: '" .. base .. "'")
+      local bquery = fields .. 'search "' .. escape_query(base) .. '"; limit 30;'
+      results = query_igdb(bquery)
     end
   end
 
@@ -385,7 +423,7 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
       or cmd:match("([^/\\]+)%.[cC][hH][dD]") or cmd:match("([^/\\]+)%.[cC][uU][eE]")
     if rom and #rom >= 2 and rom:lower() ~= clean:lower() then
       logger:info("Retrying IGDB search with ROM name: '" .. rom .. "'")
-      local rquery = fields .. 'search "' .. escape_query(rom) .. '"; limit 10;'
+      local rquery = fields .. 'search "' .. escape_query(rom) .. '"; limit 30;'
       results = query_igdb(rquery)
     end
   end

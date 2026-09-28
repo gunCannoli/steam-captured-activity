@@ -1,9 +1,10 @@
 import { logger } from "../../logger";
-import { NON_STEAM_APPID_MIN } from "../../steam/route";
+import { isNonSteamAppId } from "../../steam/route";
 import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../rpc";
 import type { SteamAppAchievements } from "./types";
 import { buildAchievementProgress, buildSteamAchievements } from "./achievements-core";
 import { resolveSingleton } from "../../steam/modules";
+import { refreshSections } from "../../steam/sections";
 
 const achievementsMap = new Map<number, SteamAppAchievements>();
 const schemasMap = new Map<number, AchievementSchemaRecord>();
@@ -112,12 +113,13 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     const origLoadMy = proto.LoadMyAchievements;
     if (typeof origLoadMy === "function") {
         proto.LoadMyAchievements = async function (appId: number) {
-            const id = Number(appId);
-            if (id >= NON_STEAM_APPID_MIN) {
-                const local = achievementsMap.get(id);
+            const rawId = appId >>> 0;
+            if (isNonSteamAppId(rawId)) {
+                const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
                 if (local) {
-                    feedAchievementsFullStore(id, local);
-                    this.m_mapInflightMyAchievementsRequests?.delete(id);
+                    feedAchievementsFullStore(rawId, local);
+                    this.m_mapInflightMyAchievementsRequests?.delete(appId);
+                    this.m_mapInflightMyAchievementsRequests?.delete(rawId);
                     return;
                 }
             }
@@ -128,11 +130,11 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     const origGetMy = proto.GetMyAchievements;
     if (typeof origGetMy === "function") {
         proto.GetMyAchievements = function (appId: number) {
-            const id = Number(appId);
-            if (id >= NON_STEAM_APPID_MIN) {
-                const local = achievementsMap.get(id);
-                if (local && !this.m_mapMyAchievements.has(id)) {
-                    feedAchievementsFullStore(id, local);
+            const rawId = appId >>> 0;
+            if (isNonSteamAppId(rawId)) {
+                const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
+                if (local && !this.m_mapMyAchievements.has(rawId) && !this.m_mapMyAchievements.has(appId)) {
+                    feedAchievementsFullStore(rawId, local);
                 }
             }
             return origGetMy.call(this, appId);
@@ -142,11 +144,11 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     const origGetGlobal = proto.GetGlobalAchievements;
     if (typeof origGetGlobal === "function") {
         proto.GetGlobalAchievements = function (appId: number) {
-            const id = Number(appId);
-            if (id >= NON_STEAM_APPID_MIN) {
-                const local = achievementsMap.get(id);
-                if (local && !this.m_mapGlobalAchievements.has(id)) {
-                    feedAchievementsFullStore(id, local);
+            const rawId = appId >>> 0;
+            if (isNonSteamAppId(rawId)) {
+                const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
+                if (local && !this.m_mapGlobalAchievements.has(rawId) && !this.m_mapGlobalAchievements.has(appId)) {
+                    feedAchievementsFullStore(rawId, local);
                 }
             }
             return origGetGlobal.call(this, appId);
@@ -156,9 +158,9 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     const origGetPlayer = proto.GetPlayerAchievements;
     if (typeof origGetPlayer === "function") {
         proto.GetPlayerAchievements = function (appId: number, accountId: any) {
-            const id = Number(appId);
-            if (id >= NON_STEAM_APPID_MIN) {
-                const local = achievementsMap.get(id);
+            const rawId = appId >>> 0;
+            if (isNonSteamAppId(rawId)) {
+                const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
                 if (local) {
                     const achieved: Record<string, any> = {};
                     const unachieved: Record<string, any> = {};
@@ -174,10 +176,12 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     const origLoadFriend = proto.LoadFriendAchievements;
     if (typeof origLoadFriend === "function") {
         proto.LoadFriendAchievements = async function (appId: number, accountId: any) {
-            const id = Number(appId);
-            if (id >= NON_STEAM_APPID_MIN) {
-                const key = `${id}_${accountId}`;
-                this.m_mapInflightAchievementsRequests?.delete(key);
+            const rawId = appId >>> 0;
+            if (isNonSteamAppId(rawId)) {
+                const key1 = `${appId}_${accountId}`;
+                const key2 = `${rawId}_${accountId}`;
+                this.m_mapInflightAchievementsRequests?.delete(key1);
+                this.m_mapInflightAchievementsRequests?.delete(key2);
                 return;
             }
             return origLoadFriend.call(this, appId, accountId);
@@ -204,9 +208,10 @@ export function ensureAchievementsStoreHooked(): boolean {
 
     const origGetAchievements = store.GetAchievements.bind(store);
     store.GetAchievements = function (appId: number) {
-        const id = Number(appId);
-        if (id >= NON_STEAM_APPID_MIN && achievementsMap.has(id)) {
-            return achievementsMap.get(id);
+        const rawId = appId >>> 0;
+        if (isNonSteamAppId(rawId)) {
+            const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
+            if (local) return local;
         }
         return origGetAchievements(appId);
     };
@@ -223,11 +228,14 @@ export function setShortcutAchievements(
     shortcutAppId: number,
     achievements: SteamAppAchievements,
 ): void {
-    achievementsMap.set(shortcutAppId, achievements);
+    const rawId = shortcutAppId >>> 0;
+    const signedId = shortcutAppId | 0;
+    achievementsMap.set(rawId, achievements);
+    achievementsMap.set(signedId, achievements);
 
     // Synchronize full individual achievements store (Big Picture and desktop)
     try {
-        feedAchievementsFullStore(shortcutAppId, achievements);
+        feedAchievementsFullStore(rawId, achievements);
     } catch (e) {
         logger.warn("Could not feed AchievementsFullStore:", e);
     }
@@ -238,18 +246,43 @@ export function setShortcutAchievements(
         if (progress) {
             const cache = (window as any).appAchievementProgressCache?.m_achievementProgress?.mapCache;
             if (cache && typeof cache.set === "function") {
-                cache.set(shortcutAppId, progress);
+                cache.set(rawId, progress);
+                cache.set(signedId, progress);
             }
         }
     } catch (e) {
         logger.warn("Could not update Big Picture achievement progress cache:", e);
     }
 
+    // Synchronize appDetailsStore appData.details.achievements for MobX reactivity
+    try {
+        const store = (window as any).appDetailsStore;
+        if (store?.GetAppData) {
+            for (const id of [rawId, signedId, shortcutAppId]) {
+                const appData = store.GetAppData(id);
+                if (appData) {
+                    if (!appData.details) appData.details = {};
+                    appData.details.achievements = achievements;
+                }
+            }
+        }
+    } catch (e) {
+        logger.warn("Could not update appDetailsStore appData:", e);
+    }
+
     // Trigger re-render of desktop right-column section and other observers
     try {
-        (window as any).appDetailsStore?.AppDetailsChanged?.(shortcutAppId);
+        (window as any).appDetailsStore?.AppDetailsChanged?.(rawId);
+        (window as any).appDetailsStore?.AppDetailsChanged?.(signedId);
     } catch (e) {
         logger.warn("Failed to notify appDetailsStore of achievement change:", e);
+    }
+
+    // Refresh sections so that the "achievements" section is visible
+    try {
+        refreshSections();
+    } catch (e) {
+        logger.warn("Could not refresh sections:", e);
     }
 }
 
@@ -262,17 +295,21 @@ export function updateShortcutState(
     schema: AchievementSchemaRecord | undefined,
     unlocks: Record<string, AchievementUnlockRecord> = {},
 ): SteamAppAchievements | null {
+    const rawId = shortcutAppId >>> 0;
+    const signedId = shortcutAppId | 0;
     if (schema) {
         if (nativeAppId > 0) {
             schemasMap.set(nativeAppId, schema);
         }
-        schemasMap.set(shortcutAppId, schema);
+        schemasMap.set(rawId, schema);
+        schemasMap.set(signedId, schema);
     }
-    unlocksMap.set(shortcutAppId, unlocks);
+    unlocksMap.set(rawId, unlocks);
+    unlocksMap.set(signedId, unlocks);
 
     const built = buildSteamAchievements(schema, unlocks);
     if (built) {
-        setShortcutAchievements(shortcutAppId, built);
+        setShortcutAchievements(rawId, built);
     }
     return built;
 }

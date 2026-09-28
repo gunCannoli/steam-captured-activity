@@ -1,5 +1,6 @@
 import { logger } from "../logger";
 import { setting } from "../settings/settings";
+import { isNonSteamAppId } from "./route";
 import {
     appActivityStore,
     clipsSince,
@@ -48,11 +49,15 @@ function saveActivityTimestamps(appid: number, patch: Partial<AppActivityTimesta
 
 function getCommunityIconUrl(appid: number, overview: any): string {
     if (overview?.icon_data) {
+        const fmt = overview.icon_data_format || "png";
         return overview.icon_data.startsWith("data:")
             ? overview.icon_data
-            : `data:image/png;base64,${overview.icon_data}`;
+            : `data:image/${fmt};base64,${overview.icon_data}`;
     }
-    return `https://steamloopback.host/appimage/${appid}_icon.jpg`;
+    if (typeof (window as any).SteamClient?.Apps?.RequestIconDataForApp === "function") {
+        (window as any).SteamClient.Apps.RequestIconDataForApp(appid);
+    }
+    return "";
 }
 
 function createActivityDay(dayBegin: number): AppActivityDay {
@@ -182,7 +187,7 @@ export function ensureStoreCacheHooked(): boolean {
     const origBIsAppMissing = proto.BIsAppMissing;
 
     proto.BIsAppMissing = function (appid: number) {
-        if (typeof appid === "number" && appid >= 0x8000_0000) {
+        if (typeof appid === "number" && isNonSteamAppId(appid)) {
             return false;
         }
         return origBIsAppMissing.apply(this, arguments);

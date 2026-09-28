@@ -1,4 +1,5 @@
 import { logger } from "../../logger";
+import { isNonSteamAppId } from "../../steam/route";
 
 export const enrichedAppIds = new Set<number>();
 
@@ -234,21 +235,6 @@ export function ensureAppOverviewHooked(overview: any): boolean {
     let curr: any = overview;
     while (curr && curr !== Object.prototype) {
         if (
-            typeof curr.BIsModOrShortcut === "function" &&
-            !curr.__nsga_bismod_hooked
-        ) {
-            curr.__nsga_bismod_hooked = true;
-            const origBIsMod = curr.BIsModOrShortcut;
-            curr.BIsModOrShortcut = function () {
-                if (isAppEnriched(this.appid)) {
-                    return false;
-                }
-                return origBIsMod.apply(this, arguments);
-            };
-            hookedAny = true;
-        }
-
-        if (
             typeof curr.GetGameID === "function" &&
             !curr.__nsga_getgameid_hooked
         ) {
@@ -322,8 +308,9 @@ function patchKComponent(k: any): boolean {
         }
         if (
             overview &&
-            typeof overview.BIsModOrShortcut === "function" &&
-            overview.BIsModOrShortcut()
+            (isNonSteamAppId(overview.appid) ||
+                (typeof overview.BIsModOrShortcut === "function" &&
+                    overview.BIsModOrShortcut()))
         ) {
             const rawAppid = overview.appid >>> 0;
             const store = getAppDetailsStore();
@@ -455,8 +442,9 @@ export function patchGameInfoComponent(): boolean {
                 }
                 if (
                     overview &&
-                    typeof overview.BIsModOrShortcut === "function" &&
-                    overview.BIsModOrShortcut()
+                    (isNonSteamAppId(overview.appid) ||
+                        (typeof overview.BIsModOrShortcut === "function" &&
+                            overview.BIsModOrShortcut()))
                 ) {
                     const rawAppid = overview.appid >>> 0;
                     onTriggerAppView?.(rawAppid);

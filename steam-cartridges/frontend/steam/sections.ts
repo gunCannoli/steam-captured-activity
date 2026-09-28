@@ -1,5 +1,6 @@
 import { logger } from "../logger";
 import { appDetailsSections } from "./stores";
+import { isNonSteamAppId } from "./route";
 
 /**
  * Re-enable the app detail sections Steam hides from non-Steam games.
@@ -129,6 +130,10 @@ let patchedProto: { GetSections: GetSections } | undefined;
 const instances = new Set<SectionsInstance>();
 
 /** Re-render every live sections component. */
+export function refreshSections(): void {
+    refreshInstances();
+}
+
 function refreshInstances(): void {
     for (const instance of [...instances]) {
         try {
@@ -145,7 +150,7 @@ function refreshInstances(): void {
 /** True when `overview` is a non-Steam shortcut. */
 function isShortcut(overview: unknown): boolean {
     const ov = overview as AppOverview | undefined;
-    if (ov?.appid && ov.appid >= 0x8000_0000) return true;
+    if (ov?.appid && isNonSteamAppId(ov.appid)) return true;
     const fn = ov?.BIsModOrShortcut;
     try {
         return typeof fn === "function" && fn.call(overview) === true;

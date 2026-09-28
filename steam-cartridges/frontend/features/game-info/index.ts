@@ -1,7 +1,7 @@
 import { logger } from "../../logger";
 import { rpc, type ConsolidatedMetadata } from "../../rpc";
 import { onSettingChange } from "../../settings/settings";
-import { NON_STEAM_APPID_MIN } from "../../steam/route";
+import { isNonSteamAppId } from "../../steam/route";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { loadControllerInference } from "./controller";
@@ -38,32 +38,34 @@ const processedApps = new Set<number>();
  * games and for steam-store games with no Steam match (ADR-0035, ADR-0036).
  */
 export async function handleWebScrapingView(appid: number, storeMatched?: boolean): Promise<void> {
-    if (appid < NON_STEAM_APPID_MIN) return;
+    const rawAppid = appid >>> 0;
+    if (!isNonSteamAppId(rawAppid)) return;
 
-    const { bucket, via } = getBucket(appid);
+    const { bucket, via } = getBucket(rawAppid);
     const plan = gameInfoPlan(bucket, via, storeMatched);
 
-    if (plan.applyLocal && libraryCache.has(appid)) {
-        enrichGameDetails(appid, libraryCache.get(appid)!);
+    const meta = libraryCache.get(rawAppid) || libraryCache.get(appid);
+    if (plan.applyLocal && meta) {
+        enrichGameDetails(rawAppid, meta);
     }
     if (!plan.fetchWeb) return;
 
-    if (processedApps.has(appid)) return;
-    processedApps.add(appid);
+    if (processedApps.has(rawAppid) || processedApps.has(appid)) return;
+    processedApps.add(rawAppid);
 
-    const title = resolveShortcutTitle(appid);
+    const title = resolveShortcutTitle(rawAppid) || resolveShortcutTitle(appid);
     if (!title) {
         logger.info(
-            `Shortcut title not yet available for ${appid}; will retry on next view.`,
+            `Shortcut title not yet available for ${rawAppid}; will retry on next view.`,
         );
-        processedApps.delete(appid);
+        processedApps.delete(rawAppid);
         return;
     }
 
-    logger.info(`Fetching Game Info & Metadata for: "${title}" (${appid})`);
+    logger.info(`Fetching Game Info & Metadata for: "${title}" (${rawAppid})`);
 
     try {
-        const res = await rpc.getGameMetadata(appid, title);
+        const res = await rpc.getGameMetadata(rawAppid, title);
         if (!res || !res.success || !res.metadata) {
             logger.info(
                 `No metadata returned for "${title}" (${res?.message || "unknown"}).`,
@@ -72,15 +74,16 @@ export async function handleWebScrapingView(appid: number, storeMatched?: boolea
         }
 
         const clean = normalizeMetadata(res.metadata);
-        libraryCache.set(appid, clean);
-        const applied = enrichGameDetails(appid, clean);
+        libraryCache.set(rawAppid, clean);
+        libraryCache.set(rawAppid | 0, clean);
+        const applied = enrichGameDetails(rawAppid, clean);
         if (applied) {
             logger.info(
-                `Successfully enriched Game Info for ${appid} from ${res.source || "db"}.`,
+                `Successfully enriched Game Info for ${rawAppid} from ${res.source || "db"}.`,
             );
         }
     } catch (err) {
-        logger.warn(`Failed to process metadata for ${appid}:`, err);
+        logger.warn(`Failed to process metadata for ${rawAppid}:`, err);
     }
 }
 
@@ -122,13 +125,15 @@ export async function initGameInfo(): Promise<void> {
             let count = 0;
             for (const [key, meta] of Object.entries(all.library)) {
                 const appid = Number(key);
-                if (Number.isFinite(appid) && appid >= NON_STEAM_APPID_MIN) {
+                const rawAppid = appid >>> 0;
+                if (Number.isFinite(appid) && isNonSteamAppId(rawAppid)) {
                     const clean = normalizeMetadata(meta);
-                    libraryCache.set(appid, clean);
-                    const { bucket, via } = getBucket(appid);
+                    libraryCache.set(rawAppid, clean);
+                    libraryCache.set(rawAppid | 0, clean);
+                    const { bucket, via } = getBucket(rawAppid);
                     if (
                         gameInfoPlan(bucket, via).applyLocal &&
-                        enrichGameDetails(appid, clean)
+                        enrichGameDetails(rawAppid, clean)
                     ) {
                         count++;
                     }

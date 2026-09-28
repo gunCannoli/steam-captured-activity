@@ -9,8 +9,15 @@ local method = core.method
 
 local RPC = {}
 
+local function normalize_appid(id)
+  local n = tonumber(id)
+  if not n then return nil end
+  if n < 0 then n = n + 0x100000000 end
+  return n
+end
+
 RPC.CartridgesAchievementsGet = method("CartridgesAchievementsGet", function(data)
-  local shortcut_appid = data.shortcut_appid
+  local shortcut_appid = normalize_appid(data.shortcut_appid)
   local native_appid = tonumber(data.native_appid) or 0
   if not shortcut_appid then error("missing shortcut_appid") end
   
@@ -42,7 +49,7 @@ RPC.CartridgesAchievementsGet = method("CartridgesAchievementsGet", function(dat
 end)
 
 RPC.CartridgesAchievementsUnlock = method("CartridgesAchievementsUnlock", function(data)
-  local shortcut_appid = data.shortcut_appid
+  local shortcut_appid = normalize_appid(data.shortcut_appid)
   local achievement_id = data.achievement_id
   if not shortcut_appid then error("missing shortcut_appid") end
   if not achievement_id then error("missing achievement_id") end
@@ -50,13 +57,13 @@ RPC.CartridgesAchievementsUnlock = method("CartridgesAchievementsUnlock", functi
 end)
 
 RPC.CartridgesAchievementsReset = method("CartridgesAchievementsReset", function(data)
-  local shortcut_appid = data.shortcut_appid
+  local shortcut_appid = normalize_appid(data.shortcut_appid)
   if not shortcut_appid then error("missing shortcut_appid") end
   return store.reset(shortcut_appid)
 end)
 
 RPC.CartridgesAchievementsCheckUnlocks = method("CartridgesAchievementsCheckUnlocks", function(data)
-  local shortcut_appid = data.shortcut_appid
+  local shortcut_appid = normalize_appid(data.shortcut_appid)
   local native_appid = tonumber(data.native_appid) or 0
   local game_title = data.game_title
   if not shortcut_appid then error("missing shortcut_appid") end

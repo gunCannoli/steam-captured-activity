@@ -369,35 +369,21 @@ These rules are drawn directly from real, hard-won regression debugging across S
 Activity, Game Info, Your Stuff and toast windows. Violating them causes immediate
 user-facing breaks. Numbers are stable — code comments cite them.
 
-### 1. Prototype Hook Coupling (`BIsModOrShortcut` vs `GetGameID`)
+### 1. Prototype Hook Coupling (`BIsModOrShortcut`, Shortcut Icons, and `GetGameID`)
 
-- **The Trap:** Steam's native `AppOverview.prototype.GetGameID()` implementation is:
+- **The Trap:** Steam's native `AppOverview.prototype.GetGameID()` and `GetIconURLForApp()` depend on `BIsModOrShortcut()`:
     ```javascript
     GetGameID() { return this.BIsModOrShortcut() ? this.m_gameid : this.appid.toString(); }
+    GetIconURLForApp(e) { return e.BIsModOrShortcut() && void 0 === e.icon_data ? (SteamClient.Apps.RequestIconDataForApp(e.appid), null) : ...; }
     ```
     Game Info (inner component `k`, module `15448`) drops descriptions and credits
-    and renders `#AppDetails_Shortcut_Explanation` whenever
-    `overview.BIsModOrShortcut()` is true. Hooking it to return `false` for
-    enriched shortcuts makes `GetGameID()` evaluate to `this.appid.toString()`
-    (`"4263274102"`).
-- **The Ripple Effect:** The "YOUR STUFF" tab's Media section (module `57150`, component `Ae.E`)
-  queries captures with `listSource: { type: "app", gameid: overview.gameid }`, and
-  `overview.gameid` delegates to `GetGameID()`. Shortcut captures in `screenshots.vdf`
-  and `window.g_GRS` are stored under the composed 64-bit ID (`"18310622842007322624"`).
-  Querying by `appid.toString()` returns 0 items, silently wiping the "YOUR STUFF" tab
-  into its empty placeholder.
-- **The Mandatory Guardrail:** Whenever hooking or proxying `BIsModOrShortcut`, you **MUST**
-  also hook `GetGameID` on `AppOverview.prototype` so that it returns `this.m_gameid` whenever
-  present:
-    ```typescript
-    curr.GetGameID = function () {
-        if (this.m_gameid) return this.m_gameid;
-        return origGetGameID.apply(this, arguments);
-    };
-    ```
-- **Section Registry Safeguard:** In `sections.ts`, never rely solely on `BIsModOrShortcut()`.
-  Always test `overview.appid >= 0x8000_0000 || overview.BIsModOrShortcut()` so shortcut
-  section restoration is never suppressed when metadata hooks are active.
+    and renders `#AppDetails_Shortcut_Explanation` whenever `overview.BIsModOrShortcut()` is true.
+- **The Catastrophic Ripple Effect of Prototype Pollution:** If you hook `BIsModOrShortcut` globally on `AppOverview.prototype`:
+  1. `GetIconURLForApp` sees `BIsModOrShortcut() === false`, skips `RequestIconDataForApp`, and queries Steam CDN for native `icon_hash`. Because shortcuts lack CDN icons, **all non-native shortcut icons turn into missing grey placeholders** across the sidebar and grid!
+  2. `overview.gameid` evaluates to `this.appid.toString()` instead of the 64-bit composed ID, wiping the "YOUR STUFF" tab's Media section.
+  3. `sections.ts` registry checks fail, dropping Post-Game Summary, Activity, and Achievements.
+- **The Mandatory Guardrail:** **NEVER hook `BIsModOrShortcut` on `AppOverview.prototype`**. Instead, use a scoped component props Proxy (`createPatchedOverview(overview)`) exclusively inside component `k`'s `render()`.
+- **Signed Int32 CEF Trap:** In CEF, non-Steam 32-bit shortcut IDs (`>= 0x8000_0000`) frequently arrive as **signed negative 32-bit integers** (e.g. `3048673328` becomes `-1246293968`). Testing `overview.appid >= 0x8000_0000` evaluates to `false`! **Always use `isNonSteamAppId(appid)`** (`(appid >>> 0) >= 0x8000_0000`), and normalize across JS Maps and Lua backend (`if n < 0 then n = n + 0x100000000 end`).
 
 ### 2. Zero Expensive Operations in Hot Prototype Methods ($O(1)$ Strictly Enforced)
 

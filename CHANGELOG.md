@@ -7,7 +7,32 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
-- **Architecture Documentation & Community Plan Adaptation (2026-09-28)**:
+- **Animaniacs RetroAchievements, Shortcut Icon Permanent Fix & 100% Library Metadata Coverage (2026-09-28)**:
+  - *Permanent Resolution of Shortcut Icon Disappearance (Guardrail 1)*:
+    - Traced root cause of missing shortcut icons to prototype pollution: `ensureAppOverviewHooked` walked the prototype chain and set `AppOverview.prototype.BIsModOrShortcut = function() { if (isAppEnriched(...)) return false; ... }`.
+    - Steam's native `GetIconURLForApp(e)` (module `1776`) evaluates `e.BIsModOrShortcut() && void 0 === e.icon_data ? (SteamClient.Apps.RequestIconDataForApp(e.appid), null) : null`.
+    - When `BIsModOrShortcut()` evaluated to `false`, Steam skipped `RequestIconDataForApp`, queried Steam CDN for non-existent `icon_hash`, and rendered the missing grey icon placeholder for non-Steam games.
+    - Completely removed `curr.BIsModOrShortcut` mutation from `game-info-patch.ts`. Component `k` already receives an isolated Proxy `createPatchedOverview(overview)` scoped strictly to Game Info description rendering.
+    - Verified live across all 221 shortcuts: `BIsModOrShortcut() === true` natively (0 failures), and base64 icon data is populated on demand.
+  - *Animaniacs RetroAchievements & Desktop Right-Column Reactivity*:
+    - Fixed signed negative 32-bit CEF integers in `sections.ts`: `isShortcut` now uses `isNonSteamAppId(ov.appid)` instead of `ov.appid >= 0x8000_0000`, ensuring signed appids (e.g. `-1246293968` for Animaniacs `3048673328`) have `"achievements"` and `"postgamesummary"` restored.
+    - Added `normalize_appid` in `backend/achievements_rpc.lua` (`if n < 0 then n = n + 0x100000000 end`) and robust `decode_payload` in `backend/rpc.lua`.
+    - Connected `appData.details.achievements = achievements` and `refreshSections()` in `setShortcutAchievements` (`frontend/features/achievements/store.ts`), enabling MobX reactivity for desktop RightColumn achievements component (`tm` in module `57665`).
+    - Verified live in Steam: Animaniacs displays MiniAchievements ("ACHIEVEMENTS 0/98"), progress bar, RightColumn ("You've unlocked 0/98 (0%) Locked Achievements +93 View My Achievements"), and official RetroAchievements badges. Verified two-way navigation lifecycle Game A ➔ Game B ➔ Game A preserves achievements 100%.
+  - *100% Library Metadata Coverage (220/220 Shortcuts)*:
+    - Audited `shortcuts.vdf` against `library_metadata.json`: 215/220 shortcuts already had complete metadata; only 5 were missing.
+    - Enhanced `backend/web_igdb.lua`:
+      - `clean_title`: Preserved single-letter dotted acronyms (`E. V. O.` ➔ `E.V.O.`) and normalized plus signs (`Mother 1 + 2` ➔ `Mother 1+2`).
+      - `score_candidate`: Added severe penalty (`-150`) for candidates with zero summary (`#summary == 0`), and penalized compilation bundles (`-120`), preventing empty entries (like `Action Pack I Prince of Persia`) from winning over legitimate game entries.
+      - `fetch_game_metadata`: Expanded search query limit from 10 to 30, and added suffix search fallback (`[:%-]%s*(.+)`) and ROM hack base game fallback (`in%s+(.+)`).
+    - Successfully resolved and populated all 5 missing shortcuts:
+      - *E. V. O.: Search for Eden* (`4227770158`) ➔ IGDB ID `6979` (Almanic / Enix, 652 char description).
+      - *Mother 1 + 2* (`2211260352`) ➔ IGDB ID `78585` (Ape / Nintendo, 881 char description).
+      - *Donkey Kong Country 3: Dixie Kong's Double Trouble!* (`2173025092`) ➔ IGDB ID `1094` (Rare / Nintendo, 807 char description).
+      - *Prince of Persia* (`2943105341`) ➔ IGDB ID `204643` (Brøderbund, 1408 char description).
+      - *Patrick Star in Mario Kart Super Circuit* (`4276481436`) ➔ IGDB ID `2343` (Nintendo / Intelligent Systems, 834 char description).
+    - Verified: `Shortcuts WITH metadata: 220`, `Shortcuts MISSING metadata: 0` (100% library coverage).
+
   - *Documentation Updates Across Core Architecture Reference*:
     - **`docs/steam-architecture.md`**: Updated Section 1 (Runtime Topology) and Section 2 (Core Stores) with the signed int32 AppId representation in CEF (`overview.appid | 0`) and bitwise unsigned normalization (`appid >>> 0`). Added `CWorkshopStore` (`m_mapPublishedFiles`) to the Core Stores and Stable Resolution Signatures tables. Added the synchronous on-demand enrichment requirement for Game Info (`G` & `k`).
     - **`docs/steam-components.md`**: Detailed the Game Info component architecture (`module 15448`, class `G` and `k`) and the root causes for `#AppDetails_Shortcut_Explanation` ("Detailed information is unavailable"). Documented the on-demand synchronous enrichment pattern and `CWorkshopStore` integration for community media loopback URLs (`https://steamloopback.host/...`).
