@@ -7,6 +7,20 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Library Audit Layout Revert & Click Handling Fix (2026-09-27)**:
+  - *Layout & Action Button Revert*:
+    - Reverted row-level action buttons back to the clean 3-row structure: Row 1 "Not scraped: {count}", Row 2 "Issues detected: {count}", Row 3 single centered "Review" button.
+    - Reverted modal filter tabs from `<DialogButton>` back to clean styled `<button>` elements.
+    - Removed `[ 🔄 Scrape All ({count}) ]` action button from the modal (scraping is triggered by settings changes and startup sync).
+  - *Review Button Click Responsiveness & Display Fix*:
+    - Eliminated unmounting: replaced `{!isSyncing && <RevisionSection />}` with `display: (syncProgress.isSyncing && !isAuditModalOpen) ? "none" : "block"`. The component remains mounted in the React tree, preserving modal open state and filter selection while still hiding the section from the UI during background scraping.
+    - Added bottom clearance: wrapped SettingsPanel content in `paddingBottom: "70px"` so the sticky `SyncProgressBar` (`position: sticky, bottom: 0, zIndex: 100`) never sits on top of or intercepts mouse clicks on the Review button.
+    - Added auto-refresh on sync completion: when `syncProgress.isSyncing` transitions from `true` to `false`, `refreshAuditData()` runs automatically to refresh the audit counts right away.
+  - *Verified*:
+    - TypeScript compiles with zero errors (`npm run check`).
+    - All 64 unit tests pass (`npm run test:ts`).
+    - Two-way navigation lifecycle passes 100% (`scratch/test_nav_cycle.js`).
+
 - **`steam-cartridges` Community Section Execution & Complete Data Flow Audit (2026-09-27)**:
   - *Community Section & Retro Media Execution (`steam-cartridges-community-plan.md`)*:
     - **Step 1 (ScreenScraper Media Provider)**: Created `backend/screenscraper_media.lua` implementing `fetch_media`, `GetGameMedia`, and `GetGameManual`, extracting in-game screenshots, title screens, fanart, gameplay videos, and digital manuals with silent fallback when credentials are absent (ADR-0014).
