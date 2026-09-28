@@ -25,12 +25,12 @@ local function http_post(url, headers, body, timeout)
   local calls = {}
 
   if type(http.request) == "function" then
-    calls[#calls + 1] = function() return http.request(url, { method = "POST", data = body, headers = headers, timeout = timeout }) end
-    calls[#calls + 1] = function() return http.request(url, { method = "POST", body = body, headers = headers, timeout = timeout }) end
+    calls[#calls + 1] = function() return http.request(url, { method = "POST", data = body, headers = headers, timeout = timeout, user_agent = "steam-cartridges/1.0" }) end
+    calls[#calls + 1] = function() return http.request(url, { method = "POST", body = body, headers = headers, timeout = timeout, user_agent = "steam-cartridges/1.0" }) end
   end
   if type(http.post) == "function" then
-    calls[#calls + 1] = function() return http.post(url, { method = "POST", data = body, headers = headers, timeout = timeout }) end
-    calls[#calls + 1] = function() return http.post(url, { method = "POST", body = body, headers = headers, timeout = timeout }) end
+    calls[#calls + 1] = function() return http.post(url, { method = "POST", data = body, headers = headers, timeout = timeout, user_agent = "steam-cartridges/1.0" }) end
+    calls[#calls + 1] = function() return http.post(url, { method = "POST", body = body, headers = headers, timeout = timeout, user_agent = "steam-cartridges/1.0" }) end
   end
 
   local first_err = nil
@@ -267,6 +267,7 @@ function M.GetGameTrailers(payload_json)
   if not appid then
     return json.encode({ error = "missing_appid", trailers = {} })
   end
+  if appid < 0 then appid = appid + 0x100000000 end
 
   local cached = load_cached(appid)
   if cached and cached.trailers then
@@ -299,6 +300,7 @@ function M.GetGameCommunityLinks(payload_json)
   if not appid then
     return json.encode({ error = "missing_appid", links = {} })
   end
+  if appid < 0 then appid = appid + 0x100000000 end
 
   local cached = load_cached(appid)
   if cached and cached.links then

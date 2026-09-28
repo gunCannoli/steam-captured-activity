@@ -7,6 +7,21 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Architecture Documentation & Community Plan Adaptation (2026-09-28)**:
+  - *Documentation Updates Across Core Architecture Reference*:
+    - **`docs/steam-architecture.md`**: Updated Section 1 (Runtime Topology) and Section 2 (Core Stores) with the signed int32 AppId representation in CEF (`overview.appid | 0`) and bitwise unsigned normalization (`appid >>> 0`). Added `CWorkshopStore` (`m_mapPublishedFiles`) to the Core Stores and Stable Resolution Signatures tables. Added the synchronous on-demand enrichment requirement for Game Info (`G` & `k`).
+    - **`docs/steam-components.md`**: Detailed the Game Info component architecture (`module 15448`, class `G` and `k`) and the root causes for `#AppDetails_Shortcut_Explanation` ("Detailed information is unavailable"). Documented the on-demand synchronous enrichment pattern and `CWorkshopStore` integration for community media loopback URLs (`https://steamloopback.host/...`).
+    - **`docs/steam-debug.md`**: Added Trap 8 (Signed/negative AppId representation in CEF CDP evaluations) and Trap 9 (Calling unregistered Millennium RPC methods or unhandled Lua errors crashes the native host process with `0xC0000005`).
+    - **`docs/knowledgebase.md`**: Documented Millennium libcurl `user_agent` requirements (top-level key in options required to bypass Cloudflare 403 blocks), backend RPC crash mechanics, signed int32 vs unsigned uint32 AppId handling in CEF and Lua, and RetroAchievements `dorequest.php` API specifications (dictionary response format for `r=gameslist`, auth requirements for `r=patch`).
+  - *Community & Media Plan Adaptation (`docs/plans/steam-cartridges-community-plan.md`)*:
+    - Adapted `steam-cartridges-community-plan.md` to conform strictly to the Plan Writing Standard ([`docs/plans/README.md`](docs/plans/README.md)).
+    - Integrated AppId signedness normalization, libcurl `user_agent` headers, safe RPC error boundaries, correct `data_dir` paths, and empty state fallbacks.
+    - Updated `screenscraper_media.lua` and `igdb_community.lua` with signed int32 normalization and explicit `user_agent` headers.
+  - *Verified*:
+    - `npm run check` exits with code 0.
+    - `npm run test:ts` passes all 64 tests.
+    - `npm run build` succeeds cleanly.
+
 - **`steam-cartridges` Data Flow & Architecture Remediation (`steam-cartridges-dataflow-audit-plan.md`) (2026-09-28)**:
   - *RetroAchievements Schema & Authenticated Matching Remediation (Step 1)*:
     - Expanded `ra_hasher.js` search candidates to include deployed `-dev` plugin paths (`millennium/plugins/steam-cartridges-dev/backend/ra_hasher.js`).

@@ -173,6 +173,7 @@ function M.GetGameMedia(payload_json)
   if not appid then
     return json.encode({ error = "missing_appid", screenshots = {} })
   end
+  if appid < 0 then appid = appid + 0x100000000 end
 
   if media_cache[appid] then
     return json.encode({ success = true, media = media_cache[appid] })
@@ -209,6 +210,7 @@ function M.GetGameManual(payload_json)
   if not appid then
     return json.encode({ error = "missing_appid" })
   end
+  if appid < 0 then appid = appid + 0x100000000 end
 
   local cached = media_cache[appid]
   if cached and cached.manual then

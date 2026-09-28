@@ -236,6 +236,32 @@ Answered from code and docs, **no live probe** (an earlier probe plugin crashed 
 - Lua `millennium.config.get/set`: whether #903 (frontend FFI metrics path) affects the Lua side is unverified. P1 avoids it.
 - Use forward slashes in every Lua path string (an unescaped backslash crashed Steam).
 
+### Lua backend HTTP quirks: User-Agent in libcurl
+
+**✅ Verified.** In Millennium's Lua backend, `http.get(url, options)` and `http.post(url, options)` wrap native libcurl. Passing `headers = { ["User-Agent"] = "..." }` is **ignored** by Millennium's native binding unless `user_agent = "..."` is explicitly supplied as a top-level key in the `options` table:
+
+```lua
+local ok, res = pcall(http.get, url, {
+    user_agent = "RetroArch/1.19.0", -- Required! Libcurl CURLOPT_USERAGENT
+    headers = {
+        ["User-Agent"] = "RetroArch/1.19.0",
+        ["Accept"] = "application/json",
+    },
+    timeout = 10,
+})
+```
+
+Omitting `user_agent` causes libcurl to fall back to an empty/default User-Agent, which is blocked by Cloudflare and WAFs with **HTTP 403 Forbidden** (e.g. on RetroAchievements API).
+
+### Backend RPC crash trap: Unregistered methods & unhandled errors
+
+**✅ Verified.** In Millennium v3.4–v3.5:
+1. Calling a non-existent method name via `window.Millennium.callServerMethod(plugin, "NonExistentMethod", ...)` crashes the backend process with an Access Violation (`0xC0000005`) in Millennium's native DLL.
+2. Unhandled Lua `error()` calls escaping across the C++ frame boundary terminate the child process.
+3. Once crashed, all subsequent RPC calls to that plugin reject with `"Millennium Error: failed to send RPC to child: <plugin>"`.
+
+All backend RPC endpoints must be wrapped with `rpc.method()` (using `pcall`), and errors must be returned as `{ error = "..." }` rather than thrown.
+
 ## Part 2 — Steam's own data & runtime
 
 **✅ All verified on this machine.** This is what the **core** plugin runs on. All of it is local, already present, and
@@ -274,6 +300,27 @@ appid  = gameid >> 32
 
 Folders for removed shortcuts persist, so **always tolerate a gameid with no matching
 shortcut** — show it, or skip it, but do not crash.
+
+### Signed vs Unsigned 32-bit AppId in CEF
+
+**✅ Verified.** Steam's web runtime and Chromium Embedded Framework (CEF) marshal 32-bit integers into JavaScript. When an appid exceeds `0x7FFFFFFF` (`2147483647`), Steam CEF exposes it in `overview.appid` as a **signed 32-bit integer** (`overview.appid | 0`).
+
+Example live values:
+- *Alundra*: unsigned uint32 `3858889198` ➔ CEF signed int32 `-436078098`.
+- *Castlevania: Aria of Sorrow*: unsigned uint32 `3327111222` ➔ CEF signed int32 `-967856074`.
+
+This causes silent failure across several layers if not normalized:
+1. `Map.get(appid)` / `Set.has(appid)` fails when indexed by unsigned but queried by signed.
+2. `(appid >= NON_STEAM_APPID_MIN)` fails when `appid` is negative.
+3. Lua backend tables indexed by unsigned string/integer miss negative integers passed from RPC payloads.
+
+**Rules for AppId Normalization:**
+- **In TypeScript / JavaScript:** Always normalize at entry: `const rawAppid = appid >>> 0;`. When storing in Maps or Sets that are accessed from multiple Steam call sites, store both signed and unsigned keys or normalize all getters and setters.
+- **In Lua Backend:** Normalize negative integers to unsigned:
+  ```lua
+  local s_appid = tonumber(shortcut_appid) or 0
+  if s_appid < 0 then s_appid = s_appid + 0x100000000 end
+  ```
 
 ### Steam's own capture store
 
@@ -613,6 +660,19 @@ Game-level user fields: `NumAwardedToUser`, `NumAwardedToUserHardcore`,
 > timeline, either call `GetAchievementsEarnedOnDay` per day (expensive) or derive it
 > from `DateEarned` values in `GetGameInfoAndUserProgress` (cheap — one call per game).
 > We do the latter. See [ADR-0006](decisions.md#adr-0006-build-the-timeline-from-dateearned-not-per-day-queries).
+
+### Emulator API (`dorequest.php`)
+
+In addition to the public web API (`/API/`), emulators (RetroArch, DuckStation, PCSX2) communicate via `https://retroachievements.org/dorequest.php`. **✅ Verified live.**
+
+| Request Param | Purpose | Critical Requirements |
+| --- | --- | --- |
+| `r=gameid&m=<md5>` | Resolve `GameID` from ROM hash | Needs `user_agent = "RetroArch/1.19.0"` to avoid Cloudflare 403. |
+| `r=gameslist&c=<console_id>` | Title lookup fallback | Returns a **JSON object map** (`{ "11336": "Alundra" }`), **not an array**. Iterating with `ipairs()` in Lua yields 0 entries. Must iterate with `pairs()` and extract `k` / `v`. |
+| `r=patch&g=<gid>` | Full achievement schema, conditions, badges, points | **Requires authentication:** Must append `&u=<username>&t=<token>`. Without credentials, returns HTTP 401 `{"Success": false, "Error": "Invalid credentials"}`. |
+| `r=unlocks&g=<gid>&h=<0\|1>` | User unlocks for game | Hardcore (`h=1`) vs softcore (`h=0`). Requires `&u=` and `&t=`. |
+
+**Cloudflare / WAF Bypass:** RetroAchievements strictly gates `dorequest.php` behind Cloudflare bot protection. All Lua HTTP calls must supply `user_agent = "RetroArch/1.19.0"` in the options table.
 
 ### Badge images
 

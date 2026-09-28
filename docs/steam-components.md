@@ -1438,6 +1438,38 @@ The Big Picture `GameInfo` tab (`/library/app/<appid>/tab/GameInfo`) and desktop
 - `strManualURL`: Provides community guides / digital manual links.
   Feeding these in-memory stubs satisfies the native Game Info tab without modifying Steam's tab layout components.
 
+#### Game Info Component Architecture & The Shortcut Warning Trap (`#AppDetails_Shortcut_Explanation`)
+
+Module `15448` exports the Game Info container `G` and inner component `k`. In stock Steam:
+
+```js
+// module 15448, k.prototype.render
+const appData = store?.GetAppData?.(overview.appid);
+const hasMetadata = Boolean(appData?.descriptionsData?.strSnippet || appData?.associationData?.rgDevelopers?.length);
+
+if (!hasMetadata && overview.BIsModOrShortcut()) {
+    return React.createElement("div", { className: styles.ShortcutExplanation }, 
+        Localize("#AppDetails_Shortcut_Explanation") // "Detailed information is unavailable because it is a non-Steam game or mod"
+    );
+}
+```
+
+Two independent failure modes caused non-Steam games to display the grey shortcut warning:
+1. **CEF Signed int32 Mismatch:** Steam CEF passes `overview.appid` as a signed 32-bit integer (e.g. `3858889198` becomes `-436078098`). Store queries and cached Map lookups without bitwise normalization (`appid >>> 0`) missed cached records.
+2. **Asynchronous Navigation Race:** When a user navigates directly to Game Info or switches tabs before background scraping/route listeners finish, `GetAppData(appid)` returns undefined.
+
+**Remediation Pattern (On-Demand Synchronous Enrichment):**
+Patching `k.prototype.render` to perform synchronous lookup against cached library metadata (`getCachedLibraryMetadata(rawAppid)`) and injecting it immediately into `appData.descriptionsData` and `appData.associationData` before `super.render()` ensures the native about-the-game section, developer credits, publisher credits, and release dates render synchronously on the first paint cycle.
+
+### Community media & Workshop store
+
+For non-Steam games, Steam leaves the Big Picture "COMMUNITY" tab and desktop community sections completely unpopulated because shortcuts lack a Valve Workshop AppId.
+
+- **`CWorkshopStore` (`window.WorkshopStore`, `m_mapPublishedFiles`):**
+  Steam's client-side user content store. Keyed by 64-bit `publishedfileid`.
+- **Loopback URL Integration:** Local media files (manuals, screenshots, video previews) stored under `<Steam>/millennium/config/steam-cartridges/media/<appid>/` are served via `https://steamloopback.host/` to satisfy CEF CORS and CSP restrictions.
+- **Native Component Feeding:** Stubs injected into `m_mapPublishedFiles` allow Steam's native `<Carousel>`, fullscreen image lightbox, and media players to consume community fanart and video trailers identically to native Steam Workshop items.
+
 ## Links, navigation and native content for a mapped shortcut
 
 Verified live 2026-09-25, desktop, read-only CDP (module ids are this build's

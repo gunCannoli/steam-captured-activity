@@ -244,6 +244,18 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
 - **Rule:** Log `SteamClient.UI.GetUIMode()` with every live result, and test each
   mode separately ([plugins.md guardrail 12](plugins.md#12-popup-hooks-do-not-see-every-window)).
 
+### Trap 8: Negative / Signed AppId in CEF Evaluations
+
+- **Symptom:** Evaluating `store.GetAppData(3858889198)` returns undefined or querying `overview.appid` shows `-436078098`.
+- **Reality:** Chromium's V8 engine and CEF marshal 32-bit unsigned integers $> \text{0x7FFFFFFF}$ as signed int32 in certain internal structures (`overview.appid | 0`).
+- **Rule:** In CDP probe expressions and scripts, always coerce appids with `(appid >>> 0)` or check both signed and unsigned keys when testing store contents.
+
+### Trap 9: Unregistered Millennium RPC Calls Crash the Backend Process
+
+- **Symptom:** `callServerMethod` suddenly begins failing for all methods with `"failed to send RPC to child: <plugin>"`.
+- **Reality:** In Millennium v3.4–v3.5, calling a non-existent RPC method name or letting an unhandled Lua `error()` escape into the C++ frame triggers `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` in the Millennium host DLL, terminating the child Lua process.
+- **Rule:** Only call methods explicitly exposed in `backend/main.lua`. Always wrap payloads with `{ payload: JSON.stringify(params) }`. If the backend crashes, restart Steam via `start-steam-dev.ps1 -Restart`.
+
 ---
 
 ## 5. Automated CDP Inspection via PowerShell / Node.js
