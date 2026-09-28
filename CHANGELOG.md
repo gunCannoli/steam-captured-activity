@@ -7,6 +7,25 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Scraper Loop Prevention, Circuit Breaker & Smart On-Update (2026-09-27)**:
+  - *Scraping Loop Elimination & API Protection*:
+    - Identified and eliminated the root cause of the non-stop 220-game loop: removed the recursive `useEffect` in `RevisionSection` that fired `triggerSync(500)` on `notScraped.length > 0` whenever the section unmounted and remounted during sync.
+    - Added persistent sync history in `localStorage` (`steam_cartridges_sync_history_v1`) tracking per-game `checkedAt` timestamps for metadata, achievements, and store mapping.
+    - Implemented a 24-hour negative cache cooldown (games without RetroAchievements or IGDB matches are never repeatedly queried on settings changes) and a 7-day cooldown for existing data.
+    - Added a 15-minute minimum interval between full-library scans, sequential 1-at-a-time execution with 300ms polite pauses, and capped automatic background batches to 25 games to prevent API floods.
+    - Implemented a circuit breaker: immediately aborts background sync for 30 minutes if HTTP 429 (rate limit) or 3 consecutive network failures occur, preventing API key or IP bans.
+  - *Smart On-Update on Game Open*:
+    - Created `frontend/features/scraper/on-update.ts` (`handleGameOpenUpdate(appid)`) hooked into `onSourceView(appid)` in `frontend/features/source-view.ts`.
+    - Fires asynchronously in the background whenever a non-Steam game's details page is opened in Desktop or Big Picture mode without delaying local cached UI rendering.
+    - Uses a 2-minute per-game cooldown to prevent spam when rapidly switching between games.
+    - Checks for new activities (screenshots & clips captured in emulator or externally) via `refreshLibraryApp(appid)`.
+    - Checks for new achievement/trophy unlocks (RPCS3, shadPS4, RetroArch, Goldberg) via `checkObserverUnlocks`, updating UI sinks and displaying native Steam toasts.
+    - Asynchronously checks for metadata updates if previously missing or stale.
+  - *Verified*:
+    - All 63 unit tests pass (`npm run test:ts`).
+    - Two-way navigation lifecycle passes with 100% green assertions (`scratch/test_nav_cycle.js`).
+    - Verified over CDP that background sync history records entries gracefully and terminates without looping.
+
 - **`steam-cartridges` Silent Background Scraping, Stacked Progress Bar & Audit Synchronization (2026-09-27)**:
   - *Silent Process Execution (Zero CMD Windows)*:
     - Created `backend/silent_exec.lua` using Win32 `kernel32.CreateProcessA` with `CREATE_NO_WINDOW = 0x08000000` via LuaJIT `ffi`.

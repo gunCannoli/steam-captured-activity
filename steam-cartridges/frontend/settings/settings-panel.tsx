@@ -1724,7 +1724,6 @@ const CONTROLLER_OVERRIDE_OPTIONS = [
 let cachedMetadataLib: Record<string, ConsolidatedMetadata> | null = null;
 let cachedAutoProfiles: Record<string, AutoRoutingProfile> | null = null;
 let cachedControllerInference: Record<string, boolean> | null = null;
-let isInitialAuditLoaded = false;
 
 function RevisionSection() {
     const [controllerOverrides, setControllerOverrides] = useSetting(
@@ -1741,7 +1740,6 @@ function RevisionSection() {
     const [controllerInference, setControllerInference] = useState<
         Record<string, boolean>
     >(() => cachedControllerInference || {});
-    const [isAuditLoaded, setIsAuditLoaded] = useState(isInitialAuditLoaded);
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [filter, setFilter] = useState<
         "all" | "controller" | "achievements" | "not_scraped"
@@ -1781,8 +1779,6 @@ function RevisionSection() {
         } catch {
             // ignore
         }
-        isInitialAuditLoaded = true;
-        setIsAuditLoaded(true);
     }, []);
 
     useEffect(() => {
@@ -1918,12 +1914,7 @@ function RevisionSection() {
         }
     };
 
-    // Automatically trigger background scraping when Auto-Mode is enabled and games await scraping
-    useEffect(() => {
-        if (isAuditLoaded && autoModeEnabled && notScraped.length > 0) {
-            triggerSync(500);
-        }
-    }, [isAuditLoaded, autoModeEnabled, notScraped.length]);
+
 
     const handleScanSingle = async (appid: number, name: string) => {
         setFixMsg(`Scanning ${name}...`);

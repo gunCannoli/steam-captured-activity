@@ -13,6 +13,8 @@ import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { storeEnrichedAppIds } from "./steam-store/enriched";
 import { loadAchievementsForApp } from "./achievements";
 
+import { handleGameOpenUpdate } from "./scraper/on-update";
+
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
 const inflight = new Set<number>();
 /** Views seen before collections were ready; replayed once they are. */
@@ -35,6 +37,7 @@ export async function onSourceView(appid: number): Promise<void> {
             deferred.add(appid);
             await handleWebScrapingView(appid);
             void loadAchievementsForApp(appid, 0);
+            void handleGameOpenUpdate(appid);
             return;
         }
         if (bucket === "steam-store") {
@@ -52,6 +55,9 @@ export async function onSourceView(appid: number): Promise<void> {
             await handleWebScrapingView(appid);
             void loadAchievementsForApp(appid, 0);
         }
+
+        // Smart On-Update check: activities, achievements & metadata in the background
+        void handleGameOpenUpdate(appid);
     } finally {
         inflight.delete(appid);
         if (rerun.delete(appid)) void onSourceView(appid);

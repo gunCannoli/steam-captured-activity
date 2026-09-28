@@ -61,6 +61,39 @@ interface SyncItem {
     needsAchievements: boolean;
 }
 
+const SYNC_HISTORY_KEY = 'steam_cartridges_sync_history_v1';
+const COOLDOWN_NEGATIVE_MS = 24 * 60 * 60 * 1000; // 24 hours negative cache
+const COOLDOWN_POSITIVE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days if data exists
+const MIN_FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000; // At most 1 full library background scan per 15 minutes
+const MAX_BATCH_ITEMS = 25; // Cap per background run to avoid massive API bursts
+
+interface SyncHistoryEntry {
+    checkedAt: number;
+    hasMetadata?: boolean;
+    hasStore?: boolean;
+    hasAchievements?: boolean;
+}
+
+let lastFullScanTimestamp = 0;
+let circuitBreakerUntil = 0;
+
+function loadSyncHistory(): Record<string, SyncHistoryEntry> {
+    try {
+        const raw = window.localStorage?.getItem(SYNC_HISTORY_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveSyncHistory(history: Record<string, SyncHistoryEntry>) {
+    try {
+        window.localStorage?.setItem(SYNC_HISTORY_KEY, JSON.stringify(history));
+    } catch {
+        // ignore
+    }
+}
+
 let isRunning = false;
 let pendingRerun = false;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -76,6 +109,25 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
         pendingRerun = true;
         return;
     }
+
+    const now = Date.now();
+    // Circuit breaker check
+    if (!options?.forceAll && now < circuitBreakerUntil) {
+        logger.info('[Sync] Scraper in cooldown after previous rate limit or errors.');
+        setProgress({ isSyncing: false, phase: 'idle' });
+        return;
+    }
+
+    // Full library scan interval check
+    if (!options?.forceAll && !options?.onlyAppids) {
+        if (now - lastFullScanTimestamp < MIN_FULL_SCAN_INTERVAL_MS) {
+            logger.info('[Sync] Skipping full library scan: completed recently.');
+            setProgress({ isSyncing: false, phase: 'idle' });
+            return;
+        }
+        lastFullScanTimestamp = now;
+    }
+
     isRunning = true;
     pendingRerun = false;
 
@@ -97,6 +149,7 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
                 ? (metaRes.library as Record<string, unknown>)
                 : {};
         const storeMappings: Record<string, unknown> = storeRes?.mappings || {};
+        const syncHistory = loadSyncHistory();
 
         const autoMode = setting('autoRoutingMode');
         const rules = setting('routingRules');
@@ -134,6 +187,14 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
             );
             if (!isAllowed) continue;
 
+            const hist = syncHistory[String(sc.appid)] || syncHistory[String(sc.appid >>> 0)];
+            const timeSinceCheck = hist ? now - hist.checkedAt : Infinity;
+
+            // If checked within 24h negative cache window and not forcing, skip
+            if (!options?.forceAll && hist && timeSinceCheck < COOLDOWN_NEGATIVE_MS) {
+                continue;
+            }
+
             const igdbAllowed =
                 services.igdbEnabled !== false &&
                 isServiceAllowed('igdb', sc.appid, sc.name, collNames, rules, autoMode, profile);
@@ -161,7 +222,8 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
                 metadataLib[String(sc.appid | 0)];
             const needsMetadata = Boolean(
                 (igdbAllowed || screenscraperAllowed) &&
-                (!existingMeta || options?.forceAll)
+                (!existingMeta || options?.forceAll) &&
+                (!hist?.hasMetadata || timeSinceCheck >= COOLDOWN_POSITIVE_MS)
             );
 
             // Check Steam Store mapping
@@ -176,7 +238,8 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
             const needsStore = Boolean(
                 steamStoreAllowed &&
                 !alreadyCheckedStore &&
-                (!existingStoreMapping || options?.forceAll)
+                (!existingStoreMapping || options?.forceAll) &&
+                (!hist?.hasStore || timeSinceCheck >= COOLDOWN_POSITIVE_MS)
             );
 
             // Check Achievements
@@ -191,7 +254,8 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
             const needsAchievements = Boolean(
                 (retroachievementsAllowed || consoleEmuAllowed) &&
                 !alreadyCheckedAchievements &&
-                (!existingAchievements || options?.forceAll)
+                (!existingAchievements || options?.forceAll) &&
+                (!hist?.hasAchievements || timeSinceCheck >= COOLDOWN_POSITIVE_MS)
             );
 
             if (needsMetadata || needsStore || needsAchievements) {
@@ -211,61 +275,94 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
             return;
         }
 
-        logger.info(`Starting background scrape/mirror for ${itemsToSync.length} shortcut(s)...`);
+        // Cap batch size to MAX_BATCH_ITEMS to prevent freezing and large bursts
+        const itemsToProcess = options?.forceAll ? itemsToSync : itemsToSync.slice(0, MAX_BATCH_ITEMS);
+
+        logger.info(`Starting gentle background scrape/mirror for ${itemsToProcess.length} shortcut(s)...`);
         setProgress({
             isSyncing: true,
-            total: itemsToSync.length,
+            total: itemsToProcess.length,
             current: 0,
-            currentGame: itemsToSync[0]?.name || '',
+            currentGame: itemsToProcess[0]?.name || '',
             phase: 'scraping',
         });
 
-        const batchSize = 2;
-        for (let i = 0; i < itemsToSync.length; i += batchSize) {
-            const batch = itemsToSync.slice(i, i + batchSize);
-            await Promise.all(
-                batch.map(async (item) => {
-                    setProgress({ currentGame: item.name });
-                    const tasks: Promise<unknown>[] = [];
-
-                    if (item.needsMetadata) {
-                        tasks.push(rpc.refreshGameMetadata(item.appid, item.name).catch(() => {}));
-                    }
-                    if (item.needsStore) {
-                        checkedStore.add(item.appid);
-                        checkedStore.add(item.appid >>> 0);
-                        checkedStore.add(item.appid | 0);
-                        tasks.push(rpc.steamStoreSearch(item.appid, item.name).catch(() => {}));
-                    }
-                    if (item.needsAchievements) {
-                        checkedAchievements.add(item.appid);
-                        checkedAchievements.add(item.appid >>> 0);
-                        checkedAchievements.add(item.appid | 0);
-                        tasks.push(rpc.cartridgesAchievementsGet(item.appid, 0).catch(() => {}));
-                    }
-
-                    await Promise.all(tasks);
-                }),
-            );
-
-            const nextCount = Math.min(i + batchSize, itemsToSync.length);
+        let consecutiveErrors = 0;
+        // Process sequentially (1 at a time) to strictly avoid hitting rate limits
+        for (const [i, item] of itemsToProcess.entries()) {
             setProgress({
-                current: nextCount,
-                currentGame: itemsToSync[nextCount - 1]?.name || '',
+                current: i + 1,
+                currentGame: item.name,
             });
 
+            let itemHadError = false;
+
+            if (item.needsMetadata) {
+                try {
+                    await rpc.refreshGameMetadata(item.appid, item.name);
+                } catch (e: any) {
+                    itemHadError = true;
+                    if (String(e).includes('429')) {
+                        circuitBreakerUntil = Date.now() + 30 * 60 * 1000;
+                        logger.warn('Rate limit hit (429). Pausing background sync for 30 minutes.');
+                        break;
+                    }
+                }
+            }
+            if (item.needsStore) {
+                checkedStore.add(item.appid);
+                checkedStore.add(item.appid >>> 0);
+                checkedStore.add(item.appid | 0);
+                try {
+                    await rpc.steamStoreSearch(item.appid, item.name);
+                } catch {
+                    // ignore
+                }
+            }
+            if (item.needsAchievements) {
+                checkedAchievements.add(item.appid);
+                checkedAchievements.add(item.appid >>> 0);
+                checkedAchievements.add(item.appid | 0);
+                try {
+                    await rpc.cartridgesAchievementsGet(item.appid, 0);
+                } catch {
+                    // ignore
+                }
+            }
+
+            // Update persistent history
+            syncHistory[String(item.appid)] = {
+                checkedAt: Date.now(),
+                hasMetadata: !itemHadError,
+                hasStore: !item.needsStore,
+                hasAchievements: !item.needsAchievements,
+            };
+            saveSyncHistory(syncHistory);
+
+            if (itemHadError) {
+                consecutiveErrors++;
+                if (consecutiveErrors >= 3) {
+                    logger.warn('3 consecutive scrape errors; pausing sync to protect APIs.');
+                    circuitBreakerUntil = Date.now() + 15 * 60 * 1000;
+                    break;
+                }
+            } else {
+                consecutiveErrors = 0;
+            }
+
             // Periodically refresh the UI audit counts
-            if (nextCount % 4 === 0 || nextCount === itemsToSync.length) {
+            if ((i + 1) % 4 === 0 || (i + 1) === itemsToProcess.length) {
                 window.dispatchEvent(new CustomEvent('steam-cartridges:rule-updated'));
             }
 
-            // Small throttle between batches to keep Steam client responsive
-            await new Promise((resolve) => setTimeout(resolve, 200));
+            // Polite 300ms pause between individual games
+            await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
+        saveSyncHistory(syncHistory);
         setProgress({
             isSyncing: false,
-            current: itemsToSync.length,
+            current: itemsToProcess.length,
             phase: 'complete',
         });
         window.dispatchEvent(new CustomEvent('steam-cartridges:rule-updated'));
@@ -281,11 +378,13 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
         setProgress({ isSyncing: false, phase: 'idle' });
     } finally {
         isRunning = false;
-        if (pendingRerun) {
+        if (pendingRerun && (Date.now() - lastFullScanTimestamp >= MIN_FULL_SCAN_INTERVAL_MS)) {
             pendingRerun = false;
             setTimeout(() => {
                 void startSync();
-            }, 300);
+            }, 1000);
+        } else {
+            pendingRerun = false;
         }
     }
 }
