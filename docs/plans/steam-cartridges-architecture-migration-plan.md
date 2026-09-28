@@ -359,20 +359,12 @@ the baseline changes only through an accepted ADR).
 
 ## 6. Preconditions (before M0)
 
-1. Working tree state is known. Currently 4 modified files, unrelated to this plan (the
-   engine-log codename work):
+1. Working tree is clean:
    ```
-   git status --short
+   git status
    ```
-   Expected output:
-   ```
-    M docs/steam-cartridges-achievements.md
-    M steam-cartridges/CHANGELOG.md
-    M steam-cartridges/backend/achievements_observer.lua
-    M steam-cartridges/tests/test_backend.lua
-   ```
-   The user decides whether to commit or stash them before M0. M0 must start clean
-   (`nothing to commit, working tree clean`).
+   Expected output: `nothing to commit, working tree clean`. Last known good base is
+   `c2bd158` (this plan), on top of `22bac99` (engine-log codename discovery).
 2. `npm run check` in `steam-cartridges/` exits 0 with no output after the npm banner.
 3. `npm run test:ts` ends `ℹ fail 0`. Record the pass count; the dataflow audit recorded 64.
 4. `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua` ends with 0 failures. Record the count.
