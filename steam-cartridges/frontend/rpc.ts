@@ -253,6 +253,14 @@ export const rpc = {
         }),
     cartridgesAchievementsGetRetroStatus: () =>
         call<RetroStatusResponse>("CartridgesAchievementsGetRetroStatus"),
+    getGameMedia: (appid: number) =>
+        call<GameMediaResponse>("GetGameMedia", { appid }),
+    getGameManual: (appid: number) =>
+        call<GameManualResponse>("GetGameManual", { appid }),
+    getGameTrailers: (appid: number, title?: string) =>
+        call<GameTrailersResponse>("GetGameTrailers", { appid, title }),
+    getGameCommunityLinks: (appid: number, title?: string) =>
+        call<GameCommunityLinksResponse>("GetGameCommunityLinks", { appid, title }),
 };
 
 export interface DetectedUnlockItem {
@@ -306,6 +314,60 @@ export interface RetroStatusResponse {
     emulators: EmulatorStatusItem[];
     env_fallback: boolean;
     env_username?: string;
+}
+
+export interface GameMediaResponse {
+    success?: boolean;
+    media?: {
+        appid: number;
+        rom_title?: string;
+        screenshots?: string[];
+        titlescreen?: string;
+        fanart?: string;
+        video?: string;
+        manual?: string;
+    };
+    error?: string;
+}
+
+export interface GameManualResponse {
+    success?: boolean;
+    manual_url?: string;
+    message?: string;
+    error?: string;
+}
+
+export interface GameTrailerItem {
+    video_id: string;
+    name: string;
+    category: number;
+    url: string;
+    thumbnail: string;
+}
+
+export interface GameTrailersResponse {
+    success?: boolean;
+    trailers?: GameTrailerItem[];
+    error?: string;
+}
+
+export interface GameCommunityLinkItem {
+    name: string;
+    category: number;
+    url: string;
+}
+
+export interface GameArtworkCommunityItem {
+    image_id: string;
+    url: string;
+    thumbnail: string;
+}
+
+export interface GameCommunityLinksResponse {
+    success?: boolean;
+    links?: GameCommunityLinkItem[];
+    artworks?: GameArtworkCommunityItem[];
+    error?: string;
 }
 
 

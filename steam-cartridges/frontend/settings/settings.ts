@@ -45,6 +45,14 @@ export interface Settings {
     activityShowAddedToLibrary: boolean;
     /** Show native activity card when a non-Steam game is played for the first time. Default true. */
     activityShowFirstPlayed: boolean;
+    /** Show trailers carousel on community tab. Default true. */
+    communityShowTrailers: boolean;
+    /** Show digital game manuals on community tab. Default true. */
+    communityShowManuals: boolean;
+    /** Show artworks and fanart on community tab. Default true. */
+    communityShowArtworks: boolean;
+    /** Show external community destinations (Discord, Speedrun, Wiki). Default true. */
+    communityShowExternalLinks: boolean;
 }
 export type SettingKey = keyof Settings;
 
@@ -59,6 +67,10 @@ export const DEFAULTS: Settings = {
     controllerOverrides: {},
     activityShowAddedToLibrary: true,
     activityShowFirstPlayed: true,
+    communityShowTrailers: true,
+    communityShowManuals: true,
+    communityShowArtworks: true,
+    communityShowExternalLinks: true,
 };
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
@@ -71,6 +83,10 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     raHardcoreMode: (raw) => raw !== false,
     activityShowAddedToLibrary: (raw) => raw !== false,
     activityShowFirstPlayed: (raw) => raw !== false,
+    communityShowTrailers: (raw) => raw !== false,
+    communityShowManuals: (raw) => raw !== false,
+    communityShowArtworks: (raw) => raw !== false,
+    communityShowExternalLinks: (raw) => raw !== false,
     routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
     autoRoutingMode: (raw) => raw !== false,
     services: (raw) => {
@@ -100,6 +116,10 @@ const current: Settings = {
     controllerOverrides: {},
     activityShowAddedToLibrary: true,
     activityShowFirstPlayed: true,
+    communityShowTrailers: true,
+    communityShowManuals: true,
+    communityShowArtworks: true,
+    communityShowExternalLinks: true,
 };
 const listeners = new Set<(key: SettingKey) => void>();
 

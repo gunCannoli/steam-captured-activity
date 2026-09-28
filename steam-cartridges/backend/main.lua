@@ -55,6 +55,14 @@ CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
 CartridgesAchievementsCheckUnlocks = ACH_RPC.CartridgesAchievementsCheckUnlocks
 CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroStatus
 
+-- Community & Media (ScreenScraper + IGDB)
+local SS_MEDIA = require("screenscraper_media")
+local IGDB_COMM = require("igdb_community")
+GetGameMedia          = SS_MEDIA.GetGameMedia
+GetGameManual         = SS_MEDIA.GetGameManual
+GetGameTrailers       = IGDB_COMM.GetGameTrailers
+GetGameCommunityLinks = IGDB_COMM.GetGameCommunityLinks
+
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at
   -- startup rather than on the first page view.

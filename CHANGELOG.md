@@ -7,6 +7,24 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Community Section Execution & Complete Data Flow Audit (2026-09-27)**:
+  - *Community Section & Retro Media Execution (`steam-cartridges-community-plan.md`)*:
+    - **Step 1 (ScreenScraper Media Provider)**: Created `backend/screenscraper_media.lua` implementing `fetch_media`, `GetGameMedia`, and `GetGameManual`, extracting in-game screenshots, title screens, fanart, gameplay videos, and digital manuals with silent fallback when credentials are absent (ADR-0014).
+    - **Step 2 (IGDB Community Provider)**: Created `backend/igdb_community.lua` implementing `fetch_community_data`, `GetGameTrailers`, and `GetGameCommunityLinks`, extracting YouTube trailers, artworks, and destinations (Official Site, Fandom, Wikipedia, Reddit, Discord, Speedrun.com) cached per appid.
+    - **Step 3 (Community Store & Workshop Integration)**: Created `frontend/steam/community-store.ts` and `frontend/steam/community-core.ts` mapping media items into Steam's in-memory `CWorkshopStore` (`m_mapPublishedFiles`) so Steam's native image viewers and lightboxes recognize them without errors.
+    - **Step 4 (Big Picture & Desktop Community Renderer)**: Created `frontend/renderers/community-tab.tsx` rendering trailers carousel, art gallery, digital manual viewer modal, and community links.
+    - **Step 5 (Settings Configuration)**: Added `communityShowTrailers`, `communityShowManuals`, `communityShowArtworks`, and `communityShowExternalLinks` toggles to `settings.ts` and `settings-panel.tsx` with defaults true.
+  - *Complete Data Flow Audit Findings (`docs/plans/steam-cartridges-dataflow-audit-plan.md`)*:
+    - **Finding 1 (Game Info Hidden despite being present in DB)**: Found that 219/221 games already have full descriptions in `library_metadata.json` (including `Alundra` and `Castlevania: Aria of Sorrow`). Steam UI hides them because `detailsStore.GetAppData(appid)` returns `undefined` before navigation, and `enrichedAppIds.has(overview.appid)` fails due to signed int32 (`-436078098`) vs unsigned uint32 (`3858889198`) AppId mismatch in `game-info-patch.ts`.
+    - **Finding 2 (RetroAchievements 403 Forbidden & Broken Title Matcher)**: Discovered that `dorequest.php` on RetroAchievements blocked queries with 403 Forbidden because Millennium's libcurl wrapper ignores `options.headers["User-Agent"]` unless passed as `options.user_agent`. Furthermore, `find_game_id_by_title` for compressed `.chd` files (e.g. `Alundra`) iterated `ipairs` on `dorequest.php?r=gameslist` which returns a dictionary (`{ ["11336"] = "Alundra" }`), causing 100% failure rate for all games falling back to title lookup.
+    - **Finding 3 (Auto-Mode strips RetroAchievements for Standalone Emulators)**: `isServiceAllowedByAutoMode` for `console_emulator` explicitly returned `false` for `retroachievements`, breaking DuckStation, PCSX2, Dolphin, and PPSSPP.
+    - **Finding 4 (Permanent Negative-Cache Poisoning on Store Mirror)**: Unmatched games (fan games like AM2R, Epic exclusives, subtitle differences) are permanently blacklisted in `steam_store.json`'s `negative` cache on first search.
+    - **Finding 5 (Background Scraper Throttling)**: `MAX_BATCH_ITEMS = 25` and the 3-error circuit breaker in `sync-manager.ts` stopped scans after hitting initial errors, locking out the remaining 196 shortcuts for 24 hours.
+  - *Verified*:
+    - All 64 unit tests pass (`npm run test:ts`).
+    - Clean TypeScript compilation (`npm run check`).
+    - Production bundle succeeds (`npm run build`).
+
 - **`steam-cartridges` Emulator Info Button, Interactive Audit Rows & Genuine Issue Partitioning (2026-09-27)**:
   - *Console Emulators Status Button*:
     - Replaced the text `"Status"` button on the `Emulators` achievement source with compact `ⓘ` icon button (`title="Console Emulators Status"`).

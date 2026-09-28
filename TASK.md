@@ -17,16 +17,11 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**steam-cartridges Auto-Mode Routing & Classification (Complete).**
+**steam-cartridges Complete Data Flow & Architecture Audit (Plan Ready for Execution).**
 
-- Added Auto-Mode toggle and classification engine (`retroarch`, `console_emulator`, `pc`).
-- Retro shortcuts map to retroachievements + web scraping; standalone emulators map to console_emulators + web scraping; PC games map to steam_store mirror + local achievements.
-- Verified live over CDP across 200+ library shortcuts; all 63 unit tests pass.
-
-**steam-cartridges Community Section & Retro Media (Ready for Execution).**
-
-- Plan & Architecture: [docs/plans/steam-cartridges-community-plan.md](docs/plans/steam-cartridges-community-plan.md).
-- Integration of ScreenScraper (Media & Manuals) and IGDB (Trailers & Discussions) into non-Steam games' Community / Community Content tab.
+- Plan & Architecture: [docs/plans/steam-cartridges-dataflow-audit-plan.md](docs/plans/steam-cartridges-dataflow-audit-plan.md).
+- Solves root cause for missing metadata and achievements on `Alundra`, `Castlevania: Aria of Sorrow`, and 217 retro/native games.
+- Addresses RetroAchievements 403 Forbidden User-Agent bug, dictionary title parsing on `.chd` discs, signed/unsigned int32 AppId lookup mismatch, on-demand details store injection, and simplifies parallel store caches.
 
 ## Next
 

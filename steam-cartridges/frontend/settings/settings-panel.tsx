@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     DialogButton,
     Dropdown,
@@ -1018,6 +1018,46 @@ function ActivitySection() {
 }
 
 // ===========================================================================
+// Community & Media Section
+// ===========================================================================
+
+function CommunitySection() {
+    const [showTrailers, setShowTrailers] = useSetting("communityShowTrailers");
+    const [showArtworks, setShowArtworks] = useSetting("communityShowArtworks");
+    const [showManuals, setShowManuals] = useSetting("communityShowManuals");
+    const [showLinks, setShowLinks] = useSetting("communityShowExternalLinks");
+
+    return (
+        <PanelSection title="Community & Media">
+            <ToggleRow
+                label="Gameplay Trailers"
+                description="Show video trailers and gameplay previews in the Community tab"
+                value={showTrailers}
+                onChange={setShowTrailers}
+            />
+            <ToggleRow
+                label="Fanart & Screenshots"
+                description="Show promotional artworks, title screens, and fanart galleries"
+                value={showArtworks}
+                onChange={setShowArtworks}
+            />
+            <ToggleRow
+                label="Digital Game Manuals"
+                description="Show original retro game manuals viewer modal when available"
+                value={showManuals}
+                onChange={setShowManuals}
+            />
+            <ToggleRow
+                label="Community Hub Links"
+                description="Display quick action links to Wikipedia, Speedrun leaderboards, Discord, and wikis"
+                value={showLinks}
+                onChange={setShowLinks}
+            />
+        </PanelSection>
+    );
+}
+
+// ===========================================================================
 // 4. {Rules} Routing Engine Section
 // ===========================================================================
 
@@ -1752,6 +1792,8 @@ function RevisionSection() {
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
     const [steamIdInput, setSteamIdInput] = useState("");
     const [fixMsg, setFixMsg] = useState("");
+    const syncProgress = useSyncProgress();
+    const prevSyncingRef = useRef(syncProgress.isSyncing);
 
     const shortcuts = listShortcuts();
 
@@ -1796,6 +1838,13 @@ function RevisionSection() {
                 onRuleUpdated,
             );
     }, [refreshAuditData]);
+
+    useEffect(() => {
+        if (prevSyncingRef.current && !syncProgress.isSyncing) {
+            void refreshAuditData();
+        }
+        prevSyncingRef.current = syncProgress.isSyncing;
+    }, [syncProgress.isSyncing, refreshAuditData]);
 
     const collections = listCollections();
     const collMap: Record<number, string[]> = {};
@@ -1925,20 +1974,21 @@ function RevisionSection() {
     };
 
     return (
-        <PanelSection title="Library Audit">
-            {/* 2-Row Interactive Layout matching theme */}
-            <ItemRow>
-                <Field
-                    label="Not scraped:"
-                    description="Games awaiting initial metadata & achievement fetch"
-                    bottomSeparator="none"
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                        }}
+        <div
+            style={{
+                display:
+                    syncProgress.isSyncing && !isAuditModalOpen
+                        ? "none"
+                        : "block",
+            }}
+        >
+            <PanelSection title="Library Audit">
+                {/* 3-Row Layout matching theme */}
+                <ItemRow>
+                    <Field
+                        label="Not scraped:"
+                        description="Games awaiting initial metadata & achievement fetch"
+                        bottomSeparator="none"
                     >
                         <span
                             style={{
@@ -1950,35 +2000,13 @@ function RevisionSection() {
                         >
                             {notScraped.length}
                         </span>
-                        <DialogButton
-                            onClick={() => {
-                                setFilter("not_scraped");
-                                setIsAuditModalOpen(true);
-                            }}
-                            style={{
-                                padding: "0 12px",
-                                minWidth: 0,
-                                width: "auto",
-                                fontSize: "11px",
-                            }}
-                        >
-                            {notScraped.length > 0 ? "Review & Scrape" : "View"}
-                        </DialogButton>
-                    </div>
-                </Field>
-            </ItemRow>
-            <ItemRow>
-                <Field
-                    label="Issues detected:"
-                    description="Games with missing input or requiring configuration"
-                    bottomSeparator="none"
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                        }}
+                    </Field>
+                </ItemRow>
+                <ItemRow>
+                    <Field
+                        label="Issues detected:"
+                        description="Number of games that require complete information"
+                        bottomSeparator="none"
                     >
                         <span
                             style={{
@@ -1989,149 +2017,136 @@ function RevisionSection() {
                         >
                             {flagged.length}
                         </span>
+                    </Field>
+                </ItemRow>
+                <ItemRow>
+                    <div style={{ marginTop: "4px" }}>
                         <DialogButton
-                            onClick={() => {
-                                setFilter("all");
-                                setIsAuditModalOpen(true);
-                            }}
+                            onClick={() => setIsAuditModalOpen(true)}
                             style={{
-                                padding: "0 12px",
+                                padding: "0 14px",
                                 minWidth: 0,
                                 width: "auto",
-                                fontSize: "11px",
                             }}
                         >
                             Review
                         </DialogButton>
                     </div>
-                </Field>
-            </ItemRow>
-            {fixMsg && !isAuditModalOpen && (
-                <ItemRow>
-                    <div
-                        style={{
-                            color: "#66c0f4",
-                            fontSize: "12px",
-                            padding: "2px 0",
-                        }}
-                    >
-                        {fixMsg}
-                    </div>
                 </ItemRow>
-            )}
+                {fixMsg && !isAuditModalOpen && (
+                    <ItemRow>
+                        <div
+                            style={{
+                                color: "#66c0f4",
+                                fontSize: "12px",
+                                padding: "2px 0",
+                            }}
+                        >
+                            {fixMsg}
+                        </div>
+                    </ItemRow>
+                )}
 
-            {/* Audit & Fix Modal */}
-            <SettingsModal
-                title={`Library Audit (${flagged.length} issue${flagged.length === 1 ? "" : "s"}, ${notScraped.length} unscraped)`}
-                isOpen={isAuditModalOpen}
-                onClose={() => setIsAuditModalOpen(false)}
-                width="620px"
-                maxHeight="85vh"
-            >
-                {/* Filter Tabs using DialogButton for reliable clicking */}
-                <div
-                    style={{
-                        display: "flex",
-                        gap: "6px",
-                        flexWrap: "wrap",
-                        marginBottom: "12px",
-                    }}
+                {/* Audit & Fix Modal */}
+                <SettingsModal
+                    title={`Library Audit (${flagged.length} issue${flagged.length === 1 ? "" : "s"}, ${notScraped.length} unscraped)`}
+                    isOpen={isAuditModalOpen}
+                    onClose={() => setIsAuditModalOpen(false)}
+                    width="620px"
+                    maxHeight="85vh"
                 >
-                    <DialogButton
-                        onClick={() => setFilter("all")}
-                        style={{
-                            background:
-                                filter === "all"
-                                    ? "rgba(102, 192, 244, 0.25)"
-                                    : "rgba(0, 0, 0, 0.3)",
-                            border:
-                                filter === "all"
-                                    ? "1px solid #66c0f4"
-                                    : "1px solid rgba(255, 255, 255, 0.1)",
-                            color: filter === "all" ? "#66c0f4" : "#fff",
-                            padding: "4px 12px",
-                            fontSize: "12px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Issues ({flagged.length})
-                    </DialogButton>
-                    <DialogButton
-                        onClick={() => setFilter("controller")}
-                        style={{
-                            background:
-                                filter === "controller"
-                                    ? "rgba(102, 192, 244, 0.25)"
-                                    : "rgba(0, 0, 0, 0.3)",
-                            border:
-                                filter === "controller"
-                                    ? "1px solid #66c0f4"
-                                    : "1px solid rgba(255, 255, 255, 0.1)",
-                            color: filter === "controller" ? "#66c0f4" : "#fff",
-                            padding: "4px 12px",
-                            fontSize: "12px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Unknown Input (
-                        {flagged.filter((f) => f.missingController).length})
-                    </DialogButton>
-                    <DialogButton
-                        onClick={() => setFilter("not_scraped")}
-                        style={{
-                            background:
-                                filter === "not_scraped"
-                                    ? "rgba(102, 192, 244, 0.25)"
-                                    : "rgba(0, 0, 0, 0.3)",
-                            border:
-                                filter === "not_scraped"
-                                    ? "1px solid #66c0f4"
-                                    : "1px solid rgba(255, 255, 255, 0.1)",
-                            color: filter === "not_scraped" ? "#66c0f4" : "#fff",
-                            padding: "4px 12px",
-                            fontSize: "12px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Not Scraped ({notScraped.length})
-                    </DialogButton>
-                </div>
-
-                {filter === "not_scraped" && (
+                    {/* Filter Tabs */}
                     <div
                         style={{
                             display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "4px 0",
-                            marginBottom: "8px",
+                            gap: "6px",
+                            flexWrap: "wrap",
+                            marginBottom: "12px",
                         }}
                     >
-                        <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                            {notScraped.length} game(s) awaiting initial scraping.
-                        </span>
-                        {notScraped.length > 0 && (
-                            <DialogButton
-                                onClick={() => {
-                                    triggerSync(50);
-                                    setFixMsg("Background scraping started...");
-                                    setTimeout(() => setFixMsg(""), 3000);
-                                }}
-                                style={{
-                                    padding: "0 10px",
-                                    minWidth: 0,
-                                    width: "auto",
-                                    fontSize: "11px",
-                                }}
-                            >
-                                🔄 Scrape All ({notScraped.length})
-                            </DialogButton>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setFilter("all")}
+                            style={{
+                                background:
+                                    filter === "all"
+                                        ? "rgba(102, 192, 244, 0.25)"
+                                        : "rgba(0, 0, 0, 0.25)",
+                                border:
+                                    filter === "all"
+                                        ? "1px solid #66c0f4"
+                                        : "none",
+                                color: filter === "all" ? "#66c0f4" : "#fff",
+                                borderRadius: "4px",
+                                padding: "4px 10px",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Issues ({flagged.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFilter("controller")}
+                            style={{
+                                background:
+                                    filter === "controller"
+                                        ? "rgba(102, 192, 244, 0.25)"
+                                        : "rgba(0, 0, 0, 0.25)",
+                                border:
+                                    filter === "controller"
+                                        ? "1px solid #66c0f4"
+                                        : "none",
+                                color: filter === "controller" ? "#66c0f4" : "#fff",
+                                borderRadius: "4px",
+                                padding: "4px 10px",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Unknown Input (
+                            {flagged.filter((f) => f.missingController).length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFilter("not_scraped")}
+                            style={{
+                                background:
+                                    filter === "not_scraped"
+                                        ? "rgba(102, 192, 244, 0.25)"
+                                        : "rgba(0, 0, 0, 0.25)",
+                                border:
+                                    filter === "not_scraped"
+                                        ? "1px solid #66c0f4"
+                                        : "none",
+                                color:
+                                    filter === "not_scraped" ? "#66c0f4" : "#fff",
+                                borderRadius: "4px",
+                                padding: "4px 10px",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Not Scraped ({notScraped.length})
+                        </button>
                     </div>
-                )}
+
+                    {filter === "not_scraped" && (
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                padding: "4px 0",
+                                marginBottom: "8px",
+                            }}
+                        >
+                            <span style={{ fontSize: "11px", opacity: 0.7 }}>
+                                {notScraped.length} game(s) awaiting initial
+                                scraping (automatically scraped in the background).
+                            </span>
+                        </div>
+                    )}
 
                 {fixMsg && (
                     <div
@@ -2562,6 +2577,7 @@ function RevisionSection() {
                 </div>
             </SettingsModal>
         </PanelSection>
+        </div>
     );
 }
 
@@ -2669,7 +2685,6 @@ function SyncProgressBar() {
 
 export function SettingsPanel() {
     const [, tick] = useState(0);
-    const syncProgress = useSyncProgress();
 
     // Periodic refresh so live collections and shortcuts remain synced
     useEffect(() => {
@@ -2678,14 +2693,15 @@ export function SettingsPanel() {
     }, []);
 
     return (
-        <>
+        <div style={{ paddingBottom: "70px", position: "relative" }}>
             <MetadataSection />
             <AchievementsSection />
             <NotificationsSection />
             <ActivitySection />
+            <CommunitySection />
             <RulesSection />
-            {!syncProgress.isSyncing && <RevisionSection />}
+            <RevisionSection />
             <SyncProgressBar />
-        </>
+        </div>
     );
 }
