@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Internal: architecture ratchet + RPC registration test (2026-09-28)**: an automated test now blocks any new cross-module import that doesn't fit the plugin's target architecture, and catches an RPC call to a backend method name that isn't registered (which previously crashed the backend). Also fixed a flaky check in the automated tab-verification script.
+
 - **Added: kill switches, error budget and safe mode (2026-09-28)**: each feature (sections, captures, game-info, achievements, and 7 more) can be switched off individually via the `disabledFeatures` setting, and switches itself off automatically after repeated errors in a session. If Steam doesn't shut down cleanly twice in a row, the plugin starts in a reduced safe mode (captures only) instead of needing to be uninstalled.
 
 - **Fixed: Steam's UI froze when opening Properties of a non-Steam game (2026-09-28)**: Game Info no longer re-renders itself in a loop (it ran ~150 times a second on every non-Steam game page). Release date and badges are re-applied after Steam refreshes a game.

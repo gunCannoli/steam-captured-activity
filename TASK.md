@@ -28,7 +28,8 @@ The crash is root-caused and the fix is validated live (plan § 1.3): a render f
 loop that ran ~150 times a second on every shortcut page; opening **Properties**
 saturated Steam's shared renderer.
 M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
-Next: M0b-2 (spec) or M0c (Ready; the plan's § 0 is the execution manual).
+M0c done (architecture ratchet, RPC registration check, check_all_tabs.js flake fix).
+Next: **M1** (kernel, Ready; the plan's § 0 is the execution manual), or M0b-2 (spec).
 
 ## Next
 

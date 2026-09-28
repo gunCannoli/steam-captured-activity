@@ -104,6 +104,11 @@ try {
     const activity = await view(shared, `/library/app/${A}`, nameA);
     ok('1. Post-Game Summary', activity.postGameSummary);
     ok('2. Activity feed: "{Username} captured" cards (hasEvent)', activity.captured > 0, activity.captured);
+    // Guardrail 15: the A -> B -> A check compares Steam's store (the data signal), not DOM
+    // card counts, which Steam reveals progressively (1 or 3 cards for the same data, 2026-09-28).
+    const activityDays = () =>
+        shared.evaluate(`window.appActivityStore?.GetAppActivity?.(${A})?.appActivityByDay?.length ?? 0`);
+    const daysA = await activityDays();
 
     let stuff = await view(shared, `/library/app/${A}/tab/YourStuff`, 'Media');
     // Steam loads the media list asynchronously (slow on the first view after a
@@ -132,14 +137,16 @@ try {
     ok('Native B Game Info: no error boundary', !infoB.errorBoundary);
     await view(shared, `/library/app/${B}`, nameB);
     let back;
+    let daysBack = 0;
     for (let i = 0; i < 20; i++) {
         back = await view(shared, `/library/app/${A}`, nameA);
-        if (back.captured >= 1 && back.captured === activity.captured) break;
+        daysBack = await activityDays();
+        if (back.captured >= 1 && daysBack === daysA) break;
         await wait(500);
     }
     ok('A -> B -> A: Post-Game Summary intact', back.postGameSummary);
     ok('A -> B -> A: no error boundary', !back.errorBoundary);
-    ok('A -> B -> A: activity cards intact (hasEvent)', back.captured >= 1 && back.captured === activity.captured, back.captured);
+    ok('A -> B -> A: activity cards intact (hasEvent)', back.captured >= 1 && daysA > 0 && daysBack === daysA, { cards: back.captured, days: daysBack, daysBefore: daysA });
 } finally {
     shared.close();
 }

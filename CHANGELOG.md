@@ -7,6 +7,8 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: architecture ratchet and RPC registration check (migration M0c, 2026-09-28)**: `tests/architecture.test.ts` fails the build on any new cross-area import not in `tests/architecture-allowlist.json` (53 entries, frozen at M0c — it can only shrink) and on any RPC name `frontend/rpc.ts` calls that isn't registered in `backend/main.lua`. Also fixed `scratch/check_all_tabs.js`'s flaky `A -> B -> A: activity cards intact` check (compared DOM card counts, which Steam reveals progressively; now compares `appActivityStore` day counts). New doc: [docs/steam-cartridges/README.md](docs/steam-cartridges/README.md).
+
 - **steam-cartridges: kill switches, error budget and safe mode (migration M0b-1, 2026-09-28)**: every feature's start-up in `index.tsx` now runs through `frontend/safety/` (`FeatureSwitches`): a `disabledFeatures` setting can turn any of 11 feature ids off before a restart; a feature that throws 5 times in a session is tripped off automatically; a `localStorage` boot sentinel (`steam-cartridges.boot`) detects two unclean starts in a row and starts safe mode (capture tier only: `sections`, `store-cache`, `captures`). No more uninstalling the whole plugin to isolate a crash. New doc: [safety.md](docs/steam-cartridges/safety.md).
 
 - **steam-cartridges: Properties-dialog hang fixed (migration M0a, 2026-09-28)**:
