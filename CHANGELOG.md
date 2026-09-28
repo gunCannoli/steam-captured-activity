@@ -7,6 +7,21 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Millennium Settings Panel Navigation Resolution & Build Guardrail (2026-09-28)**:
+  - *Root Cause Analysis*:
+    - Millennium's frontend runtime indexes plugin settings panels under `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS[pluginName]`, where `pluginName` is baked into the JS bundle from `plugin.json` by `millennium-ttc` (`__millennium_internal_plugin_name_do_not_use_or_change__ = pluginName`).
+    - When `npm run build` ran against `plugin.json` with base name `"steam-cartridges"`, the bundle registered under `MILLENNIUM_SIDEBAR_NAVIGATION_PANELS["steam-cartridges"]`.
+    - When deployed into `millennium/plugins/steam-cartridges-dev`, Millennium's Desktop Sidebar queried `MILLENNIUM_SIDEBAR_NAVIGATION_PANELS["steam-cartridges-dev"]` (based on the installed folder name). This returned `undefined`, causing `TypeError: Cannot read properties of undefined (reading 'content')` and preventing the Settings panel from opening.
+  - *Fix & Dual-Alias Guardrail*:
+    - **Frontend Dual-Aliasing (`frontend/index.tsx`)**: In `definePlugin`, added an automatic alias step ensuring `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS` and `window.PLUGIN_LIST` mirror entries under both `"steam-cartridges"` and `"steam-cartridges-dev"`.
+    - **Deploy Script Verification (`dev.ps1`)**: Added validation in `dev.ps1` when `-SkipBuild` is supplied; if `.millennium/Dist/index.js` was compiled against the release manifest name instead of `$devName`, it triggers a build to guarantee names match.
+    - **Documentation**: Added Guardrail 16 in `docs/plugins.md` and documented the `MILLENNIUM_SIDEBAR_NAVIGATION_PANELS` registration mechanism in `docs/knowledgebase.md`.
+  - *Verification*:
+    - `npm run check` passes with 0 errors.
+    - Verified live via CDP: clicking `Steam Cartridges (dev)` in the Millennium Desktop Sidebar in the Steam window cleanly opens the modal.
+    - Verified all 7 settings tabs (`Metadata`, `Achievements`, `Notifications`, `Activity Feed`, `Community & Media`, `Routing Rules`, `Library Audit`) mount and render with full interactivity.
+    - Two-way navigation lifecycle (`scratch/test_nav_cycle.js`) passes 100%.
+
 - **Animaniacs RetroAchievements, Shortcut Icon Permanent Fix & 100% Library Metadata Coverage (2026-09-28)**:
   - *Permanent Resolution of Shortcut Icon Disappearance (Guardrail 1)*:
     - Traced root cause of missing shortcut icons to prototype pollution: `ensureAppOverviewHooked` walked the prototype chain and set `AppOverview.prototype.BIsModOrShortcut = function() { if (isAppEnriched(...)) return false; ... }`.

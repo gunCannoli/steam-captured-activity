@@ -556,6 +556,20 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   activity feed reveals days one at a time (`nDaysToDisplay` / `ShowMoreContent`,
   [steam-components.md § Activity feed](steam-components.md#activity-feed)).
 
+### 16. Millennium Settings Panel Resolution & Build Name Divergence
+
+- **The Trap:** When `npm run build` or `millennium-ttc` runs, it bakes `plugin.json`'s `name` string into the compiled bundle (`__millennium_internal_plugin_name_do_not_use_or_change__ = pluginName`). Millennium registers the exported `content` panel into `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS[pluginName]`. When Millennium renders the Desktop Sidebar in the Steam client, it looks up the panel using the plugin's actual folder name on disk (e.g. `steam-cartridges-dev`). If `npm run build` ran with the base name `steam-cartridges` and was deployed without a dev-specific rebuild (or via `-SkipBuild`), Millennium looks up `MILLENNIUM_SIDEBAR_NAVIGATION_PANELS["steam-cartridges-dev"]`, gets `undefined`, and throws `TypeError: Cannot read properties of undefined (reading 'content')` or fails silently when clicking the plugin in Settings.
+- **The Mandatory Guardrails:**
+  1. **Dual-Alias Registration:** In `frontend/index.tsx`, `definePlugin` must ensure `MILLENNIUM_SIDEBAR_NAVIGATION_PANELS` and `PLUGIN_LIST` alias both base and `-dev` names:
+     ```ts
+     const panels = (window as any).MILLENNIUM_SIDEBAR_NAVIGATION_PANELS;
+     if (panels) {
+         if (panels[name] && !panels[devName]) panels[devName] = panels[name];
+         if (panels[devName] && !panels[name]) panels[name] = panels[devName];
+     }
+     ```
+  2. **`dev.ps1` SkipBuild Validation:** In `dev.ps1`, `-SkipBuild` must inspect `.millennium/Dist/index.js` to ensure it was actually compiled for `$devName`, triggering a rebuild if built against the release manifest name.
+
 ---
 
 ## 4. Develop

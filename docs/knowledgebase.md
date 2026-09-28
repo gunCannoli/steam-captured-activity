@@ -155,9 +155,17 @@ Our vendored `_lib/millennium.lua` stubs predate this and do not declare it.
 
 Facts confirmed in the installed binaries and core bundle:
 
-- **Settings panel:** `export default definePlugin(() => ({ icon, content }))`. Millennium
-  renders `content` in its desktop sidebar (`MillenniumDesktopSidebar_EditorContent`),
-  inside an `ErrorBoundary`. A plugin with no `content` shows as "not configurable".
+- **Settings panel & navigation resolution:** `export default definePlugin(() => ({ title, icon, content }))`.
+  Millennium registers the plugin's return object into `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS[pluginName]`,
+  where `pluginName` is the name baked into the JS bundle by `millennium-ttc` from `plugin.json` at build time.
+  When the user opens Millennium Settings, the desktop sidebar (`MillenniumDesktopSidebar_Content`)
+  queries `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS[pluginFolderName]`. If `pluginName` (e.g. `steam-cartridges`)
+  and `pluginFolderName` (e.g. `steam-cartridges-dev`) diverge due to a mismatch between build and deploy modes,
+  the settings panel fails to open (`Cannot read properties of undefined (reading 'content')`).
+  Plugins must dual-alias both keys in `window.MILLENNIUM_SIDEBAR_NAVIGATION_PANELS` and `window.PLUGIN_LIST`
+  inside `definePlugin` to remain robust against build mode differences.
+  Millennium renders `content` inside `MillenniumDesktopSidebar_EditorContent`, within an `ErrorBoundary`.
+  A plugin with no `content` shows as "not configurable".
 - **No default declaration.** An unset key reads `undefined`, so ship defaults in
   the plugin and read `stored ?? default`.
 - **Limits:** at most 256 keys per plugin, 256 KB per value. Values are JSON.

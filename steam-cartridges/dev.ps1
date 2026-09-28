@@ -148,6 +148,22 @@ try {
 
   if ($SkipBuild) {
     Write-Host 'Skipping build (-SkipBuild).'
+    $distFile = Join-Path $PSScriptRoot '.millennium\Dist\index.js'
+    if (Test-Path $distFile) {
+      $distContent = [System.IO.File]::ReadAllText($distFile)
+      if ($distContent -notmatch [regex]::Escape($devName)) {
+        Write-Warning "Existing .millennium/Dist/index.js was built for '$name' rather than '$devName'. Rebuilding so Settings and RPC names match..."
+        Push-Location $PSScriptRoot
+        try {
+          Write-Host 'Building with npx millennium-ttc ...'
+          & npx millennium-ttc --build dev
+          if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)." }
+        }
+        finally {
+          Pop-Location
+        }
+      }
+    }
   }
   else {
     Push-Location $PSScriptRoot

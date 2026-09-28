@@ -288,6 +288,34 @@ async function init() {
 
 export default definePlugin(() => {
     init().catch((e) => logger.error("Plugin init failed.", e));
+
+    // Guardrail: Ensure Settings panel and Plugin list are indexed under both "steam-cartridges"
+    // and "steam-cartridges-dev" so Millennium can always resolve the settings page.
+    setTimeout(() => {
+        try {
+            const panels = (window as any).MILLENNIUM_SIDEBAR_NAVIGATION_PANELS;
+            if (panels) {
+                if (panels["steam-cartridges"] && !panels["steam-cartridges-dev"]) {
+                    panels["steam-cartridges-dev"] = panels["steam-cartridges"];
+                }
+                if (panels["steam-cartridges-dev"] && !panels["steam-cartridges"]) {
+                    panels["steam-cartridges"] = panels["steam-cartridges-dev"];
+                }
+            }
+            const pl = (window as any).PLUGIN_LIST;
+            if (pl) {
+                if (pl["steam-cartridges"] && !pl["steam-cartridges-dev"]) {
+                    pl["steam-cartridges-dev"] = pl["steam-cartridges"];
+                }
+                if (pl["steam-cartridges-dev"] && !pl["steam-cartridges"]) {
+                    pl["steam-cartridges"] = pl["steam-cartridges-dev"];
+                }
+            }
+        } catch {
+            // ignore
+        }
+    }, 0);
+
     return {
         title: "Steam Cartridges",
         icon: <IconsModule.Settings />,
