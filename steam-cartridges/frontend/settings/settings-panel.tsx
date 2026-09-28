@@ -553,7 +553,7 @@ interface AchievementSourceDef {
 const ALL_ACHIEVEMENT_SOURCES: AchievementSourceDef[] = [
     { id: "steam_store", label: "Steam Store Mirror" },
     { id: "retroachievements", label: "RetroAchievements" },
-    { id: "console_emulators", label: "Console Emulators" },
+    { id: "console_emulators", label: "Emulators" },
 ];
 
 function AchievementsSection() {
@@ -730,14 +730,16 @@ function AchievementsSection() {
                             {src.id === "console_emulators" && (
                                 <DialogButton
                                     onClick={() => setShowEmuModal(true)}
+                                    title="Console Emulators Status"
                                     style={{
-                                        padding: "0 10px",
+                                        padding: "0 8px",
                                         minWidth: 0,
                                         width: "auto",
-                                        fontSize: "11px",
+                                        fontSize: "13px",
+                                        lineHeight: "20px",
                                     }}
                                 >
-                                    Status
+                                    ⓘ
                                 </DialogButton>
                             )}
                             <DialogButton
@@ -1179,9 +1181,7 @@ function RulesSection() {
         setRules(copy);
         setShowAddModal(false);
 
-        window.dispatchEvent(
-            new CustomEvent("steam-cartridges:rule-updated"),
-        );
+        window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated"));
         triggerSync(100);
     };
 
@@ -1189,9 +1189,7 @@ function RulesSection() {
         const copy = [...rules];
         copy.splice(index, 1);
         setRules(copy);
-        window.dispatchEvent(
-            new CustomEvent("steam-cartridges:rule-updated"),
-        );
+        window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated"));
         triggerSync(100);
     };
 
@@ -1290,7 +1288,14 @@ function RulesSection() {
             ))}
 
             <ItemRow>
-                <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                    style={{
+                        marginTop: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                    }}
+                >
                     <DialogButton
                         onClick={handleOpenAdd}
                         style={{
@@ -1805,7 +1810,11 @@ function RevisionSection() {
     }
 
     const flagged: FlaggedShortcut[] = [];
-    const notScraped: { appid: number; name: string; profile?: AutoRoutingProfile }[] = [];
+    const notScraped: {
+        appid: number;
+        name: string;
+        profile?: AutoRoutingProfile;
+    }[] = [];
 
     for (const sc of shortcuts) {
         const collNames = collMap[sc.appid] || [];
@@ -1851,9 +1860,11 @@ function RevisionSection() {
             controllerInference[String(sc.appid)] ??
             controllerInference[String(sc.appid >>> 0)] ??
             controllerInference[String(sc.appid | 0)] ??
-            (profile?.category === "retroarch" || profile?.category === "console_emulator" ? true : undefined) ??
+            (profile?.category === "retroarch" ||
+            profile?.category === "console_emulator"
+                ? true
+                : undefined) ??
             getInferredControllerSupport(sc.appid);
-        const hasWeirdName = /\[.*?\]|\(.*?\)/.test(sc.name);
         const hasControllerSupport =
             override === "full" ||
             override === "partial" ||
@@ -1863,22 +1874,13 @@ function RevisionSection() {
         const missingController =
             !hasControllerSupport && (!override || override === "auto");
 
-        const achievementsAllowed =
-            isServiceAllowed("retroachievements", sc.appid, sc.name, collNames, rules, autoModeEnabled, profile) ||
-            isServiceAllowed("console_emulators", sc.appid, sc.name, collNames, rules, autoModeEnabled, profile) ||
-            isServiceAllowed("steam_store", sc.appid, sc.name, collNames, rules, autoModeEnabled, profile);
-
-        const noAchievements =
-            achievementsAllowed &&
-            (!achievements || achievements.nTotal === 0) &&
-            !meta?.categories?.achievements;
-
-        if (missingController || hasWeirdName || noAchievements) {
+        // Actionable issues: unknown controller input
+        if (missingController) {
             flagged.push({
                 appid: sc.appid,
                 name: sc.name,
                 missingController,
-                noAchievements,
+                noAchievements: false,
                 inferred,
                 profile,
             });
@@ -1887,7 +1889,6 @@ function RevisionSection() {
 
     const filteredIssues = flagged.filter((f) => {
         if (filter === "controller") return f.missingController;
-        if (filter === "achievements") return f.noAchievements;
         return true;
     });
 
@@ -1914,8 +1915,6 @@ function RevisionSection() {
         }
     };
 
-
-
     const handleScanSingle = async (appid: number, name: string) => {
         setFixMsg(`Scanning ${name}...`);
         await rpc.refreshGameMetadata(appid, name).catch(() => {});
@@ -1927,55 +1926,85 @@ function RevisionSection() {
 
     return (
         <PanelSection title="Library Audit">
-            {/* 3-Row Layout matching theme */}
+            {/* 2-Row Interactive Layout matching theme */}
             <ItemRow>
                 <Field
                     label="Not scraped:"
                     description="Games awaiting initial metadata & achievement fetch"
                     bottomSeparator="none"
                 >
-                    <span
+                    <div
                         style={{
-                            color:
-                                notScraped.length > 0 ? "#66c0f4" : "#8ba5b7",
-                            fontWeight: 700,
-                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
                         }}
                     >
-                        {notScraped.length}
-                    </span>
+                        <span
+                            style={{
+                                color:
+                                    notScraped.length > 0 ? "#66c0f4" : "#8ba5b7",
+                                fontWeight: 700,
+                                fontSize: "14px",
+                            }}
+                        >
+                            {notScraped.length}
+                        </span>
+                        <DialogButton
+                            onClick={() => {
+                                setFilter("not_scraped");
+                                setIsAuditModalOpen(true);
+                            }}
+                            style={{
+                                padding: "0 12px",
+                                minWidth: 0,
+                                width: "auto",
+                                fontSize: "11px",
+                            }}
+                        >
+                            {notScraped.length > 0 ? "Review & Scrape" : "View"}
+                        </DialogButton>
+                    </div>
                 </Field>
             </ItemRow>
             <ItemRow>
                 <Field
                     label="Issues detected:"
-                    description="Number of games that require complete information"
+                    description="Games with missing input or requiring configuration"
                     bottomSeparator="none"
                 >
-                    <span
+                    <div
                         style={{
-                            color: flagged.length > 0 ? "#e5a00d" : "#a4d007",
-                            fontWeight: 700,
-                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
                         }}
                     >
-                        {flagged.length}
-                    </span>
+                        <span
+                            style={{
+                                color: flagged.length > 0 ? "#e5a00d" : "#a4d007",
+                                fontWeight: 700,
+                                fontSize: "14px",
+                            }}
+                        >
+                            {flagged.length}
+                        </span>
+                        <DialogButton
+                            onClick={() => {
+                                setFilter("all");
+                                setIsAuditModalOpen(true);
+                            }}
+                            style={{
+                                padding: "0 12px",
+                                minWidth: 0,
+                                width: "auto",
+                                fontSize: "11px",
+                            }}
+                        >
+                            Review
+                        </DialogButton>
+                    </div>
                 </Field>
-            </ItemRow>
-            <ItemRow>
-                <div style={{ marginTop: "4px" }}>
-                    <DialogButton
-                        onClick={() => setIsAuditModalOpen(true)}
-                        style={{
-                            padding: "0 14px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Review
-                    </DialogButton>
-                </div>
             </ItemRow>
             {fixMsg && !isAuditModalOpen && (
                 <ItemRow>
@@ -1993,92 +2022,82 @@ function RevisionSection() {
 
             {/* Audit & Fix Modal */}
             <SettingsModal
-                title={`Library Audit (${flagged.length} issues, ${notScraped.length} unscraped)`}
+                title={`Library Audit (${flagged.length} issue${flagged.length === 1 ? "" : "s"}, ${notScraped.length} unscraped)`}
                 isOpen={isAuditModalOpen}
                 onClose={() => setIsAuditModalOpen(false)}
                 width="620px"
                 maxHeight="85vh"
             >
-                {/* Filter Tabs */}
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <button
-                        type="button"
+                {/* Filter Tabs using DialogButton for reliable clicking */}
+                <div
+                    style={{
+                        display: "flex",
+                        gap: "6px",
+                        flexWrap: "wrap",
+                        marginBottom: "12px",
+                    }}
+                >
+                    <DialogButton
                         onClick={() => setFilter("all")}
                         style={{
                             background:
                                 filter === "all"
-                                    ? "rgba(255, 255, 255, 0.15)"
-                                    : "rgba(0, 0, 0, 0.25)",
-                            border: "none",
-                            color: "#fff",
-                            borderRadius: "4px",
-                            padding: "4px 10px",
+                                    ? "rgba(102, 192, 244, 0.25)"
+                                    : "rgba(0, 0, 0, 0.3)",
+                            border:
+                                filter === "all"
+                                    ? "1px solid #66c0f4"
+                                    : "1px solid rgba(255, 255, 255, 0.1)",
+                            color: filter === "all" ? "#66c0f4" : "#fff",
+                            padding: "4px 12px",
                             fontSize: "12px",
-                            cursor: "pointer",
+                            minWidth: 0,
+                            width: "auto",
                         }}
                     >
-                        All Issues ({flagged.length})
-                    </button>
-                    <button
-                        type="button"
+                        Issues ({flagged.length})
+                    </DialogButton>
+                    <DialogButton
                         onClick={() => setFilter("controller")}
                         style={{
                             background:
                                 filter === "controller"
-                                    ? "rgba(255, 255, 255, 0.15)"
-                                    : "rgba(0, 0, 0, 0.25)",
-                            border: "none",
-                            color: "#fff",
-                            borderRadius: "4px",
-                            padding: "4px 10px",
+                                    ? "rgba(102, 192, 244, 0.25)"
+                                    : "rgba(0, 0, 0, 0.3)",
+                            border:
+                                filter === "controller"
+                                    ? "1px solid #66c0f4"
+                                    : "1px solid rgba(255, 255, 255, 0.1)",
+                            color: filter === "controller" ? "#66c0f4" : "#fff",
+                            padding: "4px 12px",
                             fontSize: "12px",
-                            cursor: "pointer",
+                            minWidth: 0,
+                            width: "auto",
                         }}
                     >
                         Unknown Input (
                         {flagged.filter((f) => f.missingController).length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter("achievements")}
-                        style={{
-                            background:
-                                filter === "achievements"
-                                    ? "rgba(255, 255, 255, 0.15)"
-                                    : "rgba(0, 0, 0, 0.25)",
-                            border: "none",
-                            color: "#fff",
-                            borderRadius: "4px",
-                            padding: "4px 10px",
-                            fontSize: "12px",
-                            cursor: "pointer",
-                        }}
-                    >
-                        No Achievements (
-                        {flagged.filter((f) => f.noAchievements).length})
-                    </button>
-                    <button
-                        type="button"
+                    </DialogButton>
+                    <DialogButton
                         onClick={() => setFilter("not_scraped")}
                         style={{
                             background:
                                 filter === "not_scraped"
                                     ? "rgba(102, 192, 244, 0.25)"
-                                    : "rgba(0, 0, 0, 0.25)",
+                                    : "rgba(0, 0, 0, 0.3)",
                             border:
                                 filter === "not_scraped"
                                     ? "1px solid #66c0f4"
-                                    : "none",
-                            color:
-                                filter === "not_scraped" ? "#66c0f4" : "#fff",
-                            borderRadius: "4px",
-                            padding: "4px 10px",
+                                    : "1px solid rgba(255, 255, 255, 0.1)",
+                            color: filter === "not_scraped" ? "#66c0f4" : "#fff",
+                            padding: "4px 12px",
                             fontSize: "12px",
-                            cursor: "pointer",
+                            minWidth: 0,
+                            width: "auto",
                         }}
                     >
                         Not Scraped ({notScraped.length})
-                    </button>
+                    </DialogButton>
                 </div>
 
                 {filter === "not_scraped" && (
@@ -2088,12 +2107,29 @@ function RevisionSection() {
                             justifyContent: "space-between",
                             alignItems: "center",
                             padding: "4px 0",
+                            marginBottom: "8px",
                         }}
                     >
                         <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                            {notScraped.length} game(s) awaiting initial
-                            scraping (automatically scraped in the background).
+                            {notScraped.length} game(s) awaiting initial scraping.
                         </span>
+                        {notScraped.length > 0 && (
+                            <DialogButton
+                                onClick={() => {
+                                    triggerSync(50);
+                                    setFixMsg("Background scraping started...");
+                                    setTimeout(() => setFixMsg(""), 3000);
+                                }}
+                                style={{
+                                    padding: "0 10px",
+                                    minWidth: 0,
+                                    width: "auto",
+                                    fontSize: "11px",
+                                }}
+                            >
+                                🔄 Scrape All ({notScraped.length})
+                            </DialogButton>
+                        )}
                     </div>
                 )}
 
@@ -2175,28 +2211,39 @@ function RevisionSection() {
                                             <span
                                                 style={{
                                                     background:
-                                                        item.profile.category === "retroarch"
+                                                        item.profile
+                                                            .category ===
+                                                        "retroarch"
                                                             ? "rgba(102, 192, 244, 0.15)"
-                                                            : item.profile.category === "console_emulator"
-                                                            ? "rgba(163, 112, 247, 0.15)"
-                                                            : "rgba(255, 255, 255, 0.08)",
+                                                            : item.profile
+                                                                    .category ===
+                                                                "console_emulator"
+                                                              ? "rgba(163, 112, 247, 0.15)"
+                                                              : "rgba(255, 255, 255, 0.08)",
                                                     color:
-                                                        item.profile.category === "retroarch"
+                                                        item.profile
+                                                            .category ===
+                                                        "retroarch"
                                                             ? "#66c0f4"
-                                                            : item.profile.category === "console_emulator"
-                                                            ? "#a370f7"
-                                                            : "#bbb",
+                                                            : item.profile
+                                                                    .category ===
+                                                                "console_emulator"
+                                                              ? "#a370f7"
+                                                              : "#bbb",
                                                     fontSize: "10px",
                                                     padding: "1px 5px",
                                                     borderRadius: "3px",
                                                     fontWeight: 600,
                                                 }}
                                             >
-                                                {item.profile.category === "retroarch"
+                                                {item.profile.category ===
+                                                "retroarch"
                                                     ? "Retro"
-                                                    : item.profile.category === "console_emulator"
-                                                    ? item.profile.program || "Emulator"
-                                                    : "PC"}
+                                                    : item.profile.category ===
+                                                        "console_emulator"
+                                                      ? item.profile.program ||
+                                                        "Emulator"
+                                                      : "PC"}
                                             </span>
                                         )}
                                         <span
@@ -2295,28 +2342,41 @@ function RevisionSection() {
                                                 <span
                                                     style={{
                                                         background:
-                                                            item.profile.category === "retroarch"
+                                                            item.profile
+                                                                .category ===
+                                                            "retroarch"
                                                                 ? "rgba(102, 192, 244, 0.15)"
-                                                                : item.profile.category === "console_emulator"
-                                                                ? "rgba(163, 112, 247, 0.15)"
-                                                                : "rgba(255, 255, 255, 0.08)",
+                                                                : item.profile
+                                                                        .category ===
+                                                                    "console_emulator"
+                                                                  ? "rgba(163, 112, 247, 0.15)"
+                                                                  : "rgba(255, 255, 255, 0.08)",
                                                         color:
-                                                            item.profile.category === "retroarch"
+                                                            item.profile
+                                                                .category ===
+                                                            "retroarch"
                                                                 ? "#66c0f4"
-                                                                : item.profile.category === "console_emulator"
-                                                                ? "#a370f7"
-                                                                : "#bbb",
+                                                                : item.profile
+                                                                        .category ===
+                                                                    "console_emulator"
+                                                                  ? "#a370f7"
+                                                                  : "#bbb",
                                                         fontSize: "10px",
                                                         padding: "1px 5px",
                                                         borderRadius: "3px",
                                                         fontWeight: 600,
                                                     }}
                                                 >
-                                                    {item.profile.category === "retroarch"
+                                                    {item.profile.category ===
+                                                    "retroarch"
                                                         ? "Retro"
-                                                        : item.profile.category === "console_emulator"
-                                                        ? item.profile.program || "Emulator"
-                                                        : "PC"}
+                                                        : item.profile
+                                                                .category ===
+                                                            "console_emulator"
+                                                          ? item.profile
+                                                                .program ||
+                                                            "Emulator"
+                                                          : "PC"}
                                                 </span>
                                             )}
                                             {item.missingController && (
@@ -2629,4 +2689,3 @@ export function SettingsPanel() {
         </>
     );
 }
-

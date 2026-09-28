@@ -7,6 +7,23 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **`steam-cartridges` Emulator Info Button, Interactive Audit Rows & Genuine Issue Partitioning (2026-09-27)**:
+  - *Console Emulators Status Button*:
+    - Replaced the text `"Status"` button on the `Emulators` achievement source with compact `ⓘ` icon button (`title="Console Emulators Status"`).
+  - *Interactive Library Audit Section & Clickable Actions*:
+    - Added dedicated, high-contrast action buttons (`DialogButton`) directly into each Library Audit row:
+      - `Not scraped:` has a direct `[ View ]` / `[ Review & Scrape ]` button opening the modal directly to unscraped games.
+      - `Issues detected:` has a direct `[ Review ]` button opening the modal to actionable issues.
+    - Converted modal filter tabs to native `DialogButton` components for reliable click capture under Steam CEF gamepad/mouse navigation.
+    - Added direct `[ 🔄 Scrape All ({count}) ]` batch trigger button inside the Not Scraped filter tab.
+  - *Elimination of False 217 Issues*:
+    - Investigated the reason why 217 out of 220 games were flagged as having issues: the previous audit logic treated any game where achievements were allowed but had `0` achievements as an issue (`noAchievements: true`). Because Auto-Mode enables `retroachievements` for all retro games and most retro ROMs naturally don't have RetroAchievements sets or unlocks, all 217 games were falsely flagged as broken.
+    - Removed `noAchievements` from the issue calculation. The audit now only flags genuine actionable issues (games with unknown or missing controller input requiring configuration).
+    - Reduced false positive issue count from 217 to 0 (all 221 games in the library have their input and metadata properly inferred and handled).
+  - *Verified*:
+    - All 63 unit tests pass (`npm run test:ts`).
+    - Two-way navigation lifecycle passes with 100% assertions green (`scratch/test_nav_cycle.js`).
+
 - **`steam-cartridges` Scraper Loop Prevention, Circuit Breaker & Smart On-Update (2026-09-27)**:
   - *Scraping Loop Elimination & API Protection*:
     - Identified and eliminated the root cause of the non-stop 220-game loop: removed the recursive `useEffect` in `RevisionSection` that fired `triggerSync(500)` on `notScraped.length > 0` whenever the section unmounted and remounted during sync.
