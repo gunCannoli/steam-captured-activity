@@ -7,8 +7,7 @@ If you are writing or fixing plugin code, the rules are here and nowhere else.
 Not here: _what_ the plugins do and why
 ([millennium-architecture.md](millennium-architecture.md),
 [decisions.md](decisions.md)); what Steam's internals look like
-([steam-architecture.md](steam-architecture.md) →
-[steam-components.md](steam-components.md)); SDK reference and data formats
+([steam-components.md](steam-components.md), which opens with the map); SDK reference and data formats
 ([knowledgebase.md](knowledgebase.md)); inspecting the live client
 ([steam-debug.md](steam-debug.md)).
 
@@ -228,7 +227,7 @@ Picture the controller focus rings — and let us delete ~1200 lines of careful,
 tested, _unnecessary_ reimplementation
 ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
 
-Before writing a component, go and look: [steam-architecture.md](steam-architecture.md)
+Before writing a component, go and look: [steam-components.md § Map](steam-components.md#map-core-stores--modules)
 for the map, [steam-debug.md § 3](steam-debug.md#3-the-inspection-method) for the
 method. It takes minutes.
 
@@ -239,7 +238,7 @@ If Steam models the thing, write to Steam's model and let it render
 Steam's stores are MobX singletons with ordinary public methods that do not
 validate app type — the post-game summary is `CGamePlaySession.AddClip` /
 `BAddScreenshotNotification`, and the library grid is fields on `AppOverview`
-(store map: [steam-architecture.md § 2](steam-architecture.md#2-core-stores--modules)).
+(store map: [steam-components.md § Map](steam-components.md#map-core-stores--modules)).
 
 **3. Can you render Steam's real component yourself?**
 
@@ -278,16 +277,32 @@ refresh, `replaceWith` a previously mounted clone instead of appending a second.
 > different modules**, which silently reintroduced an already-fixed bug), and
 > Steam's own spacing misbehaved against content it was never measured for. If
 > you find yourself measuring pixels to match Steam, you are probably on the
-> wrong rung. See [steam-styles.md](steam-styles.md).
+> wrong rung.
 
 ### Rules that apply on every rung
+
+**If you must style anything at all** (a custom panel on rung 3 or 4): never
+hand-code CSS to imitate Steam. On desktop, use Steam's own components or
+classes resolved with `findClassModule`. In Big Picture, use `<Focusable>`,
+`DialogButton`, `Carousel` and Steam's modal containers, which bring controller
+focus rings, D-pad navigation and sounds for free. Never build focus rings with
+`:hover`/`:focus`. For the few container-level values you might still need, use
+Steam's theme variables with these fallbacks:
+
+- font: `"Motiva Sans", Arial, Helvetica, sans-serif`; headers 14px, weight 400
+  (not bold), uppercase, `letter-spacing: 1px`; body 13px, weight 400
+- `var(--color-text-primary, #e6e6e6)`, `var(--color-text-secondary, #8f98a0)`,
+  `var(--color-background-dark, #101216)`, `var(--color-highlight, #1a9fff)`
+
+(This replaces the old `docs/steam-styles.md`, removed 2026-09-28. Its "style
+bible" of hand-measured pixel values was superseded by ADR-0022/0029/0030.)
 
 **Never hardcode Steam's CSS classes** — they are build-hashed
 ([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)).
 And **never resolve anything by numeric module id**: ids reshuffle between
 builds. Resolve by a stable signature — real `prototype` method names, which
 survive minification — or a class-map probe key
-([steam-architecture.md § 3](steam-architecture.md#3-stable-resolution-signatures)).
+([steam-components.md § Map: stable resolution signatures](steam-components.md#map-stable-resolution-signatures)).
 
 **Resolve ONE `findClassModule` probe per CSS module, never per feature.**
 Classes seen together in one captured `outerHTML` do **not** imply they live in
@@ -357,7 +372,7 @@ Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
   never hardcode a hashed class
   ([ADR-0005](decisions.md#adr-0005-render-into-steams-own-dom-via-resolved-class-modules)).
 - **Prefer patching Steam's data over its DOM** ([ADR-0009](decisions.md#adr-0009-prefer-patching-steams-data-over-patching-its-dom)).
-- **Never author custom CSS to imitate Steam** ([steam-styles.md](steam-styles.md)).
+- **Never author custom CSS to imitate Steam** ([§ Rules that apply on every rung](#rules-that-apply-on-every-rung)).
 - **Respect third-party APIs.** Cache hard, never poll, send a descriptive `User-Agent`
   ([ADR-0007](decisions.md#adr-0007-cache-retroachievements-responses-on-disk)).
 
@@ -569,6 +584,38 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      }
      ```
   2. **`dev.ps1` SkipBuild Validation:** In `dev.ps1`, `-SkipBuild` must inspect `.millennium/Dist/index.js` to ensure it was actually compiled for `$devName`, triggering a rebuild if built against the release manifest name.
+
+### 17. A render never starts work; a refresh never leaves its own components
+
+- **The Trap (2026-09-28, the Properties-dialog hang):** three changes that were
+  each harmless alone closed a loop.
+  1. `G.render` and a `props` getter on Steam's Game Info classes called
+     `onTriggerAppView` (commits `bf3839f`, `ec16203`), so **rendering** started the
+     whole view pipeline (bucket, metadata, achievements RPC).
+  2. `enrichGameDetails` always wrote a **new** `descriptionsData` object and
+     called `AppDetailsChanged`, so every run re-rendered Game Info through MobX,
+     even when nothing had changed.
+  3. `refreshGameInfoInstances` walked every window in `g_PopupManager.m_mapPopups`,
+     matched the first `[class*=Shortcut]` element, and force-updated **every**
+     ancestor component up to the root (`typeof fiber.type === "function"`,
+     since `cb8e0fe`).
+  The result was render → view → enrich → re-render, about 150 times a second on
+  every shortcut page (1,521 enrichments and 727 achievement RPCs in 10 s). It was
+  invisible there, but opening **Properties** added that dialog's large tree to
+  every trip, and the shared renderer thread never went idle again
+  ([knowledgebase](knowledgebase.md#one-renderer-for-every-steam-window-a-busy-sharedjscontext-freezes-them-all)).
+- **The Mandatory Guardrails:**
+  1. Nothing called from a Steam render, getter, prototype hook or jsx handler may
+     emit an event, start a view/fetch/RPC, or schedule work. Views come from the
+     route and Big Picture watchers only.
+  2. Every write into a Steam store is **idempotent**: if the data Steam holds is
+     already ours and unchanged, write nothing and notify nothing.
+  3. A refresh force-updates only instances of components **we patched**
+     (flags such as `__nsga_props_hooked`), only in the main window and Big Picture,
+     and never walks ancestors.
+  4. Verify with `node scratch/arch-m0/count_cycle.mjs` (must print `PASS render loop`)
+     and `node scratch/arch-m0/test_props.mjs <appid> --page` (must print `OK`)
+     for any change to Game Info, sections or store feeding.
 
 ---
 

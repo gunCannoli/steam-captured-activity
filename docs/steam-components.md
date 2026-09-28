@@ -10,14 +10,104 @@ Everything here was **read out of the live Steam client** over CEF devtools
 (from 2026-09-20): module factories pulled from `webpackChunksteamui`, stores
 poked with real appids, DOM verified on screen. No inference from screenshots.
 
-Not here: the one-page map and every stable resolution signature
-([steam-architecture.md](steam-architecture.md) — start there); how to inspect
-the client yourself ([steam-debug.md](steam-debug.md)); the rules for plugin
-code that touches any of this ([plugins.md](plugins.md)).
+It opens with the **map** (runtime topology, which store owns what, and every
+stable resolution signature — start there), then the deep traces.
+
+Not here: how to inspect the client yourself ([steam-debug.md](steam-debug.md));
+the rules for plugin code that touches any of this ([plugins.md](plugins.md));
+the index of all docs ([steam-architecture.md](steam-architecture.md)).
 
 > **Numeric module ids and minified names in this doc are one build's
 > breadcrumbs** — how the code was read, not how to resolve it. Production code
-> resolves by signature ([steam-architecture.md § 3](steam-architecture.md#3-stable-resolution-signatures)).
+> resolves by signature ([§ Map: stable resolution signatures](#map-stable-resolution-signatures)).
+
+---
+
+## Map: runtime topology
+
+Steam's web frontend runs as a multi-target Chromium Embedded Framework (CEF) application:
+
+```
+SharedJSContext (Single Runtime Truth)
+  ├── Global Stores: appSpotlightStore, appActivityStore, StoreItemCache, NotificationStore
+  ├── React Portals & Section Patches
+  ├── Background Services & Timelines
+  │
+  ├──► Desktop Window  (SP Desktop_...)  ── renders standard desktop UI
+  ├──► Big Picture     (SP BPM_...)      ── renders Gamepad UI (ports into SharedJSContext)
+  └──► Toast / menu popups               ── about:blank portals, also rendered from SharedJSContext
+```
+
+- **`SharedJSContext`:** Every store, MobX observable, and background service lives here. When modifying data or registering React Portals, do so in `SharedJSContext`.
+- **Desktop vs. Big Picture:** Both run off the same JavaScript runtime in `SharedJSContext`. Big Picture is simply a fullscreen popup window rendering Gamepad UI components ([§ Big Picture Mode](#big-picture-mode)).
+- **Not every popup is tracked.** Most windows register with `g_PopupManager`; BrowserView popups (Quick Access, main menu, Big Picture's toast window) do not ([plugins.md guardrail 12](plugins.md#12-popup-hooks-do-not-see-every-window)).
+- **AppId Representation & Signedness:** Steam's CEF runtime represents shortcut `overview.appid` values $> \text{0x7FFFFFFF}$ as signed 32-bit integers (e.g. `3858889198` appears as `-436078098`). Normalization with `(appid >>> 0)` is strictly required across all Map/Set caches, store queries, and routing comparisons ([knowledgebase.md § The two identifiers](knowledgebase.md#the-two-identifiers)).
+
+---
+
+## Map: core stores & modules
+
+Module ids are one build's breadcrumbs; resolve by § 3.
+
+| Feature Area            | Module / Store                                    | Key Methods & Properties                                                                           | Purpose in Plugins                                                                                                 | Deep dive |
+| ----------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------- |
+| **App Detail Sections** | `CAppDetailsSections`                             | `prototype.GetSections(overview, details)`                                                         | Section registry. Filtered by `BIsModOrShortcut()`. Re-enable `"postgamesummary"`, `"activity"`, `"achievements"`. | [skeleton](#the-app-detail-page-skeleton) |
+| **Post-Game Summary**   | `CAppSpotlightStore` (`window.appSpotlightStore`) | `GetOrCreateAppData(appid).m_session`, `PushSessionEvent`, `AddAchievement`, `AddClip`             | Populates the top hero summary card with screenshots, clips, and achievements.                                     | [summary](#post-game-summary) |
+| **Activity Feed**       | `appActivityStore`                                | `GetAppActivity(appid)`, `appActivityByDay`, `CActivityDay.prototype.AddEvent`                     | Populates chronological per-day activity feed cards.                                                               | [activity](#activity-feed) |
+| **Store Item Cache**    | `StoreItemCache` (`window.StoreItemCache`)        | `m_mapApps.set(appid, stubApp)`, `GetStoreItem(appid)`                                             | In-memory stubbing to satisfy Steam's `storeApp.BIsVisible()` event guard without network requests.                | [blocker](#the-store-record-blocker) |
+| **Native Achievements** | `AppDetailsStore`                                 | `GetAchievements(appid)`, `GetAppData(appid).details.achievements`                                 | Populates the native desktop achievement sidebar (`HighlightDiv`, percentage bar, locked list).                    | [achievements](#native-achievement-ui--backing-store) |
+| **Play Bar Progress**   | `appAchievementProgressCache`                     | `m_achievementProgress.mapCache.get(appid)`                                                        | Supplies `{ unlocked, total }` counts displayed under the Big Picture Play button.                                 | [achievements](#native-achievement-ui--backing-store) |
+| **Notification Engine** | `window.NotificationStore`                        | `OnNotification(id, type, pbData)`, `ChooseSound`, `PlayNotificationSound`                         | Dispatches genuine native toasts, sounds, and animations (`CAchievementNotification`).                             | [notifications](#achievement-notifications-notificationstore) |
+| **Game Recording RPCs** | `CGameRecordingService` (resolve by signature, not module id) | `GetClips`, `GameRecording.SaveClip#1`, `UserAddTimelineEntry#1`, `TakeScreenshot#1` (frame from already-recorded video, not a live grab) | Reads clips; inserts timeline markers, creates instant replay clips, triggers timeline screenshots. `SteamClient.Screenshots.*` is read/manage only — nothing under `SteamClient.*` triggers a live capture. | [recording](#game-recording-rpcs--timeline-markers) |
+| **Live recording store** | `window.g_GRS` (`CGameRecordingStore`)           | `m_mapActiveTimelines`, loader `BIsTimelineRunning`/`GetRunningTimelineDurationMS`/`GetGameID`/`GetTimelineStartBeforeGlobalZeroMS`, `m_mapRunningTimelines` | Per-game running timelines and live recording state; read fresh every time, never cached. | [recording](#game-recording-rpcs--timeline-markers) |
+| **Recording Timeline**  | `TimelineManager` (module `22588`)                | `AddEventToTimeline`, `AddUserMarker`, `InsertEntryIntoTimelineSorted`                             | Client-side timeline state and clip name generator.                                                                | — |
+| **Custom Artwork**      | `SteamClient.Apps`                                | `SetCustomArtworkForApp(appid, base64, ext, type)`                                                 | Sets portrait (0), hero (1), logo (2), and wide capsule (3) artwork directly.                                      | [artwork](#custom-artwork-api) |
+| **Gamepad Tabbed Page** | `GamepadTabbedPage`                               | Intercept `props.tabs` via `react/jsx-runtime`                                                     | Injects custom tabs (e.g. RetroAchievements, Game Info) into Big Picture's tab bar.                                | [tabs](#tab-construction--custom-tab-injection) |
+| **Gamepad Components**  | Gamepad UI Library                                | `<Focusable>`, `DialogButton`, `<Carousel>`, `showModal`                                           | Native Big Picture UI building blocks with automatic controller navigation.                                        | [navigation](#gamepad-navigation-system) |
+| **AppOverview Model**   | `AppOverview.prototype`                           | `GetGameID()`, `BIsModOrShortcut()`, `BHasStoreCategory()`, `m_gameid`, `rt_original_release_date` | Fundamental per-app data model. **Never hook `BIsModOrShortcut` on prototype** — breaks `GetIconURLForApp` and shortcut icons. Use scoped props proxy inside component `k` ([guardrail 1](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid)). | — |
+| **Shortcut Icons**      | `SteamClient.Apps` / `GetIconURLForApp`           | `RequestIconDataForApp(appid)`, `app.icon_data`, `app.icon_data_format`                             | Steam lazy-loads shortcut icons via `RequestIconDataForApp`. Requires `e.BIsModOrShortcut() === true`. | [plugins](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid) |
+| **App Overview Lookup** | `appStore.GetAppOverviewByAppID(appid)`           | Returns `null` for any unowned app — normal, not a bug. Called unguarded by Steam's own Friends module (module 2326) and used (correctly) by `Navigator.App`'s early-return. **Multiple callers, one method — a patch for one can silently break another.** | [pitfalls](knowledgebase.md#appstoregetappoverviewbyappid-has-multiple-callers--patch-the-method-carefully-or-not-at-all) · [m_mapApps trap](knowledgebase.md#appstorem_mapapps-is-the-global-enumerated-backing-store-for-the-entire-library--never-write-into-it) |
+| **Game Info Container** | Module `15448` (`G` & `k`)                        | `onCollapseStarted`, `onCollapseComplete`, `setBoxHeight`, `descriptionsData`, `associationData`   | Renders native summary capsule, description, developer/publisher credits, release date, and category badges. Requires on-demand synchronous enrichment in `k.prototype.render` before paint to avoid `#AppDetails_Shortcut_Explanation` ("Detailed information is unavailable"). | [game info](#game-info-tab--metadata) |
+| **Community & Workshop**| `CWorkshopStore` (`m_mapPublishedFiles`)          | `m_mapPublishedFiles`, `GetPublishedFileDetails`                                                   | In-memory store for user-generated and community items. Maps loopback URLs for fanart, trailers, and manual items.  | [community](#community-media--workshop-store) |
+| **Your Stuff Media**    | Module `57150` (`Ae.E`)                           | `listSource: { type: "app", gameid: overview.gameid }`                                             | Renders Big Picture "YOUR STUFF" media section (screenshots & clips). Requires 64-bit composed ID `m_gameid`.      | [guardrail 1](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid) |
+
+---
+
+## Map: stable resolution signatures
+
+> Added by P0: `window.collectionStore` (`userCollections`, `GetCollectionListForAppID`) and `window.StoreItemCache` (`QueueAppRequest`, `GetApp`); see steam-components.md "Collections" and "Store item data".
+
+Numeric webpack module ids reshuffle between Steam client builds; real
+`prototype` method names and CSS class-map keys survive minification. In plugin
+code, resolve with the SDK — `findModuleExport` for classes and singletons,
+`findClassModule` for CSS maps — resolve **once** at startup and cache
+([guardrail 3](plugins.md#3-single-pass-webpack-module-pre-caching)). For a
+one-off probe in DevTools, use the module-cache walk in
+[steam-debug.md § 3](steam-debug.md#3-the-inspection-method). Prefer a `window`
+global where Steam exposes one.
+
+| Target                        | Stable signature (all methods on `prototype` unless noted)                                            | Used in |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
+| `CAppSpotlightStore`          | `GetPostGameSummary` + `StopShowingGamePlaySpotlight` + `GetOrCreateAppData` (or `window.appSpotlightStore`) | `non-steam-games-activity/frontend/steam/stores.ts` |
+| `CAppDetailsSections`         | `GetSections` + `SeekToSection` + `RegisterSection`                                                   | `stores.ts` |
+| `CAppActivityStore`           | `window.appActivityStore`, else `GetAppActivity` + `RestoreActivity`                                   | `stores.ts` |
+| `StoreItemCache`              | `window.StoreItemCache`, else `GetStoreItemWithLegacyVisibilityCheck`                                 | `stores.ts` |
+| `CGameRecordingService`       | `GetClips` + `GetAndTrimPostGameHighlights` (several modules expose `GetClips`)                       | `stores.ts` |
+| `AppDetailsStore`             | `GetAchievements` + `GetAssociations`                                                                 | — (Phase 5) |
+| Game Info container (`G`)     | `onCollapseStarted` + `onCollapseComplete` + `setBoxHeight`                                           | `steamgriddb-artwork/frontend/steam/game-info-patch.ts` |
+| `Pageable` (summary pager)    | `OnUpdateArrows` + `ScrollToFirstChild` + `onCloseButtonClicked`                                      | — (Steam renders it now) |
+| `Carousel` (summary scroller) | `BindScrollingContainer` + `UpdateScrollArrows` + `ScheduleUpdateScrollArrows`                        | — (Steam renders it now) |
+| `NotificationStore` & toasts  | `window.NotificationStore`; dispatcher, eTypes and toast windows per [§ Resolution signatures & toast windows](#resolution-signatures--toast-windows) | `enhanced-achievements`, `enhanced-notifications` |
+| Post-Game Summary styles      | class-map probe key `GamePlaySummaryContainer` (the page spans four CSS modules: [list](#rendered-dom-and-css-modules)) | `non-steam-games-activity/frontend/index.tsx` |
+| Activity feed styles          | class-map probe key `AppActivityDay` / `AppActivityDate`                                              | `stores.ts`, `activity.ts` |
+| Big Picture toast placeholder | class-map probe key `GamepadToastPlaceholder`                                                         | `enhanced-notifications/frontend/steam/selectors.ts` |
+| App-page links bar / Friends / Community Content / partner event overlay | factory-source needles, one module each ([table](#resolution-signatures-one-module-each-on-this-build)) | `steam-cartridges` `features/steam-store/native-sections.ts` (parity plan C, H) — **before patching `appStore.GetAppOverviewByAppID`'s return value for this section, read [knowledgebase.md's multi-caller pitfall](knowledgebase.md#appstoregetappoverviewbyappid-has-multiple-callers--patch-the-method-carefully-or-not-at-all) first** |
+| Window `Navigator` (`App`, `SteamWeb`, `AppProperties`, …) | `SteamUIStore.WindowStore.SteamUIWindows[i].Navigator` (a plain object per window) | parity plan G · `App()` early-returns on `appStore.GetAppOverviewByAppID` being null ([steam-components.md](#navigatorapp-module-874)) — a second, independent consumer of the same method as the Friends section above |
+| Steam URL ids (`GameHub`, `HelpAppPage`, `StoreAppPage`, …) | `window.urlStore.ResolveURL(id, appid)` | parity gate check 15 |
+| Game Info feature badges → store category ids | module with `n$` + the `#AppDetails_Feature_*` table ([mapping](#store-categories-and-feature-badges)) | `features/game-info/category-policy.ts` |
+| `CWorkshopStore`              | `m_mapPublishedFiles` (keyed by published file id) or `window.WorkshopStore`                         | `features/steam-store/community-store.ts` |
+
+The store singletons are long-lived MobX objects: resolve once and cache.
 
 ---
 
@@ -1470,6 +1560,15 @@ Three independent failure modes caused non-Steam games to display the grey short
    - In stock Steam, the ⓘ button is guarded by `!t.BIsModOrShortcut()`, and the `"info"` section is stripped from `CAppDetailsSections.GetSections()` for shortcuts (`s = ["nonsteam", "notes", "screenshots"]`).
    - Restoring `"info"` in `RESTORED_SECTIONS` and hooking `props` on `targetPlayBar.prototype` and `k.prototype` fully restores the native ⓘ toggle button and expandable drawer on desktop normal mode.
 
+**Steam rebuilds overview fields after we write them** (✅ verified live
+2026-09-28). After a one-time enrichment of AM2R (`4263274102`), Steam's later
+refresh of the app overview left `rt_original_release_date === 0` and
+`m_setStoreCategories` empty, while `appData.descriptionsData` (our object)
+survived. So a "write once" enrichment is not enough for overview fields. Before
+2026-09-28 this was hidden by a render loop that re-wrote them ~150 times a second.
+The M0a fix re-checks, on each Game Info render, whether the release date and
+categories are still ours, and writes again only if not.
+
 ### Community media & Workshop store
 
 For non-Steam games, Steam leaves the Big Picture "COMMUNITY" tab and desktop community sections completely unpopulated because shortcuts lack a Valve Workshop AppId.
@@ -1572,6 +1671,17 @@ for the reusable lesson and CHANGELOG.md for the fix record.
 - Only "Mark as Private" (`Ge`) keys on `BIsModOrShortcut()`. Our prototype hook
   makes it enabled for an enriched shortcut, where it would send the shortcut appid
   to the private-apps service. Recorded risk; not in any plan.
+- **The Properties dialog is a separate popup, rendered from SharedJSContext**
+  (✅ verified live 2026-09-28). `Navigator.AppProperties(appid)` opens a
+  `g_PopupManager`-registered window (CDP target titled with the game's name,
+  URL `about:blank?createflags=4114&minwidth=842&minheight=601…`). It appears in
+  `g_PopupManager.m_mapPopups`. For a shortcut, its DOM contains elements whose
+  class names contain `Shortcut`, so a "find the Game Info element by
+  `[class*=Shortcut]`" query matches the **Properties** dialog as well. Its React
+  tree is large, and it re-renders whenever the app's overview or details change.
+  Plugin code that force-updates "every window" therefore force-updates
+  Properties too. That is what hung Steam
+  (migration plan § 1.3).
 
 ### `Navigator.App` (module `874`)
 

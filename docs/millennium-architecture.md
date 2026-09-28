@@ -8,32 +8,8 @@ of every other doc. For _why_, see [decisions.md](decisions.md).
 
 ## Where to look (doc map)
 
-Several agents work this repo (architect, implementer, verifier). Each doc has
-one job; find the right one by situation:
-
-| Situation                                              | Doc                                                                                   | Its job                                                                                                |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Investigating a feature or Steam internals             | [steam-architecture.md](steam-architecture.md), then [steam-components.md](steam-components.md) | Map of Steam's stores/modules + **every stable resolution signature**; then the deep, verified traces |
-| Creating a plugin, or fixing a bug in one              | [plugins.md](plugins.md)                                                              | Scaffold → reuse ladder → **all regression guardrails** → develop/deploy → test → publish              |
-| Live-debugging the running client (CDP, DevTools)      | [steam-debug.md](steam-debug.md)                                                      | Targets, the inspection method, Big Picture traps, **cheap probes before screenshots** (§ 7)          |
-| Millennium SDK / config API, file formats, provider APIs | [knowledgebase.md](knowledgebase.md)                                                | Verified facts outside Steam's UI code: SDK, CEF quirks, `screenshots.vdf`/clips/shortcuts, RetroArch, RA, prior art |
-| UI styling                                             | [steam-styles.md](steam-styles.md)                                                    | Why we reuse Steam's components instead of authoring CSS                                               |
-| Why something is the way it is                         | [decisions.md](decisions.md)                                                          | ADRs                                                                                                   |
-| What the suite is and how data flows                   | this doc                                                                              | Core/provider split, modules, RPC, provider contract                                                   |
-| Current work · history · plans                         | [TASK.md](../TASK.md) · [CHANGELOG.md](../CHANGELOG.md) · [plans/](plans/)            | Open work only · all history · feature and bugfix plans                                                |
-
-Orchestrator roles, mapped:
-
-- **architect** (diagnosis, planning) — [steam-debug.md](steam-debug.md) +
-  [steam-architecture.md](steam-architecture.md) → [steam-components.md](steam-components.md)
-  for root-causing, then write or update a plan in [plans/](plans/), following the
-  [plan writing standard](plans/README.md) (mechanical before/after blocks,
-  per-step commands and expected output, banned actions, failure rule, dry-run).
-- **implementer** — the [plugins.md](plugins.md) guardrails are non-negotiable
-  before touching plugin code.
-- **verifier** — Routines 1–3 in [AGENTS.md](../AGENTS.md) (smoke tests, nav
-  lifecycle, automated CDP suite) plus the relevant plugin's `tests/`, using
-  [steam-debug.md § 7](steam-debug.md#7-cost-efficient-debugging).
+The doc map, the per-situation guide and the orchestrator roles live in the
+index: [steam-architecture.md](steam-architecture.md). Start there.
 
 ---
 
@@ -89,11 +65,11 @@ this table only routes you to them.
 
 | When adding/modifying...                                         | Guardrails ([plugins.md](plugins.md))                                                                                                                                                                                                                              | Steam reference                                                                                                                  | Source Files Involved                                                                                                                                                          |
 | :--------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Game Info** (Descriptions, Credits, Release Dates, Categories) | [1 ID coupling](plugins.md#1-prototype-hook-coupling-bismodorshortcut-vs-getgameid), [2 O(1) hooks](plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [7 categories](plugins.md#7-safe-category-cache-invalidation), [8 details](plugins.md#8-dedicated-metadata-association-never-overwrite-appdatadetails) | [Game Info tab](steam-components.md#game-info-tab--metadata)                                                                     | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`steamgriddb-artwork/frontend/steam/metadata.ts`<br>`steamgriddb-artwork/backend/metadata.py`                       |
-| **Your Stuff** (Media, Screenshots, Video Clips)                 | [1 ID coupling](plugins.md#1-prototype-hook-coupling-bismodorshortcut-vs-getgameid)                                                                                                                                                                                 | [The two identifiers](knowledgebase.md#the-two-identifiers)                                                                      | `steamgriddb-artwork/frontend/steam/game-info-patch.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts`                                                               |
-| **Activity Feed** (Chronological Per-Day Cards)                  | [3 single-pass](plugins.md#3-single-pass-webpack-module-pre-caching), [5 stubs & negative cache](plugins.md#5-persistent-in-memory-stubs--negative-cache-immunization), [6 two-way nav](plugins.md#6-two-way-navigation-lifecycle-smoke-verification-game-a--game-b--game-a) | [Activity feed](steam-components.md#activity-feed), [ADR-0030](decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing) | `non-steam-games-activity/frontend/steam/activity.ts`<br>`non-steam-games-activity/frontend/steam/day.ts`<br>`non-steam-games-activity/frontend/steam/activity-cards-patch.ts` |
-| **Post-Game Summary** (Top Hero Card Strip)                      | [10 registry memo](plugins.md#10-section-registry-memo-mutation), [11 re-render every window](plugins.md#11-asynchronous-data-must-re-render-every-window)                                                                                                          | [Post-Game Summary](steam-components.md#post-game-summary), [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them) | `non-steam-games-activity/frontend/steam/summary.ts`<br>`non-steam-games-activity/frontend/steam/sections.ts`                                                                  |
-| **Achievements & Notifications** (Phase 5/6)                     | [2 O(1) hooks](plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) (jsx handlers), [12 popup hooks](plugins.md#12-popup-hooks-do-not-see-every-window), [jsx sharing](plugins.md#sharing-the-jsx-runtime-between-plugins)          | [Achievements, notifications…](steam-components.md#achievements-notifications-recording--artwork)                                 | `enhanced-achievements/`<br>`enhanced-notifications/`                                                                                                                          |
+| **Game Info** (Descriptions, Credits, Release Dates, Categories) | [1 ID coupling](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid), [2 O(1) hooks](plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [7 categories](plugins.md#7-safe-category-cache-invalidation), [8 details](plugins.md#8-dedicated-metadata-association-never-overwrite-appdatadetails) | [Game Info tab](steam-components.md#game-info-tab--metadata)                                                                     | `steam-cartridges/frontend/features/game-info/game-info-patch.ts`<br>`steam-cartridges/frontend/features/game-info/metadata.ts`<br>`steam-cartridges/backend/web_metadata_db.lua`                       |
+| **Your Stuff** (Media, Screenshots, Video Clips)                 | [1 ID coupling](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid)                                                                                                                                                                                 | [The two identifiers](knowledgebase.md#the-two-identifiers)                                                                      | `steam-cartridges/frontend/features/game-info/game-info-patch.ts`<br>`steam-cartridges/frontend/steam/sections.ts`                                                               |
+| **Activity Feed** (Chronological Per-Day Cards)                  | [3 single-pass](plugins.md#3-single-pass-webpack-module-pre-caching), [5 stubs & negative cache](plugins.md#5-persistent-in-memory-stubs--negative-cache-immunization), [6 two-way nav](plugins.md#6-two-way-navigation-lifecycle-smoke-verification-game-a--game-b--game-a) | [Activity feed](steam-components.md#activity-feed), [ADR-0030](decisions.md#adr-0030-native-activity-feed-restored-via-appactivitystore-injection-and-storeitemcache-stubbing) | `steam-cartridges/frontend/steam/activity.ts`<br>`steam-cartridges/frontend/steam/activity-cards-patch.ts`<br>`steam-cartridges/frontend/steam/headline-patch.ts` |
+| **Post-Game Summary** (Top Hero Card Strip)                      | [10 registry memo](plugins.md#10-section-registry-memo-mutation), [11 re-render every window](plugins.md#11-asynchronous-data-must-re-render-every-window)                                                                                                          | [Post-Game Summary](steam-components.md#post-game-summary), [ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them) | `steam-cartridges/frontend/steam/summary.ts`<br>`steam-cartridges/frontend/steam/sections.ts`                                                                  |
+| **Achievements & Notifications** (Phase 5/6)                     | [2 O(1) hooks](plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) (jsx handlers), [12 popup hooks](plugins.md#12-popup-hooks-do-not-see-every-window), [jsx sharing](plugins.md#sharing-the-jsx-runtime-between-plugins)          | [Achievements, notifications…](steam-components.md#achievements-notifications-recording--artwork)                                 | `steam-cartridges/frontend/features/achievements/`<br>`enhanced-achievements/`<br>`enhanced-notifications/`                                                                                                                          |
 
 Area-specific invariants not covered by a numbered guardrail:
 
@@ -164,6 +140,11 @@ Where the backend is still involved, it owns the I/O
 ([ADR-0004](decisions.md#adr-0004-backend-owns-all-io-and-merging-the-frontend-only-renders)).
 
 ### Module layout
+
+> **Out of date, and being replaced.** This layout predates the P1 merge and the
+> ports-and-adapters migration ([ADR-0039](decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)).
+> The target layout is in the [migration plan § 4](plans/steam-cartridges-architecture-migration-plan.md#4-target-architecture);
+> step M9 rewrites this section to match the tree.
 
 `✅` = built and tested · `⚠` = built, unverified · `☐` = not started
 

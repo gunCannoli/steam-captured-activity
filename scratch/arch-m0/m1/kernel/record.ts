@@ -1,0 +1,86 @@
+// Kernel: the GameRecord read model (migration plan M1, ADR-0039).
+// One record per shortcut. Services fill parts; surfaces read them. get() is a plain
+// Map lookup, so it is safe from Steam's hot hooks (plugins.md guardrail 2).
+import type { ShortcutId } from "./appid";
+import type { EventBus } from "./events";
+
+export type PartStatus = "ok" | "partial" | "unsupported" | "needs-setup" | "error" | "pending";
+
+export interface Part<T> {
+    status: PartStatus;
+    data?: T;
+    /** Which source produced `data` (e.g. "steam-store", "igdb", "local_db"). */
+    source?: string;
+    /** Unix ms when `data` was fetched from its source. */
+    fetchedAt?: number;
+    /** Unix ms when freshness was last checked, even if nothing changed. */
+    checkedAt?: number;
+    /** Shown to the user only for needs-setup / error (ADR-0014). */
+    message?: string;
+}
+
+export interface Identity {
+    native?: { appid: number; source: "manual" | "owned" | "search" };
+    web?: { igdb?: number; ra?: number; ss?: number; romHash?: string };
+}
+
+/** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
+export type GameMetadata = Record<string, unknown>;
+export type AchievementSet = Record<string, unknown>;
+export type CommunityMedia = Record<string, unknown>;
+export type ArtworkPlan = Record<string, unknown>;
+
+export interface GameRecord {
+    appid: ShortcutId;
+    gameid: string;
+    title: string;
+    exe: string;
+    route?: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
+    identity?: Part<Identity>;
+    metadata?: Part<GameMetadata>;
+    achievements?: Part<AchievementSet>;
+    media?: Part<CommunityMedia>;
+    artwork?: Part<ArtworkPlan>;
+}
+
+export type RecordPart = "route" | "identity" | "metadata" | "achievements" | "media" | "artwork";
+
+export interface RecordStore {
+    get(appid: ShortcutId): GameRecord | undefined;
+    /** Create or replace the identity fields of a record, keeping its parts. */
+    upsert(base: Pick<GameRecord, "appid" | "gameid" | "title" | "exe">): GameRecord;
+    /**
+     * Set parts of a record. Emits `record.updated` with only the parts whose value
+     * actually changed (compared by JSON), so an unchanged write re-renders nothing
+     * (guardrail 17). Returns the changed part names.
+     */
+    update(appid: ShortcutId, parts: Partial<Pick<GameRecord, RecordPart>>): RecordPart[];
+    all(): GameRecord[];
+}
+
+export function createRecordStore(bus: EventBus): RecordStore {
+    const records = new Map<ShortcutId, GameRecord>();
+    return {
+        get: (appid) => records.get(appid),
+        upsert(base) {
+            const prev = records.get(base.appid);
+            const next: GameRecord = { ...(prev ?? {}), ...base };
+            records.set(base.appid, next);
+            return next;
+        },
+        update(appid, parts) {
+            const rec = records.get(appid);
+            if (!rec) return [];
+            const changed: RecordPart[] = [];
+            for (const key of Object.keys(parts) as RecordPart[]) {
+                const value = parts[key];
+                if (JSON.stringify(rec[key]) === JSON.stringify(value)) continue;
+                (rec as any)[key] = value;
+                changed.push(key);
+            }
+            if (changed.length > 0) bus.emit("record.updated", { appid, parts: changed });
+            return changed;
+        },
+        all: () => [...records.values()],
+    };
+}

@@ -8,8 +8,7 @@ from upstream docs.
 
 Not here: how to write plugin code and the regression guardrails
 ([plugins.md](plugins.md)); Steam's stores, components and modules
-([steam-architecture.md](steam-architecture.md) →
-[steam-components.md](steam-components.md)); inspecting the live client
+([steam-components.md](steam-components.md), which opens with the map); inspecting the live client
 ([steam-debug.md](steam-debug.md)). What the plugins are for:
 [millennium-architecture.md](millennium-architecture.md).
 
@@ -646,6 +645,24 @@ Steam updates its CEF.
    counted `0` across a full visible animation. Code reacting to a JS-driven
    scroll must hook whatever moves `scrollLeft` (e.g. call the "recompute pager
    state" function from the animation loop) instead of `onScroll`.
+
+### One renderer for every Steam window: a busy SharedJSContext freezes them all
+
+**✅ Verified live 2026-09-28** (Properties-dialog hang, migration plan § 1.3).
+
+- `SharedJSContext`, the desktop window, Big Picture and every dialog (Properties
+  is `about:blank?createflags=4114…`) run in **one** `steamwebhelper.exe` renderer
+  (here ~1.2 GB while hung). They are separate CDP targets but one main thread.
+  When that thread never goes idle, every window freezes together and Steam shows
+  its own "restart the UI" dialog. Plugin code cannot catch or recover from this.
+- It does not have to be one infinite JavaScript call. A **feedback loop of
+  asynchronous work**, where each trip ends with a large React re-render, starves
+  the thread just as well. That is the failure mode to guard against
+  ([plugins.md guardrail 17](plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components)).
+- Every CDP command, including `Runtime.evaluate` and `Debugger.enable`, is
+  processed on that main thread. A tool that attaches **after** the hang gets no
+  answer at all. A browser-level trace records nothing from the wedged renderer
+  either. How to diagnose it anyway: [steam-debug.md Trap 10](steam-debug.md#trap-10-diagnosing-a-hung-sharedjscontext-restart-the-ui-dialog).
 
 ---
 

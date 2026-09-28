@@ -22,7 +22,13 @@ uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
 [steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md).
 Accepted as [ADR-0039](docs/decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)
 (pipeline in the backend, new shortcuts fetched in the background, feature freeze
-on `steam-cartridges` until M3 is done). Next: write and run child plan **M0a (crash triage)**.
+on `steam-cartridges` until M3 is done).
+
+The crash is root-caused and the fix is validated live (plan § 1.3): a render feedback
+loop that ran ~150 times a second on every shortcut page; opening **Properties**
+saturated Steam's shared renderer. The plugin stays **uninstalled** until M0a lands.
+Next: execute **M0a** (render-loop fix, Ready), then M0b-1, M0c, M1 (all Ready, in
+that order; the plan's § 0 is the execution manual).
 
 ## Next
 
@@ -32,8 +38,17 @@ on `steam-cartridges` until M3 is done). Next: write and run child plan **M0a (c
 - **Provider Plugin Extraction**: Extract `retroachievements` and `screenscraper`/`igdb`
   into standalone provider plugins communicating via the Phase 9 IPC contract.
 
+## Later
+
+- Optional SteamGridDB artwork filter rules (`g{Author:maxKB}` per artwork type, off by
+  default), from the removed `docs/steam-cartridges.md` § 6
+  (`git show 0d599cf:docs/steam-cartridges.md`). After the migration, as a source adapter.
+
 ## Waiting on the user
 
+- **Lua interpreter** for the backend tests: `tools/lua/` is missing on this machine,
+  so `tests/test_backend.lua` cannot run. Blocks migration steps M4–M7
+  (plan § 12 K5).
 - Alpha testing checklist (U1–U9, real hardware/real unlocks only) —
   [phase7-and-alpha-plan.md § User test checklist](docs/plans/phase7-and-alpha-plan.md#user-test-checklist-only-the-user-can-verify).
 

@@ -6,10 +6,11 @@ achievement schemas, how in-game unlocks are detected out-of-process without thi
 storefront APIs, how Steam's native UI sinks and toast engine are fed, and how to add support
 for new game engines, emulators, or local save formats.
 
-For the active multi-session execution plan, see
-[docs/plans/steam-cartridges-achievements-plan.md](plans/steam-cartridges-achievements-plan.md).
+Future work on this system happens in migration step M6 (the achievements service):
+[steam-cartridges-architecture-migration-plan.md](plans/steam-cartridges-architecture-migration-plan.md).
+M6 turns this doc into the achievements layer doc under `docs/steam-cartridges/`.
 For Steam client internal traces (section registry, NotificationStore, AppDetailsStore), see
-[docs/steam-components.md](steam-components.md § Native achievement UI & backing store).
+[steam-components.md § Native achievement UI & backing store](steam-components.md#native-achievement-ui--backing-store).
 
 ---
 

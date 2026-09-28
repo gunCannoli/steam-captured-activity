@@ -4,8 +4,8 @@
 the Chrome DevTools Protocol (CDP) — attaching, picking the right target,
 finding Steam's code, the Big Picture traps, and doing all of it cheaply.
 
-Not here: what you will find ([steam-architecture.md](steam-architecture.md) →
-[steam-components.md](steam-components.md)); build/deploy/restart and the
+Not here: what you will find ([steam-components.md](steam-components.md), which
+opens with the map); build/deploy/restart and the
 guardrails ([plugins.md](plugins.md)).
 
 ---
@@ -70,7 +70,7 @@ They are not interchangeable:
 
 Run this **before building any component** — it has repeatedly turned "we need to
 build X" into "Steam already has X". What is already mapped:
-[steam-architecture.md](steam-architecture.md).
+[steam-components.md § Map](steam-components.md#map-core-stores--modules).
 
 ### 3.1 Capture Steam's module require
 
@@ -255,6 +255,35 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
 - **Symptom:** `callServerMethod` suddenly begins failing for all methods with `"failed to send RPC to child: <plugin>"`.
 - **Reality:** In Millennium v3.4–v3.5, calling a non-existent RPC method name or letting an unhandled Lua `error()` escape into the C++ frame triggers `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` in the Millennium host DLL, terminating the child Lua process.
 - **Rule:** Only call methods explicitly exposed in `backend/main.lua`. Always wrap payloads with `{ payload: JSON.stringify(params) }`. If the backend crashes, restart Steam via `start-steam-dev.ps1 -Restart`.
+
+### Trap 10: Diagnosing a Hung SharedJSContext ("restart the UI" dialog)
+
+- **Symptom:** Steam's UI freezes and Steam offers to restart it. CDP
+  `Runtime.evaluate` in every target times out, and `Debugger.pause` sent from a
+  fresh connection never answers.
+- **Reality:** all windows share one renderer main thread
+  ([knowledgebase.md](knowledgebase.md#one-renderer-for-every-steam-window-a-busy-sharedjscontext-freezes-them-all)).
+  CDP commands, including `Debugger.enable`, run on that thread, so a debugger
+  attached after the hang is never enabled. A browser-level trace records nothing
+  from the wedged renderer. The cause is often a feedback loop of async work plus
+  re-renders, not a single infinite function.
+- **Rule: attach first, reproduce second.** With Steam healthy:
+  1. Connect to `SharedJSContext`, send `Debugger.enable`, and keep the socket open.
+  2. Trigger the repro from that same socket (e.g. `Navigator.AppProperties(appid)`
+     in a `setTimeout`, so the evaluate call returns first).
+  3. Send `Debugger.pause` several times, 0.5 s apart, and print each `callFrames`
+     stack with script URLs (from `Debugger.scriptParsed`). V8 answers because the
+     inspector session is already enabled. Samples from **different** places
+     (React commit, MobX, our plugin) mean a feedback loop; the same frames every
+     time mean one hot loop.
+  4. Measure the loop's rate without the debugger: count plugin log lines per
+     second over a fixed window (e.g. 1,521 "Enriched native Game Info" lines in
+     10 s gave the 2026-09-28 loop away).
+  5. Restart Steam (`start-steam-dev.ps1 -Restart`). A hung renderer never recovers.
+- **Tools:** `scratch/arch-m0/` (`catch_hang.mjs` does steps 1–3,
+  `count_cycle.mjs` step 4, `test_props.mjs` gives a one-line OK/HUNG verdict).
+  Each hung repro costs a Steam restart (~1 min), so form a hypothesis from the
+  first stack sample before running another.
 
 ---
 

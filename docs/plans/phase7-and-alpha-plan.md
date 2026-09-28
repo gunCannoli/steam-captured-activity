@@ -382,7 +382,7 @@ All must still PASS.
 
 ### A5. Docs to update (Part A)
 - `docs/steam-components.md` § "Game Recording RPCs & timeline markers": replace it with A1.1–A1.6. Include the signatures, the request shapes, TakeScreenshot = frame from recording, the entry-type enum, Steam's native achievement entries, `g_GRS`, and the EResults.
-- `docs/steam-architecture.md`: in the Game Recording rows, add `window.g_GRS` (`CGameRecordingStore`) and the loader methods. State that `SteamClient.Screenshots` cannot trigger a capture.
+- `docs/steam-components.md` (§ Map: core stores & modules; was `steam-architecture.md` until 2026-09-28): in the Game Recording rows, add `window.g_GRS` (`CGameRecordingStore`) and the loader methods. State that `SteamClient.Screenshots` cannot trigger a capture.
 - `docs/plans/enhanced-achievements-plan.md` § 2D and § 6: point to this plan. Fix "SteamClient.Screenshots" and "golden marker".
 - `docs/plans/enhanced-achievements-plan.md` § 5 guardrail table: add row 9, "Capture RPCs only in timer callbacks, only when enabled; the hook does O(1) scheduling".
 

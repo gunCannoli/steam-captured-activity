@@ -23,20 +23,17 @@ The core must be useful alone and must never depend on a provider. See
 
 | Doc | Its one job |
 | --- | --- |
-| [TASK.md](TASK.md) | **Start here** — current status, multi-session roadmap, what is next |
+| [docs/steam-architecture.md](docs/steam-architecture.md) | **Docs index — start here.** Which doc to read for your situation, every doc's one job, the `steam-cartridges` layer docs |
+| [TASK.md](TASK.md) | Current status and what is next |
 | [CHANGELOG.md](CHANGELOG.md) | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean |
-| [docs/millennium-architecture.md](docs/millennium-architecture.md) | Our suite: core/provider split, data flow, RPC, provider contract — **and the doc map** |
+| [docs/plans/steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md) | The `steam-cartridges` migration (ADR-0039). **Feature freeze** on `steam-cartridges` until step M3 is done |
 | [docs/plugins.md](docs/plugins.md) | **How to build a plugin & every regression guardrail** — scaffold, reuse ladder, guardrails, develop/deploy, test, publish |
-| [docs/steam-architecture.md](docs/steam-architecture.md) | **Map of Steam's internals** — runtime topology, stores/modules, every stable resolution signature |
-| [docs/steam-components.md](docs/steam-components.md) | **Deep reference** — verified traces: section registry, summary/activity stores, Big Picture, notifications, recording, artwork |
-| [docs/steam-debug.md](docs/steam-debug.md) | **Inspecting the live client** — CDP targets, the inspection method, Big Picture traps, cost-efficient debugging |
+| [docs/steam-components.md](docs/steam-components.md) | **Steam's internals** — opens with the map (topology, stores, stable resolution signatures), then verified deep traces |
+| [docs/steam-debug.md](docs/steam-debug.md) | **Inspecting the live client** — CDP targets, the inspection method, Big Picture traps, hung-UI diagnosis, cost-efficient debugging |
 | [docs/knowledgebase.md](docs/knowledgebase.md) | Facts outside Steam's UI code — Millennium SDK & config API, CEF quirks, Steam's file formats, provider sources, prior art |
-| [docs/steam-styles.md](docs/steam-styles.md) | UI styling guidance — why hand-measuring pixels was superseded by component reuse |
+| [docs/millennium-architecture.md](docs/millennium-architecture.md) | Our suite: core/provider split, data flow, RPC, provider contract |
 | [docs/decisions.md](docs/decisions.md) | ADRs — _why_ things are the way they are |
-| [docs/plans/](docs/plans/) | Per-feature and per-bugfix plans (e.g. `enhanced-notifications-plan.md`); every plan follows [the plan writing standard](docs/plans/README.md) |
-
-For a situation-based map of these docs (e.g. "I'm debugging live" or "I'm
-writing a plugin"), see [docs/millennium-architecture.md](docs/millennium-architecture.md#where-to-look-doc-map).
+| [docs/plans/](docs/plans/) | Per-feature and per-bugfix plans; every plan follows [the plan writing standard](docs/plans/README.md) |
 
 Do not re-derive facts already recorded there. Do not contradict an ADR without
 writing a new one that supersedes it. For all plugin development rules and guardrails,

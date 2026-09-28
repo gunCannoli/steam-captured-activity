@@ -903,7 +903,7 @@ produced exact values immediately, and revealed two things a screenshot cannot:
 
 - **Measure, never approximate.** Before styling anything to match Steam, read
   `getComputedStyle` off the equivalent native element and copy the values.
-- **Record findings in [docs/steam-styles.md](steam-styles.md)**, with the
+- **Record findings in `docs/steam-styles.md`** (removed 2026-09-28; its remaining rules live in [plugins.md](plugins.md#rules-that-apply-on-every-rung)), with the
   element each value came from, so they are reusable and reviewable rather than
   rediscovered per component.
 - Check `backgroundImage` as well as `backgroundColor`; Steam uses gradients
@@ -993,7 +993,7 @@ Steam's own session made Steam render its real summary — pager, day separators
   captures over `steamloopback.host` and hands us absolute URLs. ADR-0017's
   constraint still holds for files Steam does not index, but does not apply
   here.
-- The style bible ([steam-styles.md](steam-styles.md)) is no longer needed to
+- The style bible (`steam-styles.md`, removed 2026-09-28) is no longer needed to
   _build_ the summary. It is kept as reference for anything we do still draw.
 - Cost: we depend on Steam's internal shapes. Mitigated by signature-based
   resolution and by degrading to the stock page whenever a lookup fails — a
@@ -2254,7 +2254,7 @@ because we enriched it.
   lookups set a collection rule to Neither, or an override.
 - A collection membership change takes effect after a restart or any bucket
   settings change. The settings page says so.
-- Replaces decision 1 in [steam-cartridges.md § 9](steam-cartridges.md#9-risks-and-open-questions).
+- Replaces decision 1 in `docs/steam-cartridges.md` § 9 (that research doc was removed 2026-09-28; read it with `git show 0d599cf:docs/steam-cartridges.md`).
 
 ---
 
@@ -2459,14 +2459,14 @@ regardless) and in implementation cost/performance (redirect is zero extra
 network and reuses code already proven safe for Friends; fetch adds a
 request path and a cache to maintain). **This ADR does not choose between
 them.** The next agent to implement this
-([docs/plans/steam-cartridges-native-achievements-mirror-plan.md](plans/steam-cartridges-native-achievements-mirror-plan.md))
+(`docs/plans/steam-cartridges-native-achievements-mirror-plan.md`, removed 2026-09-28 and carried into [migration plan M6](plans/steam-cartridges-architecture-migration-plan.md#m6--achievements-service-spec--blocked-k5); full text: `git show 0d599cf:docs/plans/steam-cartridges-native-achievements-mirror-plan.md`)
 must live-investigate both against the real client (including UI performance
 impact) before picking one, and record that choice back into this ADR or a
 follow-up addendum.
 
 This is layered *underneath*, not instead of, the agnostic local-unlock
 detector in
-[docs/plans/steam-cartridges-achievements-plan.md](plans/steam-cartridges-achievements-plan.md):
+`docs/plans/steam-cartridges-achievements-plan.md` (removed 2026-09-28; carried into [migration plan M6](plans/steam-cartridges-architecture-migration-plan.md#m6--achievements-service-spec--blocked-k5)):
 that system is a separate, not-yet-implemented later phase that will also
 trigger the *native* Steam achievement itself (communicating with Steam so
 the unlock is real, not just displayed). Mirroring the native schema/progress
