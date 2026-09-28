@@ -53,6 +53,8 @@ export interface Settings {
     communityShowArtworks: boolean;
     /** Show external community destinations (Discord, Speedrun, Wiki). Default true. */
     communityShowExternalLinks: boolean;
+    /** Kill switches (migration plan M0b): comma-separated feature ids skipped at start-up. Default "". */
+    disabledFeatures: string;
 }
 export type SettingKey = keyof Settings;
 
@@ -71,6 +73,7 @@ export const DEFAULTS: Settings = {
     communityShowManuals: true,
     communityShowArtworks: true,
     communityShowExternalLinks: true,
+    disabledFeatures: '',
 };
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
@@ -87,6 +90,7 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     communityShowManuals: (raw) => raw !== false,
     communityShowArtworks: (raw) => raw !== false,
     communityShowExternalLinks: (raw) => raw !== false,
+    disabledFeatures: (raw) => (typeof raw === 'string' ? raw : ''),
     routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
     autoRoutingMode: (raw) => raw !== false,
     services: (raw) => {
@@ -120,6 +124,7 @@ const current: Settings = {
     communityShowManuals: true,
     communityShowArtworks: true,
     communityShowExternalLinks: true,
+    disabledFeatures: '',
 };
 const listeners = new Set<(key: SettingKey) => void>();
 

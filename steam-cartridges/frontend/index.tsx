@@ -42,8 +42,12 @@ import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
 import { triggerSync } from "./features/scraper/sync-manager";
+import { features } from "./safety/switches";
+import { beginBoot, watchBoot } from "./safety/boot";
 
 export { setSetting, resetSettings };
+/** Kill switches, error counts and safe mode (migration plan M0b). */
+export const safetyDiagnostics = () => features.diagnostics();
 export { bucketReport, loadAutoRoutingProfiles };
 export {
     clearSteamStore,
@@ -85,6 +89,23 @@ async function init() {
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
 
+    // ===== Safety (migration plan M0b) =====
+    // Kill switches come from the `disabledFeatures` setting. Two starts in a row that
+    // never finished cleanly switch safe mode on (capture tier only, ADR-0012).
+    features.reload();
+    try {
+        const boot = beginBoot(window.localStorage);
+        if (boot.safeMode) {
+            features.setSafeMode(true);
+            logger.error(
+                `Safe mode: the last ${boot.unclean} starts did not finish cleanly; only sections and captures are on.`,
+            );
+        }
+        watchBoot(window.localStorage, () => features.errorCount(), window);
+    } catch (e) {
+        logger.warn("Boot sentinel unavailable.", e);
+    }
+
     // ===== Legacy guard =====
     // Log only; never skip init.
     try {
@@ -104,7 +125,7 @@ async function init() {
     // Steam hides Post-Game Summary from shortcuts with an app-type filter in its
     // section registry. Putting the name back is what makes the native component
     // render at all, so nothing else matters if this fails.
-    if (!registerLibraryApp()) {
+    if (features.isEnabled("sections") && !features.run("sections", () => registerLibraryApp())) {
         logger.error(
             "Could not restore Steam's app detail sections; summaries are unavailable.",
         );
@@ -112,44 +133,54 @@ async function init() {
 
     // ===== Store Cache Immunity Hook =====
     // Permanently immunizes non-Steam shortcuts from StoreItemCache negative blacklist
-    ensureStoreCacheHooked();
+    features.run("store-cache", () => ensureStoreCacheHooked());
 
     // ===== Headline phrasing =====
     // Replaces community UGC string ("cannoliGun shared 2 screenshots") with native action
     // phrasing ("cannoliGun captured") for non-Steam captures.
-    installHeadlinePatch();
+    features.run("headline", () => installHeadlinePatch());
 
     // ===== Native Activity Cards =====
     // Replaces community screenshot viewer with genuine Post-Game Summary cards
     // (PostGameSummaryClip and SummaryScreenshot) with hover video scrubbers and native playback.
-    installActivityCardsPatch();
+    features.run("activity-cards", () => installActivityCardsPatch());
 
     // ===== Native sections for mapped games (parity plan C) =====
     // Steam's own Links / Friends / Community sections read the native appid
     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
-    installNativeSections();
+    features.run("native-links", () => installNativeSections());
 
     // ===== Native Achievements Subsystem =====
-    initAchievements();
+    features.run("achievements", () => initAchievements());
 
     // ===== Game Info (ex steamgriddb-artwork) =====
     // Not awaited: the two halves load independently, as the two plugins did
     // (ADR-0010), and a failure here must not affect activity.
-    void loadAutoRoutingProfiles();
-    initSourceView();
-    void initGameInfo().catch((e) =>
-        logger.error("Game Info feature failed; activity is unaffected.", e),
-    );
+    features.run("game-info", () => {
+        void loadAutoRoutingProfiles();
+        initSourceView();
+        void initGameInfo().catch((e) => {
+            features.reportError("game-info", e);
+            logger.error("Game Info feature failed; activity is unaffected.", e);
+        });
+    });
 
     // ===== Library grid =====
     // Fills in last-played dates Steam does not have, from capture timestamps.
-    await registerLibraryHome();
+    if (features.isEnabled("library-home")) {
+        try {
+            await registerLibraryHome();
+        } catch (e) {
+            features.reportError("library-home", e);
+        }
+    }
 
     // ===== App detail pages =====
     // Publishing is keyed on the app, not the window: Steam's store is global, so
     // one publish serves every window showing that game.
 
     onPopupCreate((popup, type) => {
+        if (!features.isEnabled("captures")) return undefined;
         if (type === PopupType.Desktop) {
             // Desktop feeds Steam's own store (steam/summary.ts) - Steam's own
             // component renders in whichever window is open, so this is global,
@@ -265,10 +296,10 @@ async function init() {
         if (!isNonSteamAppId(app.appid)) return;
 
         // Startup notification if enabled ("Local Achievements Enabled")
-        handleAppLaunchAchievements(app.appid);
+        features.run("achievements-observer", () => handleAppLaunchAchievements(app.appid));
 
         // Start active observer session while game is running
-        void rpc.steamStoreGetMapping(app.appid).then((res) => {
+        if (features.isEnabled("achievements-observer")) void rpc.steamStoreGetMapping(app.appid).then((res) => {
             const nativeAppId = res?.mapping?.steam_appid || 0;
             const stopObserver = startAchievementsObserver(app.appid, nativeAppId, app.display_name);
             onQuit(() => stopObserver());
@@ -283,7 +314,7 @@ async function init() {
 
     logger.info("Ready. Non-Steam games now use Steam's own detail sections.");
     // Automatically start background sync for un-scraped games after startup
-    triggerSync(3000);
+    features.run("background-sync", () => triggerSync(3000));
 }
 
 export default definePlugin(() => {

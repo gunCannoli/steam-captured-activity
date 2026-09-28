@@ -27,8 +27,8 @@ on `steam-cartridges` until M3 is done).
 The crash is root-caused and the fix is validated live (plan § 1.3): a render feedback
 loop that ran ~150 times a second on every shortcut page; opening **Properties**
 saturated Steam's shared renderer.
-M0a done (render loop fixed). Next: execute **M0b-1**, then M0c, M1 (all Ready, in
-that order; the plan's § 0 is the execution manual).
+M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
+Next: M0b-2 (spec) or M0c (Ready; the plan's § 0 is the execution manual).
 
 ## Next
 

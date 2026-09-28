@@ -46,7 +46,7 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | Step | What | Status | Layer doc |
 | --- | --- | --- | --- |
 | M0a | Fix the render feedback loop (Properties hang) | **Done** | — (findings already in knowledgebase, steam-components, steam-debug, plugins.md guardrail 17) |
-| M0b-1 | Kill switches, error budget, boot sentinel / safe mode | **Ready** (after M0a) | `docs/steam-cartridges/safety.md` |
+| M0b-1 | Kill switches, error budget, boot sentinel / safe mode | **Done** | `docs/steam-cartridges/safety.md` |
 | M0b-2 | Fail-open wrappers on every Steam hook | Spec | `docs/steam-cartridges/safety.md` (update) |
 | M0c | Architecture test (import ratchet, RPC registration) + `check_all_tabs.js` flake fix | **Ready** (after M0b-1) | `docs/steam-cartridges/README.md` |
 | M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Ready** (after M0c) | `docs/steam-cartridges/kernel.md` |

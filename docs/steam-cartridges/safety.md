@@ -1,0 +1,131 @@
+# Safety
+
+**This doc's job:** kill switches, error budget and the boot sentinel / safe mode
+that stop one crashing feature from taking down the whole plugin. Part of the
+steam-cartridges architecture (ADR-0039); index:
+[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+
+## What it owns
+
+- The set of independently switchable feature ids (`FeatureId`) and which ones
+  survive safe mode (the capture tier: `sections`, `store-cache`, `captures`).
+- The `disabledFeatures` setting: parsing it, and gating feature start-up on it.
+- Counting errors per feature and tripping a feature off after its error budget
+  (default 5) is exceeded in a session.
+- The boot sentinel: detecting that the previous start did not shut down cleanly,
+  and switching safe mode on after two bad boots in a row.
+
+## Contract
+
+```ts
+// frontend/safety/features.ts
+export const FEATURE_IDS = [
+    "sections", "store-cache", "captures", "headline", "activity-cards",
+    "native-links", "achievements", "achievements-observer", "game-info",
+    "library-home", "background-sync",
+] as const;
+export type FeatureId = (typeof FEATURE_IDS)[number];
+
+export const SAFE_MODE_FEATURES: ReadonlySet<FeatureId>;
+
+export interface FeatureSwitches {
+    isEnabled(id: FeatureId): boolean;
+    run<T>(id: FeatureId, fn: () => T): T | undefined;
+    reportError(id: FeatureId, err: unknown): void;
+    setSafeMode(on: boolean): void;
+    reload(): void;
+    errorCount(): number;
+    diagnostics(): { safeMode: boolean; disabled: string[]; tripped: string[]; errors: Record<string, number> };
+}
+
+export interface FeatureSwitchOptions {
+    readDisabled: () => string;
+    errorBudget?: number;
+    log?: (level: "warn" | "error", message: string, err?: unknown) => void;
+}
+
+export function parseDisabled(raw: string): Set<string>;
+export function createFeatureSwitches(opts: FeatureSwitchOptions): FeatureSwitches;
+```
+
+```ts
+// frontend/safety/boot.ts
+export const BOOT_KEY = "steam-cartridges.boot";
+export const UNCLEAN_LIMIT = 2;
+export const HEALTHY_AFTER_MS = 60_000;
+
+export interface BootState { pending: boolean; unclean: number; at: number }
+export interface KeyValue { getItem(key: string): string | null; setItem(key: string, value: string): void }
+
+export function beginBoot(store: KeyValue, now?: number): { safeMode: boolean; unclean: number };
+export function markHealthy(store: KeyValue, now?: number): void;
+export function watchBoot(
+    store: KeyValue,
+    errorCount: () => number,
+    win: { addEventListener(type: string, fn: () => void): void; setTimeout(fn: () => void, ms: number): unknown },
+): void;
+```
+
+```ts
+// frontend/safety/switches.ts
+export const features: FeatureSwitches; // the plugin's one instance, wired to the `disabledFeatures` setting
+```
+
+```ts
+// frontend/index.tsx
+export const safetyDiagnostics: () => ReturnType<FeatureSwitches["diagnostics"]>;
+```
+
+## Files
+
+| File | Role |
+| --- | --- |
+| `frontend/safety/features.ts` | `FeatureId`s, `createFeatureSwitches` (enable/disable, error budget, safe mode) |
+| `frontend/safety/boot.ts` | Boot sentinel: `beginBoot`, `markHealthy`, `watchBoot` |
+| `frontend/safety/switches.ts` | The plugin's one `features` instance, wired to the `disabledFeatures` setting |
+| `frontend/settings/settings.ts` | `disabledFeatures` setting: type, default, validator |
+| `frontend/index.tsx` | Wires `features.run`/`features.isEnabled` around every feature's start-up; boot sentinel init; `safetyDiagnostics()` export |
+| `tests/safety.test.ts` | Unit tests for `createFeatureSwitches` and the boot sentinel |
+
+## Steam targets touched
+
+None. Safety only gates start-up calls into other modules; it never writes to a
+Steam store or hook itself.
+
+## May import / must never import
+
+Not yet a listed row in migration plan § 4.1 (safety is cross-cutting, used from
+`index.tsx`). In practice: `frontend/safety/` imports nothing of ours except
+`logger` and `settings/settings` (for the `disabledFeatures` setting); nothing
+else may import `frontend/safety/` except `index.tsx`.
+
+## Tests
+
+- `tests/safety.test.ts`: `createFeatureSwitches` (enable/disable via
+  `disabledFeatures`, error budget tripping a feature off, safe mode restricting
+  to the capture tier, `diagnostics()` shape) and the boot sentinel (`beginBoot`
+  bad-boot counting, `UNCLEAN_LIMIT` triggering safe mode, `markHealthy` clearing
+  `pending`).
+- Live (migration plan § 0.5, plus M0b-1's own checks): all five baseline PASS
+  lines; `safetyDiagnostics()` reports `{"safeMode": false, "disabled": [],
+  "tripped": [], "errors": {}}` after a clean start; `localStorage`'s
+  `steam-cartridges.boot` shows `"pending":false` 60 s after start with no
+  feature errors.
+
+## How to add a feature id
+
+1. Append the new id to `FEATURE_IDS` in `frontend/safety/features.ts` (never
+   rename or remove an existing id — users may reference it in `disabledFeatures`).
+2. Wrap the feature's start-up call in `frontend/index.tsx` with
+   `features.run("<id>", () => ...)` (or `features.isEnabled("<id>")` for a
+   conditional block), and call `features.reportError("<id>", err)` from any
+   catch block that should count against its error budget.
+3. If the feature should survive safe mode (rare — reserved for the capture
+   tier), add it to `SAFE_MODE_FEATURES`.
+4. List the new id in this doc's Files/Contract sections if it changes the
+   public surface.
+
+## History
+
+- M0b-1 (2026-09-28): created. Kill switches, error budget, boot sentinel / safe
+  mode wired around every feature's start-up in `index.tsx`.

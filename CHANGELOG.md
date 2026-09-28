@@ -7,6 +7,8 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: kill switches, error budget and safe mode (migration M0b-1, 2026-09-28)**: every feature's start-up in `index.tsx` now runs through `frontend/safety/` (`FeatureSwitches`): a `disabledFeatures` setting can turn any of 11 feature ids off before a restart; a feature that throws 5 times in a session is tripped off automatically; a `localStorage` boot sentinel (`steam-cartridges.boot`) detects two unclean starts in a row and starts safe mode (capture tier only: `sections`, `store-cache`, `captures`). No more uninstalling the whole plugin to isolate a crash. New doc: [safety.md](docs/steam-cartridges/safety.md).
+
 - **steam-cartridges: Properties-dialog hang fixed (migration M0a, 2026-09-28)**:
   - Root cause: a render feedback loop (render → view pipeline → enrichment → force-update of every ancestor in every window, including Properties), ~150 rounds/s on every shortcut page; Properties made it saturate the shared renderer. Evidence and fix: [migration plan § 1.3](docs/plans/steam-cartridges-architecture-migration-plan.md#13-confirmed-crash-a-render-feedback-loop-live-debugged-2026-09-28).
   - Fix: renders never trigger views; `enrichGameDetails` is idempotent and re-checks overview fields Steam rebuilds; `refreshGameInfoInstances` only touches our patched components in the main and Big Picture windows. New guardrail 17 in docs/plugins.md.
