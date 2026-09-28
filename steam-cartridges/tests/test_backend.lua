@@ -240,6 +240,37 @@ end
 -- the network stub must trip, proving tests cannot go online
 check("http stub refuses network", not pcall(require("http").get, "http://example.invalid"))
 
+-- ============ achievements_observer: UE project codename discovery ============
+print("\n=== achievements_observer.get_possible_folder_names ===")
+do
+  local observer = require("achievements_observer")
+
+  local function contains(list, value)
+    for _, v in ipairs(list) do
+      if v == value then return true end
+    end
+    return false
+  end
+
+  -- Real-world case: "WUCHANG: Fallen Feathers" ships as Project_Plague.exe.
+  local candidates = observer.get_possible_folder_names(
+    "WUCHANG: Fallen Feathers",
+    [[D:\Games\Local\Wuchang - Fallen Feathers\Project_Plague-Win64-Shipping.exe]]
+  )
+  check("derives Unreal project codename from shipping exe", contains(candidates, "Project_Plague"), table.concat(candidates, ", "))
+  check("keeps exact title as a candidate", contains(candidates, "WUCHANG: Fallen Feathers"))
+  check("keeps colon-to-dash normalized title", contains(candidates, "WUCHANG - Fallen Feathers"))
+  check("exe codename is checked first", candidates[1] == "Project_Plague", candidates[1])
+
+  -- No exe path: falls back to title-only variations, still works.
+  local title_only = observer.get_possible_folder_names("Hollow Knight", nil)
+  check("falls back to title when exe path is missing", contains(title_only, "Hollow Knight"), table.concat(title_only, ", "))
+  check("no exe path yields no nil/empty candidate", #title_only > 0)
+
+  -- Non-shipping exe basename is used as-is (no suffix to strip).
+  local plain_exe = observer.get_possible_folder_names("Some Game", [[C:\Games\SomeGame\SomeGame.exe]])
+  check("plain exe basename has extension stripped", contains(plain_exe, "SomeGame"), table.concat(plain_exe, ", "))
+end
 
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

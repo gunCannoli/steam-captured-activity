@@ -101,6 +101,24 @@ When a game is launched from Steam, `steam-cartridges` launches an out-of-proces
   - **Godot Engine:** `%APPDATA%\Godot\app_userdata\[Project]\logs\godot.log`
   - **GameMaker:** `%LOCALAPPDATA%\[Project]\` (sandboxed `.ini` / `.json` saves & `debug.log`)
   - **Ren'Py:** `%APPDATA%\RenPy\[Project]\log.txt` and `persistent`
+- **`[Project]` folder name derivation:** the folder Unreal/Unity/Godot actually
+  write to is often the *internal project codename*, not the Steam Store title
+  (e.g. `"WUCHANG: Fallen Feathers"` ships as `Project_Plague.exe`, writing logs
+  to `%LOCALAPPDATA%\Project_Plague\Saved\Logs\Project_Plague.log`). Title-only
+  lookups miss this. `achievements_observer.get_possible_folder_names(game_title,
+  exe_path)` derives a deduplicated candidate list — checked in this order:
+  1. The shortcut's executable base name (directories, `.exe`, and Unreal
+     shipping/test/debug suffixes like `-Win64-Shipping` stripped).
+  2. The exact Steam title.
+  3. Punctuation-normalized variants (colon/en dash/em dash → `" - "` or
+     stripped, spaces collapsed or removed).
+  4. `snake_case` of the title.
+  5. The prefix before the first colon/dash (e.g. `"Wuchang"`).
+
+  Each candidate is checked against `Player.log`, `godot.log`, and
+  `Saved\Logs\<Candidate>.log`. If a candidate's `Saved\Logs\` directory exists
+  but no file matches `<Candidate>.log` exactly, the most recently modified
+  `*.log` in that directory is tailed instead.
 
 ### Channel 4: Local Save & Emulator Watcher
 - **Target:** Steam emulators (Goldberg, CODEX, RUNE, GSE, DarkSiders) and GOG Galaxy SQLite database.

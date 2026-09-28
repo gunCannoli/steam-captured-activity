@@ -29,6 +29,75 @@ local function normalize(s)
   return tostring(s or ""):lower():gsub("[^%w]", "")
 end
 
+--- Strips an Unreal Engine "-Win64-Shipping" / "-Win64-Test" / "-Win64-Debug"
+--- suffix from a shipping binary name, leaving the bare project codename.
+local function strip_shipping_suffix(basename)
+  return (basename:gsub("%-[Ww]in64%-%a+$", ""):gsub("%-[Ww]in32%-%a+$", ""))
+end
+
+--- Extracts the executable base name from a full path: strips directories,
+--- surrounding quotes, and the ".exe" extension.
+--- "D:\Games\Wuchang\Project_Plague-Win64-Shipping.exe" -> "Project_Plague"
+local function exe_basename(exe_path)
+  if not exe_path or #exe_path == 0 then return nil end
+  local p = tostring(exe_path):gsub('^"(.*)"$', "%1")
+  p = p:gsub("\\", "/")
+  local base = p:match("([^/]+)$") or p
+  base = base:gsub("%.[Ee][Xx][Ee]$", "")
+  base = strip_shipping_suffix(base)
+  if #base == 0 then return nil end
+  return base
+end
+
+--- Builds a de-duplicated list of candidate folder names for engine log
+--- discovery (e.g. %LOCALAPPDATA%\<Candidate>\Saved\Logs\<Candidate>.log),
+--- covering both the game's Steam title and its internal Unreal/Unity
+--- project codename derived from the shortcut's executable path.
+---
+--- Handles the case where a game's public title ("WUCHANG: Fallen Feathers")
+--- does not match the internal project folder name ("Project_Plague"),
+--- which the log/save folder is actually named after.
+function M.get_possible_folder_names(game_title, exe_path)
+  local candidates = {}
+  local seen = {}
+
+  local function add(name)
+    if name and #name > 0 and not seen[name] then
+      seen[name] = true
+      candidates[#candidates + 1] = name
+    end
+  end
+
+  -- 1. Executable / internal project codename (most reliable for UE titles).
+  add(exe_basename(exe_path))
+
+  local title = trim(game_title)
+  if #title > 0 then
+    -- 2. Exact title.
+    add(title)
+
+    -- 3. Punctuation normalized to a single delimiter or stripped.
+    -- (the byte-string literals below are UTF-8 en dash \xe2\x80\x93 and em dash \xe2\x80\x94)
+    local dash = title:gsub("[:\xe2\x80\x93\xe2\x80\x94]", " - ")
+    add(dash)
+    local stripped = title:gsub("[:%-\xe2\x80\x93\xe2\x80\x94]", "")
+    stripped = stripped:gsub("%s+", " ")
+    stripped = trim(stripped)
+    add(stripped)
+    add((stripped:gsub("%s+", "")))
+
+    -- 4. snake_case / Snake_Case variants.
+    local snake = trim(title):gsub("[^%w]+", "_"):gsub("^_+", ""):gsub("_+$", "")
+    add(snake)
+
+    -- 5. Prefix before the first colon/dash (e.g. "Wuchang").
+    local prefix = title:match("^([^:%-\xe2\x80\x93\xe2\x80\x94]+)")
+    if prefix then add(trim(prefix)) end
+  end
+
+  return candidates
+end
+
 local function read_file(path)
   local f = io.open(path, "rb")
   if not f then return nil end
@@ -351,23 +420,67 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     end
   end
 
-  -- 3. Check Engine Logs (Unity / Godot) if game_title provided
-  if game_title and #game_title > 0 and userprofile and #userprofile > 0 then
-    local possible_logs = {
-      userprofile .. "\\AppData\\LocalLow\\" .. game_title .. "\\Player.log",
-      appdata .. "\\Godot\\app_userdata\\" .. game_title .. "\\logs\\godot.log",
-    }
+  -- 3. Check Engine Logs (Unity / Godot / Unreal) using both the Steam title
+  -- and, where available, the shortcut's executable-derived project codename.
+  -- Unreal Engine games are frequently distributed under an internal project
+  -- name distinct from their storefront title (e.g. "Project_Plague.exe" for
+  -- "WUCHANG: Fallen Feathers"), so title-only folder lookups miss them.
+  local exe_path = sc_match and sc_match.exe or nil
+  if (game_title and #game_title > 0 or exe_path) and userprofile and #userprofile > 0 then
+    local possible_logs = {}
+    local folder_candidates = M.get_possible_folder_names(game_title, exe_path)
+
+    for _, name in ipairs(folder_candidates) do
+      possible_logs[#possible_logs + 1] = userprofile .. "\\AppData\\LocalLow\\" .. name .. "\\Player.log"
+      possible_logs[#possible_logs + 1] = appdata .. "\\Godot\\app_userdata\\" .. name .. "\\logs\\godot.log"
+      possible_logs[#possible_logs + 1] = localappdata .. "\\" .. name .. "\\Saved\\Logs\\" .. name .. ".log"
+    end
+
     for _, logpath in ipairs(possible_logs) do
-      if file_exists(logpath) then
+      if logpath and file_exists(logpath) then
         local detected = M.scan_log_for_unlocks(logpath)
         for id, info in pairs(detected) do
           candidate_unlocks[id] = info
         end
       end
     end
+
+    -- Fallback: if a Saved\Logs directory exists for a candidate but the
+    -- conventional "<Project>.log" filename doesn't match, tail the most
+    -- recently modified *.log file in that directory instead.
+    local fs_ok, fs = pcall(require, "fs")
+    if fs_ok and fs and fs.list and fs.is_directory then
+      for _, name in ipairs(folder_candidates) do
+        local log_dir = localappdata .. "\\" .. name .. "\\Saved\\Logs"
+        local exact = log_dir .. "\\" .. name .. ".log"
+        if not file_exists(exact) and fs.is_directory(log_dir) then
+          local ok, entries = pcall(fs.list, log_dir)
+          if ok and entries then
+            local newest_path, newest_mtime = nil, -1
+            for _, entry in ipairs(entries) do
+              local ename = entry.name or entry.path
+              if ename and tostring(ename):match("%.[Ll][Oo][Gg]$") then
+                local full = entry.path or (log_dir .. "\\" .. ename)
+                local mtime = (fs.last_write_time and fs.last_write_time(full)) or 0
+                if mtime > newest_mtime then
+                  newest_mtime = mtime
+                  newest_path = full
+                end
+              end
+            end
+            if newest_path then
+              local detected = M.scan_log_for_unlocks(newest_path)
+              for id, info in pairs(detected) do
+                candidate_unlocks[id] = info
+              end
+            end
+          end
+        end
+      end
+    end
   end
 
-  -- 3. Match Candidates Against Schema & Record Unlocks
+  -- 4. Match Candidates Against Schema & Record Unlocks
   local new_unlocks = {}
   for raw_id, info in pairs(candidate_unlocks) do
     local canonical = M.resolve_canonical_item(raw_id, schema_achievements)

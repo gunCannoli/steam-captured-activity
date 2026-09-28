@@ -7,6 +7,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Unreal Engine Project Codename Discovery for Achievement Log Tailing (2026-09-28)**:
+  - *Problem*: Engine-log achievement detection (`achievements_observer.check_unlocks`) only ever
+    tried `%LOCALAPPDATA%\<game_title>\...`. Unreal Engine games frequently ship under an internal
+    project codename distinct from their storefront title — e.g. `"WUCHANG: Fallen Feathers"`
+    ships as `Project_Plague.exe` and writes logs to
+    `%LOCALAPPDATA%\Project_Plague\Saved\Logs\Project_Plague.log` — so title-only lookups never
+    found the log and local achievement detection silently never fired for such games.
+  - *Fix*: Added `M.get_possible_folder_names(game_title, exe_path)` to `achievements_observer.lua`,
+    deriving a deduplicated candidate list: the shortcut executable's base name (directories,
+    `.exe`, and Unreal shipping/test/debug suffixes like `-Win64-Shipping` stripped, checked
+    first), the exact title, punctuation-normalized variants (colon/en dash/em dash), `snake_case`,
+    and the pre-colon/dash prefix. `check_unlocks` now reuses the shortcut's `exe` path (already
+    resolved for the RetroArch/emulator log channel — no new RPC/frontend plumbing needed) and
+    checks each candidate against `Player.log`, `godot.log`, and `Saved\Logs\<Candidate>.log`,
+    with a fallback that tails the newest `*.log` in a candidate's `Saved\Logs\` directory when no
+    exact filename match exists. Existing Goldberg/CODEX/RUNE/emulator channels are untouched.
+  - *Tests*: Added `achievements_observer.get_possible_folder_names` unit cases to
+    `tests/test_backend.lua` (exe-basename derivation from a real shipping-suffix path, title
+    fallback with no exe, plain exe basename stripping).
+  - See [docs/steam-cartridges-achievements.md § Channel 3](../docs/steam-cartridges-achievements.md#channel-3-multi-engine-runtime-log--data-tailers).
+
 - **Desktop Game Info Drawer & ⓘ Button Toggle Restoration (2026-09-28)**:
   - PlayBar ⓘ Button Restoration: Restored the native ⓘ ("Show game details" / "Hide game details") button on the desktop PlayBar (`XC` / `be` in module `56262`) for non-Steam shortcuts.
   - Section Filter Optimization: Re-enabled `"info"` in `RESTORED_SECTIONS` and automatically drop the redundant grey shortcut explanation `"nonsteam"` once metadata is populated, letting the native Game Info accordion expand cleanly without warnings.
