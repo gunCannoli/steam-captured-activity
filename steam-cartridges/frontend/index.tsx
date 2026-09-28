@@ -41,6 +41,7 @@ import {
 import { initSettings, resetSettings, setSetting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
+import { triggerSync } from "./features/scraper/sync-manager";
 
 export { setSetting, resetSettings };
 export { bucketReport, loadAutoRoutingProfiles };
@@ -281,6 +282,8 @@ async function init() {
     });
 
     logger.info("Ready. Non-Steam games now use Steam's own detail sections.");
+    // Automatically start background sync for un-scraped games after startup
+    triggerSync(3000);
 }
 
 export default definePlugin(() => {

@@ -23,7 +23,6 @@ import {
     type ConditionType,
     type AutoRoutingProfile,
     isServiceAllowed,
-    matchesRegex,
 } from "../features/buckets/resolve";
 import { type ConsolidatedMetadata } from "../rpc";
 import { getLocalAchievements } from "../features/achievements";
@@ -31,6 +30,7 @@ import {
     loadControllerInference,
     getInferredControllerSupport,
 } from "../features/game-info/controller";
+import { useSyncProgress, triggerSync } from "../features/scraper/sync-manager";
 
 /**
  * Compact row wrapper to reduce inter-item vertical spacing and
@@ -269,6 +269,7 @@ function MetadataSection() {
         } else if (id === "igdb") {
             setServices({ ...services, igdbEnabled: false });
         }
+        triggerSync(250);
     };
 
     const handleOpenAddModal = () => {
@@ -286,6 +287,7 @@ function MetadataSection() {
 
         if (selectedService === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
+            triggerSync(250);
             setStatusMsg("✓ Steam Store Mirror enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
@@ -309,6 +311,7 @@ function MetadataSection() {
             });
             if (res.success) {
                 setServices({ ...services, screenscraperEnabled: true });
+                triggerSync(250);
                 refresh();
                 setStatusMsg("✓ ScreenScraper registered & verified!");
                 setTimeout(() => {
@@ -336,6 +339,7 @@ function MetadataSection() {
             });
             if (res.success) {
                 setServices({ ...services, igdbEnabled: true });
+                triggerSync(250);
                 refresh();
                 setStatusMsg("✓ IGDB registered & verified!");
                 setTimeout(() => {
@@ -622,6 +626,7 @@ function AchievementsSection() {
                 rpcs3Enabled: false,
             });
         }
+        triggerSync(250);
     };
 
     const handleOpenAddModal = () => {
@@ -639,6 +644,7 @@ function AchievementsSection() {
 
         if (sourceToRegister === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
+            triggerSync(250);
             setRaMsg("✓ Steam Store Mirror enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
@@ -654,6 +660,7 @@ function AchievementsSection() {
                 emulatorsEnabled: true,
                 rpcs3Enabled: true,
             });
+            triggerSync(250);
             setRaMsg("✓ Console Emulators enabled!");
             setTimeout(() => {
                 setShowAddModal(false);
@@ -675,6 +682,7 @@ function AchievementsSection() {
             });
             if (res.success) {
                 setServices({ ...services, retroachievementsEnabled: true });
+                triggerSync(250);
                 refreshRetro();
                 setRaMsg("✓ RetroAchievements verified & connected!");
                 setTimeout(() => {
@@ -1055,7 +1063,6 @@ function RulesSection() {
         useState<ConditionType>("collection");
     const [pattern, setPattern] = useState("");
     const [suggestionFilter, setSuggestionFilter] = useState("");
-    const [syncStatus, setSyncStatus] = useState("");
 
     // Collections & Shortcuts for suggestions
     const collections = listCollections();
@@ -1172,60 +1179,10 @@ function RulesSection() {
         setRules(copy);
         setShowAddModal(false);
 
-        // Find matching shortcuts to scrape metadata & achievements in background
-        const patternParts = pattern
-            .split(",")
-            .map((s) => s.trim().toLowerCase())
-            .filter(Boolean);
-        const collMembersMap: Record<string, Set<number>> = {};
-        for (const c of collections) {
-            const members = membersOf(c.id);
-            collMembersMap[c.name.toLowerCase()] = new Set(
-                members ? Array.from(members) : [],
-            );
-        }
-
-        const matchedShortcuts = shortcuts.filter((sc) => {
-            if (conditionType === "regex") {
-                return matchesRegex(pattern, sc.name);
-            }
-            if (conditionType === "game_name") {
-                const sName = sc.name.toLowerCase();
-                return patternParts.some(
-                    (p) => sName.includes(p) || sName === p,
-                );
-            }
-            if (conditionType === "collection") {
-                return patternParts.some((colPattern) => {
-                    const set = collMembersMap[colPattern];
-                    return set ? set.has(sc.appid) : false;
-                });
-            }
-            return true;
-        });
-
-        if (matchedShortcuts.length > 0) {
-            setSyncStatus(`Syncing rule: re-scraping ${matchedShortcuts.length} matching game(s)...`);
-            const batchSize = 4;
-            for (let i = 0; i < matchedShortcuts.length; i += batchSize) {
-                const batch = matchedShortcuts.slice(i, i + batchSize);
-                await Promise.all(
-                    batch.map(async (sc) => {
-                        await rpc.refreshGameMetadata(sc.appid, sc.name).catch(() => {});
-                        await rpc.cartridgesAchievementsGet(sc.appid, sc.appid).catch(() => {});
-                    })
-                );
-                setSyncStatus(`Syncing: ${Math.min(i + batchSize, matchedShortcuts.length)} / ${matchedShortcuts.length}...`);
-            }
-            setSyncStatus(`Synced ${matchedShortcuts.length} game(s) successfully!`);
-            setTimeout(() => setSyncStatus(""), 4000);
-        } else {
-            setSyncStatus("Rule saved (0 matching shortcuts)");
-            setTimeout(() => setSyncStatus(""), 3000);
-        }
         window.dispatchEvent(
             new CustomEvent("steam-cartridges:rule-updated"),
         );
+        triggerSync(100);
     };
 
     const handleDelete = (index: number) => {
@@ -1235,6 +1192,7 @@ function RulesSection() {
         window.dispatchEvent(
             new CustomEvent("steam-cartridges:rule-updated"),
         );
+        triggerSync(100);
     };
 
     return (
@@ -1248,6 +1206,9 @@ function RulesSection() {
                     window.dispatchEvent(
                         new CustomEvent("steam-cartridges:rule-updated"),
                     );
+                    if (val) {
+                        triggerSync(100);
+                    }
                 }}
             />
 
@@ -1340,11 +1301,6 @@ function RulesSection() {
                     >
                         + Add Rule
                     </DialogButton>
-                    {syncStatus && (
-                        <span style={{ fontSize: "11px", color: "#66c0f4", fontWeight: 600 }}>
-                            {syncStatus}
-                        </span>
-                    )}
                 </div>
             </ItemRow>
 
@@ -1787,7 +1743,6 @@ function RevisionSection() {
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
     const [steamIdInput, setSteamIdInput] = useState("");
     const [fixMsg, setFixMsg] = useState("");
-    const [isScanningAll, setIsScanningAll] = useState(false);
 
     const shortcuts = listShortcuts();
 
@@ -1943,27 +1898,12 @@ function RevisionSection() {
         }
     };
 
-    const handleScanAllUnscraped = async () => {
-        setIsScanningAll(true);
-        setFixMsg(`Scanning ${notScraped.length} unscraped games...`);
-        const batchSize = 4;
-        for (let i = 0; i < notScraped.length; i += batchSize) {
-            const batch = notScraped.slice(i, i + batchSize);
-            await Promise.all(
-                batch.map(async (item) => {
-                    await rpc.refreshGameMetadata(item.appid, item.name).catch(() => {});
-                    await rpc
-                        .cartridgesAchievementsGet(item.appid, 0)
-                        .catch(() => {});
-                })
-            );
-            setFixMsg(`Scanned ${Math.min(i + batchSize, notScraped.length)} / ${notScraped.length}...`);
-            await refreshAuditData();
+    // Automatically trigger background scraping when Auto-Mode is enabled and games await scraping
+    useEffect(() => {
+        if (autoModeEnabled && notScraped.length > 0) {
+            triggerSync(500);
         }
-        setIsScanningAll(false);
-        setFixMsg("Batch scan complete!");
-        setTimeout(() => setFixMsg(""), 3000);
-    };
+    }, [autoModeEnabled, notScraped.length]);
 
     const handleScanSingle = async (appid: number, name: string) => {
         setFixMsg(`Scanning ${name}...`);
@@ -2013,15 +1953,7 @@ function RevisionSection() {
                 </Field>
             </ItemRow>
             <ItemRow>
-                <div
-                    style={{
-                        marginTop: "4px",
-                        display: "flex",
-                        gap: "8px",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                    }}
-                >
+                <div style={{ marginTop: "4px" }}>
                     <DialogButton
                         onClick={() => setIsAuditModalOpen(true)}
                         style={{
@@ -2032,21 +1964,6 @@ function RevisionSection() {
                     >
                         Review
                     </DialogButton>
-                    {notScraped.length > 0 && (
-                        <DialogButton
-                            onClick={handleScanAllUnscraped}
-                            disabled={isScanningAll}
-                            style={{
-                                padding: "0 14px",
-                                minWidth: 0,
-                                width: "auto",
-                            }}
-                        >
-                            {isScanningAll
-                                ? "Scanning..."
-                                : `🔄 Scan All Unscraped (${notScraped.length})`}
-                        </DialogButton>
-                    )}
                 </div>
             </ItemRow>
             {fixMsg && !isAuditModalOpen && (
@@ -2164,22 +2081,8 @@ function RevisionSection() {
                     >
                         <span style={{ fontSize: "11px", opacity: 0.7 }}>
                             {notScraped.length} game(s) awaiting initial
-                            scraping.
+                            scraping (automatically scraped in the background).
                         </span>
-                        <DialogButton
-                            onClick={handleScanAllUnscraped}
-                            disabled={isScanningAll || notScraped.length === 0}
-                            style={{
-                                padding: "0 10px",
-                                minWidth: 0,
-                                width: "auto",
-                                fontSize: "11px",
-                            }}
-                        >
-                            {isScanningAll
-                                ? "Scanning..."
-                                : "🔄 Scan All Unscraped"}
-                        </DialogButton>
                     </div>
                 )}
 
@@ -2595,6 +2498,105 @@ function RevisionSection() {
 // Main SettingsPanel Export
 // ===========================================================================
 
+function SyncProgressBar() {
+    const progress = useSyncProgress();
+
+    if (!progress.isSyncing && progress.phase !== "complete") {
+        return null;
+    }
+
+    const percent = Math.min(
+        100,
+        Math.round((progress.current / Math.max(1, progress.total)) * 100),
+    );
+
+    return (
+        <div
+            style={{
+                position: "sticky",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background:
+                    progress.phase === "complete"
+                        ? "rgba(16, 34, 24, 0.96)"
+                        : "rgba(16, 24, 34, 0.96)",
+                backdropFilter: "blur(8px)",
+                borderTop:
+                    progress.phase === "complete"
+                        ? "1px solid rgba(164, 208, 7, 0.4)"
+                        : "1px solid rgba(102, 192, 244, 0.3)",
+                padding: "10px 16px",
+                zIndex: 100,
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                marginTop: "16px",
+                borderRadius: "4px",
+                boxShadow: "0 -4px 16px rgba(0, 0, 0, 0.4)",
+            }}
+        >
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "12px",
+                }}
+            >
+                <span
+                    style={{
+                        fontWeight: 600,
+                        color:
+                            progress.phase === "complete"
+                                ? "#a4d007"
+                                : "#66c0f4",
+                    }}
+                >
+                    {progress.phase === "complete"
+                        ? `✓ Scrape & mirror complete (${progress.total} games)`
+                        : `🔄 Scraping & Mirroring: ${progress.current} / ${progress.total} games (${percent}%)`}
+                </span>
+                {progress.isSyncing && (
+                    <span
+                        style={{
+                            color: "#8ba5b7",
+                            fontSize: "11px",
+                            maxWidth: "240px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        {progress.currentGame}
+                    </span>
+                )}
+            </div>
+            {progress.isSyncing && (
+                <div
+                    style={{
+                        width: "100%",
+                        height: "6px",
+                        background: "rgba(255, 255, 255, 0.1)",
+                        borderRadius: "3px",
+                        overflow: "hidden",
+                    }}
+                >
+                    <div
+                        style={{
+                            width: `${percent}%`,
+                            height: "100%",
+                            background:
+                                "linear-gradient(90deg, #1a9fff, #66c0f4)",
+                            transition: "width 0.25s ease-out",
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function SettingsPanel() {
     const [, tick] = useState(0);
 
@@ -2612,6 +2614,8 @@ export function SettingsPanel() {
             <ActivitySection />
             <RulesSection />
             <RevisionSection />
+            <SyncProgressBar />
         </>
     );
 }
+

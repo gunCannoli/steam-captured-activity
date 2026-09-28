@@ -10,7 +10,8 @@ This repo is private and unversioned; entries are grouped by date.
 - **`steam-cartridges` Auto-Mode Routing & Game Classification Engine (2026-09-27)**:
   - *Auto-Mode Routing Toggle & Service Filtering*:
     - Added an Auto-Mode toggle (`autoRoutingMode: boolean`, default `true`) in Settings under Routing Rules with concise description: `"Auto fetches metadata and achievements of the enabled services"`.
-    - Added one-click `[ 🔄 Scan All Unscraped ]` button directly to the main Library Audit card with live per-batch counter and decrementing progress.
+    - Added reactive background scraping engine (`frontend/features/scraper/sync-manager.ts`) triggered automatically whenever settings are configured (Auto-Mode enabled, rules created/edited/deleted, services enabled).
+    - Dropped manual batch scan button in favor of an automatic sticky bottom progress bar (`<SyncProgressBar />`) showing live percentage, count, and active game being scraped.
     - When enabled, automatically infers which services are allowed for each non-Steam shortcut based on its executable target and launch options:
       - **Retro games** (e.g. RetroArch running arcade/console cores): Enables `retroachievements` + web scraping metadata (`igdb`, `screenscraper`, `steamgriddb`); disallows `steam_store` and `console_emulators`.
       - **Console Emulators** (RPCS3, shadPS4, DuckStation, PCSX2, Dolphin, etc.): Enables `console_emulators` + web scraping metadata; disallows `steam_store` and `retroachievements`.
