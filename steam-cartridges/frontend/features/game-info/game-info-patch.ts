@@ -63,13 +63,8 @@ export function getSteamRequire(): WebpackRequire | undefined {
 
 let cachedDetailsStore: any = undefined;
 let cachedAppStore: any = undefined;
-let onTriggerAppView: ((appid: number) => void) | undefined;
 let onGetMetadata: ((appid: number) => any) | undefined;
 let onEnrichGameDetails: ((appid: number, meta: any) => boolean) | undefined;
-
-export function setAppViewTrigger(fn: (appid: number) => void): void {
-    onTriggerAppView = fn;
-}
 
 export function setMetadataResolver(
     getMeta: (appid: number) => any,
@@ -131,15 +126,8 @@ export function refreshGameInfoInstances(): void {
         if (bpmDoc && !docs.includes(bpmDoc)) {
             docs.push(bpmDoc);
         }
-        if (popupMgr?.m_mapPopups) {
-            for (const popup of popupMgr.m_mapPopups.values()) {
-                const doc =
-                    popup?.m_popup?.window?.document || popup?.window?.document;
-                if (doc && !docs.includes(doc)) {
-                    docs.push(doc);
-                }
-            }
-        }
+        // Only the main window and Big Picture host Game Info. Never walk other popups
+        // (Properties, dialogs): force-updating their trees hung SharedJSContext (M0a).
     } catch {}
 
     // In each document, locate mounted Game Info / Shortcut components and force update
@@ -159,14 +147,8 @@ export function refreshGameInfoInstances(): void {
             while (fiber) {
                 if (
                     fiber.type &&
-                    (fiber.type.name === "k" ||
-                        fiber.type.name === "G" ||
-                        fiber.type.name === "ct" ||
-                        fiber.type.name === "be" ||
-                        Boolean(fiber.type.s_setGameInfoVisible) ||
-                        typeof fiber.type.prototype?.onCollapseStarted ===
-                            "function" ||
-                        typeof fiber.type === "function")
+                    (fiber.type.__nsga_props_hooked === true ||
+                        fiber.type.__nsga_gameinfo_patched === true)
                 ) {
                     const inst = fiber.stateNode;
                     if (inst) {
@@ -327,7 +309,6 @@ function hookComponentProps(
     componentClass: any,
     options: {
         requireMetadata?: boolean;
-        onView?: boolean;
     },
 ): void {
     if (
@@ -356,9 +337,6 @@ function hookComponentProps(
                         overview.BIsModOrShortcut())
                 ) {
                     const rawAppid = overview.appid >>> 0;
-                    if (options.onView) {
-                        onTriggerAppView?.(rawAppid);
-                    }
 
                     if (options.requireMetadata) {
                         const store = getAppDetailsStore();
@@ -469,11 +447,9 @@ function patchKComponent(k: any): boolean {
                     store?.GetAppData?.(overview.appid) ||
                     store?.GetAppData?.(rawAppid);
 
-                if (
-                    !appData?.descriptionsData?.strSnippet &&
-                    onGetMetadata &&
-                    onEnrichGameDetails
-                ) {
+                // Every render re-checks: enrichGameDetails is a no-op while our data is
+                // live, and re-applies once after Steam rebuilds the overview (M0a).
+                if (onGetMetadata && onEnrichGameDetails) {
                     const meta =
                         onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
                     if (meta) {
@@ -601,7 +577,6 @@ export function patchGameInfoComponent(): boolean {
             targetG.__nsga_g_patched = true;
             hookComponentProps(targetG, {
                 requireMetadata: true,
-                onView: true,
             });
 
             const origGRender = targetG.prototype.render;
@@ -619,15 +594,15 @@ export function patchGameInfoComponent(): boolean {
                                 overview.BIsModOrShortcut()))
                     ) {
                         const rawAppid = overview.appid >>> 0;
-                        onTriggerAppView?.(rawAppid);
 
                         const store = getAppDetailsStore();
                         let appData =
                             store?.GetAppData?.(overview.appid) ||
                             store?.GetAppData?.(rawAppid);
 
+                        // Every render re-checks: enrichGameDetails is a no-op while our data is
+                        // live, and re-applies once after Steam rebuilds the overview (M0a).
                         if (
-                            !appData?.descriptionsData?.strSnippet &&
                             onGetMetadata &&
                             onEnrichGameDetails
                         ) {

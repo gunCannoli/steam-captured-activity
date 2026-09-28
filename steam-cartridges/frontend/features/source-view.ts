@@ -8,7 +8,6 @@ import { watchGamepadAppid } from "../steam/gamepad-appid";
 import { appIdFromPath, isNonSteamAppId } from "../steam/route";
 import { getBucket, waitForCollections } from "./buckets";
 import { handleWebScrapingView } from "./game-info";
-import { setAppViewTrigger } from "./game-info/game-info-patch";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { storeEnrichedAppIds } from "./steam-store/enriched";
 import { loadAchievementsForApp } from "./achievements";
@@ -65,14 +64,16 @@ export async function onSourceView(appid: number): Promise<void> {
     }
 }
 
-/** Wires every place a game page can open (game-info patch, Big Picture, desktop). */
+/**
+ * Wires every place a game page can open (Big Picture, desktop). A Steam render never
+ * triggers a view: that closed a render -> enrich -> re-render loop (M0a).
+ */
 export function initSourceView(): void {
     void waitForCollections().then(() => {
         const list = [...deferred];
         deferred.clear();
         list.forEach((a) => void onSourceView(a));
     });
-    setAppViewTrigger((appid) => void onSourceView(appid));
 
     // Big Picture renders through a SharedJSContext portal; react/jsx-runtime
     // interception captures the active appid without depending on popups.

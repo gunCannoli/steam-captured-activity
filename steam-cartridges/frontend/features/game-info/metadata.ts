@@ -55,6 +55,40 @@ interface Originals {
 /** Values Steam had before our first enrichment, per appid (for revert). */
 const originals = new Map<number, Partial<Originals>>();
 
+/**
+ * What enrichGameDetails last wrote, per unsigned appid. A repeat call with the same
+ * metadata and badges, while Steam still holds our descriptionsData object, writes
+ * nothing: a rewrite calls AppDetailsChanged, which re-renders Game Info, and a render
+ * must never cause another render (M0a: render feedback loop hung SharedJSContext).
+ */
+const applied = new Map<
+    number,
+    { signature: string; descriptionsData: unknown; categoryIds: number[] }
+>();
+
+/** JSON of each metadata object, computed once (renders call enrichGameDetails). */
+const metaJson = new WeakMap<object, string>();
+
+/**
+ * Steam rebuilds an AppOverview's fields when it refreshes the app, which drops our
+ * release date and badge categories. The enrichment is only live if they are still there.
+ */
+function overviewStillEnriched(
+    overview: any,
+    meta: ConsolidatedMetadata,
+    categoryIds: number[],
+): boolean {
+    if (!overview) return false;
+    if (meta.release_date && meta.release_date > 0) {
+        const expected = meta.original_release_date || meta.release_date;
+        if (overview.rt_original_release_date !== expected) return false;
+    }
+    for (const id of categoryIds) {
+        if (!overview.m_setStoreCategories?.has?.(id)) return false;
+    }
+    return true;
+}
+
 function recordOriginals(appid: number, appData: any, overview: any): void {
     const saved = originals.get(appid) ?? {};
     if (appData && !("descriptionsData" in saved)) {
@@ -95,6 +129,7 @@ export function revertGameDetails(appid: number): void {
         const uAppid = appid >>> 0;
         originals.delete(appid);
         originals.delete(uAppid);
+        applied.delete(uAppid);
         clearAppCategories(appid);
         unmarkAppEnriched(appid);
         try {
@@ -120,6 +155,32 @@ export function enrichGameDetails(
     try {
         let touched = false;
         const uAppid = appid >>> 0;
+
+        // Idempotent (M0a): identical data already live in Steam -> no write, no re-render.
+        let json = metaJson.get(meta);
+        if (json === undefined) {
+            json = JSON.stringify(meta);
+            metaJson.set(meta, json);
+        }
+        const categoryIds = badgeCategoryIds(meta, controllerContext(uAppid));
+        const signature = json + "|" + categoryIds.join(",");
+        const previous = applied.get(uAppid);
+        if (previous && previous.signature === signature) {
+            const liveData =
+                getAppDetailsStore()?.GetAppData?.(uAppid) ||
+                getAppDetailsStore()?.GetAppData?.(appid | 0);
+            const liveOverview =
+                getAppStore()?.GetAppOverviewByAppID?.(uAppid) ||
+                getAppStore()?.GetAppOverviewByAppID?.(appid | 0);
+            if (
+                liveData &&
+                liveData.descriptionsData === previous.descriptionsData &&
+                overviewStillEnriched(liveOverview, meta, previous.categoryIds)
+            ) {
+                return true;
+            }
+        }
+
         markAppEnriched(uAppid);
 
         const developers = toArray<string>(meta.developers);
@@ -161,6 +222,11 @@ export function enrichGameDetails(
                         detailsStore.AppDetailsChanged(uAppid);
                     } catch {}
                 }
+                applied.set(uAppid, {
+                    signature,
+                    descriptionsData: appData.descriptionsData,
+                    categoryIds,
+                });
                 touched = true;
             }
         }

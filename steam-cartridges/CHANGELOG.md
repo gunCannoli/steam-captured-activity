@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: Steam's UI froze when opening Properties of a non-Steam game (2026-09-28)**: Game Info no longer re-renders itself in a loop (it ran ~150 times a second on every non-Steam game page). Release date and badges are re-applied after Steam refreshes a game.
+
 - **Unreal Engine Project Codename Discovery for Achievement Log Tailing (2026-09-28)**:
   - *Problem*: Engine-log achievement detection (`achievements_observer.check_unlocks`) only ever
     tried `%LOCALAPPDATA%\<game_title>\...`. Unreal Engine games frequently ship under an internal

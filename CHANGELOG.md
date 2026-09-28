@@ -7,6 +7,10 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Properties-dialog hang fixed (migration M0a, 2026-09-28)**:
+  - Root cause: a render feedback loop (render → view pipeline → enrichment → force-update of every ancestor in every window, including Properties), ~150 rounds/s on every shortcut page; Properties made it saturate the shared renderer. Evidence and fix: [migration plan § 1.3](docs/plans/steam-cartridges-architecture-migration-plan.md#13-confirmed-crash-a-render-feedback-loop-live-debugged-2026-09-28).
+  - Fix: renders never trigger views; `enrichGameDetails` is idempotent and re-checks overview fields Steam rebuilds; `refreshGameInfoInstances` only touches our patched components in the main and Big Picture windows. New guardrail 17 in docs/plugins.md.
+
 - **LuaJIT installed for the backend tests (2026-09-28)**: built LuaJIT 2.1 (commit `c6ffc14`) from the official source with MinGW into `C:\dev\tools\lua` (on the user `PATH`, with a `lua.exe` copy; only Windows system DLLs), because the backend needs LuaJIT's `ffi`. First-ever run of the Lua suites here: `test_steam_store.lua` and `test_emulator_controllers.lua` ALL PASS; `test_backend.lua` 76 PASS / 2 FAIL: a real bug in `22bac99`'s title normalization (colon → double space; en/em dash replaced byte by byte; migration plan § 12 K7) and fixture drift (216 → 215 RetroArch shortcuts, K8). Unblocks migration M4–M7 (K5 resolved). AGENTS.md Routine 4, plugins.md § Test and TASK.md updated.
 
 - **Properties-dialog crash root-caused; migration plan made executable; docs restructured (2026-09-28)**:

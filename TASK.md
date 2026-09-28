@@ -26,8 +26,8 @@ on `steam-cartridges` until M3 is done).
 
 The crash is root-caused and the fix is validated live (plan § 1.3): a render feedback
 loop that ran ~150 times a second on every shortcut page; opening **Properties**
-saturated Steam's shared renderer. The plugin stays **uninstalled** until M0a lands.
-Next: execute **M0a** (render-loop fix, Ready), then M0b-1, M0c, M1 (all Ready, in
+saturated Steam's shared renderer.
+M0a done (render loop fixed). Next: execute **M0b-1**, then M0c, M1 (all Ready, in
 that order; the plan's § 0 is the execution manual).
 
 ## Next
