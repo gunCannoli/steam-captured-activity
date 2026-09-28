@@ -20,8 +20,9 @@ theme Steam's toasts and sounds.
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
 [steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md).
-Waiting on the user's review of its §4, §5 and §11 questions, then ADR-0039, then
-child plan M0a (crash triage). Feature freeze on `steam-cartridges` until M3 is done.
+Accepted as [ADR-0039](docs/decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)
+(pipeline in the backend, new shortcuts fetched in the background, feature freeze
+on `steam-cartridges` until M3 is done). Next: write and run child plan **M0a (crash triage)**.
 
 ## Next
 

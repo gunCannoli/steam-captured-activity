@@ -1,11 +1,11 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Draft · roadmap for review. No code changes until the user accepts §4 and §5.
+**Status:** Accepted 2026-09-28 · roadmap. Next: child plan M0a.
 **Kind:** Umbrella plan. It sets the target architecture, the migration order and
 the rules every child plan must follow. It has no before/after code blocks: each
 child plan in §7 is written separately, to [the plan writing standard](README.md),
 right before it is executed, against the code as it is on that day.
-**Needs:** a new ADR (ADR-0039, §9) accepted by the user before child plan M1 starts.
+**ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md)
 
 ---
@@ -172,7 +172,7 @@ Games that are never opened are never fetched again. The startup batch
 | Module | May import | Must never import |
 | --- | --- | --- |
 | `kernel/` | nothing of ours | Steam, `@steambrew/*`, RPC, any other folder |
-| `domain/` (pure policy: routing rules, freshness, normalization) | `kernel/` | Steam, RPC, sensors, surfaces |
+| `domain/` (pure frontend policy: display rules, normalization; routing and freshness live in the backend per §11) | `kernel/` | Steam, RPC, sensors, surfaces |
 | `sensors/` | `kernel/`, `steam/` (read-only resolution) | `surfaces/`, `app/`, other sensors |
 | `app/` (use cases, orchestration) | `kernel/`, `domain/`, `ports/` | `steam/`, `surfaces/`, `sensors/` internals |
 | `ports/backend/` | `kernel/` | everything else |
@@ -331,7 +331,7 @@ wrapped in its own try/catch and O(1).
 | New achievement source (e.g. Xenia) | `src_xenia.lua`, the achievements source list | game-info, captures, sections |
 | New thing shown on the page from existing data | one new surface folder + its `touches` | services, other surfaces |
 | New record field | `kernel/record.ts` (additive), the producing service, the consuming surface | everything else |
-| New routing rule type | `domain/routing/` + its tests | surfaces, services |
+| New routing rule type | backend `resolve_policy.lua` + its Lua tests | surfaces, other services |
 
 A child plan whose diff crosses more boundaries than its row allows must explain why
 in its root-cause section, or it is rejected.
@@ -368,7 +368,7 @@ the baseline changes only through an accepted ADR).
 2. `npm run check` in `steam-cartridges/` exits 0 with no output after the npm banner.
 3. `npm run test:ts` ends `ℹ fail 0`. Record the pass count; the dataflow audit recorded 64.
 4. `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua` ends with 0 failures. Record the count.
-5. ADR-0039 (§9) accepted by the user.
+5. ADR-0039 (§9) accepted — done 2026-09-28.
 
 ---
 
@@ -385,7 +385,7 @@ the services. Each row is one plan file, `docs/plans/steam-cartridges-arch-<id>-
 | **M1** | Kernel | `kernel/appid.ts`, `events.ts`, `record.ts`, `surface.ts`, with unit tests. Nothing uses them yet. | New tests pass; plugin bundle unchanged in behaviour |
 | **M2** | Sensors | `view-sensor` + `lifecycle-sensor` replace the §1.4 detectors; `source-view.ts` becomes a subscriber; the getter-side `onTriggerAppView` is deleted. Then `collections-sensor`. | One `shortcut.viewed` per navigation (logged); nav cycle passes |
 | **M3.1–M3.10** | Surfaces, one plan each, in this order: `sections` → `captures` → `game-info` → `playbar` → `achievements` → `toasts` → `native-links` → `community` → `artwork` → `library-home` | Move the code behind `Surface`, read from the record instead of feature-module state, register its jsx handler on the shared hook. The allowlist shrinks each time. | Baseline reproduced; that surface's allowlist entries removed |
-| **M4** | Resolver service | Routing policy to `domain/routing/` (pure, existing `routing-rules`/`buckets` tests move with it); identity resolution to backend `resolve_*`; negative TTL fix (dataflow Finding 4) kept. | Jotunnslayer parity 17/0; every shortcut's `identity` part populated or `unsupported` |
+| **M4** | Resolver service | Routing policy (buckets, auto-routing) ported to backend `resolve_policy.lua`, with the `routing-rules`/`buckets` TS tests ported to Lua first as the parity oracle; the frontend passes collection membership + owned-app candidates as context; identity resolution to backend `resolve_*`; negative TTL fix (dataflow Finding 4) kept. | Jotunnslayer parity 17/0; every shortcut's `identity` part populated or `unsupported` |
 | **M5** | Metadata service | Metadata sources behind the source contract; `GetGameRecord` serves `metadata`; the `game-info` surface reads only the record. | 220/220 coverage unchanged; AM2R Game Info intact with bucket `none` ([ADR-0035](../decisions.md#adr-0035-local-game-info-is-a-capture-tier-feature-buckets-gate-only-fetching)) |
 | **M6** | Achievements service | Sources + observer channels behind the contract; Flow C events; the toast and achievements surfaces subscribe. Absorbs open items of the achievements, native-mirror and retrogames plans. | Animaniacs 0/98, Castlevania 66, live unlock toast on a real run (user test) |
 | **M7** | Freshness + ingestion | Flow B (24 h per part, on view only) and "new shortcut" ingestion replace `sync-manager` batch and `on-update.ts`. | No network calls for an unopened game over a session (logged); stale part refreshed on open |
@@ -467,9 +467,9 @@ check differs from `tests/baseline/`, stop. Do not update the baseline.
 
 ---
 
-## 9. ADR to write before M1
+## 9. ADR
 
-**ADR-0039: steam-cartridges is a ports-and-adapters modular monolith; only surfaces
+**[ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted):** steam-cartridges is a ports-and-adapters modular monolith; only surfaces
 write to Steam.** It records §3 (options), §4.1 (dependency rule), §4.4 (surfaces,
 isolation, kill switches, safe mode) and the `GameRecord` read model. It amends
 [ADR-0004](../decisions.md#adr-0004-backend-owns-all-io-and-merging-the-frontend-only-renders)
@@ -489,14 +489,13 @@ git commit -m "docs(plans): steam-cartridges architecture migration plan (ports 
 
 With the attribution line from the session's system instructions. This repo is exempt from Routine 6.
 
-## 11. Open questions for the user
+## 11. User decisions (2026-09-28)
 
-1. **Where should orchestration live?** This plan puts resolution, freshness and
-   metadata/achievement selection in the **backend** (M4–M7). They are testable in
-   Lua without Steam, and the frontend becomes sensors + surfaces. The alternative is
-   to keep orchestration in a frontend `app/` layer, which is cheaper to migrate but
-   leaves more logic in the shared JS context. Recommended: backend.
-2. **Startup batch.** Flow B says "only when the page is opened". Should brand-new
-   shortcuts still be fetched in the background at startup (as Flow A says "once added"),
-   or also only on first open? Recommended: background for new shortcuts only, rate-limited.
-3. **Feature freeze** until M3 completes (§5): accepted?
+1. **Pipeline logic lives in the backend** (M4–M7): resolution, freshness and
+   metadata/achievement selection. The frontend is sensors, surfaces and a thin `app/`
+   that calls `GetGameRecord` / `EnsureFresh`.
+2. **New shortcuts are fetched in the background** at startup, rate-limited. All
+   other refreshes happen only when the page is opened (Flow B).
+3. **Feature freeze** on `steam-cartridges` until M3 is complete.
+
+Recorded in [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).

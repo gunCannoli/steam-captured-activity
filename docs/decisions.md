@@ -2471,3 +2471,91 @@ that system is a separate, not-yet-implemented later phase that will also
 trigger the *native* Steam achievement itself (communicating with Steam so
 the unlock is real, not just displayed). Mirroring the native schema/progress
 onto the shortcut's UI is the prerequisite piece that ships first.
+
+---
+
+## ADR-0039: steam-cartridges is a ports-and-adapters modular monolith; only surfaces write to Steam
+
+**Status:** Accepted · 2026-09-28 (user decisions: pipeline in the backend; new shortcuts fetched in the background; feature freeze until surfaces are migrated) · **Amends [ADR-0004](#adr-0004-backend-owns-all-io-and-merging-the-frontend-only-renders)** (the frontend also owns Steam-facing sensors and surfaces) · **Amends [ADR-0033](#adr-0033-exclusive-source-buckets-resolved-in-the-frontend-from-steams-collections)** (collections are read by a sensor and passed to the backend as context; bucket resolution moves to the backend resolver) · **Keeps [ADR-0012](#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)/[0013](#adr-0013-providers-return-data-the-core-renders-it)/[0014](#adr-0014-providers-are-isolated-and-fail-silently)** as the path to provider plugins
+
+### Context
+
+On 2026-09-28 the user uninstalled `steam-cartridges` because Steam's UI kept
+crashing, and most recent features had regressed a view that already worked.
+The audit in
+[plans/steam-cartridges-architecture-migration-plan.md § 1](plans/steam-cartridges-architecture-migration-plan.md#1-why-root-cause-of-the-regression-pattern)
+found the cause is structural:
+
+- Features import each other's internals.
+- About a dozen modules patch shared Steam targets (prototypes, stores, four
+  separate `jsx` hooks), and none of them owns those targets.
+- A `props` getter on three Steam class prototypes fires view events and writes
+  to stores while Steam renders.
+- Page views are detected three times.
+- Appid normalization is repeated in each feature.
+- No test enforces any boundary, and no feature can be switched off without
+  uninstalling the plugin.
+
+Three options were considered:
+
+- **One Millennium plugin per service.** Rejected: every frontend shares
+  `SharedJSContext`, so a crashing surface in any plugin still crashes Steam's
+  UI.
+- **MVC.** Does not fit: Steam renders the view (ADR-0022), and MVC has no place
+  for many external sources.
+- **Ports and adapters (hexagonal) inside one plugin.** Chosen.
+
+### Decision
+
+- **Layers:**
+  - `kernel/`: the `ShortcutId` type, the event bus, the `GameRecord` read model and the `Surface` contract.
+  - `domain/`: pure policy.
+  - `sensors/`: read what the user does in Steam.
+  - `app/`: thin use cases.
+  - `ports/backend`: the RPC client.
+  - `surfaces/`: write into Steam.
+  - `steam/`: shared read-only module resolution and one jsx dispatcher.
+
+  The import rule is in plan § 4.1 and is enforced by
+  `tests/architecture.test.ts`. The allowlist of existing violations may only
+  shrink.
+- **Only surfaces write to Steam.** Each surface declares the Steam targets it
+  `touches`, and no two surfaces declare the same target (tested). Hooks inside
+  Steam's render, getters and prototype methods are pure O(1) reads of the
+  record. They never emit events, fetch, write to stores or walk prototypes, and
+  they fail open to Steam's original render.
+- **Isolation:**
+  - Each surface is installed and run in isolation, with an error budget.
+  - Each surface and service has its own kill switch (`disabledSurfaces`, `disabledServices`).
+  - A boot sentinel starts safe mode (`sections` and `captures` only) after two unclean starts.
+- **The pipeline lives in the backend (user decision 1).** The backend owns:
+  - Registry (shortcuts, and which ones were added since the last run).
+  - Resolver (native Steam match first, then web identity; bucket policy runs here, with collection membership and owned-app candidates supplied by frontend sensors as context).
+  - Metadata, achievements and media, each with source adapters of the shape `{ id, supports(ctx), fetch(ctx) → { status, data, ttl } }`, wrapped in `pcall`.
+  - Freshness (a TTL per part).
+
+  The frontend gets the record through `GetGameRecord` and `EnsureFresh`.
+- **Refresh (user decision 2):**
+  - A shortcut added since the last run is fetched in the background at startup, rate-limited.
+  - Otherwise, data is refreshed only when the game's page is opened, and only for parts checked more than 24 h ago.
+  - Games that are never opened are never fetched again.
+- **Persisted formats do not change** in this migration.
+- **Feature freeze (user decision 3):** no new `steam-cartridges` features until
+  the surface migration (plan M3) is complete. Bug fixes go into whichever
+  structure the module currently lives in.
+
+### Consequences
+
+- A new source, surface or policy touches only its own module (plan § 4.6). A
+  diff crossing more boundaries has to justify it.
+- A crash can be isolated by switching off one surface instead of uninstalling
+  the plugin. The capture tier (the core promise of ADR-0012) survives in safe
+  mode.
+- Source adapters already have the provider-contract shape, so extracting one
+  into a provider plugin (Phase 9) only needs an adapter that calls `Collect()`.
+- Cost: a multi-plan migration (M0a–M9) with a feature freeze. Old RPC names
+  stay registered as aliases until their callers are gone, because calling an
+  unregistered RPC crashes the host.
+- Cost: moving orchestration to the backend means porting TS logic (bucket
+  resolution, the scraper queue) to Lua. The TS tests move with it or get Lua
+  equivalents.
