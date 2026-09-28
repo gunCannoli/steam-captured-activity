@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges Architecture Migration Plan (2026-09-28)**:
+  - The plugin was uninstalled after repeated Steam UI crashes. Each recent feature regressed an existing view.
+  - Audit findings: features import each other's internals; about a dozen modules patch shared Steam targets with no owner (4 separate `jsx` hooks); `hookComponentProps` (`ec16203`) fires view events and store writes from a `props` getter inside Steam's render (the leading crash suspect, not yet verified); page views are detected 3 times; appid normalization is repeated per feature; no test enforces any boundary.
+  - Plan: [docs/plans/steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md). A ports-and-adapters modular monolith: sensors → services (backend, source adapters) → `GameRecord` read model → surfaces, the only code that writes to Steam. Adds kill switches, fail-open hooks, safe mode and import-boundary tests. Migration is split into child plans M0a–M9, starting with crash triage.
+  - Separate plugins per service were rejected for now: they all share `SharedJSContext`, so splitting would not isolate the UI crash.
+
 - **Desktop Game Info Drawer & ⓘ Button Toggle Restoration (2026-09-28)**:
   - *Root Cause Analysis*:
     - In desktop Steam (normal mode), the ⓘ ("Show game details" / "Hide game details") toggle button on the PlayBar (`XC` / `be` in module `56262`) and the Game Info accordion drawer (`G` and `k` in module `15448`) were missing for non-Steam shortcuts.

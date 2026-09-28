@@ -17,13 +17,17 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**Phase 9 — provider contract.** Formalize the `retroachievements`/`steamgriddb`/`retroarch`
-IPC contract per [ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it)
-and [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently).
-Architecture: [docs/millennium-architecture.md](docs/millennium-architecture.md).
+**steam-cartridges architecture migration (ports & adapters).** The plugin was
+uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
+[steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md).
+Waiting on the user's review of its §4, §5 and §11 questions, then ADR-0039, then
+child plan M0a (crash triage). Feature freeze on `steam-cartridges` until M3 is done.
 
 ## Next
 
+- **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
+  [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
+  a provider becomes one more source adapter behind the migration's source contract.
 - **Provider Plugin Extraction**: Extract `retroachievements` and `screenscraper`/`igdb`
   into standalone provider plugins communicating via the Phase 9 IPC contract.
 
