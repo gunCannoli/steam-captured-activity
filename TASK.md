@@ -29,7 +29,8 @@ loop that ran ~150 times a second on every shortcut page; opening **Properties**
 saturated Steam's shared renderer.
 M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
 M0c done (architecture ratchet, RPC registration check, check_all_tabs.js flake fix).
-Next: **M1** (kernel, Ready; the plan's § 0 is the execution manual), or M0b-2 (spec).
+M1 done (kernel: `ShortcutId`, events, `GameRecord`, `Surface`; not yet adopted by any runtime code).
+Next: **M2** (sensors, spec; needs an architect pass first), or M0b-2 (spec).
 
 ## Next
 

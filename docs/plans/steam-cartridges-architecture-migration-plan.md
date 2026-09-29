@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Ready** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). The rest are specified (§ 0.2).
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). The rest are specified (§ 0.2).
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a has literal before/after blocks now. Every later step gets them when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -49,7 +49,7 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M0b-1 | Kill switches, error budget, boot sentinel / safe mode | **Done** | `docs/steam-cartridges/safety.md` |
 | M0b-2 | Fail-open wrappers on every Steam hook | Spec | `docs/steam-cartridges/safety.md` (update) |
 | M0c | Architecture test (import ratchet, RPC registration) + `check_all_tabs.js` flake fix | **Done** | `docs/steam-cartridges/README.md` |
-| M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Ready** (after M0c) | `docs/steam-cartridges/kernel.md` |
+| M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Done** | `docs/steam-cartridges/kernel.md` |
 | M2 | Sensors (view, lifecycle, collections, owned apps) | Spec | `docs/steam-cartridges/sensors.md` |
 | M3.1–M3.10 | Surfaces, one per step | Spec | `docs/steam-cartridges/surfaces.md` (one section per surface) |
 | M4 | Resolver service + RPC facade | Spec | `service-resolver.md`, `rpc.md` |
@@ -1566,7 +1566,7 @@ After:
 ```
 
 
-### M1 — Kernel (Ready after M0c is Done)
+### M1 — Kernel (Done)
 
 **Why:** § 1.5, § 4.2. Nothing uses the kernel yet; later steps adopt it.
 **Validated:** dry-run on top of M0a+M0b-1+M0c: `tsc` 0, 81/81; no allowlist change

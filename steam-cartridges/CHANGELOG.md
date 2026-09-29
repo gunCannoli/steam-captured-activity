@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Internal: architecture kernel (2026-09-28)**: added the shared foundation (`ShortcutId`, an event bus, the `GameRecord` read model, and the `Surface` contract) that later steps build every surface and service on. No user-visible change; nothing uses it yet.
+
 - **Internal: architecture ratchet + RPC registration test (2026-09-28)**: an automated test now blocks any new cross-module import that doesn't fit the plugin's target architecture, and catches an RPC call to a backend method name that isn't registered (which previously crashed the backend). Also fixed a flaky check in the automated tab-verification script.
 
 - **Added: kill switches, error budget and safe mode (2026-09-28)**: each feature (sections, captures, game-info, achievements, and 7 more) can be switched off individually via the `disabledFeatures` setting, and switches itself off automatically after repeated errors in a session. If Steam doesn't shut down cleanly twice in a row, the plugin starts in a reduced safe mode (captures only) instead of needing to be uninstalled.
