@@ -1,5 +1,8 @@
+// Surface `toasts` (migration plan M3.6): Steam's native achievement toast through
+// NotificationStore.OnNotification. Moved from features/achievements/dispatcher.ts.
 import { logger } from "../../logger";
 import { steamRequire } from "../../steam/modules";
+import { deps } from "./deps";
 
 interface AchievementProtoResolution {
     ProtoClass: any;
@@ -73,6 +76,7 @@ export function dispatchAchievementToast(
     shortcutAppId: number,
     item: ToastAchievementPayload,
 ): boolean {
+    if (!deps.isEnabled("toasts")) return false;
     const store = (window as any).NotificationStore;
     if (!store || typeof store.OnNotification !== "function") {
         logger.warn("NotificationStore.OnNotification is unavailable.");

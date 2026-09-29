@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Added: a `toasts` switch to turn off achievement/launch popups separately (2026-09-28)**: previously not independently switchable. Note: achievement toasts currently don't appear on this Steam build regardless of the switch — tracked as a known issue.
+
 - **Added: a `playbar` switch to turn off the PlayBar's info button separately from Game Info (2026-09-28)**: previously bundled with the Game Info switch.
 
 - **Fixed: kill switches in Settings never actually turned a feature off (2026-09-28)**: switching a feature off in `disabledFeatures` saved correctly but silently had no effect, in the current session or after restarting Steam. Switches now work as documented.

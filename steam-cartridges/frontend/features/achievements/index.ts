@@ -1,6 +1,6 @@
 import { logger } from "../../logger";
 import { rpc } from "../../rpc";
-import { dispatchAchievementToast } from "./dispatcher";
+import { dispatchAchievementToast, dispatchLaunchToast } from "./toast-port";
 import {
     ensureAchievementsStoreHooked,
     getLocalAchievements,
@@ -10,7 +10,7 @@ import {
 } from "./store-port";
 import type { SteamAppAchievements } from "../../steam/achievement-types";
 
-import { dispatchLaunchToast, handleAppLaunchAchievements } from "./launch-toast";
+import { handleAppLaunchAchievements } from "./launch-toast";
 import { checkObserverUnlocks, startAchievementsObserver } from "./observer-session";
 import { setting } from "../../settings/settings";
 

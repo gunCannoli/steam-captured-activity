@@ -65,6 +65,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/achievements/index.ts` | `achievements` surface: `createAchievementsSurface`, `achievementsStore` (§ achievements below) |
 | `frontend/surfaces/achievements/{core,store}.ts` | Hook installation, local schema/unlock reads |
 | `frontend/steam/achievement-types.ts` | Steam's own achievement shapes; importable by surfaces |
+| `frontend/surfaces/toasts/index.ts` | `toasts` surface: `createToastsSurface` (§ toasts below) |
+| `frontend/surfaces/toasts/{achievement,launch,deps}.ts` | The two `NotificationStore` writes, injected deps |
 
 ## Steam targets touched
 
@@ -120,6 +122,10 @@ until the service steps (M4+) feed them through `render()`.
 - M3.5 (2026-09-28): `achievements` surface added (moved from `features/achievements/store.ts`,
   `achievements-core.ts`). `steam/achievement-types.ts` created for Steam's own achievement shapes.
   `AchievementSchemaItem`/`AchievementSchemaRecord`/`AchievementUnlockRecord` move to `kernel/record.ts` (D12).
+- M3.6 (2026-09-28): `toasts` surface added, split from `features/achievements/dispatcher.ts`
+  (achievement toast) plus the Steam write out of `launch-toast.ts` (launch toast). New kill
+  switch `toasts` (User-visible). K17 logged: the achievement toast's webpack scanner already
+  failed on this Steam build before the move; out of scope for a pure move (D14).
 
 ## sections
 
@@ -299,3 +305,33 @@ Steam's own native UI.
 **Hooks:** all six fail-open through `failOpen()`; the retry loop in `initAchievements` (features/achievements) is unchanged — Steam may not have created the achievement stores yet at install time.
 
 **Record-driven in:** M6.
+
+## toasts
+
+The two `NotificationStore` writes that pop a native Steam toast: an
+achievement unlock and a game launch/first-play notification.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `NotificationStore.OnNotification` | 1 |
+| `NotificationStore.ProcessNotification` | 1 |
+| `NotificationStore.m_nNextTestNotificationID` | 1 |
+
+**reads:** none — `toasts` has no hooks, only direct writes; there is nothing to fail open (both dispatch functions return `false` while `toasts` is off).
+
+**Kill switch:** `toasts`. Checked at the top of each dispatch function.
+
+**Injected deps:** `SurfaceDeps`, passed to `createToastsSurface`.
+
+**API (reached only through this port):**
+- `features/achievements/toast-port.ts`'s `setToasts({ achievement, launch })` (D3; `PURGE(M6)`, marked in M3.8). The launch policy (setting + local achievements) stays in `features/achievements/launch-toast.ts`; only the Steam write moved.
+- `dispatchAchievementToast` (D8) — `index.tsx`'s public export is unchanged, now re-exported from `surfaces/toasts`.
+
+**Known issue:** K17 — the achievement toast's `resolveAchievementProto()` webpack scanner does not
+find `CClientNotificationAchievement` on the current Steam build (confirmed failing before this
+move too); every dispatch logs "Could not resolve Steam achievement notification protobuf." and
+returns `false`. Out of scope for M3.6 (pure move, D14); tracked for a bugfix plan after M3.
+
+**Record-driven in:** not applicable — `toasts` is event-driven (an achievement unlock or a launch), never per-record.

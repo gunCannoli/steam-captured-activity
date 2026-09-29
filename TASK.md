@@ -30,7 +30,7 @@ saturated Steam's shared renderer.
 M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
 M0c done (architecture ratchet, RPC registration check, check_all_tabs.js flake fix).
 M1 done (kernel: `ShortcutId`, events, `GameRecord`, `Surface`; not yet adopted by any runtime code).
-M2 done (sensors). M3.0 done (dead-code purge). M3.1 done (`sections` surface; also fixed K16 — kill switches were silently inert since M0b-1). M3.2 done (`captures` surface). M3.3 done (`game-info` surface). M3.4 done (`playbar` surface, new `playbar` kill switch). M3.5 done (`achievements` surface). Next: **M3.6** (`toasts` surface, Ready), then M3.7 → M3.10, then **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing is open for the user.
+M2 done (sensors). M3.0 done (dead-code purge). M3.1 done (`sections` surface; also fixed K16 — kill switches were silently inert since M0b-1). M3.2 done (`captures` surface). M3.3 done (`game-info` surface). M3.4 done (`playbar` surface, new `playbar` kill switch). M3.5 done (`achievements` surface). M3.6 done (`toasts` surface, new `toasts` kill switch; found K17, a pre-existing achievement-toast scanner failure, tracked for after M3). Next: **M3.7** (`native-links` surface, Ready), then M3.8 → M3.10, then **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing is open for the user.
 
 ## Next
 

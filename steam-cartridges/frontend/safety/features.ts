@@ -20,6 +20,7 @@ export const FEATURE_IDS = [
     "library-home",
     "background-sync",
     "playbar",
+    "toasts",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

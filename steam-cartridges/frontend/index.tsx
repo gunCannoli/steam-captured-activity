@@ -63,6 +63,8 @@ import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink } from "./featu
 import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
 import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
 import { setAchievementsStore } from "./features/achievements/store-port";
+import { createToastsSurface, dispatchAchievementToast as showAchievementToast, dispatchLaunchToast } from "./surfaces/toasts";
+import { setToasts } from "./features/achievements/toast-port";
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
 const surfaceDeps: SurfaceDeps = {
@@ -128,6 +130,7 @@ async function init() {
     setContentListener(setHasContent);
     setExtraSectionsSink(setExtraSections);
     setAchievementsStore(achievementsStore);
+    setToasts({ achievement: showAchievementToast, launch: dispatchLaunchToast });
     setCapturesSinks({ setNativeActivitySource, republish: patchLibraryApp });
     setCapturesRefresher(refreshLibraryApp);
     setGameInfoWriter(gameInfoWriter);
@@ -204,6 +207,8 @@ async function init() {
     // ===== Native Achievements Subsystem =====
     // Steam's achievement stores (surfaces/achievements, plan M3.5); the loader below feeds them.
     runner.register(createAchievementsSurface({ ...surfaceDeps, refreshSections }));
+    // Steam's notification toasts (surfaces/toasts, plan M3.6).
+    runner.register(createToastsSurface(surfaceDeps));
     runner.installAll();
     features.run("achievements", () => initAchievements());
 

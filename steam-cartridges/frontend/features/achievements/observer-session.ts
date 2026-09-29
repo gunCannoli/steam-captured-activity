@@ -1,6 +1,6 @@
 import { logger } from "../../logger";
 import { rpc, type AchievementUnlockRecord } from "../../rpc";
-import { dispatchAchievementToast } from "./dispatcher";
+import { dispatchAchievementToast } from "./toast-port";
 import { getLocalAchievements, getLocalSchema, getLocalUnlocks, updateShortcutState } from "./store-port";
 
 const activeSessions = new Map<number, () => void>();
