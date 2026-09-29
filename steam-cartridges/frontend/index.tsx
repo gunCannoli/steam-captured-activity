@@ -39,7 +39,7 @@ import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
 import { features } from "./safety/switches";
-import type { FeatureId } from "./safety/features";
+import { FEATURE_IDS, type FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
 import type { ShortcutId } from "./kernel/appid";
 import { bus } from "./app/bus";
@@ -61,8 +61,9 @@ import {
     trackInstance,
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
-import { controllerContext } from "./features/game-info/controller";
-import { handleSteamStoreView, leaveSteamStore, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
+import { controllerContext, getInferredControllerSupport, loadControllerInference } from "./features/game-info/controller";
+import { setPanelContext } from "./settings/context";
+import { handleSteamStoreView, leaveSteamStore, setSteamStoreMapping, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
 import {
     createAchievementsSurface,
     ensureAchievementsStoreHooked,
@@ -305,6 +306,28 @@ const LEGACY_PLUGINS = [
 ];
 
 async function init() {
+    // Panels reach the app only through this context (plan M8b, § 7.0 D3).
+    setPanelContext({
+        routing: {
+            listCollections: () => routing.listCollections(),
+            listShortcuts: () => routing.listShortcuts(),
+            membersOf: (id) => routing.membersOf(id),
+            shortcutName: (appid) => routing.listShortcuts().find((s) => s.appid === appid)?.name ?? String(appid),
+            getAutoRoutingProfile: (appid) => routing.getAutoRoutingProfile(appid),
+            reloadProfiles: () => routing.loadAutoRoutingProfiles(),
+        },
+        ingest: {
+            progress: ingest.getSyncProgress,
+            onProgress: ingest.onSyncProgress,
+            trigger: ingest.triggerSync,
+            start: ingest.startSync,
+        },
+        records: { achievementsOf: (appid) => getLocalAchievements(appid) },
+        controller: { load: loadControllerInference, inferredFor: getInferredControllerSupport },
+        steamStore: { setMapping: setSteamStoreMapping },
+        safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics() },
+    });
+
     // Routing reaches the settings panel only through this setter (plan § 7.0 D3).
     setSettingsRouting(routing);
 

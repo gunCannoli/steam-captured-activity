@@ -7,6 +7,9 @@ import type {
     GameMetadata,
 } from "./kernel/record";
 import { call } from "./ports/transport";
+import type { ProviderStatus, EmulatorStatusItem, RetroStatusResponse } from "./ports/backend";
+
+export type { ProviderStatus, EmulatorStatusItem, RetroStatusResponse };
 
 // ---------------------------------------------------------------------------
 // Payload shapes — these mirror backend/rpc.lua. Keep them in sync.
@@ -25,17 +28,6 @@ export interface LibraryStat {
 // Game Info payload shapes live in the kernel (migration plan § 7.0 D12); the old names stay.
 export type { GameCategories };
 export type ConsolidatedMetadata = GameMetadata;
-
-export interface ProviderStatus {
-    has_twitch: boolean;
-    has_sgdb: boolean;
-    has_screenscraper?: boolean;
-    has_retroachievements?: boolean;
-    status: "ready" | "needs_credentials";
-    db_count: number;
-}
-
-
 
 export interface MetadataResponse {
     success?: boolean;
@@ -185,18 +177,6 @@ export interface AchievementStateResponse {
     error?: string;
 }
 
-export interface EmulatorStatusItem {
-    name: string;
-    detected: boolean;
-    path?: string;
-    username?: string;
-    authenticated: boolean;
-}
 
-export interface RetroStatusResponse {
-    emulators: EmulatorStatusItem[];
-    env_fallback: boolean;
-    env_username?: string;
-}
 
 

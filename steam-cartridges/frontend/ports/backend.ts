@@ -4,6 +4,31 @@
 import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, Part, RecordPart } from "../kernel/record";
 import { call } from "./transport";
 
+export interface ProviderStatus {
+    has_twitch: boolean;
+    has_sgdb: boolean;
+    has_screenscraper?: boolean;
+    has_retroachievements?: boolean;
+    status: "ready" | "needs_credentials";
+    db_count: number;
+}
+
+
+
+export interface EmulatorStatusItem {
+    name: string;
+    detected: boolean;
+    path?: string;
+    username?: string;
+    authenticated: boolean;
+}
+
+export interface RetroStatusResponse {
+    emulators: EmulatorStatusItem[];
+    env_fallback: boolean;
+    env_username?: string;
+}
+
 export interface OwnedCandidate {
     appid: number;
     name: string;
@@ -81,5 +106,16 @@ export const backend = {
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
         return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {});
+    },
+    /** Provider credentials present, and how many games the database holds. */
+    getStatus(): Promise<ProviderStatus> {
+        return call<ProviderStatus>("GetStatus");
+    },
+    saveServiceCredentials(credentials: Record<string, string>) {
+        return call<{ success: boolean; error?: string }>("SaveServiceCredentials", credentials);
+    },
+    /** Which emulators the RetroAchievements source can read (M8b, moved from rpc.ts). */
+    getRetroStatus(): Promise<RetroStatusResponse> {
+        return call<RetroStatusResponse>("CartridgesAchievementsGetRetroStatus");
     },
 };
