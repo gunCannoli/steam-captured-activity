@@ -167,3 +167,8 @@ decision (M5d: IGDB first when configured, ScreenScraper fills in).
   `metadata` for every mapped shortcut at start-up. Every record-driven surface then rendered for all of them, and
   `captures` requested Steam's `GetAppActivity` for each mapped native app before Steam was ready, which left those
   fetches stuck (knowledgebase Part 7). `preload()` now writes `metadata` only; identity resolves on first view.
+- M5d live check (2026-09-29): real `jeuInfos.php` responses (Sonic The Hedgehog, Streets of Rage 2) fetched with the
+  `.env` credentials matched the hand-shaped fixture's field shapes and mapped correctly through
+  `screenscraper_to_metadata` (English synopsis, `{id,text}` credits, `noms`-list genres and families, earliest date,
+  `joueurs` `{"text":"1-2"}` -> single and multiplayer). Test-harness note: the stub JSON decoder in the Lua suites has no
+  `utf8`, so a raw response with `\u` escapes must be re-serialized before use; the backend uses Millennium's own JSON.

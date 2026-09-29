@@ -114,8 +114,10 @@ M5c end-to-end on Firestriker (only its hero slot was empty): SteamGridDB filled
 exactly it. On this library 218 of 220 shortcuts already have all four slots, so M5c makes no request for them.
 
 Still open for M5:
-- **M5d live network check** needs ScreenScraper credentials (none configured, IGDB/Twitch and SteamGridDB are). The Lua
-  suite passes against a hand-shaped `jeuInfos` fixture; compare it with a real response when a key exists.
+- ~~M5d live network check~~ **done 2026-09-29**: the repo-root `.env` `screenscraper_dev_*` credentials (read by `web_config`'s
+  legacy path) returned real `jeuInfos.php` responses (Sonic The Hedgehog, Streets of Rage 2); every mapped field's
+  shape matched the fixture and the Lua mapper gave the right values. Not yet exercised through the running plugin
+  (no shortcut currently needs a ScreenScraper lookup: all 220 already have Game Info).
 - M5c's exit text assumed AM2R is in bucket `none`; it is currently `steam-store` (unmatched) with all four slots
   already set, so it makes no request either way.
 - Firestriker's hero was cleared again by the Clear test; the deployed dev plugin refills it on the next view.
