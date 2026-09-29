@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.0–M3.10 are Ready (packaged); M4.0–M7b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.0–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -83,8 +83,9 @@ Statuses (what the executing agent does with the row):
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | Build | `service-achievements.md`, `surfaces.md` |
 | M7a | Freshness, throttle, registry (backend; fixes K15) | Build | `service-freshness.md`, `rpc.md` |
 | M7b | Frontend drives ingestion; sync manager deleted | Build | `service-freshness.md` |
-| M8 | Settings split | Spec | `settings.md` |
-| M9 | Cleanup + docs | Spec | all |
+| M8 | Settings split + Troubleshooting panel | Build | `settings.md`, `safety.md` |
+| M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | Build | `rpc.md`, `README.md`, ADR-0041 |
+| M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | Build | all |
 
 Order is fixed: never start a row while an earlier row is not `Done`. M0b-2 is not a
 step of its own any more: each M3.x applies its wrapper to the hooks it moves (§ 7.0 D6).
@@ -2882,35 +2883,178 @@ whose metadata is older than 24 h increases `http_calls.igdb` by 1 for that app 
 once adds 0. A shortcut with `custom_override` keeps its edits after "sync now" with force. § 0.5 PASS.
 **Docs:** `service-freshness.md`, `README.md`, § 7.9 (M7 rows), § 12 (K15 fixed).
 
-### M8 — Settings split (Spec)
+### M8 — Settings split (Build)
 
-**Design:** split `settings/settings-panel.tsx` (2,707 lines) into `settings/panels/<name>.tsx`, one
-per concern (general, buckets/routing, steam store, web metadata, achievements, troubleshooting, about;
-match the 7 existing tabs), plus `settings/panel.tsx` for the tab shell. Each panel talks only to
-`ports/` and `settings.ts` (D1 rule `settings -> ports`). Move `validateConfig`, `DEFAULT_BUCKETS` and the
-bucket types from `features/buckets/resolve.ts` to `domain/routing-config.ts`, so `settings -> features/buckets` disappears.
-No settings key renamed and no default changed (do-not-touch 1). Add the Troubleshooting panel: the
-`disabledFeatures` toggles (one per `FEATURE_IDS` entry) and `safetyDiagnostics()`.
-**Exit:** all 7 tabs render (check: `git show 0d599cf:docs/plans/steam-cartridges-settings-redesign-plan.md`,
-the "all tabs render" script it names); § 0.5 PASS; allowlist loses every `settings -> *` edge.
-**Doc:** `settings.md`.
+**Why:** `settings/settings-panel.tsx` is 2,707 lines and imports four `features/` modules, `rpc` and the
+routing policy. By M8, three of those modules no longer exist (M4a, M6b, M7b replace them), so the panel
+must reach the app through a proper port. **Behaviour: none**, except the new Troubleshooting panel
+(kill switches and safety diagnostics, § 4.4 item 5) and one help line in "Community & Media".
+**Hard rule (do-not-touch 1):** no settings key renamed, no default changed, no validator changed. The
+first action below pins that with a test.
+**Design:**
+1. **Pin the defaults first.** Extract `DEFAULTS`, `DEFAULT_SERVICES` and the types (`Settings`, `SettingKey`,
+   `ServicesConfig`, `ControllerOverride`, `LaunchNotifyOption`) from `settings/settings.ts` into
+   `settings/defaults.ts`, which has **only `import type`** (D2: node cannot load an extensionless runtime
+   import). The one runtime value it used from routing, `DEFAULT_BUCKETS`, is written there as the same
+   literal (`{ version: 2, default: 'steam-store', rules: [], overrides: {} }`); `VALIDATORS` (which need
+   `validateConfig`) stay in `settings.ts`, and `settings.ts` re-exports everything it exported before.
+   Generate the snapshot from `defaults.ts` right after the extraction, before any other M8 edit:
+   `node --experimental-strip-types -e "import('./frontend/settings/defaults.ts').then(m=>console.log(JSON.stringify(m.DEFAULTS,null,2)))" > tests/fixtures/settings-defaults.json`,
+   and check it by hand against `git show HEAD:steam-cartridges/frontend/settings/settings.ts` (every key, every value).
+   New `tests/settings-defaults.test.ts` (+2): `settings keys and defaults are unchanged` (deep-equal with the
+   fixture) · `the bucket default equals the routing policy's DEFAULT_BUCKETS` (imports
+   `domain/routing/policy.ts`, which has no runtime imports).
+2. `settings/context.ts` (D3): the only way panels reach the app. `setPanelContext(ctx)` is called by
+   `index.tsx` at the top of `init()`; panels read it with `usePanelContext()`. Structural types only
+   (no import of `app/`):
 
-### M9 — Cleanup (Spec)
+   ```ts
+   export interface PanelContext {
+       routing: {
+           listCollections(): { id: string; name: string; dynamic: boolean; shortcutCount: number }[];
+           listShortcuts(): { appid: number; name: string }[];
+           membersOf(id: string): ReadonlySet<number> | undefined;
+           shortcutName(appid: number): string;
+           getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined;   // type from domain/routing
+       };
+       ingest: {
+           progress(): SyncProgress;                                  // shape unchanged (M7b)
+           onProgress(fn: (p: SyncProgress) => void): () => void;
+           trigger(delayMs?: number): void;
+           start(opts?: { forceAll?: boolean; onlyAppids?: number[] }): Promise<void>;
+       };
+       records: {
+           achievementsOf(appid: number): { nAchieved: number; nTotal: number } | undefined;
+           metadataOf(appid: number): GameMetadata | undefined;       // kernel type
+       };
+       controller: { load(): Promise<void>; inferredFor(appid: number): boolean | undefined };
+       steamStore: { setMapping(appid: number, steamAppid: number, name?: string): Promise<unknown> };
+       safety: { featureIds: readonly string[]; diagnostics(): unknown; surfaces(): { id: string; installed: boolean; disabled: boolean; errors: number; lastError?: string }[] };
+   }
+   ```
 
-1. Remove RPC aliases with no caller (the registration test proves the rest), and the matching `rpc.ts` entries.
-2. Empty the allowlist. Start by listing what remains with `node -e "console.log(require('./tests/architecture-allowlist.json'))"`.
-   Every entry is either removed or becomes an ADR-backed rule in `LAYER_RULES`. The file becomes `[]`.
-3. Delete `features/` once it is empty, then `renderers/`; `steam/route.ts` `isNonSteamAppId` → `kernel/appid` everywhere.
-4. Decide the jsx dispatcher (§ 4.4 "one `steam/jsx-hook.ts` dispatcher"): consolidate the three remaining
-   `keepJsxPatched` installs (view sensor, captures, native-links) into one, or record in an ADR why not
-   (do-not-touch 6: the hook is shared by identical copy with `enhanced-achievements`).
-5. Rewrite [millennium-architecture.md](../millennium-architecture.md) § Module layout to the real tree;
-   update AGENTS.md Routine 4 paths; D8: decide which `index.tsx` exports stay public.
-6. Execute § 7.9, the purge ledger: delete every row whose "Delete in" is M9 (or decide the "M9 decides"
-   rows and write the decision in the ledger). Exit: `git grep -n "PURGE(" -- frontend` → no output.
-7. Move `scratch/arch-m0/{cdp,probe,test_props,count_cycle,catch_hang}.mjs` into
-   `steam-cartridges/tests/live/` and update every reference (§ 0.5, plugins.md guardrail 17,
-   steam-debug.md Trap 10).
+   Backend calls go through `ports/backend.ts` (`settings -> ports` is rule-allowed). M8 adds these
+   wrappers there, moved from `rpc.ts`: `getStatus`, `saveServiceCredentials`, `getRetroStatus`
+   (`CartridgesAchievementsGetRetroStatus`). The panel's per-game "refresh metadata" uses
+   `ensureFresh(appid, ["metadata"], { …, force: true })`, never `RefreshGameMetadata` (K15).
+3. **Split verbatim** (only imports and the replacements in the table change):
+
+   | New file | Moved from `settings-panel.tsx` | Replacements |
+   | --- | --- | --- |
+   | `settings/components.tsx` | `ITEM_ROW_STYLE`, `ItemRow`, `ToggleRow`, `SettingsModal` | — |
+   | `settings/panels/metadata.tsx` | `MetadataServiceDef`, `MetadataSection` | `rpc.getStatus` / `rpc.saveServiceCredentials` → `backend.*`; `triggerSync` → `ctx.ingest.trigger` |
+   | `settings/panels/achievements.tsx` | `AchievementSourceDef`, `AchievementsSection` | `rpc.cartridgesAchievementsGetRetroStatus` → `backend.getRetroStatus`; credentials and `triggerSync` as above |
+   | `settings/panels/notifications.tsx` | `NotificationsSection` | — |
+   | `settings/panels/activity.tsx` | `ActivitySection` | — |
+   | `settings/panels/community.tsx` | `CommunitySection` | adds one help line under the title: "These apply when the Media service is connected (migration plan § 7.10)." |
+   | `settings/panels/rules.tsx` | `RulesSection` | `listCollections` / `listShortcuts` → `ctx.routing`; `triggerSync` → `ctx.ingest.trigger`; the routing types come from `domain/routing` |
+   | `settings/panels/audit.tsx` | `FlaggedShortcut`, `RevisionSection` ("Library Audit") | `ctx.routing.*`; `ctx.controller.*`; `getLocalAchievements` → `ctx.records.achievementsOf`; `rpc.getAllMetadata` → `backend.getAllRecords`; `rpc.getAutoRoutingProfiles` → `ctx.routing.getAutoRoutingProfile`; `rpc.cartridgesAchievementsGet` → `backend.ensureFresh(…, ["achievements"], …)`; `rpc.refreshGameMetadata` → `backend.ensureFresh(…, ["metadata"], { force: true })`; `rpc.steamStoreSetMapping` → `ctx.steamStore.setMapping`; `useSyncProgress` → `ctx.ingest`; `isServiceAllowed` from `domain/routing` |
+   | `settings/sync-progress.tsx` | `SyncProgressBar` | `useSyncProgress` → a hook over `ctx.ingest.progress` / `onProgress` |
+   | `settings/panels/troubleshooting.tsx` | **new** | see item 4 |
+   | `settings/panel.tsx` | `SettingsPanel` (the shell, same order, Troubleshooting last before the progress bar) | — |
+
+   `settings/settings-panel.tsx` is deleted. `index.tsx` imports `SettingsPanel` from `settings/panel`
+   and **exports** it (a public-API addition, D8; the check in item 6 needs it).
+4. **Troubleshooting panel** (the only new UI): title "Troubleshooting". One toggle per
+   `ctx.safety.featureIds` entry, on = not in `disabledFeatures`; toggling writes the setting with the pure
+   helper `toggleFeature(raw: string, id: string, on: boolean): string` in `settings/troubleshooting-core.ts`
+   (keeps the order of `featureIds`, keeps unknown ids the user typed, no duplicates). A line "Changes take
+   effect after Steam restarts." A read-only block: safe mode on/off, tripped ids and error counts from
+   `ctx.safety.diagnostics()`, and one line per surface from `ctx.safety.surfaces()`
+   (`id: installed | off | tripped (errors)`). Tests `tests/troubleshooting-core.test.ts` (+3): `turning off
+   appends the id` · `turning on removes the id and keeps the rest in order` · `unknown ids are preserved`.
+5. Architecture (D1): after M8 the allowlist has **no** `settings -> *` edge (`settings -> rpc`,
+   `settings -> features/*` go); `settings -> domain` and `settings -> ports` are rule-allowed; `settings -> app`
+   stays forbidden (the context is the port). Record the exact delta in the report.
+6. **Read-only render check** `scratch/check_settings_panel.mjs` (new; the implementer writes it; CDP on
+   `127.0.0.1:8080`, SharedJSContext): mount `PLUGIN_LIST['steam-cartridges-dev'].SettingsPanel` into a
+   **detached** `<div>` with Steam's React (`SP_REACTDOM.createRoot(div).render(SP_REACT.createElement(Panel))`,
+   or `SP_REACTDOM.render` when `createRoot` is absent), wait 3 s, and for each title print `PASS <title>` if
+   `div.textContent` contains it, else `FAIL <title>`: `Metadata`, `Achievements`, `Notifications`,
+   `Activity Feed`, `Community & Media`, `Routing Rules`, `Library Audit`, `Troubleshooting`. Then unmount.
+   It clicks nothing and writes nothing.
+**Exit:** `npm run test:ts` green with +5 tests; `node scratch/check_settings_panel.mjs` → 8 `PASS` lines;
+`PLUGIN_LIST['steam-cartridges-dev'].safetyDiagnostics()` unchanged before/after deploy; § 0.5 PASS.
+**User test:** open the plugin's settings page; every section shows as before, plus Troubleshooting;
+switching one feature off there and restarting Steam shows it off in `safetyDiagnostics()`.
+**Docs:** `settings.md` (new, § 0.6 template: the panels, the context contract, "How to add a panel");
+`safety.md` (Troubleshooting panel); `README.md` layer list.
+
+### M9a — Cleanup: code (Build)
+
+**Why:** close the migration: every file in its layer, the allowlist empty, the purge ledger executed.
+**Behaviour: none.**
+**Design:**
+1. **Remaining `features/` files move into their layer.** After M8 the architect expects exactly these
+   (the implementer lists `git ls-files frontend/features` first; anything else: stop and ask):
+   - `features/steam-store/index.ts` remainder (the public `setSteamStoreMapping`, `clearSteamStore`,
+     `steamStoreState`, `acceptSteamStoreSuggestion`-free since M3.0) → `app/steam-store.ts`, over `ports/backend.ts`
+     (`SteamStoreSetMapping`, `SteamStoreClearMapping`, `SteamStoreGetState` wrappers move there).
+   - `features/steam-store/enriched.ts`, `resolve.ts` (`cdnArtworkUrls`), `store-item.ts` remainder: pure →
+     `domain/`; anything that reads Steam → `sensors/`.
+   - `features/game-info/controller.ts` → `app/controller.ts` (its `setting()` read becomes an injected reader).
+   Then `frontend/features/` is deleted.
+2. **`rpc.ts` folds into `ports/`**: every remaining wrapper moves to `ports/backend.ts`; importers switch
+   to the kernel type names (D12); `rpc.ts` is deleted, and the `[/^rpc$/, /^ports$/]` layer rule with it.
+   The RPC registration test scans `ports/backend.ts` only.
+3. **Backend aliases:** list the globals in `main.lua` that `ports/backend.ts` does not call. Delete an
+   alias only when it is (a) superseded by the facade and (b) not in § 7.10 (unwired features stay registered)
+   and (c) not `GetDiagnostics`. Expected deletions: `GetGameMetadata`, `RefreshGameMetadata`, `GetAllMetadata`,
+   `CartridgesAchievementsGet`, `CartridgesAchievementsCheckUnlocks`, `SteamStoreGetMapping`,
+   `SteamStoreSaveKnownMatch`, `SteamStoreSearch` (verify each with `git grep`; update the Lua tests that call
+   them to call the facade instead, and say which in the report). `rpc.md` lists the final set.
+4. **Empty the allowlist.** Every remaining entry is removed by moving code (items 1–2) or by D3 injection.
+   Known one: `safety -> settings` (`safety/switches.ts` reads the `disabledFeatures` setting) → the
+   `FeatureSwitches` instance is created in `index.tsx` with an injected `readDisabled` and the setting-change
+   hook; `safety/switches.ts` is deleted. End state: `tests/architecture-allowlist.json` is `[]`. The ratchet
+   test stays (an empty allowlist means every edge must be rule-allowed).
+5. **Kernel everywhere:** `steam/route.ts` `isNonSteamAppId` / `NON_STEAM_APPID_MIN` → `kernel/appid.ts`
+   (`isShortcutAppId`, `NON_STEAM_APPID_MIN`); `route.ts` keeps only `appIdFromPath`. Remaining
+   `appid >>> 0` / `| 0` triple lookups become `ShortcutId` keys (§ 1.5); list them with
+   `git grep -nE "\\| 0\\)|>>> 0" -- frontend` and convert each, or justify it in the report (Steam APIs that
+   need the signed key use `toSignedKey`).
+6. **jsx hooks (§ 4.4 "one dispatcher"):** after M3 there are four `keepJsxPatched` installs (view sensor,
+   captures headline, captures activity-cards, native-links). **Decision (architect, 2026-09-28): keep them
+   separate.** Each already runs one O(1) handler, `jsx-hook.ts` guarantees one chain position per label and
+   is shared by identical copy with `enhanced-achievements` (do-not-touch 6); a dispatcher would change that
+   shared file for no measured gain. M9a writes ADR-0041 ("jsx-runtime hooks stay one per concern") and
+   amends § 4.4. It adds one architecture test (+1): `keepJsxPatched` is called only from
+   `sensors/view`, `surfaces/captures` and `surfaces/native-links`.
+7. **Purge ledger (§ 7.9):** delete every row marked "M9" and decide every "M9 decides" row in the ledger
+   itself. `setContentListener` is permanent composition wiring (captures → sections), not temporary: move its
+   row to "kept, by design". The `steam_cartridges_sync_history_v1` localStorage key (M7b left it): removed once
+   at start-up (`localStorage.removeItem`, in `app/ingest.ts`), then the line is deleted in a later release.
+8. **Exit:** `git grep -n "PURGE(" -- frontend` → nothing; `ls frontend` → `app domain index.tsx kernel logger.ts
+   ports safety sensors settings steam surfaces`; `node -e "console.log(require('./tests/architecture-allowlist.json').length)"`
+   → `0`; `npm run check`, `npm run test:ts`, `npm run build`, all Lua suites green; § 0.5 PASS; parity 17/0;
+   `audit_missing_metadata.mjs` 0 missing.
+**Docs:** `rpc.md` (final RPC set, plus a "Public plugin API" section listing every `index.tsx` export with its purpose and callers, D8: each one stays public or is removed with the reason), `README.md` (every layer `current`), ADR-0041, § 4.4, § 7.9 closed.
+
+### M9b — Cleanup: docs and live scripts (Build)
+
+**Why:** the docs must describe the real tree, and the live checks must live with the plugin.
+**Behaviour: none.**
+**Design:**
+1. **Live scripts:** `git mv scratch/arch-m0/{cdp,probe,test_props,count_cycle,catch_hang}.mjs` and
+   `scratch/{check_all_tabs.js,test_nav_cycle.js,check_parity.mjs,check_settings_panel.mjs,audit_missing_metadata.mjs}`
+   into `steam-cartridges/tests/live/` (fix their relative imports), add `npm run test:live` that runs the
+   § 0.5 set in order, and update every reference: this plan's § 0.5 table and step exits, `AGENTS.md`
+   Routine 3, `docs/plugins.md` guardrail 17, `docs/steam-debug.md` Trap 10 and § 7
+   (`git grep -n "scratch/" -- docs AGENTS.md` must list only historical CHANGELOG lines afterwards).
+2. **Execution aids:** delete `scratch/arch-m0/m*/` packages, `apply_step.py` and `pack_step.py` (§ 7.9 row);
+   the migration's history stays in git and CHANGELOG.
+3. **Docs to the real tree:** `docs/millennium-architecture.md` § Module layout (generated from
+   `git ls-files steam-cartridges/frontend steam-cartridges/backend`, one line per file with its layer);
+   `docs/steam-architecture.md` § 3 (every row `current`); `AGENTS.md` "What this repo is", Conventions
+   and Routine 4 paths; `steam-cartridges/README.md` module table; `docs/steam-cartridges/README.md`
+   "How to add a feature" re-checked against § 4.6 with the real paths.
+4. **Close the migration:** this plan's header → "Complete"; § 0.2 all `Done`; ADR-0039 gets a
+   "Completed 2026-…" note; `TASK.md` § Now points at the next work (the § 7.10 unwired features in their
+   order: Media service, manual Game Info editing UI, reject-suggestion UI; and the D14 bugfix plans for
+   K3, K4, K6, K13).
+**Exit:** `npm run test:live` → every § 0.5 line PASS; `git grep -n "arch-m0" -- . ':!CHANGELOG.md'` → nothing;
+the docs index links resolve (`git grep -n "](steam-cartridges/" -- docs/steam-architecture.md` → every target exists).
+**Docs:** everything listed above.
 
 ### 7.9 Purge ledger (D13)
 
