@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5, M3.6 and M3.7 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5, M3.6 and M3.7 also live-validated). **M3.8–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5, M3.6, M3.7 and M3.8 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5, M3.6 and M3.7 also live-validated; M3.8 is comment-only, no live check). **M3.9–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -68,7 +68,7 @@ Statuses (what the executing agent does with the row):
 | M3.5 | Surface `achievements` | **Done** | `surfaces.md` § achievements |
 | M3.6 | Surface `toasts` | **Done** | `surfaces.md` § toasts |
 | M3.7 | Surface `native-links` | **Done** | `surfaces.md` § native-links |
-| M3.8 | Purge markers on the two temporary ports (D13) | **Ready** | § 7.9 ledger |
+| M3.8 | Purge markers on the two temporary ports (D13) | **Done** | § 7.9 ledger |
 | M3.9 | Surface `artwork` | **Ready** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Ready** | `surfaces.md` § library-home |
 | M4.0 | Backend inventory: live / unwired / dead; purge only the dead | Build | `rpc.md` (created) |
@@ -2214,7 +2214,7 @@ observer does nothing. `touches`: `appStore.GetAppOverviewByAppID`, `Navigator.A
 **Extra live:** `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL`; switch-off `native-links` →
 Jotunnslayer's Links, Friends and Community sections are stock.
 
-#### M3.8 — Purge markers on the temporary ports (Ready)
+#### M3.8 — Purge markers on the temporary ports (Done)
 
 **Check lines:**
 ```

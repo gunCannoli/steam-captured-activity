@@ -1,5 +1,6 @@
 // The toasts surface as the features see it (migration plan M3.6, § 7.0 D3): wired in
-// index.tsx to surfaces/toasts, no-ops until then. Remove in M6 (purge ledger).
+// index.tsx to surfaces/toasts, no-ops until then.
+// PURGE(M6): delete when M6 moves the achievements pipeline to the backend. Ledger: migration plan § 7.9.
 
 /** Structural copy of surfaces/toasts ToastAchievementPayload. */
 export interface ToastAchievementPayload {
