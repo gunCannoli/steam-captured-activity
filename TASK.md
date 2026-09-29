@@ -132,7 +132,17 @@ backend half (`cjson.array_mt`). New `tests/test_ach_service.lua` (18 checks). T
 `npm run test:ts` 114/114 (+10), allowlist -7, build succeeds, all Lua suites `ALL PASS`. K17 (the achievement toast's protobuf is not
 found on this Steam build) is still open and will keep the *toast* from showing; the unlock itself and the game page listing are unaffected.
 
-Next: live verification for M6 (a and b), then M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+**M6 live-verified 2026-09-29** (dev plugin left deployed and enabled). § 0.5 baseline: render loop PASS (`enrich(page)=2` on the first view after
+a restart, `0` warm; `achievementLoads(page)=0`, was 1), both Properties OK, nav cycle 6/6, `check_all_tabs` 11/11; `check_parity` 16/1 (K18 only),
+`audit_missing_metadata` 0 missing, safety diagnostics clean. M6 exits: AM2R logs one `Achievements …: unsupported` and no "cannot extract rom path"
+line (K2); Animaniacs 0/98; Castlevania: Aria of Sorrow 66; WUCHANG loads `ok steam 0/40` with no `newUnlocks.map` error and `checkObserverUnlocks`
+returns a number (K1); `git grep appSpotlightStore -- frontend/features frontend/app` is empty (K14). The unlock path was exercised with
+`triggerAchievement` on Animaniacs: Steam's store went 0 → 1 → 0 of 98 (reset afterwards). **Still the user's test:** a real unlock during play. The
+toast itself will not show yet: K17 (the notification protobuf is not found on this Steam build) is open. New open issue **K19** (two unhandled
+`RequestAchievements` TypeErrors on page load; not compared with a pre-M6 build). Not tested live: the launch toast and the 2 s in-game polling
+session (they need a real launch); both are unit-tested (`tests/app-achievements.test.ts`).
+
+Next: M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 
