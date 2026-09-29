@@ -57,7 +57,10 @@ one `EnsureFresh` call (`app/identity.ts`) instead of up to three round trips; `
 title matcher are deleted — the backend's `normalize` is the only matcher now
 (`sensors/owned-apps` supplies native candidates as context instead).
 `npm run check` clean, `npm run test:ts` 100/100, `npm run build` succeeds; Lua suites unchanged
-except the new `tests/test_identity.lua` (16/16). **Live verification pending: § 0.5 for M4a, M4b, M4c.**
+except the new `tests/test_identity.lua` (16/16). **Live-verified 2026-09-29**: § 0.5 baseline
+(render loop PASS; Properties OK for WUCHANG and Jotunnslayer, popups as documented; nav cycle
+6/6 PASS; `check_all_tabs.js` 11/11 PASS) plus M4c's own `check_parity.mjs` (16 PASS / 1 FAIL —
+matches the M3.7 baseline exactly, K18 only). Dev plugin left deployed and enabled.
 
 Next: **M5a → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
 with M5a's metadata service). No `Spec` steps remain. Nothing is open for the user.
