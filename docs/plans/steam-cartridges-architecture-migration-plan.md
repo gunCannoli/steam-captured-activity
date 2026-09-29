@@ -75,7 +75,7 @@ Statuses (what the executing agent does with the row):
 | M4a | Routing policy → `domain/routing` (ADR-0040) | **Done** (live-verified 2026-09-29) | `README.md` layer list, ADR-0040 |
 | M4b | Identity service + record facade (backend) | **Done** (live-verified 2026-09-29) | `service-resolver.md`, `rpc.md` |
 | M4c | Frontend adopts records and identity | **Done** (live-verified 2026-09-29) | `rpc.md`, `surfaces.md`, `sensors.md` |
-| M5a | Metadata service (backend) | Build | `service-metadata.md`, `rpc.md` |
+| M5a | Metadata service (backend) | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `rpc.md` |
 | M5b | Frontend adopts metadata | Build | `service-metadata.md`, `surfaces.md`, `sensors.md` |
 | M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Build | `service-artwork.md`, `safety.md` (credentials) |
 | M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Build | `service-metadata.md` |

@@ -18,6 +18,7 @@ package.loaded["fs"] = {
   is_directory = function() return true end,
   create_directories = function() return true end,
   join = function(...) return table.concat({ ... }, "/") end,
+  is_file = function(p) local f = io.open(p, "rb"); if f then f:close() return true end return false end,
 }
 package.loaded["utils"] = {
   read_file = function(p) local f = io.open(p, "rb"); if not f then return nil, "nf" end local c = f:read("*a"); f:close(); return c end,

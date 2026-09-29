@@ -62,8 +62,16 @@ except the new `tests/test_identity.lua` (16/16). **Live-verified 2026-09-29**: 
 6/6 PASS; `check_all_tabs.js` 11/11 PASS) plus M4c's own `check_parity.mjs` (16 PASS / 1 FAIL —
 matches the M3.7 baseline exactly, K18 only). Dev plugin left deployed and enabled.
 
-Next: **M5a → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
-with M5a's metadata service). No `Spec` steps remain. Nothing is open for the user.
+**M5a done (2026-09-29, implementer; live verification pending § 0.5).** Backend metadata
+service (`backend/metadata_service.lua`) selects Game Info by the same order as today
+(local record → Steam Store match → IGDB → fallback), reachable through the extended record
+facade (`GetGameRecord`/`EnsureFresh` now also resolve `metadata`; new `GetAllRecords` bulk
+read). `npm run check` clean, `npm run test:ts` 100/100 (unchanged — backend only); Lua suites
+unchanged except the new `tests/test_metadata_service.lua` (24/24). Nothing calls the new part
+or RPC yet — no behaviour change until M5b.
+
+Next: **M5b → M5d**, then M6a onward (`Build`: detailed specs the implementer builds per plan
+§ 0.10). No `Spec` steps remain. Nothing is open for the user.
 
 ## Next
 

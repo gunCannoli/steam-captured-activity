@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Internal: metadata resolution moved to the backend (M5a, 2026-09-29)**: a new backend service (`metadata_service.lua`) and an extended record facade (`GetGameRecord`/`EnsureFresh` now also resolve `metadata`; new `GetAllRecords` bulk read) can select Game Info (local record, Steam Store match, or IGDB fetch) in one call. Nothing calls the new part or RPC yet — no user-visible change until M5b.
+
 - **Internal: identity resolution now goes through the record facade (M4c, 2026-09-29)**: the frontend resolves a shortcut's Steam Store match through one backend `EnsureFresh` call instead of up to three round trips (`app/identity.ts`). The three affected surfaces (`sections`, `native-links`, `captures`) now read the result straight from the record instead of a value pushed in from the Steam Store pipeline. No user-visible change — same log lines, same matches, same fallback to web scraping when a shortcut has no Steam match.
 
 - **Internal: identity resolution moved to the backend (M4b, 2026-09-29)**: a new backend service (`resolve_identity.lua`) and two RPCs (`GetGameRecord`, `EnsureFresh`) can now resolve a shortcut's Steam Store match in one call instead of up to three. Nothing calls them yet — no user-visible change until M4c.
