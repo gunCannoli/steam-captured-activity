@@ -16,6 +16,7 @@ import {
 import { initGameInfo } from "./features/game-info";
 import { initSourceView, onSourceView } from "./features/source-view";
 import { createNativeLinksSurface, setNativeAppid } from "./surfaces/native-links";
+import { artworkWriter, createArtworkSurface } from "./surfaces/artwork";
 import {
     initAchievements,
     loadAchievementsForApp,
@@ -59,7 +60,13 @@ import {
 import { createPlaybarSurface } from "./surfaces/playbar";
 import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-info";
 import { controllerContext } from "./features/game-info/controller";
-import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink, setNativeLinksSink } from "./features/steam-store";
+import {
+    setArtworkSink,
+    setCapturesSinks,
+    setExtraSectionsSink,
+    setGameInfoSink,
+    setNativeLinksSink,
+} from "./features/steam-store";
 import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
 import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
 import { setAchievementsStore } from "./features/achievements/store-port";
@@ -136,6 +143,7 @@ async function init() {
     setGameInfoWriter(gameInfoWriter);
     setGameInfoSink(gameInfoWriter);
     setNativeLinksSink(setNativeAppid);
+    setArtworkSink(artworkWriter);
     setGameInfoEnricher(gameInfoWriter.enrich);
 
     // Settings first: the Game Info gate reads them (ADR-0033).
@@ -204,6 +212,8 @@ async function init() {
     // Steam's own Links / Friends / Community sections read the native appid
     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
     runner.register(createNativeLinksSurface(surfaceDeps));
+    // Custom artwork slots and logo position for mapped games (surfaces/artwork, plan M3.9).
+    runner.register(createArtworkSurface({ ...surfaceDeps, downloadImage: (url) => rpc.steamStoreDownloadImage(url) }));
     runner.installAll();
 
     // ===== Native Achievements Subsystem =====

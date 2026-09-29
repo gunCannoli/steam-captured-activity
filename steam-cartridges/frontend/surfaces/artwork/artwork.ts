@@ -1,5 +1,8 @@
+// Surface `artwork` (migration plan M3.9): writes custom artwork slots through
+// SteamClient.Apps. Moved from features/artwork/artwork.ts.
 import { logger } from "../../logger";
-import { rpc, type ArtworkUrls } from "../../rpc";
+import type { ArtworkUrls } from "../../kernel/record";
+import { deps } from "./deps";
 
 /**
  * Steam custom artwork slot types:
@@ -48,7 +51,7 @@ export async function fetchImageAsBase64(
     // Steam CDN only: the backend fetch is the fallback (never a third-party proxy).
     if (!blob && /^https:\/\/[\w.-]*steamstatic\.com\//.test(url)) {
         try {
-            const res = await rpc.steamStoreDownloadImage(url);
+            const res = await deps.downloadImage(url);
             if (res?.base64) {
                 return { base64: res.base64, ext: forcePng ? "png" : res.ext || "jpg" };
             }
@@ -93,6 +96,7 @@ export async function applyCustomArtworkFromUrls(
     appid: number,
     urls: ArtworkUrls,
 ): Promise<number[]> {
+    if (!deps.isEnabled("artwork")) return [];
     const sc = (window as any).SteamClient;
     if (!sc?.Apps?.SetCustomArtworkForApp) {
         logger.warn(

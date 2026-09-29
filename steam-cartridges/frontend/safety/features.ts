@@ -21,6 +21,7 @@ export const FEATURE_IDS = [
     "background-sync",
     "playbar",
     "toasts",
+    "artwork",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

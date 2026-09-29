@@ -1,4 +1,7 @@
+// Surface `artwork` (migration plan M3.9): the logo position that makes a custom logo
+// visible. Moved from features/steam-store/logo.ts.
 import { logger } from "../../logger";
+import { deps } from "./deps";
 
 /**
  * A shortcut's custom logo stays hidden until it has a logo position (parity
@@ -19,6 +22,7 @@ function handles(appid: number): { store: any; overview: any } | null {
 
 /** Give our logo a position unless one exists (a position the user set is kept). */
 export async function ensureLogoPosition(appid: number): Promise<void> {
+    if (!deps.isEnabled("artwork")) return;
     try {
         const h = handles(appid);
         if (!h || typeof h.store.SaveCustomLogoPosition !== "function") return;
@@ -33,6 +37,7 @@ export async function ensureLogoPosition(appid: number): Promise<void> {
 
 /** Remove the logo position together with the logo slot we wrote. */
 export async function clearLogoPosition(appid: number): Promise<void> {
+    if (!deps.isEnabled("artwork")) return;
     try {
         const h = handles(appid);
         await h?.store.ClearCustomLogoPosition?.(h.overview);

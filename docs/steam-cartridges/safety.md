@@ -22,7 +22,7 @@ steam-cartridges architecture (ADR-0039); index:
 export const FEATURE_IDS = [
     "sections", "store-cache", "captures", "headline", "activity-cards",
     "native-links", "achievements", "achievements-observer", "game-info",
-    "library-home", "background-sync", "playbar", "toasts",
+    "library-home", "background-sync", "playbar", "toasts", "artwork",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
@@ -137,3 +137,6 @@ else may import `frontend/safety/` except `index.tsx`.
 - M3.6: `toasts` appended to `FEATURE_IDS` (new surface: `NotificationStore`
   writes for achievement and launch toasts, split out of
   `features/achievements/dispatcher.ts`).
+- M3.9: `artwork` appended to `FEATURE_IDS` (new surface: custom artwork
+  slot and logo position writes, moved from `features/artwork/artwork.ts`
+  and `features/steam-store/logo.ts`).

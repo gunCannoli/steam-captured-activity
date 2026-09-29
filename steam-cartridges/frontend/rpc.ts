@@ -2,6 +2,7 @@ import type {
     AchievementSchemaItem,
     AchievementSchemaRecord,
     AchievementUnlockRecord,
+    ArtworkUrls,
     GameCategories,
     GameMetadata,
 } from "./kernel/record";
@@ -67,12 +68,8 @@ export interface MetadataResponse {
     message?: string;
 }
 
-export interface ArtworkUrls {
-    portrait?: string;
-    hero?: string;
-    logo?: string;
-    wide?: string;
-}
+// Artwork payload shapes live in the kernel (migration plan § 7.0 D12); the old names stay.
+export type { ArtworkUrls };
 
 // ---- Steam Store bucket (P3) ----
 

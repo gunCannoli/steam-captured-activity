@@ -7,6 +7,8 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: artwork surface (migration M3.9, 2026-09-28)**: `features/artwork/artwork.ts` and `features/steam-store/logo.ts` move to `surfaces/artwork/`. The three `ClearCustomArtworkForApp` call sites in `steam-store/index.ts` now call `artwork.clearSlot()` on the injected object through `setArtworkSink` (D3), instead of an extracted method. `ArtworkUrls` moves to `kernel/record.ts` (D12). New kill switch `artwork`: while off, no slot is written or cleared and the logo position is untouched. Allowlist 35 → 33.
+
 - **steam-cartridges: purge markers on temporary ports (migration M3.8, 2026-09-28)**: comment-only step. `features/achievements/store-port.ts` and `toast-port.ts` (the D3 ports M3.5 and M3.6 introduced) get a `PURGE(M6): ... Ledger: migration plan § 7.9.` marker; `git grep -n "PURGE(" -- frontend` now lists exactly those two files. No behaviour change, no live check.
 
 - **steam-cartridges: native-links surface, and K18 logged (migration M3.7, 2026-09-28)**: `features/steam-store/native-sections.ts` and `native-sections-core.ts` move to `surfaces/native-links/`. The three hooks (`GetAppOverviewByAppID`, `Navigator.App`, the jsx observer) are all fail-open; switching `native-links` off reverts Links/Friends/Community to stock. Live parity check (`check_parity.mjs`) found K18: the Support header link never resolves for a mapped shortcut — confirmed failing on the pre-M3.7 build too (16 PASS / 1 FAIL on both), so pre-existing and out of scope for this move. Allowlist unchanged at 35.

@@ -69,6 +69,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/toasts/{achievement,launch,deps}.ts` | The two `NotificationStore` writes, injected deps |
 | `frontend/surfaces/native-links/index.ts` | `native-links` surface: `createNativeLinksSurface` (§ native-links below) |
 | `frontend/surfaces/native-links/core.ts` | Pure redirect logic (tested with node) |
+| `frontend/surfaces/artwork/index.ts` | `artwork` surface: `createArtworkSurface`, `artworkWriter` (§ artwork below) |
+| `frontend/surfaces/artwork/{artwork,logo,deps}.ts` | Slot writes, logo position, injected deps |
 
 ## Steam targets touched
 
@@ -131,6 +133,10 @@ until the service steps (M4+) feed them through `render()`.
 - M3.7 (2026-09-28): `native-links` surface added (moved from `features/steam-store/native-sections.ts`,
   `native-sections-core.ts`). K18 logged: the Support header link already failed parity check 15
   before the move; out of scope for a pure move (D14).
+- M3.8 (2026-09-28): purge markers only, no new surface (`store-port.ts`/`toast-port.ts` marked `PURGE(M6)`).
+- M3.9 (2026-09-28): `artwork` surface added (moved from `features/artwork/artwork.ts`,
+  `features/steam-store/logo.ts`). New kill switch `artwork` (User-visible). `ArtworkUrls` moves
+  to `kernel/record.ts` (D12).
 
 ## sections
 
@@ -370,3 +376,34 @@ resolved link ids, so `check_parity.mjs` check 15 fails on both the pre-M3.7 and
 builds. Out of scope for a pure move (D14); tracked for a bugfix plan after M3.
 
 **Record-driven in:** not applicable — driven by the steam-store mapping, not the record.
+
+## artwork
+
+The only code that writes a shortcut's custom artwork slots (portrait,
+hero, logo, wide) and logo position into Steam. No hooks — the Steam
+Store pipeline reaches it only through a sink wired in `index.tsx` (D3);
+the art plan (which slots to fill, from which URLs) stays in the pipeline
+until M4.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `SteamClient.Apps.SetCustomArtworkForApp` | 1 |
+| `SteamClient.Apps.ClearCustomArtworkForApp` | 1 |
+| `AppDetailsStore.SaveCustomLogoPosition` | 1 |
+| `AppDetailsStore.ClearCustomLogoPosition` | 1 |
+
+**reads:** `artwork` (record-driven from M4, D4).
+
+**Kill switch:** `artwork`. Checked at the top of every write (`applyFromUrls`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`) — while off, no slot is written or cleared and the logo position is not touched.
+
+**Injected deps:**
+- `SurfaceDeps & { downloadImage(url): Promise<{ base64?: string; ext?: string } | null | undefined> }`, passed to `createArtworkSurface`. `downloadImage` replaces the direct `rpc.steamStoreDownloadImage` call.
+
+**API (reached only through this setter):**
+- `setArtworkSink` — wired from `steam-store`'s three `ClearCustomArtworkForApp` call sites, which now call `artwork.clearSlot()` on the injected object rather than an extracted method (D3).
+
+**Hooks:** none — `artwork` only writes, never patches a Steam method.
+
+**Record-driven in:** M4.

@@ -1,22 +1,41 @@
 import { logger } from "../../logger";
 import {
     rpc,
+    type ArtworkUrls,
     type ConsolidatedMetadata,
     type StoreApplied,
     type StoreMapping,
     type StoreState,
 } from "../../rpc";
 import { resolveShortcutTitle } from "../../steam/shortcut";
-import { applyCustomArtworkFromUrls } from "../artwork/artwork";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
 import { storeEnrichedAppIds } from "./enriched";
 import { knownAppName, matchKnownNative } from "./known-apps";
-import { clearLogoPosition, ensureLogoPosition } from "./logo";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
 import { loadAchievementsForApp } from "../achievements";
+
+/** Artwork slots and logo position (surfaces/artwork), wired in index.tsx (plan § 7.0 D3). */
+let artwork: {
+    applyFromUrls(appid: number, urls: ArtworkUrls): Promise<number[]>;
+    clearSlot(appid: number, slot: number): Promise<void>;
+    ensureLogoPosition(appid: number): Promise<void>;
+    clearLogoPosition(appid: number): Promise<void>;
+} = {
+    applyFromUrls: async () => [],
+    clearSlot: async () => {},
+    ensureLogoPosition: async () => {},
+    clearLogoPosition: async () => {},
+};
+
+export function setArtworkSink(writer: typeof artwork): void {
+    artwork = writer;
+}
+const applyCustomArtworkFromUrls = (appid: number, urls: ArtworkUrls) => artwork.applyFromUrls(appid, urls);
+const ensureLogoPosition = (appid: number) => artwork.ensureLogoPosition(appid);
+const clearLogoPosition = (appid: number) => artwork.clearLogoPosition(appid);
 
 /** Native Links/Friends/Community redirect (surfaces/native-links), wired in index.tsx (plan § 7.0 D3). */
 let setNativeAppid: (appid: number, nativeAppid: number | undefined) => void = () => {};
@@ -131,11 +150,10 @@ async function applyArtwork(
     if (applied?.steam_appid === mapping.steam_appid) artRetried.add(appid);
     if (plan.write.length === 0) return slotList(applied?.slots);
 
-    const apps = (window as any).SteamClient?.Apps; // call on the object; never extract the method
     // A different game was mapped before: clear only the slots this plugin wrote.
     for (const slot of plan.clear) {
         try {
-            await apps?.ClearCustomArtworkForApp?.(appid, slot);
+            await artwork.clearSlot(appid, slot);
         } catch {}
     }
     const written = await applyCustomArtworkFromUrls(appid, pickUrls(urls, plan.write));
@@ -145,7 +163,7 @@ async function applyArtwork(
         // The mapping was cleared while we were writing: remove what we just wrote (P4 H5).
         for (const slot of written) {
             try {
-                await apps?.ClearCustomArtworkForApp?.(appid, slot);
+                await artwork.clearSlot(appid, slot);
             } catch {}
         }
         logger.warn(`Steam Store: art for ${appid} discarded (${res.error}).`);
@@ -242,10 +260,9 @@ function forget(appid: number): void {
  */
 export async function clearSteamStore(appid: number, reject: boolean) {
     const res = await rpc.steamStoreClearMapping(appid, reject);
-    const apps = (window as any).SteamClient?.Apps; // call on the object; never extract the method
     for (const slot of slotList(res.slots)) {
         try {
-            await apps?.ClearCustomArtworkForApp?.(appid, slot);
+            await artwork.clearSlot(appid, slot);
         } catch (err) {
             logger.warn(`Could not clear art slot ${slot} for ${appid}:`, err);
         }

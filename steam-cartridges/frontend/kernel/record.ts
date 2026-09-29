@@ -86,6 +86,14 @@ export interface AchievementUnlockRecord {
     unlocked_time: number;
 }
 
+/** Artwork URLs per slot (moved from rpc.ts in M3.9, plan § 7.0 D12). */
+export interface ArtworkUrls {
+    portrait?: string;
+    hero?: string;
+    logo?: string;
+    wide?: string;
+}
+
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
