@@ -157,7 +157,15 @@ manager (only new shortcuts at start-up, user decision 2), `app/view.ts` replace
 `test_freshness.lua` 43 checks, all Lua suites `ALL PASS`, build succeeds. **The first start after this update seeds `known_shortcuts.json` with the current
 library and fetches nothing** (by design, so there is no 220-game storm); the positive case (one new shortcut is fetched) needs the user to add a shortcut.
 
-Next: live verification for M7, then M8 onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+**M7 live-verified 2026-09-29** (dev plugin left deployed and enabled). Start-up: `known_shortcuts.json` seeded with 220, `http_calls` empty (no storm).
+Opening AM2R for the first time refreshed its metadata (`igdb` +3 requests = one refresh: token, search, fallback); opening it again, or after another game,
+added none. Simulated "the user adds a shortcut" by removing Firestriker (3381982601) from `known_shortcuts.json` with Steam closed: the next start fetched exactly
+that game (2 `igdb` requests, a `freshness.json` entry, registry back to 220) and nothing else. § 0.5 baseline green: `enrich(page)=0` (warm), both Properties OK,
+nav cycle 6/6, `check_all_tabs` 11/11, parity 16/1 (K18 only), audit 0 missing, safety clean, no `RequestAchievements` exception. Not shown live: the 24 h expiry
+(the clock cannot be moved) and K15 (no `custom_override` record exists and creating one would change your data); both are covered by `tests/test_freshness.lua`.
+Every game's first page open after this update refreshes its metadata once (no freshness entry yet counts as stale), then not again for 24 h.
+
+Next: M8 onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 

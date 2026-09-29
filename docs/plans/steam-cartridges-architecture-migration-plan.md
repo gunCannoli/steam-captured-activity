@@ -81,8 +81,8 @@ Statuses (what the executing agent does with the row):
 | M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | **Done** (Lua-verified; live network check pending ScreenScraper credentials) | `service-metadata.md` |
 | M6a | Achievements service (backend; fixes K1, K2, K7) | **Done** (live-verified 2026-09-29) | `service-achievements.md`, `rpc.md` |
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | **Done** (live-verified 2026-09-29; a real unlock during play is still the user's test) | `service-achievements.md`, `surfaces.md` |
-| M7a | Freshness, throttle, registry (backend; fixes K15) | Done (implementer); live verification pending § 0.5 | `service-freshness.md`, `rpc.md` |
-| M7b | Frontend drives ingestion; sync manager deleted | Done (implementer); live verification pending § 0.5 | `service-freshness.md` |
+| M7a | Freshness, throttle, registry (backend; fixes K15) | **Done** (live-verified 2026-09-29) | `service-freshness.md`, `rpc.md` |
+| M7b | Frontend drives ingestion; sync manager deleted | **Done** (live-verified 2026-09-29; the "user adds a shortcut" case was simulated, see TASK.md) | `service-freshness.md` |
 | M8 | Settings split + Troubleshooting panel | Build | `settings.md`, `safety.md` |
 | M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | Build | `rpc.md`, `README.md`, ADR-0041 |
 | M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | Build | all |

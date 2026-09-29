@@ -114,9 +114,13 @@ after 30 min; `noNetwork` and no allowed source never refresh; first run seeds; 
 known; signed appids; 429 pauses 30 min; 5 failures pause 15 min; a paused source makes no request; `http_calls` counts
 per source; a throwing transport is an error result.
 
-Live: after a restart with the library home open for 10 minutes and no page opened, `GetDiagnostics().http_calls` shows calls
-only for shortcuts added since the last run (none if none); opening a page whose metadata is older than 24 h adds one
-`igdb` call for that app only, and opening it again at once adds none.
+Live (2026-09-29): the first start seeded `known_shortcuts.json` with all 220 shortcuts and `GetDiagnostics().http_calls` was empty; the
+first open of a game whose metadata had never been checked refreshed it (`http_calls.igdb` +3: an IGDB lookup is a token
+request, the search and a fallback query, so count *refreshes*, not requests); re-opening it, or opening it after another game,
+added none. With Firestriker removed from `known_shortcuts.json` while Steam was closed, the next start fetched exactly that game
+(`igdb` 2 requests, a `freshness.json` entry, back to 220 known) and nothing else. The 24 h expiry and `custom_override` are covered
+by `tests/test_freshness.lua`; neither could be shown live without changing your data (no custom record exists; the clock cannot
+be moved).
 
 ## How to add a source
 
@@ -131,3 +135,4 @@ only for shortcuts added since the last run (none if none); opening a page whose
 - M7b (2026-09-29): `app/ingest.ts` and `app/view.ts` added; `features/scraper/` and `features/source-view.ts` deleted. The
   start-up job fetches only new shortcuts (user decision 2); a page open refreshes only stale parts. `EnsureFresh` reports
   `paused` sources and `metadata_service` writes no fallback record while IGDB or ScreenScraper is paused.
+- M7 live verification (2026-09-29): see Tests. No defect found.
