@@ -83,7 +83,7 @@ Statuses (what the executing agent does with the row):
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | **Done** (live-verified 2026-09-29; a real unlock during play is still the user's test) | `service-achievements.md`, `surfaces.md` |
 | M7a | Freshness, throttle, registry (backend; fixes K15) | **Done** (live-verified 2026-09-29) | `service-freshness.md`, `rpc.md` |
 | M7b | Frontend drives ingestion; sync manager deleted | **Done** (live-verified 2026-09-29; the "user adds a shortcut" case was simulated, see TASK.md) | `service-freshness.md` |
-| M8 | Settings split + Troubleshooting panel | Build | `settings.md`, `safety.md` |
+| M8a–M8d | Settings split + Troubleshooting panel (a: pin defaults, b: panel context, c: split, d: Troubleshooting) | Build | `settings.md`, `safety.md` |
 | M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | Build | `rpc.md`, `README.md`, ADR-0041 |
 | M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | Build | all |
 
@@ -2921,6 +2921,20 @@ once adds 0. A shortcut with `custom_override` keeps its edits after "sync now" 
 **Docs:** `service-freshness.md`, `README.md`, § 7.9 (M7 rows), § 12 (K15 fixed).
 
 ### M8 — Settings split (Build)
+
+**Phases (each ends green and is committed on its own; the design items below say _what_, this says _in what order_).**
+Every phase leaves `settings-panel.tsx` working, so a session that runs out of budget can stop after any of them.
+
+| Phase | Design items | Scope | Exit |
+| --- | --- | --- | --- |
+| **M8a** | 1 | Pin the defaults: extract `settings/defaults.ts` (type-only imports), snapshot fixture, `tests/settings-defaults.test.ts` (+2). No panel change. | `test:ts` green (+2); fixture checked by hand against `HEAD` |
+| **M8b** | 2 | `settings/context.ts` (`PanelContext`, `setPanelContext`, `usePanelContext`), the `ports/backend.ts` wrappers (`getStatus`, `saveServiceCredentials`, `getRetroStatus`), and the `index.tsx` wiring. Nothing consumes it yet. | `npm run check` + `test:ts` green; deploy unchanged |
+| **M8c** | 3 (all rows except the last two) | Verbatim split into `components.tsx`, `panels/*`, `sync-progress.tsx`, `panel.tsx`, one panel per commit (start with the leaf panels: notifications, activity, community, metadata, achievements; then rules, audit last, the only ones with many replacements). Delete `settings-panel.tsx` in the last commit; export `SettingsPanel`; allowlist regenerated (only removals, no `settings -> *` edge left). | `test:ts` green; `check_settings_panel.mjs` (item 6) shows the 7 old titles PASS |
+| **M8d** | 4, 6 (Troubleshooting only), docs | `troubleshooting-core.ts` + `panels/troubleshooting.tsx` (+3 tests), add its title to the render check (8 PASS), `settings.md`, `safety.md`, README, live check per the User test, § 0.5. | § 0.5 PASS; `safetyDiagnostics()` unchanged; switching a feature off persists across a restart |
+
+Order rationale: M8a is the only step that can silently change behaviour (defaults), so it goes first and alone; M8b is
+additive; M8c is the mechanical bulk and the risk is in the imports, so it is split per panel; M8d is the only new UI and
+comes last so the split can be verified with no behaviour change first.
 
 **Why:** `settings/settings-panel.tsx` is 2,707 lines and imports four `features/` modules, `rpc` and the
 routing policy. By M8, three of those modules no longer exist (M4a, M6b, M7b replace them), so the panel
