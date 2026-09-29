@@ -60,6 +60,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/captures/{summary,activity,headline,activity-cards,publish,bpm-style,deps}.ts` | `captures`'s six parts, one file each |
 | `frontend/surfaces/game-info/index.ts` | `game-info` surface: `createGameInfoSurface`, `gameInfoWriter` (§ game-info below) |
 | `frontend/surfaces/game-info/{patch,metadata,category-policy,deps}.ts` | `game-info`'s hooks, enrich/revert, category filtering, injected deps |
+| `frontend/surfaces/playbar/index.ts` | `playbar` surface: `createPlaybarSurface` (§ playbar below) |
+| `frontend/steam/overview-proxy.ts` | `createPatchedOverview`; importable only by `surfaces/game-info` and `surfaces/playbar` (guardrail 1) |
 
 ## Steam targets touched
 
@@ -109,6 +111,9 @@ until the service steps (M4+) feed them through `render()`.
   `renderers/library-app.tsx`, and the Big Picture `<style>` block out of `index.tsx`).
 - M3.3 (2026-09-28): `game-info` surface added (moved from `features/game-info/game-info-patch.ts`,
   `metadata.ts`, `category-policy.ts`). `GameMetadata`/`GameCategories` move to `kernel/record.ts` (D12).
+- M3.4 (2026-09-28): `playbar` surface added, split out of `game-info` (the PlayBar ⓘ button).
+  `steam/overview-proxy.ts` created; an architecture test now asserts only `surfaces/game-info`
+  and `surfaces/playbar` import it (guardrail 1). New kill switch `playbar` (User-visible).
 
 ## sections
 
@@ -219,5 +224,36 @@ shortcut shows the same accordion drawer a native game does.
 **Hooks:** all seven Game Info/PlayBar/AppOverview hooks are fail-open — `render` runs Steam's original on error, the `props` getter returns `this._nsga_raw_props`, `GetGameID`/`BHasStoreCategory` return the original's result. `install` = `setCachedStores` + `patchGameInfoComponent`.
 
 **Webpack scanner:** `steamRequire()` from `steam/modules.ts` — the same one scanner every surface shares (guardrail 3); the old `getSteamRequire` retry-on-every-call duplicate is deleted.
+
+**Record-driven in:** M5.
+
+## playbar
+
+Restores the ⓘ "Show/Hide game details" button on a shortcut's desktop
+PlayBar. Split out of `game-info` because the two are on different Steam
+components and the code has no other reason to be in the same surface; the
+button opens Game Info, so it shows only while **both** `playbar` and
+`game-info` are enabled — the same behaviour as before the split, when
+`game-info` alone owned it.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `PlayBar.render` | 1 |
+| `PlayBar.props` | 1 |
+
+**reads:** `metadata` (record-driven from M5, D4).
+
+**Kill switch:** `playbar`. `on()` checks `isEnabled("playbar") && isEnabled("game-info")` — both must be on.
+
+**Injected deps:**
+- `SurfaceDeps & { hookOverview(overview): void; track(inst): void }`, passed to `createPlaybarSurface`. `hookOverview` is game-info's `ensureAppOverviewHooked`; `track` is game-info's `trackInstance`, so `refreshGameInfoInstances` re-renders the PlayBar too.
+
+**API:** none — `playbar` has no callers besides its own `install()`; it patches `PlayBar` directly once resolved.
+
+**Hooks:** the props getter (`hookPlayBarProps`, the `requireMetadata: false` path moved verbatim from game-info's `hookComponentProps`) and `render` are both fail-open — a throw returns Steam's original props/render and counts against `playbar`.
+
+**Shared code:** `steam/overview-proxy.ts`'s `createPatchedOverview`, importable only by `surfaces/game-info` and `surfaces/playbar` (guardrail 1, enforced by an architecture test).
 
 **Record-driven in:** M5.

@@ -2,6 +2,7 @@
 // AppOverview hooks that let a shortcut show them. Moved from features/game-info/game-info-patch.ts.
 import { logger } from "../../logger";
 import { steamRequire } from "../../steam/modules";
+import { createPatchedOverview } from "../../steam/overview-proxy";
 import { isNonSteamAppId } from "../../steam/route";
 import { deps } from "./deps";
 
@@ -58,6 +59,11 @@ export function getAppStore(): any {
 }
 
 const liveInstances = new Set<any>();
+
+/** Remember a mounted component so refreshGameInfoInstances re-renders it (the playbar surface uses this). */
+export function trackInstance(inst: any): void {
+    liveInstances.add(inst);
+}
 
 /**
  * Re-render all mounted Game Info container and overview components across all windows.
@@ -128,34 +134,6 @@ export function refreshGameInfoInstances(): void {
             logger.warn("Error refreshing Game Info in document:", err);
         }
     }
-}
-
-function createPatchedOverview(overview: any): any {
-    if (!overview) return overview;
-    if (overview.__nsga_is_patched_proxy) return overview;
-    return new Proxy(overview, {
-        get(target, prop, receiver) {
-            if (prop === "__nsga_is_patched_proxy") return true;
-            if (prop === "BIsModOrShortcut") {
-                return () => false;
-            }
-            if (prop === "GetGameID") {
-                return () =>
-                    target.m_gameid ||
-                    (typeof target.GetGameID === "function"
-                        ? target.GetGameID()
-                        : target.appid?.toString());
-            }
-            if (prop === "gameid") {
-                return target.m_gameid || target.gameid;
-            }
-            const val = Reflect.get(target, prop, receiver);
-            if (typeof val === "function") {
-                return val.bind(target);
-            }
-            return val;
-        },
-    });
 }
 
 const appCategoriesCache = new Map<number, Set<number>>();
@@ -481,7 +459,6 @@ export function patchGameInfoComponent(): boolean {
         }
 
         let targetG: any = undefined;
-        let targetPlayBar: any = undefined;
 
         for (const id of Object.keys(req.m)) {
             let mod: any;
@@ -504,16 +481,9 @@ export function patchGameInfoComponent(): boolean {
                     ) {
                         targetG = exp;
                     }
-                    if (
-                        !targetPlayBar &&
-                        exp.s_setGameInfoVisible instanceof Set &&
-                        Array.isArray(exp.s_rgFakeDetails)
-                    ) {
-                        targetPlayBar = exp;
-                    }
                 }
             }
-            if (targetG && targetPlayBar) break;
+            if (targetG) break;
         }
 
         if (!targetG) {
@@ -630,44 +600,6 @@ export function patchGameInfoComponent(): boolean {
                     return vdom;
                 };
             }
-        }
-
-        // 3. Hook targetPlayBar (prototype props descriptor + render fallback)
-        // Restores native ⓘ "Show/Hide game details" button on Desktop normal mode PlayBar
-        if (targetPlayBar && !targetPlayBar.__nsga_playbar_patched) {
-            targetPlayBar.__nsga_playbar_patched = true;
-            hookComponentProps(targetPlayBar, { requireMetadata: false, id: "game-info" });
-
-            const origPlayBarRender = targetPlayBar.prototype.render;
-            if (typeof origPlayBarRender === "function") {
-                targetPlayBar.prototype.render = function () {
-                    if (!deps.isEnabled("game-info")) return origPlayBarRender.apply(this, arguments);
-                    try {
-                        liveInstances.add(this);
-                        const overview = this.props?.overview;
-                        if (overview) {
-                            ensureAppOverviewHooked(overview);
-                        }
-                        if (
-                            overview &&
-                            (isNonSteamAppId(overview.appid) ||
-                                (typeof overview.BIsModOrShortcut === "function" &&
-                                    overview.BIsModOrShortcut()))
-                        ) {
-                            this.props = {
-                                ...this.props,
-                                overview: createPatchedOverview(overview),
-                            };
-                        }
-                    } catch (err) {
-                        deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
-                    }
-                    return origPlayBarRender.apply(this, arguments);
-                };
-            }
-            logger.info(
-                "Successfully patched Steam PlayBar component (show/hide game details ⓘ button restored).",
-            );
         }
 
         hasPatchedGameInfo = true;

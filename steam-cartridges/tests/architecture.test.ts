@@ -107,6 +107,14 @@ test('architecture: layer rules allow the § 4.1 edges and nothing it forbids', 
     for (const e of forbidden) assert.ok(!ruleAllows(e), `should be forbidden: ${e}`);
 });
 
+test('architecture: only game-info and playbar import the scoped overview proxy (guardrail 1)', () => {
+    const importers = walk(FRONTEND)
+        .filter((f) => /from\s*['"][./]*\/?steam\/overview-proxy['"]/.test(readFileSync(f, 'utf8')))
+        .map((f) => areaOf(f))
+        .sort();
+    assert.deepEqual([...new Set(importers)], ['surfaces/game-info', 'surfaces/playbar']);
+});
+
 test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {
     const rpcSrc = readFileSync(join(FRONTEND, 'rpc.ts'), 'utf8');
     const called = new Set<string>();

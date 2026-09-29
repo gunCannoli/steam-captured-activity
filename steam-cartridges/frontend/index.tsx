@@ -49,7 +49,14 @@ import {
     setGameInfoProbe,
     setHasContent,
 } from "./surfaces/sections";
-import { createGameInfoSurface, gameInfoWriter, isAppEnriched } from "./surfaces/game-info";
+import {
+    createGameInfoSurface,
+    ensureAppOverviewHooked,
+    gameInfoWriter,
+    isAppEnriched,
+    trackInstance,
+} from "./surfaces/game-info";
+import { createPlaybarSurface } from "./surfaces/playbar";
 import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-info";
 import { controllerContext } from "./features/game-info/controller";
 import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink } from "./features/steam-store";
@@ -199,6 +206,8 @@ async function init() {
     // ===== Game Info (surfaces/game-info, plan M3.3) =====
     // Steam's Game Info components and AppOverview hooks; the data pipeline below fills it.
     runner.register(createGameInfoSurface({ ...surfaceDeps, controllerContext, metadataOf: getCachedLibraryMetadata }));
+    // The desktop PlayBar's ⓘ button (surfaces/playbar, plan M3.4); on only while game-info is.
+    runner.register(createPlaybarSurface({ ...surfaceDeps, hookOverview: ensureAppOverviewHooked, track: trackInstance }));
     runner.installAll();
 
     // ===== Game Info data (ex steamgriddb-artwork) =====

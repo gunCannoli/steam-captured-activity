@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Added: a `playbar` switch to turn off the PlayBar's info button separately from Game Info (2026-09-28)**: previously bundled with the Game Info switch.
+
 - **Fixed: kill switches in Settings never actually turned a feature off (2026-09-28)**: switching a feature off in `disabledFeatures` saved correctly but silently had no effect, in the current session or after restarting Steam. Switches now work as documented.
 
 - **Changed: one place detects which game page is open (2026-09-28)**: desktop and Big Picture page views, game launches and quits now come from dedicated sensors. Big Picture no longer re-runs the page pipeline on every re-render; switching directly between two non-Steam games now clears the first one's activity, as Big Picture already did.

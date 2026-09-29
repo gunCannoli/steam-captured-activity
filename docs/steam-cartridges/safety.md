@@ -22,7 +22,7 @@ steam-cartridges architecture (ADR-0039); index:
 export const FEATURE_IDS = [
     "sections", "store-cache", "captures", "headline", "activity-cards",
     "native-links", "achievements", "achievements-observer", "game-info",
-    "library-home", "background-sync",
+    "library-home", "background-sync", "playbar",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
@@ -129,3 +129,8 @@ else may import `frontend/safety/` except `index.tsx`.
 
 - M0b-1 (2026-09-28): created. Kill switches, error budget, boot sentinel / safe
   mode wired around every feature's start-up in `index.tsx`.
+- M3.1: fixed K16 (in `settings.ts`, not this file) — `disabledFeatures` was
+  silently discarded on every load because `apply()` unconditionally
+  `JSON.parse`d a stored string value; every kill switch was inert until then.
+- M3.4: `playbar` appended to `FEATURE_IDS` (new surface, split out of
+  `game-info`; on only while both `playbar` and `game-info` are enabled).

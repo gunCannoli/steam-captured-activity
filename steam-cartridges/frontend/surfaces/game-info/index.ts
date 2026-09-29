@@ -7,9 +7,17 @@ import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import type { ControllerContext } from "./category-policy";
 import { deps } from "./deps";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
-import { enrichedAppIds, isAppEnriched, patchGameInfoComponent, refreshGameInfoInstances, setCachedStores } from "./patch";
+import {
+    enrichedAppIds,
+    ensureAppOverviewHooked,
+    isAppEnriched,
+    patchGameInfoComponent,
+    refreshGameInfoInstances,
+    setCachedStores,
+    trackInstance,
+} from "./patch";
 
-export { enrichGameDetails, revertGameDetails, isAppEnriched, refreshGameInfoInstances };
+export { enrichGameDetails, revertGameDetails, isAppEnriched, refreshGameInfoInstances, ensureAppOverviewHooked, trackInstance };
 
 /** What the features call (structurally matched by their setters). */
 export const gameInfoWriter = {
@@ -36,8 +44,6 @@ export function createGameInfoSurface(
             "GameInfo.k.props",
             "GameInfo.G.render",
             "GameInfo.G.props",
-            "PlayBar.render",
-            "PlayBar.props",
             "AppOverview.GetGameID",
             "AppOverview.BHasStoreCategory",
             "AppOverview.rt_original_release_date",
