@@ -23,11 +23,8 @@ import {
     resetSettings,
     setSetting,
     setting,
-    setAchievementsSource,
-    setSyncSource,
-    setRouting as setSettingsRouting,
 } from "./settings/settings";
-import { SettingsPanel } from "./settings/settings-panel";
+import { SettingsPanel } from "./settings/panel";
 import { createRouting } from "./app/routing";
 import { isServiceAllowed, type ServiceTarget } from "./domain/routing/policy";
 import { createRecords } from "./app/records";
@@ -224,7 +221,7 @@ const ingest = createIngest({
     onRulesUpdated: () => window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated")),
 });
 
-export { setSetting, resetSettings };
+export { setSetting, resetSettings, SettingsPanel };
 /** Kill switches, error counts and safe mode (migration plan M0b). */
 export const safetyDiagnostics = () => features.diagnostics();
 export const bucketReport = () => routing.bucketReport();
@@ -328,9 +325,6 @@ async function init() {
         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics() },
     });
 
-    // Routing reaches the settings panel only through this setter (plan § 7.0 D3).
-    setSettingsRouting(routing);
-
     // The manual mapping API (features/steam-store, public per D8) reaches app/ only through these setters.
     setIdentitySource(identity);
     setMetadataSource(metadata);
@@ -338,12 +332,6 @@ async function init() {
 
     // Surface and app APIs reach the settings panel and the features only through these setters (plan § 7.0 D3).
     setContentListener(setHasContent);
-    setAchievementsSource({ getLocalAchievements });
-    setSyncSource({
-        getSyncProgress: ingest.getSyncProgress,
-        onSyncProgress: ingest.onSyncProgress,
-        triggerSync: ingest.triggerSync,
-    });
     setGameInfoRefresher({ refresh: refreshGameInfoInstances });
 
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a

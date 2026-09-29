@@ -3,7 +3,5 @@
   "features/game-info -> settings",
   "features/steam-store -> rpc",
   "features/steam-store -> steam",
-  "safety -> settings",
-  "settings -> features/game-info",
-  "settings -> rpc"
+  "safety -> settings"
 ]

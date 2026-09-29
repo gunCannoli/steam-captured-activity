@@ -7,43 +7,6 @@ import { DEFAULTS, DEFAULT_SERVICES, type ControllerOverride, type SettingKey, t
 export { DEFAULTS, DEFAULT_SERVICES };
 export type { ControllerOverride, LaunchNotifyOption, ServicesConfig, SettingKey, Settings } from './defaults';
 
-/** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
-interface RoutingSource {
-    listCollections(): { id: string; name: string; dynamic: boolean; shortcutCount: number }[];
-    listShortcuts(): { appid: number; name: string }[];
-    membersOf(id: string): ReadonlySet<number> | undefined;
-}
-
-/** Routing, for the settings panel only (plan § 7.0 D3: never an import of app/). */
-let routing: RoutingSource = {
-    listCollections: () => [],
-    listShortcuts: () => [],
-    membersOf: () => undefined,
-};
-
-export function setRouting(r: RoutingSource): void {
-    routing = r;
-}
-
-export function getRouting(): RoutingSource {
-    return routing;
-}
-
-/** Achievement counts for the panel's game list (plan § 7.0 D3: never an import of surfaces/). */
-interface AchievementsSource {
-    getLocalAchievements(shortcutAppId: number): { nTotal: number; nAchieved: number } | undefined;
-}
-
-let achievementsSource: AchievementsSource = { getLocalAchievements: () => undefined };
-
-export function setAchievementsSource(s: AchievementsSource): void {
-    achievementsSource = s;
-}
-
-export function getAchievementsSource(): AchievementsSource {
-    return achievementsSource;
-}
-
 /** Progress of the background sync (app/ingest.ts), for the panel (plan § 7.0 D3: never an import of app/). */
 export interface SyncProgress {
     isSyncing: boolean;
@@ -51,30 +14,6 @@ export interface SyncProgress {
     current: number;
     currentGame: string;
     phase: 'idle' | 'scraping' | 'complete';
-}
-
-interface SyncSource {
-    getSyncProgress(): SyncProgress;
-    onSyncProgress(fn: (p: SyncProgress) => void): () => void;
-    triggerSync(delayMs?: number): void;
-}
-
-const IDLE_SYNC: SyncProgress = { isSyncing: false, total: 0, current: 0, currentGame: '', phase: 'idle' };
-let syncSource: SyncSource = { getSyncProgress: () => IDLE_SYNC, onSyncProgress: () => () => {}, triggerSync: () => {} };
-
-export function setSyncSource(s: SyncSource): void {
-    syncSource = s;
-}
-
-/** Queue a background sync (debounced): new shortcuts only; see app/ingest.ts. */
-export function triggerSync(delayMs?: number): void {
-    syncSource.triggerSync(delayMs);
-}
-
-export function useSyncProgress(): SyncProgress {
-    const [progress, setProgress] = useState(() => syncSource.getSyncProgress());
-    useEffect(() => syncSource.onSyncProgress(setProgress), []);
-    return progress;
 }
 
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
