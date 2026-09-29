@@ -159,6 +159,7 @@ const metadata = createMetadata({
     ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
     allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
+    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
 });
 
 /** Artwork (app/artwork.ts, plan M5c): SteamGridDB for shortcuts with no Steam match, the Steam

@@ -26,6 +26,8 @@ takes the evaluated route as opaque context, never re-deriving either.
 -- backend/metadata_service.lua
 local M = {}
 M.deps = {
+  screenscraper_fetch = nil, -- nil = ScreenScraper jeuInfos via screenscraper_media.fetch_jeu, mapped
+                             -- by M.screenscraper_to_metadata; fun(appid, title, shortcut_info)
   igdb_fetch = nil,       -- nil = igdb.fetch_game_metadata (backend/web_igdb.lua)
   appdetails_fetch = nil, -- nil = appdetails.fetch (backend/steam_store_appdetails.lua)
   shortcut_info = nil,    -- nil = web_rpc.get_shortcut_info
@@ -35,8 +37,10 @@ M.deps = {
 function M.local_part(appid) end
 --- Full resolution: custom override -> local db -> steam appdetails/storeItem
 --- -> igdb -> fallback. Returns a Part (table).
---- ctx = { title=, route={bucket=,via=}, storeItem=?, allowWeb=?, noNetwork=? }
+--- ctx = { title=, route={bucket=,via=}, identity=?, storeItem=?, allowWeb=?, allowScreenscraper=?, noNetwork=? }
 function M.ensure(appid, ctx) end
+--- A ScreenScraper `jeu` record -> our metadata (the M5d field mapping below).
+function M.screenscraper_to_metadata(jeu, appid, title) end
 return M
 ```
 
@@ -63,10 +67,14 @@ RPC.GetAllRecords  = method("GetAllRecords",  function(_) end)                  
 4. `route.bucket == "steam-store"` and the saved identity has no native match
    (or is not known — `resolve_identity.saved` returned nil), or
    `route.bucket == "web-scraping"`: a local record → `ok` `source =
-   "local_db"`; none, `ctx.allowWeb` and not `ctx.noNetwork` → `igdb_fetch` →
-   persist → `ok` `source = "igdb"`; IGDB no match → persist the fallback
-   record exactly as the old `GetGameMetadata` did → `ok` `source =
-   "fallback"`; not allowed → `pending`.
+   "local_db"`; none, and (`ctx.allowWeb` or `ctx.allowScreenscraper`) and not
+   `ctx.noNetwork` → **IGDB first** (`igdb_fetch`, when `allowWeb`) → persist →
+   `ok` `source = "igdb"`; **IGDB not configured, not allowed, or no match →
+   ScreenScraper** (`allowScreenscraper`, M5d) → persist → `ok` `source =
+   "screenscraper"`; neither finds anything → persist the fallback record
+   exactly as the old `GetGameMetadata` did → `ok` `source = "fallback"`; no
+   source allowed → `pending`. A throwing provider is silent (ADR-0014): the
+   next tier runs.
 5. `route.bucket == "none"` → a local record → `ok` `source = "local_db"`;
    none → `unsupported`.
 6. Every returned part gets `checkedAt = now() * 1000` (ms).
@@ -77,6 +85,17 @@ calls `EnsureFresh(appid, ["identity", "metadata"], ctx)`, which resolves
 identity first in the same round trip (`record_rpc.lua`'s part loop runs in
 request order).
 
+**ScreenScraper mapping** (M5d, decided with the user): `synopsis` → `description` (English
+first, else the first language available); `developpeur` → `developers`; `editeur` → `publishers`;
+`familles` → `franchises`; `dates` → `release_date` = the **earliest** regional date (Steam shows one original
+release date); `joueurs` → `categories.single_player` (min players is 1) and `categories.multiplayer` (max players
+> 1); `genres` → `genres` (stored, not displayed by Steam). Co-op, split screen and controller flags are not
+provided by ScreenScraper and are left unset (controller support keeps coming from the emulator inference,
+ADR-0038). The lookup reuses `screenscraper_media.fetch_jeu` (jeuInfos.php, the ROM name/CRC/MD5 and console id
+from the shortcut, or the title as the search name when there is no ROM); the media source shares the same client
+and cache. Credentials are read only by `web_config` and sent only to `api.screenscraper.fr`; the request URL,
+which carries them, is never logged.
+
 ## Files
 
 | File | Role |
@@ -86,6 +105,7 @@ request order).
 | `backend/web_metadata_db.lua` | Persisted `library_metadata.json` (unchanged format, `custom_override` rule) |
 | `backend/steam_store_appdetails.lua` | Store appdetails fetch + `to_metadata` (mapped native apps, in-memory 7-day TTL cache) |
 | `backend/web_igdb.lua` | IGDB search + match scoring (`fetch_game_metadata`) |
+| `backend/screenscraper_media.lua` | `fetch_jeu` (the jeuInfos client, shared with media) — the ScreenScraper metadata source |
 | `backend/web_rpc.lua` | `get_shortcut_info`; pre-M5a `GetGameMetadata`/`RefreshGameMetadata`/`GetAllMetadata` (kept as aliases until M9) |
 
 ## Steam targets touched
@@ -103,7 +123,7 @@ Steam Store data to `library_metadata.json`.
 ## Tests
 
 `tests/test_metadata_service.lua` (hermetic; no network, no Steam install),
-24 checks: the selection order above (including the six cases ported by name
+the selection order above (including the six cases ported by name
 from the now-deleted `tests/game-info-policy.test.ts`), `steam-store metadata
 is never written to library_metadata.json`, `GetAllRecords is disk only`. Add
 to `package.json` `test:lua`.
@@ -138,3 +158,8 @@ decision (M5d: IGDB first when configured, ScreenScraper fills in).
   match could not reach the IGDB tier (ADR-0036 fallback). `metadata_service.lua` reads `ctx.identity` first,
   then the saved mapping; identity `ok` or `unsupported` (emulator launcher) falls through to the web tier,
   `pending`/`error` stays local-only. Two Lua checks added.
+- M5d (2026-09-29): ScreenScraper metadata source. `metadata_service.lua` gains `screenscraper_to_metadata` and the
+  IGDB → ScreenScraper → fallback order (`ctx.allowScreenscraper`, from `services.screenscraperEnabled` and the routing
+  service `screenscraper`); `screenscraper_media.lua` exposes `fetch_jeu` (`fetch_media` now builds on it, behaviour
+  unchanged). Tests use a hand-shaped `tests/fixtures/screenscraper-jeu.json` (no network in the test environment):
+  compare it with a real `jeuInfos.php` response during live verification.

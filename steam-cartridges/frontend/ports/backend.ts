@@ -20,6 +20,8 @@ export interface FreshContext {
     storeItem?: GameMetadata | null;
     /** Metadata only (M5): igdb enabled and allowed by routing. */
     allowWeb?: boolean;
+    /** Metadata only (M5d): screenscraperEnabled and allowed by routing. */
+    allowScreenscraper?: boolean;
     /** Metadata and artwork: the identity the frontend already knows. An "ok" result with no
      *  native match is never persisted, so the backend cannot recover it from disk. */
     identity?: Part<Identity>;

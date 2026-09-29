@@ -106,6 +106,7 @@ mapping, disk only — the bulk read M5b's frontend uses instead of the old `get
 RPC.GetAllRecords = method("GetAllRecords", function(_) end) -- -> { records }
 ```
 
+`context.allowScreenscraper` (M5d: `services.screenscraperEnabled` and routing) sits next to `allowWeb`.
 `context.storeItem` (identity has a native match, frontend's StoreItemCache data — not persisted),
 `context.allowWeb` (igdb enabled and allowed by routing) and `context.noNetwork` (disk and context
 only, for bulk re-evaluation) are metadata-only context fields; see
@@ -210,3 +211,5 @@ Live: none — a docs-only step changes no runtime code path.
 - M5c (2026-09-29): `artwork` part added to `EnsureFresh` (`art_service.lua`, wired by `app/artwork.ts`);
   `SteamStoreRecordArtwork` extended with `source: "steamgriddb"`. `GetArtworkForGame` (unwired, `web_rpc.lua`) stays
   registered: `art_service` calls `web_sgdb` directly, so that RPC still has no caller. 27 live, 6 unwired (unchanged).
+- M5d (2026-09-29): `EnsureFresh(["metadata"])` accepts `context.allowScreenscraper`. `GetGameMedia` and `GetGameManual`
+  stay unwired (Media service after M7); they now share `screenscraper_media.fetch_jeu` with the metadata source.

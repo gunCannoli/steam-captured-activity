@@ -19,6 +19,8 @@ local M = {}
 
 --- Injectable for tests. nil = the real dependency.
 M.deps = {
+  screenscraper_fetch = nil, -- nil = ScreenScraper jeuInfos (screenscraper_media.fetch_jeu) mapped by
+                             -- M.screenscraper_to_metadata; fun(appid, title, shortcut_info) -> meta|nil
   igdb_fetch = nil,       -- nil = igdb.fetch_game_metadata
   appdetails_fetch = nil, -- nil = appdetails.fetch
   shortcut_info = nil,    -- nil = web_rpc.get_shortcut_info
@@ -35,6 +37,125 @@ end
 
 local function shortcut_info(appid)
   return (M.deps.shortcut_info or web_rpc.get_shortcut_info)(appid)
+end
+
+--- ScreenScraper `jeu` record -> our metadata (M5d). Field mapping (decided with the user):
+---   synopsis -> description (English first, else the first language available)
+---   developpeur -> developers, editeur -> publishers, familles -> franchises, genres -> genres
+---   dates -> release_date = the EARLIEST regional date (Steam shows one original release date)
+---   joueurs -> single_player (min players is 1) and multiplayer (max players > 1)
+--- Co-op, split screen and controller flags are not provided by ScreenScraper (controller support
+--- keeps coming from the emulator inference, ADR-0038), so they are left unset.
+local function text_of(v)
+  if type(v) == "string" then return v end
+  if type(v) ~= "table" then return nil end
+  if type(v.text) == "string" then return v.text end
+  for _, k in ipairs({ "nom", "nomcomplet", "nomfamille", "nomgenre" }) do
+    if type(v[k]) == "string" then return v[k] end
+  end
+  return nil
+end
+
+--- A list of {langue|region, text} (or a bare string / {text}): English first, else the first.
+local function localized(list)
+  if type(list) == "string" then return list end
+  if type(list) ~= "table" then return nil end
+  if type(list.text) == "string" then return list.text end
+  local first
+  for _, e in ipairs(list) do
+    local t = text_of(e)
+    if t and t ~= "" then
+      first = first or t
+      if type(e) == "table" and (e.langue == "en" or e.region == "us" or e.region == "wor") then return t end
+    end
+  end
+  return first
+end
+
+--- Names from an entry that is a single {text} object or a list of entries (each a string,
+--- {text}, or {noms = {{langue, text}}}).
+local function names_of(v)
+  local out, seen = {}, {}
+  local function add(t)
+    if t and t ~= "" and not seen[t] then seen[t] = true; out[#out + 1] = t end
+  end
+  if type(v) == "string" then add(v) return out end
+  if type(v) ~= "table" then return out end
+  if type(v.text) == "string" then add(v.text) return out end
+  for _, e in ipairs(v) do
+    if type(e) == "table" and type(e.noms) == "table" then add(localized(e.noms)) else add(text_of(e)) end
+  end
+  return out
+end
+
+local function days_from_civil(y, m, d)
+  if m <= 2 then y = y - 1 end
+  local era = math.floor((y >= 0 and y or y - 399) / 400)
+  local yoe = y - era * 400
+  local doy = math.floor((153 * (m + (m > 2 and -3 or 9)) + 2) / 5) + d - 1
+  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+  return era * 146097 + doe - 719468
+end
+
+--- "1991-06-23" | "1991-06" | "1991" -> epoch (UTC); else nil.
+local function parse_iso(s)
+  s = tostring(s or "")
+  local y, m, d = s:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  if not y then y, m = s:match("^(%d%d%d%d)%-(%d%d)$"); d = "1" end
+  if not y then y = s:match("^(%d%d%d%d)$"); m = "1"; d = "1" end
+  if not y then return nil end
+  return days_from_civil(tonumber(y), tonumber(m), tonumber(d)) * 86400
+end
+
+local function earliest_date(dates)
+  local best
+  local list = type(dates) == "table" and (dates.text and { dates } or dates) or {}
+  for _, e in ipairs(list) do
+    local t = parse_iso(text_of(e))
+    if t and (not best or t < best) then best = t end
+  end
+  return best or 0
+end
+
+function M.screenscraper_to_metadata(jeu, appid, title)
+  if type(jeu) ~= "table" then return nil end
+  local nums = {}
+  for n in tostring(localized(jeu.joueurs) or ""):gmatch("%d+") do nums[#nums + 1] = tonumber(n) end
+  local min_p, max_p = nums[1], nums[#nums]
+  return {
+    appid = appid,
+    title = title,
+    ss_id = tonumber(jeu.id),
+    matched_title = localized(jeu.noms) or text_of(jeu.nom) or title,
+    description = localized(jeu.synopsis) or "",
+    developers = names_of(jeu.developpeur),
+    publishers = names_of(jeu.editeur),
+    franchises = names_of(jeu.familles),
+    release_date = earliest_date(jeu.dates),
+    genres = names_of(jeu.genres),
+    categories = {
+      single_player = min_p == nil or min_p <= 1,
+      multiplayer = max_p ~= nil and max_p > 1,
+    },
+    custom_override = false,
+  }
+end
+
+local function default_screenscraper_fetch(appid, title, info)
+  local media = require("screenscraper_media")
+  local ra = require("retroachievements")
+  local rom_path = info and ra.extract_rom_path(info.exe, info.launch_options) or nil
+  local md5 = rom_path and ra.compute_rom_md5(rom_path) or nil
+  local console_id = info and ra.detect_console_id(info.exe, info.launch_options) or nil
+  local jeu = media.fetch_jeu(appid, rom_path, console_id, nil, md5, title)
+  if not jeu then return nil end
+  return M.screenscraper_to_metadata(jeu, appid, title)
+end
+
+local function screenscraper_fetch(appid, title, info)
+  local ok, meta = pcall(M.deps.screenscraper_fetch or default_screenscraper_fetch, appid, title, info)
+  if ok then return meta end
+  return nil -- ADR-0014: a failing provider is silent, the next tier runs
 end
 
 local function now_ms()
@@ -129,12 +250,22 @@ function M.ensure(appid, ctx)
     return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() }
   end
 
-  if ctx.allowWeb and not ctx.noNetwork then
+  if (ctx.allowWeb or ctx.allowScreenscraper) and not ctx.noNetwork then
     local info = shortcut_info(appid)
-    local meta = igdb_fetch(appid, title, info)
+    -- IGDB first when the user has it (a plain ScreenScraper account is the easy one, so it fills
+    -- in when IGDB is not configured or finds no match), then the fallback record (M5d).
+    local meta, source
+    if ctx.allowWeb then
+      meta = igdb_fetch(appid, title, info)
+      if meta then source = "igdb" end
+    end
+    if not meta and ctx.allowScreenscraper then
+      meta = screenscraper_fetch(appid, title, info)
+      if meta then source = "screenscraper" end
+    end
     if meta then
       metadata_db.set(appid, meta)
-      return { status = "ok", data = meta, source = "igdb", checkedAt = now_ms() }
+      return { status = "ok", data = meta, source = source, checkedAt = now_ms() }
     end
     local fallback = fallback_record(appid, title)
     metadata_db.set(appid, fallback)

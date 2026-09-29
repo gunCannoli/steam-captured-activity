@@ -78,7 +78,7 @@ Statuses (what the executing agent does with the row):
 | M5a | Metadata service (backend) | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `rpc.md` |
 | M5b | Frontend adopts metadata | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `surfaces.md`, `sensors.md` |
 | M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Done (implementer); live verification pending § 0.5 | `service-artwork.md`, `safety.md` (credentials) |
-| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Build | `service-metadata.md` |
+| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Done (implementer); live verification pending § 0.5 | `service-metadata.md` |
 | M6a | Achievements service (backend; fixes K1, K2, K7) | Build | `service-achievements.md`, `rpc.md` |
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | Build | `service-achievements.md`, `surfaces.md` |
 | M7a | Freshness, throttle, registry (backend; fixes K15) | Build | `service-freshness.md`, `rpc.md` |

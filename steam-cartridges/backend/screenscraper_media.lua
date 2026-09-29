@@ -59,28 +59,27 @@ local function decode_payload(payload_json)
   return req
 end
 
---- Fetch media from ScreenScraper API
+--- In-memory `jeu` records, by shortcut appid (positive results only).
+local jeu_cache = {}
+
+--- The raw ScreenScraper `jeu` record for a game (jeuInfos.php): the one client the media
+--- (M-series) and metadata (M5d) sources share.
 ---@param appid number
 ---@param rom_path string|nil
 ---@param system_id number|nil
 ---@param crc string|nil
 ---@param md5 string|nil
----@return table|nil
-function M.fetch_media(appid, rom_path, system_id, crc, md5)
-  if not appid then return nil end
-  if media_cache[appid] then return media_cache[appid] end
+---@param name string|nil  a title to search by when there is no ROM file name
+---@return table|nil jeu
+---@return string|nil err  "no-credentials" | "request-failed" | "not-found"
+function M.fetch_jeu(appid, rom_path, system_id, crc, md5, name)
+  if not appid then return nil, "not-found" end
+  if jeu_cache[appid] then return jeu_cache[appid] end
 
   local creds = config.get_screenscraper_credentials()
   if not creds or (creds.dev_user == "" and creds.user == "") then
     -- Fail silently if no ScreenScraper credentials configured (ADR-0014)
-    return {
-      appid = appid,
-      screenshots = {},
-      titlescreen = nil,
-      fanart = nil,
-      video = nil,
-      manual = nil,
-    }
+    return nil, "no-credentials"
   end
 
   local dev_id = creds.dev_user ~= "" and creds.dev_user or creds.user
@@ -89,6 +88,7 @@ function M.fetch_media(appid, rom_path, system_id, crc, md5)
   local sspw   = creds.pass
 
   local filename = rom_path and rom_path:match("([^/\\]+)$") or ""
+  if filename == "" and name and #name > 0 then filename = name end
   local url = string.format(
     "https://api.screenscraper.fr/api2/jeuInfos.php?devid=%s&devpassword=%s&softname=steam-cartridges&output=json&romtype=rom",
     utils.url_encode(dev_id),
@@ -116,17 +116,46 @@ function M.fetch_media(appid, rom_path, system_id, crc, md5)
     timeout = 15,
   })
 
+  -- Never log `url`: it carries the account credentials.
   if not ok or not res or res.status ~= 200 or not res.body then
     logger:info("ScreenScraper API request returned status " .. tostring(res and res.status))
-    return nil
+    return nil, "request-failed"
   end
 
   local decode_ok, data = pcall(json.decode, res.body)
   if not decode_ok or type(data) ~= "table" or not data.response or not data.response.jeu then
-    return nil
+    return nil, "not-found"
   end
 
-  local jeu = data.response.jeu
+  jeu_cache[appid] = data.response.jeu
+  return jeu_cache[appid]
+end
+
+--- Fetch media from ScreenScraper API
+---@param appid number
+---@param rom_path string|nil
+---@param system_id number|nil
+---@param crc string|nil
+---@param md5 string|nil
+---@return table|nil
+function M.fetch_media(appid, rom_path, system_id, crc, md5)
+  if not appid then return nil end
+  if media_cache[appid] then return media_cache[appid] end
+
+  local jeu, err = M.fetch_jeu(appid, rom_path, system_id, crc, md5)
+  if err == "no-credentials" then
+    return {
+      appid = appid,
+      screenshots = {},
+      titlescreen = nil,
+      fanart = nil,
+      video = nil,
+      manual = nil,
+    }
+  end
+  if not jeu then return nil end
+
+  local filename = rom_path and rom_path:match("([^/\\]+)$") or ""
   local medias = jeu.medias or {}
   local screenshots = {}
   local titlescreen = nil

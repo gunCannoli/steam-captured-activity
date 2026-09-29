@@ -100,7 +100,11 @@ Notes for the next step (M5d, then batch live verification of M5a–M5d):
   SteamGridDB request (backend log). Also re-check M5b's exits (`audit_missing_metadata.mjs`, a web-scraping game
   shows IGDB data) since the identity/title fix changes that path. Needs a SteamGridDB key in the panel.
 
-Next: **M5d**, then live verification for all of M5, then M6a onward (`Build`: detailed specs the implementer
+**M5d done (2026-09-29, implementer; live verification pending § 0.5).** ScreenScraper as a Game Info source
+(IGDB first, then ScreenScraper, then the fallback record; `screenscraper_media.fetch_jeu` shared with media). Lua
+tests use a hand-shaped `jeuInfos` fixture — compare it with a real response during live verification.
+
+Next: live verification for all of M5 (M5a–M5d), then M6a onward (`Build`: detailed specs the implementer
 builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next

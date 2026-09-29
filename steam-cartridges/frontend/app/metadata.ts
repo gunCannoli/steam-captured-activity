@@ -20,6 +20,8 @@ export interface MetadataDeps {
     storeItemFor(steamAppid: number): Promise<any | null>;
     /** services.igdbEnabled and the routing service check for "igdb". */
     allowWeb(appid: ShortcutId): boolean;
+    /** services.screenscraperEnabled and the routing service check for "screenscraper". */
+    allowScreenscraper(appid: ShortcutId): boolean;
 }
 
 export interface MetadataResolver {
@@ -48,6 +50,7 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
             identity,
             storeItem: storeItem ?? undefined,
             allowWeb: deps.allowWeb(appid),
+            allowScreenscraper: deps.allowScreenscraper(appid),
             noNetwork: opts.noNetwork,
         });
 

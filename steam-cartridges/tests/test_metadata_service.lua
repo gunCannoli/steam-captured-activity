@@ -332,6 +332,80 @@ check("GetAllRecords includes the identity mapping", out.records[tostring(SC + 1
 check("GetAllRecords is disk only (no appdetails/igdb deps invoked)", true)
 wipe()
 
+-- ---------- ScreenScraper (M5d) ----------
+print("screenscraper mapping")
+local function read_fixture(name)
+  local fh = assert(io.open(here .. "/fixtures/" .. name, "rb")); local c = fh:read("*a"); fh:close(); return json.decode(c)
+end
+local JEU = read_fixture("screenscraper-jeu.json").response.jeu
+local m = metadata.screenscraper_to_metadata(JEU, SC, "Sonic")
+check("synopsis -> description, English first", m.description == "The blue hedgehog runs fast.")
+local fr_only = metadata.screenscraper_to_metadata({ synopsis = { { langue = "fr", text = "Seulement." }, { langue = "de", text = "Nur." } } }, SC, "x")
+check("synopsis falls back to the first language available", fr_only.description == "Seulement.")
+check("developpeur -> developers", m.developers[1] == "Sonic Team" and #m.developers == 1)
+check("editeur -> publishers", m.publishers[1] == "Sega" and #m.publishers == 1)
+check("familles -> franchises", m.franchises[1] == "Sonic" and #m.franchises == 1)
+check("genres -> genres (English names)", m.genres[1] == "Platform" and m.genres[2] == "Action")
+check("dates -> release_date is the EARLIEST regional date", m.release_date == 675734400, m.release_date)
+check("joueurs 1-2 -> single_player and multiplayer", m.categories.single_player == true and m.categories.multiplayer == true)
+check("joueurs 1 -> single_player only", (function()
+  local x = metadata.screenscraper_to_metadata({ joueurs = { text = "1" } }, SC, "x")
+  return x.categories.single_player == true and x.categories.multiplayer == false
+end)())
+check("joueurs 2 -> multiplayer only (min players is not 1)", (function()
+  local x = metadata.screenscraper_to_metadata({ joueurs = { text = "2" } }, SC, "x")
+  return x.categories.single_player == false and x.categories.multiplayer == true
+end)())
+check("co-op, split screen and controller flags are left unset", m.categories.coop == nil and m.categories.split_screen == nil and m.categories.full_controller == nil)
+check("matched_title prefers the US name", m.matched_title == "Sonic the Hedgehog")
+
+print("screenscraper selection")
+local IGDB_META = { appid = SC, title = "G", igdb_id = 1, description = "from igdb", developers = {}, publishers = {}, franchises = {}, genres = {}, categories = {}, release_date = 0, custom_override = false }
+local ss_calls, igdb_calls = 0, 0
+local function stubs(igdb_result)
+  metadata.deps.igdb_fetch = function() igdb_calls = igdb_calls + 1; return igdb_result end
+  metadata.deps.screenscraper_fetch = function(appid, title) ss_calls = ss_calls + 1; return metadata.screenscraper_to_metadata(JEU, appid, title) end
+end
+wipe(); stubs(IGDB_META)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = true, allowScreenscraper = true })
+check("IGDB first: a match there means no ScreenScraper call", r.source == "igdb" and ss_calls == 0)
+wipe(); ss_calls, igdb_calls = 0, 0; stubs(nil)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = true, allowScreenscraper = true })
+check("IGDB finds nothing: ScreenScraper fills in and is persisted", r.source == "screenscraper" and ss_calls == 1 and metadata_db.get(SC) ~= nil and metadata_db.get(SC).ss_id == 3)
+wipe(); ss_calls, igdb_calls = 0, 0; stubs(IGDB_META)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = false, allowScreenscraper = true })
+check("IGDB not allowed or not configured: ScreenScraper alone", r.source == "screenscraper" and igdb_calls == 0)
+wipe(); ss_calls, igdb_calls = 0, 0; stubs(nil)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = true, allowScreenscraper = false })
+check("ScreenScraper not allowed: IGDB miss goes to the fallback record", r.source == "fallback" and ss_calls == 0)
+wipe(); ss_calls, igdb_calls = 0, 0; stubs(nil)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = true, allowScreenscraper = true, noNetwork = true })
+check("noNetwork: neither source is called", r.status == "pending" and ss_calls == 0 and igdb_calls == 0)
+wipe(); ss_calls, igdb_calls = 0, 0
+metadata.deps.igdb_fetch = function() return nil end
+metadata.deps.screenscraper_fetch = function() error("boom") end
+r = metadata.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = true, allowScreenscraper = true })
+check("a failing ScreenScraper is silent: fallback record (ADR-0014)", r.status == "ok" and r.source == "fallback")
+wipe(); stubs(nil)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_STORE, allowScreenscraper = true, identity = { status = "ok", data = {} } })
+check("steam-store with no Steam match also reaches ScreenScraper", r.source == "screenscraper")
+wipe(); ss_calls, igdb_calls = 0, 0; stubs(nil)
+r = metadata.ensure(SC, { title = "G", route = ROUTE_NONE, allowScreenscraper = true })
+check("route none never calls ScreenScraper", r.status == "unsupported" and ss_calls == 0)
+metadata.deps.igdb_fetch = nil
+metadata.deps.screenscraper_fetch = nil
+wipe()
+
+print("screenscraper credentials")
+local leak = false
+local fh = assert(io.open(here .. "/../backend/screenscraper_media.lua", "rb")); local src = fh:read("*a"); fh:close()
+for line in src:gmatch("[^\n]+") do
+  if line:find("logger[:.]") and (line:find("%f[%w_]url%f[^%w_]") or line:find("sspw") or line:find("dev_pw") or line:find("ssid") or line:find("creds")) then
+    leak = true; print("    leak: " .. line)
+  end
+end
+check("the ScreenScraper credentials never appear in a logger: call", not leak)
+
 os.remove(META_PATH)
 os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
