@@ -2,7 +2,7 @@
  * Pure helpers for the Steam Store bucket. Only `import type` allowed so the
  * node test runner can load this file.
  */
-import type { ArtworkUrls } from '../../rpc';
+import type { ArtworkUrls } from '../kernel/record';
 
 /**
  * Unhashed CDN paths; they fetch fine for existing apps (P0 T2). Newer apps

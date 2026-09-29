@@ -3134,10 +3134,10 @@ printing nothing, and every row below being deleted.
 | ~~`features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts`~~ | — | ~~M4c~~ **done** | the backend's `normalize` is the only matcher |
 | ~~setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`; `features/game-info/index.ts`, `policy.ts`~~ | — | ~~M5b~~ **done** | Game Info comes from `record.metadata`; `setGameInfoSink` (an enrich/revert writer) is fully gone — the refresh-only call guardrail 11 still needs is a new, narrower setter (`setGameInfoRefresher`, not a purge item) |
 | ~~setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts`~~ | — | ~~M7~~ **done (M7b)** | freshness and ingestion moved to the backend (`app/ingest.ts`, `app/view.ts`) |
-| setter `setContentListener` | — | M9 decides | the content flag stays captures → sections; keep the setter or move it to an event |
-| `rpc.ts` type aliases (`ConsolidatedMetadata`, `GameCategories`, achievement and artwork shapes), and `rpc.ts` itself (its `call` moves to `ports/transport.ts` in M4c) | — | M9 | importers use the kernel names (D12) and `ports/` |
-| old RPC names kept as aliases for the M4–M7 facade | — | M9 | the registration test proves which are unused |
-| `steam/route.ts` `isNonSteamAppId` | — | M9 | `kernel/appid.ts` everywhere |
+| setter `setContentListener` | — | **kept, by design (M9a)** | permanent composition wiring: the content flag goes captures → sections through `index.tsx` |
+| ~~`rpc.ts` type aliases, and `rpc.ts` itself~~ | — | ~~M9~~ **done (M9a)** | importers use the kernel names (D12) and `ports/` |
+| ~~old RPC names kept as aliases for the M4–M7 facade~~ | — | ~~M9~~ **done (M9a)** (`SteamStoreGetMapping` kept: still called) | the registration test proves which are unused |
+| ~~`steam/route.ts` `isNonSteamAppId`~~ | — | ~~M9~~ **done (M9a)** | `kernel/appid.ts` everywhere |
 | `scratch/arch-m0/<step>/` packages, `apply_step.py`, `pack_step.py` | — | M9 | execution aids, not product code; the live scripts move to `steam-cartridges/tests/live/` |
 
 ### 7.10 Unwired features register (§ 11 item 7)

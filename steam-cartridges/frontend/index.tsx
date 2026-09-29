@@ -1,6 +1,5 @@
 import { definePlugin, IconsModule } from "@steambrew/client";
 import { logger } from "./logger";
-import { rpc } from "./rpc";
 import {
     createCapturesSurface,
     patch as patchLibraryApp,
@@ -20,6 +19,7 @@ import { createNativeLinksSurface } from "./surfaces/native-links";
 import { createArtworkSurface } from "./surfaces/artwork";
 import {
     initSettings,
+    onSettingChange,
     resetSettings,
     setSetting,
     setting,
@@ -35,8 +35,7 @@ import { createArtwork } from "./app/artwork";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
-import { features } from "./safety/switches";
-import { FEATURE_IDS, type FeatureId } from "./safety/features";
+import { createFeatureSwitches, FEATURE_IDS, type FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
 import type { ShortcutId } from "./kernel/appid";
 import { bus } from "./app/bus";
@@ -58,9 +57,9 @@ import {
     trackInstance,
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
-import { controllerContext, getInferredControllerSupport, loadControllerInference } from "./features/game-info/controller";
+import { controllerContext, getInferredControllerSupport, loadControllerInference } from "./app/controller";
 import { setPanelContext } from "./settings/context";
-import { handleSteamStoreView, leaveSteamStore, setSteamStoreMapping, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
+import { handleSteamStoreView, leaveSteamStore, setSteamStoreMapping, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./app/steam-store";
 import {
     createAchievementsSurface,
     ensureAchievementsStoreHooked,
@@ -68,6 +67,18 @@ import {
     getLocalSchema,
 } from "./surfaces/achievements";
 import { createToastsSurface, dispatchAchievementToast, dispatchLaunchToast } from "./surfaces/toasts";
+
+/** The plugin's one FeatureSwitches instance: the kill switches come from the `disabledFeatures` setting (M0b, M9a). */
+const features = createFeatureSwitches({
+    readDisabled: () => String(setting("disabledFeatures") ?? ""),
+    log: (level, message, err) => {
+        if (level === "error") logger.error(message, err ?? "");
+        else logger.warn(message, err ?? "");
+    },
+});
+onSettingChange((key) => {
+    if (key === "disabledFeatures") features.reload();
+});
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
 const surfaceDeps: SurfaceDeps = {
@@ -122,7 +133,7 @@ const routing = createRouting({
             .filter((a) => a?.appid >= 0x8000_0000)
             .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
     },
-    loadProfiles: async () => (await rpc.getAutoRoutingProfiles())?.profiles ?? {},
+    loadProfiles: async () => (await backend.getAutoRoutingProfiles())?.profiles ?? {},
     metadataAppids: () => records.store.all().filter((r) => r.metadata).map((r) => r.appid),
 });
 
@@ -171,7 +182,7 @@ const achievements = createAchievements({
     resolveNative: async (appid) => {
         const known = records.store.get(appid)?.identity?.data?.native?.appid;
         if (known) return known;
-        const res = await rpc.steamStoreGetMapping(appid).catch(() => null);
+        const res = await backend.steamStoreGetMapping(appid).catch(() => null);
         return res?.mapping?.steam_appid || 0;
     },
     hardcore: () => setting("raHardcoreMode"),
@@ -230,7 +241,7 @@ export {
     clearSteamStore,
     setSteamStoreMapping,
     steamStoreState,
-} from "./features/steam-store";
+} from "./app/steam-store";
 
 export { getLocalAchievements, getLocalSchema, dispatchAchievementToast };
 
@@ -411,9 +422,9 @@ async function init() {
     runner.register(
         createArtworkSurface({
             ...surfaceDeps,
-            downloadImage: (url) => rpc.steamStoreDownloadImage(url),
+            downloadImage: (url) => backend.steamStoreDownloadImage(url),
             recordArtwork: (appid, info) =>
-                rpc.steamStoreRecordArtwork(
+                backend.steamStoreRecordArtwork(
                     appid,
                     info.steamAppid,
                     info.slots,
@@ -458,7 +469,7 @@ async function init() {
     runner.register(
         createGameInfoSurface({
             ...surfaceDeps,
-            controllerContext,
+            controllerContext: (appid) => controllerContext(appid, setting("defaultFullController")),
             metadataOf: (appid) => records.store.get(appid as ShortcutId)?.metadata?.data,
         }),
     );
@@ -480,7 +491,7 @@ async function init() {
 
     // ===== Library grid =====
     // Fills in last-played dates Steam does not have, from capture timestamps.
-    runner.register(createLibraryHomeSurface({ ...surfaceDeps, loadLibraryStats: () => rpc.getLibraryStats() }));
+    runner.register(createLibraryHomeSurface({ ...surfaceDeps, loadLibraryStats: () => backend.getLibraryStats() }));
     runner.installAll();
     await libraryHomeReady();
 

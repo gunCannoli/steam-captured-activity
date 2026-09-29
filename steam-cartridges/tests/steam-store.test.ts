@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cdnArtworkUrls } from '../frontend/features/steam-store/resolve.ts';
+import { cdnArtworkUrls } from '../frontend/domain/steam-cdn.ts';
 import { categoryIds, gameCategoryIds, metadataFromStoreItem } from '../frontend/domain/store-item.ts';
 
 test('cdnArtworkUrls', () => {

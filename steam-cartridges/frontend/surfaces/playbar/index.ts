@@ -7,7 +7,7 @@ import { logger } from "../../logger";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { resolveOnce } from "../../steam/modules";
 import { createPatchedOverview } from "../../steam/overview-proxy";
-import { isNonSteamAppId } from "../../steam/route";
+import { isShortcutAppId } from "../../kernel/appid";
 
 let deps: SurfaceDeps & {
     /** game-info's ensureAppOverviewHooked (GetGameID / BHasStoreCategory on the overview's prototype chain). */
@@ -20,7 +20,7 @@ const on = () => deps.isEnabled("playbar") && deps.isEnabled("game-info");
 
 function isShortcutOverview(overview: any): boolean {
     return (
-        isNonSteamAppId(overview.appid) ||
+        isShortcutAppId(overview.appid) ||
         (typeof overview.BIsModOrShortcut === "function" && overview.BIsModOrShortcut())
     );
 }

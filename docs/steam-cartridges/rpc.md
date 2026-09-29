@@ -22,7 +22,7 @@ Not applicable — this doc is an inventory, not a layer with exported types.
 
 ## Classification (M4.0, verified 2026-09-28 against tree `06d00f8`)
 
-**live**: the frontend calls it (`frontend/rpc.ts` after M3.0).
+**live**: the frontend calls it (`frontend/ports/backend.ts`).
 **unwired**: implemented and registered, no frontend caller, a feature the
 user wants — stays registered (deleting a registered-but-uncalled method is
 safe; the backend risk runs the other way: an unregistered method the
@@ -36,9 +36,6 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetLibraryStats` | `rpc.lua` | live | library grid capture timestamps |
 | `GetDiagnostics` | `rpc.lua` | live (debug) | no frontend caller; called directly from the SharedJSContext console. Documented in [millennium-architecture.md](../millennium-architecture.md); M7 adds `http_calls` |
 | `GetStatus` | `web_rpc.lua` | live | provider status |
-| `GetGameMetadata` | `web_rpc.lua` | live | Game Info fetch |
-| `RefreshGameMetadata` | `web_rpc.lua` | live | forced Game Info re-fetch |
-| `GetAllMetadata` | `web_rpc.lua` | live | bulk local Game Info cache |
 | `SaveGameMetadata` | `web_rpc.lua` | unwired | § 7.10: manual Game Info editing (`custom_override`); no UI yet |
 | `GetArtworkForGame` | `web_rpc.lua` (→ `web_sgdb.lua`) | unwired | § 7.10: SteamGridDB artwork (M5c) |
 | `GetControllerInference` | `web_rpc.lua` | live | controller support badges |
@@ -47,17 +44,13 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `SteamStoreGetState` | `steam_store_rpc.lua` | live | steam-store bucket state |
 | `SteamStoreGetMapping` | `steam_store_rpc.lua` | live | shortcut → native appid lookup |
 | `SteamStoreSetMapping` | `steam_store_rpc.lua` | live | manual mapping |
-| `SteamStoreSaveKnownMatch` | `steam_store_rpc.lua` | live | accept a suggested match |
-| `SteamStoreSearch` | `steam_store_rpc.lua` | live | store search |
 | `SteamStoreClearMapping` | `steam_store_rpc.lua` | live | unmap / reject |
 | `SteamStoreRejectSuggestion` | `steam_store_rpc.lua` | unwired | § 7.10: reject a suggestion in the Steam Store settings list; no UI yet (Lua-tested: `test_steam_store.lua` "rejecting a suggestion removes it and remembers it") |
 | `SteamStoreGetAppDetails` | `steam_store_rpc.lua` | live | native app details for Game Info parity |
 | `SteamStoreRecordArtwork` | `steam_store_rpc.lua` | live | records which artwork slots were applied |
 | `SteamStoreDownloadImage` | `steam_store_rpc.lua` | live | artwork image fetch (allowlisted hosts) |
-| `CartridgesAchievementsGet` | `achievements_rpc.lua` | live | achievement state for a shortcut |
 | `CartridgesAchievementsUnlock` | `achievements_rpc.lua` | live | manual unlock |
 | `CartridgesAchievementsReset` | `achievements_rpc.lua` | live | reset local achievements |
-| `CartridgesAchievementsCheckUnlocks` | `achievements_rpc.lua` | live | poll for new unlocks |
 | `CartridgesAchievementsGetRetroStatus` | `achievements_rpc.lua` | live | RetroAchievements connection status |
 | `GetGameMedia` | `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) |
 | `GetGameManual` | `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) |
@@ -67,7 +60,7 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, wired by `app/metadata.ts`'s `ensure()` in M5b |
 | `GetNewShortcuts` | `record_rpc.lua` | live | M7a: shortcuts not seen before (first call seeds and returns none); M7b: `app/ingest.ts` calls it at start-up |
 | `MarkKnown` | `record_rpc.lua` | live | M7a: mark shortcuts handled; M7b: `app/ingest.ts` |
-| `CheckUnlocks` | `record_rpc.lua` | live | M6a: new unlocks since the last check (`{ new_unlocks }`, always a list, K1); M6b: `app/achievements.ts` polls it every 2 s while a game runs. `CartridgesAchievementsCheckUnlocks` stays as its alias (no caller now) |
+| `CheckUnlocks` | `record_rpc.lua` | live | M6a: new unlocks since the last check (`{ new_unlocks }`, always a list, K1); M6b: `app/achievements.ts` polls it every 2 s while a game runs. The old `CartridgesAchievementsCheckUnlocks` alias was deleted in M9a |
 | `GetAllRecords` | `record_rpc.lua` | live | M5a: disk-only bulk read (every DB record + every saved mapping); M5b's `app/metadata.ts` `preload()` calls it once at start-up, replacing the frontend's old `getAllMetadata`/`initGameInfo` preload |
 
 **Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b added 2 more
@@ -128,10 +121,9 @@ the `ArtworkPlan` in `record.artwork`. `SteamStoreRecordArtwork` also accepts `s
 
 ## Ports (M4c)
 
-`frontend/ports/transport.ts` — `call<R>(name, payload)`, moved verbatim from
-`rpc.ts` (which now imports it; `[/^rpc$/, /^ports$/]` in `LAYER_RULES`,
-temporary until M9 folds `rpc.ts` into `ports/`). `frontend/ports/backend.ts`
-is the typed client for the record facade:
+`frontend/ports/transport.ts` — `call<R>(name, payload)`. `frontend/rpc.ts` was folded into `ports/` in M9a:
+`frontend/ports/backend.ts` is the one typed client (record facade plus the store, controller,
+routing-profile, credential and library-stat calls):
 
 ```ts
 // frontend/ports/backend.ts
@@ -147,16 +139,15 @@ export const backend: {
 
 `app/identity.ts` calls `backend.ensureFresh` (M4c); `app/metadata.ts` calls
 `backend.ensureFresh` and `backend.getAllRecords` (M5b). The RPC
-registration test scans both `rpc.ts` and `ports/backend.ts` for method names
-that must be registered in `backend/main.lua`.
+registration test scans `ports/backend.ts` for method names that must be registered in `backend/main.lua`.
 
 ## Files
 
 | File | Role |
 | --- | --- |
 | `backend/main.lua` | The only place a backend method becomes a frontend-callable global |
-| `frontend/rpc.ts` | Every live RPC's frontend wrapper (the source of truth for "the frontend calls it") |
-| `tests/architecture.test.ts` | RPC registration check: every name `rpc.ts` calls must be assigned as a global in `main.lua`, or the call crashes the backend host |
+| `frontend/ports/backend.ts` | Every live RPC's frontend wrapper (the source of truth for "the frontend calls it") |
+| `tests/architecture.test.ts` | RPC registration check: every name `ports/backend.ts` calls must be assigned as a global in `main.lua`, or the call crashes the backend host |
 
 ## Steam targets touched
 
@@ -227,3 +218,28 @@ Live: none — a docs-only step changes no runtime code path.
 - M7b (2026-09-29): `GetNewShortcuts` and `MarkKnown` wired by `app/ingest.ts` (`ports/backend.ts` gains `getNewShortcuts`, `markKnown`);
   `EnsureFresh` responses carry `paused` (sources the breakers hold). The frontend no longer calls `GetGameMetadata`/`RefreshGameMetadata`
   from the background job; the settings panel still uses `getAllMetadata` and a per-game `refreshGameMetadata` until M8/M9. Live: 30, unwired: 5.
+
+## M9a: aliases deleted, `rpc.ts` folded
+
+Deleted from `main.lua` and their modules (superseded by the facade, none in § 7.10, no caller):
+`GetGameMetadata`, `RefreshGameMetadata`, `GetAllMetadata`, `CartridgesAchievementsGet`,
+`CartridgesAchievementsCheckUnlocks`, `SteamStoreSaveKnownMatch`, `SteamStoreSearch`. The Lua test
+`test_steam_store.lua` lost the two checks that called `SteamStoreSearch` / `SteamStoreSaveKnownMatch`
+(the emulator-skip rule lives in `resolve_identity.lua`, tested by `test_identity.lua`).
+`SteamStoreGetMapping` is **kept**: `index.tsx` `resolveNative` still calls it (the plan expected to delete it).
+`GetDiagnostics` and every § 7.10 method stay registered.
+
+## Public plugin API (`index.tsx` exports, D8)
+
+All stay public; other plugins and the CDP scripts reach them through `PLUGIN_LIST[...]`.
+
+| Export | Purpose |
+| --- | --- |
+| `default` (plugin), `SettingsPanel`, `setSetting`, `resetSettings` | Millennium entry point, the settings page, programmatic settings |
+| `safetyDiagnostics` | kill switches, tripped features, safe mode (`safety.md`) |
+| `bucketReport`, `loadAutoRoutingProfiles` | routing diagnostics and profile reload |
+| `clearSteamStore`, `setSteamStoreMapping`, `steamStoreState` | manual Steam Store mapping (CDP and the settings panel) |
+| `getLocalAchievements`, `getLocalSchema`, `dispatchAchievementToast` | read a shortcut's achievements; show a toast |
+| `initAchievements`, `loadAchievementsForApp`, `triggerAchievement`, `resetAchievements`, `checkObserverUnlocks`, `startAchievementsObserver` | achievements test hooks and manual control |
+| `registerSummaryProvider` (+ `SummaryContext`, `SummaryContribution`, `SummaryProvider`) | providers add lines to the Post-Game Summary |
+| `jsxDiagnostics`, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks |

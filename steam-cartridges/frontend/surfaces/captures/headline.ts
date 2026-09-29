@@ -1,7 +1,7 @@
 import { findModuleByExport } from '@steambrew/client';
 import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
 import { logger } from '../../logger';
-import { isNonSteamAppId } from '../../steam/route';
+import { isShortcutAppId } from '../../kernel/appid';
 import { deps } from './deps';
 
 interface JsxRuntimeModule {
@@ -39,7 +39,7 @@ function handleHeadlineIntercept(_type: unknown, props: unknown): void {
   }
 
   const appid = p.event.appid ?? Number(p.event.gameid);
-  if (p.event.bIsNonSteam || (typeof appid === 'number' && isNonSteamAppId(appid))) {
+  if (p.event.bIsNonSteam || (typeof appid === 'number' && isShortcutAppId(appid))) {
     // Steam's EventHeadline renders:
     // <span className="ActorName">{persona}</span><span className="HeaderChildren">{children}</span>
     // Replacing UGC string (" shared X screenshots") with " captured" aligns with native phrasing (" achieved").

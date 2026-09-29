@@ -3,7 +3,7 @@
 import { logger } from "../../logger";
 import { steamRequire } from "../../steam/modules";
 import { createPatchedOverview } from "../../steam/overview-proxy";
-import { isNonSteamAppId } from "../../steam/route";
+import { isShortcutAppId } from "../../kernel/appid";
 import { deps } from "./deps";
 
 export const enrichedAppIds = new Set<number>();
@@ -278,7 +278,7 @@ function hookComponentProps(
                     ensureAppOverviewHooked(overview);
 
                     if (
-                        isNonSteamAppId(overview.appid) ||
+                        isShortcutAppId(overview.appid) ||
                         (typeof overview.BIsModOrShortcut === "function" &&
                             overview.BIsModOrShortcut())
                     ) {
@@ -389,7 +389,7 @@ function patchKComponent(k: any): boolean {
                 }
                 if (
                     overview &&
-                    (isNonSteamAppId(overview.appid) ||
+                    (isShortcutAppId(overview.appid) ||
                         (typeof overview.BIsModOrShortcut === "function" &&
                             overview.BIsModOrShortcut()))
                 ) {
@@ -539,7 +539,7 @@ export function patchGameInfoComponent(): boolean {
                         }
                         if (
                             overview &&
-                            (isNonSteamAppId(overview.appid) ||
+                            (isShortcutAppId(overview.appid) ||
                                 (typeof overview.BIsModOrShortcut === "function" &&
                                     overview.BIsModOrShortcut()))
                         ) {

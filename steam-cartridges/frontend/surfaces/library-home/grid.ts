@@ -3,7 +3,7 @@ import { afterPatch } from '@steambrew/client';
 import { Steam, waitFor } from 'steambrew-utils';
 import { logger } from '../../logger';
 import type { SurfaceDeps } from '../../kernel/surface';
-import { isNonSteamAppId } from '../../steam/route';
+import { isShortcutAppId } from '../../kernel/appid';
 
 /** Set by createLibraryHomeSurface (plan § 7.0 D3/D6); open defaults until then. */
 export const deps: SurfaceDeps & {
@@ -161,7 +161,7 @@ export async function register(): Promise<VoidFunction | undefined> {
         for (const app of apps as Steam.AppOverview[]) {
           // Cheap early-out: this runs on every overview change, including
           // large batches during startup.
-          if (app?.appid && isNonSteamAppId(app.appid)) enrich(app);
+          if (app?.appid && isShortcutAppId(app.appid)) enrich(app);
         }
       } catch (err) {
         deps.reportError('library-home', err); // fail-open (plan § 7.0 D6)
@@ -200,7 +200,7 @@ async function enrichLoadedApps(): Promise<void> {
 
     let updated = 0;
     for (const app of apps) {
-      if (app?.appid && isNonSteamAppId(app.appid) && enrich(app)) updated++;
+      if (app?.appid && isShortcutAppId(app.appid) && enrich(app)) updated++;
     }
 
     logger.info(`Filled in last-played for ${updated} of ${stats.size} game(s) with captures.`);

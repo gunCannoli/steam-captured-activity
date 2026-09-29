@@ -70,9 +70,19 @@ function pausedIn(res: { paused?: Record<string, number> } | undefined): boolean
     return !!res?.paused && RELEVANT_SOURCES.some((s) => s in (res.paused as Record<string, number>));
 }
 
+/** Left by the pre-M7b sync manager; removed once at start-up (M9a), the line can go in a later release. */
+export function removeLegacySyncHistory(storage: Pick<Storage, "removeItem"> | undefined = globalThis.localStorage): void {
+    try {
+        storage?.removeItem("steam_cartridges_sync_history_v1");
+    } catch {
+        /* storage may be unavailable */
+    }
+}
+
 export function createIngest(deps: IngestDeps): Ingest {
     let progress: SyncProgress = { isSyncing: false, total: 0, current: 0, currentGame: "", phase: "idle" };
     const listeners = new Set<(p: SyncProgress) => void>();
+    removeLegacySyncHistory();
     let running = false;
     /** Runs requested while one was running, merged into one follow-up (scope is kept, not dropped). */
     let pending: { forceAll: boolean; only: Set<number> | null; waiters: (() => void)[] } | null = null;

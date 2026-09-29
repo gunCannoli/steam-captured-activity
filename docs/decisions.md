@@ -2608,3 +2608,24 @@ every other layer may import `domain/` (`tests/architecture.test.ts`
   cross-file runtime import outside `tests/` — `tsconfig.json` gained
   `noEmit: true` and `allowImportingTsExtensions: true` so `tsc` and Node's
   `--experimental-strip-types` test runner can both resolve it.
+
+## ADR-0041: jsx-runtime hooks stay one per concern
+
+**Status:** Accepted · 2026-09-29 (migration plan M9a) · **Amends § 4.4 of the migration plan** ("one dispatcher")
+
+### Context
+
+Plan § 4.4 proposed one dispatcher for every `keepJsxPatched` install. After M3 there are four: the view sensor
+(`steam/gamepad-appid.ts`), the captures headline, the captures activity cards and native-links.
+
+### Decision
+
+Keep them separate. Each runs one O(1) handler; `steam/jsx-hook.ts` already guarantees one chain position per label
+and is shared by identical copy with `enhanced-achievements` (do-not-touch 6), so a dispatcher would change that shared
+file for no measured gain. `tests/architecture.test.ts` fails if `keepJsxPatched` is called from anywhere except
+`steam/gamepad-appid`, `surfaces/captures` and `surfaces/native-links`.
+
+### Consequences
+
+A fifth hook needs a new ADR (or a decision to merge), not a quiet call.
+

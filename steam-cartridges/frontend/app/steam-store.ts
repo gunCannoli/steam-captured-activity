@@ -1,8 +1,8 @@
-import { logger } from "../../logger";
-import { rpc, type StoreState } from "../../rpc";
-import type { GameMetadata, Identity, Part } from "../../kernel/record";
-import { NON_STEAM_APPID_MIN } from "../../steam/route";
-import { slotList } from "../../domain/art-plan";
+import { logger } from "../logger";
+import { backend, type StoreState } from "../ports/backend";
+import type { GameMetadata, Identity, Part } from "../kernel/record";
+import { NON_STEAM_APPID_MIN } from "../kernel/appid";
+import { slotList } from "../domain/art-plan";
 
 type Route = { bucket: "steam-store" | "web-scraping" | "none"; via: string };
 
@@ -96,7 +96,7 @@ function forget(appid: number): void {
  * `reject` remembers the match so it is never re-applied.
  */
 export async function clearSteamStore(appid: number, reject: boolean) {
-    const res = await rpc.steamStoreClearMapping(appid, reject);
+    const res = await backend.steamStoreClearMapping(appid, reject);
     artworkSource.clearSlots(appid, slotList(res.slots));
     forget(appid);
     const identity = await identitySource.ensure(appid, { bucket: "steam-store", via: "manual" });
@@ -106,7 +106,7 @@ export async function clearSteamStore(appid: number, reject: boolean) {
 
 /** Manual mapping (settings panel or CDP): saves, then re-runs the view. */
 export async function setSteamStoreMapping(appid: number, steamAppid: number, name?: string) {
-    const res = await rpc.steamStoreSetMapping(appid, steamAppid, name);
+    const res = await backend.steamStoreSetMapping(appid, steamAppid, name);
     if (res.mapping) {
         forget(appid);
         const route: Route = { bucket: "steam-store", via: "manual" };
@@ -119,7 +119,7 @@ export async function setSteamStoreMapping(appid: number, steamAppid: number, na
 }
 
 export function steamStoreState(): Promise<StoreState> {
-    return rpc.steamStoreGetState();
+    return backend.steamStoreGetState();
 }
 
 /** Bucket left steam-store: drop this session's memory. Game Info and artwork follow the record

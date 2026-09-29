@@ -9,18 +9,12 @@ local utils       = require("utils")
 local steam_paths = require("steam_paths")
 local core        = require("rpc")
 local store       = require("steam_store_store")
-local search      = require("steam_store_search")
 local appdetails  = require("steam_store_appdetails")
 local throttle    = require("steam_store_throttle")
-local resolve_identity = require("resolve_identity")
 
 local method = core.method
 
 local RPC = {}
-
---- Is this shortcut launched through a known emulator? False when unknown.
---- Moved to resolve_identity.lua (M4b); shared with EnsureFresh.
-local launches_emulator = resolve_identity.launches_emulator
 
 local function need(data, field)
   if data[field] == nil then error("missing " .. field) end
@@ -51,35 +45,6 @@ RPC.SteamStoreSetMapping = method("SteamStoreSetMapping", function(data)
   local mapping, err = store.set_mapping(need(data, "appid"), need(data, "steam_appid"), data.name, "manual")
   if not mapping then return { error = err } end
   return { mapping = mapping }
-end)
-
-RPC.SteamStoreSaveKnownMatch = method("SteamStoreSaveKnownMatch", function(data)
-  if launches_emulator(need(data, "appid")) then return { skipped = "emulator" } end
-  local mapping, err = store.set_mapping(data.appid, need(data, "steam_appid"), data.name, "owned")
-  if not mapping then
-    if err == "rejected" then return { skipped = "rejected" } end
-    return { error = err }
-  end
-  return { mapping = mapping }
-end)
-
-RPC.SteamStoreSearch = method("SteamStoreSearch", function(data)
-  local appid, title = need(data, "appid"), tostring(need(data, "title"))
-  if launches_emulator(appid) then return { skipped = "emulator" } end
-
-  local result = search.search(title, nil, store)
-  if result.skipped then return { skipped = result.skipped } end
-  if result.error then return { error = result.error } end
-
-  if result.exact then
-    local mapping = store.set_mapping(appid, result.exact.appid, result.exact.name, "search")
-    if mapping then
-      store.remove_suggestion(appid, result.exact.appid)
-      return { mapping = mapping }
-    end
-    return { skipped = "rejected" } -- an exact hit the user already rejected
-  end
-  return { suggestions = store.add_suggestions(appid, result.suggestions) }
 end)
 
 --- reject=true remembers the appid so it is never auto-applied again. Returns

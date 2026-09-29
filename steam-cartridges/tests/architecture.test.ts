@@ -8,7 +8,7 @@
 //    (only a migration plan step may do this, and it must say so).
 //    Edges the target layering allows (migration plan § 4.1, LAYER_RULES below, M2) never
 //    need the allowlist and must not be in it: the allowlist holds only legacy edges.
-// 2. RPC registration: every backend method name frontend/rpc.ts calls must be assigned
+// 2. RPC registration: every backend method name ports/backend.ts calls must be assigned
 //    as a global in backend/main.lua. Calling an unregistered method crashes the backend
 //    host (knowledgebase.md, "Backend RPC crash trap").
 import { test } from 'node:test';
@@ -34,9 +34,9 @@ function walk(dir: string): string[] {
 }
 
 /** Folders whose children are separate areas: one feature, sensor or surface each. */
-const GROUPED = new Set(['features', 'sensors', 'surfaces']);
+const GROUPED = new Set(['sensors', 'surfaces']);
 
-/** "features/game-info", "sensors/view", "steam", "kernel", or a root file name ("rpc", "index"). */
+/** "sensors/view", "steam", "kernel", or a root file name ("rpc", "index"). */
 export function areaOf(file: string): string {
     const parts = relative(FRONTEND, file).split(sep);
     const stem = (s: string) => s.replace(/\.(ts|tsx)$/, '');
@@ -56,8 +56,7 @@ const LAYER_RULES: [RegExp, RegExp][] = [
     [/^surfaces\//, /^steam$/], // surfaces write Steam through steam/ (never another surface, app, ports, sensors)
     [/^app$/, /^(domain|ports)$/], // use cases
     [/^settings$/, /^ports$/], // settings panels talk to the backend port only
-    [/^(app|settings|features\/.+)$/, /^domain$/], // the pure domain is a leaf like the kernel (M4a)
-    [/^rpc$/, /^ports$/], // temporary until M9 folds rpc.ts into ports/ (M4c)
+    [/^(app|settings)$/, /^domain$/], // the pure domain is a leaf like the kernel (M4a)
 ];
 
 export function ruleAllows(edge: string): boolean {
@@ -103,8 +102,8 @@ test('architecture: no new cross-area import (ratchet)', () => {
 });
 
 test('architecture: layer rules allow the § 4.1 edges and nothing it forbids', () => {
-    const allowedEdges = ['index -> features/game-info', 'app -> kernel', 'sensors/view -> kernel', 'sensors/view -> steam', 'surfaces/sections -> steam', 'app -> ports', 'settings -> ports', 'features/scraper -> domain'];
-    const forbidden = ['kernel -> steam', 'sensors/view -> sensors/lifecycle', 'sensors/view -> app', 'surfaces/sections -> surfaces/captures', 'surfaces/sections -> app', 'surfaces/sections -> ports', 'app -> steam', 'app -> sensors/view', 'features/game-info -> sensors/collections', 'steam -> surfaces/sections', 'domain -> steam'];
+    const allowedEdges = ['index -> app', 'app -> kernel', 'sensors/view -> kernel', 'sensors/view -> steam', 'surfaces/sections -> steam', 'app -> ports', 'settings -> ports', 'app -> domain'];
+    const forbidden = ['kernel -> steam', 'sensors/view -> sensors/lifecycle', 'sensors/view -> app', 'surfaces/sections -> surfaces/captures', 'surfaces/sections -> app', 'surfaces/sections -> ports', 'app -> steam', 'app -> sensors/view', 'steam -> surfaces/sections', 'domain -> steam'];
     for (const e of allowedEdges) assert.ok(ruleAllows(e), `should be allowed: ${e}`);
     for (const e of forbidden) assert.ok(!ruleAllows(e), `should be forbidden: ${e}`);
 });
@@ -118,13 +117,21 @@ test('architecture: only game-info and playbar import the scoped overview proxy 
 });
 
 test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {
-    const rpcSrc = readFileSync(join(FRONTEND, 'rpc.ts'), 'utf8') + readFileSync(join(FRONTEND, 'ports', 'backend.ts'), 'utf8');
+    const rpcSrc = readFileSync(join(FRONTEND, 'ports', 'backend.ts'), 'utf8');
     const called = new Set<string>();
     for (const m of rpcSrc.matchAll(/(?:>|\bcall)\(\s*['"]([A-Z][A-Za-z0-9]+)['"]/g)) called.add(m[1]);
     const mainLua = readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8');
     const registered = new Set<string>();
     for (const m of mainLua.matchAll(/^([A-Z][A-Za-z0-9]+)\s*=\s*[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z0-9_]+\s*$/gm)) registered.add(m[1]);
-    assert.ok(called.size > 10, `expected to find the rpc.ts method names, found ${called.size}`);
+    assert.ok(called.size > 10, `expected to find the ports/backend.ts method names, found ${called.size}`);
     const missing = [...called].filter((n) => !registered.has(n)).sort();
-    assert.deepEqual(missing, [], `rpc.ts calls methods main.lua does not register: ${missing.join(', ')}`);
+    assert.deepEqual(missing, [], `ports/backend.ts calls methods main.lua does not register: ${missing.join(', ')}`);
+});
+
+test('architecture: keepJsxPatched is installed only by steam/gamepad-appid (view sensor), surfaces/captures and surfaces/native-links (ADR-0041)', () => {
+    const users = walk(FRONTEND)
+        .filter((f) => !/steam[\\/]jsx-hook\.ts$/.test(f))
+        .filter((f) => /keepJsxPatched\s*\(/.test(readFileSync(f, 'utf8')))
+        .map((f) => areaOf(f));
+    assert.deepEqual([...new Set(users)].sort(), ['steam', 'surfaces/captures', 'surfaces/native-links']);
 });

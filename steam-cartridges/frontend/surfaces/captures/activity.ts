@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import { isNonSteamAppId } from "../../steam/route";
+import { isShortcutAppId } from "../../kernel/appid";
 import { deps } from "./deps";
 import {
     appActivityStore,
@@ -189,7 +189,7 @@ export function ensureStoreCacheHooked(): boolean {
     proto.BIsAppMissing = function (appid: number) {
         if (!deps.isEnabled("store-cache")) return origBIsAppMissing.apply(this, arguments);
         try {
-            if (typeof appid === "number" && isNonSteamAppId(appid)) {
+            if (typeof appid === "number" && isShortcutAppId(appid)) {
                 return false;
             }
         } catch (err) {

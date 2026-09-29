@@ -321,9 +321,8 @@ package.loaded["rpc"] = package.loaded["rpc"] or { method = function(_, f)
   end
 end }
 local RPC = require("steam_store_rpc")
-check("all ten RPCs exist", (function()
-  for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreSaveKnownMatch",
-    "SteamStoreSearch", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork", "SteamStoreDownloadImage" }) do
+check("all eight RPCs exist", (function()
+  for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork", "SteamStoreDownloadImage" }) do
     if type(RPC[n]) ~= "function" then return false, n end
   end
   return true
@@ -331,10 +330,7 @@ end)())
 store._reset(); os.remove(path)
 local EMU = 4200000001
 SHORTCUTS[1] = { appid = EMU, name = "Some ROM", exe = [["C:\emu\RetroArch\retroarch.exe"]] }
-local out = json.decode(RPC.SteamStoreSearch(json.encode({ appid = EMU, title = "Some ROM" })))
-check("emulator shortcut skips search (no network)", out.skipped == "emulator")
-out = json.decode(RPC.SteamStoreSaveKnownMatch(json.encode({ appid = EMU, steam_appid = 99, name = "n" })))
-check("emulator shortcut skips known match", out.skipped == "emulator")
+local out
 out = json.decode(RPC.SteamStoreSetMapping(json.encode({ appid = EMU, steam_appid = 99, name = "n" })))
 check("manual mapping works for an emulator shortcut", out.mapping and out.mapping.source == "manual")
 out = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = EMU, reject = true })))

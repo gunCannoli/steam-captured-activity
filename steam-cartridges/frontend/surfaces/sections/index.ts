@@ -3,7 +3,7 @@
 import { logger } from "../../logger";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { appDetailsSections } from "../../steam/stores";
-import { isNonSteamAppId } from "../../steam/route";
+import { isShortcutAppId } from "../../kernel/appid";
 
 /** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
 const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
@@ -168,7 +168,7 @@ function refreshInstances(): void {
 /** True when `overview` is a non-Steam shortcut. */
 function isShortcut(overview: unknown): boolean {
     const ov = overview as AppOverview | undefined;
-    if (ov?.appid && isNonSteamAppId(ov.appid)) return true;
+    if (ov?.appid && isShortcutAppId(ov.appid)) return true;
     const fn = ov?.BIsModOrShortcut;
     try {
         return typeof fn === "function" && fn.call(overview) === true;

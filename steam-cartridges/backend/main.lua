@@ -28,9 +28,6 @@ GetDiagnostics  = RPC.GetDiagnostics
 
 -- Web metadata + artwork handlers keep their raw payload_json signatures.
 GetStatus            = WEB_RPC.GetStatus
-GetGameMetadata      = WEB_RPC.GetGameMetadata
-RefreshGameMetadata  = WEB_RPC.RefreshGameMetadata
-GetAllMetadata       = WEB_RPC.GetAllMetadata
 SaveGameMetadata     = WEB_RPC.SaveGameMetadata
 GetArtworkForGame    = WEB_RPC.GetArtworkForGame
 GetControllerInference = WEB_RPC.GetControllerInference
@@ -41,8 +38,6 @@ SaveServiceCredentials = WEB_RPC.SaveServiceCredentials
 SteamStoreGetState       = STORE_RPC.SteamStoreGetState
 SteamStoreGetMapping     = STORE_RPC.SteamStoreGetMapping
 SteamStoreSetMapping     = STORE_RPC.SteamStoreSetMapping
-SteamStoreSaveKnownMatch = STORE_RPC.SteamStoreSaveKnownMatch
-SteamStoreSearch         = STORE_RPC.SteamStoreSearch
 SteamStoreClearMapping   = STORE_RPC.SteamStoreClearMapping
 SteamStoreRejectSuggestion = STORE_RPC.SteamStoreRejectSuggestion
 SteamStoreGetAppDetails  = STORE_RPC.SteamStoreGetAppDetails
@@ -50,10 +45,8 @@ SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
 SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
 
 -- Native Achievements subsystem (P5).
-CartridgesAchievementsGet          = ACH_RPC.CartridgesAchievementsGet
 CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock
 CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
-CartridgesAchievementsCheckUnlocks = ACH_RPC.CartridgesAchievementsCheckUnlocks
 CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroStatus
 
 -- Record facade (migration M4b; M5a adds GetAllRecords).

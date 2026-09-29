@@ -1,7 +1,7 @@
 // The record facade RPC client (migration plan M4b/M4c; M5a extends it with
 // metadata and GetAllRecords). Imports kernel types only; transport from
 // ports/transport.ts.
-import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, Part, RecordPart } from "../kernel/record";
+import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, Part, RecordPart, StoreApplied } from "../kernel/record";
 import { call } from "./transport";
 
 export interface ProviderStatus {
@@ -27,6 +27,37 @@ export interface RetroStatusResponse {
     emulators: EmulatorStatusItem[];
     env_fallback: boolean;
     env_username?: string;
+}
+
+/** Structural copy of domain/routing AutoRoutingProfile (ports import the kernel only). */
+export interface AutoRoutingProfileDto {
+    category: "retroarch" | "console_emulator" | "pc";
+    program?: string;
+}
+
+export interface LibraryStat {
+    screenshots: number;
+    /** Unix seconds of the newest capture; 0 when unknown. */
+    newest: number;
+}
+
+export type StoreSource = "manual" | "owned" | "search";
+export interface StoreMapping {
+    steam_appid: number;
+    name: string;
+    source: StoreSource;
+    at?: number;
+}
+export interface StoreSuggestion {
+    steam_appid: number;
+    name: string;
+    reason: "edition" | "near";
+}
+export interface StoreState {
+    mappings: Record<string, StoreMapping>;
+    suggestions: Record<string, StoreSuggestion[]>;
+    rejected: Record<string, number[]>;
+    applied_artwork: Record<string, StoreApplied>;
 }
 
 export interface OwnedCandidate {
@@ -117,5 +148,41 @@ export const backend = {
     /** Which emulators the RetroAchievements source can read (M8b, moved from rpc.ts). */
     getRetroStatus(): Promise<RetroStatusResponse> {
         return call<RetroStatusResponse>("CartridgesAchievementsGetRetroStatus");
+    },
+    /** Capture counts and newest timestamps per shortcut. */
+    getLibraryStats() {
+        return call<Record<string, LibraryStat>>("GetLibraryStats");
+    },
+    /** Controller support inferred from each shortcut's emulator (parity plan F); unknown games are absent. */
+    getControllerInference() {
+        return call<{ games?: Record<string, boolean> }>("GetControllerInference");
+    },
+    /** Auto-routing category profiles inferred from shortcut executable and launch options. */
+    getAutoRoutingProfiles() {
+        return call<{ profiles?: Record<string, AutoRoutingProfileDto> }>("GetAutoRoutingProfiles");
+    },
+    steamStoreGetState() {
+        return call<StoreState>("SteamStoreGetState");
+    },
+    steamStoreGetMapping(appid: number) {
+        return call<{ mapping: StoreMapping | null; rejected: number[]; applied: StoreApplied | null }>("SteamStoreGetMapping", { appid });
+    },
+    steamStoreSetMapping(appid: number, steam_appid: number, name?: string) {
+        return call<{ mapping?: StoreMapping; error?: string }>("SteamStoreSetMapping", { appid, steam_appid, name });
+    },
+    steamStoreClearMapping(appid: number, reject: boolean) {
+        return call<{ steam_appid?: number; slots: number[]; error?: string }>("SteamStoreClearMapping", { appid, reject });
+    },
+    steamStoreRecordArtwork(
+        appid: number,
+        steam_appid: number | undefined,
+        slots: number[],
+        failed: number[],
+        extra?: { source?: "steamgriddb"; tried?: number[] },
+    ) {
+        return call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots, failed, ...extra });
+    },
+    steamStoreDownloadImage(url: string) {
+        return call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url });
     },
 };

@@ -9,7 +9,6 @@ local json = require("json")
 
 local config = require("web_config")
 local sgdb = require("web_sgdb")
-local igdb = require("web_igdb")
 local metadata_db = require("web_metadata_db")
 local steam_paths = require("steam_paths")
 local shortcuts = require("shortcuts")
@@ -27,7 +26,6 @@ function M.get_shortcut_info(appid)
   end
   return nil
 end
-local get_shortcut_info = M.get_shortcut_info
 
 --- Check status of providers (Twitch/IGDB, SteamGridDB, ScreenScraper, RetroAchievements)
 function M.GetStatus()
@@ -71,104 +69,6 @@ function M.SaveServiceCredentials(payload_json)
   end
   local ok_save = config.save_credentials(data)
   return json.encode({ success = ok_save })
-end
-
---- Get consolidated game metadata (checks local JSON DB first, fetches from IGDB if missing)
----@param payload_json string JSON string with { appid = number, title = string }
-function M.GetGameMetadata(payload_json)
-  local req = decode_payload(payload_json)
-  if not req or not req.appid then
-    return json.encode({ error = "invalid_payload", message = "Invalid JSON payload" })
-  end
-
-  local appid = tonumber(req.appid)
-  local title = req.title or ""
-  if not appid then
-    return json.encode({ error = "missing_appid", message = "Missing appid" })
-  end
-
-  -- 1. Check local consolidated database first
-  local existing = metadata_db.get(appid)
-  if existing then
-    return json.encode({
-      success = true,
-      source = "local_db",
-      metadata = existing,
-    })
-  end
-
-  -- 2. Query IGDB if not in local database
-  local shortcut_info = get_shortcut_info(appid)
-  logger:info("Querying IGDB metadata for shortcut " .. tostring(appid) .. " ('" .. tostring(title) .. "')")
-  local meta = igdb.fetch_game_metadata(appid, title, shortcut_info)
-  if meta then
-    metadata_db.set(appid, meta)
-    return json.encode({
-      success = true,
-      source = "igdb",
-      metadata = meta,
-    })
-  end
-
-  -- 3. Fallback record if IGDB has no match (so user can edit it manually in library_metadata.json)
-  local fallback = {
-    appid = appid,
-    title = title,
-    igdb_id = nil,
-    matched_title = title,
-    summary = "",
-    description = "",
-    developers = {},
-    publishers = {},
-    franchises = {},
-    release_date = 0,
-    genres = {},
-    categories = {
-      single_player = true,
-      multiplayer = false,
-      coop = false,
-      split_screen = false,
-      full_controller = true,
-    },
-    custom_override = false,
-  }
-  metadata_db.set(appid, fallback)
-
-  return json.encode({
-    success = true,
-    source = "fallback",
-    metadata = fallback,
-  })
-end
-
---- Force refresh / re-query metadata from IGDB, updating the local database
----@param payload_json string JSON string with { appid = number, title = string }
-function M.RefreshGameMetadata(payload_json)
-  local req = decode_payload(payload_json)
-  if not req or not req.appid then
-    return json.encode({ error = "invalid_payload" })
-  end
-  local appid = tonumber(req.appid)
-  local title = req.title or ""
-  local existing = metadata_db.get(appid)
-  if existing and existing.custom_override then
-    -- K15: user edits are never refreshed, forced or not.
-    return json.encode({ error = "custom_override" })
-  end
-  local shortcut_info = get_shortcut_info(appid)
-  logger:info("Force refreshing IGDB metadata for shortcut " .. tostring(appid) .. " ('" .. tostring(title) .. "')")
-  local meta = igdb.fetch_game_metadata(appid, title, shortcut_info)
-  if meta then
-    metadata_db.set(appid, meta, true) -- force update
-    return json.encode({ success = true, metadata = meta })
-  end
-  return json.encode({ error = "not_found" })
-end
-
---- Retrieve the entire consolidated library metadata database
-function M.GetAllMetadata()
-  local all = metadata_db.get_all()
-  return json.encode({ success = true, library = all })
 end
 
 --- Controller support inferred from each shortcut's emulator (parity plan Part F,

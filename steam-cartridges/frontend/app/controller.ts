@@ -1,6 +1,5 @@
-import { logger } from "../../logger";
-import { rpc } from "../../rpc";
-import { setting } from "../../settings/settings";
+import { logger } from "../logger";
+import { backend } from "../ports/backend";
 
 /** Structural copy of surfaces/game-info/category-policy ControllerContext (plan § 7.0 D3). */
 export interface ControllerContext {
@@ -17,7 +16,7 @@ const inferred = new Map<number, boolean>();
 
 export async function loadControllerInference(): Promise<void> {
     try {
-        const res = await rpc.getControllerInference();
+        const res = await backend.getControllerInference();
         inferred.clear();
         for (const [key, value] of Object.entries(res?.games ?? {})) {
             const appid = Number(key);
@@ -30,10 +29,10 @@ export async function loadControllerInference(): Promise<void> {
 }
 
 /** O(1): what decides the controller badge of a shortcut without Steam Store data. */
-export function controllerContext(appid: number): ControllerContext {
+export function controllerContext(appid: number, defaultFull: boolean): ControllerContext {
     return {
         inferred: getInferredControllerSupport(appid),
-        defaultFull: setting("defaultFullController"),
+        defaultFull,
     };
 }
 

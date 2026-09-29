@@ -1,7 +1,1 @@
-[
-  "features/game-info -> rpc",
-  "features/game-info -> settings",
-  "features/steam-store -> rpc",
-  "features/steam-store -> steam",
-  "safety -> settings"
-]
+[]

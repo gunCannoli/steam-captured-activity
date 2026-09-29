@@ -1,7 +1,7 @@
 // Surface `achievements` (migration plan M3.5, ADR-0039): the only code that feeds Steam's
 // achievement stores for shortcuts. Moved from features/achievements/store.ts.
 import { logger } from "../../logger";
-import { isNonSteamAppId } from "../../steam/route";
+import { isShortcutAppId } from "../../kernel/appid";
 import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../kernel/record";
 import type { SurfaceDeps } from "../../kernel/surface";
 import type { SteamAppAchievements } from "../../steam/achievement-types";
@@ -147,7 +147,7 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     if (typeof origLoadMy === "function") {
         proto.LoadMyAchievements = async function (appId: number) {
             const rawId = appId >>> 0;
-            if (isNonSteamAppId(rawId)) {
+            if (isShortcutAppId(rawId)) {
                 const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
                 if (local) {
                     feedAchievementsFullStore(rawId, local);
@@ -164,7 +164,7 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     if (typeof origGetMy === "function") {
         proto.GetMyAchievements = function (appId: number) {
             const rawId = appId >>> 0;
-            if (isNonSteamAppId(rawId)) {
+            if (isShortcutAppId(rawId)) {
                 const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
                 if (local && !this.m_mapMyAchievements.has(rawId) && !this.m_mapMyAchievements.has(appId)) {
                     feedAchievementsFullStore(rawId, local);
@@ -178,7 +178,7 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     if (typeof origGetGlobal === "function") {
         proto.GetGlobalAchievements = function (appId: number) {
             const rawId = appId >>> 0;
-            if (isNonSteamAppId(rawId)) {
+            if (isShortcutAppId(rawId)) {
                 const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
                 if (local && !this.m_mapGlobalAchievements.has(rawId) && !this.m_mapGlobalAchievements.has(appId)) {
                     feedAchievementsFullStore(rawId, local);
@@ -192,7 +192,7 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     if (typeof origGetPlayer === "function") {
         proto.GetPlayerAchievements = function (appId: number, accountId: any) {
             const rawId = appId >>> 0;
-            if (isNonSteamAppId(rawId)) {
+            if (isShortcutAppId(rawId)) {
                 const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
                 if (local) {
                     const achieved: Record<string, any> = {};
@@ -210,7 +210,7 @@ export function ensureAchievementsFullStoreHooked(): boolean {
     if (typeof origLoadFriend === "function") {
         proto.LoadFriendAchievements = async function (appId: number, accountId: any) {
             const rawId = appId >>> 0;
-            if (isNonSteamAppId(rawId)) {
+            if (isShortcutAppId(rawId)) {
                 const key1 = `${appId}_${accountId}`;
                 const key2 = `${rawId}_${accountId}`;
                 this.m_mapInflightAchievementsRequests?.delete(key1);
@@ -248,7 +248,7 @@ export function ensureAchievementsStoreHooked(): boolean {
     const origGetAchievements = store.GetAchievements.bind(store);
     store.GetAchievements = function (appId: number) {
         const rawId = appId >>> 0;
-        const shortcut = isNonSteamAppId(rawId);
+        const shortcut = isShortcutAppId(rawId);
         const local = shortcut ? achievementsMap.get(rawId) || achievementsMap.get(appId) : undefined;
         // K19: Steam's original throws for a shortcut with null `details`; see getAchievementsAction.
         const action = getAchievementsAction({
