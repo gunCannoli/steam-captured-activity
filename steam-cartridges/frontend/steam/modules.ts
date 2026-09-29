@@ -171,22 +171,3 @@ export function resolveService<T>(label: string, methods: string[]): T | undefin
   });
 }
 
-/**
- * Resolve a CSS-module class map by one of its keys (Steam's `findClassModule`
- * pattern, done against our own live `req.m` walk instead of
- * `@steambrew/client`'s pre-built cache — see the header comment on why that
- * matters: the SDK's cache is built once at import time and misses anything
- * whose chunk had not loaded yet, such as the Post-Game Summary's own module
- * before an app-details page has ever been visited).
- *
- * Only used for Big Picture's clone-and-hide fallback
- * (`renderers/gamepad-app.tsx`) — desktop feeds Steam's real component and
- * never needs a class name. See AGENTS.md's reuse ladder: this is rung 4,
- * the last resort.
- */
-export function resolveClassMap(probeKey: string): Record<string, string> | undefined {
-  return resolveOnce<Record<string, string>>(`class map (${probeKey})`, (v) => {
-    if (!v || typeof v !== 'object') return false;
-    return typeof (v as Record<string, unknown>)[probeKey] === 'string';
-  });
-}

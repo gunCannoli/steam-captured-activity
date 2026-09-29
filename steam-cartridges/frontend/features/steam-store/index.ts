@@ -232,13 +232,6 @@ export async function setSteamStoreMapping(appid: number, steamAppid: number, na
     return res;
 }
 
-/** A user accepted a suggestion: same as a manual mapping. */
-export const acceptSteamStoreSuggestion = setSteamStoreMapping;
-
-export async function rejectSteamStoreSuggestion(appid: number, steamAppid: number) {
-    return rpc.steamStoreRejectSuggestion(appid, steamAppid);
-}
-
 export function steamStoreState(): Promise<StoreState> {
     return rpc.steamStoreGetState();
 }

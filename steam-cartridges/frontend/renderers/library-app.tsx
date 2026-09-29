@@ -69,7 +69,3 @@ export function unpatch(appid: number): void {
     clearActivity(appid);
 }
 
-/** Forget everything. Used when the plugin unloads. */
-export function unpatchAll(): void {
-    for (const appid of [...published]) unpatch(appid);
-}

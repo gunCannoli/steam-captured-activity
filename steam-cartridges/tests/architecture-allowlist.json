@@ -29,7 +29,6 @@
   "features/steam-store -> rpc",
   "features/steam-store -> steam",
   "renderers -> rpc",
-  "renderers -> settings",
   "renderers -> steam",
   "safety -> settings",
   "settings -> features/achievements",
@@ -38,6 +37,5 @@
   "settings -> features/scraper",
   "settings -> rpc",
   "steam -> features/game-info",
-  "steam -> rpc",
   "steam -> settings"
 ]

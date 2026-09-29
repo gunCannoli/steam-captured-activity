@@ -1,5 +1,5 @@
 import { logger } from "../../logger";
-import { rpc, type ArtworkBundle, type ArtworkUrls } from "../../rpc";
+import { rpc, type ArtworkUrls } from "../../rpc";
 
 /**
  * Steam custom artwork slot types:
@@ -152,50 +152,3 @@ export async function applyCustomArtworkFromUrls(
     return appliedSlots;
 }
 
-export async function applyCustomArtwork(
-    appid: number,
-    bundle: ArtworkBundle,
-): Promise<number> {
-    const sc = (window as any).SteamClient;
-    if (!sc?.Apps?.SetCustomArtworkForApp) {
-        logger.warn(
-            "SteamClient.Apps.SetCustomArtworkForApp is not available.",
-        );
-        return 0;
-    }
-
-    const items: [typeof bundle.portrait, number, string][] = [
-        [bundle.portrait, ARTWORK_TYPES.PORTRAIT, "portrait"],
-        [bundle.hero, ARTWORK_TYPES.HERO, "hero"],
-        [bundle.logo, ARTWORK_TYPES.LOGO, "logo"],
-        [bundle.wide, ARTWORK_TYPES.WIDE, "wide"],
-    ];
-
-    let appliedCount = 0;
-    for (const [asset, slot, label] of items) {
-        if (!asset?.base64) continue;
-        try {
-            if (typeof sc.Apps.ClearCustomArtworkForApp === "function") {
-                try {
-                    await sc.Apps.ClearCustomArtworkForApp(appid, slot);
-                } catch {}
-                await new Promise((r) => setTimeout(r, 100));
-            }
-            await sc.Apps.SetCustomArtworkForApp(
-                appid,
-                asset.base64,
-                asset.ext || "png",
-                slot,
-            );
-            appliedCount++;
-            logger.info(`Set custom ${label} artwork for appid ${appid}`);
-        } catch (err) {
-            logger.warn(
-                `Failed to set ${label} artwork for appid ${appid}:`,
-                err,
-            );
-        }
-    }
-
-    return appliedCount;
-}

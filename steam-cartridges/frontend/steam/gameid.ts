@@ -26,7 +26,3 @@ export function gameIdFromAppId(appid: number): string {
   return ((BigInt(appid) << 32n) | SHORTCUT_LOW_WORD).toString();
 }
 
-/** Recover the 32-bit appid from a 64-bit gameid. */
-export function appIdFromGameId(gameid: string): number {
-  return Number(BigInt(gameid) >> 32n);
-}
