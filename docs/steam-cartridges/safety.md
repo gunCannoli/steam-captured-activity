@@ -160,3 +160,4 @@ else may import `frontend/safety/` except `index.tsx`.
   slot and logo position writes, moved from `features/artwork/artwork.ts`
   and `features/steam-store/logo.ts`).
 - M5c: provider credentials section added (SteamGridDB key entered in the settings panel, stored in `.env`).
+- M8d: Troubleshooting panel in the settings panel (`settings.md`): a toggle per feature id, written to `disabledFeatures` by `toggleFeature`.

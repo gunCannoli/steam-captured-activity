@@ -83,7 +83,7 @@ Statuses (what the executing agent does with the row):
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | **Done** (live-verified 2026-09-29; a real unlock during play is still the user's test) | `service-achievements.md`, `surfaces.md` |
 | M7a | Freshness, throttle, registry (backend; fixes K15) | **Done** (live-verified 2026-09-29) | `service-freshness.md`, `rpc.md` |
 | M7b | Frontend drives ingestion; sync manager deleted | **Done** (live-verified 2026-09-29; the "user adds a shortcut" case was simulated, see TASK.md) | `service-freshness.md` |
-| M8a–M8d | Settings split + Troubleshooting panel (a: pin defaults **done**, b: panel context **done**, c: split **done**, d: Troubleshooting); live test once after M8d | `settings.md`, `safety.md` |
+| M8a–M8d | Settings split + Troubleshooting panel (a: pin defaults **done**, b: panel context **done**, c: split **done**, d: Troubleshooting **done**); live-verified 2026-09-29 | `settings.md`, `safety.md` |
 | M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | Build | `rpc.md`, `README.md`, ADR-0041 |
 | M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | Build | all |
 
@@ -3030,6 +3030,13 @@ first action below pins that with a test.
 switching one feature off there and restarting Steam shows it off in `safetyDiagnostics()`.
 **Docs:** `settings.md` (new, § 0.6 template: the panels, the context contract, "How to add a panel");
 `safety.md` (Troubleshooting panel); `README.md` layer list.
+
+**Live result (2026-09-29) and open list.** All 8 titles render (`check_settings_panel.mjs`), § 0.5 baseline green
+(`enrich(page)=1`, both Properties OK, nav 6/6, tabs 11/11), and `disabledFeatures: "toasts"` showed `disabled: ["toasts"]` after a restart
+(reset afterwards). No defect found. Not yet checked or deliberately left, for a later look:
+- M8-1: the Troubleshooting panel lists a state per feature id, not per surface (`installed`); Steam exposes no surface status yet.
+- M8-2: no click-through of the panels (only rendering); Audit "scan game" (`ctx.ingest.start`) and Rules/Metadata credential saves were not exercised live.
+- M8-3: a per-game audit scan while a sync runs is queued instead of run at once (`ingest.startSync` returns early).
 
 ### M9a — Cleanup: code (Build)
 

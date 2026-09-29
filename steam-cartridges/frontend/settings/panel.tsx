@@ -7,6 +7,7 @@ import { ActivitySection } from "./panels/activity";
 import { CommunitySection } from "./panels/community";
 import { RulesSection } from "./panels/rules";
 import { RevisionSection } from "./panels/audit";
+import { TroubleshootingSection } from "./panels/troubleshooting";
 import { SyncProgressBar } from "./sync-progress";
 
 export function SettingsPanel() {
@@ -27,6 +28,7 @@ export function SettingsPanel() {
             <CommunitySection />
             <RulesSection />
             <RevisionSection />
+            <TroubleshootingSection />
             <SyncProgressBar />
         </div>
     );

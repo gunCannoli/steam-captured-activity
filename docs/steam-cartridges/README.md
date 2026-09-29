@@ -25,6 +25,7 @@ for the authoritative, up-to-date state):
 | Artwork service (SteamGridDB, Steam CDN) | done (M5c) — [service-artwork.md](service-artwork.md) |
 | Achievements service | planned (M6) |
 | Freshness + ingestion | done (M7a-M7b) — [service-freshness.md](service-freshness.md) |
+| Settings | done (M8) — [settings.md](settings.md) |
 | Settings split | planned (M8) |
 
 ## Contract
