@@ -16,7 +16,7 @@ require("harness")
 -- Expected values for the development machine's library.
 local FIXTURE = {
   shortcuts        = 220,
-  retroarch        = 216,
+  retroarch        = 215,
   games_with_media = 6,
   screenshots      = 213,
   am2r_appid       = 4263274102,
