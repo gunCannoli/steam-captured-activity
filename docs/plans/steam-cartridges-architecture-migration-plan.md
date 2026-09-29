@@ -2372,10 +2372,34 @@ writes `steam_store.json` through `steam_store_store.lua`, metadata reads and wr
 
    If the table holds, M4.0 deletes **nothing** and is docs-only (`rpc.md` + § 7.10 checked). If the
    inventory finds a truly dead RPC, delete it here with its test lines, packaged per D10.
-**K8 (ask the user first):** `test_backend.lua` expects 216 RetroArch shortcuts and the library has 215. If
-the user confirms one was removed on purpose, change the fixture to the live count in this step
-(`test(steam-cartridges): update RetroArch fixture count (K8)`); otherwise leave it and note it.
-**Exit:** the RPC registration test passes; the Lua suites give the same output as before (K7; K8 unless fixed here).
+**K8 (decided, user 2026-09-28: the library change was intentional and predates the migration):** set
+`FIXTURE.retroarch = 215` in `tests/test_backend.lua` (220 shortcuts: WUCHANG was added and the RetroArch
+shortcut "Densetsu no Ogre Battle" removed after the fixture was written on 2026-09-24). Separate commit:
+`test(steam-cartridges): update RetroArch fixture count (K8)`.
+**Orphaned metadata records (decided, user 2026-09-28: clean all 5).** `library_metadata.json` holds five
+records whose shortcut no longer exists:
+
+| Key | Title | Why it is orphaned |
+| --- | --- | --- |
+| `3876190134` | Densetsu no Ogre Battle - The March of the Black Queen (Japan) (NP) (T-En by FinS v1.2) | shortcut removed |
+| `4034579314` | Wing Commander Prophecy: Secret Ops | shortcut removed |
+| `1234567890` | Chrono Trigger | test data: not a shortcut appid (< 2^31) |
+| `4000000001` | Secret of Mana | test data: fake appid |
+| `999999` | Sengoku 3 | test data: not a shortcut appid |
+
+The backend keeps the database in memory and rewrites the whole file on every save, so a hand edit while
+Steam runs is lost. The cleanup is therefore **migration v2** in `backend/migrate.lua`: guarded by a new
+marker `<data dir>/.migrated-v2`; first copies `library_metadata.json` to `library_metadata.json.bak-v2`;
+then removes exactly these five keys, **skipping any record with `custom_override = true`** (and logging that
+it did); writes the file; logs counts only ("Migration v2: removed N orphaned metadata record(s), kept K
+with manual edits"). `main.lua` runs it right after v1, before `metadata_db` is first loaded. It is a fixed
+list, not a rule: pruning every record whose shortcut is missing would delete manual edits whenever a
+shortcut is removed temporarily (a separate decision, not taken). Lua checks (in a new hermetic
+`tests/test_migrate.lua`, temp data dir): `v2 removes the five orphans` · `v2 keeps a record with custom_override`
+· `v2 writes the backup first` · `v2 runs once (marker)` · `v2 leaves every other record byte-identical`.
+**Exit:** the RPC registration test passes; the Lua suites give the same output as before except K8 now
+passes (only K7 fails, fixed in M6a); `test_migrate.lua` → `ALL PASS`; after deploying, the backend log shows
+the v2 line once and `library_metadata.json` has 220 records.
 
 ### M4a — Routing policy to the domain (Build)
 
@@ -2675,8 +2699,12 @@ SteamGridDB; a shortcut whose portrait the user set keeps it (only the other slo
   in when IGDB is not configured or finds no match. ScreenScraper matters because it is the easy one:
   a plain free account is enough, while IGDB needs a Twitch developer app.
 - **Credentials:** as today (settings panel, masked, `.env`), per "Provider credentials" above.
-- **Fields (default, unless the user changes it before the step starts):** synopsis → `description`, release date,
-  developer, publisher, genres, player count → `categories`.
+- **Fields (decided, user 2026-09-28):** `synopsis` → `description` (English first, else the first language
+  available); `developpeur` → `developers`; `editeur` → `publishers`; `familles` → `franchises`; `dates` →
+  `release_date` = the **earliest** regional date (Steam shows one original release date); `joueurs` →
+  `categories.single_player` (min players is 1) and `categories.multiplayer` (max players > 1); `genres` →
+  `genres` (stored, not displayed by Steam). Co-op, split screen and controller badges are not provided by
+  ScreenScraper (controller support keeps coming from the emulator inference). One Lua check per mapping.
 **Design:** `src_screenscraper` in `metadata_service.lua`, reusing `screenscraper_media.lua`'s
 `jeuInfos.php` client and ROM hashing (CRC/MD5 of the ROM path from the shortcut's launch options),
 gated by `services.screenscraperEnabled` and the routing service `screenscraper`. Selection for
@@ -3196,7 +3224,11 @@ AGENTS.md Routine 6.
    settings panel and saved locally and safely (plan § 7 "Provider credentials"); (c) IGDB takes
    priority for metadata when the user has entered its credentials; ScreenScraper, which only needs a
    simple account, fills in otherwise, and is also the main source for the community/media section
-   (artwork, fanart, videos, guides/manuals).
+   (artwork, fanart, videos, guides/manuals). (d) ScreenScraper → Game Info fields: description (English
+   first), developer, publisher, franchise, earliest regional release date, single/multiplayer badges from the
+   player count, genres stored (M5d).
+9. **Library housekeeping** (2026-09-28): K8's count change is intentional (fixture → 215 in M4.0); the five
+   orphaned `library_metadata.json` records are removed once by migration v2 (M4.0).
 
 Recorded in [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
 
@@ -3214,7 +3246,7 @@ Executing agents add to this list instead of fixing things outside their step.
 | K4 | "Mark as Private" is enabled for an enriched shortcut and would send the shortcut appid to the private-apps service | [steam-components.md § Header buttons](../steam-components.md#header-buttons-manage-and-properties) | Bugfix plan after M3 (D14; user decides hide-or-keep there) |
 | K5 | **Resolved 2026-09-28:** LuaJIT 2.1 installed at `C:\dev\tools\lua` and added to the user `PATH`. Was: no Lua interpreter on this machine: `tools/lua/` is missing and `lua`/`luajit` are not on `PATH`, so `tests/test_backend.lua` and `tests/test_steam_store.lua` cannot run. AGENTS.md Routine 4 assumes `tools/lua/` | `which lua luajit` → nothing | **User**: provide a LuaJIT/Lua 5.1 binary in `tools/lua/`. Blocks M4–M7 |
 | K7 | `achievements_observer.get_possible_folder_names` (commit `22bac99`, never run: there was no Lua until K5 was fixed) turns `"WUCHANG: Fallen Feathers"` into `"WUCHANG -  Fallen Feathers"` (two spaces), and its `[:\xe2\x80\x93\xe2\x80\x94]` byte class replaces **each byte** of an en/em dash, so `"A – B"` becomes `"A  -  -  -  B"` | `test_backend.lua`: `FAIL keeps colon-to-dash normalized title`; `lua -e` repro | M6a |
-| K8 | `test_backend.lua` fixture `FIXTURE.retroarch = 216`; the live library now has 215 RetroArch shortcuts (library-dependent fixture, AGENTS.md Routine 4) | `FAIL retroarch shortcut count -> 215` | Update the fixture to the live count in the next backend step, after confirming the user removed one on purpose |
+| K8 | `test_backend.lua` fixture `FIXTURE.retroarch = 216`; the live library now has 215 RetroArch shortcuts (library-dependent fixture, AGENTS.md Routine 4) | `FAIL retroarch shortcut count -> 215` | M4.0 (user confirmed the change is intentional; fixture → 215) |
 | K9 | `renderers/community-tab.tsx` is imported by nothing, so `steam/community-store.ts` (the second writer of `CWorkshopStore.m_mapPublishedFiles`, D7) never runs; the trailers/manual/links RPCs have no frontend caller | `git grep -n "community-tab\|community-store" -- frontend` (2026-09-28) | M3.0 (deleted before any move) |
 | K10 | Desktop A → B between two shortcuts never unpublished A (Big Picture did) | `index.tsx` desktop `onLocationChange` block, read 2026-09-28 | M2 (behaviour delta 1) |
 | K11 | An achievement observer whose mapping resolved after the game quit was never stopped (`onQuit` registered too late) | `steambrew-utils` `onAppLaunch` source: quit callbacks run once, at quit | M2 (behaviour delta 5) |
