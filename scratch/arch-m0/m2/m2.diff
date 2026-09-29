@@ -1,0 +1,769 @@
+diff --git a/steam-cartridges/frontend/app/bus.ts b/steam-cartridges/frontend/app/bus.ts
+new file mode 100644
+index 0000000..6a9aa33
+--- /dev/null
++++ b/steam-cartridges/frontend/app/bus.ts
+@@ -0,0 +1,6 @@
++// app: the plugin's one event bus (migration plan M2, ADR-0039). Sensors emit into it;
++// index.tsx subscribes the handlers. A handler that throws is logged and skipped.
++import { logger } from "../logger";
++import { createEventBus } from "../kernel/events";
++
++export const bus = createEventBus((event, err) => logger.warn(`Handler for "${event}" failed:`, err));
+diff --git a/steam-cartridges/frontend/features/buckets/collections.ts b/steam-cartridges/frontend/features/buckets/collections.ts
+index b14de62..8d08ab5 100644
+--- a/steam-cartridges/frontend/features/buckets/collections.ts
++++ b/steam-cartridges/frontend/features/buckets/collections.ts
+@@ -1,13 +1,25 @@
+ import { logger } from '../../logger';
+ import { SHORTCUT_MIN } from './resolve';
+-import { isCollectionStoreReady, readUserCollections } from './ready';
+ 
+ /**
+- * The only file that touches `collectionStore` (steam-components.md
+- * "Collections"). Failure to resolve means empty results, so everything falls
+- * back to bucket `none`.
++ * Membership for bucket rules, read through the collections sensor
++ * (sensors/collections, wired in index.tsx; migration plan M2). Failure to
++ * resolve means empty results, so everything falls back to bucket `none`.
+  */
+ 
++/** Structural match of sensors/collections `collectionsSource` (no import: ADR-0039 layers). */
++export interface CollectionsSource {
++    ready(): boolean;
++    list(): any[] | undefined;
++}
++
++let source: CollectionsSource = { ready: () => false, list: () => undefined };
++
++/** Called once by index.tsx, before anything resolves a bucket. */
++export function setCollectionsSource(next: CollectionsSource): void {
++    source = next;
++}
++
+ export interface CollectionInfo {
+     id: string;
+     name: string;
+@@ -20,19 +32,18 @@ let warned = false;
+ const cache = new Map<string, { at: number; set: ReadonlySet<number> }>();
+ 
+ export function collectionsReady(): boolean {
+-    return isCollectionStoreReady((window as any).collectionStore);
++    return source.ready();
+ }
+ 
+ function userCollections(): any[] | undefined {
+-    const s = (window as any).collectionStore;
+-    if (!isCollectionStoreReady(s)) {
++    if (!source.ready()) {
+         if (!warned) {
+             warned = true;
+             logger.info('collectionStore not ready yet; games resolve as pending.');
+         }
+         return undefined;
+     }
+-    const list = readUserCollections(s);
++    const list = source.list();
+     if (!list) logger.warn('collectionStore.userCollections unavailable; treating as empty.');
+     return list;
+ }
+@@ -51,7 +62,7 @@ function shortcutIds(coll: any): Set<number> {
+ export async function waitForCollections(timeoutMs = 30_000): Promise<boolean> {
+     const start = Date.now();
+     while (Date.now() - start < timeoutMs) {
+-        if (collectionsReady()) return readUserCollections((window as any).collectionStore) !== undefined;
++        if (collectionsReady()) return source.list() !== undefined;
+         await new Promise((r) => setTimeout(r, 250));
+     }
+     return false;
+diff --git a/steam-cartridges/frontend/features/buckets/ready.ts b/steam-cartridges/frontend/features/buckets/ready.ts
+index 7e3c8f5..88eece6 100644
+--- a/steam-cartridges/frontend/features/buckets/ready.ts
++++ b/steam-cartridges/frontend/features/buckets/ready.ts
+@@ -1,20 +1,3 @@
+-/** Plain-field read, no MobX side effects. Steam creates m_mapCollectionsFromStorage on its first
+- *  cloud-storage callback; before that, reading userCollections / uncategorizedCollection throws
+- *  inside a keepAlive computed and poisons it for the session (see plan). */
+-export function isCollectionStoreReady(store: any): boolean {
+-    const m = store?.m_mapCollectionsFromStorage;
+-    return !!m && typeof m.values === 'function';
+-}
+-/** userCollections only when ready; never throws. */
+-export function readUserCollections(store: any): any[] | undefined {
+-    if (!isCollectionStoreReady(store)) return undefined;
+-    try {
+-        const list = store.userCollections;
+-        return Array.isArray(list) ? list : undefined;
+-    } catch {
+-        return undefined;
+-    }
+-}
+ /** Collection-dependent resolution is deferred (`pending`) until the store is ready. */
+ export function pendingOr<T>(needsCollections: boolean, ready: boolean, resolve: () => T): T | { bucket: 'none'; via: 'pending' } {
+     if (needsCollections && !ready) return { bucket: 'none', via: 'pending' };
+diff --git a/steam-cartridges/frontend/features/source-view.ts b/steam-cartridges/frontend/features/source-view.ts
+index faf3a36..781a521 100644
+--- a/steam-cartridges/frontend/features/source-view.ts
++++ b/steam-cartridges/frontend/features/source-view.ts
+@@ -1,11 +1,4 @@
+-import { Steam } from "steambrew-utils";
+-import {
+-    onLocationChange,
+-    onPopupCreate,
+-    PopupType,
+-} from "steambrew-utils/watchers";
+-import { watchGamepadAppid } from "../steam/gamepad-appid";
+-import { appIdFromPath, isNonSteamAppId } from "../steam/route";
++import { toShortcutId } from "../kernel/appid";
+ import { getBucket, waitForCollections } from "./buckets";
+ import { handleWebScrapingView } from "./game-info";
+ import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
+@@ -23,8 +16,8 @@ const rerun = new Set<number>();
+ 
+ /** Route a view of a shortcut to the handler for its bucket (ADR-0033). */
+ export async function onSourceView(appid: number): Promise<void> {
+-    const rawAppid = appid >>> 0;
+-    if (!isNonSteamAppId(rawAppid)) return;
++    const rawAppid = toShortcutId(appid);
++    if (rawAppid === undefined) return;
+     if (inflight.has(rawAppid)) {
+         rerun.add(rawAppid);
+         return;
+@@ -65,8 +58,9 @@ export async function onSourceView(appid: number): Promise<void> {
+ }
+ 
+ /**
+- * Wires every place a game page can open (Big Picture, desktop). A Steam render never
+- * triggers a view: that closed a render -> enrich -> re-render loop (M0a).
++ * Replays views that arrived before collections were ready. Views themselves come from
++ * the view sensor (sensors/view, migration plan M2): index.tsx subscribes onSourceView to
++ * shortcut.viewed. A Steam render never triggers a view (M0a).
+  */
+ export function initSourceView(): void {
+     void waitForCollections().then(() => {
+@@ -74,23 +68,4 @@ export function initSourceView(): void {
+         deferred.clear();
+         list.forEach((a) => void onSourceView(a));
+     });
+-
+-    // Big Picture renders through a SharedJSContext portal; react/jsx-runtime
+-    // interception captures the active appid without depending on popups.
+-    watchGamepadAppid((appid) => {
+-        if (isNonSteamAppId(appid)) void onSourceView(appid);
+-    });
+-
+-    onPopupCreate((_popup, type) => {
+-        if (type !== PopupType.Desktop) return undefined;
+-        return onLocationChange(
+-            () => Steam.MainWindowBrowserManager?.m_lastLocation,
+-            ({ pathname }) => {
+-                const appid = appIdFromPath(pathname);
+-                if (appid !== undefined && isNonSteamAppId(appid)) {
+-                    void onSourceView(appid);
+-                }
+-            },
+-        );
+-    });
+ }
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index 09da8e3..a08382c 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -1,11 +1,5 @@
+ import { definePlugin, IconsModule } from "@steambrew/client";
+-import { Steam } from "steambrew-utils";
+-import {
+-    onAppLaunch,
+-    onLocationChange,
+-    onPopupCreate,
+-    PopupType,
+-} from "steambrew-utils/watchers";
++import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
+ import { logger } from "./logger";
+ import { rpc } from "./rpc";
+ import {
+@@ -18,13 +12,11 @@ import {
+     refresh as refreshLibraryHome,
+     register as registerLibraryHome,
+ } from "./renderers/library-home";
+-import { watchGamepadAppid } from "./steam/gamepad-appid";
+ import { installHeadlinePatch } from "./steam/headline-patch";
+ import { installActivityCardsPatch } from "./steam/activity-cards-patch";
+ import { ensureStoreCacheHooked } from "./steam/activity";
+-import { appIdFromPath, isNonSteamAppId } from "./steam/route";
+ import { initGameInfo } from "./features/game-info";
+-import { initSourceView } from "./features/source-view";
++import { initSourceView, onSourceView } from "./features/source-view";
+ import { installNativeSections } from "./features/steam-store/native-sections";
+ import {
+     initAchievements,
+@@ -44,6 +36,12 @@ import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
+ import { triggerSync } from "./features/scraper/sync-manager";
+ import { features } from "./safety/switches";
+ import { beginBoot, watchBoot } from "./safety/boot";
++import type { ShortcutId } from "./kernel/appid";
++import { bus } from "./app/bus";
++import { installViewSensor } from "./sensors/view";
++import { installLifecycleSensor } from "./sensors/lifecycle";
++import { collectionsSource } from "./sensors/collections";
++import { setCollectionsSource } from "./features/buckets/collections";
+ 
+ export { setSetting, resetSettings };
+ /** Kill switches, error counts and safe mode (migration plan M0b). */
+@@ -86,6 +84,9 @@ const LEGACY_PLUGINS = [
+ ];
+ 
+ async function init() {
++    // Buckets read collection membership through the collections sensor (migration plan M2).
++    setCollectionsSource(collectionsSource);
++
+     // Settings first: the Game Info gate reads them (ADR-0033).
+     await initSettings();
+ 
+@@ -159,6 +160,7 @@ async function init() {
+     features.run("game-info", () => {
+         void loadAutoRoutingProfiles();
+         initSourceView();
++        bus.on("shortcut.viewed", ({ appid }) => void onSourceView(appid));
+         void initGameInfo().catch((e) => {
+             features.reportError("game-info", e);
+             logger.error("Game Info feature failed; activity is unaffected.", e);
+@@ -179,36 +181,17 @@ async function init() {
+     // Publishing is keyed on the app, not the window: Steam's store is global, so
+     // one publish serves every window showing that game.
+ 
++    // Views come from the view sensor (sensors/view, migration plan M2), for desktop
++    // and Big Picture alike.
++    bus.on("shortcut.viewed", ({ appid }) => {
++        if (features.isEnabled("captures")) void patchLibraryApp(appid);
++    });
++    bus.on("shortcut.left", ({ appid }) => {
++        if (features.isEnabled("captures")) unpatchLibraryApp(appid);
++    });
++
+     onPopupCreate((popup, type) => {
+         if (!features.isEnabled("captures")) return undefined;
+-        if (type === PopupType.Desktop) {
+-            // Desktop feeds Steam's own store (steam/summary.ts) - Steam's own
+-            // component renders in whichever window is open, so this is global,
+-            // not per-window.
+-            let current: number | undefined;
+-
+-            const stopWatching = onLocationChange(
+-                () => Steam.MainWindowBrowserManager?.m_lastLocation,
+-                ({ pathname }) => {
+-                    const appid = appIdFromPath(pathname);
+-
+-                    if (appid !== undefined && isNonSteamAppId(appid)) {
+-                        current = appid;
+-                        void patchLibraryApp(appid);
+-                    } else if (current !== undefined) {
+-                        // Either a native Steam game, which we leave alone, or another page.
+-                        unpatchLibraryApp(current);
+-                        current = undefined;
+-                    }
+-                },
+-            );
+-
+-            return () => {
+-                stopWatching();
+-                if (current !== undefined) unpatchLibraryApp(current);
+-            };
+-        }
+-
+         if (type === PopupType.Gamepad) {
+             // Big Picture renders through a React portal from SharedJSContext
+             // into the gamepad popup window (ADR-0029). Both UI modes share the
+@@ -260,58 +243,60 @@ async function init() {
+                 doc.head?.appendChild(styleEl);
+             }
+ 
+-            let current: number | undefined;
+-
+-            const stopWatching = watchGamepadAppid((appid) => {
+-                if (isNonSteamAppId(appid)) {
+-                    if (current !== undefined && current !== appid) {
+-                        unpatchLibraryApp(current);
+-                    }
+-                    current = appid;
+-                    void patchLibraryApp(appid);
+-                } else if (current !== undefined) {
+-                    unpatchLibraryApp(current);
+-                    current = undefined;
+-                }
+-            });
+-
+             return () => {
+-                stopWatching();
+-                if (current !== undefined) unpatchLibraryApp(current);
+                 if (styleEl && styleEl.parentNode) {
+                     styleEl.parentNode.removeChild(styleEl);
+                 }
+             };
+         }
+ 
+-        // Modal, ContextMenu, Unknown: not a page we touch.
++        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
+         return undefined;
+     });
+ 
+     // ===== Refresh after play =====
+     // Quitting a game is exactly when new screenshots and clips exist, so
+-    // invalidate then rather than polling (ADR-0007).
++    // invalidate then rather than polling (ADR-0007). Launch and quit come from the
++    // lifecycle sensor (sensors/lifecycle, migration plan M2).
++
++    /** Running shortcuts: display name and the achievement observer's stop function. */
++    const sessions = new Map<ShortcutId, { name: string; stop?: () => void; quit?: boolean }>();
+ 
+-    onAppLaunch((app, { onQuit }) => {
+-        if (!isNonSteamAppId(app.appid)) return;
++    bus.on("shortcut.launched", ({ appid, name }) => {
++        const session: { name: string; stop?: () => void; quit?: boolean } = { name };
++        sessions.set(appid, session);
+ 
+         // Startup notification if enabled ("Local Achievements Enabled")
+-        features.run("achievements-observer", () => handleAppLaunchAchievements(app.appid));
++        features.run("achievements-observer", () => handleAppLaunchAchievements(appid));
+ 
+         // Start active observer session while game is running
+-        if (features.isEnabled("achievements-observer")) void rpc.steamStoreGetMapping(app.appid).then((res) => {
++        if (features.isEnabled("achievements-observer")) void rpc.steamStoreGetMapping(appid).then((res) => {
+             const nativeAppId = res?.mapping?.steam_appid || 0;
+-            const stopObserver = startAchievementsObserver(app.appid, nativeAppId, app.display_name);
+-            onQuit(() => stopObserver());
++            const stopObserver = startAchievementsObserver(appid, nativeAppId, name);
++            // The game may have quit while the mapping loaded.
++            if (session.quit) stopObserver();
++            else session.stop = stopObserver;
+         }).catch((e) => logger.warn("Failed resolving mapping for achievement observer:", e));
++    });
+ 
+-        onQuit(() => {
+-            logger.info(`${app.display_name} closed; refreshing its activity.`);
+-            void refreshLibraryApp(app.appid);
+-            void refreshLibraryHome();
+-        });
++    bus.on("shortcut.quit", ({ appid }) => {
++        const session = sessions.get(appid);
++        sessions.delete(appid);
++        if (session) {
++            session.quit = true;
++            session.stop?.();
++        }
++        logger.info(`${session?.name ?? appid} closed; refreshing its activity.`);
++        void refreshLibraryApp(appid);
++        void refreshLibraryHome();
+     });
+ 
++    // ===== Sensors (migration plan M2) =====
++    // Installed after every subscriber above: they report the current page and the
++    // windows already open immediately.
++    installViewSensor(bus);
++    installLifecycleSensor(bus);
++
+     logger.info("Ready. Non-Steam games now use Steam's own detail sections.");
+     // Automatically start background sync for un-scraped games after startup
+     features.run("background-sync", () => triggerSync(3000));
+diff --git a/steam-cartridges/frontend/sensors/collections/index.ts b/steam-cartridges/frontend/sensors/collections/index.ts
+new file mode 100644
+index 0000000..28baded
+--- /dev/null
++++ b/steam-cartridges/frontend/sensors/collections/index.ts
+@@ -0,0 +1,27 @@
++// Collections sensor (migration plan M2, ADR-0039): the only code that reads Steam's
++// collectionStore for membership (guardrail 13). No runtime imports, so
++// tests/buckets-ready.test.ts can load it with node.
++
++/** Plain-field read, no MobX side effects. Steam creates m_mapCollectionsFromStorage on its first
++ *  cloud-storage callback; before that, reading userCollections / uncategorizedCollection throws
++ *  inside a keepAlive computed and poisons it for the session (see plan). */
++export function isCollectionStoreReady(store: any): boolean {
++    const m = store?.m_mapCollectionsFromStorage;
++    return !!m && typeof m.values === 'function';
++}
++/** userCollections only when ready; never throws. */
++export function readUserCollections(store: any): any[] | undefined {
++    if (!isCollectionStoreReady(store)) return undefined;
++    try {
++        const list = store.userCollections;
++        return Array.isArray(list) ? list : undefined;
++    } catch {
++        return undefined;
++    }
++}
++
++/** What features/buckets reads membership from (wired in index.tsx). */
++export const collectionsSource = {
++    ready: (): boolean => isCollectionStoreReady((window as any).collectionStore),
++    list: (): any[] | undefined => readUserCollections((window as any).collectionStore),
++};
+diff --git a/steam-cartridges/frontend/sensors/lifecycle/index.ts b/steam-cartridges/frontend/sensors/lifecycle/index.ts
+new file mode 100644
+index 0000000..44a0711
+--- /dev/null
++++ b/steam-cartridges/frontend/sensors/lifecycle/index.ts
+@@ -0,0 +1,19 @@
++// Lifecycle sensor (migration plan M2, ADR-0039): the only code that detects a shortcut
++// starting and quitting. Emits shortcut.launched / shortcut.quit on the bus.
++import { onAppLaunch } from "steambrew-utils/watchers";
++import { toShortcutId } from "../../kernel/appid";
++import type { EventBus } from "../../kernel/events";
++
++let installed = false;
++
++export function installLifecycleSensor(bus: EventBus): void {
++    if (installed) return;
++    installed = true;
++
++    onAppLaunch((app, { onQuit }) => {
++        const appid = toShortcutId(app.appid);
++        if (appid === undefined) return;
++        bus.emit("shortcut.launched", { appid, name: String(app.display_name ?? appid) });
++        onQuit(() => bus.emit("shortcut.quit", { appid }));
++    });
++}
+diff --git a/steam-cartridges/frontend/sensors/view/core.ts b/steam-cartridges/frontend/sensors/view/core.ts
+new file mode 100644
+index 0000000..6c9252f
+--- /dev/null
++++ b/steam-cartridges/frontend/sensors/view/core.ts
+@@ -0,0 +1,69 @@
++// View sensor, pure part (migration plan M2, ADR-0039). Turns raw Steam signals into
++// shortcut.viewed / shortcut.left, one per real navigation. Only `import type` here, so
++// tests/sensors.test.ts can load it with node.
++import type { ShortcutId } from "../../kernel/appid";
++
++export type ViewMode = "desktop" | "gamepad";
++export interface ViewPayload {
++    appid: ShortcutId;
++    mode: ViewMode;
++}
++
++/**
++ * Big Picture has no "left the page" signal (steam/gamepad-appid.ts): it re-renders the
++ * app-details element many times while a page is open. The same appid seen again after
++ * this much silence counts as a new view (the page was opened again).
++ */
++export const GAMEPAD_QUIET_MS = 2000;
++
++export interface ViewTrackerOptions {
++    /** kernel/appid toShortcutId: undefined for native apps and junk. */
++    toShortcutId: (raw: unknown) => ShortcutId | undefined;
++    viewed: (p: ViewPayload) => void;
++    left: (p: ViewPayload) => void;
++    now: () => number;
++    quietMs?: number;
++}
++
++export interface ViewTracker {
++    /** Desktop: the main window's route now shows this appid (undefined: not an app page). */
++    route(raw: number | undefined): void;
++    /** Big Picture: the app-details element rendered with this appid. */
++    sighting(raw: number): void;
++    /** The window of this mode closed: leave whatever it showed. */
++    close(mode: ViewMode): void;
++    current(mode: ViewMode): ShortcutId | undefined;
++}
++
++export function createViewTracker(opts: ViewTrackerOptions): ViewTracker {
++    const quietMs = opts.quietMs ?? GAMEPAD_QUIET_MS;
++    const current: Record<ViewMode, ShortcutId | undefined> = { desktop: undefined, gamepad: undefined };
++    let lastSighting = -Infinity;
++
++    /** Move `mode` to `next`; emits left for the old shortcut and viewed for the new one. */
++    const move = (mode: ViewMode, next: ShortcutId | undefined): void => {
++        const prev = current[mode];
++        if (prev === next) return;
++        current[mode] = next;
++        if (prev !== undefined) opts.left({ appid: prev, mode });
++        if (next !== undefined) opts.viewed({ appid: next, mode });
++    };
++
++    return {
++        route(raw) {
++            move("desktop", raw === undefined ? undefined : opts.toShortcutId(raw));
++        },
++        sighting(raw) {
++            const now = opts.now();
++            const id = opts.toShortcutId(raw);
++            const reopened = id !== undefined && id === current.gamepad && now - lastSighting >= quietMs;
++            lastSighting = now;
++            if (reopened) opts.viewed({ appid: id, mode: "gamepad" });
++            else move("gamepad", id);
++        },
++        close(mode) {
++            move(mode, undefined);
++        },
++        current: (mode) => current[mode],
++    };
++}
+diff --git a/steam-cartridges/frontend/sensors/view/index.ts b/steam-cartridges/frontend/sensors/view/index.ts
+new file mode 100644
+index 0000000..6237f0a
+--- /dev/null
++++ b/steam-cartridges/frontend/sensors/view/index.ts
+@@ -0,0 +1,67 @@
++// View sensor (migration plan M2, ADR-0039): the only code that detects which shortcut
++// page the user is looking at. Desktop: the main window's route. Big Picture: the
++// app-details element seen through the shared jsx runtime (ADR-0027), counted only while
++// a Big Picture window is open. Emits shortcut.viewed / shortcut.left on the bus.
++import { Steam } from "steambrew-utils";
++import { onLocationChange, onPopupCreate, PopupType } from "steambrew-utils/watchers";
++import { logger } from "../../logger";
++import { toShortcutId } from "../../kernel/appid";
++import type { EventBus } from "../../kernel/events";
++import { watchGamepadAppid } from "../../steam/gamepad-appid";
++import { appIdFromPath } from "../../steam/route";
++import { createViewTracker } from "./core";
++
++let installed = false;
++
++/**
++ * Install once, after every subscriber is registered: onPopupCreate replays the windows
++ * already open and onLocationChange reports the current route immediately.
++ */
++export function installViewSensor(bus: EventBus): void {
++    if (installed) return;
++    installed = true;
++
++    // Emit on a timer, never synchronously: a Big Picture sighting arrives from inside a jsx
++    // call, i.e. inside Steam's render, and handlers write Steam stores (guardrail 17).
++    // Timers keep the order of the signals.
++    const tracker = createViewTracker({
++        toShortcutId,
++        now: () => Date.now(),
++        viewed: (p) =>
++            setTimeout(() => {
++                logger.info(`Viewed shortcut ${p.appid} (${p.mode}).`);
++                bus.emit("shortcut.viewed", p);
++            }, 0),
++        left: (p) =>
++            setTimeout(() => {
++                logger.info(`Left shortcut ${p.appid} (${p.mode}).`);
++                bus.emit("shortcut.left", p);
++            }, 0),
++    });
++
++    let gamepadWindows = 0;
++    watchGamepadAppid((appid) => {
++        if (gamepadWindows > 0) tracker.sighting(appid);
++    });
++
++    onPopupCreate((_popup, type) => {
++        if (type === PopupType.Desktop) {
++            const stop = onLocationChange(
++                () => Steam.MainWindowBrowserManager?.m_lastLocation,
++                ({ pathname }) => tracker.route(appIdFromPath(pathname)),
++            );
++            return () => {
++                stop();
++                tracker.close("desktop");
++            };
++        }
++        if (type === PopupType.Gamepad) {
++            gamepadWindows++;
++            return () => {
++                gamepadWindows--;
++                if (gamepadWindows === 0) tracker.close("gamepad");
++            };
++        }
++        return undefined;
++    });
++}
+diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
+index aa62f8a..dc67f3c 100644
+--- a/steam-cartridges/tests/architecture-allowlist.json
++++ b/steam-cartridges/tests/architecture-allowlist.json
+@@ -22,24 +22,12 @@
+   "features/source-view -> features/game-info",
+   "features/source-view -> features/scraper",
+   "features/source-view -> features/steam-store",
+-  "features/source-view -> steam",
+   "features/steam-store -> features/achievements",
+   "features/steam-store -> features/artwork",
+   "features/steam-store -> features/game-info",
+   "features/steam-store -> renderers",
+   "features/steam-store -> rpc",
+   "features/steam-store -> steam",
+-  "index -> features/achievements",
+-  "index -> features/buckets",
+-  "index -> features/game-info",
+-  "index -> features/scraper",
+-  "index -> features/source-view",
+-  "index -> features/steam-store",
+-  "index -> renderers",
+-  "index -> rpc",
+-  "index -> safety",
+-  "index -> settings",
+-  "index -> steam",
+   "renderers -> rpc",
+   "renderers -> settings",
+   "renderers -> steam",
+diff --git a/steam-cartridges/tests/architecture.test.ts b/steam-cartridges/tests/architecture.test.ts
+index 891599c..0394246 100644
+--- a/steam-cartridges/tests/architecture.test.ts
++++ b/steam-cartridges/tests/architecture.test.ts
+@@ -6,6 +6,8 @@
+ //    list can only shrink. Regenerate after a deliberate change with:
+ //        ARCH_WRITE_ALLOWLIST=1 npm run test:ts
+ //    (only a migration plan step may do this, and it must say so).
++//    Edges the target layering allows (migration plan § 4.1, LAYER_RULES below, M2) never
++//    need the allowlist and must not be in it: the allowlist holds only legacy edges.
+ // 2. RPC registration: every backend method name frontend/rpc.ts calls must be assigned
+ //    as a global in backend/main.lua. Calling an unregistered method crashes the backend
+ //    host (knowledgebase.md, "Backend RPC crash trap").
+@@ -31,15 +33,36 @@ function walk(dir: string): string[] {
+     return out;
+ }
+ 
+-/** "features/game-info", "steam", "renderers", "settings", or a root file name ("rpc", "index"). */
++/** Folders whose children are separate areas: one feature, sensor or surface each. */
++const GROUPED = new Set(['features', 'sensors', 'surfaces']);
++
++/** "features/game-info", "sensors/view", "steam", "kernel", or a root file name ("rpc", "index"). */
+ export function areaOf(file: string): string {
+     const parts = relative(FRONTEND, file).split(sep);
+     const stem = (s: string) => s.replace(/\.(ts|tsx)$/, '');
+     if (parts.length === 1) return stem(parts[0]);
+-    if (parts[0] === 'features') return parts.length === 2 ? `features/${stem(parts[1])}` : `features/${parts[1]}`;
++    if (GROUPED.has(parts[0])) return parts.length === 2 ? `${parts[0]}/${stem(parts[1])}` : `${parts[0]}/${parts[1]}`;
+     return parts[0];
+ }
+ 
++/**
++ * Edges the target layering allows (migration plan § 4.1): [from, to] regexes on areas.
++ * Every other cross-area edge must be a legacy edge in the allowlist, which only shrinks.
++ */
++const LAYER_RULES: [RegExp, RegExp][] = [
++    [/^index$/, /./], // composition root: wires everything, holds no logic
++    [/^(?!kernel$)/, /^kernel$/], // every layer may use the kernel; the kernel imports nothing of ours
++    [/^sensors\//, /^steam$/], // sensors read Steam through steam/ (never another sensor, app or surfaces)
++    [/^surfaces\//, /^steam$/], // surfaces write Steam through steam/ (never another surface, app, ports, sensors)
++    [/^app$/, /^(domain|ports)$/], // use cases
++    [/^settings$/, /^ports$/], // settings panels talk to the backend port only
++];
++
++export function ruleAllows(edge: string): boolean {
++    const [from, to] = edge.split(' -> ');
++    return LAYER_RULES.some(([f, t]) => f.test(from!) && t.test(to!));
++}
++
+ function resolveImport(from: string, spec: string): string | undefined {
+     const base = resolve(dirname(from), spec);
+     for (const c of [base + '.ts', base + '.tsx', join(base, 'index.ts'), join(base, 'index.tsx'), base]) {
+@@ -68,13 +91,20 @@ export function computeEdges(): string[] {
+ test('architecture: no new cross-area import (ratchet)', () => {
+     const edges = computeEdges();
+     if (process.env.ARCH_WRITE_ALLOWLIST === '1') {
+-        writeFileSync(ALLOWLIST, JSON.stringify(edges, null, 2) + '\n');
++        writeFileSync(ALLOWLIST, JSON.stringify(edges.filter((e) => !ruleAllows(e)), null, 2) + '\n');
+     }
+     const allowed: string[] = JSON.parse(readFileSync(ALLOWLIST, 'utf8'));
+-    const added = edges.filter((e) => !allowed.includes(e));
+-    const gone = allowed.filter((e) => !edges.includes(e));
++    const added = edges.filter((e) => !ruleAllows(e) && !allowed.includes(e));
++    const gone = allowed.filter((e) => !edges.includes(e) || ruleAllows(e));
+     assert.deepEqual(added, [], `New cross-area imports (not allowed by ADR-0039): ${added.join(', ')}`);
+-    assert.deepEqual(gone, [], `Allowlisted imports that no longer exist; delete them from tests/architecture-allowlist.json: ${gone.join(', ')}`);
++    assert.deepEqual(gone, [], `Allowlisted imports that no longer exist or are allowed by LAYER_RULES; delete them from tests/architecture-allowlist.json: ${gone.join(', ')}`);
++});
++
++test('architecture: layer rules allow the § 4.1 edges and nothing it forbids', () => {
++    const allowedEdges = ['index -> features/game-info', 'app -> kernel', 'sensors/view -> kernel', 'sensors/view -> steam', 'surfaces/sections -> steam', 'app -> ports', 'settings -> ports'];
++    const forbidden = ['kernel -> steam', 'sensors/view -> sensors/lifecycle', 'sensors/view -> app', 'surfaces/sections -> surfaces/captures', 'surfaces/sections -> app', 'surfaces/sections -> ports', 'app -> steam', 'app -> sensors/view', 'features/game-info -> sensors/collections', 'steam -> surfaces/sections'];
++    for (const e of allowedEdges) assert.ok(ruleAllows(e), `should be allowed: ${e}`);
++    for (const e of forbidden) assert.ok(!ruleAllows(e), `should be forbidden: ${e}`);
+ });
+ 
+ test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {
+diff --git a/steam-cartridges/tests/buckets-ready.test.ts b/steam-cartridges/tests/buckets-ready.test.ts
+index 6b72ac4..7c3ac9f 100644
+--- a/steam-cartridges/tests/buckets-ready.test.ts
++++ b/steam-cartridges/tests/buckets-ready.test.ts
+@@ -1,6 +1,7 @@
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+-import { isCollectionStoreReady, pendingOr, readUserCollections } from '../frontend/features/buckets/ready.ts';
++import { pendingOr } from '../frontend/features/buckets/ready.ts';
++import { isCollectionStoreReady, readUserCollections } from '../frontend/sensors/collections/index.ts';
+ 
+ function fakeStore(getter?: () => unknown) {
+     const store: any = { reads: 0, m_mapCollectionsFromStorage: undefined };
+diff --git a/steam-cartridges/tests/sensors.test.ts b/steam-cartridges/tests/sensors.test.ts
+new file mode 100644
+index 0000000..d4b68e3
+--- /dev/null
++++ b/steam-cartridges/tests/sensors.test.ts
+@@ -0,0 +1,71 @@
++// Sensor unit tests (migration plan M2). Real appids from this machine.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { toShortcutId } from '../frontend/kernel/appid.ts';
++import { createViewTracker, GAMEPAD_QUIET_MS } from '../frontend/sensors/view/core.ts';
++import type { ViewPayload } from '../frontend/sensors/view/core.ts';
++
++const AM2R = 4263274102, WUCHANG = 3135033888, NATIVE = 2277560;
++
++function tracker() {
++    const log: string[] = [];
++    let now = 0;
++    const t = createViewTracker({
++        toShortcutId,
++        now: () => now,
++        viewed: (p: ViewPayload) => log.push(`viewed ${p.appid} ${p.mode}`),
++        left: (p: ViewPayload) => log.push(`left ${p.appid} ${p.mode}`),
++    });
++    return { t, log, advance: (ms: number) => (now += ms) };
++}
++
++test('view: desktop route emits one view per navigation, left on leaving', () => {
++    const { t, log } = tracker();
++    t.route(AM2R);
++    t.route(AM2R); // same page, e.g. a search/hash change
++    t.route(undefined); // library home
++    assert.deepEqual(log, [`viewed ${AM2R} desktop`, `left ${AM2R} desktop`]);
++});
++
++test('view: desktop A -> B leaves A before viewing B; native pages are not views', () => {
++    const { t, log } = tracker();
++    t.route(AM2R);
++    t.route(WUCHANG);
++    t.route(NATIVE);
++    assert.deepEqual(log, [`viewed ${AM2R} desktop`, `left ${AM2R} desktop`, `viewed ${WUCHANG} desktop`, `left ${WUCHANG} desktop`]);
++});
++
++test('view: signed CEF appids are normalized (same page, one view)', () => {
++    const { t, log } = tracker();
++    t.route(-31693194); // AM2R as signed int32
++    t.route(AM2R);
++    assert.deepEqual(log, [`viewed ${AM2R} desktop`]);
++    assert.equal(t.current('desktop'), AM2R);
++});
++
++test('view: gamepad re-renders are one view; a sighting after silence is a new view', () => {
++    const { t, log, advance } = tracker();
++    for (let i = 0; i < 50; i++) {
++        t.sighting(AM2R);
++        advance(100);
++    }
++    assert.deepEqual(log, [`viewed ${AM2R} gamepad`]);
++    advance(GAMEPAD_QUIET_MS);
++    t.sighting(AM2R);
++    assert.deepEqual(log, [`viewed ${AM2R} gamepad`, `viewed ${AM2R} gamepad`]);
++});
++
++test('view: gamepad switch and close emit left; modes are independent', () => {
++    const { t, log } = tracker();
++    t.route(WUCHANG);
++    t.sighting(AM2R);
++    t.sighting(NATIVE);
++    t.close('gamepad');
++    t.close('desktop');
++    assert.deepEqual(log, [
++        `viewed ${WUCHANG} desktop`,
++        `viewed ${AM2R} gamepad`,
++        `left ${AM2R} gamepad`,
++        `left ${WUCHANG} desktop`,
++    ]);
++});
