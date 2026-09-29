@@ -9,7 +9,7 @@
     "build:dev": "millennium-ttc --build dev",
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
     "test:ts": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:lua": "lua tests/test_backend.lua && lua tests/test_steam_store.lua && lua tests/test_migrate.lua",
+    "test:lua": "lua tests/test_backend.lua && lua tests/test_steam_store.lua && lua tests/test_migrate.lua && lua tests/test_identity.lua",
     "test": "npm run test:ts && npm run test:lua"
   },
   "dependencies": {

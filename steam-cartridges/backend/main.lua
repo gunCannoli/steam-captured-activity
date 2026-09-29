@@ -20,6 +20,7 @@ local RPC     = require("rpc")
 local WEB_RPC = require("web_rpc")
 local STORE_RPC = require("steam_store_rpc")
 local ACH_RPC   = require("achievements_rpc")
+local RECORD_RPC = require("record_rpc")
 
 -- Millennium exposes globals to the frontend as callable methods.
 GetLibraryStats = RPC.GetLibraryStats
@@ -54,6 +55,10 @@ CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock
 CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
 CartridgesAchievementsCheckUnlocks = ACH_RPC.CartridgesAchievementsCheckUnlocks
 CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroStatus
+
+-- Record facade (migration M4b).
+GetGameRecord = RECORD_RPC.GetGameRecord
+EnsureFresh    = RECORD_RPC.EnsureFresh
 
 -- Community & Media (ScreenScraper + IGDB)
 local SS_MEDIA = require("screenscraper_media")

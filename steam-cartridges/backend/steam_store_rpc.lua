@@ -7,28 +7,20 @@
 local fs          = require("fs")
 local utils       = require("utils")
 local steam_paths = require("steam_paths")
-local shortcuts   = require("shortcuts")
 local core        = require("rpc")
 local store       = require("steam_store_store")
 local search      = require("steam_store_search")
 local appdetails  = require("steam_store_appdetails")
-local emulators   = require("steam_store_emulators")
 local throttle    = require("steam_store_throttle")
+local resolve_identity = require("resolve_identity")
 
 local method = core.method
 
 local RPC = {}
 
 --- Is this shortcut launched through a known emulator? False when unknown.
-local function launches_emulator(appid)
-  local ok, result = pcall(function()
-    local paths = steam_paths.resolve()
-    if not paths then return false end
-    local entry = shortcuts.by_appid(shortcuts.parse(paths.shortcuts) or {})[tonumber(appid)]
-    return entry ~= nil and emulators.is_emulator(entry.exe)
-  end)
-  return ok and result == true
-end
+--- Moved to resolve_identity.lua (M4b); shared with EnsureFresh.
+local launches_emulator = resolve_identity.launches_emulator
 
 local function need(data, field)
   if data[field] == nil then error("missing " .. field) end

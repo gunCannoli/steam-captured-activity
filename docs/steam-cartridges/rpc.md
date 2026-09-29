@@ -63,8 +63,30 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetGameManual` | `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) |
 | `GetGameTrailers` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
 | `GetGameCommunityLinks` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
+| `GetGameRecord` | `record_rpc.lua` | unwired | M4b: the record facade; frontend adopts it in M4c |
+| `EnsureFresh` | `record_rpc.lua` | unwired | M4b: resolves `identity` (only part wired so far); frontend adopts it in M4c |
 
-**Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead. M4.0 deletes nothing.
+**Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b adds 2 more
+unwired (the record facade; nothing calls it until M4c).
+
+## Record facade (M4b)
+
+`GetGameRecord(appid)` returns `{ appid, parts }` from disk only (no network).
+`EnsureFresh(appid, parts, context)` runs the named parts through their
+service and returns the updated record; unknown part names are ignored.
+Both reject a native appid (`appid < 2^31`) with `{ error = "not a shortcut" }`.
+
+```lua
+-- backend/record_rpc.lua
+RPC.GetGameRecord = method("GetGameRecord", function(d) --[[ {appid} ]] end)                -- -> { appid, parts }
+RPC.EnsureFresh   = method("EnsureFresh",   function(d) --[[ {appid, parts, context} ]] end) -- -> { appid, parts }
+```
+
+As of M4b only `"identity"` is a resolvable part (`backend/resolve_identity.lua`).
+`context.route = { bucket, via }` is the frontend's evaluated routing policy
+(ADR-0040); `context.title` and `context.owned` (native candidates Steam
+already knows) come from the frontend sensors. See
+[service-resolver.md](service-resolver.md) for the resolution order.
 
 ## Files
 
@@ -108,3 +130,6 @@ Live: none — a docs-only step changes no runtime code path.
   registered globals: 25 live (incl. `GetDiagnostics`, debug-only), 7
   unwired (all previously logged in migration plan § 7.10), 0 dead. Matches
   the plan's expected table exactly — no deletions.
+- M4b (2026-09-29): `GetGameRecord` and `EnsureFresh` added (`record_rpc.lua`),
+  both unwired until M4c. `resolve_identity.lua`'s `launches_emulator` is now
+  the one copy `steam_store_rpc.lua` shares (moved, not duplicated).
