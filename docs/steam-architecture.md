@@ -64,7 +64,7 @@ and **new features are frozen** until migration step M3 is done.
 | --- | --- |
 | [millennium-architecture.md](millennium-architecture.md) | The suite: core/provider split, data flow, RPC, provider contract. Its module layout is out of date until M9 |
 | [plans/steam-cartridges-architecture-migration-plan.md](plans/steam-cartridges-architecture-migration-plan.md) | The `steam-cartridges` migration: target architecture, execution manual, child steps M0a–M9 |
-| [steam-cartridges-achievements.md](steam-cartridges-achievements.md) | Current reference for `steam-cartridges` achievements (channels, stores, toasts). Becomes the achievements layer doc in M6 |
+| [steam-cartridges/service-achievements.md](steam-cartridges/service-achievements.md) | The achievements layer doc (source order, `supports` rules, `CheckUnlocks`) plus the earlier reference for channels, stores and toasts (was `steam-cartridges-achievements.md`) |
 | `docs/steam-cartridges/` (§ 3) | One doc per architecture layer, created by the migration step that builds the layer |
 | [plans/phase7-and-alpha-plan.md](plans/phase7-and-alpha-plan.md) | `enhanced-achievements` / `enhanced-notifications` phase 7 and the user's alpha test checklist (cited by their code) |
 
@@ -98,7 +98,7 @@ updated by every later step that changes it (template in the
 | Resolver service (Steam native match, web identity, routing policy) | [service-resolver.md](steam-cartridges/service-resolver.md) (M4b) | current |
 | Metadata service and its sources | [service-metadata.md](steam-cartridges/service-metadata.md) (M5a) | current |
 | Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) (M5c) | current |
-| Achievements service, sources, observer | `docs/steam-cartridges/service-achievements.md` (M6, replaces [steam-cartridges-achievements.md](steam-cartridges-achievements.md)) | planned |
+| Achievements service, sources, observer | [service-achievements.md](steam-cartridges/service-achievements.md) (M6a; replaced `steam-cartridges-achievements.md`) | current |
 | Freshness and ingestion | `docs/steam-cartridges/service-freshness.md` (M7) | planned |
 | Settings panels | `docs/steam-cartridges/settings.md` (M8) | planned |
 

@@ -11,6 +11,10 @@ local steam_store_store = require("steam_store_store")
 
 local method = core.method
 
+-- Achievements modules are loaded on first use: they pull in the trophy and RetroAchievements
+-- readers, which the record facade's other parts (and their test suites) do not need.
+local function ach() return require("ach_service") end
+
 local RPC = {}
 
 local function need(data, field)
@@ -34,6 +38,8 @@ RPC.GetGameRecord = method("GetGameRecord", function(data)
   if identity then parts.identity = identity end
   local metadata = metadata_service.local_part(appid)
   if metadata then parts.metadata = metadata end
+  local achievements = ach().local_part(appid)
+  if achievements then parts.achievements = achievements end
 
   return { appid = tonumber(appid), parts = parts }
 end)
@@ -53,6 +59,15 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
       parts.metadata = metadata_service.ensure(appid, ctx)
     elseif name == "artwork" then
       parts.artwork = art_service.ensure(appid, ctx)
+    elseif name == "achievements" then
+      -- The native app comes from the identity: this call's fresh one, else the frontend's, else disk.
+      local identity = ctx.identity or resolve_identity.saved(appid)
+      local native = identity and identity.data and identity.data.native
+      parts.achievements = ach().ensure(appid, {
+        native = native and native.appid or nil,
+        hardcore = ctx.hardcore ~= false,
+        title = ctx.title,
+      })
     end
     -- Unknown part names are ignored (not an error).
   end
@@ -77,7 +92,18 @@ RPC.GetAllRecords = method("GetAllRecords", function(_)
       source = "steam-store",
     }
   end
+  for key in pairs(records) do
+    local achievements = ach().local_part(tonumber(key))
+    if achievements then records[key].achievements = achievements end
+  end
   return { records = records }
+end)
+
+--- New unlocks since the last check (Flow C, M6b polls this every 2 s). K1: `new_unlocks` is always a list.
+RPC.CheckUnlocks = method("CheckUnlocks", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  return require("achievements_observer").check_unlocks(tonumber(appid), tonumber(data.native) or 0, data.title)
 end)
 
 return RPC

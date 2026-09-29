@@ -122,7 +122,12 @@ Still open for M5:
   already set, so it makes no request either way.
 - Firestriker's hero was cleared again by the Clear test; the deployed dev plugin refills it on the next view.
 
-Next: M6a onward). No `Spec` steps remain. Nothing else is open for the user.
+**M6a done (2026-09-29, implementer; live verification batched with M6b).** `backend/ach_service.lua` (sources behind `supports`
+rules; PC games silent, K2), `CheckUnlocks` RPC, `achievements` part in `EnsureFresh`; K7 fixed (`test_backend.lua` is `ALL PASS`), K1
+backend half (`cjson.array_mt`). New `tests/test_ach_service.lua` (18 checks). The achievements reference doc is now
+`docs/steam-cartridges/service-achievements.md`.
+
+Next: M6b, then live verification for M6, then M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 

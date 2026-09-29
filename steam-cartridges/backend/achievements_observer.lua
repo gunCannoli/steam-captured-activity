@@ -78,7 +78,10 @@ function M.get_possible_folder_names(game_title, exe_path)
 
     -- 3. Punctuation normalized to a single delimiter or stripped.
     -- (the byte-string literals below are UTF-8 en dash \xe2\x80\x93 and em dash \xe2\x80\x94)
-    local dash = title:gsub("[:\xe2\x80\x93\xe2\x80\x94]", " - ")
+    -- K7: the dashes are multi-byte sequences, so substitute whole sequences (a byte class
+    -- would match their single bytes and corrupt the string), then collapse the spaces.
+    local dash = title:gsub(":", " - "):gsub("\xe2\x80\x93", " - "):gsub("\xe2\x80\x94", " - ")
+    dash = trim((dash:gsub("%s+", " ")))
     add(dash)
     local stripped = title:gsub("[:%-\xe2\x80\x93\xe2\x80\x94]", "")
     stripped = stripped:gsub("%s+", " ")
@@ -259,29 +262,28 @@ end
 
 --- Scans all local emulator and log sources for a running game.
 --- Updates achievements_store and returns newly unlocked items.
+--- K1: Millennium's cjson encodes an empty Lua table as `{}`; mark lists as arrays when it can.
+local function as_array(list)
+  local ok, cjson = pcall(require, "cjson")
+  if ok and type(cjson) == "table" and cjson.array_mt then setmetatable(list, cjson.array_mt) end
+  return list
+end
+
 function M.check_unlocks(shortcut_appid, native_appid, game_title)
   local s_appid = tonumber(shortcut_appid) or 0
   local n_appid = tonumber(native_appid) or 0
   if s_appid <= 0 then
-    return { new_unlocks = {} }
+    return { new_unlocks = as_array({}) }
   end
 
   local st = store.get_state(s_appid)
   if not st or not st.schema or not st.schema.achievements then
-    if n_appid > 0 then
-      st = store.get_or_fetch(s_appid, n_appid)
-    end
+    -- One resolver for every source, so a PC game with no trophy dir or ROM path stays silent (K2).
+    local _, raw = require("ach_service")._resolve(s_appid, { native = n_appid })
+    st = raw
   end
   if not st or not st.schema or not st.schema.achievements then
-    local ps3 = require("ps3_trophies")
-    st = ps3.get_or_fetch(s_appid)
-  end
-  if not st or not st.schema or not st.schema.achievements then
-    local ra = require("retroachievements")
-    st = ra.get_or_fetch(s_appid)
-  end
-  if not st or not st.schema or not st.schema.achievements then
-    return { new_unlocks = {} }
+    return { new_unlocks = as_array({}) }
   end
 
   local schema_achievements = st.schema.achievements
@@ -504,7 +506,7 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     logger:info(string.format("Observer detected %d new unlock(s) for shortcut %d", #new_unlocks, s_appid))
   end
 
-  return { new_unlocks = new_unlocks }
+  return { new_unlocks = as_array(new_unlocks) }
 end
 
 return M

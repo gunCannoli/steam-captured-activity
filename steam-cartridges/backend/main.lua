@@ -60,6 +60,7 @@ CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroSta
 GetGameRecord = RECORD_RPC.GetGameRecord
 EnsureFresh    = RECORD_RPC.EnsureFresh
 GetAllRecords  = RECORD_RPC.GetAllRecords
+CheckUnlocks   = RECORD_RPC.CheckUnlocks
 
 -- Community & Media (ScreenScraper + IGDB)
 local SS_MEDIA = require("screenscraper_media")

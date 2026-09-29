@@ -1,16 +1,102 @@
-# steam-cartridges Native Achievements
+# Achievements service
 
-**This doc's job:** reference architecture for the native achievements system in
-`steam-cartridges` (Phase 5). It explains how non-Steam shortcuts mirror Steam Store
-achievement schemas, how in-game unlocks are detected out-of-process without third-party
-storefront APIs, how Steam's native UI sinks and toast engine are fed, and how to add support
-for new game engines, emulators, or local save formats.
+**This doc's job:** which source answers a shortcut's achievements, how unlocks are detected, and how
+Steam's native UI is fed. Part of the steam-cartridges architecture (ADR-0039); index:
+[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers). The
+[Reference](#reference-channels-stores-and-toasts-pre-migration-doc-kept) at the end is the earlier
+"Native Achievements" doc (Phase 5), kept for the observer channels, Steam's native sinks and the emulator
+notes; the sections before it are the migration's layer doc (M6a backend, M6b frontend).
 
-Future work on this system happens in migration step M6 (the achievements service):
-[steam-cartridges-architecture-migration-plan.md](plans/steam-cartridges-architecture-migration-plan.md).
-M6 turns this doc into the achievements layer doc under `docs/steam-cartridges/`.
-For Steam client internal traces (section registry, NotificationStore, AppDetailsStore), see
-[steam-components.md § Native achievement UI & backing store](steam-components.md#native-achievement-ui--backing-store).
+## What it owns
+
+- The `achievements` part of a record: `Part<{ schema, unlocks }>` and which source produced it.
+- The **source order** and each source's `supports` rule (below), so a source is only asked about a shortcut
+  that can be one of its games.
+- Reading unlocks the observer detects while a game runs (`CheckUnlocks`).
+
+It does **not** write to Steam (the `achievements`, `toasts` and `captures` surfaces do, `surfaces.md`).
+
+## Contract
+
+```lua
+-- backend/ach_service.lua (M6a)
+M.deps = { entry, steam, ps3, ps4, ra, ps3_dir, ps4_dir, rom_path, now }   -- nil = the real dependency
+--- ctx = { native = number|nil, hardcore = boolean|nil, title = string }
+--- Returns Part<{ schema, unlocks }>, source = "steam" | "rpcs3" | "shadps4" | "retroachievements".
+function M.ensure(appid, ctx) end
+--- Disk only: the stored schema and unlocks as a part, or nil. Never writes, never fetches.
+function M.local_part(appid) end
+--- The part plus the raw source result (the response shape of the old CartridgesAchievementsGet).
+function M._resolve(appid, ctx) end
+```
+
+```lua
+-- backend/record_rpc.lua
+EnsureFresh(appid, {"achievements"}, ctx)   -- ctx.native from the identity (this call's, the frontend's, else saved)
+                                            -- ctx.hardcore = setting raHardcoreMode
+GetGameRecord / GetAllRecords               -- add achievements = local_part(appid)
+CheckUnlocks({ appid, native?, title? })    -- -> { new_unlocks = [...] }  (always a list, K1)
+```
+
+`CartridgesAchievementsGet` is now a thin alias over `M._resolve` (same response: `{ schema, unlocks }` or
+`{ error }`); `CartridgesAchievementsCheckUnlocks` stays as an alias of `CheckUnlocks`.
+
+**Sources, in this order** (the chain `CartridgesAchievementsGet` used to hard-code):
+
+| Source | `supports` | Fetch |
+| --- | --- | --- |
+| `steam` | `ctx.native > 0` | `achievements_store.get_or_fetch(appid, native)` |
+| `rpcs3` | `ps3_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps3_trophies.get_or_fetch(appid)` |
+| `shadps4` | `ps4_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps4_trophies.get_or_fetch(appid)` |
+| `retroachievements` | `retroachievements.extract_rom_path(exe, launch_options)` is not nil | `retroachievements.get_or_fetch(appid, hardcore)` |
+
+**Outcomes:** the first supporting source that returns a schema is `ok`; a supporting source that returns
+`nil, err` (or throws) falls through to the next; no source supports the shortcut → `unsupported`, with **no log
+line and no request** (K2: AM2R has no ROM path, so RetroAchievements is never asked); every supporting source
+failed → `error` with the last message. `achievements_observer.check_unlocks` resolves through the same function,
+so a PC game stays silent there too.
+
+## Files
+
+| File | Role |
+| --- | --- |
+| `backend/ach_service.lua` | Source order, `supports` rules, `ensure`, `local_part` |
+| `backend/record_rpc.lua` | `EnsureFresh` `achievements`, `CheckUnlocks`, local parts |
+| `backend/achievements_rpc.lua` | The old RPC names, as aliases |
+| `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels; `get_possible_folder_names` (K7 fixed) |
+| `backend/achievements_store.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
+
+## Steam targets touched
+
+None (backend). The frontend surfaces are in `surfaces.md`.
+
+## May import / must never import
+
+`ach_service.lua` may require `steam_paths`, `shortcuts`, `achievements_store` and, lazily, the three other
+source modules; it must not require the observer (the observer requires it).
+
+## Tests
+
+`tests/test_ach_service.lua` (hermetic, `deps` injected, no files read): PC game without a ROM path is
+unsupported and silent · native schema wins · rpcs3 / shadps4 / retroachievements selection (hardcore flag) ·
+a failing source falls through · all failing is error · `local_part` is disk only · `CheckUnlocks` returns a list
+(K1, array metatable) · `EnsureFresh` uses the saved identity · `GetAllRecords` adds stored achievements · K7
+(colon and em dash). `tests/test_backend.lua` `get_possible_folder_names` checks pass (K7).
+
+## How to add a source
+
+1. Add a `{ name, supports, fetch }` row to `SOURCES` in `ach_service.lua`, in the position it should win.
+2. `supports` must be cheap and side-effect free (a path check, not a request); `fetch` returns `res, err`.
+3. Add its `deps` name (nil = the real module) and a test in `tests/test_ach_service.lua`.
+For a new emulator family or engine log reader see the Reference section "How to Add Support".
+
+## History
+
+- M6a (2026-09-29): created (this doc replaces `docs/steam-cartridges-achievements.md`, kept below as the
+  Reference). `ach_service.lua`, `CheckUnlocks`, the `achievements` part. Fixes K1 (backend half: arrays), K2, K7.
+  Nothing calls the new part until M6b.
+
+## Reference: channels, stores and toasts (pre-migration doc, kept)
 
 ---
 
