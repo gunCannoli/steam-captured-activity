@@ -1,8 +1,15 @@
+// Surface `library-home` (migration plan M3.10): moved from renderers/library-home.tsx.
 import { afterPatch } from '@steambrew/client';
 import { Steam, waitFor } from 'steambrew-utils';
-import { logger } from '../logger';
-import { rpc } from '../rpc';
-import { isNonSteamAppId } from '../steam/route';
+import { logger } from '../../logger';
+import type { SurfaceDeps } from '../../kernel/surface';
+import { isNonSteamAppId } from '../../steam/route';
+
+/** Set by createLibraryHomeSurface (plan § 7.0 D3/D6); open defaults until then. */
+export const deps: SurfaceDeps & {
+  /** Capture stats per non-Steam appid (rpc.getLibraryStats). */
+  loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>>;
+} = { isEnabled: () => true, reportError: () => {}, loadLibraryStats: async () => ({}) };
 
 /**
  * Fills in recent-activity timestamps for non-Steam games from their captures.
@@ -64,7 +71,7 @@ let stats = new Map<number, CaptureStats>();
 /** Fetch capture stats for every non-Steam app that has any. */
 async function loadStats(): Promise<void> {
   try {
-    const raw = await rpc.getLibraryStats();
+    const raw = await deps.loadLibraryStats();
     const next = new Map<number, CaptureStats>();
 
     for (const [appid, value] of Object.entries(raw)) {
@@ -146,13 +153,18 @@ export async function register(): Promise<VoidFunction | undefined> {
     owner,
     'OnAppOverviewChange',
     (args: unknown[], ret: unknown) => {
-      const apps = args[0];
-      if (!Array.isArray(apps)) return ret;
+      if (!deps.isEnabled('library-home')) return ret;
+      try {
+        const apps = args[0];
+        if (!Array.isArray(apps)) return ret;
 
-      for (const app of apps as Steam.AppOverview[]) {
-        // Cheap early-out: this runs on every overview change, including
-        // large batches during startup.
-        if (app?.appid && isNonSteamAppId(app.appid)) enrich(app);
+        for (const app of apps as Steam.AppOverview[]) {
+          // Cheap early-out: this runs on every overview change, including
+          // large batches during startup.
+          if (app?.appid && isNonSteamAppId(app.appid)) enrich(app);
+        }
+      } catch (err) {
+        deps.reportError('library-home', err); // fail-open (plan § 7.0 D6)
       }
 
       return ret;

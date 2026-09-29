@@ -21,16 +21,26 @@ theme Steam's toasts and sounds.
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
 [steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md).
 Accepted as [ADR-0039](docs/decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)
-(pipeline in the backend, new shortcuts fetched in the background, feature freeze
-on `steam-cartridges` until M3 is done).
+(pipeline in the backend, new shortcuts fetched in the background).
 
 The crash is root-caused and the fix is validated live (plan § 1.3): a render feedback
 loop that ran ~150 times a second on every shortcut page; opening **Properties**
 saturated Steam's shared renderer.
-M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
-M0c done (architecture ratchet, RPC registration check, check_all_tabs.js flake fix).
-M1 done (kernel: `ShortcutId`, events, `GameRecord`, `Surface`; not yet adopted by any runtime code).
-M2 done (sensors). M3.0 done (dead-code purge). M3.1 done (`sections` surface; also fixed K16 — kill switches were silently inert since M0b-1). M3.2 done (`captures` surface). M3.3 done (`game-info` surface). M3.4 done (`playbar` surface, new `playbar` kill switch). M3.5 done (`achievements` surface). M3.6 done (`toasts` surface, new `toasts` kill switch; found K17, a pre-existing achievement-toast scanner failure, tracked for after M3). M3.7 done (`native-links` surface; found K18, a pre-existing Support-link gap, tracked for after M3). M3.8 done (purge markers on the two temporary ports, comment-only). M3.9 done (`artwork` surface, new `artwork` kill switch). Next: **M3.10** (`library-home` surface, Ready — last M3 step; the feature freeze ends after it), then **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing is open for the user.
+
+**M0–M3 done (2026-09-28).** Render loop fixed (M0a); kill switches, error budget, safe
+mode (M0b-1); architecture ratchet + RPC registration check (M0c); kernel — `ShortcutId`,
+events, `GameRecord`, `Surface` (M1); sensors — view, lifecycle, collections (M2); dead-code
+purge, then every Steam write moved into its own surface under `frontend/surfaces/` —
+`sections`, `captures`, `game-info`, `playbar`, `achievements`, `toasts`, `native-links`,
+`artwork`, `library-home` — each with a kill switch and fail-open hooks (M3.0–M3.10;
+`frontend/renderers/` no longer exists). **The § 5 feature freeze on `steam-cartridges` has
+ended.** Found along the way: K16 (kill switches were silently inert since M0b-1, fixed in
+M3.1), K17 and K18 (pre-existing achievement-toast and Support-link gaps, tracked in plan § 12
+for a bugfix plan). Live-verified throughout (render-loop PASS, `check_all_tabs.js` 11/11 PASS
+in Big Picture on every batch).
+
+Next: **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
+with M4.0's backend RPC inventory). No `Spec` steps remain. Nothing is open for the user.
 
 ## Next
 

@@ -71,6 +71,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/native-links/core.ts` | Pure redirect logic (tested with node) |
 | `frontend/surfaces/artwork/index.ts` | `artwork` surface: `createArtworkSurface`, `artworkWriter` (§ artwork below) |
 | `frontend/surfaces/artwork/{artwork,logo,deps}.ts` | Slot writes, logo position, injected deps |
+| `frontend/surfaces/library-home/index.ts` | `library-home` surface: `createLibraryHomeSurface`, `ready()` (§ library-home below) |
+| `frontend/surfaces/library-home/grid.ts` | The grid patch, async registration |
 
 ## Steam targets touched
 
@@ -137,6 +139,8 @@ until the service steps (M4+) feed them through `render()`.
 - M3.9 (2026-09-28): `artwork` surface added (moved from `features/artwork/artwork.ts`,
   `features/steam-store/logo.ts`). New kill switch `artwork` (User-visible). `ArtworkUrls` moves
   to `kernel/record.ts` (D12).
+- M3.10 (2026-09-28): `library-home` surface added (moved from `renderers/library-home.tsx`), the
+  last surface. `frontend/renderers/` no longer exists. M3 is complete; the feature freeze (§ 5) ends.
 
 ## sections
 
@@ -407,3 +411,36 @@ until M4.
 **Hooks:** none — `artwork` only writes, never patches a Steam method.
 
 **Record-driven in:** M4.
+
+## library-home
+
+Fills in the library grid's "last played" fields for shortcuts from their
+capture timestamps, so a non-Steam game with recent activity sorts the way
+a native game with recent playtime would.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `collectionStore.OnAppOverviewChange` | 1, 13 (a read-triggering write; membership itself is read-only, owned by `sensors/collections`) |
+| `AppOverview.rt_recent_activity_time` | 1 |
+| `AppOverview.rt_last_time_played_or_installed` | 1 |
+
+**reads:** none — driven by capture stats (an RPC call), not the record, until M7 decides (D4).
+
+**Kill switch:** `library-home`. The afterPatch is fail-open: it returns Steam's own value.
+
+**Injected deps:**
+- `SurfaceDeps & { loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>> }`, passed to `createLibraryHomeSurface`. `loadLibraryStats` replaces the direct `rpc.getLibraryStats` call.
+
+**API:**
+- `refresh` — re-exported from `surfaces/library-home`.
+- `ready()` — resolves once the grid patch registers (or fails); never rejects. Registration is async (it waits for stats and the store), so `install()` starts it and `index.tsx` awaits `ready()` to keep the original start-up order.
+
+**Hooks:** the `OnAppOverviewChange` afterPatch is fail-open.
+
+**Record-driven in:** not decided — an RPC call until M7 (D4).
+
+**M3 complete:** `library-home` is the last surface. `frontend/renderers/` no longer exists — every
+Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K14
+(`observer-session.ts` writes the spotlight session directly). The feature freeze (§ 5) ends here.

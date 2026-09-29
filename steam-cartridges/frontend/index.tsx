@@ -10,9 +10,10 @@ import {
     unpatch as unpatchLibraryApp,
 } from "./surfaces/captures";
 import {
+    createLibraryHomeSurface,
+    ready as libraryHomeReady,
     refresh as refreshLibraryHome,
-    register as registerLibraryHome,
-} from "./renderers/library-home";
+} from "./surfaces/library-home";
 import { initGameInfo } from "./features/game-info";
 import { initSourceView, onSourceView } from "./features/source-view";
 import { createNativeLinksSurface, setNativeAppid } from "./surfaces/native-links";
@@ -246,13 +247,9 @@ async function init() {
 
     // ===== Library grid =====
     // Fills in last-played dates Steam does not have, from capture timestamps.
-    if (features.isEnabled("library-home")) {
-        try {
-            await registerLibraryHome();
-        } catch (e) {
-            features.reportError("library-home", e);
-        }
-    }
+    runner.register(createLibraryHomeSurface({ ...surfaceDeps, loadLibraryStats: () => rpc.getLibraryStats() }));
+    runner.installAll();
+    await libraryHomeReady();
 
     // ===== App detail pages =====
     // Publishing is keyed on the app, not the window: Steam's store is global, so

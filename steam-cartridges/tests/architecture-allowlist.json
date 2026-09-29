@@ -24,8 +24,6 @@
   "features/steam-store -> features/game-info",
   "features/steam-store -> rpc",
   "features/steam-store -> steam",
-  "renderers -> rpc",
-  "renderers -> steam",
   "safety -> settings",
   "settings -> features/achievements",
   "settings -> features/buckets",

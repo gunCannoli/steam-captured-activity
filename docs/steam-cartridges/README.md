@@ -16,7 +16,7 @@ for the authoritative, up-to-date state):
 | Architecture ratchet: import allowlist, RPC registration test | done (M0c) — this doc |
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | planned (M1) |
 | Sensors: view, lifecycle, collections (owned apps: M4) | done (M2) — [sensors.md](sensors.md) |
-| Surfaces: the only code that writes to Steam | planned (M3.1–M3.10) |
+| Surfaces: the only code that writes to Steam | done (M3.1–M3.10) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | planned (M4) |
 | Metadata service | planned (M5) |
 | Achievements service | planned (M6) |

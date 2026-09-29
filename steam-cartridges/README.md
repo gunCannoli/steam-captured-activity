@@ -89,7 +89,7 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 | `steam/stores.ts`            | Typed store/service/payload shapes & resolvers                 | ✅ verified in Steam    |
 | `steam/gameid.ts`            | appid ↔ 64-bit gameid (BigInt)                                 | ✅ matches real folders |
 | `surfaces/captures/publish.ts` | Publish/clear per app (Desktop & Big Picture)                 | ✅ verified in Steam    |
-| `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts                          | ✅ verified in Steam    |
+| `surfaces/library-home/grid.ts` | Patch `AppOverview` so the grid sorts                       | ✅ verified in Steam    |
 | `steam_paths.lua`            | Find Steam root + active user                                  | ✅ tested               |
 | `shortcuts.lua`              | Parse binary `shortcuts.vdf`                                   | ✅ tested               |
 | `captures.lua`               | Parse `screenshots.vdf` (grid counts)                          | ✅ tested               |

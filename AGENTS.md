@@ -26,7 +26,7 @@ The core must be useful alone and must never depend on a provider. See
 | [docs/steam-architecture.md](docs/steam-architecture.md) | **Docs index — start here.** Which doc to read for your situation, every doc's one job, the `steam-cartridges` layer docs |
 | [TASK.md](TASK.md) | Current status and what is next |
 | [CHANGELOG.md](CHANGELOG.md) | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean |
-| [docs/plans/steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md) | The `steam-cartridges` migration (ADR-0039). **Feature freeze** on `steam-cartridges` until step M3 is done |
+| [docs/plans/steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md) | The `steam-cartridges` migration (ADR-0039). M3 is done (2026-09-28); the feature freeze on `steam-cartridges` has ended |
 | [docs/plugins.md](docs/plugins.md) | **How to build a plugin & every regression guardrail** — scaffold, reuse ladder, guardrails, develop/deploy, test, publish |
 | [docs/steam-components.md](docs/steam-components.md) | **Steam's internals** — opens with the map (topology, stores, stable resolution signatures), then verified deep traces |
 | [docs/steam-debug.md](docs/steam-debug.md) | **Inspecting the live client** — CDP targets, the inspection method, Big Picture traps, hung-UI diagnosis, cost-efficient debugging |
