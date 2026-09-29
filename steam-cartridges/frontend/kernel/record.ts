@@ -64,6 +64,28 @@ export interface GameMetadata {
     steam_appid?: number;
 }
 
+/** One achievement of a schema (moved from rpc.ts in M3.5, plan § 7.0 D12). */
+export interface AchievementSchemaItem {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    global_pct: number;
+}
+
+/** An app's achievement schema as the backend stores it (moved from rpc.ts in M3.5). */
+export interface AchievementSchemaRecord {
+    native_appid: number;
+    total: number;
+    achievements: AchievementSchemaItem[];
+    fetched_at?: number;
+}
+
+/** When one achievement was unlocked (moved from rpc.ts in M3.5). */
+export interface AchievementUnlockRecord {
+    unlocked_time: number;
+}
+
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;

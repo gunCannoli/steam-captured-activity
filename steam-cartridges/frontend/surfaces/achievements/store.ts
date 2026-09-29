@@ -1,15 +1,42 @@
+// Surface `achievements` (migration plan M3.5, ADR-0039): the only code that feeds Steam's
+// achievement stores for shortcuts. Moved from features/achievements/store.ts.
 import { logger } from "../../logger";
 import { isNonSteamAppId } from "../../steam/route";
-import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../rpc";
-import type { SteamAppAchievements } from "./types";
-import { buildAchievementProgress, buildSteamAchievements } from "./achievements-core";
+import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../kernel/record";
+import type { SurfaceDeps } from "../../kernel/surface";
+import type { SteamAppAchievements } from "../../steam/achievement-types";
+import { buildAchievementProgress, buildSteamAchievements } from "./core";
 import { resolveSingleton } from "../../steam/modules";
 
-/** Re-renders Steam's section list; wired to the sections surface in index.tsx (plan § 7.0 D3). */
-let refreshSections: () => void = () => {};
+/** Set by createAchievementsSurface (plan § 7.0 D3/D6); open defaults until then. */
+export const deps: SurfaceDeps & {
+    /** Re-renders Steam's section list (the sections surface). */
+    refreshSections(): void;
+} = { isEnabled: () => true, reportError: () => {}, refreshSections: () => {} };
+const refreshSections = () => deps.refreshSections();
 
-export function setSectionsRefresher(fn: () => void): void {
-    refreshSections = fn;
+/**
+ * Fail-open (plan § 7.0 D6): wrap an installed hook so a switched-off surface, a throw or a
+ * rejected promise falls back to Steam's original method.
+ */
+function failOpen(target: any, name: string, original: (...args: any[]) => any): void {
+    const hook = target[name];
+    target[name] = function (this: any, ...args: any[]) {
+        if (!deps.isEnabled("achievements")) return original.apply(this, args);
+        try {
+            const result = hook.apply(this, args);
+            if (result && typeof result.then === "function") {
+                return result.catch((err: unknown) => {
+                    deps.reportError("achievements", err);
+                    return original.apply(this, args);
+                });
+            }
+            return result;
+        } catch (err) {
+            deps.reportError("achievements", err);
+            return original.apply(this, args);
+        }
+    };
 }
 
 const achievementsMap = new Map<number, SteamAppAchievements>();
@@ -194,6 +221,12 @@ export function ensureAchievementsFullStoreHooked(): boolean {
         };
     }
 
+    if (typeof origLoadMy === "function") failOpen(proto, "LoadMyAchievements", origLoadMy);
+    if (typeof origGetMy === "function") failOpen(proto, "GetMyAchievements", origGetMy);
+    if (typeof origGetGlobal === "function") failOpen(proto, "GetGlobalAchievements", origGetGlobal);
+    if (typeof origGetPlayer === "function") failOpen(proto, "GetPlayerAchievements", origGetPlayer);
+    if (typeof origLoadFriend === "function") failOpen(proto, "LoadFriendAchievements", origLoadFriend);
+
     fullStoreHooked = true;
     logger.info("Successfully hooked AchievementsFullStore for non-Steam individual achievements page.");
     return true;
@@ -221,6 +254,8 @@ export function ensureAchievementsStoreHooked(): boolean {
         }
         return origGetAchievements(appId);
     };
+
+    failOpen(store, "GetAchievements", origGetAchievements);
 
     storeHooked = true;
     logger.info("Successfully hooked appDetailsStore.GetAchievements for non-Steam games.");

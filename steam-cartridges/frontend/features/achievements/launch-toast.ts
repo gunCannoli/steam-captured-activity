@@ -1,6 +1,6 @@
 import { logger } from "../../logger";
 import { setting } from "../../settings/settings";
-import { getLocalAchievements } from "./store";
+import { getLocalAchievements } from "./store-port";
 
 const notifiedShortcuts = new Set<number>();
 

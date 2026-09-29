@@ -61,7 +61,8 @@ import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-inf
 import { controllerContext } from "./features/game-info/controller";
 import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink } from "./features/steam-store";
 import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
-import { setSectionsRefresher } from "./features/achievements/store";
+import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
+import { setAchievementsStore } from "./features/achievements/store-port";
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
 const surfaceDeps: SurfaceDeps = {
@@ -126,7 +127,7 @@ async function init() {
     setGameInfoProbe(isAppEnriched);
     setContentListener(setHasContent);
     setExtraSectionsSink(setExtraSections);
-    setSectionsRefresher(refreshSections);
+    setAchievementsStore(achievementsStore);
     setCapturesSinks({ setNativeActivitySource, republish: patchLibraryApp });
     setCapturesRefresher(refreshLibraryApp);
     setGameInfoWriter(gameInfoWriter);
@@ -201,6 +202,9 @@ async function init() {
     features.run("native-links", () => installNativeSections());
 
     // ===== Native Achievements Subsystem =====
+    // Steam's achievement stores (surfaces/achievements, plan M3.5); the loader below feeds them.
+    runner.register(createAchievementsSurface({ ...surfaceDeps, refreshSections }));
+    runner.installAll();
     features.run("achievements", () => initAchievements());
 
     // ===== Game Info (surfaces/game-info, plan M3.3) =====

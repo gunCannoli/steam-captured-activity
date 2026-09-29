@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     buildAchievementProgress,
     buildSteamAchievements,
-} from '../frontend/features/achievements/achievements-core.ts';
+} from '../frontend/surfaces/achievements/core.ts';
 import type { AchievementSchemaRecord } from '../frontend/rpc.ts';
 
 const mockSchema: AchievementSchemaRecord = {

@@ -82,6 +82,13 @@ export interface GameMetadata {
     categories?: GameCategories; store_category_ids?: number[]; custom_override?: boolean;
     source?: string; steam_appid?: number;
 }
+export interface AchievementSchemaItem {
+    id: string; name: string; description: string; icon: string; global_pct: number;
+}
+export interface AchievementSchemaRecord {
+    native_appid: number; total: number; achievements: AchievementSchemaItem[]; fetched_at?: number;
+}
+export interface AchievementUnlockRecord { unlocked_time: number; }
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
 export type ArtworkPlan = Record<string, unknown>;
@@ -189,3 +196,5 @@ Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-pla
 - M3.3: `GameMetadata`, `GameCategories` (D12) — moved from `rpc.ts`'s
   `ConsolidatedMetadata`/`GameCategories`; `rpc.ts` keeps both names as type
   aliases so no other importer changes.
+- M3.5: `AchievementSchemaItem`, `AchievementSchemaRecord`,
+  `AchievementUnlockRecord` (D12) — moved from `rpc.ts`; `rpc.ts` keeps the names.

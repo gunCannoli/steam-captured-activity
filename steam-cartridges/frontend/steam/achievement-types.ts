@@ -1,3 +1,5 @@
+// Steam's own achievement shapes (AppDetailsStore, AchievementsFullStore, NotificationStore).
+// Moved from features/achievements/types.ts in M3.5 so surfaces can use them.
 /**
  * Types for Steam's native achievements system and internal stores.
  */

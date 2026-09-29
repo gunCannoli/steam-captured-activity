@@ -1,5 +1,5 @@
-import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../rpc";
-import type { SteamAchievementItem, SteamAppAchievements, AchievementProgress } from "./types";
+import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../kernel/record";
+import type { SteamAchievementItem, SteamAppAchievements, AchievementProgress } from "../../steam/achievement-types";
 
 /**
  * Transforms backend schema and unlocks into Steam's native AppDetailsStore format.

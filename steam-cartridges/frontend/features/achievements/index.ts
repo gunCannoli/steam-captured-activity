@@ -7,8 +7,8 @@ import {
     getLocalSchema,
     getLocalUnlocks,
     updateShortcutState,
-} from "./store";
-import type { SteamAppAchievements } from "./types";
+} from "./store-port";
+import type { SteamAppAchievements } from "../../steam/achievement-types";
 
 import { dispatchLaunchToast, handleAppLaunchAchievements } from "./launch-toast";
 import { checkObserverUnlocks, startAchievementsObserver } from "./observer-session";

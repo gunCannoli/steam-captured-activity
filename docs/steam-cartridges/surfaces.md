@@ -62,6 +62,9 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/game-info/{patch,metadata,category-policy,deps}.ts` | `game-info`'s hooks, enrich/revert, category filtering, injected deps |
 | `frontend/surfaces/playbar/index.ts` | `playbar` surface: `createPlaybarSurface` (§ playbar below) |
 | `frontend/steam/overview-proxy.ts` | `createPatchedOverview`; importable only by `surfaces/game-info` and `surfaces/playbar` (guardrail 1) |
+| `frontend/surfaces/achievements/index.ts` | `achievements` surface: `createAchievementsSurface`, `achievementsStore` (§ achievements below) |
+| `frontend/surfaces/achievements/{core,store}.ts` | Hook installation, local schema/unlock reads |
+| `frontend/steam/achievement-types.ts` | Steam's own achievement shapes; importable by surfaces |
 
 ## Steam targets touched
 
@@ -114,6 +117,9 @@ until the service steps (M4+) feed them through `render()`.
 - M3.4 (2026-09-28): `playbar` surface added, split out of `game-info` (the PlayBar ⓘ button).
   `steam/overview-proxy.ts` created; an architecture test now asserts only `surfaces/game-info`
   and `surfaces/playbar` import it (guardrail 1). New kill switch `playbar` (User-visible).
+- M3.5 (2026-09-28): `achievements` surface added (moved from `features/achievements/store.ts`,
+  `achievements-core.ts`). `steam/achievement-types.ts` created for Steam's own achievement shapes.
+  `AchievementSchemaItem`/`AchievementSchemaRecord`/`AchievementUnlockRecord` move to `kernel/record.ts` (D12).
 
 ## sections
 
@@ -257,3 +263,39 @@ button opens Game Info, so it shows only while **both** `playbar` and
 **Shared code:** `steam/overview-proxy.ts`'s `createPatchedOverview`, importable only by `surfaces/game-info` and `surfaces/playbar` (guardrail 1, enforced by an architecture test).
 
 **Record-driven in:** M5.
+
+## achievements
+
+Steam's achievement stores (`AppDetailsStore.GetAchievements`,
+`AchievementsFullStore`, the progress cache) for shortcuts, so a mapped
+game's Achievements section shows RetroAchievements/local data through
+Steam's own native UI.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `AppDetailsStore.GetAchievements` | 1 |
+| `AchievementsFullStore.LoadMyAchievements` | 1 |
+| `AchievementsFullStore.GetMyAchievements` | 1 |
+| `AchievementsFullStore.GetGlobalAchievements` | 1 |
+| `AchievementsFullStore.GetPlayerAchievements` | 1 |
+| `AchievementsFullStore.LoadFriendAchievements` | 1 |
+| `AchievementsFullStore.m_mapMyAchievements` | 1 |
+| `AchievementsFullStore.m_mapGlobalAchievements` | 1 |
+| `appAchievementProgressCache.m_achievementProgress` | 1 |
+| `AppDetailsStore.AppDetailsChanged(achievements)` | 1 |
+
+**reads:** `achievements` (record-driven from M6, D4).
+
+**Kill switch:** `achievements`. All six hooks are fail-open through one shared `failOpen()` helper (handles both sync throws and rejected promises).
+
+**Injected deps:**
+- `SurfaceDeps & { refreshSections(): void }`, passed to `createAchievementsSurface`. `refreshSections` is `sections`'s setter (wired in M3.1), so an achievement update can re-trigger the sections re-render.
+
+**API (reached only through this port):**
+- `features/achievements/store-port.ts` (D3; `PURGE(M6)`, marked in M3.8) exposes the same five function names the old `store.ts` had, so the feature files only changed an import path.
+
+**Hooks:** all six fail-open through `failOpen()`; the retry loop in `initAchievements` (features/achievements) is unchanged — Steam may not have created the achievement stores yet at install time.
+
+**Record-driven in:** M6.

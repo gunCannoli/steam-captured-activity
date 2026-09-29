@@ -1,4 +1,10 @@
-import type { GameCategories, GameMetadata } from "./kernel/record";
+import type {
+    AchievementSchemaItem,
+    AchievementSchemaRecord,
+    AchievementUnlockRecord,
+    GameCategories,
+    GameMetadata,
+} from "./kernel/record";
 
 async function call<R>(name: string, payload: object = {}): Promise<R> {
   const millennium = (window as any)['Millennium'];
@@ -193,24 +199,10 @@ export interface CheckUnlocksResponse {
     error?: string;
 }
 
-export interface AchievementSchemaItem {
-    id: string;
-    name: string;
-    description: string;
-    icon: string;
-    global_pct: number;
-}
+// Achievement payload shapes live in the kernel (migration plan § 7.0 D12); the old names stay.
+export type { AchievementSchemaItem, AchievementSchemaRecord, AchievementUnlockRecord };
 
-export interface AchievementSchemaRecord {
-    native_appid: number;
-    total: number;
-    achievements: AchievementSchemaItem[];
-    fetched_at?: number;
-}
 
-export interface AchievementUnlockRecord {
-    unlocked_time: number;
-}
 
 export interface AchievementStateResponse {
     schema?: AchievementSchemaRecord;
