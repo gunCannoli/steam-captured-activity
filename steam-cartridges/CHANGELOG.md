@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: cleaned up five leftover Game Info records from removed/test shortcuts (2026-09-28)**: `library_metadata.json` had records for two games removed from the library and three left over from earlier test sessions. They're now removed automatically once on update; a backup (`library_metadata.json.bak-v2`) is kept, and any record with manual edits is never touched.
+
 - **Added: an `artwork` switch to turn off custom art slot/logo writes separately (2026-09-28)**: previously not independently switchable.
 
 - **Added: a `toasts` switch to turn off achievement/launch popups separately (2026-09-28)**: previously not independently switchable. Note: achievement toasts currently don't appear on this Steam build regardless of the switch — tracked as a known issue.

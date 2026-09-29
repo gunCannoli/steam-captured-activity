@@ -39,8 +39,16 @@ M3.1), K17 and K18 (pre-existing achievement-toast and Support-link gaps, tracke
 for a bugfix plan). Live-verified throughout (render-loop PASS, `check_all_tabs.js` 11/11 PASS
 in Big Picture on every batch).
 
-Next: **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
-with M4.0's backend RPC inventory). No `Spec` steps remain. Nothing is open for the user.
+**M4.0 done (2026-09-28).** Backend RPC inventory (`docs/steam-cartridges/rpc.md`): 25 live, 7
+unwired (matches plan § 7.10 exactly), 0 dead — nothing deleted. K8 fixed (RetroArch fixture
+215). New migration v2 removes five orphaned `library_metadata.json` records (backed up first,
+skips manual edits); `tests/test_migrate.lua` added (7 checks, `ALL PASS`). The Lua test
+harness's JSON stub is now a real recursive decoder (was flat-only, silently mis-parsed nested
+records).
+
+Next: **M4a → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
+with M4a's routing policy move to `domain/routing`). No `Spec` steps remain. Nothing is open
+for the user.
 
 ## Next
 

@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a through M3.10 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, and every M3.x except M3.8 also live-validated; M3.8 is comment-only, no live check). **M3 is complete and the § 5 feature freeze on `steam-cartridges` ends.** **M4.0–M9b are Build** (detailed specs an implementer builds, § 0.10). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a through M4.0 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, and every M3.x except M3.8 also live-validated; M3.8 and M4.0 are docs/backend-only, no frontend live check needed). **M3 is complete and the § 5 feature freeze on `steam-cartridges` ends.** **M4a–M9b are Build** (detailed specs an implementer builds, § 0.10). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -71,7 +71,7 @@ Statuses (what the executing agent does with the row):
 | M3.8 | Purge markers on the two temporary ports (D13) | **Done** | § 7.9 ledger |
 | M3.9 | Surface `artwork` | **Done** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Done** | `surfaces.md` § library-home |
-| M4.0 | Backend inventory: live / unwired / dead; purge only the dead | Build | `rpc.md` (created) |
+| M4.0 | Backend inventory: live / unwired / dead; purge only the dead | **Done** | `rpc.md` (created) |
 | M4a | Routing policy → `domain/routing` (ADR-0040) | Build | `README.md` layer list, ADR-0040 |
 | M4b | Identity service + record facade (backend) | Build | `service-resolver.md`, `rpc.md` |
 | M4c | Frontend adopts records and identity | Build | `rpc.md`, `surfaces.md`, `sensors.md` |
@@ -2357,7 +2357,7 @@ writes `steam_store.json` through `steam_store_store.lua`, metadata reads and wr
 
 ---
 
-### M4.0 — Backend inventory, purge only the dead (Build; run before M4a)
+### M4.0 — Backend inventory, purge only the dead (Done)
 
 **Why:** D13 (dead code is purged, not moved) with § 11 item 7 (unwired features are kept).
 **Design:**

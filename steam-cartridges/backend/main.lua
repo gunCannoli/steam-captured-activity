@@ -83,6 +83,10 @@ local function on_load()
   if not ok_m then
     logger:error("migration failed: " .. tostring(err_m))
   end
+  local ok_m2, err_m2 = pcall(migrate.run_v2)
+  if not ok_m2 then
+    logger:error("migration v2 failed: " .. tostring(err_m2))
+  end
 
   if config.get_twitch_credentials() then
     logger:info("Game Metadata provider loaded (Twitch credentials configured).")

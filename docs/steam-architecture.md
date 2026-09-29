@@ -94,7 +94,7 @@ updated by every later step that changes it (template in the
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | [kernel.md](steam-cartridges/kernel.md) (M1) | current |
 | Sensors: view, lifecycle, collections (owned apps: M4) | [sensors.md](steam-cartridges/sensors.md) (M2) | current |
 | Surfaces: the only code that writes to Steam, one section each | [surfaces.md](steam-cartridges/surfaces.md) (M3.1, a section added by each M3.x) | current |
-| Backend port and RPC facade | `docs/steam-cartridges/rpc.md` (M4) | planned |
+| Backend port and RPC facade | [rpc.md](steam-cartridges/rpc.md) (M4.0: inventory; M4b/M5a: facade) | planned |
 | Resolver service (Steam native match, web identity, routing policy) | `docs/steam-cartridges/service-resolver.md` (M4) | planned |
 | Metadata service and its sources | `docs/steam-cartridges/service-metadata.md` (M5) | planned |
 | Achievements service, sources, observer | `docs/steam-cartridges/service-achievements.md` (M6, replaces [steam-cartridges-achievements.md](steam-cartridges-achievements.md)) | planned |

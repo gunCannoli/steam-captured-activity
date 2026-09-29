@@ -145,63 +145,106 @@ function http.get() error("network in test") end
 function http.post() error("network in test") end
 package.loaded["http"] = http
 
--- ---------- stub: json (encode only, for shape checks) ----------
+-- ---------- stub: json ----------
 local json = {}
 
---- Minimal decoder: enough for the flat { "key": value } payloads the RPC
---- methods receive in tests. Not a general JSON parser.
----
---- It does unescape backslashes, because Windows paths cross this boundary and
---- a decoder that left "C:\\game" as-is would make tests pass or fail for
---- reasons the real json module would not reproduce.
-local function unescape(str)
-  return (str:gsub('\\(.)', function(c)
-    if c == "n" then return "\n" end
-    if c == "t" then return "\t" end
-    if c == "r" then return "\r" end
-    return c  -- covers \\ and \"
-  end))
+--- General recursive-descent JSON decoder (objects, arrays, strings, numbers,
+--- booleans, null nest to any depth). Needed because library_metadata.json and
+--- similar files have nested objects/arrays; a flat { "key": "value" } scanner
+--- silently mis-parses them.
+local function decode_value(s, i)
+  i = s:match("^%s*()", i)
+  local c = s:sub(i, i)
+
+  if c == '"' then
+    local j, buf = i + 1, {}
+    while j <= #s do
+      local ch = s:sub(j, j)
+      if ch == "\\" then
+        local esc = s:sub(j + 1, j + 1)
+        if esc == "n" then buf[#buf + 1] = "\n"
+        elseif esc == "t" then buf[#buf + 1] = "\t"
+        elseif esc == "r" then buf[#buf + 1] = "\r"
+        elseif esc == "u" then
+          local hex = s:sub(j + 2, j + 5)
+          buf[#buf + 1] = utf8 and utf8.char(tonumber(hex, 16)) or "?"
+          j = j + 4
+        else buf[#buf + 1] = esc end
+        j = j + 2
+      elseif ch == '"' then
+        return table.concat(buf), j + 1
+      else
+        buf[#buf + 1] = ch
+        j = j + 1
+      end
+    end
+    error("unterminated string in JSON")
+  elseif c == "{" then
+    local out, j = {}, s:match("^%s*()", i + 1)
+    if s:sub(j, j) == "}" then return out, j + 1 end
+    while true do
+      local key
+      key, j = decode_value(s, j)
+      j = s:match("^%s*()", j)
+      assert(s:sub(j, j) == ":", "expected ':' in JSON object")
+      local val
+      val, j = decode_value(s, j + 1)
+      out[key] = val
+      j = s:match("^%s*()", j)
+      local sep = s:sub(j, j)
+      if sep == "," then j = s:match("^%s*()", j + 1)
+      elseif sep == "}" then return out, j + 1
+      else error("expected ',' or '}' in JSON object") end
+    end
+  elseif c == "[" then
+    local out, n, j = {}, 0, s:match("^%s*()", i + 1)
+    if s:sub(j, j) == "]" then return out, j + 1 end
+    while true do
+      local val
+      val, j = decode_value(s, j)
+      n = n + 1
+      out[n] = val
+      j = s:match("^%s*()", j)
+      local sep = s:sub(j, j)
+      if sep == "," then j = s:match("^%s*()", j + 1)
+      elseif sep == "]" then return out, j + 1
+      else error("expected ',' or ']' in JSON array") end
+    end
+  elseif s:sub(i, i + 3) == "true" then
+    return true, i + 4
+  elseif s:sub(i, i + 4) == "false" then
+    return false, i + 5
+  elseif s:sub(i, i + 3) == "null" then
+    return nil, i + 4
+  else
+    local ns, ne, num = s:find("^(%-?%d+%.?%d*[eE]?[%+%-]?%d*)", i)
+    if not ns then error("unexpected token in JSON at position " .. i) end
+    return tonumber(num), ne + 1
+  end
 end
 
 function json.decode(s)
-  local out = {}
-  if type(s) ~= "string" then return out end
-  -- Lua patterns have no alternation, so scan for string values manually to
-  -- keep escaped quotes and backslashes intact.
-  local pos = 1
-  while true do
-    local ks, ke, key = s:find('"([^"]+)"%s*:%s*"', pos)
-    if not ks then break end
-
-    local i, buf = ke + 1, {}
-    while i <= #s do
-      local c = s:sub(i, i)
-      if c == "\\" then
-        buf[#buf + 1] = s:sub(i, i + 1)
-        i = i + 2
-      elseif c == '"' then
-        break
-      else
-        buf[#buf + 1] = c
-        i = i + 1
-      end
-    end
-
-    out[key] = unescape(table.concat(buf))
-    pos = i + 1
-  end
-  for key, value in s:gmatch('"([^"]+)"%s*:%s*(-?%d+%.?%d*)') do
-    out[key] = tonumber(value)
-  end
-  return out
+  if type(s) ~= "string" or #s == 0 then return {} end
+  local ok, value = pcall(function()
+    local v = decode_value(s, 1)
+    return v
+  end)
+  if not ok then return {} end
+  return value == nil and {} or value
 end
+local function encode_string(v)
+  return '"' .. v:gsub('[\\"]', function(c) return "\\" .. c end)
+    :gsub("\n", "\\n"):gsub("\t", "\\t"):gsub("\r", "\\r") .. '"'
+end
+
 function json.encode(v)
   local t = type(v)
   if t == "number" then return tostring(v) end
   if t == "boolean" then return tostring(v) end
   if t == "nil" then return "null" end
-  if t == "string" then return '"' .. v:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"' end
+  if t == "string" then return encode_string(v) end
   if t == "table" then
+    if next(v) == nil then return "{}" end
     if #v > 0 then
       local parts = {}
       for _, item in ipairs(v) do parts[#parts + 1] = json.encode(item) end
@@ -209,7 +252,7 @@ function json.encode(v)
     end
     local parts = {}
     for k, val in pairs(v) do
-      parts[#parts + 1] = '"' .. tostring(k) .. '":' .. json.encode(val)
+      parts[#parts + 1] = encode_string(tostring(k)) .. ":" .. json.encode(val)
     end
     return "{" .. table.concat(parts, ",") .. "}"
   end
