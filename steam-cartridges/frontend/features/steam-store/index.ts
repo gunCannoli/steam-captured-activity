@@ -12,8 +12,6 @@ import { refreshGameInfoInstances } from "../game-info/game-info-patch";
 import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
-import { setNativeActivitySource } from "../../steam/activity";
-import { patch as patchLibraryApp } from "../../renderers/library-app";
 import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
 import { storeEnrichedAppIds } from "./enriched";
 import { knownAppName, matchKnownNative } from "./known-apps";
@@ -22,6 +20,18 @@ import { setNativeAppid } from "./native-sections";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
 import { loadAchievementsForApp } from "../achievements";
+
+/** Captures surface calls, wired in index.tsx (plan § 7.0 D3). */
+let setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void = () => {};
+let patchLibraryApp: (appid: number) => Promise<void> = async () => {};
+
+export function setCapturesSinks(sinks: {
+    setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void;
+    republish: (appid: number) => Promise<void>;
+}): void {
+    setNativeActivitySource = sinks.setNativeActivitySource;
+    patchLibraryApp = sinks.republish;
+}
 
 /** Extra Steam sections for a mapped shortcut; wired to the sections surface in index.tsx (plan § 7.0 D3). */
 let setExtraSections: (appid: number, names: readonly string[] | undefined) => void = () => {};

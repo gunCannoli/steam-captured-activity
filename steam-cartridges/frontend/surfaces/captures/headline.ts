@@ -1,7 +1,8 @@
 import { findModuleByExport } from '@steambrew/client';
-import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
-import { logger } from '../logger';
-import { isNonSteamAppId } from './route';
+import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
+import { logger } from '../../logger';
+import { isNonSteamAppId } from '../../steam/route';
+import { deps } from './deps';
 
 interface JsxRuntimeModule {
   jsx(type: unknown, props: unknown, key?: unknown): unknown;
@@ -69,7 +70,14 @@ export function installHeadlinePatch(): void {
 
   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
     label: 'steam-cartridges.headline',
-    observe: (type, props) => handleHeadlineIntercept(type, props),
+    observe: (type, props) => {
+      if (!deps.isEnabled('headline')) return;
+      try {
+        handleHeadlineIntercept(type, props);
+      } catch (err) {
+        deps.reportError('headline', err); // fail-open (plan § 7.0 D6)
+      }
+    },
   });
   logger.info('Installed Activity Feed headline patch ("{Username} captured").');
 }

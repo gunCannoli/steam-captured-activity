@@ -1,20 +1,18 @@
 import { definePlugin, IconsModule } from "@steambrew/client";
-import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
 import { logger } from "./logger";
 import { rpc } from "./rpc";
 import {
+    createCapturesSurface,
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
     setContentListener,
+    setNativeActivitySource,
     unpatch as unpatchLibraryApp,
-} from "./renderers/library-app";
+} from "./surfaces/captures";
 import {
     refresh as refreshLibraryHome,
     register as registerLibraryHome,
 } from "./renderers/library-home";
-import { installHeadlinePatch } from "./steam/headline-patch";
-import { installActivityCardsPatch } from "./steam/activity-cards-patch";
-import { ensureStoreCacheHooked } from "./steam/activity";
 import { initGameInfo } from "./features/game-info";
 import { initSourceView, onSourceView } from "./features/source-view";
 import { installNativeSections } from "./features/steam-store/native-sections";
@@ -30,7 +28,7 @@ import {
     startAchievementsObserver,
     dispatchAchievementToast,
 } from "./features/achievements";
-import { initSettings, resetSettings, setSetting } from "./settings/settings";
+import { initSettings, resetSettings, setSetting, setting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
 import { triggerSync } from "./features/scraper/sync-manager";
@@ -52,7 +50,8 @@ import {
     setHasContent,
 } from "./surfaces/sections";
 import { isAppEnriched } from "./features/game-info/game-info-patch";
-import { setExtraSectionsSink } from "./features/steam-store";
+import { setCapturesSinks, setExtraSectionsSink } from "./features/steam-store";
+import { setCapturesRefresher } from "./features/scraper/on-update";
 import { setSectionsRefresher } from "./features/achievements/store";
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
@@ -92,16 +91,16 @@ export {
     dispatchAchievementToast,
 };
 
-export { registerSummaryProvider } from "./steam/summary";
+export { registerSummaryProvider } from "./surfaces/captures";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
-export { headlineJsxDiagnostics } from "./steam/headline-patch";
-export { activityCardsJsxDiagnostics } from "./steam/activity-cards-patch";
+export { headlineJsxDiagnostics } from "./surfaces/captures";
+export { activityCardsJsxDiagnostics } from "./surfaces/captures";
 export { nativeSectionsDiagnostics } from "./features/steam-store/native-sections";
 export type {
     SummaryContext,
     SummaryContribution,
     SummaryProvider,
-} from "./steam/summary";
+} from "./surfaces/captures";
 
 const LEGACY_PLUGINS = [
     "non-steam-games-activity",
@@ -119,6 +118,8 @@ async function init() {
     setContentListener(setHasContent);
     setExtraSectionsSink(setExtraSections);
     setSectionsRefresher(refreshSections);
+    setCapturesSinks({ setNativeActivitySource, republish: patchLibraryApp });
+    setCapturesRefresher(refreshLibraryApp);
 
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
@@ -167,19 +168,20 @@ async function init() {
         );
     }
 
-    // ===== Store Cache Immunity Hook =====
-    // Permanently immunizes non-Steam shortcuts from StoreItemCache negative blacklist
-    features.run("store-cache", () => ensureStoreCacheHooked());
-
-    // ===== Headline phrasing =====
-    // Replaces community UGC string ("cannoliGun shared 2 screenshots") with native action
-    // phrasing ("cannoliGun captured") for non-Steam captures.
-    features.run("headline", () => installHeadlinePatch());
-
-    // ===== Native Activity Cards =====
-    // Replaces community screenshot viewer with genuine Post-Game Summary cards
-    // (PostGameSummaryClip and SummaryScreenshot) with hover video scrubbers and native playback.
-    features.run("activity-cards", () => installActivityCardsPatch());
+    // ===== Captures (surfaces/captures, plan M3.2) =====
+    // StoreItemCache immunity (store-cache), "{Username} captured" headlines (headline),
+    // native Post-Game Summary cards in the activity feed (activity-cards) and Big
+    // Picture thumbnail styling; each part keeps its own kill switch.
+    runner.register(
+        createCapturesSurface({
+            ...surfaceDeps,
+            activityOptions: () => ({
+                showAdded: setting("activityShowAddedToLibrary") !== false,
+                showFirstPlayed: setting("activityShowFirstPlayed") !== false,
+            }),
+        }),
+    );
+    runner.installAll();
 
     // ===== Native sections for mapped games (parity plan C) =====
     // Steam's own Links / Friends / Community sections read the native appid
@@ -223,70 +225,6 @@ async function init() {
     });
     bus.on("shortcut.left", ({ appid }) => {
         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
-    });
-
-    onPopupCreate((popup, type) => {
-        if (!features.isEnabled("captures")) return undefined;
-        if (type === PopupType.Gamepad) {
-            // Big Picture renders through a React portal from SharedJSContext
-            // into the gamepad popup window (ADR-0029). Both UI modes share the
-            // same store singletons, webpack chunks, and CAppDetailsSections registry.
-            //
-            // Because Ge.T (module 53074) is already built into Big Picture's
-            // "ACTIVITY" tab, feeding appSpotlightStore via patchLibraryApp(appid)
-            // makes Steam render its genuine native GamePlaySummaryContainer with
-            // controller focus rings and carousel scrolling automatically.
-
-            // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
-            const doc = popup.window?.document;
-            let styleEl: HTMLStyleElement | null = doc
-                ? doc.createElement("style")
-                : null;
-            if (styleEl && doc) {
-                styleEl.id = "nsga-bpm-activity-thumbs";
-                styleEl.textContent = `
-          [class*="CarouselThumbs"] {
-            display: flex !important;
-            flex-direction: row !important;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            gap: 16px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            flex: 1 1 auto !important;
-          }
-          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) {
-            width: 320px !important;
-            height: 180px !important;
-            max-width: 320px !important;
-            max-height: 180px !important;
-            flex: 0 0 320px !important;
-            border-radius: 4px !important;
-            overflow: hidden !important;
-          }
-          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) [class*="ImageWrapper"] {
-            width: 100% !important;
-            height: 100% !important;
-          }
-          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            display: block !important;
-          }
-        `;
-                doc.head?.appendChild(styleEl);
-            }
-
-            return () => {
-                if (styleEl && styleEl.parentNode) {
-                    styleEl.parentNode.removeChild(styleEl);
-                }
-            };
-        }
-
-        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
-        return undefined;
     });
 
     // ===== Refresh after play =====

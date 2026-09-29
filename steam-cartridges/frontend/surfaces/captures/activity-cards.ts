@@ -1,8 +1,9 @@
 import React from 'react';
 import { findModuleByExport } from '@steambrew/client';
-import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
-import { logger } from '../logger';
+import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
+import { logger } from '../../logger';
 import type { MediaItem } from './activity';
+import { deps } from './deps';
 
 interface JsxRuntimeModule {
   jsx(type: unknown, props: unknown, key?: unknown): unknown;
@@ -242,7 +243,15 @@ export function installActivityCardsPatch(): void {
 
   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
     label: 'steam-cartridges.activity-cards',
-    replaceType: (type, props) => handleActivityCardReplace(type, props),
+    replaceType: (type, props) => {
+      if (!deps.isEnabled('activity-cards')) return undefined;
+      try {
+        return handleActivityCardReplace(type, props);
+      } catch (err) {
+        deps.reportError('activity-cards', err); // fail-open (plan § 7.0 D6)
+        return undefined;
+      }
+    },
   });
   logger.info('Installed Activity Feed native Post-Game Summary cards patch.');
 }

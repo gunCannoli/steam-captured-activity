@@ -1,4 +1,4 @@
-import { logger } from '../logger';
+import { logger } from '../../logger';
 import {
   clipsSince,
   screenshotsSince,
@@ -6,7 +6,7 @@ import {
   type GamePlaySession,
   type SteamClip,
   type SteamScreenshot,
-} from './stores';
+} from '../../steam/stores';
 
 /**
  * The Post-Game Summary API.

@@ -56,6 +56,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | --- | --- |
 | `frontend/kernel/surface.ts` | `Surface`, `SurfaceDeps`, `SurfaceRunner` contract (kernel, not a surface itself) |
 | `frontend/surfaces/sections/index.ts` | `sections` surface (§ sections below) |
+| `frontend/surfaces/captures/index.ts` | `captures` surface: `createCapturesSurface`, re-exports (§ captures below) |
+| `frontend/surfaces/captures/{summary,activity,headline,activity-cards,publish,bpm-style,deps}.ts` | `captures`'s six parts, one file each |
 
 ## Steam targets touched
 
@@ -100,6 +102,9 @@ until the service steps (M4+) feed them through `render()`.
 
 - M3.1 (2026-09-28): created. `sections` is the first surface (moved from
   `steam/sections.ts`); `SurfaceDeps` added to `kernel/surface.ts`.
+- M3.2 (2026-09-28): `captures` surface added (moved from `steam/summary.ts`,
+  `steam/activity.ts`, `steam/headline-patch.ts`, `steam/activity-cards-patch.ts`,
+  `renderers/library-app.tsx`, and the Big Picture `<style>` block out of `index.tsx`).
 
 ## sections
 
@@ -130,3 +135,43 @@ Restores the app-detail sections Steam hides from shortcuts
 **Hooks:** `patchedGetSections` (fail-open: Steam's `base.call` runs first; a throw in our part returns Steam's own result and counts against `sections`).
 
 **Record-driven in:** M4 (the resolver/RPC facade is the first `record.updated` producer).
+
+## captures
+
+The only code that writes Steam's spotlight, activity and `StoreItemCache`
+stores and the activity feed's jsx, from Steam's own captures (ADR-0022):
+screenshots and clips, never rebuilt or re-encoded.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `AppSpotlightStore.GetOrCreateAppData` | 1 |
+| `AppActivityStore.m_mapAppActivity` | 1 |
+| `StoreItemCache.m_mapApps` | 1, 5 (never deletes a stub, only adds) |
+| `StoreItemCache.m_setUnavailableApps` | 1, 5 |
+| `StoreItemCache.BIsAppMissing` | 1 |
+| `CWorkshopStore.m_mapPublishedFiles` | 1, 13 (the only live writer; the other, `steam/community-store.ts`, was unreachable and purged in M3.0, D7) |
+| `jsx:headline` | 2 |
+| `jsx:activity-cards` | 2 |
+| `BPM.style#nsga-bpm-activity-thumbs` | 12 (Big Picture only, via `onPopupCreate`) |
+
+**reads:** none yet (record-driven from M4, D4).
+
+**Kill switches:** four, one surface (D6) — `captures` (the surface as a whole; switching it off
+skips `store-cache`, `headline` and `activity-cards` too, since the runner never calls `install()`
+on a disabled surface) plus `store-cache`, `headline`, `activity-cards` for their own part.
+Each part installs under its own id inside `captures`'s `install()`, so one part's failure
+doesn't take down the others.
+
+**Injected deps:**
+- `SurfaceDeps & { activityOptions(): ActivityOptions }`, passed to `createCapturesSurface`; `activityOptions()` replaces importing `settings` directly (the two activity display settings).
+
+**API (reached only through these setters):**
+- `setCapturesSinks({ setNativeActivitySource, republish })` — wired from `steam-store` (D3).
+- `setCapturesRefresher(fn)` — wired from `scraper/on-update` (D3).
+- `registerSummaryProvider`, the `Summary*` types, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics` — re-exported from `surfaces/captures`; `index.tsx`'s public API (D8) is unchanged.
+
+**Hooks:** `BIsAppMissing` (fail-open under `store-cache`), the headline observer (fail-open under `headline`), the activity-cards `replaceType` (fail-open under `activity-cards`).
+
+**Record-driven in:** M4.

@@ -1,6 +1,5 @@
 import { rpc } from "../../rpc";
 import { logger } from "../../logger";
-import { refresh as refreshLibraryApp } from "../../renderers/library-app";
 import { checkObserverUnlocks } from "../achievements";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { listCollections, membersOf } from "../buckets";
@@ -10,6 +9,13 @@ import { setting } from "../../settings/settings";
 import { enrichGameDetails } from "../game-info/metadata";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
+
+/** Re-reads an app's captures; wired to the captures surface in index.tsx (plan § 7.0 D3). */
+let refreshLibraryApp: (appid: number) => Promise<void> = async () => {};
+
+export function setCapturesRefresher(fn: (appid: number) => Promise<void>): void {
+    refreshLibraryApp = fn;
+}
 
 const lastOnOpenCheck = new Map<number, number>();
 const ON_OPEN_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes per game throttle

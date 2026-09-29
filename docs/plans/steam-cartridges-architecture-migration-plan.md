@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0 and M3.1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0 and M3.1 also live-validated). **M3.2–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1 and M3.2 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1 and M3.2 also live-validated). **M3.3–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -62,7 +62,7 @@ Statuses (what the executing agent does with the row):
 | M2 | Sensors (view, lifecycle, collections; owned apps moves to M4) | **Done** | `docs/steam-cartridges/sensors.md` |
 | M3.0 | Purge dead frontend code (D13) | **Done** | — (the CHANGELOG line lists what went) |
 | M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Done** | `docs/steam-cartridges/surfaces.md` (created) |
-| M3.2 | Surface `captures` | **Ready** | `surfaces.md` § captures |
+| M3.2 | Surface `captures` | **Done** | `surfaces.md` § captures |
 | M3.3 | Surface `game-info` | **Ready** | `surfaces.md` § game-info |
 | M3.4 | Surface `playbar` | **Ready** | `surfaces.md` § playbar |
 | M3.5 | Surface `achievements` | **Ready** | `surfaces.md` § achievements |
@@ -2003,7 +2003,7 @@ shows "information is unavailable". **Verified 2026-09-28** (live, after the K16
 and "Activity" and shows Steam's "detailed information … is unavailable" text; § 0.5 baseline (render
 loop PASS, 11/11 `check_all_tabs.js`) still holds with the switch restored to `''`.
 
-#### M3.2 — `captures` (Ready)
+#### M3.2 — `captures` (Done)
 
 **Check lines:**
 ```

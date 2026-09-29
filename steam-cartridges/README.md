@@ -84,11 +84,11 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 | ---------------------------- | -------------------------------------------------------------- | ----------------------- |
 | `steam/modules.ts`           | Steam's webpack cache; resolve by signature                    | ✅ verified in Steam    |
 | `surfaces/sections/index.ts` | Restore sections (`postgamesummary`, `activity`)               | ✅ verified in Steam    |
-| `steam/summary.ts`           | Feed `CGamePlaySession`; provider API                          | ✅ verified in Steam    |
-| `steam/activity.ts`          | Feed `CAppActivityStore`, stub `StoreItemCache`, workshop URLs | ✅ verified in Steam    |
+| `surfaces/captures/summary.ts` | Feed `CGamePlaySession`; provider API                         | ✅ verified in Steam    |
+| `surfaces/captures/activity.ts` | Feed `CAppActivityStore`, stub `StoreItemCache`, workshop URLs | ✅ verified in Steam    |
 | `steam/stores.ts`            | Typed store/service/payload shapes & resolvers                 | ✅ verified in Steam    |
 | `steam/gameid.ts`            | appid ↔ 64-bit gameid (BigInt)                                 | ✅ matches real folders |
-| `renderers/library-app.tsx`  | Publish/clear per app (Desktop & Big Picture)                  | ✅ verified in Steam    |
+| `surfaces/captures/publish.ts` | Publish/clear per app (Desktop & Big Picture)                 | ✅ verified in Steam    |
 | `renderers/library-home.tsx` | Patch `AppOverview` so the grid sorts                          | ✅ verified in Steam    |
 | `steam_paths.lua`            | Find Steam root + active user                                  | ✅ tested               |
 | `shortcuts.lua`              | Parse binary `shortcuts.vdf`                                   | ✅ tested               |

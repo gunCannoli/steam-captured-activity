@@ -1,7 +1,7 @@
-import { logger } from "../logger";
-import { clearActivity, publishActivity } from "../steam/activity";
-import { gameIdFromAppId } from "../steam/gameid";
-import { clearSummary, publishSummary } from "../steam/summary";
+import { logger } from "../../logger";
+import { clearActivity, publishActivity } from "./activity";
+import { gameIdFromAppId } from "../../steam/gameid";
+import { clearSummary, publishSummary } from "./summary";
 
 /**
  * Brings the native app detail sections to a non-Steam game's page.
@@ -11,7 +11,7 @@ import { clearSummary, publishSummary } from "../steam/summary";
  * So we do exactly two things:
  *
  *   1. put the section names back into Steam's registry (surfaces/sections)
- *   2. put events into Steam's own stores           (steam/summary.ts & steam/activity.ts)
+ *   2. put events into Steam's own stores           (summary.ts & activity.ts)
  *
  * Steam renders. That is the whole renderer.
  *

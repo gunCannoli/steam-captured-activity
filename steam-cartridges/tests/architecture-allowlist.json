@@ -13,7 +13,6 @@
   "features/scraper -> features/achievements",
   "features/scraper -> features/buckets",
   "features/scraper -> features/game-info",
-  "features/scraper -> renderers",
   "features/scraper -> rpc",
   "features/scraper -> settings",
   "features/scraper -> steam",
@@ -25,7 +24,6 @@
   "features/steam-store -> features/achievements",
   "features/steam-store -> features/artwork",
   "features/steam-store -> features/game-info",
-  "features/steam-store -> renderers",
   "features/steam-store -> rpc",
   "features/steam-store -> steam",
   "renderers -> rpc",
@@ -35,6 +33,5 @@
   "settings -> features/buckets",
   "settings -> features/game-info",
   "settings -> features/scraper",
-  "settings -> rpc",
-  "steam -> settings"
+  "settings -> rpc"
 ]

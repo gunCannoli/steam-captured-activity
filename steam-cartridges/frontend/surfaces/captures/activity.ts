@@ -1,6 +1,6 @@
-import { logger } from "../logger";
-import { setting } from "../settings/settings";
-import { isNonSteamAppId } from "./route";
+import { logger } from "../../logger";
+import { isNonSteamAppId } from "../../steam/route";
+import { deps } from "./deps";
 import {
     appActivityStore,
     clipsSince,
@@ -14,7 +14,7 @@ import {
     type AppActivityStore,
     type SteamClip,
     type SteamScreenshot,
-} from "./stores";
+} from "../../steam/stores";
 
 const ACTIVITY_TIMESTAMPS_KEY = "steam-cartridges:activity-timestamps";
 
@@ -187,8 +187,13 @@ export function ensureStoreCacheHooked(): boolean {
     const origBIsAppMissing = proto.BIsAppMissing;
 
     proto.BIsAppMissing = function (appid: number) {
-        if (typeof appid === "number" && isNonSteamAppId(appid)) {
-            return false;
+        if (!deps.isEnabled("store-cache")) return origBIsAppMissing.apply(this, arguments);
+        try {
+            if (typeof appid === "number" && isNonSteamAppId(appid)) {
+                return false;
+            }
+        } catch (err) {
+            deps.reportError("store-cache", err); // fail-open (plan § 7.0 D6)
         }
         return origBIsAppMissing.apply(this, arguments);
     };
@@ -217,8 +222,7 @@ export async function publishActivity(
     appid: number,
     gameid: string,
 ): Promise<number> {
-    const showAdded = setting("activityShowAddedToLibrary") !== false;
-    const showFirstPlayed = setting("activityShowFirstPlayed") !== false;
+    const { showAdded, showFirstPlayed } = deps.activityOptions();
 
     const [screenshots, clips, nativeDays] = await Promise.all([
         screenshotsSince(appid, 0),
