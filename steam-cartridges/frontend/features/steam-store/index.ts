@@ -3,7 +3,6 @@ import { rpc, type StoreState } from "../../rpc";
 import type { GameMetadata, Identity, Part } from "../../kernel/record";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { slotList } from "../../domain/art-plan";
-import { loadAchievementsForApp } from "../achievements";
 
 type Route = { bucket: "steam-store" | "web-scraping" | "none"; via: string };
 
@@ -75,7 +74,6 @@ export async function handleSteamStoreView(appid: number, identity: Part<Identit
         // feed read the native app; sections, native-links and captures are
         // record-driven from `record.identity` now (surfaces, plan M4c).
         refreshGameInfoInstances(); // guardrail 11: the sections already rendered with the shortcut appid
-        void loadAchievementsForApp(appid, steamAppid);
     } catch (err) {
         logger.warn(`Steam Store view failed for ${appid}:`, err);
     }

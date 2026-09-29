@@ -212,7 +212,10 @@ screenshots and clips, never rebuilt or re-encoded.
 | `jsx:activity-cards` | 2 |
 | `BPM.style#nsga-bpm-activity-thumbs` | 12 (Big Picture only, via `onPopupCreate`) |
 
-**reads:** `identity` (M4c).
+**reads:** `identity` (M4c). Also (M6b, K14) `addSessionAchievement(appid, item)`: the Post-Game Summary
+session write (`appSpotlightStore.GetOrCreateAppData(appid).m_session.AddAchievement`) moved here from
+`features/achievements/observer-session.ts`, the last Steam write outside `surfaces/`. `index.tsx` calls it for each id of
+`achievements.unlocked`; fail-open, and off with the `captures` switch. `touches` gains `AppSpotlightStore.m_session.AddAchievement`.
 
 **Kill switches:** four, one surface (D6) — `captures` (the surface as a whole; switching it off
 skips `store-cache`, `headline` and `activity-cards` too, since the runner never calls `install()`
@@ -334,19 +337,21 @@ Steam's own native UI.
 | `appAchievementProgressCache.m_achievementProgress` | 1 |
 | `AppDetailsStore.AppDetailsChanged(achievements)` | 1 |
 
-**reads:** `achievements` (record-driven from M6, D4).
+**reads:** `achievements` (record-driven since M6b, D4).
 
 **Kill switch:** `achievements`. All six hooks are fail-open through one shared `failOpen()` helper (handles both sync throws and rejected promises).
 
 **Injected deps:**
 - `SurfaceDeps & { refreshSections(): void }`, passed to `createAchievementsSurface`. `refreshSections` is `sections`'s setter (wired in M3.1), so an achievement update can re-trigger the sections re-render.
 
-**API (reached only through this port):**
-- `features/achievements/store-port.ts` (D3; `PURGE(M6)`, marked in M3.8) exposes the same five function names the old `store.ts` had, so the feature files only changed an import path.
+**`render(appid, record)`** (M6b): when `record.achievements` is `ok` with data, `updateShortcutState(appid, native, schema, unlocks)`
+feeds Steam's stores (native from `record.identity`, else the schema's). `store-port.ts` is gone: nothing outside this
+surface writes the achievement stores. `index.tsx` exports `getLocalAchievements` / `getLocalSchema` from here (public API,
+D8) and hands `getLocalAchievements` to the settings panel and the sync manager through D3 setters.
 
-**Hooks:** all six fail-open through `failOpen()`; the retry loop in `initAchievements` (features/achievements) is unchanged — Steam may not have created the achievement stores yet at install time.
+**Hooks:** all six fail-open through `failOpen()`; `index.tsx`'s `initAchievements` keeps the store-hook retry loop — Steam may not have created the achievement stores yet at install time.
 
-**Record-driven in:** M6.
+**Record-driven in:** M6b (`achievements`).
 
 ## toasts
 
@@ -361,22 +366,23 @@ achievement unlock and a game launch/first-play notification.
 | `NotificationStore.ProcessNotification` | 1 |
 | `NotificationStore.m_nNextTestNotificationID` | 1 |
 
-**reads:** none — `toasts` has no hooks, only direct writes; there is nothing to fail open (both dispatch functions return `false` while `toasts` is off).
+**reads:** `achievements` (declared; the surface renders nothing per record — it is event-driven, below). No hooks, only direct writes; there is nothing to fail open (both dispatch functions return `false` while `toasts` is off).
 
 **Kill switch:** `toasts`. Checked at the top of each dispatch function.
 
 **Injected deps:** `SurfaceDeps`, passed to `createToastsSurface`.
 
-**API (reached only through this port):**
-- `features/achievements/toast-port.ts`'s `setToasts({ achievement, launch })` (D3; `PURGE(M6)`, marked in M3.8). The launch policy (setting + local achievements) stays in `features/achievements/launch-toast.ts`; only the Steam write moved.
-- `dispatchAchievementToast` (D8) — `index.tsx`'s public export is unchanged, now re-exported from `surfaces/toasts`.
+**API:** `toast-port.ts` is gone (M6b). `index.tsx` subscribes to `achievements.unlocked` and shows one toast per id, reading the name,
+description, icon and global % from `records.get(appid).achievements.data.schema`; the launch toast policy
+(setting `localAchievementsNotifyOnLaunch`, only when the record has achievements) lives in `app/achievements.ts` and calls
+`dispatchLaunchToast` through an injected `showLaunchToast`. `dispatchAchievementToast` (D8) stays a public export of `index.tsx`.
 
 **Known issue:** K17 — the achievement toast's `resolveAchievementProto()` webpack scanner does not
 find `CClientNotificationAchievement` on the current Steam build (confirmed failing before this
 move too); every dispatch logs "Could not resolve Steam achievement notification protobuf." and
 returns `false`. Out of scope for M3.6 (pure move, D14); tracked for a bugfix plan after M3.
 
-**Record-driven in:** not applicable — `toasts` is event-driven (an achievement unlock or a launch), never per-record.
+**Record-driven in:** not applicable — `toasts` is event-driven (`achievements.unlocked`, a launch), never per-record.
 
 ## native-links
 
@@ -473,3 +479,6 @@ a native game with recent playtime would.
 **M3 complete:** `library-home` is the last surface. `frontend/renderers/` no longer exists — every
 Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K14
 (`observer-session.ts` writes the spotlight session directly). The feature freeze (§ 5) ends here.
+- M6b (2026-09-29): `achievements` becomes record-driven (`render` feeds the stores from `record.achievements`); `toasts` is driven by
+  `achievements.unlocked`; `captures` gains `addSessionAchievement` (K14). `store-port.ts` and `toast-port.ts` are gone
+  (the `PURGE(M6)` ports).

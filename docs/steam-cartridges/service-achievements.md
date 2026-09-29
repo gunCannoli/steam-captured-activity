@@ -66,9 +66,30 @@ so a PC game stays silent there too.
 | `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels; `get_possible_folder_names` (K7 fixed) |
 | `backend/achievements_store.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
 
+## Frontend (M6b)
+
+`frontend/app/achievements.ts` (`createAchievements`) is the use case; the record's `achievements` part is
+its only output, plus the `achievements.unlocked` event:
+
+- `ensure(appid, route)`: `EnsureFresh(["achievements"])` with the record's identity, the title and the hardcore
+  setting, then `records.update`. Called by the view pipeline (`features/source-view.ts`) for every route except
+  `none` (route `none` makes no backend call) and on `shortcut.quit`.
+- **Flow C** (`install()`): on `shortcut.launched`, the launch toast policy (`off` / `first_run` / `all_runs`, only
+  when the record has achievements with a total > 0), then `CheckUnlocks` every 2000 ms until `shortcut.quit`, plus
+  one final check at quit. A quit while the mapping is still loading starts no session. Both are gated by the
+  `achievements-observer` kill switch.
+- Each poll result is normalized to a list (`{}` from Millennium's cjson becomes `[]`, K1). New unlocks are merged
+  into the record and announced with `bus.emit("achievements.unlocked", { appid, ids })`.
+- `trigger` / `reset` / `checkNow` / `startSession` back the public API (`triggerAchievement`, `resetAchievements`,
+  `checkObserverUnlocks`, `startAchievementsObserver`; same names and signatures, D8).
+
+Subscribers (in `index.tsx`): the `toasts` surface shows one toast per id and the `captures` surface adds the
+Post-Game Summary line, both reading name, description and icon from the record's schema. The `achievements`
+surface renders the record into Steam's stores. `features/achievements/` no longer exists.
+
 ## Steam targets touched
 
-None (backend). The frontend surfaces are in `surfaces.md`.
+None (backend and `app/`). The frontend surfaces are in `surfaces.md`.
 
 ## May import / must never import
 
@@ -81,7 +102,10 @@ source modules; it must not require the observer (the observer requires it).
 unsupported and silent · native schema wins · rpcs3 / shadps4 / retroachievements selection (hardcore flag) ·
 a failing source falls through · all failing is error · `local_part` is disk only · `CheckUnlocks` returns a list
 (K1, array metatable) · `EnsureFresh` uses the saved identity · `GetAllRecords` adds stored achievements · K7
-(colon and em dash). `tests/test_backend.lua` `get_possible_folder_names` checks pass (K7).
+(colon and em dash). `tests/test_backend.lua` `get_possible_folder_names` checks pass (K7). Frontend: `tests/app-achievements.test.ts` (10): poll
+result object normalized to an array (K1) · launch toast off / first_run / all_runs · unlock emits `achievements.unlocked`
+with the new ids · quit stops polling and runs one final check · observer kill switch · route `none` makes no call · one
+backend call in flight · trigger and reset. `tests/achievements.test.ts` still tests `surfaces/achievements/core.ts`.
 
 ## How to add a source
 

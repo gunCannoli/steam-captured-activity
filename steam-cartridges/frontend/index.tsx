@@ -5,6 +5,7 @@ import {
     createCapturesSurface,
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
+    addSessionAchievement,
     setContentListener,
     unpatch as unpatchLibraryApp,
 } from "./surfaces/captures";
@@ -13,22 +14,17 @@ import {
     ready as libraryHomeReady,
     refresh as refreshLibraryHome,
 } from "./surfaces/library-home";
-import { initSourceView, onSourceView, setArtwork as setSourceViewArtwork, setIdentity as setSourceViewIdentity, setMetadata as setSourceViewMetadata, setRouting as setSourceViewRouting } from "./features/source-view";
+import { initSourceView, onSourceView, setAchievements as setSourceViewAchievements, setArtwork as setSourceViewArtwork, setIdentity as setSourceViewIdentity, setMetadata as setSourceViewMetadata, setRouting as setSourceViewRouting } from "./features/source-view";
 import { createNativeLinksSurface } from "./surfaces/native-links";
 import { createArtworkSurface } from "./surfaces/artwork";
 import {
-    initAchievements,
-    loadAchievementsForApp,
-    triggerAchievement,
-    resetAchievements,
-    getLocalAchievements,
-    getLocalSchema,
-    handleAppLaunchAchievements,
-    checkObserverUnlocks,
-    startAchievementsObserver,
-    dispatchAchievementToast,
-} from "./features/achievements";
-import { initSettings, resetSettings, setSetting, setting, setRouting as setSettingsRouting } from "./settings/settings";
+    initSettings,
+    resetSettings,
+    setSetting,
+    setting,
+    setAchievementsSource,
+    setRouting as setSettingsRouting,
+} from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { createRouting } from "./app/routing";
 import { isServiceAllowed, type ServiceTarget } from "./domain/routing/policy";
@@ -37,10 +33,10 @@ import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
+import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
-import { triggerSync, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
-import { setRouting as setOnUpdateRouting } from "./features/scraper/on-update";
+import { triggerSync, setAchievements as setSyncAchievements, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
 import { features } from "./safety/switches";
 import type { FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
@@ -67,10 +63,13 @@ import { createPlaybarSurface } from "./surfaces/playbar";
 import { controllerContext } from "./features/game-info/controller";
 import { setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
 import { setCapturesRefresher } from "./features/scraper/on-update";
-import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
-import { setAchievementsStore } from "./features/achievements/store-port";
-import { createToastsSurface, dispatchAchievementToast as showAchievementToast, dispatchLaunchToast } from "./surfaces/toasts";
-import { setToasts } from "./features/achievements/toast-port";
+import {
+    createAchievementsSurface,
+    ensureAchievementsStoreHooked,
+    getLocalAchievements,
+    getLocalSchema,
+} from "./surfaces/achievements";
+import { createToastsSurface, dispatchAchievementToast, dispatchLaunchToast } from "./surfaces/toasts";
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
 const surfaceDeps: SurfaceDeps = {
@@ -162,6 +161,28 @@ const metadata = createMetadata({
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
 });
 
+/** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
+ *  (launch toast, in-game unlock polling, unlock announcements). */
+const achievements = createAchievements({
+    backend,
+    records: records.store,
+    bus,
+    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
+    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
+    routeOf: (appid) => routing.getBucket(appid),
+    resolveNative: async (appid) => {
+        const known = records.store.get(appid)?.identity?.data?.native?.appid;
+        if (known) return known;
+        const res = await rpc.steamStoreGetMapping(appid).catch(() => null);
+        return res?.mapping?.steam_appid || 0;
+    },
+    hardcore: () => setting("raHardcoreMode"),
+    launchPolicy: () => setting("localAchievementsNotifyOnLaunch"),
+    showLaunchToast: () => void dispatchLaunchToast("Achievements Enabled", "Enjoy your game!"),
+    observerEnabled: () => features.isEnabled("achievements-observer"),
+    now: () => Date.now(),
+});
+
 /** Artwork (app/artwork.ts, plan M5c): SteamGridDB for shortcuts with no Steam match, the Steam
  *  CDN for mapped ones; the artwork surface executes the plan it puts in the record. */
 const artwork = createArtwork({
@@ -185,17 +206,57 @@ export {
     steamStoreState,
 } from "./features/steam-store";
 
-export {
-    initAchievements,
-    loadAchievementsForApp,
-    triggerAchievement,
-    resetAchievements,
-    getLocalAchievements,
-    getLocalSchema,
-    checkObserverUnlocks,
-    startAchievementsObserver,
-    dispatchAchievementToast,
-};
+export { getLocalAchievements, getLocalSchema, dispatchAchievementToast };
+
+/** The `cartridges:trigger_fake_achievement` window event is a documented test hook. */
+let fakeListenerRegistered = false;
+
+/** Initializes the native achievements subsystem on plugin load (M6b: hooks the stores, keeps the test hook). */
+export function initAchievements(): void {
+    if (!fakeListenerRegistered && typeof window !== "undefined") {
+        fakeListenerRegistered = true;
+        window.addEventListener("cartridges:trigger_fake_achievement", (e: Event) => {
+            const detail = (e as CustomEvent)?.detail;
+            const targetAppId = detail?.shortcutAppId || detail?.appid;
+            const achievement = detail?.achievement || {
+                id: "fake_achievement_" + Date.now(),
+                name: "Retro Champion",
+                description: "Unlocked an achievement via RetroAchievements emulator!",
+                icon: "https://media.retroachievements.org/Badge/00001.png",
+                global_pct: 100,
+            };
+            if (targetAppId) dispatchAchievementToast(targetAppId, achievement);
+        });
+    }
+    // Steam may not have created the stores yet: retry for a few seconds.
+    if (ensureAchievementsStoreHooked()) return;
+    let attempts = 0;
+    const interval = setInterval(() => {
+        attempts++;
+        if (ensureAchievementsStoreHooked() || attempts >= 10) clearInterval(interval);
+    }, 500);
+}
+
+/** Loads a shortcut's achievements into its record (`nativeAppId` overrides the identity when given). */
+export async function loadAchievementsForApp(shortcutAppId: number, nativeAppId: number) {
+    await achievements.ensure(shortcutAppId as ShortcutId, routing.getBucket(shortcutAppId), { native: nativeAppId || undefined });
+    return getLocalAchievements(shortcutAppId) ?? null;
+}
+
+/** Unlocks one achievement (the given id, else the next locked one): persists, updates the stores, toasts. */
+export const triggerAchievement = (shortcutAppId: number, targetAchievementId?: string) =>
+    achievements.trigger(shortcutAppId as ShortcutId, targetAchievementId);
+
+/** Resets all unlocked achievements for a shortcut. */
+export const resetAchievements = (shortcutAppId: number) => achievements.reset(shortcutAppId as ShortcutId);
+
+/** One unlock check against the backend observer; resolves to the number of new unlocks. */
+export const checkObserverUnlocks = (shortcutAppId: number, nativeAppId: number, gameTitle?: string) =>
+    achievements.checkNow(shortcutAppId as ShortcutId, { native: nativeAppId, title: gameTitle });
+
+/** Starts a polling observer session while a game runs; the returned function stops it. */
+export const startAchievementsObserver = (shortcutAppId: number, nativeAppId: number, gameTitle?: string) =>
+    achievements.startSession(shortcutAppId as ShortcutId, { native: nativeAppId, title: gameTitle });
 
 export { registerSummaryProvider } from "./surfaces/captures";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
@@ -219,7 +280,6 @@ async function init() {
     // Routing reaches every former buckets caller only through these setters (plan § 7.0 D3).
     setSourceViewRouting(routing);
     setSyncRouting(routing);
-    setOnUpdateRouting(routing);
     setSettingsRouting(routing);
 
     // Identity reaches its callers only through these setters (plan § 7.0 D3).
@@ -230,14 +290,17 @@ async function init() {
     setSourceViewMetadata(metadata);
     setMetadataSource(metadata);
 
+    // Achievements reach the view pipeline only through this setter (plan § 7.0 D3).
+    setSourceViewAchievements(achievements);
+
     // Artwork reaches its callers only through these setters (plan § 7.0 D3).
     setSourceViewArtwork(artwork);
     setArtworkSource(artwork);
 
     // Surface APIs reach the features only through these setters (plan § 7.0 D3).
     setContentListener(setHasContent);
-    setAchievementsStore(achievementsStore);
-    setToasts({ achievement: showAchievementToast, launch: dispatchLaunchToast });
+    setAchievementsSource({ getLocalAchievements });
+    setSyncAchievements({ getLocalAchievements });
     setCapturesRefresher(refreshLibraryApp);
     setGameInfoRefresher({ refresh: refreshGameInfoInstances });
 
@@ -338,6 +401,27 @@ async function init() {
     runner.register(createToastsSurface(surfaceDeps));
     runner.installAll();
     features.run("achievements", () => initAchievements());
+    // Flow C (launch toast, unlock polling, quit reload) and the unlock announcements.
+    achievements.install();
+    /** The toast and the Post-Game Summary line for each new unlock (name, description and icon come from the record). */
+    const unlocked = (appid: ShortcutId, ids: string[], show: (a: { id: string; name: string; description: string; icon: string; global_pct: number }, at: number) => void) => {
+        const set = records.store.get(appid)?.achievements?.data;
+        if (!set) return;
+        for (const id of ids) {
+            const a = set.schema.achievements.find((x) => x.id === id);
+            if (a) show(a, set.unlocks[id]?.unlocked_time ?? Math.floor(Date.now() / 1000));
+        }
+    };
+    bus.on("achievements.unlocked", ({ appid, ids }) =>
+        unlocked(appid, ids, (a, at) =>
+            dispatchAchievementToast(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, rtime_unlocked: at }),
+        ),
+    );
+    bus.on("achievements.unlocked", ({ appid, ids }) =>
+        unlocked(appid, ids, (a, at) =>
+            addSessionAchievement(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, unlockedAt: at }),
+        ),
+    );
 
     // ===== Game Info (surfaces/game-info, plan M3.3; record-driven from M5b) =====
     // Steam's Game Info components and AppOverview hooks; app/metadata (below) fills the record.
@@ -388,34 +472,14 @@ async function init() {
     // invalidate then rather than polling (ADR-0007). Launch and quit come from the
     // lifecycle sensor (sensors/lifecycle, migration plan M2).
 
-    /** Running shortcuts: display name and the achievement observer's stop function. */
-    const sessions = new Map<ShortcutId, { name: string; stop?: () => void; quit?: boolean }>();
-
-    bus.on("shortcut.launched", ({ appid, name }) => {
-        const session: { name: string; stop?: () => void; quit?: boolean } = { name };
-        sessions.set(appid, session);
-
-        // Startup notification if enabled ("Local Achievements Enabled")
-        features.run("achievements-observer", () => handleAppLaunchAchievements(appid));
-
-        // Start active observer session while game is running
-        if (features.isEnabled("achievements-observer")) void rpc.steamStoreGetMapping(appid).then((res) => {
-            const nativeAppId = res?.mapping?.steam_appid || 0;
-            const stopObserver = startAchievementsObserver(appid, nativeAppId, name);
-            // The game may have quit while the mapping loaded.
-            if (session.quit) stopObserver();
-            else session.stop = stopObserver;
-        }).catch((e) => logger.warn("Failed resolving mapping for achievement observer:", e));
-    });
+    // Achievements (launch toast, unlock polling, reload on quit) run in app/achievements.ts.
+    const running = new Map<ShortcutId, string>();
+    bus.on("shortcut.launched", ({ appid, name }) => void running.set(appid, name));
 
     bus.on("shortcut.quit", ({ appid }) => {
-        const session = sessions.get(appid);
-        sessions.delete(appid);
-        if (session) {
-            session.quit = true;
-            session.stop?.();
-        }
-        logger.info(`${session?.name ?? appid} closed; refreshing its activity.`);
+        const name = running.get(appid);
+        running.delete(appid);
+        logger.info(`${name ?? appid} closed; refreshing its activity.`);
         void refreshLibraryApp(appid);
         void refreshLibraryHome();
     });

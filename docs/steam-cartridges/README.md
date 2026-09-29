@@ -17,7 +17,7 @@ for the authoritative, up-to-date state):
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | done (M1) |
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
 | Sensors: view, lifecycle, collections, owned-apps, store-item | done (M2, M4c, M5b) — [sensors.md](sensors.md) |
-| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c) | current (M5c) |
+| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c; achievements M6b) | current (M6b) |
 | Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c, M5b) — [rpc.md](rpc.md) |
 | Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c), `metadata` (M5b) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
@@ -137,3 +137,5 @@ why in its root-cause section, or it is rejected.
   setting and a SteamGridDB key entry in the settings panel. Also fixed two M5b gaps: `app/metadata.ts`
   sent an empty title, and a `steam-store` shortcut with no Steam match never reached IGDB (the frontend
   now passes its known identity as context).
+- M6a/M6b (2026-09-29): `backend/ach_service.lua` and `app/achievements.ts` added; `achievements` and `toasts` surfaces record-/event-driven,
+  `captures` gains the Post-Game Summary session write (K14). `frontend/features/achievements/` is deleted (its `PURGE(M6)` ports with it).

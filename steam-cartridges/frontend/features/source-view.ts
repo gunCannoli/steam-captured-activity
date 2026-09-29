@@ -2,7 +2,6 @@ import { toShortcutId } from "../kernel/appid";
 import type { Resolution } from "../domain/routing/policy";
 import type { ArtworkPlan, GameMetadata, Identity, Part } from "../kernel/record";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
-import { loadAchievementsForApp } from "./achievements";
 
 import { handleGameOpenUpdate } from "./scraper/on-update";
 
@@ -66,6 +65,18 @@ export function setArtwork(a: ArtworkSource): void {
     artwork = a;
 }
 
+/** Structural match of app/achievements' public shape (no import: ADR-0039 layers). */
+interface AchievementsSource {
+    ensure(appid: number, route: { bucket: "steam-store" | "web-scraping" | "none"; via: string }): Promise<unknown>;
+}
+
+/** Achievements; wired to the app/achievements instance in index.tsx (plan § 7.0 D3). */
+let achievements: AchievementsSource = { ensure: async () => ({ status: "pending" }) };
+
+export function setAchievements(a: AchievementsSource): void {
+    achievements = a;
+}
+
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
 const inflight = new Set<number>();
 /** Views seen before collections were ready; replayed once they are. */
@@ -91,7 +102,6 @@ export async function onSourceView(appid: number): Promise<void> {
             // Local Game Info only until collections load (ADR-0035); replayed then.
             deferred.add(rawAppid);
             await metadata.ensure(rawAppid, route, undefined);
-            void loadAchievementsForApp(rawAppid, 0);
             void handleGameOpenUpdate(rawAppid);
             return;
         }
@@ -103,16 +113,14 @@ export async function onSourceView(appid: number): Promise<void> {
             if (matched === true) inSteamStore.add(rawAppid);
             await metadata.ensure(rawAppid, route, identityPart);
             await artwork.ensure(rawAppid, route, identityPart);
-            if (matched !== true) {
-                void loadAchievementsForApp(rawAppid, 0);
-            }
+            void achievements.ensure(rawAppid, route); // reads the identity just resolved from the record
         } else {
             // web-scraping or none. Came from steam-store: drop its artwork memory first;
             // metadata is record-driven and reverts itself on the new route's result.
             if (inSteamStore.delete(rawAppid)) leaveSteamStore(rawAppid);
             await metadata.ensure(rawAppid, route, undefined);
             await artwork.ensure(rawAppid, route, undefined);
-            void loadAchievementsForApp(rawAppid, 0);
+            void achievements.ensure(rawAppid, route);
         }
 
         // Smart On-Update check: activities, achievements & metadata in the background

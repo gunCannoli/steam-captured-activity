@@ -65,7 +65,7 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetGameCommunityLinks` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
 | `GetGameRecord` | `record_rpc.lua` | unwired | M4b: still no caller; M5a extends it with `metadata`. No frontend caller as of M5b either — `app/identity.ts` and `app/metadata.ts` both use `EnsureFresh`/`GetAllRecords` instead |
 | `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, wired by `app/metadata.ts`'s `ensure()` in M5b |
-| `CheckUnlocks` | `record_rpc.lua` | unwired | M6a: new unlocks since the last check (`{ new_unlocks }`, always a list, K1); M6b's `app/achievements.ts` polls it. `CartridgesAchievementsCheckUnlocks` stays as its alias |
+| `CheckUnlocks` | `record_rpc.lua` | live | M6a: new unlocks since the last check (`{ new_unlocks }`, always a list, K1); M6b: `app/achievements.ts` polls it every 2 s while a game runs. `CartridgesAchievementsCheckUnlocks` stays as its alias (no caller now) |
 | `GetAllRecords` | `record_rpc.lua` | live | M5a: disk-only bulk read (every DB record + every saved mapping); M5b's `app/metadata.ts` `preload()` calls it once at start-up, replacing the frontend's old `getAllMetadata`/`initGameInfo` preload |
 
 **Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b added 2 more
@@ -217,3 +217,6 @@ Live: none — a docs-only step changes no runtime code path.
 - M6a (2026-09-29): `EnsureFresh` gains the `achievements` part (`ach_service.lua`), `GetGameRecord` and `GetAllRecords`
   add stored achievements, new `CheckUnlocks` RPC (registered in `main.lua`, no frontend caller until M6b).
   `CartridgesAchievementsGet` is an alias over `ach_service`. Unwired count 7 (was 6): `CheckUnlocks` joins it until M6b.
+- M6b (2026-09-29): `ports/backend.ts` gains `checkUnlocks`, `unlockAchievement`, `resetAchievements`; `EnsureFresh(["achievements"])` and
+  `CheckUnlocks` are wired by `app/achievements.ts`. The `rpc.ts` wrappers `cartridgesAchievementsUnlock/Reset/CheckUnlocks` have no caller
+  left (M9a folds `rpc.ts` into `ports/`). Live: 28, unwired: 6.

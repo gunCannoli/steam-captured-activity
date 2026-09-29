@@ -1,6 +1,7 @@
 // Surface `toasts` (migration plan M3.6, ADR-0039): the only code that shows Steam
-// notifications. No hooks: two writes into NotificationStore. The features reach it only
-// through features/achievements/toast-port.ts, wired in index.tsx (plan § 7.0 D3).
+// notifications. No hooks: two writes into NotificationStore. index.tsx shows one toast per id of
+// `achievements.unlocked` (reading the name, description and icon from the record's schema) and
+// the launch toast policy in app/achievements.ts calls dispatchLaunchToast (plan M6b).
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { dispatchAchievementToast } from "./achievement";
 import { deps } from "./deps";
@@ -22,7 +23,7 @@ export function createToastsSurface(d: SurfaceDeps): Surface {
         reads: ["achievements"],
         install() {},
         render() {
-            /* event-driven (achievements.unlocked) from M6 (plan § 7.0 D4) */
+            /* event-driven: achievements.unlocked, wired in index.tsx (plan M6b) */
         },
         clear() {},
         uninstall() {},

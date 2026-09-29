@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react';
 import { rpc } from '../../rpc';
 import { isServiceAllowed, type AutoRoutingProfile } from '../../domain/routing/policy';
 import { setting } from '../../settings/settings';
-import { getLocalAchievements } from '../achievements';
+/** Local achievement state, wired in index.tsx (plan § 7.0 D3); M7 deletes this file. */
+let achievementsSource: { getLocalAchievements(appid: number): { nTotal: number } | undefined } = {
+    getLocalAchievements: () => undefined,
+};
+
+export function setAchievements(source: typeof achievementsSource): void {
+    achievementsSource = source;
+}
+const getLocalAchievements = (appid: number) => achievementsSource.getLocalAchievements(appid);
 import { logger } from '../../logger';
 
 /** Structural match of app/routing's public shape (no import: ADR-0039 layers). */

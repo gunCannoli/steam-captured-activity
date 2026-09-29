@@ -1,7 +1,7 @@
 // The record facade RPC client (migration plan M4b/M4c; M5a extends it with
 // metadata and GetAllRecords). Imports kernel types only; transport from
 // ports/transport.ts.
-import type { ArtworkUrls, GameMetadata, Identity, Part, RecordPart } from "../kernel/record";
+import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, Part, RecordPart } from "../kernel/record";
 import { call } from "./transport";
 
 export interface OwnedCandidate {
@@ -51,6 +51,23 @@ export const backend = {
     },
     ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse> {
         return call<RecordResponse>("EnsureFresh", { appid, parts, context: ctx });
+    },
+    /** New unlocks since the last check (M6a). `new_unlocks` may arrive as `{}` (K1): normalize it. */
+    checkUnlocks(appid: number, native: number, title?: string): Promise<{ new_unlocks?: unknown; error?: string }> {
+        return call<{ new_unlocks?: unknown; error?: string }>("CheckUnlocks", { appid, native, title });
+    },
+    /** Test hook and manual unlock (`triggerAchievement`, public API). */
+    unlockAchievement(appid: number, achievementId: string, unlockTime?: number) {
+        return call<{ ok: boolean; unlocks: Record<string, AchievementUnlockRecord>; error?: string }>(
+            "CartridgesAchievementsUnlock",
+            { shortcut_appid: appid, achievement_id: achievementId, unlock_time: unlockTime },
+        );
+    },
+    resetAchievements(appid: number) {
+        return call<{ ok: boolean; unlocks: Record<string, AchievementUnlockRecord>; error?: string }>(
+            "CartridgesAchievementsReset",
+            { shortcut_appid: appid },
+        );
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

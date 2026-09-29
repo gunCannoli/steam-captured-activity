@@ -127,7 +127,12 @@ rules; PC games silent, K2), `CheckUnlocks` RPC, `achievements` part in `EnsureF
 backend half (`cjson.array_mt`). New `tests/test_ach_service.lua` (18 checks). The achievements reference doc is now
 `docs/steam-cartridges/service-achievements.md`.
 
-Next: M6b, then live verification for M6, then M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+**M6b done (2026-09-29, implementer; live verification next).** `app/achievements.ts` (record part + Flow C), `achievements` /
+`toasts` / `captures` surfaces record- or event-driven (K14 fixed), `frontend/features/achievements/` deleted, public API unchanged (D8).
+`npm run test:ts` 114/114 (+10), allowlist -7, build succeeds, all Lua suites `ALL PASS`. K17 (the achievement toast's protobuf is not
+found on this Steam build) is still open and will keep the *toast* from showing; the unlock itself and the game page listing are unaffected.
+
+Next: live verification for M6 (a and b), then M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 

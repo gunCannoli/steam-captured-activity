@@ -1,6 +1,6 @@
 // Surface `achievements` (migration plan M3.5, ADR-0039): Steam's achievement stores
 // (AppDetailsStore.GetAchievements, AchievementsFullStore, the progress cache) for shortcuts.
-// The features reach its API only through store-port.ts, wired in index.tsx (plan § 7.0 D3).
+// Record-driven since M6b: render() feeds the stores from `record.achievements` (plan § 7.0 D4).
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import {
     deps,
@@ -11,14 +11,7 @@ import {
     updateShortcutState,
 } from "./store";
 
-/** What features/achievements/store-port.ts delegates to. */
-export const achievementsStore = {
-    hook: ensureAchievementsStoreHooked,
-    getLocalAchievements,
-    getLocalSchema,
-    getLocalUnlocks,
-    updateShortcutState,
-};
+export { ensureAchievementsStoreHooked, getLocalAchievements, getLocalSchema, getLocalUnlocks };
 
 export function createAchievementsSurface(d: SurfaceDeps & { refreshSections(): void }): Surface {
     deps.isEnabled = d.isEnabled;
@@ -40,11 +33,19 @@ export function createAchievementsSurface(d: SurfaceDeps & { refreshSections(): 
         ],
         reads: ["achievements"],
         install() {
-            // Steam may not have created the stores yet; features/achievements retries (initAchievements).
+            // Steam may not have created the stores yet; index.tsx retries (initAchievements).
             ensureAchievementsStoreHooked();
         },
-        render() {
-            /* record-driven from M6 (plan § 7.0 D4) */
+        render(appid, record) {
+            const part = record?.achievements;
+            if (part?.status !== "ok" || !part.data) return;
+            ensureAchievementsStoreHooked();
+            updateShortcutState(
+                appid,
+                record?.identity?.data?.native?.appid ?? part.data.schema.native_appid ?? 0,
+                part.data.schema,
+                part.data.unlocks,
+            );
         },
         clear() {},
         uninstall() {

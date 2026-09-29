@@ -25,6 +25,21 @@ export function getRouting(): RoutingSource {
     return routing;
 }
 
+/** Achievement counts for the panel's game list (plan § 7.0 D3: never an import of surfaces/). */
+interface AchievementsSource {
+    getLocalAchievements(shortcutAppId: number): { nTotal: number; nAchieved: number } | undefined;
+}
+
+let achievementsSource: AchievementsSource = { getLocalAchievements: () => undefined };
+
+export function setAchievementsSource(s: AchievementsSource): void {
+    achievementsSource = s;
+}
+
+export function getAchievementsSource(): AchievementsSource {
+    return achievementsSource;
+}
+
 export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
 
 export interface ServicesConfig {

@@ -223,6 +223,11 @@ wipe(); fresh()
 res = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "achievements" }, context = { title = "x" } })))
 check("EnsureFresh achievements for a PC game with no source is unsupported", res.parts.achievements.status == "unsupported" and WARNS == 0)
 
+wipe(); fresh()
+store_steam.set_mapping(SC, 2820820, "Jotunnslayer", "manual")
+res = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "achievements" }, context = { route = { bucket = "web-scraping", via = "default" }, title = "x" } })))
+check("EnsureFresh ignores a saved mapping on a web-scraping route", res.parts.achievements.status == "unsupported" and calls.steam == nil)
+
 print("GetAllRecords")
 wipe(); fresh()
 store.save_schema(77, SCHEMA); store.bind_schema(SC, 77)

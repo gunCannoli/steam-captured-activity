@@ -95,7 +95,11 @@ export interface ArtworkUrls {
 }
 
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
-export type AchievementSet = Record<string, unknown>;
+/** A shortcut's achievements as the backend resolves them (`ach_service.lua`, M6a). */
+export interface AchievementSet {
+    schema: AchievementSchemaRecord;
+    unlocks: Record<string, AchievementUnlockRecord>;
+}
 export type CommunityMedia = Record<string, unknown>;
 /** What the backend recorded as written for a shortcut's art (steam_store.json applied_artwork). */
 export interface StoreApplied {

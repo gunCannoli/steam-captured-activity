@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Internal: achievements now load and update through the game's record (M6b, 2026-09-29)**: achievement lists, the in-game unlock checks, the "Achievements Enabled" launch notice and unlock toasts run through the same record pipeline as Game Info and artwork. A plain PC game with no achievement source no longer triggers any achievement request when you open it. An unlock also adds a line to the running game's Post-Game Summary as before. No settings changed.
+
 - **Fixed: local achievement lookups for plain PC games (M6a, 2026-09-29)**: a game with no ROM, trophy folder or Steam match (for example AM2R) is no longer sent to RetroAchievements on every view, so it stops logging a "cannot extract rom path" failure each time. Also fixed the achievement log-folder guesses for titles containing a colon or an en/em dash (for example "WUCHANG: Fallen Feathers"), and an empty new-unlocks list no longer arrives as an object.
 
 - **Added: ScreenScraper as a Game Info source (M5d, 2026-09-29)**: for a shortcut with no Steam match, Game Info now comes from IGDB when you have Twitch credentials and it finds the game, and otherwise from ScreenScraper (a plain free account is enough): synopsis (English first), developer, publisher, franchise, genres, the earliest release date, and single-/multiplayer badges. Switch it off under Settings → Metadata, or exclude games with your routing rules. Controller badges keep coming from the emulator; co-op and split-screen aren't provided by ScreenScraper.

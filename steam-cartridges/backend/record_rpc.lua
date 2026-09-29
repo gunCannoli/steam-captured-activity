@@ -61,7 +61,9 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
       parts.artwork = art_service.ensure(appid, ctx)
     elseif name == "achievements" then
       -- The native app comes from the identity: this call's fresh one, else the frontend's, else disk.
-      local identity = ctx.identity or resolve_identity.saved(appid)
+      -- Only a steam-store route uses a Steam match (a shortcut moved to web-scraping is unmatched here).
+      local identity = ctx.identity
+      if not identity and (ctx.route or {}).bucket == "steam-store" then identity = resolve_identity.saved(appid) end
       local native = identity and identity.data and identity.data.native
       parts.achievements = ach().ensure(appid, {
         native = native and native.appid or nil,

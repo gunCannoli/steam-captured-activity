@@ -8,7 +8,7 @@ import {
     TextField,
     Toggle as SteamToggle,
 } from "@steambrew/client";
-import { useSetting, getRouting, type ControllerOverride } from "./settings";
+import { useSetting, getAchievementsSource, getRouting, type ControllerOverride } from "./settings";
 import { rpc, type ProviderStatus, type RetroStatusResponse } from "../rpc";
 import {
     type RoutingRule,
@@ -19,7 +19,7 @@ import {
     isServiceAllowed,
 } from "../domain/routing/policy";
 import { type ConsolidatedMetadata } from "../rpc";
-import { getLocalAchievements } from "../features/achievements";
+
 import {
     loadControllerInference,
     getInferredControllerSupport,
@@ -1940,6 +1940,7 @@ function RevisionSection() {
             metadataLib[String(sc.appid)] ||
             metadataLib[String(sc.appid >>> 0)] ||
             metadataLib[String(sc.appid | 0)];
+        const { getLocalAchievements } = getAchievementsSource();
         const achievements =
             getLocalAchievements(sc.appid) ||
             getLocalAchievements(sc.appid >>> 0) ||

@@ -12,6 +12,7 @@ import { patch, unpatch } from "./publish";
 
 export { patch, refresh, setContentListener, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
+export { addSessionAchievement } from "./session";
 export { registerSummaryProvider } from "./summary";
 export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
 export { headlineJsxDiagnostics } from "./headline";
@@ -35,6 +36,7 @@ export function createCapturesSurface(d: SurfaceDeps & { activityOptions(): Acti
         id: "captures",
         touches: [
             "AppSpotlightStore.GetOrCreateAppData",
+            "AppSpotlightStore.m_session.AddAchievement",
             "AppActivityStore.m_mapAppActivity",
             "StoreItemCache.m_mapApps",
             "StoreItemCache.m_setUnavailableApps",
