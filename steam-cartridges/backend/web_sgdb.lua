@@ -1,4 +1,4 @@
-local http = require("http")
+local net = require("net")
 local json = require("json")
 local utils = require("utils")
 local logger = require("logger")
@@ -35,7 +35,7 @@ local function api_get(endpoint, key)
     ["Authorization"] = "Bearer " .. key,
     ["Accept"] = "application/json",
   }
-  local res = http.get(endpoint, { headers = headers, timeout = 15 })
+  local res = net.get(endpoint, { source = "sgdb", headers = headers, timeout = 15 })
   if not res or res.status ~= 200 or not res.body then
     logger:warn("SteamGridDB API request failed (" .. tostring(res and res.status) .. "): " .. endpoint)
     return nil
@@ -96,13 +96,13 @@ end
 function sgdb.download_image_base64(url)
   if not url or url == "" then return nil end
 
-  local res = http.get(url, { headers = { ["Accept"] = "*/*", ["User-Agent"] = "Mozilla/5.0" }, timeout = 25 })
+  local res = net.get(url, { source = "sgdb", headers = { ["Accept"] = "*/*", ["User-Agent"] = "Mozilla/5.0" }, timeout = 25 })
   -- SteamGridDB CDN can cause Millennium's native http.get to return a truncated body (<100 bytes).
   -- Fallback to wsrv.nl proxy if body is truncated or empty.
   if not res or res.status ~= 200 or not res.body or #res.body < 100 then
     if url:match("steamgriddb%.com") then
       local proxy_url = "https://wsrv.nl/?url=" .. url:gsub("^https?://", "")
-      local pres = http.get(proxy_url, { headers = { ["Accept"] = "*/*" }, timeout = 25 })
+      local pres = net.get(proxy_url, { source = "sgdb", headers = { ["Accept"] = "*/*" }, timeout = 25 })
       if pres and pres.status == 200 and pres.body and #pres.body >= 100 then
         res = pres
       end

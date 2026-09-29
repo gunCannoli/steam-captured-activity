@@ -61,6 +61,8 @@ GetGameRecord = RECORD_RPC.GetGameRecord
 EnsureFresh    = RECORD_RPC.EnsureFresh
 GetAllRecords  = RECORD_RPC.GetAllRecords
 CheckUnlocks   = RECORD_RPC.CheckUnlocks
+GetNewShortcuts = RECORD_RPC.GetNewShortcuts
+MarkKnown      = RECORD_RPC.MarkKnown
 
 -- Community & Media (ScreenScraper + IGDB)
 local SS_MEDIA = require("screenscraper_media")

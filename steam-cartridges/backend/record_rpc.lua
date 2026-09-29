@@ -14,6 +14,8 @@ local method = core.method
 -- Achievements modules are loaded on first use: they pull in the trophy and RetroAchievements
 -- readers, which the record facade's other parts (and their test suites) do not need.
 local function ach() return require("ach_service") end
+local function fresh() return require("fresh_policy") end
+local function now_ms() return math.floor(os.time() * 1000) end
 
 local RPC = {}
 
@@ -54,6 +56,9 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
   for _, name in ipairs(requested) do
     if name == "identity" then
       parts.identity = resolve_identity.ensure(appid, ctx)
+      if parts.identity.status == "ok" or parts.identity.status == "error" then
+        fresh().touch(appid, "identity", now_ms(), parts.identity.status)
+      end
       ctx.identity = parts.identity -- later parts of this same call see the fresh identity
     elseif name == "metadata" then
       parts.metadata = metadata_service.ensure(appid, ctx)
@@ -65,11 +70,19 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
       local identity = ctx.identity
       if not identity and (ctx.route or {}).bucket == "steam-store" then identity = resolve_identity.saved(appid) end
       local native = identity and identity.data and identity.data.native
-      parts.achievements = ach().ensure(appid, {
-        native = native and native.appid or nil,
-        hardcore = ctx.hardcore ~= false,
-        title = ctx.title,
-      })
+      -- The schema is refreshed at most every 24 h; unlocks are read by their own channels (Flow C).
+      local cached = ach().local_part(appid)
+      if cached and not ctx.force and not fresh().is_stale(appid, "achievements", cached, now_ms()) then
+        parts.achievements = cached
+      else
+        parts.achievements = ach().ensure(appid, {
+          native = native and native.appid or nil,
+          hardcore = ctx.hardcore ~= false,
+          title = ctx.title,
+        })
+        local st = parts.achievements.status
+        if st == "ok" or st == "error" then fresh().touch(appid, "achievements", now_ms(), st) end
+      end
     end
     -- Unknown part names are ignored (not an error).
   end
@@ -106,6 +119,18 @@ RPC.CheckUnlocks = method("CheckUnlocks", function(data)
   local appid = need(data, "appid")
   if not is_shortcut(appid) then return { error = "not a shortcut" } end
   return require("achievements_observer").check_unlocks(tonumber(appid), tonumber(data.native) or 0, data.title)
+end)
+
+--- Shortcuts in shortcuts.vdf the plugin has not seen before (Flow B). The first call seeds the file
+--- with the current library and returns none, so an existing library is never fetched in one storm.
+RPC.GetNewShortcuts = method("GetNewShortcuts", function(_)
+  return { shortcuts = require("registry").new_shortcuts() }
+end)
+
+--- Mark shortcuts as handled: { appids = [...] }.
+RPC.MarkKnown = method("MarkKnown", function(data)
+  require("registry").mark_known(need(data, "appids"))
+  return { ok = true }
 end)
 
 return RPC

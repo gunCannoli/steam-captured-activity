@@ -54,13 +54,15 @@ end
 --- err is "offline" (transport failure or breaker open) or "HTTP <status>".
 function M.http_get(url)
   if M.is_offline() then return nil, "offline" end
-  local http = require("http")
+  local net = require("net")
   M.acquire()
-  local ok, res = pcall(http.get, url, {
+  local res, err = net.get(url, {
+    source = "steam-store",
     headers = { ["Accept"] = "application/json", ["User-Agent"] = M.USER_AGENT },
     timeout = M.TIMEOUT,
   })
-  if not ok or not res or not res.status or res.status == 0 then
+  if err == "paused" then return nil, "paused" end
+  if not res or not res.status or res.status == 0 then
     offline_until = M.now() + M.OFFLINE_SECONDS
     return nil, "offline"
   end

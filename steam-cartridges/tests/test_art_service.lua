@@ -139,6 +139,8 @@ store._path = STORE_PATH
 local function wipe() os.remove(STORE_PATH); store._reset() end
 wipe()
 
+local fresh_policy = require("fresh_policy")
+fresh_policy._path = TMP .. "/sc_fresh_test_" .. os.time() .. ".json"
 local SC = 4263274102
 local ROUTE_WEB = { bucket = "web-scraping", via = "default" }
 local ROUTE_STORE = { bucket = "steam-store", via = "default" }

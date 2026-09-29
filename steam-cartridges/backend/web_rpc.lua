@@ -150,6 +150,11 @@ function M.RefreshGameMetadata(payload_json)
   end
   local appid = tonumber(req.appid)
   local title = req.title or ""
+  local existing = metadata_db.get(appid)
+  if existing and existing.custom_override then
+    -- K15: user edits are never refreshed, forced or not.
+    return json.encode({ error = "custom_override" })
+  end
   local shortcut_info = get_shortcut_info(appid)
   logger:info("Force refreshing IGDB metadata for shortcut " .. tostring(appid) .. " ('" .. tostring(title) .. "')")
   local meta = igdb.fetch_game_metadata(appid, title, shortcut_info)

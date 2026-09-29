@@ -145,6 +145,8 @@ store_steam._path = STORE_PATH
 local function wipe() os.remove(ACH_PATH); os.remove(STORE_PATH); store._reset(); store_steam._reset() end
 wipe()
 
+local fresh_policy = require("fresh_policy")
+fresh_policy._path = TMP .. "/sc_fresh_test_" .. os.time() .. ".json"
 local SC = 4263274102
 local SCHEMA = { total = 2, achievements = { { id = "A", name = "a" }, { id = "B", name = "b" } } }
 local calls = {}

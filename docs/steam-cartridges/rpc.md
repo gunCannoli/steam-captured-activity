@@ -65,6 +65,8 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetGameCommunityLinks` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
 | `GetGameRecord` | `record_rpc.lua` | unwired | M4b: still no caller; M5a extends it with `metadata`. No frontend caller as of M5b either — `app/identity.ts` and `app/metadata.ts` both use `EnsureFresh`/`GetAllRecords` instead |
 | `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, wired by `app/metadata.ts`'s `ensure()` in M5b |
+| `GetNewShortcuts` | `record_rpc.lua` | unwired | M7a: shortcuts not seen before (first call seeds and returns none); M7b's `app/ingest.ts` calls it at start-up |
+| `MarkKnown` | `record_rpc.lua` | unwired | M7a: mark shortcuts handled; M7b |
 | `CheckUnlocks` | `record_rpc.lua` | live | M6a: new unlocks since the last check (`{ new_unlocks }`, always a list, K1); M6b: `app/achievements.ts` polls it every 2 s while a game runs. `CartridgesAchievementsCheckUnlocks` stays as its alias (no caller now) |
 | `GetAllRecords` | `record_rpc.lua` | live | M5a: disk-only bulk read (every DB record + every saved mapping); M5b's `app/metadata.ts` `preload()` calls it once at start-up, replacing the frontend's old `getAllMetadata`/`initGameInfo` preload |
 
@@ -220,3 +222,5 @@ Live: none — a docs-only step changes no runtime code path.
 - M6b (2026-09-29): `ports/backend.ts` gains `checkUnlocks`, `unlockAchievement`, `resetAchievements`; `EnsureFresh(["achievements"])` and
   `CheckUnlocks` are wired by `app/achievements.ts`. The `rpc.ts` wrappers `cartridgesAchievementsUnlock/Reset/CheckUnlocks` have no caller
   left (M9a folds `rpc.ts` into `ports/`). Live: 28, unwired: 6.
+- M7a (2026-09-29): `GetNewShortcuts` and `MarkKnown` added (unwired until M7b); `GetDiagnostics` gains `http_calls` and `paused`;
+  `EnsureFresh` consults `fresh_policy` and honors `ctx.force` (never for a `custom_override` record). All outgoing HTTP goes through `net.lua`.

@@ -116,9 +116,9 @@ RPC.SteamStoreDownloadImage = method("SteamStoreDownloadImage", function(data)
   local url = tostring(need(data, "url"))
   if not url:match("^https://[%w%.%-]*steamstatic%.com/") then error("url not allowed") end
   if throttle.is_offline() then error("offline") end -- P4 H3: no timeout per view while offline
-  local http = require("http")
   throttle.acquire()
-  local res = http.get(url, { headers = { ["User-Agent"] = throttle.USER_AGENT }, timeout = throttle.TIMEOUT })
+  local res, err = require("net").get(url, { source = "steam-store", headers = { ["User-Agent"] = throttle.USER_AGENT }, timeout = throttle.TIMEOUT })
+  if err == "paused" then error("paused") end
   if not res or res.status ~= 200 or not res.body then error("download failed") end
   local ext = url:match("%.(%w+)[%?]?[^/]*$") or "jpg"
   return { base64 = utils.base64_encode(res.body), ext = ext:lower() == "png" and "png" or "jpg" }

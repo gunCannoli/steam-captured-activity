@@ -102,6 +102,9 @@ RPC.GetDiagnostics = method("GetDiagnostics", function(_)
     shortcuts        = #entries,
     games_with_media = games_with_media,
     screenshots      = total_shots,
+    -- M7a: outgoing requests per source since the backend started, and sources currently paused.
+    http_calls       = require("net").stats().http_calls,
+    paused           = require("net").stats().paused,
   }
 end)
 

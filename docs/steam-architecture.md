@@ -99,7 +99,7 @@ updated by every later step that changes it (template in the
 | Metadata service and its sources | [service-metadata.md](steam-cartridges/service-metadata.md) (M5a) | current |
 | Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) (M5c) | current |
 | Achievements service, sources, observer | [service-achievements.md](steam-cartridges/service-achievements.md) (M6a; replaced `steam-cartridges-achievements.md`) | current |
-| Freshness and ingestion | `docs/steam-cartridges/service-freshness.md` (M7) | planned |
+| Freshness and ingestion | [service-freshness.md](steam-cartridges/service-freshness.md) (M7a) | current |
 | Settings panels | `docs/steam-cartridges/settings.md` (M8) | planned |
 
 When a layer doc is created, its row flips to `current` and gets a link, in the

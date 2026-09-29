@@ -11,7 +11,7 @@
 
 local json        = require("json")
 local utils       = require("utils")
-local http        = require("http")
+local net         = require("net")
 local logger      = require("logger")
 local data_dir    = require("data_dir")
 local steam_paths = require("steam_paths")
@@ -411,7 +411,8 @@ function M.get_game_id_by_md5(md5)
   if not md5 or #md5 == 0 then return nil, "missing md5" end
   local url = "https://retroachievements.org/dorequest.php?r=gameid&m=" .. tostring(md5)
   
-  local ok, res = pcall(http.get, url, {
+  local ok, res = pcall(net.get, url, {
+    source = "retroachievements",
     user_agent = "RetroArch/1.19.0",
     headers = {
       ["User-Agent"] = "RetroArch/1.19.0",
@@ -473,7 +474,8 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
   local list = games_list_cache[console_id]
   if not list then
     local url = "https://retroachievements.org/dorequest.php?r=gameslist&c=" .. tostring(console_id)
-    local ok, res = pcall(http.get, url, {
+    local ok, res = pcall(net.get, url, {
+    source = "retroachievements",
       user_agent = "RetroArch/1.19.0",
       headers = {
         ["User-Agent"] = "RetroArch/1.19.0",
@@ -540,7 +542,8 @@ function M.fetch_game_data(game_id, username, token, hardcore)
   if #u > 0 and #t > 0 then
     patch_url = patch_url .. "&u=" .. utils.url_encode(u) .. "&t=" .. utils.url_encode(t)
   end
-  local p_ok, p_res = pcall(http.get, patch_url, {
+  local p_ok, p_res = pcall(net.get, patch_url, {
+    source = "retroachievements",
     user_agent = "RetroArch/1.19.0",
     headers = {
       ["User-Agent"] = "RetroArch/1.19.0",
@@ -581,7 +584,8 @@ function M.fetch_game_data(game_id, username, token, hardcore)
       "https://retroachievements.org/dorequest.php?r=unlocks&g=%d&h=%d&u=%s&t=%s",
       gid, h_val, utils.url_encode(u), utils.url_encode(t)
     )
-    local u_ok, u_res = pcall(http.get, unl_url, {
+    local u_ok, u_res = pcall(net.get, unl_url, {
+    source = "retroachievements",
       headers = { ["User-Agent"] = "RetroArch/1.19.0" },
       timeout = 10,
     })

@@ -6,7 +6,7 @@
 ---   3. Gameplay preview videos (MP4)
 ---   4. Digital game manuals (PDF / multi-page scans)
 
-local http        = require("http")
+local net         = require("net")
 local json        = require("json")
 local logger      = require("logger")
 local data_dir    = require("data_dir")
@@ -111,7 +111,8 @@ function M.fetch_jeu(appid, rom_path, system_id, crc, md5, name)
     url = url .. "&md5=" .. utils.url_encode(md5)
   end
 
-  local ok, res = pcall(http.get, url, {
+  local ok, res = pcall(net.get, url, {
+    source = "screenscraper",
     user_agent = "steam-cartridges/1.0",
     timeout = 15,
   })

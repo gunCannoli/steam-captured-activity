@@ -1,4 +1,4 @@
-local http = require("http")
+local net = require("net")
 local json = require("json")
 local logger = require("logger")
 local config = require("web_config")
@@ -11,34 +11,7 @@ local token_expires_at = 0
 --- Robust multi-binding HTTP POST wrapper
 --- Compatible with Millennium's varying Lua http bindings
 local function http_post(url, headers, body, timeout)
-  timeout = timeout or 20
-  headers = headers or {}
-  body = body or ""
-  local calls = {}
-
-  if type(http.request) == "function" then
-    calls[#calls + 1] = function() return http.request(url, { method = "POST", data = body, headers = headers, timeout = timeout }) end
-    calls[#calls + 1] = function() return http.request(url, { method = "POST", body = body, headers = headers, timeout = timeout }) end
-  end
-  if type(http.post) == "function" then
-    calls[#calls + 1] = function() return http.post(url, { method = "POST", data = body, headers = headers, timeout = timeout }) end
-    calls[#calls + 1] = function() return http.post(url, { method = "POST", body = body, headers = headers, timeout = timeout }) end
-    calls[#calls + 1] = function() return http.post(url, { data = body, headers = headers, timeout = timeout }) end
-    calls[#calls + 1] = function() return http.post(url, { body = body, headers = headers, timeout = timeout }) end
-  end
-
-  local first_err = nil
-  for _, fn in ipairs(calls) do
-    local ok, res = pcall(fn)
-    if ok and type(res) == "table" and res.status then
-      if (res.status >= 200 and res.status < 300) or res.status == 400 or res.status == 401 then
-        return res
-      end
-      first_err = first_err or res
-    end
-  end
-
-  return first_err
+  return net.post(url, body, { source = "igdb", headers = headers, timeout = timeout or 20 })
 end
 
 --- Obtain or refresh Twitch OAuth2 access token for IGDB

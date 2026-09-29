@@ -127,9 +127,10 @@ function M.merge_schema(native_appid, webapi_items, html_items)
 end
 
 local function default_http_get(url, is_json)
-  local http = require("http")
+  local net = require("net")
   local accept = is_json and "application/json" or "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-  local ok, res = pcall(http.get, url, {
+  local ok, res = pcall(net.get, url, {
+    source = "steam-web",
     headers = {
       ["Accept"] = accept,
       ["User-Agent"] = "steam-cartridges (Millennium plugin)",

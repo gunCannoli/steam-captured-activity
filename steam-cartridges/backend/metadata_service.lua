@@ -19,6 +19,7 @@ local M = {}
 
 --- Injectable for tests. nil = the real dependency.
 M.deps = {
+  fresh = nil,            -- nil = fresh_policy (M7a): when a local record is stale
   screenscraper_fetch = nil, -- nil = ScreenScraper jeuInfos (screenscraper_media.fetch_jeu) mapped by
                              -- M.screenscraper_to_metadata; fun(appid, title, shortcut_info) -> meta|nil
   igdb_fetch = nil,       -- nil = igdb.fetch_game_metadata
@@ -158,6 +159,10 @@ local function screenscraper_fetch(appid, title, info)
   return nil -- ADR-0014: a failing provider is silent, the next tier runs
 end
 
+local function fresh()
+  return M.deps.fresh or require("fresh_policy")
+end
+
 local function now_ms()
   return math.floor((M.deps.now or os.time)() * 1000)
 end
@@ -245,34 +250,48 @@ function M.ensure(appid, ctx)
     return { status = "unsupported", checkedAt = now_ms() }
   end
 
-  -- web-scraping, or steam-store identity ok without a native match: local -> igdb -> fallback.
+  -- web-scraping, or steam-store identity ok without a native match:
+  -- the local record while it is fresh, else igdb -> screenscraper -> the fallback record.
+  local can_fetch = (ctx.allowWeb or ctx.allowScreenscraper) and not ctx.noNetwork
   if local_rec then
+    -- Stale (M7a: 24 h, or ctx.force) records are refreshed when a source may be asked. A custom_override
+    -- record never reaches here (K15), so a manual edit is never refreshed.
+    local due = ctx.force or fresh().is_stale(appid, "metadata", { status = "ok", source = "local_db" }, now_ms())
+    if not (due and can_fetch) then
+      return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() }
+    end
+  elseif not can_fetch then
+    return { status = "pending", checkedAt = now_ms() }
+  end
+
+  local info = shortcut_info(appid)
+  -- IGDB first when the user has it (a plain ScreenScraper account is the easy one, so it fills
+  -- in when IGDB is not configured or finds no match), then the fallback record (M5d).
+  local meta, source
+  if ctx.allowWeb then
+    meta = igdb_fetch(appid, title, info)
+    if meta then source = "igdb" end
+  end
+  if not meta and ctx.allowScreenscraper then
+    meta = screenscraper_fetch(appid, title, info)
+    if meta then source = "screenscraper" end
+  end
+  if meta then
+    metadata_db.set(appid, meta)
+    fresh().touch(appid, "metadata", now_ms())
+    return { status = "ok", data = meta, source = source, checkedAt = now_ms() }
+  end
+
+  if local_rec then
+    -- A refresh that found nothing keeps what we have and comes due again after the short error TTL.
+    fresh().touch(appid, "metadata", now_ms(), "error")
     return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() }
   end
 
-  if (ctx.allowWeb or ctx.allowScreenscraper) and not ctx.noNetwork then
-    local info = shortcut_info(appid)
-    -- IGDB first when the user has it (a plain ScreenScraper account is the easy one, so it fills
-    -- in when IGDB is not configured or finds no match), then the fallback record (M5d).
-    local meta, source
-    if ctx.allowWeb then
-      meta = igdb_fetch(appid, title, info)
-      if meta then source = "igdb" end
-    end
-    if not meta and ctx.allowScreenscraper then
-      meta = screenscraper_fetch(appid, title, info)
-      if meta then source = "screenscraper" end
-    end
-    if meta then
-      metadata_db.set(appid, meta)
-      return { status = "ok", data = meta, source = source, checkedAt = now_ms() }
-    end
-    local fallback = fallback_record(appid, title)
-    metadata_db.set(appid, fallback)
-    return { status = "ok", data = fallback, source = "fallback", checkedAt = now_ms() }
-  end
-
-  return { status = "pending", checkedAt = now_ms() }
+  local fallback = fallback_record(appid, title)
+  metadata_db.set(appid, fallback)
+  fresh().touch(appid, "metadata", now_ms())
+  return { status = "ok", data = fallback, source = "fallback", checkedAt = now_ms() }
 end
 
 return M
