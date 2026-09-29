@@ -931,6 +931,23 @@ desktop Properties dialogs only.
 
 ---
 
+## Part 7 — Steam's activity store for unowned native apps (verified live 2026-09-29, M5)
+
+`appActivityStore.GetAppActivity(nativeAppid)` is how a mapped shortcut's activity feed gets the native game's
+news and partner events (`surfaces/captures/activity.ts`). Two facts:
+
+- **A fetch requested too early sticks.** Called during plugin start-up, before Steam is ready, the fetch for an
+  *unowned* native app never completes: the store then holds an entry with 0 days and 0 events and
+  `m_setAppFetchRequested` still contains the app, and nothing retries it in that session. Owned or played natives
+  (appids 730, 570) were unaffected. Symptom: the shortcut's feed has none of the native news, and
+  `check_parity.mjs` checks 11 and 16 fail with "native 0".
+- **Recovery:** delete the app from `m_setAppFetchRequested` and `m_mapAppActivity`, then call `GetAppActivity`
+  again; it then returns the events (96 for 2820820, 28 for 2277560 on that day).
+- **Rule:** never make a native activity fetch a start-up side effect. A record-driven surface renders whenever a
+  record part changes, so preloading `identity` for every mapped shortcut at boot triggered exactly that. Preload
+  only what the surface for that part can safely apply at boot (`metadata`), and resolve identity on the first view.
+  Probe: `node scratch/arch-m0/native_news_state.mjs` (read-only; does not trigger a fetch).
+
 ## Sources
 
 - [Millennium plugin docs](https://docs.steambrew.app/plugins/) ·

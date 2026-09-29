@@ -67,12 +67,13 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
             for (const [key, parts] of Object.entries(res.records ?? {})) {
                 const appid = Number(key) as ShortcutId;
                 if (!Number.isFinite(appid)) continue;
-                const update: { identity?: Part<Identity>; metadata?: Part<GameMetadata> } = {};
-                if (parts.identity) update.identity = parts.identity as Part<Identity>;
-                if (parts.metadata) update.metadata = parts.metadata as Part<GameMetadata>;
-                if (Object.keys(update).length === 0) continue;
+                // Metadata only. Writing `identity` here would make every record-driven surface react at
+                // start-up, and `captures` calls Steam's GetAppActivity for each mapped native app before
+                // Steam is ready (the fetch then sticks at "requested" with no events, seen live in M5).
+                // Identity is resolved on the first view of a shortcut, as before.
+                if (!parts.metadata) continue;
                 deps.ensureBase(appid);
-                deps.records.update(appid, update as any);
+                deps.records.update(appid, { metadata: parts.metadata as Part<GameMetadata> });
             }
         },
     };

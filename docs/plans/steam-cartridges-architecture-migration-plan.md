@@ -75,10 +75,10 @@ Statuses (what the executing agent does with the row):
 | M4a | Routing policy → `domain/routing` (ADR-0040) | **Done** (live-verified 2026-09-29) | `README.md` layer list, ADR-0040 |
 | M4b | Identity service + record facade (backend) | **Done** (live-verified 2026-09-29) | `service-resolver.md`, `rpc.md` |
 | M4c | Frontend adopts records and identity | **Done** (live-verified 2026-09-29) | `rpc.md`, `surfaces.md`, `sensors.md` |
-| M5a | Metadata service (backend) | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `rpc.md` |
-| M5b | Frontend adopts metadata | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `surfaces.md`, `sensors.md` |
-| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Done (implementer); live verification pending § 0.5 | `service-artwork.md`, `safety.md` (credentials) |
-| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Done (implementer); live verification pending § 0.5 | `service-metadata.md` |
+| M5a | Metadata service (backend) | **Done** (live-verified 2026-09-29) | `service-metadata.md`, `rpc.md` |
+| M5b | Frontend adopts metadata | **Done** (live-verified 2026-09-29) | `service-metadata.md`, `surfaces.md`, `sensors.md` |
+| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | **Done** (live-verified 2026-09-29) | `service-artwork.md`, `safety.md` (credentials) |
+| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | **Done** (Lua-verified; live network check pending ScreenScraper credentials) | `service-metadata.md` |
 | M6a | Achievements service (backend; fixes K1, K2, K7) | Build | `service-achievements.md`, `rpc.md` |
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | Build | `service-achievements.md`, `surfaces.md` |
 | M7a | Freshness, throttle, registry (backend; fixes K15) | Build | `service-freshness.md`, `rpc.md` |

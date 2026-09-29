@@ -163,3 +163,7 @@ decision (M5d: IGDB first when configured, ScreenScraper fills in).
   service `screenscraper`); `screenscraper_media.lua` exposes `fetch_jeu` (`fetch_media` now builds on it, behaviour
   unchanged). Tests use a hand-shaped `tests/fixtures/screenscraper-jeu.json` (no network in the test environment):
   compare it with a real `jeuInfos.php` response during live verification.
+- M5b fix (2026-09-29, found in live verification): `app/metadata.ts` `preload()` wrote `identity` as well as
+  `metadata` for every mapped shortcut at start-up. Every record-driven surface then rendered for all of them, and
+  `captures` requested Steam's `GetAppActivity` for each mapped native app before Steam was ready, which left those
+  fetches stuck (knowledgebase Part 7). `preload()` now writes `metadata` only; identity resolves on first view.

@@ -94,3 +94,7 @@ None (the surface owns them).
 - M5c (2026-09-29): created. `art_service.lua` (SteamGridDB for shortcuts with no Steam match, empty slots
   only; Steam CDN for mapped ones), `artwork` surface record-driven, `services.steamgriddbEnabled`, SteamGridDB
   key entry in the settings panel.
+- M5c live verification (2026-09-29): Firestriker (only its hero empty) got `3381982601_hero.jpg` from SteamGridDB and
+  nothing else changed; the backend recorded `source = "steamgriddb"`, `slots = [1]`, `tried = [1]`. Clear removed
+  only that file. Note for testers: Clear resets `tried`, so the next view of that shortcut refills the slot (a Big
+  Picture view fires one immediately). AM2R and 218 of 220 shortcuts already had all four slots: no request is made.

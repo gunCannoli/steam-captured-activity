@@ -104,8 +104,23 @@ Notes for the next step (M5d, then batch live verification of M5a–M5d):
 (IGDB first, then ScreenScraper, then the fallback record; `screenscraper_media.fetch_jeu` shared with media). Lua
 tests use a hand-shaped `jeuInfos` fixture — compare it with a real response during live verification.
 
-Next: live verification for all of M5 (M5a–M5d), then M6a onward (`Build`: detailed specs the implementer
-builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+**M5 live-verified 2026-09-29** (dev plugin left deployed and enabled). § 0.5 baseline reproduced: `count_cycle` PASS
+(`enrich(page)=1`), Properties OK for WUCHANG and Jotunnslayer, nav cycle 6/6, `check_all_tabs` 11/11;
+`audit_missing_metadata.mjs` 0 missing; `check_parity.mjs` 16 PASS / 1 FAIL (K18 only, the M3.7 baseline); safety
+diagnostics clean. **Found and fixed one regression:** the first M5 build scored parity 14/3 because
+`metadata.preload()` also wrote `identity` for every mapped shortcut at boot, so `captures` requested Steam's
+`GetAppActivity` for each mapped native app before Steam was ready and those fetches stuck (knowledgebase Part 7).
+M5c end-to-end on Firestriker (only its hero slot was empty): SteamGridDB filled exactly that file; Clear removed
+exactly it. On this library 218 of 220 shortcuts already have all four slots, so M5c makes no request for them.
+
+Still open for M5:
+- **M5d live network check** needs ScreenScraper credentials (none configured, IGDB/Twitch and SteamGridDB are). The Lua
+  suite passes against a hand-shaped `jeuInfos` fixture; compare it with a real response when a key exists.
+- M5c's exit text assumed AM2R is in bucket `none`; it is currently `steam-store` (unmatched) with all four slots
+  already set, so it makes no request either way.
+- Firestriker's hero was cleared again by the Clear test; the deployed dev plugin refills it on the next view.
+
+Next: M6a onward). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 
