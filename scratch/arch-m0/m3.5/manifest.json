@@ -2,7 +2,7 @@
   "deleted": {
     "frontend/features/achievements/achievements-core.ts": "3e7249f5853f6233",
     "frontend/features/achievements/store.ts": "65be1b07c4feba72",
-    "frontend/features/achievements/types.ts": "6f8c9c991503eb74"
+    "frontend/features/achievements/types.ts": "5d4e0fe931dcd506"
   },
   "edited": {
     "frontend/features/achievements/index.ts": "05fb8a4d42e0c2ca",
@@ -10,7 +10,7 @@
     "frontend/features/achievements/observer-session.ts": "1335d96d0c4834df",
     "frontend/index.tsx": "7e73c0384a68dd3d",
     "frontend/kernel/record.ts": "e192552191510e77",
-    "frontend/rpc.ts": "972e025f2d1ee816",
+    "frontend/rpc.ts": "9ce7ca9dde2d12dc",
     "tests/achievements.test.ts": "8eb109ba6023f38c"
   },
   "new": [

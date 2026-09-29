@@ -4,7 +4,7 @@
     "frontend/index.tsx": "ac2964ca8890080d",
     "frontend/safety/features.ts": "531620fd356cc1af",
     "frontend/surfaces/game-info/index.ts": "61fc9a65658ca48e",
-    "frontend/surfaces/game-info/patch.ts": "fe82c321b626d08b",
+    "frontend/surfaces/game-info/patch.ts": "39fbd2c00a0606e7",
     "tests/architecture.test.ts": "c28aeb69357bff1f"
   },
   "new": [

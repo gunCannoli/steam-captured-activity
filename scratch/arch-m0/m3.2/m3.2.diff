@@ -24,7 +24,7 @@ index 1254aad..fea6d77 100644
  const ON_OPEN_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes per game throttle
  
 diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
-index 8c9dcf3..56c7e51 100644
+index 8a4cb23..b2c91d3 100644
 --- a/steam-cartridges/frontend/features/steam-store/index.ts
 +++ b/steam-cartridges/frontend/features/steam-store/index.ts
 @@ -12,8 +12,6 @@ import { refreshGameInfoInstances } from "../game-info/game-info-patch";
@@ -464,7 +464,7 @@ index dd3159b..65f0cd8 100644
  }
 diff --git a/steam-cartridges/frontend/surfaces/captures/index.ts b/steam-cartridges/frontend/surfaces/captures/index.ts
 new file mode 100644
-index 0000000..fc399aa
+index 0000000..041dc84
 --- /dev/null
 +++ b/steam-cartridges/frontend/surfaces/captures/index.ts
 @@ -0,0 +1,62 @@
@@ -480,7 +480,7 @@ index 0000000..fc399aa
 +import { installHeadlinePatch } from "./headline";
 +import { unpatch } from "./publish";
 +
-+export { patch, refresh, setContentListener, unpatch, unpatchAll } from "./publish";
++export { patch, refresh, setContentListener, unpatch } from "./publish";
 +export { setNativeActivitySource } from "./activity";
 +export { registerSummaryProvider } from "./summary";
 +export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
@@ -531,10 +531,10 @@ index 0000000..fc399aa
 +    };
 +}
 diff --git a/steam-cartridges/frontend/renderers/library-app.tsx b/steam-cartridges/frontend/surfaces/captures/publish.ts
-similarity index 89%
+similarity index 88%
 rename from steam-cartridges/frontend/renderers/library-app.tsx
 rename to steam-cartridges/frontend/surfaces/captures/publish.ts
-index 36ebde8..b10c525 100644
+index d69c948..ae8267d 100644
 --- a/steam-cartridges/frontend/renderers/library-app.tsx
 +++ b/steam-cartridges/frontend/surfaces/captures/publish.ts
 @@ -1,7 +1,7 @@
@@ -581,7 +581,7 @@ index 58770e1..5584f2b 100644
  /**
   * The Post-Game Summary API.
 diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
-index 2f8425a..d20b292 100644
+index 7916e31..44cac90 100644
 --- a/steam-cartridges/tests/architecture-allowlist.json
 +++ b/steam-cartridges/tests/architecture-allowlist.json
 @@ -13,7 +13,6 @@
@@ -600,11 +600,11 @@ index 2f8425a..d20b292 100644
    "features/steam-store -> rpc",
    "features/steam-store -> steam",
    "renderers -> rpc",
-@@ -37,6 +35,5 @@
+@@ -35,6 +33,5 @@
+   "settings -> features/buckets",
    "settings -> features/game-info",
    "settings -> features/scraper",
-   "settings -> rpc",
--  "steam -> rpc",
+-  "settings -> rpc",
 -  "steam -> settings"
-+  "steam -> rpc"
++  "settings -> rpc"
  ]

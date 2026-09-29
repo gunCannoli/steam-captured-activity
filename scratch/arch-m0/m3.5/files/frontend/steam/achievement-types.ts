@@ -31,8 +31,3 @@ export interface AchievementProgress {
     all_unlocked: boolean;
 }
 
-export interface NotificationStoreInstance {
-    m_rgNotificationTypeConfigs?: Record<number, { proto?: any }>;
-    m_nNextTestNotificationID?: number;
-    OnNotification?: (id: number, type: number, serializedPayload: Uint8Array) => void;
-}

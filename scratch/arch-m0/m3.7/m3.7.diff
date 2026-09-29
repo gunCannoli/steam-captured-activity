@@ -1,5 +1,5 @@
 diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
-index 4a74962..21d28e2 100644
+index 91b24c6..801f70c 100644
 --- a/steam-cartridges/frontend/features/steam-store/index.ts
 +++ b/steam-cartridges/frontend/features/steam-store/index.ts
 @@ -14,11 +14,17 @@ import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";

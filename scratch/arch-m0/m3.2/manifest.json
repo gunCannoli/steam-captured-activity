@@ -1,6 +1,6 @@
 {
   "deleted": {
-    "frontend/renderers/library-app.tsx": "c7cc603700a9ffd2",
+    "frontend/renderers/library-app.tsx": "b5bb3783f7117ac4",
     "frontend/steam/activity-cards-patch.ts": "6943aaa77c0ee07a",
     "frontend/steam/activity.ts": "fc66dfa3079ecefc",
     "frontend/steam/headline-patch.ts": "6bdf11006ad6f9f5",
@@ -8,9 +8,9 @@
   },
   "edited": {
     "frontend/features/scraper/on-update.ts": "7f03c04a981ce7a5",
-    "frontend/features/steam-store/index.ts": "da5130375ab43254",
+    "frontend/features/steam-store/index.ts": "b96daec2d8ed0e09",
     "frontend/index.tsx": "f691de4218b54f45",
-    "tests/architecture-allowlist.json": "3a0566cdd12711e3"
+    "tests/architecture-allowlist.json": "b3412f0a85fce249"
   },
   "new": [
     "frontend/surfaces/captures/activity-cards.ts",

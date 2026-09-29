@@ -172,14 +172,6 @@ export function clearAppCategories(appid: number): void {
     appCategoriesCache.delete(appid | 0);
 }
 
-export function getCachedCategoriesForApp(
-    appid: number,
-): Set<number> | undefined {
-    return appCategoriesCache.get(appid) ||
-        appCategoriesCache.get(appid >>> 0) ||
-        appCategoriesCache.get(appid | 0);
-}
-
 /**
  * Hook AppOverview prototype chain:
  * BHasStoreCategory: Consults appCategoriesCache to dynamically return category flags

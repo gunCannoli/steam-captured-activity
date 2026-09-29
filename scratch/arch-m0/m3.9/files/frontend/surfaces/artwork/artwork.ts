@@ -1,7 +1,7 @@
 // Surface `artwork` (migration plan M3.9): writes custom artwork slots through
 // SteamClient.Apps. Moved from features/artwork/artwork.ts.
 import { logger } from "../../logger";
-import type { ArtworkBundle, ArtworkUrls } from "../../kernel/record";
+import type { ArtworkUrls } from "../../kernel/record";
 import { deps } from "./deps";
 
 /**
@@ -156,51 +156,3 @@ export async function applyCustomArtworkFromUrls(
     return appliedSlots;
 }
 
-// PURGE(M9): unreachable, nothing calls applyCustomArtwork (with ArtworkBundle, ImageAsset). Ledger: migration plan § 7.9.
-export async function applyCustomArtwork(
-    appid: number,
-    bundle: ArtworkBundle,
-): Promise<number> {
-    const sc = (window as any).SteamClient;
-    if (!sc?.Apps?.SetCustomArtworkForApp) {
-        logger.warn(
-            "SteamClient.Apps.SetCustomArtworkForApp is not available.",
-        );
-        return 0;
-    }
-
-    const items: [typeof bundle.portrait, number, string][] = [
-        [bundle.portrait, ARTWORK_TYPES.PORTRAIT, "portrait"],
-        [bundle.hero, ARTWORK_TYPES.HERO, "hero"],
-        [bundle.logo, ARTWORK_TYPES.LOGO, "logo"],
-        [bundle.wide, ARTWORK_TYPES.WIDE, "wide"],
-    ];
-
-    let appliedCount = 0;
-    for (const [asset, slot, label] of items) {
-        if (!asset?.base64) continue;
-        try {
-            if (typeof sc.Apps.ClearCustomArtworkForApp === "function") {
-                try {
-                    await sc.Apps.ClearCustomArtworkForApp(appid, slot);
-                } catch {}
-                await new Promise((r) => setTimeout(r, 100));
-            }
-            await sc.Apps.SetCustomArtworkForApp(
-                appid,
-                asset.base64,
-                asset.ext || "png",
-                slot,
-            );
-            appliedCount++;
-            logger.info(`Set custom ${label} artwork for appid ${appid}`);
-        } catch (err) {
-            logger.warn(
-                `Failed to set ${label} artwork for appid ${appid}:`,
-                err,
-            );
-        }
-    }
-
-    return appliedCount;
-}

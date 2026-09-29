@@ -149,7 +149,7 @@ index cef3086..5e89635 100644
  export type AchievementSet = Record<string, unknown>;
  export type CommunityMedia = Record<string, unknown>;
 diff --git a/steam-cartridges/frontend/rpc.ts b/steam-cartridges/frontend/rpc.ts
-index b2fd59d..7d3fc51 100644
+index f9328fc..ff07f79 100644
 --- a/steam-cartridges/frontend/rpc.ts
 +++ b/steam-cartridges/frontend/rpc.ts
 @@ -1,4 +1,10 @@
@@ -164,7 +164,7 @@ index b2fd59d..7d3fc51 100644
  
  async function call<R>(name: string, payload: object = {}): Promise<R> {
    const millennium = (window as any)['Millennium'];
-@@ -250,24 +256,10 @@ export interface CheckUnlocksResponse {
+@@ -193,24 +199,10 @@ export interface CheckUnlocksResponse {
      error?: string;
  }
  
@@ -192,10 +192,10 @@ index b2fd59d..7d3fc51 100644
  export interface AchievementStateResponse {
      schema?: AchievementSchemaRecord;
 diff --git a/steam-cartridges/frontend/features/achievements/types.ts b/steam-cartridges/frontend/steam/achievement-types.ts
-similarity index 84%
+similarity index 80%
 rename from steam-cartridges/frontend/features/achievements/types.ts
 rename to steam-cartridges/frontend/steam/achievement-types.ts
-index 706bac7..a430b3c 100644
+index aa6d8d7..310840f 100644
 --- a/steam-cartridges/frontend/features/achievements/types.ts
 +++ b/steam-cartridges/frontend/steam/achievement-types.ts
 @@ -1,3 +1,5 @@

@@ -99,7 +99,7 @@ index fea6d77..02d642b 100644
  let refreshLibraryApp: (appid: number) => Promise<void> = async () => {};
  
 diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
-index 56c7e51..4a74962 100644
+index b2c91d3..91b24c6 100644
 --- a/steam-cartridges/frontend/features/steam-store/index.ts
 +++ b/steam-cartridges/frontend/features/steam-store/index.ts
 @@ -8,8 +8,6 @@ import {
@@ -251,7 +251,7 @@ index cd11439..cef3086 100644
  export type CommunityMedia = Record<string, unknown>;
  export type ArtworkPlan = Record<string, unknown>;
 diff --git a/steam-cartridges/frontend/rpc.ts b/steam-cartridges/frontend/rpc.ts
-index 665e53c..b2fd59d 100644
+index 6243191..f9328fc 100644
 --- a/steam-cartridges/frontend/rpc.ts
 +++ b/steam-cartridges/frontend/rpc.ts
 @@ -1,3 +1,5 @@
@@ -260,7 +260,7 @@ index 665e53c..b2fd59d 100644
  async function call<R>(name: string, payload: object = {}): Promise<R> {
    const millennium = (window as any)['Millennium'];
    const callFn = millennium ? millennium['callServerMethod'] : undefined;
-@@ -46,6 +48,10 @@ export interface Diagnostics {
+@@ -36,6 +38,10 @@ export interface LibraryStat {
  
  // ---- Web metadata + artwork (ex steamgriddb-artwork), unchanged ----
  
@@ -271,7 +271,7 @@ index 665e53c..b2fd59d 100644
  export interface ProviderStatus {
      has_twitch: boolean;
      has_sgdb: boolean;
-@@ -55,40 +61,7 @@ export interface ProviderStatus {
+@@ -45,40 +51,7 @@ export interface ProviderStatus {
      db_count: number;
  }
  
@@ -424,7 +424,7 @@ diff --git a/steam-cartridges/frontend/features/game-info/metadata.ts b/steam-ca
 similarity index 96%
 rename from steam-cartridges/frontend/features/game-info/metadata.ts
 rename to steam-cartridges/frontend/surfaces/game-info/metadata.ts
-index fc8ed11..60ab517 100644
+index b9588eb..c4e1467 100644
 --- a/steam-cartridges/frontend/features/game-info/metadata.ts
 +++ b/steam-cartridges/frontend/surfaces/game-info/metadata.ts
 @@ -1,7 +1,7 @@
@@ -445,9 +445,9 @@ index fc8ed11..60ab517 100644
 +    setEnricher,
 +} from "./patch";
  
- /**
-  * Standard Steam Store Category IDs:
-@@ -162,7 +163,7 @@ export function enrichGameDetails(
+ function toArray<T>(val: unknown): T[] {
+     if (!val) return [];
+@@ -138,7 +139,7 @@ export function enrichGameDetails(
              json = JSON.stringify(meta);
              metaJson.set(meta, json);
          }
@@ -456,7 +456,7 @@ index fc8ed11..60ab517 100644
          const signature = json + "|" + categoryIds.join(",");
          const previous = applied.get(uAppid);
          if (previous && previous.signature === signature) {
-@@ -234,7 +235,7 @@ export function enrichGameDetails(
+@@ -210,7 +211,7 @@ export function enrichGameDetails(
          // 2. Populate appCategoriesCache and AppOverview (Categories, Game Modes, Controller Support, Release Date)
          // Only categories true of the game itself: no Steam services (ADR-0038, parity plan F).
          // Controller: Steam Store data > emulator inference > the default setting > none (ADR-0038 addendum).
@@ -465,17 +465,17 @@ index fc8ed11..60ab517 100644
  
          setAppCategories(uAppid, catSet);
  
-@@ -299,3 +300,5 @@ export function enrichGameDetails(
+@@ -275,3 +276,5 @@ export function enrichGameDetails(
          return false;
      }
  }
 +
 +setEnricher(enrichGameDetails);
 diff --git a/steam-cartridges/frontend/features/game-info/game-info-patch.ts b/steam-cartridges/frontend/surfaces/game-info/patch.ts
-similarity index 61%
+similarity index 60%
 rename from steam-cartridges/frontend/features/game-info/game-info-patch.ts
 rename to steam-cartridges/frontend/surfaces/game-info/patch.ts
-index 28c8504..cb95f2a 100644
+index ac1eb56..b381344 100644
 --- a/steam-cartridges/frontend/features/game-info/game-info-patch.ts
 +++ b/steam-cartridges/frontend/surfaces/game-info/patch.ts
 @@ -1,5 +1,9 @@
@@ -549,7 +549,7 @@ index 28c8504..cb95f2a 100644
      onEnrichGameDetails = enrich;
  }
  
-@@ -237,8 +197,13 @@ export function ensureAppOverviewHooked(overview: any): boolean {
+@@ -229,8 +189,13 @@ export function ensureAppOverviewHooked(overview: any): boolean {
              curr.__nsga_getgameid_hooked = true;
              const origGetGameID = curr.GetGameID;
              curr.GetGameID = function () {
@@ -565,7 +565,7 @@ index 28c8504..cb95f2a 100644
                  }
                  return origGetGameID.apply(this, arguments);
              };
-@@ -252,17 +217,24 @@ export function ensureAppOverviewHooked(overview: any): boolean {
+@@ -244,17 +209,24 @@ export function ensureAppOverviewHooked(overview: any): boolean {
              curr.__nsga_bhascat_hooked = true;
              const origBHasStoreCategory = curr.BHasStoreCategory;
              curr.BHasStoreCategory = function (catId: number) {
@@ -600,7 +600,7 @@ index 28c8504..cb95f2a 100644
                  }
                  return origBHasStoreCategory
                      ? origBHasStoreCategory.call(this, catId)
-@@ -309,6 +281,8 @@ function hookComponentProps(
+@@ -301,6 +273,8 @@ function hookComponentProps(
      componentClass: any,
      options: {
          requireMetadata?: boolean;
@@ -609,7 +609,7 @@ index 28c8504..cb95f2a 100644
      },
  ): void {
      if (
-@@ -324,75 +298,81 @@ function hookComponentProps(
+@@ -316,75 +290,81 @@ function hookComponentProps(
      try {
          Object.defineProperty(componentClass.prototype, "props", {
              get() {
@@ -750,7 +750,7 @@ index 28c8504..cb95f2a 100644
              },
              set(newProps) {
                  this._nsga_raw_props = newProps;
-@@ -424,55 +404,60 @@ function patchKComponent(k: any): boolean {
+@@ -416,55 +396,60 @@ function patchKComponent(k: any): boolean {
      k.__nsga_gameinfo_patched = true;
  
      // 1. Prototype props descriptor (intercepts both MobX instance reactions and normal renders)
@@ -852,7 +852,7 @@ index 28c8504..cb95f2a 100644
              }
  
              return origKRender.apply(this, arguments);
-@@ -495,7 +480,7 @@ export function patchGameInfoComponent(): boolean {
+@@ -487,7 +472,7 @@ export function patchGameInfoComponent(): boolean {
      if (hasPatchedGameInfo) return true;
  
      try {
@@ -861,7 +861,7 @@ index 28c8504..cb95f2a 100644
          if (!req?.m) {
              logger.warn(
                  "Webpack require unavailable; Game Info patch deferred.",
-@@ -577,68 +562,78 @@ export function patchGameInfoComponent(): boolean {
+@@ -569,68 +554,78 @@ export function patchGameInfoComponent(): boolean {
              targetG.__nsga_g_patched = true;
              hookComponentProps(targetG, {
                  requireMetadata: true,
@@ -989,7 +989,7 @@ index 28c8504..cb95f2a 100644
                      }
                      return vdom;
                  };
-@@ -649,26 +644,31 @@ export function patchGameInfoComponent(): boolean {
+@@ -641,26 +636,31 @@ export function patchGameInfoComponent(): boolean {
          // Restores native ⓘ "Show/Hide game details" button on Desktop normal mode PlayBar
          if (targetPlayBar && !targetPlayBar.__nsga_playbar_patched) {
              targetPlayBar.__nsga_playbar_patched = true;

@@ -14,30 +14,6 @@ import {
     setEnricher,
 } from "./patch";
 
-/**
- * Standard Steam Store Category IDs:
- * 1: Multi-player
- * 2: Single-player
- * 9: Co-op
- * 18: Partial Controller Support
- * 22: Steam Achievements
- * 24: Shared/Split Screen
- * 28: Full Controller Support
- * 39: Shared/Split Screen Co-op (37 is Shared/Split Screen PvP)
- * 44: Remote Play Together
- */
-export const STEAM_CATEGORIES = {
-    MULTIPLAYER: 1,
-    SINGLE_PLAYER: 2,
-    COOP: 9,
-    PARTIAL_CONTROLLER: 18,
-    ACHIEVEMENTS: 22,
-    SPLIT_SCREEN: 24,
-    FULL_CONTROLLER: 28,
-    SPLIT_SCREEN_COOP: 39,
-    REMOTE_PLAY_TOGETHER: 44,
-} as const;
-
 function toArray<T>(val: unknown): T[] {
     if (!val) return [];
     if (Array.isArray(val)) return val;

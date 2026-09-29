@@ -22,21 +22,3 @@ index 190ed14..815a8c9 100644
  
  /** Structural copy of surfaces/toasts ToastAchievementPayload. */
  export interface ToastAchievementPayload {
-diff --git a/steam-cartridges/frontend/renderers/community-tab.tsx b/steam-cartridges/frontend/renderers/community-tab.tsx
-index 07224b5..4bd5491 100644
---- a/steam-cartridges/frontend/renderers/community-tab.tsx
-+++ b/steam-cartridges/frontend/renderers/community-tab.tsx
-@@ -1,3 +1,4 @@
-+// PURGE(M9): unreachable legacy, nothing imports this component (K9). Ledger: migration plan § 7.9.
- import React, { useState, useEffect } from "react";
- import { getCommunityData, loadCommunityData, type CommunityData } from "../steam/community-store";
- import { setting } from "../settings/settings";
-diff --git a/steam-cartridges/frontend/steam/community-store.ts b/steam-cartridges/frontend/steam/community-store.ts
-index db718c5..0830e3f 100644
---- a/steam-cartridges/frontend/steam/community-store.ts
-+++ b/steam-cartridges/frontend/steam/community-store.ts
-@@ -1,3 +1,4 @@
-+// PURGE(M9): unreachable legacy, only community-tab.tsx imports this (K9). Ledger: migration plan § 7.9.
- /**
-  * Community Store & Media Integration for Non-Steam Games.
-  *

@@ -111,7 +111,7 @@ index dde0a2c..f2bfa64 100644
              "AppOverview.BHasStoreCategory",
              "AppOverview.rt_original_release_date",
 diff --git a/steam-cartridges/frontend/surfaces/game-info/patch.ts b/steam-cartridges/frontend/surfaces/game-info/patch.ts
-index cb95f2a..2faca89 100644
+index b381344..84ddce4 100644
 --- a/steam-cartridges/frontend/surfaces/game-info/patch.ts
 +++ b/steam-cartridges/frontend/surfaces/game-info/patch.ts
 @@ -2,6 +2,7 @@
@@ -169,7 +169,7 @@ index cb95f2a..2faca89 100644
  const appCategoriesCache = new Map<number, Set<number>>();
  
  export function setAppCategories(appid: number, categories: Set<number>): void {
-@@ -489,7 +467,6 @@ export function patchGameInfoComponent(): boolean {
+@@ -481,7 +459,6 @@ export function patchGameInfoComponent(): boolean {
          }
  
          let targetG: any = undefined;
@@ -177,7 +177,7 @@ index cb95f2a..2faca89 100644
  
          for (const id of Object.keys(req.m)) {
              let mod: any;
-@@ -512,16 +489,9 @@ export function patchGameInfoComponent(): boolean {
+@@ -504,16 +481,9 @@ export function patchGameInfoComponent(): boolean {
                      ) {
                          targetG = exp;
                      }
@@ -195,7 +195,7 @@ index cb95f2a..2faca89 100644
          }
  
          if (!targetG) {
-@@ -640,44 +610,6 @@ export function patchGameInfoComponent(): boolean {
+@@ -632,44 +602,6 @@ export function patchGameInfoComponent(): boolean {
              }
          }
  

@@ -18,7 +18,7 @@ index 61ca381..02239f4 100644
  const achievementsMap = new Map<number, SteamAppAchievements>();
  const schemasMap = new Map<number, AchievementSchemaRecord>();
 diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
-index 4915a9b..8c9dcf3 100644
+index 3edc4d6..8a4cb23 100644
 --- a/steam-cartridges/frontend/features/steam-store/index.ts
 +++ b/steam-cartridges/frontend/features/steam-store/index.ts
 @@ -13,7 +13,6 @@ import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
@@ -143,7 +143,7 @@ index f1ad5fe..4b6e292 100644
      id: string;
      installed: boolean;
 diff --git a/steam-cartridges/frontend/renderers/library-app.tsx b/steam-cartridges/frontend/renderers/library-app.tsx
-index bfbbc13..36ebde8 100644
+index d8e5a6c..d69c948 100644
 --- a/steam-cartridges/frontend/renderers/library-app.tsx
 +++ b/steam-cartridges/frontend/renderers/library-app.tsx
 @@ -1,7 +1,6 @@
@@ -300,14 +300,13 @@ index 17baa2b..5bd3f91 100644
 +    };
 +}
 diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
-index dc67f3c..2f8425a 100644
+index 4ade4d5..7916e31 100644
 --- a/steam-cartridges/tests/architecture-allowlist.json
 +++ b/steam-cartridges/tests/architecture-allowlist.json
-@@ -37,7 +37,6 @@
+@@ -36,6 +36,5 @@
    "settings -> features/game-info",
    "settings -> features/scraper",
    "settings -> rpc",
 -  "steam -> features/game-info",
-   "steam -> rpc",
    "steam -> settings"
  ]

@@ -4,7 +4,7 @@
   },
   "edited": {
     "frontend/index.tsx": "9cf37c5d2c74ad78",
-    "tests/architecture-allowlist.json": "81323424a11e5001"
+    "tests/architecture-allowlist.json": "fd274f4a5fe493e2"
   },
   "new": [
     "frontend/surfaces/library-home/grid.ts",

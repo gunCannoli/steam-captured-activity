@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.1–M3.10 are Ready** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.0–M3.10 are Ready** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -51,6 +51,7 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M0c | Architecture test (import ratchet, RPC registration) + `check_all_tabs.js` flake fix | **Done** | `docs/steam-cartridges/README.md` |
 | M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Done** | `docs/steam-cartridges/kernel.md` |
 | M2 | Sensors (view, lifecycle, collections; owned apps moves to M4) | **Ready** | `docs/steam-cartridges/sensors.md` |
+| M3.0 | Purge dead frontend code (D13) | **Ready** | — (the CHANGELOG line lists what went) |
 | M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Ready** | `docs/steam-cartridges/surfaces.md` (created) |
 | M3.2 | Surface `captures` | **Ready** | `surfaces.md` § captures |
 | M3.3 | Surface `game-info` | **Ready** | `surfaces.md` § game-info |
@@ -58,9 +59,10 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M3.5 | Surface `achievements` | **Ready** | `surfaces.md` § achievements |
 | M3.6 | Surface `toasts` | **Ready** | `surfaces.md` § toasts |
 | M3.7 | Surface `native-links` | **Ready** | `surfaces.md` § native-links |
-| M3.8 | Purge markers (D13) | **Ready** | § 7.9 ledger |
+| M3.8 | Purge markers on the two temporary ports (D13) | **Ready** | § 7.9 ledger |
 | M3.9 | Surface `artwork` | **Ready** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Ready** | `surfaces.md` § library-home |
+| M4.0 | Purge dead backend code (D13) | Spec | `rpc.md` (the removed names) |
 | M4 | Resolver service + RPC facade | Spec | `service-resolver.md`, `rpc.md` |
 | M5 | Metadata service | Spec | `service-metadata.md` |
 | M6 | Achievements service | Spec | `service-achievements.md` |
@@ -70,7 +72,7 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 
 Order is fixed: never start a row while an earlier row is not `Done`. M0b-2 is not a
 step of its own any more: each M3.x applies its wrapper to the hooks it moves (§ 7.0 D6).
-M3.1–M3.10 are cumulative: each package's hashes are the previous step's result, so they
+M3.0–M3.10 are cumulative: each package's hashes are the previous step's result, so they
 run strictly in order (a `STALE` line on `check` means an earlier step is missing).
 
 ### 0.3 Environment and commands (this machine)
@@ -90,7 +92,7 @@ Commands, run from `C:\game\millennium\steam-cartridges` unless stated otherwise
 | Command | Expected output (exact) |
 | --- | --- |
 | `npm run check` | the two npm banner lines `> steam-cartridges@0.1.0 check` and `> tsc --noEmit`, then nothing; exit code 0 |
-| `npm run test:ts` | ends with `ℹ tests 64` / `ℹ pass 64` / `ℹ fail 0` (71 after M0b-1, 73 after M0c, 81 after M1, 87 after M2 and M3.1–M3.3, 88 from M3.4 on) |
+| `npm run test:ts` | ends with `ℹ tests 64` / `ℹ pass 64` / `ℹ fail 0` (71 after M0b-1, 73 after M0c, 81 after M1, 87 after M2, 86 after M3.0–M3.3, 87 from M3.4 on) |
 | `npm run build` | contains `build Succeeded`; ignore the `@steambrew/ttc` update nag |
 | `git status --short` (repo root) | empty before you start |
 
@@ -500,7 +502,7 @@ Each service is a set of flat Lua files: the backend keeps its flat `require` la
 | Resolver | `resolve_*.lua` | identity: native match first, then web ids; negative-result TTL separate from positive | `src_steam_search`, `src_igdb_search`, `src_ra_hash`; frontend supplies owned-app candidates and collection membership as **context** |
 | Metadata | `metadata_*.lua` | normalized `GameMetadata`, local DB (`library_metadata.json`, `custom_override` preserved) | `src_steam_appdetails`, `src_igdb`, `src_screenscraper` |
 | Achievements | `ach_*.lua` | schema + unlocks store, observer channels, normalization | `src_steam_schema`, `src_retroachievements`, `src_ps3/ps4_trophies`, `src_engine_logs`, `src_emulators` |
-| Media | `media_*.lua` | trailers, manuals, links | `src_screenscraper_media`, `src_igdb_community` |
+| Media (future feature, not a migration step) | `media_*.lua` | trailers, manuals, links | new sources; the old `screenscraper_media.lua` / `igdb_community.lua` had no live caller and are purged in M4.0 (restore from git if wanted) |
 | Freshness | `fresh_*.lua` | per-part `checkedAt`/TTL, per-source throttle, circuit breaker | — |
 
 **Source contract** (the same shape as the planned provider contract, so a source can
@@ -640,7 +642,7 @@ the baseline changes only through an accepted ADR).
 | `npm run test:ts` | `ℹ tests 64` · `ℹ pass 64` · `ℹ fail 0` |
 | Lua tests (run 2026-09-28 with `C:\dev\tools\lua`) | `test_steam_store.lua` ALL PASS · `test_emulator_controllers.lua` ALL PASS · `test_backend.lua` 76 PASS, **2 FAIL** (§ 12 K7, K8) |
 | Cross-area imports in `frontend/` | 51 (list: `scratch/arch-m0/m0c/architecture.test.ts` regenerates it) |
-| Expected test counts after each Ready step (dry-run, cumulative) | M0a 64 · M0b-1 71 · M0c 73 · M1 81 · M2 87 · M3.1–M3.3 87 · M3.4–M3.10 88 (allowlist after M2 41, M3.1 40, M3.2–M3.8 37, M3.9 35, M3.10 34) |
+| Expected test counts after each Ready step (dry-run, cumulative) | M0a 64 · M0b-1 71 · M0c 73 · M1 81 · M2 87 · M3.0–M3.3 86 · M3.4–M3.10 87 (allowlist after M2 41, M3.0 39, M3.1 38, M3.2–M3.8 35, M3.9 33, M3.10 31) |
 | Live (M0a+M0b-1 applied, then reverted) | `PASS render loop` · Properties OK ×3 · nav cycle 6/6 · `check_all_tabs.js` 11/11 (4 runs with the M0c fix) |
 
 ---
@@ -1622,7 +1624,7 @@ below. A step that needs to break one needs an ADR first.
 | D9 | **Every step lists its deliberate behaviour deltas.** Any other difference the verifier finds is a bug in the step. | § 5 behaviour freeze. |
 | D10 | **Packaging of a `Ready` step:** `scratch/arch-m0/<step>/files/` holds every changed file as dry-run; `<step>_apply.py` (a copy of `m2/m2_apply.py` with new hashes and file lists) checks and applies; `<step>.diff` is the review copy. The plan section says what changed and why, and the script plus the diff are the literal blocks. | For the executing agent, a whole-file copy guarded by a hash of the "before" file is more reliable than 30 find-and-replace blocks, and it still detects a stale plan (`STALE`). |
 | D12 | **Payload shapes a surface needs live in the kernel.** `GameMetadata`, `GameCategories`, the achievement schema/unlock records and the artwork URL/asset shapes move from `rpc.ts` to `kernel/record.ts` in the M3 step that first needs them. `rpc.ts` keeps the old names as type aliases until M9. | Surfaces may not import `rpc` (§ 4.1), and a type-only import still counts as an edge. These are the record's own shapes, which the kernel reserved ("filled in by the service steps"). |
-| D13 | **Purge marker and ledger.** Legacy that must go when the migration is complete is not deleted early. It is marked on its first line (or above the symbol) with `// PURGE(<step>): <why>. Ledger: migration plan § 7.9.` and listed in § 7.9 with the step that deletes it. M9 ends with `git grep -n "PURGE(" -- frontend` printing nothing. | User decision 4 (2026-09-28): "usually we delete legacy as the migration is completed". |
+| D13 | **Dead code is purged before it would move; temporary code is marked.** Code nothing uses is deleted in a purge step that runs before the layer's moves (M3.0 for the frontend, M4.0 for the backend), never migrated. Temporary live code (D3 ports and setters) is marked on its first line (or above the symbol) with `// PURGE(<step>): <why>. Ledger: migration plan § 7.9.` and listed in § 7.9 with the step that deletes it. M9 ends with `git grep -n "PURGE(" -- frontend` printing nothing. | User decision 4 (2026-09-28): "we delete legacy as the migration is completed" and "no need to migrate dead code". |
 | D14 | **Migration steps are pure moves.** A behaviour bug found while moving code (K3, K4, K6, K13) goes to § 12 with its own bugfix plan after M3, and is never fixed inside a move step. | User, 2026-09-28: each layer has a very specific input/job/output; mixing a fix into a move hides which one caused a regression. |
 | D11 | **Test files move with their module.** When a step moves a tested file, it updates only the test's import path, and the test body stays byte-identical. This is the one test edit a step may make without saying more. | § 0.1 forbids changing tests to make them pass. A path is not behaviour. |
 
@@ -1790,18 +1792,18 @@ read only by `sensors/collections`; `renderers/library-home.tsx` patches `OnAppO
 which is a write owned by M3.10) · 15 (no check edited) · 17 (sensors emit on a timer, never
 inside a Steam render: D5).
 
-### M3.1–M3.10 — Surfaces (Ready, one step each, in this order)
+### M3.0–M3.10 — Dead-code purge, then surfaces (Ready, one step each, in this order)
 
-**Why:** § 1.2 (no single owner of Steam mutations) and § 4.4. After M3, every Steam write
-lives under `frontend/surfaces/`, one folder per surface, each with declared `touches`, a
-kill switch and fail-open hooks. The one exception is the unreachable `steam/community-store.ts`,
-marked `PURGE(M9)`.
-**Validated (all ten, 2026-09-28):** dry-run cumulatively on top of M2 (tree `6a046a8` + M2).
-Then the packages were **replayed** on a clean worktree in order (M2, then M3.1 … M3.10):
+**Why:** § 1.2 (no single owner of Steam mutations) and § 4.4. M3.0 first deletes the frontend
+code nothing uses, so no step moves dead code (user, 2026-09-28: "no need to migrate dead code").
+After M3, every Steam write lives under `frontend/surfaces/`, one folder per surface, each with
+declared `touches`, a kill switch and fail-open hooks, and `frontend/renderers/` no longer exists.
+**Validated (all eleven, 2026-09-28):** dry-run cumulatively on top of M2 (tree `5b6b2c8` + M2).
+Then the packages were **replayed** on a clean worktree in order (M2, then M3.0 … M3.10):
 every `check` all `ok`, `tsc` with 0 errors, tests green after every step, `build Succeeded`,
 and the replayed tree byte-identical to the dry-run tree. Not live-validated: the verifier runs
 the live checks after each step.
-**Boundary:** pure moves (user, 2026-09-28: "each layer has a very specific input/job/output").
+**Boundary:** M3.0 only deletes; M3.1–M3.10 are pure moves (user, 2026-09-28: "each layer has a very specific input/job/output").
 Code moves into its surface. Callers reach it through D3 setters wired in `index.tsx`. Hooks get the
 D6 fail-open wrapper. Known behaviour bugs stay as they are: K3, K4, K6 and K13 go to their own
 bugfix plans (§ 12).
@@ -1811,7 +1813,7 @@ bugfix plans (§ 12).
 **Tool:** `scratch/arch-m0/apply_step.py` (generic; one `scratch/arch-m0/<step>/manifest.json` per
 step, with the new content in `<step>/files/` and the review diff in `<step>/<step>.diff`).
 
-**Actions** (from `C:\game\millennium\steam-cartridges`; `<step>` is `m3.1` … `m3.10`):
+**Actions** (from `C:\game\millennium\steam-cartridges`; `<step>` is `m3.0` … `m3.10`):
 
 1. `python ../scratch/arch-m0/apply_step.py <step> check` → exactly the step's **Check lines** below,
    in that order (`EDIT` sorted, then `DELETE`, then `NEW`), each ending in `: ok`, exit code 0.
@@ -1857,21 +1859,63 @@ without a restart. The live checks still restart.
 
 | Step | Surface | Check lines (E/D/N) | Tests `<T>` | Allowlist `<A>` | Commit message |
 | --- | --- | --- | --- | --- | --- |
-| M3.1 | `sections` | 6 / 1 / 1 | 87 | 40 | `refactor(steam-cartridges): sections surface (M3.1)` |
-| M3.2 | `captures` | 4 / 5 / 8 | 87 | 37 | `refactor(steam-cartridges): captures surface (M3.2)` |
-| M3.3 | `game-info` | 10 / 3 / 5 | 87 | 37 | `refactor(steam-cartridges): game-info surface (M3.3)` |
-| M3.4 | `playbar` | 5 / 0 / 2 | 88 | 37 | `refactor(steam-cartridges): playbar surface (M3.4)` |
-| M3.5 | `achievements` | 7 / 3 / 5 | 88 | 37 | `refactor(steam-cartridges): achievements surface (M3.5)` |
-| M3.6 | `toasts` | 5 / 1 / 5 | 88 | 37 | `refactor(steam-cartridges): toasts surface (M3.6)` |
-| M3.7 | `native-links` | 4 / 2 / 2 | 88 | 37 | `refactor(steam-cartridges): native-links surface (M3.7)` |
-| M3.8 | — (purge markers) | 4 / 0 / 0 | 88 | 37 | `chore(steam-cartridges): mark legacy files for purge (M3.8)` |
-| M3.9 | `artwork` | 6 / 2 / 4 | 88 | 35 | `refactor(steam-cartridges): artwork surface (M3.9)` |
-| M3.10 | `library-home` | 2 / 1 / 2 | 88 | 34 | `refactor(steam-cartridges): library-home surface (M3.10)` |
+| M3.0 | — (dead-code purge) | 10 / 4 / 0 | 86 | 39 | `chore(steam-cartridges): purge dead frontend code (M3.0)` |
+| M3.1 | `sections` | 6 / 1 / 1 | 86 | 38 | `refactor(steam-cartridges): sections surface (M3.1)` |
+| M3.2 | `captures` | 4 / 5 / 8 | 86 | 35 | `refactor(steam-cartridges): captures surface (M3.2)` |
+| M3.3 | `game-info` | 10 / 3 / 5 | 86 | 35 | `refactor(steam-cartridges): game-info surface (M3.3)` |
+| M3.4 | `playbar` | 5 / 0 / 2 | 87 | 35 | `refactor(steam-cartridges): playbar surface (M3.4)` |
+| M3.5 | `achievements` | 7 / 3 / 5 | 87 | 35 | `refactor(steam-cartridges): achievements surface (M3.5)` |
+| M3.6 | `toasts` | 5 / 1 / 5 | 87 | 35 | `refactor(steam-cartridges): toasts surface (M3.6)` |
+| M3.7 | `native-links` | 4 / 2 / 2 | 87 | 35 | `refactor(steam-cartridges): native-links surface (M3.7)` |
+| M3.8 | — (purge markers on the two ports) | 2 / 0 / 0 | 87 | 35 | `chore(steam-cartridges): mark temporary ports for purge (M3.8)` |
+| M3.9 | `artwork` | 6 / 2 / 4 | 87 | 33 | `refactor(steam-cartridges): artwork surface (M3.9)` |
+| M3.10 | `library-home` | 2 / 1 / 2 | 87 | 31 | `refactor(steam-cartridges): library-home surface (M3.10)` |
 
 `index.tsx` after M3: one `SurfaceRunner` and one `surfaceDeps` (`isEnabled` / `reportError` from
 `safety/switches`). All D3 setters are wired at the top of `init()`, and each surface is registered
 and installed (`runner.register(...)`, `runner.installAll()`) where its old start-up call was, so
 the start-up order is unchanged.
+
+#### M3.0 — Purge dead frontend code (Ready)
+
+**Why:** user decision 4 (§ 11): dead code is deleted, never migrated. Found with a TypeScript
+language-service sweep (reachability from `frontend/index.tsx` plus `findReferences` on every
+export) and verified by hand. After M3.0 the sweep reports nothing dead except `unpatchSections`,
+which M3.1 gives a job as the sections surface's `uninstall`.
+**Check lines:**
+```
+EDIT frontend/features/achievements/types.ts: ok
+EDIT frontend/features/artwork/artwork.ts: ok
+EDIT frontend/features/game-info/game-info-patch.ts: ok
+EDIT frontend/features/game-info/metadata.ts: ok
+EDIT frontend/features/steam-store/index.ts: ok
+EDIT frontend/renderers/library-app.tsx: ok
+EDIT frontend/rpc.ts: ok
+EDIT frontend/steam/gameid.ts: ok
+EDIT frontend/steam/modules.ts: ok
+EDIT tests/architecture-allowlist.json: ok
+DELETE frontend/renderers/community-tab.tsx: ok
+DELETE frontend/steam/community-core.ts: ok
+DELETE frontend/steam/community-store.ts: ok
+DELETE tests/community.test.ts: ok
+```
+**What it deletes** (deletions only; the diff adds a single line, a trimmed import):
+
+| Deleted | Why it is dead |
+| --- | --- |
+| `renderers/community-tab.tsx`, `steam/community-store.ts`, `steam/community-core.ts`, `tests/community.test.ts` (its 1 test) | nothing imports `community-tab.tsx`; the other two only serve it (K9) |
+| `applyCustomArtwork` (artwork.ts) | never called; left over from `steamgriddb-artwork`'s bundle flow |
+| `NotificationStoreInstance` (achievements/types.ts), `STEAM_CATEGORIES` (game-info/metadata.ts), `getCachedCategoriesForApp` (game-info-patch.ts), `unpatchAll` (library-app.tsx), `appIdFromGameId` (steam/gameid.ts, replaced by the kernel's `fromGameId`), `resolveClassMap` (steam/modules.ts, the Big Picture clone fallback's helper) | exported, never referenced |
+| `acceptSteamStoreSuggestion`, `rejectSteamStoreSuggestion` (steam-store/index.ts) | exported, never referenced (the settings panel uses `setSteamStoreMapping` directly) |
+| `rpc.ts` wrappers `getDiagnostics`, `saveGameMetadata`, `getArtworkForGame`, `steamStoreRejectSuggestion`, `getGameMedia`, `getGameManual`, `getGameTrailers`, `getGameCommunityLinks`, and the types only they used: `Diagnostics`, `ImageAsset`, `ArtworkBundle`, `GameArtworkResponse`, `GameMediaResponse`, `GameManualResponse`, `GameTrailerItem`, `GameTrailersResponse`, `GameCommunityLinkItem`, `GameArtworkCommunityItem`, `GameCommunityLinksResponse` | no frontend caller (the four community ones only had the dead `community-store.ts`) |
+
+The backend methods behind those wrappers stay registered in `main.lua` (a registered but uncalled
+method is harmless; an unregistered called one crashes the host). Their removal is M4.0.
+- Allowlist −2: `renderers -> settings`, `steam -> rpc`. Tests 87 → 86 (the deleted `community.test.ts`
+  tested only deleted code; this is the one test deletion the migration makes, and it says so here).
+**Deltas:** none (nothing deleted was reachable). **Extra docs:** none beyond the common list; in the
+`CHANGELOG.md` line, name the four files and "dead exports and RPC wrappers (plan M3.0 table)".
+**Live:** § 0.5 only (no switch-off check: no surface yet).
 
 #### M3.1 — `sections` (Ready)
 
@@ -2116,21 +2160,18 @@ observer does nothing. `touches`: `appStore.GetAppOverviewByAppID`, `Navigator.A
 **Extra live:** `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL`; switch-off `native-links` →
 Jotunnslayer's Links, Friends and Community sections are stock.
 
-#### M3.8 — Purge markers (Ready)
+#### M3.8 — Purge markers on the temporary ports (Ready)
 
 **Check lines:**
 ```
 EDIT frontend/features/achievements/store-port.ts: ok
 EDIT frontend/features/achievements/toast-port.ts: ok
-EDIT frontend/renderers/community-tab.tsx: ok
-EDIT frontend/steam/community-store.ts: ok
 ```
-**What changes:** comments only. It introduces the purge marker (D13): `// PURGE(<step>): <why>. Ledger:
-migration plan § 7.9.` It marks the two unreachable community files `PURGE(M9)` (K9; user decision 4)
-and the two M3 ports `PURGE(M6)`. `git grep -n "PURGE(" -- frontend` then lists exactly the four
-files, plus `applyCustomArtwork` after M3.9.
-**Extra docs:** fill in § 7.9 (it is already written; tick the M3.8 rows). **Live:** none (comments
-only); say so in the report.
+**What changes:** comments only. It introduces the purge marker (D13) for **temporary live** code:
+`// PURGE(<step>): <why>. Ledger: migration plan § 7.9.` The two M3 ports are marked `PURGE(M6)`.
+`git grep -n "PURGE(" -- frontend` then lists exactly those two files. (Dead code is not marked: M3.0
+deleted it.)
+**Extra docs:** tick the M3.8 rows of § 7.9. **Live:** none (comments only); say so in the report.
 
 #### M3.9 — `artwork` (Ready)
 
@@ -2154,8 +2195,8 @@ NEW frontend/surfaces/artwork/logo.ts: ok
   `ClearCustomArtworkForApp` calls in `steam-store/index.ts` become `artwork.clearSlot()` through
   `setArtworkSink` (D3), which calls on the object, never an extracted method.
   `rpc.steamStoreDownloadImage` becomes the `downloadImage` dep. `art-plan.ts` stays (pipeline policy, M4).
-- **D12:** `ArtworkUrls`, `ImageAsset` and `ArtworkBundle` move to the kernel; `rpc.ts` keeps the names.
-- `applyCustomArtwork` (the bundle variant) is unreachable and gets a `PURGE(M9)` marker above it.
+- **D12:** `ArtworkUrls` moves to the kernel; `rpc.ts` keeps the name. (`ImageAsset` and `ArtworkBundle`
+  were deleted with the dead `applyCustomArtwork` in M3.0.)
 - New FeatureId `artwork`: while it is off, no slot is written or cleared and the logo position is not touched.
 - Allowlist −2: `features/artwork -> rpc`, `features/steam-store -> features/artwork`.
 **User-visible:** a new kill switch, `artwork`. **Extra docs:** `safety.md`, `kernel.md` History.
@@ -2176,10 +2217,33 @@ NEW frontend/surfaces/library-home/index.ts: ok
 `collectionStore.OnAppOverviewChange`, `AppOverview.rt_recent_activity_time`,
 `AppOverview.rt_last_time_played_or_installed`. The afterPatch is fail-open (returns Steam's value).
 `rpc.getLibraryStats` becomes the `loadLibraryStats` dep. Registration stays async: `install()` starts
-it, and `index.tsx` awaits `ready()`, so the start-up order is unchanged. Allowlist −1: `renderers -> rpc`.
+it, and `index.tsx` awaits `ready()`, so the start-up order is unchanged. Allowlist −2: `renderers -> rpc`,
+`renderers -> steam`; `frontend/renderers/` is now empty and `apply_step.py` removes the folder.
 **Extra live:** the library grid sorts AM2R by its newest capture ("last played"); switch-off
 `library-home` → Steam's own values.
 **After M3.10:** the feature freeze (§ 5) ends. Write that in `TASK.md`.
+
+### M4.0 — Purge dead backend code (Spec; run before M4)
+
+**Why:** D13: the backend moves in M4–M7, and dead Lua must not move with it. After M3.0 the
+frontend calls none of these RPCs (the M0c registration test lists what it does call).
+**Candidates** (found 2026-09-28; the architect re-verifies each with the method below):
+
+| Candidate | Evidence it is dead | Verify before deleting |
+| --- | --- | --- |
+| `SaveGameMetadata` (`web_rpc.lua`, registered in `main.lua`) | no frontend wrapper after M3.0 | `git grep -n SaveGameMetadata` finds only `main.lua` and `web_rpc.lua` |
+| `GetArtworkForGame` (`web_rpc.lua`) + `web_sgdb.lua` + the SteamGridDB key handling in `web_config.lua` (`sgdb_key.txt`, `steamgriddb_api`) + the `has_sgdb` status field | `web_sgdb` is required only by `web_rpc.lua` for this RPC | `migrate.lua` still reads the legacy `sgdb_key.txt` (keep or drop with the key); `tests/test_backend.lua` line ~183 loads `web_sgdb` (update it); the routing rule option `steamgriddb` in `features/buckets/resolve.ts` becomes a no-op (**ask the user**: settings keys and defaults are do-not-touch 1, so the option can only be documented as inert, not removed, without an ADR) |
+| `GetGameMedia`, `GetGameManual` → `screenscraper_media.lua`; `GetGameTrailers`, `GetGameCommunityLinks` → `igdb_community.lua` | both modules are required only by `main.lua` for these four RPCs; their only frontend caller was the dead `community-store.ts` | the ScreenScraper credentials in settings and the `screenscraper` routing option; if no other module uses the credentials, same user question as `steamgriddb`. M5 must not plan a source "from `screenscraper_media.lua`": it never fed metadata (see M5) |
+| `SteamStoreRejectSuggestion` (`steam_store_rpc.lua`) | no frontend wrapper after M3.0 | `tests/test_steam_store.lua` lines ~326/347 register and call it (delete those lines with it); the reject list itself (`rejected` in `steam_store.json`) stays: `SteamStoreClearMapping(appid, reject=true)` still writes it |
+| `GetDiagnostics` (`rpc.lua`) | no frontend wrapper after M3.0 | **keep**: documented debug RPC (`millennium-architecture.md`) and M7's exit reads `http_calls` from it |
+
+**Method:** list every global assigned in `main.lua`; for each, `git grep` the name across
+`steam-cartridges/`, `scratch/` and `docs/`; a name with no caller outside `main.lua` and its own
+module is a candidate. For each candidate module, `git grep -n 'require("<module>")'` must show
+only the dead RPC's file. Then run both Lua suites (`NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua`,
+`lua tests/test_steam_store.lua`) before and after: only the deleted RPCs' own test lines may disappear.
+**Exit:** the RPC registration test (M0c) still passes; the Lua suites pass with the known K7/K8
+exceptions; § 0.5 PASS. Packaged per D10 like M3.
 
 ### M4 — Resolver service + RPC facade (Spec)
 
@@ -2231,8 +2295,7 @@ if the dry-run diff exceeds ~600 lines. Add the rows to § 0.2 when you split.
 ### M5 — Metadata service (Spec)
 
 **Design:** `backend/metadata_service.lua` with the source list `src_steam_appdetails` (from
-`steam_store_appdetails.lua` + `steam_store_normalize.lua`), `src_igdb` (`web_igdb.lua`) and
-`src_screenscraper` (the metadata half of `screenscraper_media.lua`), each `{ id, supports(ctx), fetch(ctx) → { status, data, ttl } }`.
+`steam_store_appdetails.lua` + `steam_store_normalize.lua`) and `src_igdb` (`web_igdb.lua`), each `{ id, supports(ctx), fetch(ctx) → { status, data, ttl } }`.
 Selection order follows the resolved route (steam-store → appdetails; web-scraping → IGDB → ScreenScraper;
 none → local only, ADR-0035). Storage stays `library_metadata.json`, and `custom_override` always wins.
 `EnsureFresh(appid, ["metadata"])` fills `record.metadata`. Frontend: `game-info` becomes record-driven
@@ -2319,18 +2382,17 @@ the "all tabs render" script it names); § 0.5 PASS; allowlist loses every `sett
 
 ### 7.9 Purge ledger (D13)
 
-Legacy the migration leaves behind on purpose, and the step that deletes it. Each file row
-carries a `PURGE(<step>)` marker in the code from the step in "Marked". Setters are D3 wiring:
+Temporary code the migration leaves behind on purpose, and the step that deletes it. **Dead code
+is not in this ledger: it is deleted before it would be moved** (M3.0 frontend, M4.0 backend).
+Each file row carries a `PURGE(<step>)` marker in the code from the step in "Marked". Setters are D3 wiring:
 the listed step replaces them with a read of the record or a backend call, and deletes them
 from both the feature and `index.tsx`. M9's exit includes `git grep -n "PURGE(" -- frontend`
 printing nothing, and every row below being deleted.
 
 | Item | Marked | Delete in | Why |
 | --- | --- | --- | --- |
-| `frontend/renderers/community-tab.tsx` | M3.8 `PURGE(M9)` | M9 | unreachable: nothing imports it (K9) |
-| `frontend/steam/community-store.ts` | M3.8 `PURGE(M9)` | M9 | only `community-tab.tsx` imports it (K9) |
-| `frontend/steam/community-core.ts` + `tests/community.test.ts` | — | M9 decides | pure and tested; keep only if media becomes a record part by then |
-| `applyCustomArtwork` in `surfaces/artwork/artwork.ts`, plus `ArtworkBundle` and `ImageAsset` | M3.9 `PURGE(M9)` | M9 | unreachable: nothing calls it |
+| dead frontend code (community tab/store/core, `applyCustomArtwork`, 8 unused exports, 8 RPC wrappers) | — | **M3.0 (done before any move)** | see the M3.0 table |
+| dead backend code (the RPCs behind the M3.0 wrappers and the modules only they use) | — | **M4.0 (before the backend moves)** | see M4.0 |
 | `frontend/features/achievements/store-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; M6 moves the achievements pipeline to the backend |
 | `frontend/features/achievements/toast-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; toasts become `achievements.unlocked` subscribers |
 | setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks` (`setNativeActivitySource` part), `setArtworkSink` | — | M4 | `identity.native` and the art plan come from the record |
@@ -2339,7 +2401,7 @@ printing nothing, and every row below being deleted.
 | setter `setContentListener` | — | M9 decides | the content flag stays captures → sections; keep the setter or move it to an event |
 | setter `setCollectionsSource` | — | M4 | membership becomes resolver context |
 | `rpc.ts` type aliases (`ConsolidatedMetadata`, `GameCategories`, achievement and artwork shapes) | — | M9 | importers use the kernel names (D12) |
-| RPC names with no caller (backend aliases) | — | M9 | the registration test proves which are unused |
+| old RPC names kept as aliases for the M4–M7 facade | — | M9 | the registration test proves which are unused |
 | `steam/route.ts` `isNonSteamAppId` | — | M9 | `kernel/appid.ts` everywhere |
 | `scratch/arch-m0/<step>/` packages, `apply_step.py`, `pack_step.py` | — | M9 | execution aids, not product code; the live scripts move to `steam-cartridges/tests/live/` |
 
@@ -2425,9 +2487,10 @@ AGENTS.md Routine 6.
 2. **New shortcuts are fetched in the background** at startup, rate-limited. All
    other refreshes happen only when the page is opened (Flow B).
 3. **Feature freeze** on `steam-cartridges` until M3 is complete.
-4. **Legacy is deleted when the migration completes, not before** (2026-09-28, answering K9):
-   unreachable or temporary code is marked `PURGE(<step>)` and listed in the § 7.9 ledger (D13);
-   M3.8 marks the community files, M9 deletes them.
+4. **Dead code is purged, not migrated; temporary code is deleted when the migration completes**
+   (2026-09-28, answering K9 and `applyCustomArtwork`): code nothing uses is deleted before its
+   layer moves (M3.0 frontend, M4.0 backend); temporary D3 ports and setters are marked
+   `PURGE(<step>)` and listed in the § 7.9 ledger (D13).
 5. **Migration steps are pure moves** (2026-09-28, answering K4): "the point of the migration is a
    hexagonal architecture where each layer has a very specific input/job/output". Behaviour bugs
    found on the way get their own bugfix plans (D14).
@@ -2449,7 +2512,7 @@ Executing agents add to this list instead of fixing things outside their step.
 | K5 | **Resolved 2026-09-28:** LuaJIT 2.1 installed at `C:\dev\tools\lua` and added to the user `PATH`. Was: no Lua interpreter on this machine: `tools/lua/` is missing and `lua`/`luajit` are not on `PATH`, so `tests/test_backend.lua` and `tests/test_steam_store.lua` cannot run. AGENTS.md Routine 4 assumes `tools/lua/` | `which lua luajit` → nothing | **User**: provide a LuaJIT/Lua 5.1 binary in `tools/lua/`. Blocks M4–M7 |
 | K7 | `achievements_observer.get_possible_folder_names` (commit `22bac99`, never run: there was no Lua until K5 was fixed) turns `"WUCHANG: Fallen Feathers"` into `"WUCHANG -  Fallen Feathers"` (two spaces), and its `[:\xe2\x80\x93\xe2\x80\x94]` byte class replaces **each byte** of an en/em dash, so `"A – B"` becomes `"A  -  -  -  B"` | `test_backend.lua`: `FAIL keeps colon-to-dash normalized title`; `lua -e` repro | M6 (or a bugfix plan before it) |
 | K8 | `test_backend.lua` fixture `FIXTURE.retroarch = 216`; the live library now has 215 RetroArch shortcuts (library-dependent fixture, AGENTS.md Routine 4) | `FAIL retroarch shortcut count -> 215` | Update the fixture to the live count in the next backend step, after confirming the user removed one on purpose |
-| K9 | `renderers/community-tab.tsx` is imported by nothing, so `steam/community-store.ts` (the second writer of `CWorkshopStore.m_mapPublishedFiles`, D7) never runs; the trailers/manual/links RPCs have no frontend caller | `git grep -n "community-tab\|community-store" -- frontend` (2026-09-28) | Marked M3.8, deleted M9 (§ 7.9) |
+| K9 | `renderers/community-tab.tsx` is imported by nothing, so `steam/community-store.ts` (the second writer of `CWorkshopStore.m_mapPublishedFiles`, D7) never runs; the trailers/manual/links RPCs have no frontend caller | `git grep -n "community-tab\|community-store" -- frontend` (2026-09-28) | M3.0 (deleted before any move) |
 | K10 | Desktop A → B between two shortcuts never unpublished A (Big Picture did) | `index.tsx` desktop `onLocationChange` block, read 2026-09-28 | M2 (behaviour delta 1) |
 | K11 | An achievement observer whose mapping resolved after the game quit was never stopped (`onQuit` registered too late) | `steambrew-utils` `onAppLaunch` source: quit callbacks run once, at quit | M2 (behaviour delta 5) |
 | K12 | `source-view.ts`'s Big Picture detector ran the view pipeline synchronously from inside a jsx call (inside Steam's render), on every re-render | `watchGamepadAppid` observes `jsx()` calls; source read 2026-09-28 | M2 (D5: timer emit, re-render dedupe) |

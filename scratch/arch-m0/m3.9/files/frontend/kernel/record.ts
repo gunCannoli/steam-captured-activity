@@ -94,20 +94,6 @@ export interface ArtworkUrls {
     wide?: string;
 }
 
-/** One downloaded image (moved from rpc.ts in M3.9). */
-export interface ImageAsset {
-    base64: string;
-    ext: string;
-}
-
-/** Downloaded images per slot (moved from rpc.ts in M3.9). */
-export interface ArtworkBundle {
-    portrait?: ImageAsset;
-    hero?: ImageAsset;
-    logo?: ImageAsset;
-    wide?: ImageAsset;
-}
-
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;

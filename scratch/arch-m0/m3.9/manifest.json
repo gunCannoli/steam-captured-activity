@@ -1,15 +1,15 @@
 {
   "deleted": {
-    "frontend/features/artwork/artwork.ts": "b4d68e1243ad494c",
+    "frontend/features/artwork/artwork.ts": "7f1a3c0f07251d66",
     "frontend/features/steam-store/logo.ts": "947053fca0eea1ed"
   },
   "edited": {
-    "frontend/features/steam-store/index.ts": "c791dd5f588ac755",
+    "frontend/features/steam-store/index.ts": "ab1007e210ccbffe",
     "frontend/index.tsx": "42196545b6bb0289",
     "frontend/kernel/record.ts": "89d96bf37c91e172",
-    "frontend/rpc.ts": "7f78c5a6747cba5d",
+    "frontend/rpc.ts": "ea183b50d8a643e0",
     "frontend/safety/features.ts": "4dcc656b38628ed4",
-    "tests/architecture-allowlist.json": "fcbf9b4c513971a7"
+    "tests/architecture-allowlist.json": "f1e4dcd595521686"
   },
   "new": [
     "frontend/surfaces/artwork/artwork.ts",

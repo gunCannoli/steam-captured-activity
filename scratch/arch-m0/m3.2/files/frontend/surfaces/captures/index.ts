@@ -10,7 +10,7 @@ import { deps, type ActivityOptions } from "./deps";
 import { installHeadlinePatch } from "./headline";
 import { unpatch } from "./publish";
 
-export { patch, refresh, setContentListener, unpatch, unpatchAll } from "./publish";
+export { patch, refresh, setContentListener, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
 export { registerSummaryProvider } from "./summary";
 export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";

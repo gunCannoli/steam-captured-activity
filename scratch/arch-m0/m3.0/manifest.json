@@ -1,0 +1,21 @@
+{
+  "deleted": {
+    "frontend/renderers/community-tab.tsx": "ef29c7e269c5605f",
+    "frontend/steam/community-core.ts": "a6238e3a24ac423f",
+    "frontend/steam/community-store.ts": "b39194a9f7b71281",
+    "tests/community.test.ts": "423160f7e400bdef"
+  },
+  "edited": {
+    "frontend/features/achievements/types.ts": "6f8c9c991503eb74",
+    "frontend/features/artwork/artwork.ts": "b4d68e1243ad494c",
+    "frontend/features/game-info/game-info-patch.ts": "fd55b9299c42effd",
+    "frontend/features/game-info/metadata.ts": "7ada261a146f3e1f",
+    "frontend/features/steam-store/index.ts": "6ce08999e600b615",
+    "frontend/renderers/library-app.tsx": "c9175bcfe278e601",
+    "frontend/rpc.ts": "410fe27971dcfb51",
+    "frontend/steam/gameid.ts": "ead0dc1dbb344539",
+    "frontend/steam/modules.ts": "94083b1b6e60b5cf",
+    "tests/architecture-allowlist.json": "2ea6fcb03da17169"
+  },
+  "new": []
+}

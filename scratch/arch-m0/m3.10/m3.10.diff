@@ -147,14 +147,15 @@ index 0000000..36a8762
 +    };
 +}
 diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
-index 44a0afb..7dd5bc6 100644
+index 4dbfefd..a94e1cb 100644
 --- a/steam-cartridges/tests/architecture-allowlist.json
 +++ b/steam-cartridges/tests/architecture-allowlist.json
-@@ -24,7 +24,6 @@
+@@ -24,8 +24,6 @@
    "features/steam-store -> features/game-info",
    "features/steam-store -> rpc",
    "features/steam-store -> steam",
 -  "renderers -> rpc",
-   "renderers -> settings",
-   "renderers -> steam",
+-  "renderers -> steam",
    "safety -> settings",
+   "settings -> features/achievements",
+   "settings -> features/buckets",

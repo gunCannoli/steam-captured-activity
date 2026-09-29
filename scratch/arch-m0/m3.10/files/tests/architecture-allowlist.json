@@ -24,13 +24,10 @@
   "features/steam-store -> features/game-info",
   "features/steam-store -> rpc",
   "features/steam-store -> steam",
-  "renderers -> settings",
-  "renderers -> steam",
   "safety -> settings",
   "settings -> features/achievements",
   "settings -> features/buckets",
   "settings -> features/game-info",
   "settings -> features/scraper",
-  "settings -> rpc",
-  "steam -> rpc"
+  "settings -> rpc"
 ]

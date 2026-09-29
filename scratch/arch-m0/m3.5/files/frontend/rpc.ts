@@ -40,16 +40,6 @@ export interface LibraryStat {
   newest: number;
 }
 
-export interface Diagnostics {
-  ok: boolean;
-  error?: string;
-  steam_root?: string;
-  user_id?: string;
-  shortcuts?: number;
-  games_with_media?: number;
-  screenshots?: number;
-}
-
 // ---------------------------------------------------------------------------
 
 // ---- Web metadata + artwork (ex steamgriddb-artwork), unchanged ----
@@ -77,36 +67,11 @@ export interface MetadataResponse {
     message?: string;
 }
 
-export interface ImageAsset {
-    base64: string;
-    ext: string;
-}
-
-export interface ArtworkBundle {
-    portrait?: ImageAsset;
-    hero?: ImageAsset;
-    logo?: ImageAsset;
-    wide?: ImageAsset;
-}
-
 export interface ArtworkUrls {
     portrait?: string;
     hero?: string;
     logo?: string;
     wide?: string;
-}
-
-export interface GameArtworkResponse {
-    success?: boolean;
-    error?: string;
-    message?: string;
-    game?: {
-        id: number;
-        name: string;
-        release_date?: number;
-    };
-    urls?: ArtworkUrls;
-    artwork?: ArtworkBundle;
 }
 
 // ---- Steam Store bucket (P3) ----
@@ -147,8 +112,6 @@ export interface AutoRoutingProfile {
 export const rpc = {
   getLibraryStats: () => call<Record<string, LibraryStat>>('GetLibraryStats'),
 
-  getDiagnostics: () => call<Diagnostics>('GetDiagnostics'),
-
     getStatus: () => call<ProviderStatus>("GetStatus"),
     saveServiceCredentials: (credentials: Record<string, string>) =>
         call<{ success: boolean; error?: string }>("SaveServiceCredentials", credentials),
@@ -167,16 +130,6 @@ export const rpc = {
     /** Auto-routing category profiles inferred from shortcut executable and launch options. */
     getAutoRoutingProfiles: () =>
         call<{ profiles?: Record<string, AutoRoutingProfile> }>("GetAutoRoutingProfiles"),
-    saveGameMetadata: (appid: number, metadata: ConsolidatedMetadata) =>
-        call<{ success: boolean; metadata: ConsolidatedMetadata }>(
-            "SaveGameMetadata",
-            { appid, metadata },
-        ),
-    getArtworkForGame: (title: string, steamAppId?: number) =>
-        call<GameArtworkResponse>("GetArtworkForGame", {
-            title,
-            steam_appid: steamAppId,
-        }),
 
     steamStoreGetState: () => call<StoreState>("SteamStoreGetState"),
     steamStoreGetMapping: (appid: number) =>
@@ -199,8 +152,6 @@ export const rpc = {
         ),
     steamStoreClearMapping: (appid: number, reject: boolean) =>
         call<{ steam_appid?: number; slots: number[]; error?: string }>("SteamStoreClearMapping", { appid, reject }),
-    steamStoreRejectSuggestion: (appid: number, steam_appid: number) =>
-        call<{ ok?: boolean; error?: string }>("SteamStoreRejectSuggestion", { appid, steam_appid }),
     steamStoreGetAppDetails: (steam_appid: number, appid?: number, force?: boolean) =>
         call<{ metadata?: ConsolidatedMetadata; cached?: boolean; error?: string }>("SteamStoreGetAppDetails", {
             steam_appid,
@@ -232,14 +183,6 @@ export const rpc = {
         }),
     cartridgesAchievementsGetRetroStatus: () =>
         call<RetroStatusResponse>("CartridgesAchievementsGetRetroStatus"),
-    getGameMedia: (appid: number) =>
-        call<GameMediaResponse>("GetGameMedia", { appid }),
-    getGameManual: (appid: number) =>
-        call<GameManualResponse>("GetGameManual", { appid }),
-    getGameTrailers: (appid: number, title?: string) =>
-        call<GameTrailersResponse>("GetGameTrailers", { appid, title }),
-    getGameCommunityLinks: (appid: number, title?: string) =>
-        call<GameCommunityLinksResponse>("GetGameCommunityLinks", { appid, title }),
 };
 
 export interface DetectedUnlockItem {
@@ -279,60 +222,6 @@ export interface RetroStatusResponse {
     emulators: EmulatorStatusItem[];
     env_fallback: boolean;
     env_username?: string;
-}
-
-export interface GameMediaResponse {
-    success?: boolean;
-    media?: {
-        appid: number;
-        rom_title?: string;
-        screenshots?: string[];
-        titlescreen?: string;
-        fanart?: string;
-        video?: string;
-        manual?: string;
-    };
-    error?: string;
-}
-
-export interface GameManualResponse {
-    success?: boolean;
-    manual_url?: string;
-    message?: string;
-    error?: string;
-}
-
-export interface GameTrailerItem {
-    video_id: string;
-    name: string;
-    category: number;
-    url: string;
-    thumbnail: string;
-}
-
-export interface GameTrailersResponse {
-    success?: boolean;
-    trailers?: GameTrailerItem[];
-    error?: string;
-}
-
-export interface GameCommunityLinkItem {
-    name: string;
-    category: number;
-    url: string;
-}
-
-export interface GameArtworkCommunityItem {
-    image_id: string;
-    url: string;
-    thumbnail: string;
-}
-
-export interface GameCommunityLinksResponse {
-    success?: boolean;
-    links?: GameCommunityLinkItem[];
-    artworks?: GameArtworkCommunityItem[];
-    error?: string;
 }
 
 

@@ -1,5 +1,5 @@
 diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
-index 21d28e2..0c5b43f 100644
+index 801f70c..9d71bb9 100644
 --- a/steam-cartridges/frontend/features/steam-store/index.ts
 +++ b/steam-cartridges/frontend/features/steam-store/index.ts
 @@ -1,23 +1,42 @@
@@ -126,10 +126,10 @@ index 8006a17..dd5e7be 100644
  
      // ===== Native Achievements Subsystem =====
 diff --git a/steam-cartridges/frontend/kernel/record.ts b/steam-cartridges/frontend/kernel/record.ts
-index 5e89635..20bf4b9 100644
+index 5e89635..c691902 100644
 --- a/steam-cartridges/frontend/kernel/record.ts
 +++ b/steam-cartridges/frontend/kernel/record.ts
-@@ -86,6 +86,28 @@ export interface AchievementUnlockRecord {
+@@ -86,6 +86,14 @@ export interface AchievementUnlockRecord {
      unlocked_time: number;
  }
  
@@ -141,56 +141,24 @@ index 5e89635..20bf4b9 100644
 +    wide?: string;
 +}
 +
-+/** One downloaded image (moved from rpc.ts in M3.9). */
-+export interface ImageAsset {
-+    base64: string;
-+    ext: string;
-+}
-+
-+/** Downloaded images per slot (moved from rpc.ts in M3.9). */
-+export interface ArtworkBundle {
-+    portrait?: ImageAsset;
-+    hero?: ImageAsset;
-+    logo?: ImageAsset;
-+    wide?: ImageAsset;
-+}
-+
  /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
  export type AchievementSet = Record<string, unknown>;
  export type CommunityMedia = Record<string, unknown>;
 diff --git a/steam-cartridges/frontend/rpc.ts b/steam-cartridges/frontend/rpc.ts
-index 7d3fc51..10410f1 100644
+index ff07f79..aa27dfb 100644
 --- a/steam-cartridges/frontend/rpc.ts
 +++ b/steam-cartridges/frontend/rpc.ts
-@@ -2,8 +2,11 @@ import type {
+@@ -2,6 +2,7 @@ import type {
      AchievementSchemaItem,
      AchievementSchemaRecord,
      AchievementUnlockRecord,
-+    ArtworkBundle,
 +    ArtworkUrls,
      GameCategories,
      GameMetadata,
-+    ImageAsset,
  } from "./kernel/record";
- 
- async function call<R>(name: string, payload: object = {}): Promise<R> {
-@@ -77,24 +80,10 @@ export interface MetadataResponse {
+@@ -67,12 +68,8 @@ export interface MetadataResponse {
      message?: string;
  }
- 
--export interface ImageAsset {
--    base64: string;
--    ext: string;
--}
-+// Artwork payload shapes live in the kernel (migration plan § 7.0 D12); the old names stay.
-+export type { ArtworkBundle, ArtworkUrls, ImageAsset };
- 
--export interface ArtworkBundle {
--    portrait?: ImageAsset;
--    hero?: ImageAsset;
--    logo?: ImageAsset;
--    wide?: ImageAsset;
--}
  
 -export interface ArtworkUrls {
 -    portrait?: string;
@@ -198,9 +166,11 @@ index 7d3fc51..10410f1 100644
 -    logo?: string;
 -    wide?: string;
 -}
++// Artwork payload shapes live in the kernel (migration plan § 7.0 D12); the old names stay.
++export type { ArtworkUrls };
  
- export interface GameArtworkResponse {
-     success?: boolean;
+ // ---- Steam Store bucket (P3) ----
+ 
 diff --git a/steam-cartridges/frontend/safety/features.ts b/steam-cartridges/frontend/safety/features.ts
 index 6fc2b9c..e754fe9 100644
 --- a/steam-cartridges/frontend/safety/features.ts
@@ -214,18 +184,18 @@ index 6fc2b9c..e754fe9 100644
  export type FeatureId = (typeof FEATURE_IDS)[number];
  
 diff --git a/steam-cartridges/frontend/features/artwork/artwork.ts b/steam-cartridges/frontend/surfaces/artwork/artwork.ts
-similarity index 92%
+similarity index 93%
 rename from steam-cartridges/frontend/features/artwork/artwork.ts
 rename to steam-cartridges/frontend/surfaces/artwork/artwork.ts
-index 4c60388..b0cae2a 100644
+index c261f85..99e3976 100644
 --- a/steam-cartridges/frontend/features/artwork/artwork.ts
 +++ b/steam-cartridges/frontend/surfaces/artwork/artwork.ts
 @@ -1,5 +1,8 @@
 +// Surface `artwork` (migration plan M3.9): writes custom artwork slots through
 +// SteamClient.Apps. Moved from features/artwork/artwork.ts.
  import { logger } from "../../logger";
--import { rpc, type ArtworkBundle, type ArtworkUrls } from "../../rpc";
-+import type { ArtworkBundle, ArtworkUrls } from "../../kernel/record";
+-import { rpc, type ArtworkUrls } from "../../rpc";
++import type { ArtworkUrls } from "../../kernel/record";
 +import { deps } from "./deps";
  
  /**
@@ -247,14 +217,6 @@ index 4c60388..b0cae2a 100644
      const sc = (window as any).SteamClient;
      if (!sc?.Apps?.SetCustomArtworkForApp) {
          logger.warn(
-@@ -152,6 +156,7 @@ export async function applyCustomArtworkFromUrls(
-     return appliedSlots;
- }
- 
-+// PURGE(M9): unreachable, nothing calls applyCustomArtwork (with ArtworkBundle, ImageAsset). Ledger: migration plan § 7.9.
- export async function applyCustomArtwork(
-     appid: number,
-     bundle: ArtworkBundle,
 diff --git a/steam-cartridges/frontend/surfaces/artwork/deps.ts b/steam-cartridges/frontend/surfaces/artwork/deps.ts
 new file mode 100644
 index 0000000..60522b1
@@ -352,7 +314,7 @@ index 832b3e5..a7f58d4 100644
          const h = handles(appid);
          await h?.store.ClearCustomLogoPosition?.(h.overview);
 diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
-index d20b292..44a0afb 100644
+index 44cac90..4dbfefd 100644
 --- a/steam-cartridges/tests/architecture-allowlist.json
 +++ b/steam-cartridges/tests/architecture-allowlist.json
 @@ -2,7 +2,6 @@
