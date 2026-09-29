@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: achievement unlock toasts now show (K17, 2026-09-29)**: the native Steam toast for a local achievement unlock never appeared on the current Steam build because the plugin could not find Steam's notification format. It does now.
+- **Fixed: opening a non-Steam game page no longer throws two Steam errors (K19, 2026-09-29)**: Steam's achievements lookup failed on every shortcut with an internal error; the plugin now answers it directly. No visible change beyond a quieter console.
+
 - **Internal: achievements now load and update through the game's record (M6b, 2026-09-29)**: achievement lists, the in-game unlock checks, the "Achievements Enabled" launch notice and unlock toasts run through the same record pipeline as Game Info and artwork. A plain PC game with no achievement source no longer triggers any achievement request when you open it. An unlock also adds a line to the running game's Post-Game Summary as before. No settings changed.
 
 - **Fixed: local achievement lookups for plain PC games (M6a, 2026-09-29)**: a game with no ROM, trophy folder or Steam match (for example AM2R) is no longer sent to RetroAchievements on every view, so it stops logging a "cannot extract rom path" failure each time. Also fixed the achievement log-folder guesses for titles containing a colon or an en/em dash (for example "WUCHANG: Fallen Feathers"), and an empty new-unlocks list no longer arrives as an object.

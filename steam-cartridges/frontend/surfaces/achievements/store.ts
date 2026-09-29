@@ -5,7 +5,7 @@ import { isNonSteamAppId } from "../../steam/route";
 import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../kernel/record";
 import type { SurfaceDeps } from "../../kernel/surface";
 import type { SteamAppAchievements } from "../../steam/achievement-types";
-import { buildAchievementProgress, buildSteamAchievements } from "./core";
+import { buildAchievementProgress, buildSteamAchievements, getAchievementsAction } from "./core";
 import { resolveSingleton } from "../../steam/modules";
 
 /** Set by createAchievementsSurface (plan § 7.0 D3/D6); open defaults until then. */
@@ -248,10 +248,16 @@ export function ensureAchievementsStoreHooked(): boolean {
     const origGetAchievements = store.GetAchievements.bind(store);
     store.GetAchievements = function (appId: number) {
         const rawId = appId >>> 0;
-        if (isNonSteamAppId(rawId)) {
-            const local = achievementsMap.get(rawId) || achievementsMap.get(appId);
-            if (local) return local;
-        }
+        const shortcut = isNonSteamAppId(rawId);
+        const local = shortcut ? achievementsMap.get(rawId) || achievementsMap.get(appId) : undefined;
+        // K19: Steam's original throws for a shortcut with null `details`; see getAchievementsAction.
+        const action = getAchievementsAction({
+            isShortcut: shortcut,
+            hasLocal: !!local,
+            hasDetails: !!store.GetAppData?.(appId)?.details,
+        });
+        if (action === "local") return local;
+        if (action === "undefined") return undefined;
         return origGetAchievements(appId);
     };
 

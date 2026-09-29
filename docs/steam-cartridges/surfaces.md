@@ -349,6 +349,11 @@ feeds Steam's stores (native from `record.identity`, else the schema's). `store-
 surface writes the achievement stores. `index.tsx` exports `getLocalAchievements` / `getLocalSchema` from here (public API,
 D8) and hands `getLocalAchievements` to the settings panel and the sync manager through D3 setters.
 
+**K19 (fixed 2026-09-29):** the `GetAchievements` wrapper no longer falls through to Steam's original for a shortcut with
+nothing of ours: the original always throws there (`details` is null, so `RequestAchievements` dereferences null). The
+decision is the pure `getAchievementsAction` in `core.ts` (tested): Steam app → original, our data → ours, shortcut without
+data and without Steam-set `details` → `undefined`.
+
 **Hooks:** all six fail-open through `failOpen()`; `index.tsx`'s `initAchievements` keeps the store-hook retry loop — Steam may not have created the achievement stores yet at install time.
 
 **Record-driven in:** M6b (`achievements`).
@@ -377,10 +382,11 @@ description, icon and global % from `records.get(appid).achievements.data.schema
 (setting `localAchievementsNotifyOnLaunch`, only when the record has achievements) lives in `app/achievements.ts` and calls
 `dispatchLaunchToast` through an injected `showLaunchToast`. `dispatchAchievementToast` (D8) stays a public export of `index.tsx`.
 
-**Known issue:** K17 — the achievement toast's `resolveAchievementProto()` webpack scanner does not
-find `CClientNotificationAchievement` on the current Steam build (confirmed failing before this
-move too); every dispatch logs "Could not resolve Steam achievement notification protobuf." and
-returns `false`. Out of scope for M3.6 (pure move, D14); tracked for a bugfix plan after M3.
+**K17 (fixed 2026-09-29):** on the current Steam build the achievement notification's protobuf setters
+(`set_achievement_id`, `set_global_achieved_pct`) are on an *instance's* prototype, not on `Class.prototype`, so
+`resolveAchievementProto()` never found the class. It now instantiates candidate classes from the module whose source
+mentions `achievement_id` and `global_achieved_pct`. Live: `dispatchAchievementToast` returns `true` and Steam opens
+its `notificationtoasts` window. The notification type id is the `ok` member of the type enum export (5).
 
 **Record-driven in:** not applicable — `toasts` is event-driven (`achievements.unlocked`, a launch), never per-record.
 
@@ -482,3 +488,4 @@ Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K
 - M6b (2026-09-29): `achievements` becomes record-driven (`render` feeds the stores from `record.achievements`); `toasts` is driven by
   `achievements.unlocked`; `captures` gains `addSessionAchievement` (K14). `store-port.ts` and `toast-port.ts` are gone
   (the `PURGE(M6)` ports).
+- 2026-09-29 (post-M6): K17 fixed (`toasts` protobuf resolver) and K19 fixed (`achievements` `GetAchievements` wrapper).

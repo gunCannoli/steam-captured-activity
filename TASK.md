@@ -138,9 +138,18 @@ a restart, `0` warm; `achievementLoads(page)=0`, was 1), both Properties OK, nav
 line (K2); Animaniacs 0/98; Castlevania: Aria of Sorrow 66; WUCHANG loads `ok steam 0/40` with no `newUnlocks.map` error and `checkObserverUnlocks`
 returns a number (K1); `git grep appSpotlightStore -- frontend/features frontend/app` is empty (K14). The unlock path was exercised with
 `triggerAchievement` on Animaniacs: Steam's store went 0 → 1 → 0 of 98 (reset afterwards). **Still the user's test:** a real unlock during play. The
-toast itself will not show yet: K17 (the notification protobuf is not found on this Steam build) is open. New open issue **K19** (two unhandled
-`RequestAchievements` TypeErrors on page load; not compared with a pre-M6 build). Not tested live: the launch toast and the 2 s in-game polling
+toast was blocked by K17 and the page-load errors were K19; **both fixed the same day (below)**. Not tested live: the launch toast and the 2 s in-game polling
 session (they need a real launch); both are unit-tested (`tests/app-achievements.test.ts`).
+
+**Post-M6 bugfixes (2026-09-29), all three open issues closed.** **K17** (no toast): the notification protobuf's setters live on an
+instance's prototype on this build, so the resolver's `Class.prototype` check found nothing; it now instantiates candidates. Live: the dispatch
+returns `true` and Steam opens its `notificationtoasts` window (contents not screenshotted). **K19** (two `RequestAchievements` TypeErrors on every
+shortcut page): Steam's own `GetAchievements` throws for a shortcut whose `details` is null, and our wrapper fell through to it (predates M6); it
+now answers `undefined`, decided by the tested pure `getAchievementsAction`. Live: no exception on AM2R, WUCHANG or Castlevania; the remaining
+`Uncaught (in promise)` object rejections also occur on native games (730, 570), so they are Steam's. **`enrich(page)=2`**: not reproducible in
+four fresh loads (1, 1, 1, 1 after two cold starts and two deploys), so no defect was found; `count_cycle` sums enrichments of *any* game in its
+window, and it now prints the enriched appids so a future 2 is attributable. Tests: `test:ts` 118/118 (+4). Baseline re-run green (a stale
+WUCHANG Properties window left by an earlier run briefly made that check report `popup=[]`; closed and rerun).
 
 Next: M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 

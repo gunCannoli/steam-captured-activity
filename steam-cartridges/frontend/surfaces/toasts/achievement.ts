@@ -13,8 +13,11 @@ let cachedProto: AchievementProtoResolution | undefined;
 
 /**
  * Resolves the protobuf class for CClientNotificationAchievement and notification type ID (5).
- * Uses real prototype method signatures ("set_achievement_id" & "global_achieved_pct")
- * which survive Steam build minification (ADR-0005).
+ * Matches by signature, never by minified name or module id (ADR-0005): the module source mentions
+ * `achievement_id` and `global_achieved_pct`, and an *instance* of the class has the setters
+ * `set_achievement_id` and `set_global_achieved_pct` and `getClassName()` naming it. The setters are
+ * not on `Class.prototype` on current Steam builds (K17: checking there found nothing), so the class
+ * is instantiated to look. The type id is the `ok` member of the notification-type enum export.
  */
 function resolveAchievementProto(): AchievementProtoResolution | undefined {
     if (cachedProto) return cachedProto;
@@ -35,12 +38,18 @@ function resolveAchievementProto(): AchievementProtoResolution | undefined {
 
                 for (const key of Object.keys(mod)) {
                     const val = mod[key];
-                    if (
-                        val?.prototype &&
-                        typeof val.prototype.set_achievement_id === "function" &&
-                        typeof val.prototype.set_global_achieved_pct === "function"
-                    ) {
-                        ProtoClass = val;
+                    if (!ProtoClass && typeof val === "function" && typeof val.prototype?.getClassName === "function") {
+                        try {
+                            const probe = new val();
+                            if (
+                                typeof probe.set_achievement_id === "function" &&
+                                typeof probe.set_global_achieved_pct === "function"
+                            ) {
+                                ProtoClass = val;
+                            }
+                        } catch {
+                            /* not a message class we can construct: keep looking */
+                        }
                     }
                     if (val && typeof val === "object" && typeof val.ok === "number") {
                         typeId = val.ok;

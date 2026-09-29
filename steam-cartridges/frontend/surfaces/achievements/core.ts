@@ -66,3 +66,22 @@ export function buildAchievementProgress(
         all_unlocked: achievements.nTotal > 0 && achievements.nAchieved === achievements.nTotal,
     };
 }
+
+/**
+ * What `appDetailsStore.GetAchievements(appid)` should do for one call (K19).
+ *
+ * Steam's own implementation is `t = GetAppData(e); void 0 === t.details?.achievements.vecHighlight &&
+ * this.RequestAchievements(e); return t.details?.achievements`. A shortcut's `details` is null (we never
+ * write it, plugins.md guardrail 8), so for a shortcut with nothing of ours the original always reaches
+ * `RequestAchievements` and throws on the null. It would return `undefined` anyway, so answer that
+ * ourselves. A Steam app is never ours: always the original.
+ */
+export function getAchievementsAction(input: {
+    isShortcut: boolean;
+    hasLocal: boolean;
+    hasDetails: boolean;
+}): "local" | "undefined" | "original" {
+    if (!input.isShortcut) return "original";
+    if (input.hasLocal) return "local";
+    return input.hasDetails ? "original" : "undefined";
+}

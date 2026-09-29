@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     buildAchievementProgress,
+    getAchievementsAction,
     buildSteamAchievements,
 } from '../frontend/surfaces/achievements/core.ts';
 import type { AchievementSchemaRecord } from '../frontend/rpc.ts';
@@ -108,4 +109,21 @@ test('buildAchievementProgress: computes Big Picture completion payload', () => 
         total: 3,
         all_unlocked: true,
     });
+});
+
+test('GetAchievements: a Steam app always goes to Steam', () => {
+    assert.equal(getAchievementsAction({ isShortcut: false, hasLocal: false, hasDetails: false }), 'original');
+    assert.equal(getAchievementsAction({ isShortcut: false, hasLocal: true, hasDetails: true }), 'original');
+});
+
+test('GetAchievements: a shortcut with our achievements gets them', () => {
+    assert.equal(getAchievementsAction({ isShortcut: true, hasLocal: true, hasDetails: false }), 'local');
+});
+
+test('GetAchievements: a shortcut with nothing (details null) is answered without calling Steam (K19)', () => {
+    assert.equal(getAchievementsAction({ isShortcut: true, hasLocal: false, hasDetails: false }), 'undefined');
+});
+
+test('GetAchievements: a shortcut whose details Steam did set is left to Steam', () => {
+    assert.equal(getAchievementsAction({ isShortcut: true, hasLocal: false, hasDetails: true }), 'original');
 });

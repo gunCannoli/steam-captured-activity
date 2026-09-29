@@ -948,6 +948,23 @@ news and partner events (`surfaces/captures/activity.ts`). Two facts:
   only what the surface for that part can safely apply at boot (`metadata`), and resolve identity on the first view.
   Probe: `node scratch/arch-m0/native_news_state.mjs` (read-only; does not trigger a fetch).
 
+## Part 8 — Achievement internals on this Steam build (verified live 2026-09-29)
+
+- **`AppDetailsStore.GetAchievements(e)`** is `t = this.GetAppData(e); void 0 === t.details?.achievements.vecHighlight &&
+  this.RequestAchievements(e); return t.details?.achievements`. A shortcut's `details` is null, so `RequestAchievements`
+  (native-looking, reads `t.details.achievements`) throws `TypeError: Cannot read properties of null (reading 'achievements')`
+  on every call for a shortcut. Answering `undefined` for such a shortcut is exactly what the original would return.
+- **Notification protobufs:** in the module that mentions `CClientNotificationAchievement`, exported classes have only
+  `toObject`, `serializeBinary`, `serializeBase64String`, `getClassName` on `Class.prototype`. The field accessors and setters
+  (`achievement_id`/`set_achievement_id`, `appid`, `name`, `description`, `image_url`, `achieved`, `rtime_unlocked`,
+  `global_achieved_pct`, ...) are on `Object.getPrototypeOf(new Class())`. Match by instantiating and checking `set_*`, or by
+  `new Class().getClassName()`. The notification type enum is another export of the same module; its `ok` member is 5, the
+  achievement type passed to `NotificationStore.OnNotification(id, type, binary)`.
+- **Noise:** `Uncaught (in promise)` rejections with a plain-object value and no stack (1-2 per page) also occur when a
+  *native* game page opens (appids 730, 570), so they are Steam's own, not the plugin's.
+- **Probes:** `scratch/arch-m0/find_ach_proto.mjs` (which modules mention the protobuf), `exceptions_all.mjs`,
+  `exception_stack.mjs`, `toast_live.mjs`.
+
 ## Sources
 
 - [Millennium plugin docs](https://docs.steambrew.app/plugins/) ·
