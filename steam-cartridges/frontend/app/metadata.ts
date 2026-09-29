@@ -13,6 +13,7 @@ export interface MetadataRoute {
 export interface MetadataDeps {
     backend: Pick<typeof Backend, "ensureFresh" | "getAllRecords">;
     records: RecordStore;
+    titleOf(appid: number): string | undefined;
     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
     ensureBase(appid: ShortcutId): void;
     /** The mapped native's StoreItemCache item, loaded by sensors/store-item. */
@@ -42,8 +43,9 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
         }
 
         const res = await deps.backend.ensureFresh(appid, ["metadata"], {
-            title: "",
+            title: deps.titleOf(appid) ?? "",
             route,
+            identity,
             storeItem: storeItem ?? undefined,
             allowWeb: deps.allowWeb(appid),
             noNetwork: opts.noNetwork,

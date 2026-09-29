@@ -97,7 +97,36 @@ export interface ArtworkUrls {
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
-export type ArtworkPlan = Record<string, unknown>;
+/** What the backend recorded as written for a shortcut's art (steam_store.json applied_artwork). */
+export interface StoreApplied {
+    /** Absent for SteamGridDB art (a shortcut with no Steam match). */
+    steam_appid?: number;
+    source?: string;
+    slots: number[];
+    /** Slots attempted but not written (retried once per session, P4 H5). */
+    failed?: number[];
+    /** SteamGridDB: every slot ever attempted, so a slot the user cleared is never refilled. */
+    tried?: number[];
+    at?: number;
+}
+
+/**
+ * What the artwork surface writes for one shortcut (M5c): computed by app/artwork.ts from the
+ * backend's `artwork` part and the pure art plan. `urls` holds only the slots in `write`.
+ */
+export interface ArtworkPlan {
+    source: "steam-cdn" | "steamgriddb" | "cleared";
+    steamAppid?: number;
+    urls: ArtworkUrls;
+    write: number[];
+    clear: number[];
+    /** Every slot attempted so far (SteamGridDB only), recorded with the written slots. */
+    tried: number[];
+    /** Slots already ours (kept), recorded again with the newly written ones. */
+    kept: number[];
+    /** Distinguishes two otherwise identical plans (a repeated Clear must re-render). */
+    at: number;
+}
 
 export interface GameRecord {
     appid: ShortcutId;

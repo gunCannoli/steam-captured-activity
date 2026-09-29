@@ -112,6 +112,16 @@ only, for bulk re-evaluation) are metadata-only context fields; see
 [service-metadata.md](service-metadata.md) for the selection order. `app/metadata.ts` calls the
 `metadata` part per view (M5b) and `GetAllRecords()` once at start-up.
 
+## Artwork service (M5c)
+
+`"artwork"` is now a resolvable part (`backend/art_service.lua`, [service-artwork.md](service-artwork.md)).
+`EnsureFresh` context fields for it: `identity` (also used by `metadata`: the identity the frontend
+already knows, since an `ok` result with no native match is not persisted), `artUrls` (hashed
+StoreItemCache URLs for the mapped native app) and `allowSgdb` (`services.steamgriddbEnabled` and routing).
+The part's `data` is `{ urls, source, steamAppid?, applied?, emptySlots }`; `app/artwork.ts` turns it into
+the `ArtworkPlan` in `record.artwork`. `SteamStoreRecordArtwork` also accepts `source: "steamgriddb"` (with
+`tried`) to record slots for a shortcut with no Steam mapping. No new RPC name is registered.
+
 ## Ports (M4c)
 
 `frontend/ports/transport.ts` — `call<R>(name, payload)`, moved verbatim from
@@ -197,3 +207,6 @@ Live: none — a docs-only step changes no runtime code path.
   replacing the old `getGameMetadata`/`getAllMetadata` frontend calls in the
   Game Info path. `main.lua` registers `GetAllRecords` (added in M5a but not
   yet wired as a global; fixed here). `GetGameRecord` stays unwired.
+- M5c (2026-09-29): `artwork` part added to `EnsureFresh` (`art_service.lua`, wired by `app/artwork.ts`);
+  `SteamStoreRecordArtwork` extended with `source: "steamgriddb"`. `GetArtworkForGame` (unwired, `web_rpc.lua`) stays
+  registered: `art_service` calls `web_sgdb` directly, so that RPC still has no caller. 27 live, 6 unwired (unchanged).

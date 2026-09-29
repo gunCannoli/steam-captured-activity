@@ -62,13 +62,8 @@ export interface StoreSuggestion {
     name: string;
     reason: "edition" | "near";
 }
-export interface StoreApplied {
-    steam_appid: number;
-    slots: number[];
-    /** Slots attempted but not written (retried once per session, P4 H5). */
-    failed?: number[];
-    at?: number;
-}
+import type { StoreApplied } from "./kernel/record";
+export type { StoreApplied };
 export interface StoreState {
     mappings: Record<string, StoreMapping>;
     suggestions: Record<string, StoreSuggestion[]>;
@@ -132,8 +127,14 @@ export const rpc = {
             appid,
             force,
         }),
-    steamStoreRecordArtwork: (appid: number, steam_appid: number, slots: number[], failed: number[]) =>
-        call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots, failed }),
+    steamStoreRecordArtwork: (
+        appid: number,
+        steam_appid: number | undefined,
+        slots: number[],
+        failed: number[],
+        extra?: { source?: "steamgriddb"; tried?: number[] },
+    ) =>
+        call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots, failed, ...extra }),
     steamStoreDownloadImage: (url: string) =>
         call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url }),
 

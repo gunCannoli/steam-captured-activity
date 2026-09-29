@@ -13,9 +13,9 @@ import {
     ready as libraryHomeReady,
     refresh as refreshLibraryHome,
 } from "./surfaces/library-home";
-import { initSourceView, onSourceView, setIdentity as setSourceViewIdentity, setMetadata as setSourceViewMetadata, setRouting as setSourceViewRouting } from "./features/source-view";
+import { initSourceView, onSourceView, setArtwork as setSourceViewArtwork, setIdentity as setSourceViewIdentity, setMetadata as setSourceViewMetadata, setRouting as setSourceViewRouting } from "./features/source-view";
 import { createNativeLinksSurface } from "./surfaces/native-links";
-import { artworkWriter, createArtworkSurface } from "./surfaces/artwork";
+import { createArtworkSurface } from "./surfaces/artwork";
 import {
     initAchievements,
     loadAchievementsForApp,
@@ -31,11 +31,12 @@ import {
 import { initSettings, resetSettings, setSetting, setting, setRouting as setSettingsRouting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { createRouting } from "./app/routing";
-import { isServiceAllowed } from "./domain/routing/policy";
+import { isServiceAllowed, type ServiceTarget } from "./domain/routing/policy";
 import { createRecords } from "./app/records";
 import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
 import { createMetadata } from "./app/metadata";
+import { createArtwork } from "./app/artwork";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
 import { triggerSync, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
@@ -64,7 +65,7 @@ import {
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
 import { controllerContext } from "./features/game-info/controller";
-import { setArtworkSink, setGameInfoRefresher, setIdentitySource, setMetadataSource, setStoreItemSource } from "./features/steam-store";
+import { setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
 import { setCapturesRefresher } from "./features/scraper/on-update";
 import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
 import { setAchievementsStore } from "./features/achievements/store-port";
@@ -85,6 +86,22 @@ const runner = createSurfaceRunner({
         else logger.warn(message, err ?? "");
     },
 });
+
+/** Is a routing service (rules and Auto Mode) allowed for this shortcut? */
+function serviceAllowed(service: ServiceTarget, appid: number): boolean {
+    const collNames = routing.listCollections()
+        .filter((c) => routing.membersOf(c.id)?.has(appid))
+        .map((c) => c.name);
+    return isServiceAllowed(
+        service,
+        appid,
+        resolveShortcutTitle(appid) ?? "",
+        collNames,
+        setting("routingRules"),
+        setting("autoRoutingMode"),
+        routing.getAutoRoutingProfile(appid),
+    );
+}
 
 /** Records (app/records.ts, plan M4c): the one read model every record-driven surface reads. */
 const records = createRecords(bus);
@@ -138,24 +155,22 @@ const identity = createIdentity({
 const metadata = createMetadata({
     backend,
     records: records.store,
+    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
     ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
-    allowWeb: (appid) => {
-        if (setting("services").igdbEnabled === false) return false;
-        const title = resolveShortcutTitle(appid) ?? "";
-        const collNames = routing.listCollections()
-            .filter((c) => routing.membersOf(c.id)?.has(appid))
-            .map((c) => c.name);
-        return isServiceAllowed(
-            "igdb",
-            appid,
-            title,
-            collNames,
-            setting("routingRules"),
-            setting("autoRoutingMode"),
-            routing.getAutoRoutingProfile(appid),
-        );
-    },
+    allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
+});
+
+/** Artwork (app/artwork.ts, plan M5c): SteamGridDB for shortcuts with no Steam match, the Steam
+ *  CDN for mapped ones; the artwork surface executes the plan it puts in the record. */
+const artwork = createArtwork({
+    backend,
+    records: records.store,
+    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
+    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
+    storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+    allowSgdb: (appid) => setting("services").steamgriddbEnabled !== false && serviceAllowed("steamgriddb", appid),
+    now: () => Date.now(),
 });
 
 export { setSetting, resetSettings };
@@ -214,14 +229,16 @@ async function init() {
     setSourceViewMetadata(metadata);
     setMetadataSource(metadata);
 
+    // Artwork reaches its callers only through these setters (plan § 7.0 D3).
+    setSourceViewArtwork(artwork);
+    setArtworkSource(artwork);
+
     // Surface APIs reach the features only through these setters (plan § 7.0 D3).
     setContentListener(setHasContent);
     setAchievementsStore(achievementsStore);
     setToasts({ achievement: showAchievementToast, launch: dispatchLaunchToast });
     setCapturesRefresher(refreshLibraryApp);
     setGameInfoRefresher({ refresh: refreshGameInfoInstances });
-    setArtworkSink(artworkWriter);
-    setStoreItemSource({ load: (steamAppid) => loadStoreItem(steamAppid) });
 
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
     // timer after record.updated, never from inside a Steam render (plan § 7.0 D5).
@@ -297,7 +314,20 @@ async function init() {
     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
     runner.register(createNativeLinksSurface(surfaceDeps));
     // Custom artwork slots and logo position for mapped games (surfaces/artwork, plan M3.9).
-    runner.register(createArtworkSurface({ ...surfaceDeps, downloadImage: (url) => rpc.steamStoreDownloadImage(url) }));
+    runner.register(
+        createArtworkSurface({
+            ...surfaceDeps,
+            downloadImage: (url) => rpc.steamStoreDownloadImage(url),
+            recordArtwork: (appid, info) =>
+                rpc.steamStoreRecordArtwork(
+                    appid,
+                    info.steamAppid,
+                    info.slots,
+                    info.failed,
+                    info.source === "steamgriddb" ? { source: "steamgriddb", tried: info.tried } : undefined,
+                ),
+        }),
+    );
     runner.installAll();
 
     // ===== Native Achievements Subsystem =====

@@ -141,6 +141,9 @@ until the service steps (M4+) feed them through `render()`.
   to `kernel/record.ts` (D12).
 - M3.10 (2026-09-28): `library-home` surface added (moved from `renderers/library-home.tsx`), the
   last surface. `frontend/renderers/` no longer exists. M3 is complete; the feature freeze (§ 5) ends.
+- M5c (2026-09-29): `artwork` becomes record-driven (`render(appid, record)` executes `record.artwork`, an
+  `ArtworkPlan` built by `app/artwork.ts`); `setArtworkSink` and `artworkWriter` are gone. New SteamGridDB source
+  (`service-artwork.md`).
 - M4c (2026-09-29): `sections`, `native-links` and `captures` become record-driven for `identity`:
   each `render(appid, record)` reads `record?.identity?.data?.native` instead of a sink written from
   `steam-store/index.ts`. `setExtraSectionsSink`, `setNativeLinksSink` and `setCapturesSinks` are gone.
@@ -411,10 +414,10 @@ builds. Out of scope for a pure move (D14); tracked for a bugfix plan after M3.
 ## artwork
 
 The only code that writes a shortcut's custom artwork slots (portrait,
-hero, logo, wide) and logo position into Steam. No hooks — the Steam
-Store pipeline reaches it only through a sink wired in `index.tsx` (D3);
-the art plan (which slots to fill, from which URLs) stays in the pipeline
-until M4.
+hero, logo, wide) and logo position into Steam. No hooks. Record-driven
+since M5c: `app/artwork.ts` decides which slots to clear and write and from
+which URLs (Steam CDN for a shortcut with a Steam match, SteamGridDB for one
+without) and puts that plan in `record.artwork`; this surface only executes it.
 
 **touches:**
 
@@ -425,19 +428,18 @@ until M4.
 | `AppDetailsStore.SaveCustomLogoPosition` | 1 |
 | `AppDetailsStore.ClearCustomLogoPosition` | 1 |
 
-**reads:** `artwork` (record-driven from M4, D4).
+**reads:** `artwork` (record-driven since M5c, D4).
 
-**Kill switch:** `artwork`. Checked at the top of every write (`applyFromUrls`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`) — while off, no slot is written or cleared and the logo position is not touched.
+**Kill switch:** `artwork`. Checked at the top of every write (`applyCustomArtworkFromUrls`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`) — while off, no slot is written or cleared and the logo position is not touched.
 
 **Injected deps:**
-- `SurfaceDeps & { downloadImage(url): Promise<{ base64?: string; ext?: string } | null | undefined> }`, passed to `createArtworkSurface`. `downloadImage` replaces the direct `rpc.steamStoreDownloadImage` call.
+- `SurfaceDeps & { downloadImage(url); recordArtwork(appid, info) }`, passed to `createArtworkSurface`. `downloadImage` replaces the direct `rpc.steamStoreDownloadImage` call; `recordArtwork` tells the backend which slots were written (`SteamStoreRecordArtwork`, `source: "steamgriddb"` for a shortcut with no Steam match) and returns `{ error }` when the mapping vanished meanwhile, so the surface undoes the write (P4 H5).
 
-**API (reached only through this setter):**
-- `setArtworkSink` — wired from `steam-store`'s three `ClearCustomArtworkForApp` call sites, which now call `artwork.clearSlot()` on the injected object rather than an extracted method (D3).
+**`render(appid, record)`** (M5c): when `record.artwork.status` is `ok`, run `record.artwork.data` (an `ArtworkPlan`): clear `clear` slots (and the logo position when slot 2 is cleared), write `write` from `urls`, record what was written, then ensure the logo position when slot 2 is ours. Plans run one at a time per shortcut (a Clear followed by a write never interleaves). `setArtworkSink` is gone — `features/steam-store` no longer writes art; it asks `app/artwork.clearSlots()` and the surface clears.
 
 **Hooks:** none — `artwork` only writes, never patches a Steam method.
 
-**Record-driven in:** M4.
+**Record-driven in:** M5c (`artwork`).
 
 ## library-home
 

@@ -1,7 +1,7 @@
 // The record facade RPC client (migration plan M4b/M4c; M5a extends it with
 // metadata and GetAllRecords). Imports kernel types only; transport from
 // ports/transport.ts.
-import type { GameMetadata, Part, RecordPart } from "../kernel/record";
+import type { ArtworkUrls, GameMetadata, Identity, Part, RecordPart } from "../kernel/record";
 import { call } from "./transport";
 
 export interface OwnedCandidate {
@@ -20,6 +20,13 @@ export interface FreshContext {
     storeItem?: GameMetadata | null;
     /** Metadata only (M5): igdb enabled and allowed by routing. */
     allowWeb?: boolean;
+    /** Metadata and artwork: the identity the frontend already knows. An "ok" result with no
+     *  native match is never persisted, so the backend cannot recover it from disk. */
+    identity?: Part<Identity>;
+    /** Artwork only (M5c): hashed StoreItemCache URLs for the mapped native app. */
+    artUrls?: ArtworkUrls;
+    /** Artwork only (M5c): services.steamgriddbEnabled and routing allow SteamGridDB. */
+    allowSgdb?: boolean;
     /** true = disk and context only (bulk re-evaluation). */
     noNetwork?: boolean;
     /** Achievements only (M6a): setting raHardcoreMode. */

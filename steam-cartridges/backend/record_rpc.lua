@@ -5,6 +5,7 @@
 local core             = require("rpc")
 local resolve_identity  = require("resolve_identity")
 local metadata_service  = require("metadata_service")
+local art_service       = require("art_service")
 local metadata_db       = require("web_metadata_db")
 local steam_store_store = require("steam_store_store")
 
@@ -47,8 +48,11 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
   for _, name in ipairs(requested) do
     if name == "identity" then
       parts.identity = resolve_identity.ensure(appid, ctx)
+      ctx.identity = parts.identity -- later parts of this same call see the fresh identity
     elseif name == "metadata" then
       parts.metadata = metadata_service.ensure(appid, ctx)
+    elseif name == "artwork" then
+      parts.artwork = art_service.ensure(appid, ctx)
     end
     -- Unknown part names are ignored (not an error).
   end

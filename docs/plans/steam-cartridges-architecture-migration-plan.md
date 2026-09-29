@@ -77,7 +77,7 @@ Statuses (what the executing agent does with the row):
 | M4c | Frontend adopts records and identity | **Done** (live-verified 2026-09-29) | `rpc.md`, `surfaces.md`, `sensors.md` |
 | M5a | Metadata service (backend) | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `rpc.md` |
 | M5b | Frontend adopts metadata | Done (implementer); live verification pending § 0.5 | `service-metadata.md`, `surfaces.md`, `sensors.md` |
-| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Build | `service-artwork.md`, `safety.md` (credentials) |
+| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Done (implementer); live verification pending § 0.5 | `service-artwork.md`, `safety.md` (credentials) |
 | M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Build | `service-metadata.md` |
 | M6a | Achievements service (backend; fixes K1, K2, K7) | Build | `service-achievements.md`, `rpc.md` |
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | Build | `service-achievements.md`, `surfaces.md` |
@@ -3109,7 +3109,7 @@ printing nothing, and every row below being deleted.
 | `frontend/features/achievements/store-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; M6 moves the achievements pipeline to the backend |
 | `frontend/features/achievements/toast-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; toasts become `achievements.unlocked` subscribers |
 | ~~setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks`~~ | — | ~~M4c~~ **done** | `identity.native` comes from the record |
-| setter `setArtworkSink` | — | M5c | the artwork part comes from the Artwork service |
+| ~~setter `setArtworkSink`~~ | — | ~~M5c~~ **done** | the artwork part comes from the Artwork service (`app/artwork.ts`); `features/steam-store` asks `artworkSource.clearSlots`, the surface clears |
 | ~~`features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts`~~ | — | ~~M4c~~ **done** | the backend's `normalize` is the only matcher |
 | ~~setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`; `features/game-info/index.ts`, `policy.ts`~~ | — | ~~M5b~~ **done** | Game Info comes from `record.metadata`; `setGameInfoSink` (an enrich/revert writer) is fully gone — the refresh-only call guardrail 11 still needs is a new, narrower setter (`setGameInfoRefresher`, not a purge item) |
 | setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts` | — | M7 | freshness and ingestion move to the backend |

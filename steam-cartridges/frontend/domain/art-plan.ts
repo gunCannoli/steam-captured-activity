@@ -10,7 +10,7 @@
  * A slot the user removed in Steam is pruned from `slots` by the backend and is
  * not in `failed`, so it is never written again (the user wins).
  */
-import type { ArtworkUrls, StoreApplied } from '../../rpc';
+import type { ArtworkUrls, StoreApplied } from '../kernel/record';
 
 export const ALL_SLOTS: readonly number[] = [0, 1, 2, 3];
 
@@ -56,4 +56,14 @@ export function mergeArtResult(
     const slots = [...new Set([...kept, ...written])].sort((a, b) => a - b);
     const failed = plan.write.filter((s) => !written.includes(s));
     return { slots, failed };
+}
+
+/**
+ * SteamGridDB (M5c): a shortcut with no Steam match. Writes only the slots the backend
+ * called empty (no grid file, never attempted) that also have a URL; clears nothing.
+ * A slot the user set, or cleared after we filled it, is never touched.
+ */
+export function sgdbPlan(urls: ArtworkUrls, emptySlots: unknown): ArtPlan {
+    const empty = slotList(emptySlots);
+    return { clear: [], write: ALL_SLOTS.filter((s) => empty.includes(s) && !!urls[SLOT_KEY[s]!]) };
 }

@@ -1,6 +1,6 @@
 import { toShortcutId } from "../kernel/appid";
 import type { Resolution } from "../domain/routing/policy";
-import type { GameMetadata, Identity, Part } from "../kernel/record";
+import type { ArtworkPlan, GameMetadata, Identity, Part } from "../kernel/record";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { loadAchievementsForApp } from "./achievements";
 
@@ -50,6 +50,22 @@ export function setMetadata(m: MetadataSource): void {
     metadata = m;
 }
 
+/** Structural match of app/artwork's public shape (no import: ADR-0039 layers). */
+interface ArtworkSource {
+    ensure(
+        appid: number,
+        route: { bucket: "steam-store" | "web-scraping" | "none"; via: string },
+        identity: Part<Identity> | undefined,
+    ): Promise<Part<ArtworkPlan>>;
+}
+
+/** Artwork; wired to the app/artwork instance in index.tsx (plan § 7.0 D3). */
+let artwork: ArtworkSource = { ensure: async () => ({ status: "pending" }) };
+
+export function setArtwork(a: ArtworkSource): void {
+    artwork = a;
+}
+
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
 const inflight = new Set<number>();
 /** Views seen before collections were ready; replayed once they are. */
@@ -86,6 +102,7 @@ export async function onSourceView(appid: number): Promise<void> {
             const matched = await handleSteamStoreView(rawAppid, identityPart);
             if (matched === true) inSteamStore.add(rawAppid);
             await metadata.ensure(rawAppid, route, identityPart);
+            await artwork.ensure(rawAppid, route, identityPart);
             if (matched !== true) {
                 void loadAchievementsForApp(rawAppid, 0);
             }
@@ -94,6 +111,7 @@ export async function onSourceView(appid: number): Promise<void> {
             // metadata is record-driven and reverts itself on the new route's result.
             if (inSteamStore.delete(rawAppid)) leaveSteamStore(rawAppid);
             await metadata.ensure(rawAppid, route, undefined);
+            await artwork.ensure(rawAppid, route, undefined);
             void loadAchievementsForApp(rawAppid, 0);
         }
 

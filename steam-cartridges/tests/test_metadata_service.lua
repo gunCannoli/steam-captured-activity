@@ -235,6 +235,22 @@ r = metadata.ensure(SC, { title = "x", route = ROUTE_STORE })
 check("no saved identity, local record -> ok local_db", r.status == "ok" and r.source == "local_db" and r.data.title == "Local Steam-Store Fallback")
 wipe()
 
+-- ---------- steam-store, frontend-known identity: ok without a native match ----------
+print("steam-store identity from context")
+local function stub_igdb() metadata.deps.igdb_fetch = function(appid, title) return { appid = appid, title = title, igdb_id = 5, description = "d", developers = {}, publishers = {}, franchises = {}, genres = {}, categories = {}, release_date = 0, custom_override = false } end end
+stub_igdb()
+r = metadata.ensure(SC, { title = "No Match", route = ROUTE_STORE, allowWeb = true, identity = { status = "ok", data = {} } })
+check("identity ok without native (from ctx) reaches igdb (ADR-0036 fallback)", r.status == "ok" and r.source == "igdb")
+wipe()
+stub_igdb()
+r = metadata.ensure(SC, { title = "Emu", route = ROUTE_STORE, allowWeb = true, identity = { status = "unsupported" } })
+check("identity unsupported (emulator) also falls through to the web tier", r.status == "ok" and r.source == "igdb")
+wipe()
+r = metadata.ensure(SC, { title = "x", route = ROUTE_STORE, allowWeb = true, identity = { status = "pending" } })
+check("identity pending stays local-only (no igdb)", r.status == "pending")
+metadata.deps.igdb_fetch = nil
+wipe()
+
 -- ---------- web-scraping: local db ----------
 print("web-scraping local db")
 metadata_db.set(SC, { appid = SC, title = "Local WS" })

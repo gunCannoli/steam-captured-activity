@@ -97,6 +97,7 @@ updated by every later step that changes it (template in the
 | Backend port and RPC facade | [rpc.md](steam-cartridges/rpc.md) (M4.0: inventory; M4b/M5a: facade) | current |
 | Resolver service (Steam native match, web identity, routing policy) | [service-resolver.md](steam-cartridges/service-resolver.md) (M4b) | current |
 | Metadata service and its sources | [service-metadata.md](steam-cartridges/service-metadata.md) (M5a) | current |
+| Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) (M5c) | current |
 | Achievements service, sources, observer | `docs/steam-cartridges/service-achievements.md` (M6, replaces [steam-cartridges-achievements.md](steam-cartridges-achievements.md)) | planned |
 | Freshness and ingestion | `docs/steam-cartridges/service-freshness.md` (M7) | planned |
 | Settings panels | `docs/steam-cartridges/settings.md` (M8) | planned |

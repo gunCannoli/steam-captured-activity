@@ -91,7 +91,9 @@ function M.ensure(appid, ctx)
   end
 
   if route.bucket == "steam-store" then
-    local identity = resolve_identity.saved(appid)
+    -- The frontend passes the identity it knows (an "ok" result with no native match is
+    -- never persisted, so the disk alone cannot tell "no match" from "not known yet").
+    local identity = ctx.identity or resolve_identity.saved(appid)
     local native = identity and identity.data and identity.data.native
 
     if native then
@@ -109,7 +111,9 @@ function M.ensure(appid, ctx)
       return { status = "error", message = err, checkedAt = now_ms() }
     end
 
-    if not identity or identity.status ~= "ok" then
+    -- Not resolved yet (or failed): local only. "ok" (no match) and "unsupported"
+    -- (emulator launcher) fall through to the web tier, as the old ADR-0036 fallback did.
+    if not identity or identity.status == "pending" or identity.status == "error" then
       if local_rec then return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() } end
       return { status = "pending", checkedAt = now_ms() }
     end

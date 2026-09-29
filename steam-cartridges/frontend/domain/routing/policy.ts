@@ -205,6 +205,7 @@ export type ServiceTarget =
     | 'steam_store'
     | 'screenscraper'
     | 'igdb'
+    | 'steamgriddb'
     | 'retroachievements'
     | 'console_emulators'
     | 'rpcs3'

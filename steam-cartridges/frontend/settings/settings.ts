@@ -31,6 +31,8 @@ export interface ServicesConfig {
     steamStoreEnabled: boolean;
     screenscraperEnabled: boolean;
     igdbEnabled: boolean;
+    /** SteamGridDB artwork for shortcuts with no Steam match (M5c). */
+    steamgriddbEnabled: boolean;
     retroachievementsEnabled: boolean;
     emulatorsEnabled: boolean;
     rpcs3Enabled?: boolean;
@@ -40,6 +42,7 @@ export const DEFAULT_SERVICES: ServicesConfig = {
     steamStoreEnabled: true,
     screenscraperEnabled: true,
     igdbEnabled: true,
+    steamgriddbEnabled: true,
     retroachievementsEnabled: true,
     emulatorsEnabled: true,
     rpcs3Enabled: true,
@@ -123,6 +126,7 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
             steamStoreEnabled: r.steamStoreEnabled !== false,
             screenscraperEnabled: r.screenscraperEnabled !== false,
             igdbEnabled: r.igdbEnabled !== false,
+            steamgriddbEnabled: r.steamgriddbEnabled !== false,
             retroachievementsEnabled: r.retroachievementsEnabled !== false,
             emulatorsEnabled: emu,
             rpcs3Enabled: emu,

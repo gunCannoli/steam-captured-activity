@@ -87,6 +87,25 @@ export const safetyDiagnostics: () => ReturnType<FeatureSwitches["diagnostics"]>
 | `frontend/index.tsx` | Wires `features.run`/`features.isEnabled` around every feature's start-up; boot sentinel init; `safetyDiagnostics()` export |
 | `tests/safety.test.ts` | Unit tests for `createFeatureSwitches` and the boot sentinel |
 
+## Provider credentials (M5c)
+
+How a provider key (SteamGridDB, ScreenScraper, IGDB/Twitch, RetroAchievements) is kept. The plugin's
+users enter it in the settings panel; nothing else stores it.
+
+- **Where:** `SaveServiceCredentials` → `web_config.save_credentials` writes `key=value` lines to
+  `<Steam>/millennium/config/steam-cartridges/.env`. The SteamGridDB key is `steamgriddb_api`
+  (`web_config.get_api_key` also still reads a legacy `sgdb_key.txt`). Saving an empty field removes the
+  key. Saving invalidates the cached key, so a changed key applies immediately.
+- **Never shown back:** the panel's credential fields start empty and use `bIsPassword`; `GetStatus`
+  returns booleans only (`has_sgdb`, `has_twitch`, `has_screenscraper`, `has_retroachievements`); no RPC
+  returns a stored secret.
+- **Never leaves the machine except to its provider:** a key is sent only to its own provider's HTTPS
+  endpoint, never logged (`tests/test_art_service.lua` greps `art_service.lua` and `web_sgdb.lua` for a
+  `logger:` call that mentions the key), never written to `library_metadata.json`, `steam_store.json`
+  or the repo (AGENTS.md).
+- **At rest:** the Lua sandbox has no OS credential store (no DPAPI), so the file is plain text. The
+  protection is the user's own profile folder. This is a stated limit, not a bug.
+
 ## Steam targets touched
 
 None. Safety only gates start-up calls into other modules; it never writes to a
@@ -140,3 +159,4 @@ else may import `frontend/safety/` except `index.tsx`.
 - M3.9: `artwork` appended to `FEATURE_IDS` (new surface: custom artwork
   slot and logo position writes, moved from `features/artwork/artwork.ts`
   and `features/steam-store/logo.ts`).
+- M5c: provider credentials section added (SteamGridDB key entered in the settings panel, stored in `.env`).

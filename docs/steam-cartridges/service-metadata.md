@@ -132,3 +132,9 @@ decision (M5d: IGDB first when configured, ScreenScraper fills in).
   `GetAllRecords()` once at start-up (replacing the old `getAllMetadata`/`initGameInfo` preload).
   `frontend/surfaces/game-info` is now record-driven for `metadata` (`surfaces.md`); the old push
   pipeline (`features/game-info/index.ts`, `policy.ts`, `tests/game-info-policy.test.ts`) is deleted.
+- M5c (2026-09-29): two fixes to the M5b wiring. `app/metadata.ts` now sends the shortcut's real title (it sent
+  `""`, so IGDB would have searched for nothing), and passes the identity it knows as `ctx.identity`:
+  an `ok` identity with no native match is never persisted, so a `steam-store` shortcut with no Steam
+  match could not reach the IGDB tier (ADR-0036 fallback). `metadata_service.lua` reads `ctx.identity` first,
+  then the saved mapping; identity `ok` or `unsupported` (emulator launcher) falls through to the web tier,
+  `pending`/`error` stays local-only. Two Lua checks added.

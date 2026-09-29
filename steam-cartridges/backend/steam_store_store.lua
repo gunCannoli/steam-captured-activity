@@ -177,6 +177,37 @@ function M.record_artwork(appid, steam_appid, slots, now, failed)
   return true
 end
 
+--- Record the art slots SteamGridDB filled for a shortcut with no Steam mapping (M5c).
+--- `tried` accumulates every slot ever attempted, so a slot the user later clears in
+--- Steam is never filled again (until Clear resets applied_artwork). Refused when the
+--- shortcut is mapped: the Steam Store path owns art then.
+function M.record_sgdb_artwork(appid, slots, tried, now)
+  local s, k = load(), key(appid)
+  if s.mappings[k] then return false, "mapped" end
+  local prev = s.applied_artwork[k]
+  local function union(a, b)
+    local seen, out = {}, {}
+    for _, list in ipairs({ a or {}, b or {} }) do
+      for _, v in ipairs(list) do
+        v = tonumber(v)
+        if v and not seen[v] then seen[v] = true; out[#out + 1] = v end
+      end
+    end
+    table.sort(out)
+    return out
+  end
+  local same = prev and prev.source == "steamgriddb"
+  s.applied_artwork[k] = {
+    source = "steamgriddb",
+    slots = union(same and prev.slots or nil, slots),
+    tried = union(same and prev.tried or nil, tried),
+    failed = {},
+    at = now or os.time(),
+  }
+  save()
+  return true
+end
+
 --- Grid file names Steam writes for a custom art slot (SetCustomArtworkForApp).
 local SLOT_SUFFIX = { [0] = "p", [1] = "_hero", [2] = "_logo", [3] = "" }
 

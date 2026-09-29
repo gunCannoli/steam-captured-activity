@@ -17,11 +17,12 @@ for the authoritative, up-to-date state):
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | done (M1) |
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
 | Sensors: view, lifecycle, collections, owned-apps, store-item | done (M2, M4c, M5b) — [sensors.md](sensors.md) |
-| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b) | current (M5b) |
+| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c) | current (M5c) |
 | Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c, M5b) — [rpc.md](rpc.md) |
 | Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c), `metadata` (M5b) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
 | Metadata service + RPC facade | done (M5a–M5b) — [service-metadata.md](service-metadata.md), [rpc.md](rpc.md) |
+| Artwork service (SteamGridDB, Steam CDN) | done (M5c) — [service-artwork.md](service-artwork.md) |
 | Achievements service | planned (M6) |
 | Freshness + ingestion | planned (M7) |
 | Settings split | planned (M8) |
@@ -130,3 +131,9 @@ why in its root-cause section, or it is rejected.
   `setGameInfoProbe` push wiring (deleted). `features/steam-store/index.ts`
   keeps only artwork; a new D3 setter (`setStoreItemSource`) reaches
   `sensors/store-item` since `features -> sensors` is not an allowed edge.
+- M5c (2026-09-29): `backend/art_service.lua`, `app/artwork.ts`, `domain/art-plan.ts` (moved from
+  `features/steam-store/art-plan.ts`) added; `artwork` becomes record-driven (`setArtworkSink` deleted).
+  SteamGridDB fills empty artwork slots for shortcuts with no Steam match. `services.steamgriddbEnabled`
+  setting and a SteamGridDB key entry in the settings panel. Also fixed two M5b gaps: `app/metadata.ts`
+  sent an empty title, and a `steam-store` shortcut with no Steam match never reached IGDB (the frontend
+  now passes its known identity as context).

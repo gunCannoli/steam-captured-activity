@@ -192,8 +192,10 @@ function SettingsModal({
 // 1. {Metadata} Services Section
 // ===========================================================================
 
+type MetadataServiceId = "steam_store" | "screenscraper" | "igdb" | "steamgriddb";
+
 interface MetadataServiceDef {
-    id: "steam_store" | "screenscraper" | "igdb";
+    id: MetadataServiceId;
     label: string;
 }
 
@@ -201,6 +203,7 @@ const ALL_METADATA_SERVICES: MetadataServiceDef[] = [
     { id: "steam_store", label: "Steam Store Mirror" },
     { id: "screenscraper", label: "ScreenScraper" },
     { id: "igdb", label: "IGDB" },
+    { id: "steamgriddb", label: "SteamGridDB (artwork)" },
 ];
 
 function MetadataSection() {
@@ -209,15 +212,15 @@ function MetadataSection() {
     const [showAddModal, setShowAddModal] = useState(false);
 
     // Form inputs in modal
-    const [selectedService, setSelectedService] = useState<
-        "steam_store" | "screenscraper" | "igdb"
-    >("steam_store");
+    const [selectedService, setSelectedService] =
+        useState<MetadataServiceId>("steam_store");
     const [ssUser, setSsUser] = useState("");
     const [ssPass, setSsPass] = useState("");
     const [ssDevUser, setSsDevUser] = useState("");
     const [ssDevPw, setSsDevPw] = useState("");
     const [igdbId, setIgdbId] = useState("");
     const [igdbSecret, setIgdbSecret] = useState("");
+    const [sgdbKey, setSgdbKey] = useState("");
 
     const [statusMsg, setStatusMsg] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -234,7 +237,7 @@ function MetadataSection() {
 
     // Determine active services
     const activeServices: MetadataServiceDef[] = [];
-    const [steamStoreService, ssService, igdbService] = ALL_METADATA_SERVICES;
+    const [steamStoreService, ssService, igdbService, sgdbService] = ALL_METADATA_SERVICES;
     if (steamStoreService && services.steamStoreEnabled !== false) {
         activeServices.push(steamStoreService);
     }
@@ -248,20 +251,23 @@ function MetadataSection() {
     if (igdbService && services.igdbEnabled !== false && status?.has_twitch) {
         activeServices.push(igdbService);
     }
+    if (sgdbService && services.steamgriddbEnabled !== false && status?.has_sgdb) {
+        activeServices.push(sgdbService);
+    }
 
     const availableToAdd = ALL_METADATA_SERVICES.filter(
         (s) => !activeServices.some((active) => active.id === s.id),
     );
 
-    const handleRemoveService = (
-        id: "steam_store" | "screenscraper" | "igdb",
-    ) => {
+    const handleRemoveService = (id: MetadataServiceId) => {
         if (id === "steam_store") {
             setServices({ ...services, steamStoreEnabled: false });
         } else if (id === "screenscraper") {
             setServices({ ...services, screenscraperEnabled: false });
         } else if (id === "igdb") {
             setServices({ ...services, igdbEnabled: false });
+        } else if (id === "steamgriddb") {
+            setServices({ ...services, steamgriddbEnabled: false });
         }
         triggerSync(250);
     };
@@ -341,6 +347,32 @@ function MetadataSection() {
                     setIsSaving(false);
                     setStatusMsg("");
                     setIgdbSecret("");
+                }, 1200);
+            } else {
+                setStatusMsg("Failed to save credentials.");
+                setIsSaving(false);
+            }
+            return;
+        }
+
+        if (selectedService === "steamgriddb") {
+            if (!sgdbKey.trim()) {
+                setStatusMsg("An API key is required.");
+                setIsSaving(false);
+                return;
+            }
+            const res = await rpc.saveServiceCredentials({
+                steamgriddb_api: sgdbKey.trim(),
+            });
+            if (res.success) {
+                setServices({ ...services, steamgriddbEnabled: true });
+                refresh();
+                setStatusMsg("✓ SteamGridDB key saved!");
+                setTimeout(() => {
+                    setShowAddModal(false);
+                    setIsSaving(false);
+                    setStatusMsg("");
+                    setSgdbKey("");
                 }, 1200);
             } else {
                 setStatusMsg("Failed to save credentials.");
@@ -490,6 +522,29 @@ function MetadataSection() {
                             bIsPassword
                             value={igdbSecret}
                             onChange={(e) => setIgdbSecret(e.target.value)}
+                        />
+                    </>
+                )}
+
+                {selectedService === "steamgriddb" && (
+                    <>
+                        <div
+                            style={{
+                                fontSize: "12px",
+                                opacity: 0.8,
+                                padding: "4px 0",
+                            }}
+                        >
+                            Fills empty artwork slots (capsule, hero, logo,
+                            wide) for shortcuts with no Steam match. Art you
+                            set yourself is never replaced. Get a free key in
+                            your SteamGridDB profile preferences.
+                        </div>
+                        <TextField
+                            label="SteamGridDB API Key"
+                            bIsPassword
+                            value={sgdbKey}
+                            onChange={(e) => setSgdbKey(e.target.value)}
                         />
                     </>
                 )}

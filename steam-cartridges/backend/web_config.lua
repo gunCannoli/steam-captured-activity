@@ -166,6 +166,7 @@ function config.save_credentials(map)
   table.sort(lines)
   local ok = utils.write_file(env_path, table.concat(lines, "\n") .. "\n")
   cached_env = current
+  cached_key = nil -- the SteamGridDB key may have changed (re-read on next use)
   return ok ~= false
 end
 

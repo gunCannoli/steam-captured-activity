@@ -81,34 +81,26 @@ deleted (selection ported to the backend in M5a). New sensor `sensors/store-item
 succeeds. Nothing behaviour-visible changes — the exit checks (pending live verification) prove
 Game Info stays identical per shortcut.
 
-**M5c paused before implementation (2026-09-29) — handoff note for the next session.** M5a and
-M5b are done; M5c (SteamGridDB artwork, a new user-visible feature) was about to start when the
-session was paused to try a new Claude version. Before writing code, an ambiguity came up and was
-resolved by the user — read this before touching M5c:
+**M5c done (2026-09-29, implementer; live verification pending § 0.5).** SteamGridDB artwork for
+shortcuts with no Steam match (`backend/art_service.lua`, `app/artwork.ts`, `domain/art-plan.ts`); the
+`artwork` surface is record-driven and `features/steam-store` no longer writes art. Empty slots only,
+`services.steamgriddbEnabled`, SteamGridDB key entry in the settings panel (Metadata section, same
+pattern as ScreenScraper/IGDB; the panel gets a full revision after the migration). Also fixed two gaps
+in my earlier M5a/M5b work: an empty title sent to `EnsureFresh` for metadata, and steam-store shortcuts
+with no Steam match never reaching IGDB (identity is now passed as context). `npm run check` clean,
+`npm run test:ts` 104/104, `npm run build` succeeds, new `tests/test_art_service.lua` ALL PASS.
 
-- M5c's "Decided" bullets (plan § 7, M5c section) say the SteamGridDB API key is "entered in the
-  settings panel," but the binding numbered **Design** list (items 1–5) never names
-  `settings/settings-panel.tsx` — only `backend/art_service.lua`, `frontend/domain/art-plan.ts`,
-  the `artwork` surface, and a new `services.steamgriddbEnabled` settings key
-  (`settings/settings.ts`). Per § 0.10 rule 2 (touch only what Design names), this looked like an
-  omission worth stopping for.
-- **User's answer:** go ahead and add the SteamGridDB credential field to
-  `settings/settings-panel.tsx` anyway, using the same pattern already there for ScreenScraper/IGDB
-  (`MetadataSection`, ~line 190 on: `SaveServiceCredentials` RPC call, `bIsPassword` masked field,
-  `GetStatus`'s `has_sgdb` boolean already exists in `web_rpc.lua` for the "saved" state). Don't
-  wait for M8 (Settings split) to add it. The user knows the settings panel will be revised again
-  once the whole migration is done, so treat this as consistent with M5c's existing style, not a
-  polished final UI.
-- Everything else in M5c's Design (1–5) and Exit criteria is unchanged; implement per § 0.10 as
-  normal, then M5d, then batch live verification for all of M5 (M5a–M5d) before moving to M6a.
+Notes for the next step (M5d, then batch live verification of M5a–M5d):
+- `features/steam-store/resolve.ts` (`cdnArtworkUrls`) has no caller left in the frontend (the backend has its
+  own `art_service.cdn_urls`); M9a's file list still names it — delete it there instead of moving it (D13).
+- `GetArtworkForGame` stays registered but has no caller (`art_service` calls `web_sgdb` directly); § 7.10 row 1
+  is now served by M5c.
+- Live checks for M5c (§ 7 M5c Exit): an unmatched web-scraping shortcut with no custom art gets four slots;
+  a shortcut whose portrait the user set keeps it; Clear removes only our slots; AM2R (bucket `none`) makes no
+  SteamGridDB request (backend log). Also re-check M5b's exits (`audit_missing_metadata.mjs`, a web-scraping game
+  shows IGDB data) since the identity/title fix changes that path. Needs a SteamGridDB key in the panel.
 
-Read before resuming: [service-resolver.md](docs/steam-cartridges/service-resolver.md) and
-[service-metadata.md](docs/steam-cartridges/service-metadata.md) for the established pattern
-(`M.deps` injectable, `M.ensure(appid, ctx)` selection order, a hermetic Lua test suite modelled
-on `tests/test_identity.lua`/`tests/test_metadata_service.lua`) — M5c's `art_service.lua` should
-follow the same shape for consistency with M4b/M5a.
-
-Next: finish **M5c**, then **M5d**, then M6a onward (`Build`: detailed specs the implementer
+Next: **M5d**, then live verification for all of M5, then M6a onward (`Build`: detailed specs the implementer
 builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next

@@ -100,6 +100,12 @@ RPC.SteamStoreGetAppDetails = method("SteamStoreGetAppDetails", function(data)
 end)
 
 RPC.SteamStoreRecordArtwork = method("SteamStoreRecordArtwork", function(data)
+  if data.source == "steamgriddb" then
+    -- M5c: SteamGridDB fills a shortcut with no Steam match; there is no mapping to check.
+    local ok, err = store.record_sgdb_artwork(need(data, "appid"), data.slots or {}, data.tried or {})
+    if not ok then return { error = err } end
+    return { ok = true }
+  end
   local ok, err = store.record_artwork(need(data, "appid"), need(data, "steam_appid"), data.slots or {}, nil, data.failed or {})
   if not ok then return { error = err } end
   return { ok = true }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { artworkPlan, mergeArtResult, pickUrls, slotList } from '../frontend/features/steam-store/art-plan.ts';
+import { artworkPlan, mergeArtResult, pickUrls, sgdbPlan, slotList } from '../frontend/domain/art-plan.ts';
 
 test('nothing recorded: write all four', () => {
     assert.deepEqual(artworkPlan(null, 2820820, false), { clear: [], write: [0, 1, 2, 3] });
@@ -33,4 +33,16 @@ test('mergeArtResult: kept + written, failed = attempted - written', () => {
         slots: [0, 1, 2, 3],
         failed: [],
     });
+});
+
+test('steamgriddb: only empty slots that have a url are written, nothing is cleared', () => {
+    const urls = { portrait: 'p', hero: 'h', logo: 'l' };
+    assert.deepEqual(sgdbPlan(urls, [0, 1, 2, 3]), { clear: [], write: [0, 1, 2] });
+    assert.deepEqual(sgdbPlan(urls, [1, 3]), { clear: [], write: [1] });
+    assert.deepEqual(sgdbPlan(urls, []), { clear: [], write: [] });
+});
+
+test('steamgriddb: Lua empty tables ({}) and junk mean no empty slot', () => {
+    assert.deepEqual(sgdbPlan({ portrait: 'p' }, {}), { clear: [], write: [] });
+    assert.deepEqual(sgdbPlan({ portrait: 'p' }, [0, 9, 'x']), { clear: [], write: [0] });
 });
