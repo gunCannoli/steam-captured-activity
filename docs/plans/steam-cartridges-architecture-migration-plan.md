@@ -68,8 +68,8 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M4c | Frontend adopts records and identity | Spec | `rpc.md`, `surfaces.md`, `sensors.md` |
 | M5a | Metadata service (backend) | Spec | `service-metadata.md`, `rpc.md` |
 | M5b | Frontend adopts metadata | Spec | `service-metadata.md`, `surfaces.md`, `sensors.md` |
-| M5c | SteamGridDB artwork source (feature; user decisions first) | Spec | `service-artwork.md` |
-| M5d | ScreenScraper metadata source (feature; user decisions first) | Spec | `service-metadata.md` |
+| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Spec | `service-artwork.md`, `safety.md` (credentials) |
+| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Spec | `service-metadata.md` |
 | M6 | Achievements service | Spec | `service-achievements.md` |
 | M7 | Freshness + ingestion | Spec | `service-freshness.md` |
 | M8 | Settings split | Spec | `settings.md` |
@@ -2247,8 +2247,8 @@ M7) connect them (§ 7.10).
 | M4c | Frontend adopts it: records, render queue, ports, owned-apps sensor; sections / native-links / captures record-driven | frontend switch | identity resolved by one backend call instead of up to three |
 | M5a | Metadata service in the backend (steam appdetails, IGDB, local DB, store-item context) | backend addition | none (nothing calls it yet) |
 | M5b | Frontend adopts it: store-item sensor, game-info surface record-driven, old pipeline deleted | frontend switch | Game Info selection done by the backend |
-| M5c | SteamGridDB artwork source (feature) | feature | new: art for unmapped shortcuts |
-| M5d | ScreenScraper metadata source (feature) | feature | new: metadata for retro games |
+| M5c | SteamGridDB artwork source (feature) | feature | new: art for shortcuts without a Steam match, empty slots only |
+| M5d | ScreenScraper metadata source (feature) | feature | new: metadata when IGDB is not configured or finds nothing |
 
 Every step: architect pass per § 7.0.1 (dry-run and package per D10 unless the step says otherwise),
 § 0.5 live verification by the verifier, the M3 common switch-off check for any surface the step
@@ -2563,33 +2563,82 @@ before); AM2R Game Info intact with route `none` (ADR-0035); WUCHANG Game Info f
 **Docs:** `service-metadata.md`, `surfaces.md` (game-info record-driven), `sensors.md` (store-item),
 `README.md`, § 7.9.
 
+#### Provider credentials (binding for M5c, M5d and every later provider)
+
+User decision 8 (§ 11): the plugin's users enter provider credentials in the plugin settings
+panel; they are saved locally and safely. Today's mechanism already does most of this and is kept:
+
+- **Where:** `SaveServiceCredentials` → `web_config.save_credentials` writes key=value lines to
+  `<Steam>/millennium/config/steam-cartridges/.env` (the plugin data folder, `data_dir`). Nothing
+  else stores a credential. The SteamGridDB key moves from `sgdb_key.txt` to `.env` as `steamgriddb_api`
+  (`config.get_api_key` already reads both; `migrate.lua` copies an existing `sgdb_key.txt` into `.env`
+  once and deletes the file).
+- **Never shown back:** the settings panel's credential fields start empty, use `bIsPassword` for
+  secrets, and show only a "saved" / "verified" state. `GetStatus` returns booleans only (`has_twitch`,
+  `has_sgdb`, `has_screenscraper`, `has_retroachievements`); no RPC ever returns a stored secret.
+- **Never leaves the machine except to its provider:** a credential is sent only to its own provider's
+  HTTPS endpoint, never logged (a Lua test greps the providers' `logger:` calls for credential
+  variables), never written to `library_metadata.json` or any other file, and never in the repo
+  (AGENTS.md: never commit secrets).
+- **Clearing:** saving an empty field removes the key from `.env` (already `save_credentials`' behaviour).
+- Encryption at rest (e.g. Windows DPAPI) is **not** available from the Lua sandbox; the protection is
+  the user's own profile folder. `safety.md` states this plainly.
+
 ### M5c — SteamGridDB artwork source (Spec; feature, after M5b)
 
 **Why:** § 7.10 row 1. SteamGridDB is the artwork source for non-Steam games; the provider exists
 (`web_sgdb.lua`: search by title, lookup by Steam appid, portrait/hero/logo/wide URLs), but nothing
 calls it since the `steamgriddb-artwork` merge. **Behaviour: new** (feature freeze ended with M3).
-**Decisions to ask the user before the architect pass:** (a) which shortcuts get SteamGridDB art
-(proposal: routes `web-scraping` and `steam-store` without a Steam match; mapped games keep Steam CDN art);
-(b) never overwrite art the user set themselves (proposal: write only empty slots, and record our slots
-in `applied_artwork` exactly as the Steam Store path does, so Clear removes only ours); (c) where the API
-key is entered (today only `.env` / `sgdb_key.txt`; proposal: a field in the settings panel through
-`SaveServiceCredentials`, which already accepts it).
-**Design outline:** an Artwork service (`backend/art_service.lua`) with sources `steam_cdn` (the current
-mapped path) and `sgdb` (`web_sgdb.lua`); `record.artwork = { urls, source }`; `art-plan.ts` → `domain/`;
-the `artwork` surface becomes record-driven and `setArtworkSink` is deleted; routing service `steamgriddb`
-(already in the rules UI) gates the SGDB source.
+**Decided (user, 2026-09-28, § 11 item 8):**
+- **Which games:** every shortcut **without a Steam match** (`identity.data.native` absent: routes
+  `web-scraping`, and `steam-store` with no match). Two existing contracts still apply and the step must
+  not break them: a shortcut in bucket `none` makes no network call (ADR-0035), so it gets SteamGridDB
+  art only if the user moves it out of `none`; and the user's routing rules / service toggle for
+  `steamgriddb` can exclude games (the rules UI already offers `steamgriddb`). Mapped games keep Steam CDN
+  art (today's behaviour).
+- **Only empty slots:** SteamGridDB writes a slot only when the shortcut has **no** custom artwork in it
+  (checked with Steam's own data before writing), and records the slots it wrote in `applied_artwork`
+  exactly like the Steam Store path, so "Clear" removes only ours. A slot the user set is never touched.
+- **Credentials:** the API key is entered in the settings panel (new "SteamGridDB" service entry next to
+  ScreenScraper and IGDB, one masked field), saved per "Provider credentials" above.
+**Design outline (the architect pass turns it into literal blocks):**
+1. Backend Artwork service `backend/art_service.lua`: `EnsureFresh(["artwork"])` → `record.artwork =
+   Part<{ urls: ArtworkUrls; source: "steam-cdn" | "steamgriddb" }>`. Sources: `steam_cdn` (identity has a
+   native: today's CDN URLs, incl. the hashed URLs the frontend reads from StoreItemCache, passed as
+   context) and `sgdb` (no native: `web_sgdb.search_game(title)` then `fetch_artwork_urls(id)`; no key →
+   `needs-setup`, silent otherwise, ADR-0014). Negative results cached like the store search.
+2. `art-plan.ts` → `frontend/domain/art-plan.ts` (pure; tests path, D11), extended with "empty slots only"
+   for the `steamgriddb` source.
+3. The `artwork` surface becomes record-driven (`reads: ["artwork"]`); `setArtworkSink` is deleted
+   (§ 7.9). It asks Steam which slots already hold custom art (the architect names the Steam API in the
+   step, verified live) and writes only the empty ones.
+4. New settings key `services.steamgriddbEnabled` (default `true`; additive, no existing key changes).
+5. Lua tests: no key → `needs-setup` without a request; search miss → negative cache; mapped game →
+   `steam-cdn` and no SteamGridDB request; the credential never appears in a `logger:` call.
+**Exit:** an unmatched web-scraping shortcut with no custom art gets portrait/hero/logo/wide from
+SteamGridDB; a shortcut whose portrait the user set keeps it (only the other slots are filled);
+"Clear" removes only our slots; AM2R (bucket `none`) makes no SteamGridDB request; § 0.5 PASS.
 
 ### M5d — ScreenScraper metadata source (Spec; feature, after M5b)
 
 **Why:** § 7.10 row 2. ScreenScraper credentials are in settings, but no metadata ever came from it:
 `screenscraper_media.lua` fetches only media (screenshots, fanart, video, manual) through `jeuInfos.php`.
-**Decisions to ask the user:** (a) priority against IGDB for retro games (proposal: ScreenScraper first for
-routes whose auto profile is `retroarch` / `console_emulator`, IGDB first for PC); (b) which fields
-(synopsis, release date, developer, publisher, genres, players).
-**Design outline:** `src_screenscraper` in `metadata_service.lua` using the same `jeuInfos.php` response
-(ROM path, CRC/MD5 as `screenscraper_media.fetch_media` already computes), gated by `services.screenscraperEnabled`
-and routing service `screenscraper`; Lua tests with a recorded `jeuInfos` fixture; `audit_missing_metadata.mjs`
-must stay at 0 missing.
+**Decided (user, 2026-09-28, § 11 item 8):**
+- **Priority:** **IGDB first when the user has entered IGDB (Twitch) credentials**; ScreenScraper fills
+  in when IGDB is not configured or finds no match. ScreenScraper matters because it is the easy one:
+  a plain free account is enough, while IGDB needs a Twitch developer app.
+- **Credentials:** as today (settings panel, masked, `.env`), per "Provider credentials" above.
+- **Fields (proposed default; confirm in the architect pass):** synopsis → `description`, release date,
+  developer, publisher, genres, player count → `categories`.
+**Design outline:** `src_screenscraper` in `metadata_service.lua`, reusing `screenscraper_media.lua`'s
+`jeuInfos.php` client and ROM hashing (CRC/MD5 of the ROM path from the shortcut's launch options),
+gated by `services.screenscraperEnabled` and the routing service `screenscraper`. Selection for
+`web-scraping` and unmatched `steam-store` becomes: local DB → IGDB (if configured and allowed) →
+ScreenScraper (if configured and allowed) → fallback record. Lua tests with a recorded `jeuInfos`
+fixture (no network); `audit_missing_metadata.mjs` stays at 0 missing; a retro shortcut with only
+ScreenScraper credentials gets its synopsis and credits.
+**Beyond metadata:** ScreenScraper is also the main source for the community/media section
+(artwork, fanart, videos, manuals and guides; § 7.10 row 3, Media service after M7).
 
 ### M6 — Achievements service (Spec)
 
@@ -2698,9 +2747,9 @@ code, D13 does not apply) and each has the step that connects it. M4.0 verifies 
 
 | # | Feature | What exists | What is missing | Wired in |
 | --- | --- | --- | --- | --- |
-| 1 | SteamGridDB artwork for shortcuts | `web_sgdb.lua` (search by title, lookup by Steam appid, portrait/hero/logo/wide URLs), `GetArtworkForGame`, key storage in `web_config.lua`, routing option `steamgriddb`, the frontend URL writer with the SGDB CORS proxy fallback (`surfaces/artwork`) | a caller; a settings field for the key; the rule for which shortcuts get it | M5c |
-| 2 | ScreenScraper metadata for retro games | credentials in settings, `screenscraper_media.lua` (`jeuInfos.php` client, ROM hashing), service toggle and routing option | any metadata mapping (the module extracts media only); a caller | M5d |
-| 3 | ScreenScraper media (screenshots, fanart, video, manuals) | `GetGameMedia`, `GetGameManual`, `screenscraper_media.lua` | a surface that shows them (the old custom tab was never mounted and was deleted in M3.0; restore with `git show 5b6b2c8:steam-cartridges/frontend/renderers/community-tab.tsx` if wanted, but ADR-0022 prefers Steam's own sections) | Media service, after M7 |
+| 1 | SteamGridDB artwork for shortcuts without a Steam match, empty slots only (§ 11 item 8a) | `web_sgdb.lua` (search by title, lookup by Steam appid, portrait/hero/logo/wide URLs), `GetArtworkForGame`, key storage in `web_config.lua`, routing option `steamgriddb`, the frontend URL writer with the SGDB CORS proxy fallback (`surfaces/artwork`) | a caller; a settings field for the key; the empty-slot check | M5c |
+| 2 | ScreenScraper metadata, after IGDB when IGDB is configured (§ 11 item 8c) | credentials in settings, `screenscraper_media.lua` (`jeuInfos.php` client, ROM hashing), service toggle and routing option | any metadata mapping (the module extracts media only); a caller | M5d |
+| 3 | ScreenScraper media for the community section: artwork, fanart, videos, guides/manuals (the main source, § 11 item 8c) | `GetGameMedia`, `GetGameManual`, `screenscraper_media.lua` | a surface that shows them (the old custom tab was never mounted and was deleted in M3.0; restore with `git show 5b6b2c8:steam-cartridges/frontend/renderers/community-tab.tsx` if wanted, but ADR-0022 prefers Steam's own sections) | Media service, after M7 |
 | 4 | IGDB community (trailers, links, official artworks) | `igdb_community.lua`, `GetGameTrailers`, `GetGameCommunityLinks` | a surface; the `media` record part | Media service, after M7 |
 | 5 | Manual Game Info editing | `SaveGameMetadata` (sets `custom_override`, which `web_metadata_db` and M5a honour) | a settings UI | settings step after M8 (M8 does not add features) |
 | 6 | Reject a Steam Store suggestion | `SteamStoreRejectSuggestion`, the `rejected` list | a button in the Steam Store settings list | settings step after M8 |
@@ -2800,6 +2849,12 @@ AGENTS.md Routine 6.
    storage and freshness. Amends decision 1 for routing only (ADR-0040, written in M4a).
 7. **SteamGridDB, ScreenScraper and IGDB-community are features to wire, not dead code** (2026-09-28):
    their backend providers are kept and connected by M5c, M5d and the Media service (§ 7.10).
+8. **Providers** (2026-09-28): (a) SteamGridDB fetches artwork for any game without a Steam match,
+   into empty art slots only; (b) provider credentials are entered by the plugin's users in the
+   settings panel and saved locally and safely (plan § 7 "Provider credentials"); (c) IGDB takes
+   priority for metadata when the user has entered its credentials; ScreenScraper, which only needs a
+   simple account, fills in otherwise, and is also the main source for the community/media section
+   (artwork, fanart, videos, guides/manuals).
 
 Recorded in [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
 
