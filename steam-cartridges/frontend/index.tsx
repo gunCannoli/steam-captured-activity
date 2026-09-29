@@ -6,7 +6,6 @@ import {
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
     setContentListener,
-    setNativeActivitySource,
     unpatch as unpatchLibraryApp,
 } from "./surfaces/captures";
 import {
@@ -15,8 +14,8 @@ import {
     refresh as refreshLibraryHome,
 } from "./surfaces/library-home";
 import { initGameInfo } from "./features/game-info";
-import { initSourceView, onSourceView, setRouting as setSourceViewRouting } from "./features/source-view";
-import { createNativeLinksSurface, setNativeAppid } from "./surfaces/native-links";
+import { initSourceView, onSourceView, setIdentity as setSourceViewIdentity, setRouting as setSourceViewRouting } from "./features/source-view";
+import { createNativeLinksSurface } from "./surfaces/native-links";
 import { artworkWriter, createArtworkSurface } from "./surfaces/artwork";
 import {
     initAchievements,
@@ -33,6 +32,10 @@ import {
 import { initSettings, resetSettings, setSetting, setting, setRouting as setSettingsRouting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { createRouting } from "./app/routing";
+import { createRecords } from "./app/records";
+import { createRenderQueue } from "./app/render-queue";
+import { createIdentity } from "./app/identity";
+import { ownedCandidates } from "./sensors/owned-apps";
 import { triggerSync, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
 import { setRouting as setOnUpdateRouting } from "./features/scraper/on-update";
 import { features } from "./safety/switches";
@@ -43,11 +46,12 @@ import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
+import { resolveShortcutTitle } from "./steam/shortcut";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
+import { backend } from "./ports/backend";
 import {
     createSectionsSurface,
     refreshSections,
-    setExtraSections,
     setGameInfoProbe,
     setHasContent,
 } from "./surfaces/sections";
@@ -61,13 +65,7 @@ import {
 import { createPlaybarSurface } from "./surfaces/playbar";
 import { getCachedLibraryMetadata, libraryCacheAppids, setGameInfoWriter, setRouting as setGameInfoRouting } from "./features/game-info";
 import { controllerContext } from "./features/game-info/controller";
-import {
-    setArtworkSink,
-    setCapturesSinks,
-    setExtraSectionsSink,
-    setGameInfoSink,
-    setNativeLinksSink,
-} from "./features/steam-store";
+import { setArtworkSink, setGameInfoSink, setIdentitySource } from "./features/steam-store";
 import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
 import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
 import { setAchievementsStore } from "./features/achievements/store-port";
@@ -110,6 +108,30 @@ const routing = createRouting({
     },
     loadProfiles: async () => (await rpc.getAutoRoutingProfiles())?.profiles ?? {},
     metadataAppids: () => libraryCacheAppids(),
+});
+
+/** Records (app/records.ts, plan M4c): the one read model every record-driven surface reads. */
+const records = createRecords(bus);
+
+/** Render queue (app/render-queue.ts, plan § 7.0 D5): coalesces record.updated into one
+ *  runner.render() per appid per tick, never from inside a Steam render. */
+const renderQueue = createRenderQueue((appid, parts) => runner.render(appid, records.store.get(appid), parts));
+
+/** Identity (app/identity.ts, plan M4c): resolves a shortcut's Steam Store match through
+ *  one EnsureFresh call instead of up to three round trips. */
+const identity = createIdentity({
+    backend,
+    records: records.store,
+    owned: ownedCandidates,
+    titleOf: (appid) => {
+        try {
+            const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
+            return typeof name === "string" ? name : undefined;
+        } catch {
+            return undefined;
+        }
+    },
+    now: () => Date.now(),
 });
 
 export { setSetting, resetSettings };
@@ -161,19 +183,27 @@ async function init() {
     setOnUpdateRouting(routing);
     setSettingsRouting(routing);
 
+    // Identity reaches its callers only through these setters (plan § 7.0 D3).
+    setSourceViewIdentity(identity);
+    setIdentitySource(identity);
+
     // Surface APIs reach the features only through these setters (plan § 7.0 D3).
     setGameInfoProbe(isAppEnriched);
     setContentListener(setHasContent);
-    setExtraSectionsSink(setExtraSections);
     setAchievementsStore(achievementsStore);
     setToasts({ achievement: showAchievementToast, launch: dispatchLaunchToast });
-    setCapturesSinks({ setNativeActivitySource, republish: patchLibraryApp });
     setCapturesRefresher(refreshLibraryApp);
     setGameInfoWriter(gameInfoWriter);
     setGameInfoSink(gameInfoWriter);
-    setNativeLinksSink(setNativeAppid);
     setArtworkSink(artworkWriter);
     setGameInfoEnricher(gameInfoWriter.enrich);
+
+    // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
+    // timer after record.updated, never from inside a Steam render (plan § 7.0 D5).
+    bus.on("record.updated", ({ appid, parts }) => renderQueue.push(appid, parts));
+    // The record must exist before anything writes a part to it (kernel/record.ts update()
+    // is a no-op for an unknown appid); every view ensures its base record first.
+    bus.on("shortcut.viewed", ({ appid }) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""));
 
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();

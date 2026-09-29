@@ -74,7 +74,7 @@ Statuses (what the executing agent does with the row):
 | M4.0 | Backend inventory: live / unwired / dead; purge only the dead | **Done** | `rpc.md` (created) |
 | M4a | Routing policy → `domain/routing` (ADR-0040) | **Done (implementer); live verification pending § 0.5** | `README.md` layer list, ADR-0040 |
 | M4b | Identity service + record facade (backend) | **Done (implementer); live verification pending § 0.5** | `service-resolver.md`, `rpc.md` |
-| M4c | Frontend adopts records and identity | Build | `rpc.md`, `surfaces.md`, `sensors.md` |
+| M4c | Frontend adopts records and identity | **Done (implementer); live verification pending § 0.5** | `rpc.md`, `surfaces.md`, `sensors.md` |
 | M5a | Metadata service (backend) | Build | `service-metadata.md`, `rpc.md` |
 | M5b | Frontend adopts metadata | Build | `service-metadata.md`, `surfaces.md`, `sensors.md` |
 | M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Build | `service-artwork.md`, `safety.md` (credentials) |
@@ -3108,9 +3108,9 @@ printing nothing, and every row below being deleted.
 | dead backend code, if the M4.0 inventory finds any (the RPCs behind the M3.0 wrappers are **unwired features**, § 7.10, and stay) | — | **M4.0 (before the backend moves)** | see M4.0 |
 | `frontend/features/achievements/store-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; M6 moves the achievements pipeline to the backend |
 | `frontend/features/achievements/toast-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; toasts become `achievements.unlocked` subscribers |
-| setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks` | — | M4c | `identity.native` comes from the record |
+| ~~setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks`~~ | — | ~~M4c~~ **done** | `identity.native` comes from the record |
 | setter `setArtworkSink` | — | M5c | the artwork part comes from the Artwork service |
-| `features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts` | — | M4c | the backend's `normalize` is the only matcher |
+| ~~`features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts`~~ | — | ~~M4c~~ **done** | the backend's `normalize` is the only matcher |
 | setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`; `features/game-info/index.ts`, `policy.ts` | — | M5b | Game Info comes from `record.metadata` |
 | setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts` | — | M7 | freshness and ingestion move to the backend |
 | setter `setContentListener` | — | M9 decides | the content flag stays captures → sections; keep the setter or move it to an event |

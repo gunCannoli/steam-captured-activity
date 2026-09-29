@@ -141,6 +141,9 @@ until the service steps (M4+) feed them through `render()`.
   to `kernel/record.ts` (D12).
 - M3.10 (2026-09-28): `library-home` surface added (moved from `renderers/library-home.tsx`), the
   last surface. `frontend/renderers/` no longer exists. M3 is complete; the feature freeze (§ 5) ends.
+- M4c (2026-09-29): `sections`, `native-links` and `captures` become record-driven for `identity`:
+  each `render(appid, record)` reads `record?.identity?.data?.native` instead of a sink written from
+  `steam-store/index.ts`. `setExtraSectionsSink`, `setNativeLinksSink` and `setCapturesSinks` are gone.
 
 ## sections
 
@@ -155,7 +158,8 @@ Restores the app-detail sections Steam hides from shortcuts
 | `CAppDetailsSections.GetSections` | 1 (one patch owns this prototype method) |
 | `CAppDetailsSections.m_setSectionsMemo` | 1 |
 
-**reads:** `identity`, `metadata`, `achievements` (record-driven from M4; `render()` is a no-op until then, D4).
+**reads:** `identity`, `metadata`, `achievements` (`identity` is record-driven since M4c; `metadata`
+and `achievements` still write through their own sinks until M5/M6 add those parts).
 
 **Kill switch:** `sections` (`disabledFeatures`). Checked inside `patchedGetSections` on every call (D6).
 
@@ -165,12 +169,16 @@ Restores the app-detail sections Steam hides from shortcuts
 
 **API (reached only through these setters):**
 - `setHasContent(appid, hasContent)` — wired from `library-app`'s content listener via `setContentListener`.
-- `setExtraSections(appid, names)` — wired from `steam-store` via `setExtraSectionsSink`.
 - `refreshSections()` — wired from the achievements store via `setSectionsRefresher`.
+
+**`render(appid, record)`** (M4c): `setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined)`
+(`NATIVE_SECTIONS = ["friends", "community", "achievements"]`, moved here from `steam-store/index.ts`).
+`clear(appid)` drops them. `setExtraSectionsSink` is gone — nothing outside this file calls
+`setExtraSections` any more.
 
 **Hooks:** `patchedGetSections` (fail-open: Steam's `base.call` runs first; a throw in our part returns Steam's own result and counts against `sections`).
 
-**Record-driven in:** M4 (the resolver/RPC facade is the first `record.updated` producer).
+**Record-driven in:** M4c (`identity`); M5/M6 (`metadata`, `achievements`).
 
 ## captures
 
@@ -192,7 +200,7 @@ screenshots and clips, never rebuilt or re-encoded.
 | `jsx:activity-cards` | 2 |
 | `BPM.style#nsga-bpm-activity-thumbs` | 12 (Big Picture only, via `onPopupCreate`) |
 
-**reads:** none yet (record-driven from M4, D4).
+**reads:** `identity` (M4c).
 
 **Kill switches:** four, one surface (D6) — `captures` (the surface as a whole; switching it off
 skips `store-cache`, `headline` and `activity-cards` too, since the runner never calls `install()`
@@ -203,14 +211,17 @@ doesn't take down the others.
 **Injected deps:**
 - `SurfaceDeps & { activityOptions(): ActivityOptions }`, passed to `createCapturesSurface`; `activityOptions()` replaces importing `settings` directly (the two activity display settings).
 
-**API (reached only through these setters):**
-- `setCapturesSinks({ setNativeActivitySource, republish })` — wired from `steam-store` (D3).
+**API (reached only through this setter):**
 - `setCapturesRefresher(fn)` — wired from `scraper/on-update` (D3).
 - `registerSummaryProvider`, the `Summary*` types, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics` — re-exported from `surfaces/captures`; `index.tsx`'s public API (D8) is unchanged.
 
+**`render(appid, record)`** (M4c): `setNativeActivitySource(appid, record?.identity?.data?.native?.appid)`
+then `void patch(appid)` (was the steam-store `republish`, wired through `setCapturesSinks`). Called
+only when `identity` changed (the runner gates on `reads`). `setCapturesSinks` is gone.
+
 **Hooks:** `BIsAppMissing` (fail-open under `store-cache`), the headline observer (fail-open under `headline`), the activity-cards `replaceType` (fail-open under `activity-cards`).
 
-**Record-driven in:** M4.
+**Record-driven in:** M4c (`identity`).
 
 ## game-info
 
@@ -365,21 +376,24 @@ the shortcut's own (empty) page (parity plan C).
 | `Navigator.App` | 1 |
 | `jsx:native-sections` | 2, 3 (one webpack scan at startup; the jsx handler is one Map lookup on element type, then one on appid) |
 
-**reads:** none — driven by `setNativeAppid`, not by the record.
+**reads:** `identity` (M4c).
 
 **Kill switch:** `native-links`. All three hooks are fail-open: the `GetAppOverviewByAppID` afterPatch returns the unmodified value, the `Navigator.App` beforePatch passes its arguments through unchanged, and the jsx observer does nothing.
 
 **Injected deps:** `SurfaceDeps`, passed to `createNativeLinksSurface`.
 
-**API (reached only through this setter):**
-- `setNativeLinksSink` — wired from `steam-store`'s `setNativeAppid` (D3).
+**API:**
 - `nativeSectionsDiagnostics` (D8) — `index.tsx`'s public export is unchanged.
+
+**`render(appid, record)`** (M4c): `setNativeAppid(appid, record?.identity?.data?.native?.appid)`.
+`clear(appid)` calls it with `undefined`. `setNativeLinksSink` is gone — `setNativeAppid` is only
+called from inside this surface now.
 
 **Known issue:** K18 — the Support ("HelpAppPage") header link isn't among the four
 resolved link ids, so `check_parity.mjs` check 15 fails on both the pre-M3.7 and M3.7
 builds. Out of scope for a pure move (D14); tracked for a bugfix plan after M3.
 
-**Record-driven in:** not applicable — driven by the steam-store mapping, not the record.
+**Record-driven in:** M4c.
 
 ## artwork
 

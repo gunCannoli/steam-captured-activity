@@ -1,38 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { cdnArtworkUrls, matchKnownApp, normalizeTitle } from '../frontend/features/steam-store/resolve.ts';
+import { cdnArtworkUrls } from '../frontend/features/steam-store/resolve.ts';
 import { categoryIds, gameCategoryIds, metadataFromStoreItem } from '../frontend/features/steam-store/store-item.ts';
-
-// Shared with tests/test_steam_store.lua so the two normalisers cannot drift.
-const cases: { normalize: [string, string][] } = JSON.parse(
-    readFileSync(new URL('./fixtures/normalize-cases.json', import.meta.url), 'utf8'),
-);
-
-test('normalize parity with the Lua backend (shared fixture)', () => {
-    for (const [input, expected] of cases.normalize) {
-        assert.equal(normalizeTitle(input), expected, `normalizeTitle(${JSON.stringify(input)})`);
-    }
-});
-
-test('matchKnownApp needs a unique exact normalised match', () => {
-    const apps = [
-        { appid: 435150, name: 'Divinity: Original Sin 2' },
-        { appid: 1, name: 'Doom' },
-        { appid: 2, name: 'DOOM (2016)' },
-        { appid: 3, name: 'Doom Eternal' },
-    ];
-    assert.equal(matchKnownApp('divinity original sin 2', apps)?.appid, 435150);
-    assert.equal(matchKnownApp('Doom', apps), undefined, 'two natives share one normalised name');
-    assert.equal(matchKnownApp('Doom Eternal', apps)?.appid, 3);
-    assert.equal(matchKnownApp('Quake', apps), undefined);
-    assert.equal(matchKnownApp('(only tag)', apps), undefined, 'an empty normalised title never matches');
-});
-
-test('duplicate entries for one appid are not ambiguous', () => {
-    const apps = [{ appid: 7, name: 'Foo' }, { appid: 7, name: 'FOO' }];
-    assert.equal(matchKnownApp('foo', apps)?.appid, 7);
-});
 
 test('cdnArtworkUrls', () => {
     const u = cdnArtworkUrls(435150);

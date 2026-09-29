@@ -17,14 +17,19 @@ steam-cartridges architecture (ADR-0039); index:
   `shortcut.launched` / `shortcut.quit`.
 - Collection membership reads: `frontend/sensors/collections/` is the only
   code that reads `window.collectionStore`. It exposes `collectionsSource`,
-  wired into `features/buckets/collections.ts` via the kernel's D3 setter
-  pattern (`setCollectionsSource`).
+  passed directly into `app/routing.ts`'s `createRouting({ collections, ... })`
+  in `index.tsx` (M4a moved the consumer off `features/buckets/collections.ts`,
+  which no longer exists, onto this same sensor with no change to the sensor
+  itself).
+- Native games Steam already knows: `frontend/sensors/owned-apps/` is the only
+  code that reads `appStore.allApps` for native (non-shortcut) games. It
+  exposes `ownedCandidates()`, passed to `app/identity.ts`'s
+  `createIdentity({ owned, ... })` and from there to the backend resolver's
+  `EnsureFresh` context (M4c; moved verbatim from
+  `features/steam-store/known-apps.ts` `readNativeGames`, which is deleted).
 - The plugin's one event bus: `frontend/app/bus.ts` wraps
   `kernel/events.createEventBus`. Sensors emit into it; `index.tsx`
   subscribes the handlers.
-
-Owned-apps detection stays with `features/buckets` until M4, next to its only
-consumer (the resolver).
 
 ## Contract
 
@@ -71,6 +76,12 @@ export function readUserCollections(store: any): any[] | undefined;
 export const collectionsSource: { ready(): boolean; list(): any[] | undefined };
 ```
 
+```ts
+// frontend/sensors/owned-apps/index.ts (M4c)
+export interface OwnedCandidate { appid: number; name: string }
+export function ownedCandidates(): OwnedCandidate[];
+```
+
 ## Files
 
 | File | Role |
@@ -79,7 +90,8 @@ export const collectionsSource: { ready(): boolean; list(): any[] | undefined };
 | `frontend/sensors/view/core.ts` | Pure view tracker: one `viewed`/`left` per real navigation, Big Picture re-render dedupe (D2, tested with node) |
 | `frontend/sensors/view/index.ts` | Wires `onLocationChange` (desktop) and `watchGamepadAppid` (Big Picture) into the tracker; emits on `setTimeout(0)` (D5) |
 | `frontend/sensors/lifecycle/index.ts` | Wires `onAppLaunch`/`onQuit` to `shortcut.launched`/`shortcut.quit` |
-| `frontend/sensors/collections/index.ts` | `isCollectionStoreReady`, `readUserCollections`, `collectionsSource` (moved verbatim from `features/buckets/ready.ts`) |
+| `frontend/sensors/collections/index.ts` | `isCollectionStoreReady`, `readUserCollections`, `collectionsSource` (moved verbatim from `features/buckets/ready.ts` in M2) |
+| `frontend/sensors/owned-apps/index.ts` | `ownedCandidates()` (moved verbatim from `features/steam-store/known-apps.ts` `readNativeGames` in M4c) |
 | `tests/sensors.test.ts` | Unit tests for the view tracker |
 
 ## Steam targets touched
@@ -92,11 +104,14 @@ never write a Steam store or DOM.
 
 Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-plan.md#41-layers-and-the-dependency-rule):
 `sensors/` may import `kernel/` and `steam/` (read-only resolution), and must
-never import `surfaces/`, `app/`, or another sensor. Sensors never import
+never import `surfaces/`, `app/`, `ports/`, or another sensor. Sensors never import
 each other: D1 makes each sensor folder (`sensors/view`, `sensors/lifecycle`,
-`sensors/collections`) its own area, so a sensor importing another sensor
-fails the architecture test. Rule-allowed edges are listed in `LAYER_RULES`
-in `tests/architecture.test.ts` and never appear in the allowlist.
+`sensors/collections`, `sensors/owned-apps`) its own area, so a sensor
+importing another sensor fails the architecture test. `sensors/owned-apps`
+defines its own structural `OwnedCandidate` (no import of `ports/backend`,
+which declares the same shape) for the same reason. Rule-allowed edges are
+listed in `LAYER_RULES` in `tests/architecture.test.ts` and never appear in
+the allowlist.
 
 ## Tests
 
@@ -104,7 +119,7 @@ in `tests/architecture.test.ts` and never appear in the allowlist.
   signed appids, Big Picture re-render dedupe plus re-open after
   `GAMEPAD_QUIET_MS` of silence, independent modes, and `close`.
 - `tests/buckets-ready.test.ts`: `isCollectionStoreReady` / `readUserCollections`
-  (moved from `features/buckets/ready.test.ts`, import path only — D11).
+  (import path updated to `frontend/domain/routing/pending.ts` in M4a — D11).
 - `tests/architecture.test.ts`: the sensor area-isolation rule.
 - Live: migration plan § 0.5 baseline, plus the M2 `Viewed shortcut …` /
   `Left shortcut …` log-line count (`scratch/count_cycle.mjs`).
@@ -127,3 +142,8 @@ in `tests/architecture.test.ts` and never appear in the allowlist.
   plus `app/bus.ts`. Replaces the three view detectors of migration plan
   § 1.4 with one bus-emitting sensor per concern. Deltas: migration plan § 7
   M2 "Behaviour deltas".
+- M4c (2026-09-29): `owned-apps` sensor added (moved verbatim from
+  `features/steam-store/known-apps.ts` `readNativeGames`, which is deleted
+  along with the TS matching helpers only it used). `collectionsSource`'s
+  consumer moves from `features/buckets/collections.ts` (deleted in M4a) to
+  `app/routing.ts`, with no change to the sensor itself.

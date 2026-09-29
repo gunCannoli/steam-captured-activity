@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Internal: identity resolution now goes through the record facade (M4c, 2026-09-29)**: the frontend resolves a shortcut's Steam Store match through one backend `EnsureFresh` call instead of up to three round trips (`app/identity.ts`). The three affected surfaces (`sections`, `native-links`, `captures`) now read the result straight from the record instead of a value pushed in from the Steam Store pipeline. No user-visible change — same log lines, same matches, same fallback to web scraping when a shortcut has no Steam match.
+
 - **Internal: identity resolution moved to the backend (M4b, 2026-09-29)**: a new backend service (`resolve_identity.lua`) and two RPCs (`GetGameRecord`, `EnsureFresh`) can now resolve a shortcut's Steam Store match in one call instead of up to three. Nothing calls them yet — no user-visible change until M4c.
 
 - **Internal: routing policy moved behind its own layer (M4a, 2026-09-29)**: bucket resolution and the routing rules engine now live in `frontend/domain/routing` (pure, unit-tested TypeScript) with a small stateful wrapper in `frontend/app/routing.ts`. No behaviour change (ADR-0040).

@@ -1,5 +1,6 @@
 import { toShortcutId } from "../kernel/appid";
 import type { Resolution } from "../domain/routing/policy";
+import type { Identity, Part } from "../kernel/record";
 import { handleWebScrapingView } from "./game-info";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { storeEnrichedAppIds } from "./steam-store/enriched";
@@ -21,6 +22,18 @@ let routing: RoutingSource = {
 
 export function setRouting(r: RoutingSource): void {
     routing = r;
+}
+
+/** Structural match of app/identity's public shape (no import: ADR-0039 layers). */
+interface IdentitySource {
+    ensure(appid: number, route: { bucket: "steam-store" | "web-scraping" | "none"; via: string }): Promise<Part<Identity>>;
+}
+
+/** Identity; wired to the app/identity instance in index.tsx (plan § 7.0 D3). */
+let identity: IdentitySource = { ensure: async () => ({ status: "pending" }) };
+
+export function setIdentity(i: IdentitySource): void {
+    identity = i;
 }
 
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
@@ -52,7 +65,8 @@ export async function onSourceView(appid: number): Promise<void> {
         if (bucket === "steam-store") {
             // ADR-0036: Steam Store first; no Steam match -> web scraping fallback;
             // not known yet (title missing) -> local Game Info only.
-            const matched = await handleSteamStoreView(rawAppid);
+            const identityPart = await identity.ensure(rawAppid, { bucket, via });
+            const matched = await handleSteamStoreView(rawAppid, identityPart);
             if (matched !== true) {
                 await handleWebScrapingView(rawAppid, matched);
                 void loadAchievementsForApp(rawAppid, 0);

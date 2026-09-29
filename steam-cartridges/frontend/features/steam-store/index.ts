@@ -4,15 +4,13 @@ import {
     type ArtworkUrls,
     type ConsolidatedMetadata,
     type StoreApplied,
-    type StoreMapping,
     type StoreState,
 } from "../../rpc";
-import { resolveShortcutTitle } from "../../steam/shortcut";
+import type { Identity, Part } from "../../kernel/record";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
 import { storeEnrichedAppIds } from "./enriched";
-import { knownAppName, matchKnownNative } from "./known-apps";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
 import { loadAchievementsForApp } from "../achievements";
@@ -37,11 +35,14 @@ const applyCustomArtworkFromUrls = (appid: number, urls: ArtworkUrls) => artwork
 const ensureLogoPosition = (appid: number) => artwork.ensureLogoPosition(appid);
 const clearLogoPosition = (appid: number) => artwork.clearLogoPosition(appid);
 
-/** Native Links/Friends/Community redirect (surfaces/native-links), wired in index.tsx (plan § 7.0 D3). */
-let setNativeAppid: (appid: number, nativeAppid: number | undefined) => void = () => {};
+/** app/identity, for invalidation after a manual mapping write (plan § 7.0 D3, D8: public API). */
+let identitySource: { invalidate(appid: number): void; ensure(appid: number, route: { bucket: "steam-store" | "web-scraping" | "none"; via: string }): Promise<Part<Identity>> } = {
+    invalidate: () => {},
+    ensure: async () => ({ status: "pending" }),
+};
 
-export function setNativeLinksSink(fn: (appid: number, nativeAppid: number | undefined) => void): void {
-    setNativeAppid = fn;
+export function setIdentitySource(source: typeof identitySource): void {
+    identitySource = source;
 }
 
 /** Game-info surface calls, wired in index.tsx (plan § 7.0 D3). */
@@ -58,25 +59,6 @@ const enrichGameDetails = (appid: number, meta: ConsolidatedMetadata) => gameInf
 const revertGameDetails = (appid: number) => gameInfo.revert(appid);
 const refreshGameInfoInstances = () => gameInfo.refresh();
 
-/** Captures surface calls, wired in index.tsx (plan § 7.0 D3). */
-let setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void = () => {};
-let patchLibraryApp: (appid: number) => Promise<void> = async () => {};
-
-export function setCapturesSinks(sinks: {
-    setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void;
-    republish: (appid: number) => Promise<void>;
-}): void {
-    setNativeActivitySource = sinks.setNativeActivitySource;
-    patchLibraryApp = sinks.republish;
-}
-
-/** Extra Steam sections for a mapped shortcut; wired to the sections surface in index.tsx (plan § 7.0 D3). */
-let setExtraSections: (appid: number, names: readonly string[] | undefined) => void = () => {};
-
-export function setExtraSectionsSink(fn: (appid: number, names: readonly string[] | undefined) => void): void {
-    setExtraSections = fn;
-}
-
 /** Appids handled this session (one lookup per game per session, as in the web path). */
 const processed = new Set<number>();
 /** Metadata already fetched this session, re-applied on later views. */
@@ -86,35 +68,6 @@ const RETRY_MS = 5 * 60_000;
 const retryAt = new Map<number, number>();
 /** Games whose failed art slots were already retried this session (P4 H5). */
 const artRetried = new Set<number>();
-
-async function resolveMapping(
-    appid: number,
-): Promise<{ mapping: StoreMapping | null; applied: StoreApplied | null; retry?: boolean; error?: boolean }> {
-    const state = await rpc.steamStoreGetMapping(appid);
-    if (state.mapping) return { mapping: state.mapping, applied: state.applied };
-
-    const title = resolveShortcutTitle(appid);
-    if (!title) return { mapping: null, applied: null, retry: true };
-
-    // Step 2: a unique exact match among natives Steam already knows (no network).
-    const known = matchKnownNative(title);
-    if (known !== undefined && !state.rejected.includes(known)) {
-        const res = await rpc.steamStoreSaveKnownMatch(appid, known, knownAppName(known) ?? title);
-        if (res.mapping) return { mapping: res.mapping, applied: null };
-        if (res.skipped) return { mapping: null, applied: null };
-    }
-
-    // Step 3: store search; only an exact match is applied, the rest are suggestions.
-    const found = await rpc.steamStoreSearch(appid, title);
-    if (found.mapping) return { mapping: found.mapping, applied: null };
-    if (found.suggestions?.length) {
-        logger.info(`Steam Store: ${found.suggestions.length} suggestion(s) for "${title}"; accept one in settings.`);
-    } else if (found.error) {
-        logger.warn(`Steam Store search failed for "${title}": ${found.error}`);
-        return { mapping: null, applied: null, error: true };
-    }
-    return { mapping: null, applied: null };
-}
 
 interface Loaded {
     metadata: ConsolidatedMetadata | null;
@@ -142,12 +95,12 @@ async function loadNative(appid: number, steamAppid: number): Promise<Loaded> {
 /** Returns the slots recorded as ours afterwards. */
 async function applyArtwork(
     appid: number,
-    mapping: StoreMapping,
+    steamAppid: number,
     applied: StoreApplied | null,
     urls: Loaded["urls"],
 ): Promise<number[]> {
-    const plan = artworkPlan(applied, mapping.steam_appid, artRetried.has(appid));
-    if (applied?.steam_appid === mapping.steam_appid) artRetried.add(appid);
+    const plan = artworkPlan(applied, steamAppid, artRetried.has(appid));
+    if (applied?.steam_appid === steamAppid) artRetried.add(appid);
     if (plan.write.length === 0) return slotList(applied?.slots);
 
     // A different game was mapped before: clear only the slots this plugin wrote.
@@ -157,8 +110,8 @@ async function applyArtwork(
         } catch {}
     }
     const written = await applyCustomArtworkFromUrls(appid, pickUrls(urls, plan.write));
-    const { slots, failed } = mergeArtResult(applied, mapping.steam_appid, plan, written);
-    const res = await rpc.steamStoreRecordArtwork(appid, mapping.steam_appid, slots, failed);
+    const { slots, failed } = mergeArtResult(applied, steamAppid, plan, written);
+    const res = await rpc.steamStoreRecordArtwork(appid, steamAppid, slots, failed);
     if (res?.error) {
         // The mapping was cleared while we were writing: remove what we just wrote (P4 H5).
         for (const slot of written) {
@@ -169,23 +122,22 @@ async function applyArtwork(
         logger.warn(`Steam Store: art for ${appid} discarded (${res.error}).`);
         return [];
     }
-    logger.info(`Steam Store: applied ${written.length} art slot(s) from ${mapping.steam_appid} to ${appid}; ${failed.length} failed.`);
+    logger.info(`Steam Store: applied ${written.length} art slot(s) from ${steamAppid} to ${appid}; ${failed.length} failed.`);
     return slots;
 }
-
-/** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
-const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
 
 /** Per-session answer to "did the Steam Store supply this game's Game Info?" (ADR-0036). */
 const matched = new Map<number, boolean>();
 
 /**
- * Desktop and Big Picture entry point for a steam-store game. Resolves to
- * true when store data was applied, false when there is no Steam match (or its
- * data could not load; the caller then falls back to web scraping, ADR-0036),
- * undefined when it is not known yet (title not available).
+ * Desktop and Big Picture entry point for a steam-store game. `identity` comes
+ * from `app.identity.ensure` (migration plan M4c); this keeps only the
+ * metadata and artwork half of the old `resolveMapping` pipeline (until
+ * M5b/M5c). Resolves to true when store data was applied, false when there is
+ * no Steam match (or its data could not load; the caller then falls back to
+ * web scraping, ADR-0036), undefined when identity is not known yet (`pending`).
  */
-export async function handleSteamStoreView(appid: number): Promise<boolean | undefined> {
+export async function handleSteamStoreView(appid: number, identity: Part<Identity>): Promise<boolean | undefined> {
     if (appid < NON_STEAM_APPID_MIN) return undefined;
 
     const cached = metaCache.get(appid);
@@ -193,6 +145,15 @@ export async function handleSteamStoreView(appid: number): Promise<boolean | und
         enrichGameDetails(appid, cached);
         storeEnrichedAppIds.add(appid);
     }
+
+    if (identity.status === "pending") return undefined;
+
+    const steamAppid = identity.data?.native?.appid;
+    if (steamAppid === undefined) {
+        matched.set(appid, false);
+        return false;
+    }
+
     if (processed.has(appid)) {
         const at = retryAt.get(appid);
         if (at === undefined || Date.now() < at) return matched.get(appid);
@@ -201,37 +162,24 @@ export async function handleSteamStoreView(appid: number): Promise<boolean | und
     processed.add(appid);
 
     try {
-        const { mapping, applied, retry, error } = await resolveMapping(appid);
-        if (retry) {
-            processed.delete(appid);
-            return undefined;
-        }
-        if (error) retryAt.set(appid, Date.now() + RETRY_MS);
-        if (!mapping) {
-            matched.set(appid, false);
-            return false;
-        }
-
         // Parity C + D: Steam's own Links/Friends/Community sections and activity
-        // feed read the native app; re-publish so the feed picks up its events.
-        setNativeAppid(appid, mapping.steam_appid);
-        setNativeActivitySource(appid, mapping.steam_appid);
-        setExtraSections(appid, NATIVE_SECTIONS);
+        // feed read the native app; sections, native-links and captures are
+        // record-driven from `record.identity` now (surfaces, plan M4c).
         refreshGameInfoInstances(); // guardrail 11: the sections already rendered with the shortcut appid
-        void patchLibraryApp(appid);
-        void loadAchievementsForApp(appid, mapping.steam_appid);
+        void loadAchievementsForApp(appid, steamAppid);
 
-        const { metadata, urls } = await loadNative(appid, mapping.steam_appid);
+        const { metadata, urls } = await loadNative(appid, steamAppid);
         if (metadata) {
             metaCache.set(appid, metadata);
             if (enrichGameDetails(appid, metadata)) storeEnrichedAppIds.add(appid);
         } else {
-            logger.warn(`Steam Store: no metadata for ${mapping.steam_appid}.`);
+            logger.warn(`Steam Store: no metadata for ${steamAppid}.`);
             retryAt.set(appid, Date.now() + RETRY_MS);
         }
         matched.set(appid, metadata !== null);
 
-        const slots = await applyArtwork(appid, mapping, applied, urls);
+        const applied = (await rpc.steamStoreGetMapping(appid)).applied;
+        const slots = await applyArtwork(appid, steamAppid, applied, urls);
         // Parity E: our logo needs a position or Steam never draws it.
         if (slots.includes(2)) await ensureLogoPosition(appid);
         return metadata !== null;
@@ -241,7 +189,12 @@ export async function handleSteamStoreView(appid: number): Promise<boolean | und
     }
 }
 
-/** Drop this session's memory of a game so the next view starts fresh. */
+/**
+ * Drop this session's memory of a game so the next view starts fresh.
+ * Native-links, sections and captures are record-driven (plan M4c): they
+ * clear themselves once `record.identity` no longer has a native match,
+ * which the caller gets by invalidating and re-resolving identity.
+ */
 function forget(appid: number): void {
     processed.delete(appid);
     metaCache.delete(appid);
@@ -249,9 +202,6 @@ function forget(appid: number): void {
     retryAt.delete(appid);
     artRetried.delete(appid);
     matched.delete(appid);
-    setNativeAppid(appid, undefined);
-    setNativeActivitySource(appid, undefined);
-    setExtraSections(appid, undefined);
 }
 
 /**
@@ -270,6 +220,8 @@ export async function clearSteamStore(appid: number, reject: boolean) {
     if (slotList(res.slots).includes(2)) await clearLogoPosition(appid);
     revertGameDetails(appid);
     forget(appid);
+    identitySource.invalidate(appid);
+    await identitySource.ensure(appid, { bucket: "steam-store", via: "manual" });
     return res;
 }
 
@@ -278,7 +230,9 @@ export async function setSteamStoreMapping(appid: number, steamAppid: number, na
     const res = await rpc.steamStoreSetMapping(appid, steamAppid, name);
     if (res.mapping) {
         forget(appid);
-        await handleSteamStoreView(appid);
+        identitySource.invalidate(appid);
+        const identity = await identitySource.ensure(appid, { bucket: "steam-store", via: "manual" });
+        await handleSteamStoreView(appid, identity);
     }
     return res;
 }

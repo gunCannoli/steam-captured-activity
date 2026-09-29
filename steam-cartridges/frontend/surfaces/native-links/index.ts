@@ -281,8 +281,8 @@ export function createNativeLinksSurface(d: SurfaceDeps): Surface {
         touches: ["appStore.GetAppOverviewByAppID", "Navigator.App", "jsx:native-sections"],
         reads: ["identity"],
         install: installNativeSections,
-        render() {
-            /* record-driven (identity.native) from M4 (plan § 7.0 D4) */
+        render(appid, record) {
+            setNativeAppid(appid, record?.identity?.data?.native?.appid);
         },
         clear: (appid) => setNativeAppid(appid, undefined),
         uninstall() {

@@ -16,10 +16,11 @@ for the authoritative, up-to-date state):
 | Architecture ratchet: import allowlist, RPC registration test | done (M0c) — this doc |
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | done (M1) |
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
-| Sensors: view, lifecycle, collections (owned apps: M4) | done (M2) — [sensors.md](sensors.md) |
-| App: use cases (routing, M4a; records, identity: M4c) | current (M4a) |
-| Surfaces: the only code that writes to Steam | done (M3.1–M3.10) — [surfaces.md](surfaces.md) |
-| Resolver service + RPC facade | planned (M4b–M4c) |
+| Sensors: view, lifecycle, collections, owned-apps | done (M2, M4c) — [sensors.md](sensors.md) |
+| App: use cases (routing M4a; records, render-queue, identity M4c) | current (M4c) |
+| Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c) — [rpc.md](rpc.md) |
+| Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c) — [surfaces.md](surfaces.md) |
+| Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
 | Metadata service | planned (M5) |
 | Achievements service | planned (M6) |
 | Freshness + ingestion | planned (M7) |
@@ -72,9 +73,9 @@ edges. Rule-allowed edges are listed in `LAYER_RULES` in
    allowlisted edge no longer exists (stale entry — must be deleted, never left).
    Regenerate deliberately with `ARCH_WRITE_ALLOWLIST=1 npm run test:ts`, and only
    a migration plan step may do this.
-2. **RPC registration**: every backend method name `frontend/rpc.ts` calls must be
-   assigned as a global in `backend/main.lua`; calling an unregistered method
-   crashes the backend host.
+2. **RPC registration**: every backend method name `frontend/rpc.ts` or
+   `frontend/ports/backend.ts` calls must be assigned as a global in
+   `backend/main.lua`; calling an unregistered method crashes the backend host.
 
 Live: migration plan § 0.5's full baseline (render loop, Properties ×2, nav
 cycle, `check_all_tabs.js`) applies to every step; M0c also fixed
@@ -109,3 +110,11 @@ why in its root-cause section, or it is rejected.
   reaches through a D3 setter). `LAYER_RULES` gained
   `[/^(app|settings|features\/.+)$/, /^domain$/]`; every `* -> features/buckets`
   and `features/buckets -> *` allowlist entry is gone. ADR-0040.
+- M4c (2026-09-29): `ports/` created (`transport.ts`, `backend.ts`); `app/records.ts`,
+  `app/render-queue.ts` and `app/identity.ts` added. `sections`, `native-links`
+  and `captures` become record-driven for `identity` (`setExtraSectionsSink`,
+  `setNativeLinksSink`, `setCapturesSinks` deleted). `sensors/owned-apps` added
+  (moved from `features/steam-store/known-apps.ts`, deleted along with its
+  TS-side matching helpers — the backend's `normalize` is now the only matcher).
+  `LAYER_RULES` gained `[/^rpc$/, /^ports$/]` (temporary until M9). Identity now
+  resolves through one `EnsureFresh` call instead of up to three round trips.

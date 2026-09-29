@@ -5,6 +5,9 @@ import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { appDetailsSections } from "../../steam/stores";
 import { isNonSteamAppId } from "../../steam/route";
 
+/** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
+const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
+
 /** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
 let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
 
@@ -283,11 +286,11 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
         install() {
             if (!patchSections()) throw new Error("CAppDetailsSections not found; sections stay stock.");
         },
-        render() {
-            /* record-driven from M4 (D4) */
+        render(appid, record) {
+            setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined);
         },
-        clear() {
-            /* per-app state is set through setHasContent / setExtraSections */
+        clear(appid) {
+            setExtraSections(appid, undefined);
         },
         uninstall: unpatchSections,
     };

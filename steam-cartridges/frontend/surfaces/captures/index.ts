@@ -3,12 +3,12 @@
 // own captures (ADR-0022). Takes over the kill switches `captures`, `store-cache`,
 // `headline` and `activity-cards` (plan § 7.0 D6).
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
-import { ensureStoreCacheHooked } from "./activity";
+import { ensureStoreCacheHooked, setNativeActivitySource } from "./activity";
 import { installActivityCardsPatch } from "./activity-cards";
 import { installBpmStyle } from "./bpm-style";
 import { deps, type ActivityOptions } from "./deps";
 import { installHeadlinePatch } from "./headline";
-import { unpatch } from "./publish";
+import { patch, unpatch } from "./publish";
 
 export { patch, refresh, setContentListener, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
@@ -44,15 +44,18 @@ export function createCapturesSurface(d: SurfaceDeps & { activityOptions(): Acti
             "jsx:activity-cards",
             "BPM.style#nsga-bpm-activity-thumbs",
         ],
-        reads: [],
+        reads: ["identity"],
         install() {
             part("store-cache", ensureStoreCacheHooked);
             part("headline", installHeadlinePatch);
             part("activity-cards", installActivityCardsPatch);
             installBpmStyle();
         },
-        render() {
-            /* captures are Steam's own data, read live (ADR-0022); publishing is event-driven */
+        render(appid, record) {
+            // Captures are Steam's own data, read live (ADR-0022); only the native
+            // activity source (a mapped shortcut's Steam Store match) is record-driven.
+            setNativeActivitySource(appid, record?.identity?.data?.native?.appid);
+            void patch(appid);
         },
         clear: (appid) => unpatch(appid),
         uninstall() {

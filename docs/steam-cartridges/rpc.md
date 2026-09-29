@@ -63,11 +63,11 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetGameManual` | `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) |
 | `GetGameTrailers` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
 | `GetGameCommunityLinks` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
-| `GetGameRecord` | `record_rpc.lua` | unwired | M4b: the record facade; frontend adopts it in M4c |
-| `EnsureFresh` | `record_rpc.lua` | unwired | M4b: resolves `identity` (only part wired so far); frontend adopts it in M4c |
+| `GetGameRecord` | `record_rpc.lua` | unwired | M4b: still no caller; M5a's `GetAllRecords` preload replaces the frontend's disk-only reads |
+| `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session |
 
-**Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b adds 2 more
-unwired (the record facade; nothing calls it until M4c).
+**Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b added 2 more
+unwired (the record facade); M4c wires `EnsureFresh` (26 live, 6 unwired).
 
 ## Record facade (M4b)
 
@@ -87,6 +87,28 @@ As of M4b only `"identity"` is a resolvable part (`backend/resolve_identity.lua`
 (ADR-0040); `context.title` and `context.owned` (native candidates Steam
 already knows) come from the frontend sensors. See
 [service-resolver.md](service-resolver.md) for the resolution order.
+
+## Ports (M4c)
+
+`frontend/ports/transport.ts` — `call<R>(name, payload)`, moved verbatim from
+`rpc.ts` (which now imports it; `[/^rpc$/, /^ports$/]` in `LAYER_RULES`,
+temporary until M9 folds `rpc.ts` into `ports/`). `frontend/ports/backend.ts`
+is the typed client for the record facade:
+
+```ts
+// frontend/ports/backend.ts
+export interface OwnedCandidate { appid: number; name: string }
+export interface FreshContext { title: string; route: {...}; owned?: OwnedCandidate[]; ... }
+export interface RecordResponse { appid: number; parts: Partial<Record<RecordPart, Part<unknown>>>; error?: string }
+export const backend: {
+    getGameRecord(appid: number): Promise<RecordResponse>;
+    ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse>;
+};
+```
+
+`app/identity.ts` is the only caller so far (`backend.ensureFresh`). The RPC
+registration test scans both `rpc.ts` and `ports/backend.ts` for method names
+that must be registered in `backend/main.lua`.
 
 ## Files
 
@@ -133,3 +155,7 @@ Live: none — a docs-only step changes no runtime code path.
 - M4b (2026-09-29): `GetGameRecord` and `EnsureFresh` added (`record_rpc.lua`),
   both unwired until M4c. `resolve_identity.lua`'s `launches_emulator` is now
   the one copy `steam_store_rpc.lua` shares (moved, not duplicated).
+- M4c (2026-09-29): `EnsureFresh` wired — `frontend/ports/backend.ts` (new)
+  calls it from `app/identity.ts`, which replaces the old up-to-three-round-trip
+  `resolveMapping` in `features/steam-store/index.ts`. `frontend/ports/transport.ts`
+  holds the `call()` function moved from `rpc.ts`. `GetGameRecord` stays unwired.

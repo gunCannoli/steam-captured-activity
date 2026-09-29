@@ -57,6 +57,7 @@ const LAYER_RULES: [RegExp, RegExp][] = [
     [/^app$/, /^(domain|ports)$/], // use cases
     [/^settings$/, /^ports$/], // settings panels talk to the backend port only
     [/^(app|settings|features\/.+)$/, /^domain$/], // the pure domain is a leaf like the kernel (M4a)
+    [/^rpc$/, /^ports$/], // temporary until M9 folds rpc.ts into ports/ (M4c)
 ];
 
 export function ruleAllows(edge: string): boolean {
@@ -117,7 +118,7 @@ test('architecture: only game-info and playbar import the scoped overview proxy 
 });
 
 test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {
-    const rpcSrc = readFileSync(join(FRONTEND, 'rpc.ts'), 'utf8');
+    const rpcSrc = readFileSync(join(FRONTEND, 'rpc.ts'), 'utf8') + readFileSync(join(FRONTEND, 'ports', 'backend.ts'), 'utf8');
     const called = new Set<string>();
     for (const m of rpcSrc.matchAll(/(?:>|\bcall)\(\s*['"]([A-Z][A-Za-z0-9]+)['"]/g)) called.add(m[1]);
     const mainLua = readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8');

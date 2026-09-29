@@ -46,9 +46,21 @@ skips manual edits); `tests/test_migrate.lua` added (7 checks, `ALL PASS`). The 
 harness's JSON stub is now a real recursive decoder (was flat-only, silently mis-parsed nested
 records).
 
-Next: **M4a → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
-with M4a's routing policy move to `domain/routing`). No `Spec` steps remain. Nothing is open
-for the user.
+**M4a–M4c done (2026-09-29).** Routing policy moved behind `frontend/domain/routing`
+(pure, node-testable) with a stateful wrapper in `app/routing.ts` (ADR-0040); every former
+`features/buckets` caller reaches it through a D3 setter. Backend identity service
+(`backend/resolve_identity.lua`) and record facade RPCs (`GetGameRecord`, `EnsureFresh`,
+`backend/record_rpc.lua`) added. Frontend now resolves a shortcut's Steam Store match through
+one `EnsureFresh` call (`app/identity.ts`) instead of up to three round trips; `sections`,
+`native-links` and `captures` are record-driven for `identity` (`app/records.ts`,
+`app/render-queue.ts`, `frontend/ports/`). `features/steam-store/known-apps.ts` and its TS
+title matcher are deleted — the backend's `normalize` is the only matcher now
+(`sensors/owned-apps` supplies native candidates as context instead).
+`npm run check` clean, `npm run test:ts` 100/100, `npm run build` succeeds; Lua suites unchanged
+except the new `tests/test_identity.lua` (16/16). **Live verification pending: § 0.5 for M4a, M4b, M4c.**
+
+Next: **M5a → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10, starting
+with M5a's metadata service). No `Spec` steps remain. Nothing is open for the user.
 
 ## Next
 
