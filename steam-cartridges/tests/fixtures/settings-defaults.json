@@ -1,0 +1,30 @@
+{
+  "buckets": {
+    "version": 2,
+    "default": "steam-store",
+    "rules": [],
+    "overrides": {}
+  },
+  "defaultFullController": false,
+  "localAchievementsNotifyOnLaunch": "all_runs",
+  "raHardcoreMode": true,
+  "routingRules": [],
+  "autoRoutingMode": true,
+  "services": {
+    "steamStoreEnabled": true,
+    "screenscraperEnabled": true,
+    "igdbEnabled": true,
+    "steamgriddbEnabled": true,
+    "retroachievementsEnabled": true,
+    "emulatorsEnabled": true,
+    "rpcs3Enabled": true
+  },
+  "controllerOverrides": {},
+  "activityShowAddedToLibrary": true,
+  "activityShowFirstPlayed": true,
+  "communityShowTrailers": true,
+  "communityShowManuals": true,
+  "communityShowArtworks": true,
+  "communityShowExternalLinks": true,
+  "disabledFeatures": ""
+}

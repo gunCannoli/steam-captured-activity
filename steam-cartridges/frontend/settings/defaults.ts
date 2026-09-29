@@ -1,0 +1,82 @@
+// Setting keys, types and defaults (migration plan M8a). Type-only imports: node can load this file
+// directly, which is how tests/settings-defaults.test.ts pins every default (do-not-touch 1).
+import type { BucketsConfig, RoutingRule } from '../domain/routing/policy';
+
+export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
+
+export interface ServicesConfig {
+    steamStoreEnabled: boolean;
+    screenscraperEnabled: boolean;
+    igdbEnabled: boolean;
+    /** SteamGridDB artwork for shortcuts with no Steam match (M5c). */
+    steamgriddbEnabled: boolean;
+    retroachievementsEnabled: boolean;
+    emulatorsEnabled: boolean;
+    rpcs3Enabled?: boolean;
+}
+
+export const DEFAULT_SERVICES: ServicesConfig = {
+    steamStoreEnabled: true,
+    screenscraperEnabled: true,
+    igdbEnabled: true,
+    steamgriddbEnabled: true,
+    retroachievementsEnabled: true,
+    emulatorsEnabled: true,
+    rpcs3Enabled: true,
+};
+
+export type ControllerOverride = 'full' | 'partial' | 'none' | 'auto';
+
+export interface Settings {
+    buckets: BucketsConfig;
+    /** Full Controller Support for a shortcut that neither Steam nor its emulator decides (ADR-0038 addendum). */
+    defaultFullController: boolean;
+    /** Game start notification when achievements tracking is active. */
+    localAchievementsNotifyOnLaunch: LaunchNotifyOption;
+    /** RetroAchievements Hardcore Mode (strict rules, leaderboards, standard badge icons). Default true. */
+    raHardcoreMode: boolean;
+    /** General routing rules engine for multi-service targeting. */
+    routingRules: RoutingRule[];
+    /** Automatic routing based on shortcut executable and emulator info. Default true. */
+    autoRoutingMode: boolean;
+    /** Service enablement toggles. */
+    services: ServicesConfig;
+    /** Per-game controller overrides. */
+    controllerOverrides: Record<string, ControllerOverride>;
+    /** Show native activity card when a non-Steam game is added to the library. Default true. */
+    activityShowAddedToLibrary: boolean;
+    /** Show native activity card when a non-Steam game is played for the first time. Default true. */
+    activityShowFirstPlayed: boolean;
+    /** Show trailers carousel on community tab. Default true. */
+    communityShowTrailers: boolean;
+    /** Show digital game manuals on community tab. Default true. */
+    communityShowManuals: boolean;
+    /** Show artworks and fanart on community tab. Default true. */
+    communityShowArtworks: boolean;
+    /** Show external community destinations (Discord, Speedrun, Wiki). Default true. */
+    communityShowExternalLinks: boolean;
+    /** Kill switches (migration plan M0b): comma-separated feature ids skipped at start-up. Default "". */
+    disabledFeatures: string;
+}
+export type SettingKey = keyof Settings;
+
+/** The same literal as domain/routing/policy's DEFAULT_BUCKETS (a test keeps them equal). */
+const DEFAULT_BUCKETS_LITERAL: BucketsConfig = { version: 2, default: 'steam-store', rules: [], overrides: {} };
+
+export const DEFAULTS: Settings = {
+    buckets: DEFAULT_BUCKETS_LITERAL,
+    defaultFullController: false,
+    localAchievementsNotifyOnLaunch: 'all_runs',
+    raHardcoreMode: true,
+    routingRules: [],
+    autoRoutingMode: true,
+    services: DEFAULT_SERVICES,
+    controllerOverrides: {},
+    activityShowAddedToLibrary: true,
+    activityShowFirstPlayed: true,
+    communityShowTrailers: true,
+    communityShowManuals: true,
+    communityShowArtworks: true,
+    communityShowExternalLinks: true,
+    disabledFeatures: '',
+};

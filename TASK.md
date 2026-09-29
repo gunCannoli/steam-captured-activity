@@ -165,7 +165,7 @@ nav cycle 6/6, `check_all_tabs` 11/11, parity 16/1 (K18 only), audit 0 missing, 
 (the clock cannot be moved) and K15 (no `custom_override` record exists and creating one would change your data); both are covered by `tests/test_freshness.lua`.
 Every game's first page open after this update refreshes its metadata once (no freshness entry yet counts as stale), then not again for 24 h.
 
-Next: M8 onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+M8a done (settings defaults pinned in `settings/defaults.ts`, +2 tests, no behaviour change). Next: M8b, M8c, M8d (live test only after M8d), then M9 (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 
