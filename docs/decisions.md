@@ -2146,7 +2146,7 @@ grey `#AppDetails_Shortcut_Explanation` box again. Verified live 2026-09-24: plu
 config `{}`, `bucketReport().games[4263274102] = { bucket: 'none', via: 'default' }`,
 `unbucketedWithMetadata = 27`, no `descriptionsData`, `BIsModOrShortcut() === true`.
 ADR-0033 had listed this as an accepted consequence; the render-bugfix then weakened
-`scratch/check_all_tabs.js` check 4 to accept the grey box, which hid it.
+`steam-cartridges/tests/live/check_all_tabs.js` check 4 to accept the grey box, which hid it.
 
 The user decision "apps in no collection are ignored" was about **sources**: no
 bucket, no network ([ADR-0032](#adr-0032-merge-non-steam-games-activity-and-steamgriddb-artwork-into-steam-cartridges)).
@@ -2172,7 +2172,7 @@ Reading metadata the user already has on disk is neither a source nor a network 
 - Upgrading from `steamgriddb-artwork` keeps all existing Game Info. A shortcut that
   was never scraped stays grey until the user puts it in Web Scraping.
 - "No bucket, no network" still holds.
-- `scratch/check_all_tabs.js` check 4 again requires enriched Game Info for AM2R.
+- `steam-cartridges/tests/live/check_all_tabs.js` check 4 again requires enriched Game Info for AM2R.
 - Cost: two tiers write the same Game Info fields; `steam-store` must always win
   while assigned, which the precedence rule and its tests pin down.
 
@@ -2267,7 +2267,7 @@ because we enriched it.
 The user decided (2026-09-24) that P5 (achievements) starts only when the page of
 *Jotunnslayer: Hordes of Hel* (Epic shortcut 2315502503) holds as much data as
 native app 2820820, and that there are no user-created achievements. Live
-(2026-09-25, `scratch/check_parity.mjs`): 3 PASS / 10 FAIL. Besides Game Info fields, the shortcut lacks the store links,
+(2026-09-25, `steam-cartridges/tests/live/check_parity.mjs`): 3 PASS / 10 FAIL. Besides Game Info fields, the shortcut lacks the store links,
 Friends who play, Community Content and the app's news, all of which Steam's own
 section components render for any appid. `research/game-data-linker` rebuilt
 these by scraping (`fetch_news`, `fetch_partner_events`,
@@ -2291,7 +2291,7 @@ dropped them as "out of scope".
   tags, requirements, languages, reviews, metacritic) are not rebuilt; the Store
   Page link reaches them. An unowned native app shows none of the owner-only
   surfaces either.
-- **P5 gate:** `node scratch/check_parity.mjs` prints `17 PASS / 0 FAIL` plus the
+- **P5 gate:** `node steam-cartridges/tests/live/check_parity.mjs` prints `17 PASS / 0 FAIL` plus the
   Big Picture and regression checks (Routines 2/3, AGENTS.md) — **met, verified
   live 2026-09-26** (see CHANGELOG.md). A Friends-section crash on unowned mapped
   native apps found in this same area was fixed the same day (see CHANGELOG.md
@@ -2377,7 +2377,7 @@ app.
   `fetch_partner_events` are adapted to Steam's own components; the activity
   feed injection is adapted to Steam's own feed; `fetch_published_file_previews`
   is dropped (Steam loads its own previews).
-- **Gate:** `scratch/check_parity.mjs` has 17 checks: 14 badges, 15 header links,
+- **Gate:** `steam-cartridges/tests/live/check_parity.mjs` has 17 checks: 14 badges, 15 header links,
   16 news click-through, 17 the Community Content loader's appid. Check 11 now
   keys news by announcement GID (`unUniqueID` is a per-store counter), a stricter
   key. The Big Picture badge list in the parity plan § 9 is corrected to Steam's

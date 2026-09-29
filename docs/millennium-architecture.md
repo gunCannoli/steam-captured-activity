@@ -26,7 +26,7 @@ Steam-native data. Providers contribute extra material for games they recognise.
             │  • feeds them Steam's screenshots + clips     │
             │  • the library grid's play evidence           │
             │  • the provider registry                      │
-            │  • features/: game-info, artwork (web)        │
+            │  • Game Info and artwork (app/, surfaces/)    │
             │  • data: millennium/config/steam-cartridges/  │
             │                                               │
             │  no network · no emulator · no API key        │
@@ -141,55 +141,206 @@ Where the backend is still involved, it owns the I/O
 
 ### Module layout
 
-> **Out of date, and being replaced.** This layout predates the P1 merge and the
-> ports-and-adapters migration ([ADR-0039](decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)).
-> The target layout is in the [migration plan § 4](plans/steam-cartridges-architecture-migration-plan.md#4-target-architecture);
-> step M9 rewrites this section to match the tree.
-
-`✅` = built and tested · `⚠` = built, unverified · `☐` = not started
+`<layer>` is the layer of [steam-architecture.md § 3](steam-architecture.md#3-steam-cartridges-architecture-layers); the description is each file's own header line. Generated from `git ls-files steam-cartridges/frontend steam-cartridges/backend` at M9b (2026-09-29).
 
 ```
-steam-cartridges/
-├─ plugin.json                                                    ✅
-├─ dev.ps1                                                        ✅
-├─ backend/
-│  ├─ main.lua            # lifecycle + RPC globals               ✅
-│  ├─ rpc.lua             # JSON-in/JSON-out wrappers             ✅
-│  ├─ steam_paths.lua     # steam_path(), active userdata id      ✅
-│  ├─ gameid.lua          # appid <-> 64-bit gameid               ✅
-│  ├─ shortcuts.lua       # parse binary shortcuts.vdf            ✅
-│  ├─ captures.lua        # screenshots.vdf (grid counts)         ✅
-│  ├─ providers.lua       # registry: discover, call, isolate     ☐
-│  └─ _lib/               # vendored json fs http logger …        ✅
-├─ tests/
-│  ├─ harness.lua         # stubs Millennium's modules            ✅
-│  └─ test_backend.lua    # runs real modules on real data        ✅
-└─ frontend/
-   ├─ index.tsx           # OnPluginLoaded + the provider API            ✅
-   ├─ rpc.ts              # typed client for the backend                 ✅
-   ├─ steam/              # bindings onto Steam's own internals
-   │  ├─ modules.ts       # webpack cache; resolve by signature          ✅
-   │  ├─ stores.ts        # typed store/service/payload shapes           ✅
-   │  ├─ sections.ts      # restore the sections Steam hides             ✅
-   │  ├─ summary.ts       # feed Steam's session + provider registry     ✅
-   │  ├─ activity.ts      # feed Steam's activity store + store cache    ✅
-   │  ├─ gamepad-appid.ts # detect Big Picture navigation via jsx patch  ✅
-   │  └─ gameid.ts        # 32-bit appid ↔ 64-bit gameid (BigInt)        ✅
-   └─ renderers/
-      ├─ library-app.tsx  # coordinates publish/clear per app (Desktop & BPM) ✅
-      └─ library-home.tsx # patch AppOverview so the grid shows stats    ✅
+backend/_lib/
+  datetime.lua                       service (backend)  @meta
+  fs.lua                             service (backend)  @meta
+  http.lua                           service (backend)  @meta
+  json.lua                           service (backend)  @meta
+  logger.lua                         service (backend)  @meta
+  millennium.lua                     service (backend)  @meta
+  utils.lua                          service (backend)  @meta
+
+backend/
+  ach_service.lua                    service (backend)  Achievement schema and unlocks for a shortcut: which source answers? (migration plan M6a).
+  achievements_observer.lua          service (backend)  steam-cartridges - In-game achievement observer (Phase 5).
+  achievements_rpc.lua               service (backend)  RPC endpoints for the native achievements subsystem (P5).
+  achievements_store.lua             service (backend)  Persistent achievement state & keyless schema ingestion (ADR-0032 & P5).
+  art_service.lua                    service (backend)  Artwork resolution: which art may a shortcut get, and from where? (migration plan M5c).
+  captures.lua                       service (backend)  Reads Steam's own screenshot index, for the library grid.
+  data_dir.lua                       service (backend)  The plugin's own data folder: <Steam>/millennium/config/steam-cartridges
+  emulator_controllers.lua           service (backend)  Full Controller Support inferred from how a shortcut launches (parity plan
+  fresh_policy.lua                   service (backend)  When is a part of a record stale? (migration plan M7a).
+  gameid.lua                         service (backend)  Converts between Steam's two ids for a non-Steam game.
+  igdb_community.lua                 service (backend)  steam-cartridges - IGDB Community, Media & Trailers Provider.
+  main.lua                           service (backend)  steam-cartridges - backend entry point.
+  metadata_service.lua               service (backend)  Metadata resolution: which Game Info to show for a shortcut? (migration plan M5a).
+  migrate.lua                        service (backend)  One-time migration from the two legacy plugins to the data folder
+  net.lua                            service (backend)  The one outgoing HTTP entry point (migration plan M7a).
+  ps3_trophies.lua                   service (backend)  steam-cartridges - RPCS3 Local PlayStation 3 Trophy Provider (Phase 5).
+  ps4_trophies.lua                   service (backend)  steam-cartridges - shadPS4 Local PlayStation 4 Trophy Provider.
+  ra_hasher.js                       service (backend)  steam-cartridges/backend/ra_hasher.js
+  record_rpc.lua                     service (backend)  The record facade: GetGameRecord (disk only), EnsureFresh (resolves stale
+  registry.lua                       service (backend)  Which shortcuts has the plugin already seen? (migration plan M7a, Flow B).
+  resolve_identity.lua               service (backend)  Identity resolution: is this shortcut a Steam game? (migration plan M4b).
+  retroachievements.lua              service (backend)  steam-cartridges - RetroAchievements provider (Phase 5).
+  rpc.lua                            service (backend)  The methods the frontend can call.
+  screenscraper_media.lua            service (backend)  steam-cartridges - ScreenScraper media & manuals provider.
+  shortcuts.lua                      service (backend)  Parses Steam's binary shortcuts.vdf (non-Steam game entries).
+  silent_exec.lua                    service (backend)  Silent process execution helper for Windows GUI environments.
+  steam_paths.lua                    service (backend)  Locates Steam's root and the active user's userdata directory.
+  steam_store_appdetails.lua         service (backend)  Store appdetails: fallback metadata source for a mapped native app
+  steam_store_emulators.lua          service (backend)  Emulator executables: shortcuts that launch these never get an automatic
+  steam_store_normalize.lua          service (backend)  Title normalisation and match classification for the Steam Store bucket.
+  steam_store_rpc.lua                service (backend)  RPC handlers for the Steam Store bucket. Names are prefixed `SteamStore` so
+  steam_store_search.lua             service (backend)  Store search: title -> native Steam appid (resolution step 3).
+  steam_store_store.lua              service (backend)  Persistent Steam Store state: <data dir>/steam_store.json (ADR-0032).
+  steam_store_throttle.lua           service (backend)  One global gate for store.steampowered.com: serial, at most one request per
+  web_config.lua                     service (backend)  Read key from file if it exists
+  web_igdb.lua                       service (backend)  Robust multi-binding HTTP POST wrapper
+  web_metadata_db.lua                service (backend)  
+  web_rpc.lua                        service (backend)  Web-metadata and artwork RPC handlers (ex steamgriddb-artwork).
+  web_sgdb.lua                       service (backend)  URL encode helper
+
+frontend/app/
+  achievements.ts                    app                app/achievements: a shortcut's achievements in its record, and Flow C (launch -> observe -
+  artwork.ts                         app                app/artwork: decides which art a shortcut gets and puts the plan in its record; the
+  bus.ts                             app                app: the plugin's one event bus (migration plan M2, ADR-0039). Sensors emit into it;
+  controller.ts                      app                Structural copy of surfaces/game-info/category-policy ControllerContext (plan § 7.0 D3).
+  identity.ts                        app                app/identity: resolves whether a shortcut has a native Steam match, through
+  ingest.ts                          app                app/ingest: the background job that fetches data for shortcuts (migration plan M7b; replac
+  metadata.ts                        app                app/metadata: selects Game Info for a shortcut through one EnsureFresh call
+  records.ts                         app                app/records: the one place a GameRecord is created (migration plan M4c).
+  render-queue.ts                    app                app/render-queue: coalesces record.updated events into one render per appid
+  routing.ts                         app                
+  steam-store.ts                     app                
+  view.ts                            app                app/view: what happens when the user opens a shortcut's page (migration plan M7b; moved fr
+
+frontend/domain/
+  art-plan.ts                        domain             Per-slot artwork bookkeeping for a steam-store game (P4 H5). Pure, `import
+  metadata-normalize.ts              domain             Metadata shape guard (P4 H1; migration plan M5b, moved from
+
+frontend/domain/routing/
+  pending.ts                         domain             Collection-dependent resolution is deferred (`pending`) until the store is ready.
+  policy.ts                          domain             Pure bucket resolution (ADR-0033, amended by ADR-0036). No runtime imports,
+
+frontend/domain/
+  steam-cdn.ts                       domain             Pure helpers for the Steam Store bucket. Only `import type` allowed so the
+  store-item.ts                      domain             Pure mapping from Steam's own StoreItemCache to our metadata shape (migration
+
+frontend/
+  index.tsx                          composition root   
+
+frontend/kernel/
+  appid.ts                           kernel             Kernel: the one place appids are normalized (migration plan M1, ADR-0039).
+  events.ts                          kernel             Kernel: the typed in-process event bus (migration plan M1, ADR-0039).
+  record.ts                          kernel             Kernel: the GameRecord read model (migration plan M1, ADR-0039).
+  surface.ts                         kernel             Kernel: the Surface contract and its isolation runner (migration plan M1/M3, ADR-0039).
+
+frontend/
+  logger.ts                          shared             Shared logger.
+
+frontend/ports/
+  backend.ts                         ports              The record facade RPC client (migration plan M4b/M4c; M5a extends it with
+  transport.ts                       ports              The one function that calls the backend (migration plan M4c; moved from rpc.ts
+
+frontend/safety/
+  boot.ts                            safety             Safety: boot sentinel (migration plan M0b, ADR-0039).
+  features.ts                        safety             Safety: kill switches, error budget and safe mode (migration plan M0b, ADR-0039).
+
+frontend/sensors/collections/
+  index.ts                           sensor             Collections sensor (migration plan M2, ADR-0039): the only code that reads Steam's
+
+frontend/sensors/lifecycle/
+  index.ts                           sensor             Lifecycle sensor (migration plan M2, ADR-0039): the only code that detects a shortcut
+
+frontend/sensors/owned-apps/
+  index.ts                           sensor             Sensor `owned-apps` (migration plan M4c, ADR-0039): native games Steam
+
+frontend/sensors/store-item/
+  index.ts                           sensor             Queues Steam's own StoreItemCache request for a native app and polls until it
+
+frontend/sensors/view/
+  core.ts                            sensor             View sensor, pure part (migration plan M2, ADR-0039). Turns raw Steam signals into
+  index.ts                           sensor             View sensor (migration plan M2, ADR-0039): the only code that detects which shortcut
+
+frontend/settings/
+  components.tsx                     settings           Shared building blocks of the settings panels (migration plan M8c, moved verbatim).
+  context.ts                         settings           The only way settings panels reach the app (migration plan M8b, § 7.0 D3): `index.tsx` cal
+  defaults.ts                        settings           Setting keys, types and defaults (migration plan M8a). Type-only imports: node can load th
+  panel.tsx                          settings           Settings panel shell (migration plan M8c): the sections in their fixed order.
+
+frontend/settings/panels/
+  achievements.tsx                   settings           Settings: Achievement sources (migration plan M8c, moved verbatim).
+  activity.tsx                       settings           Settings: Activity Feed (migration plan M8c, moved verbatim).
+  audit.tsx                          settings           Settings: Library Audit (migration plan M8c; reads the app through the panel context and t
+  community.tsx                      settings           Settings: Community & Media (migration plan M8c; adds one help line).
+  metadata.tsx                       settings           Settings: Metadata services (migration plan M8c, moved verbatim).
+  notifications.tsx                  settings           Settings: Notifications (migration plan M8c, moved verbatim).
+  rules.tsx                          settings           Settings: Routing Rules (migration plan M8c, moved verbatim).
+  troubleshooting.tsx                settings           Settings: Troubleshooting (migration plan M8d): the kill switches and safety diagnostics.
+
+frontend/settings/
+  settings.ts                        settings           
+  sync-progress.tsx                  settings           Settings: the sticky sync progress bar and its hook (migration plan M8c).
+  troubleshooting-core.ts            settings           Pure helper of the Troubleshooting panel (migration plan M8d): edit the `disabledFeatures`
+
+frontend/steam/
+  achievement-types.ts               steam binding      Steam's own achievement shapes (AppDetailsStore, AchievementsFullStore, NotificationStore)
+  gameid.ts                          steam binding      Steam's two ids for a non-Steam game.
+  gamepad-appid.ts                   steam binding      Detects which app Big Picture's app-details view is currently showing.
+  jsx-hook.ts                        steam binding      A self-healing patch on Steam's shared `react/jsx-runtime` (`jsx` / `jsxs`),
+  modules.ts                         steam binding      Access to Steam's own webpack module cache.
+  overview-proxy.ts                  steam binding      The scoped AppOverview proxy (guardrail 1): hands one component an overview whose
+  route.ts                           steam binding      `/library/app/4263274102` (and Big Picture's `/tab/<Name>` variants).
+  shortcut.ts                        steam binding      The shortcut's display title, from appStore or Steam's shortcut data.
+  stores.ts                          steam binding      Typed bindings onto Steam's own stores and services.
+
+frontend/surfaces/achievements/
+  core.ts                            surface            Transforms backend schema and unlocks into Steam's native AppDetailsStore format.
+  index.ts                           surface            Surface `achievements` (migration plan M3.5, ADR-0039): Steam's achievement stores
+  store.ts                           surface            Surface `achievements` (migration plan M3.5, ADR-0039): the only code that feeds Steam's
+
+frontend/surfaces/artwork/
+  artwork.ts                         surface            Surface `artwork` (migration plan M3.9): writes custom artwork slots through
+  deps.ts                            surface            Surface `artwork`: what the composition root gives it (migration plan M3.9, § 7.0 D3/D6).
+  index.ts                           surface            Surface `artwork` (migration plan M3.9, record-driven since M5c, ADR-0039): the only code 
+  logo.ts                            surface            Surface `artwork` (migration plan M3.9): the logo position that makes a custom logo
+
+frontend/surfaces/captures/
+  activity-cards.ts                  surface            
+  activity.ts                        surface            
+  bpm-style.ts                       surface            Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2).
+  deps.ts                            surface            Surface `captures`: what the composition root gives it (migration plan M3.2, § 7.0 D3/D6).
+  headline.ts                        surface            
+  index.ts                           surface            Surface `captures` (migration plan M3.2, ADR-0039): the only code that writes Steam's
+  publish.ts                         surface            Brings the native app detail sections to a non-Steam game's page.
+  session.ts                         surface            Surface `captures`: the Post-Game Summary session write (migration plan M6b, K14). Moved f
+  summary.ts                         surface            
+
+frontend/surfaces/game-info/
+  category-policy.ts                 surface            Which Steam store categories a shortcut may carry (parity plan Part F,
+  deps.ts                            surface            Surface `game-info`: what the composition root gives it (migration plan M3.3, § 7.0 D3/D6)
+  index.ts                           surface            Surface `game-info` (migration plan M3.3, ADR-0039): the only code that writes Game Info
+  metadata.ts                        surface            
+  patch.ts                           surface            Surface `game-info` (migration plan M3.3, ADR-0039): Steam's Game Info components and the
+
+frontend/surfaces/library-home/
+  grid.ts                            surface            Surface `library-home` (migration plan M3.10): moved from renderers/library-home.tsx.
+  index.ts                           surface            Surface `library-home` (migration plan M3.10, ADR-0039): fills in the library grid's
+
+frontend/surfaces/native-links/
+  core.ts                            surface            Pure part of the section appid redirection (parity plan C). No imports, so
+  index.ts                           surface            Surface `native-links` (migration plan M3.7, ADR-0039). Moved from
+
+frontend/surfaces/playbar/
+  index.ts                           surface            Surface `playbar` (migration plan M3.4, ADR-0039): restores the ⓘ "Show/Hide game details"
+
+frontend/surfaces/sections/
+  index.ts                           surface            Surface `sections` (migration plan M3.1, ADR-0039): the only code that patches Steam's
+
+frontend/surfaces/toasts/
+  achievement.ts                     surface            Surface `toasts` (migration plan M3.6): Steam's native achievement toast through
+  deps.ts                            surface            Surface `toasts`: what the composition root gives it (migration plan M3.6, § 7.0 D6).
+  index.ts                           surface            Surface `toasts` (migration plan M3.6, ADR-0039): the only code that shows Steam
+  launch.ts                          surface            Surface `toasts` (migration plan M3.6): the "Achievements Enabled" launch notification
 ```
 
-There is no `components/` directory: all UI is rendered by Steam's own components
-(`Ge.T` for Post-Game Summary, `ae.W` for Activity Feed).
-Earlier attempts to clone Big Picture's DOM (`gamepad-app.tsx`, ADR-0024) were completely
-deleted in ADR-0029 after confirming Gamepad UI runs in `SharedJSContext` via React Portal.
-Both Desktop and Big Picture Mode share the same store-feeding pipeline.
+There is no `components/` directory: all UI is rendered by Steam's own components. Earlier attempts to clone Big Picture's DOM (`gamepad-app.tsx`, ADR-0024) were deleted in ADR-0029: Gamepad UI runs in `SharedJSContext` via a React Portal, so Desktop and Big Picture share one pipeline.
 
-`gameid.lua` was not in the original plan; the 64-bit conversion needed its own
-module because Lua numbers are doubles and cannot hold a gameid exactly. It does the
-arithmetic on decimal strings in base-10⁷ limbs, verified against all 9 real folders
-and cross-checked against 2007 native 64-bit integers.
+`gameid.lua` exists because Lua numbers are doubles and cannot hold a 64-bit gameid exactly; it does the arithmetic on decimal strings in base-10⁷ limbs.
 
 ### Backend contracts
 
@@ -380,7 +531,7 @@ provider is actually built, not made speculatively here.
 Publisher, developer, original release date, genres, and category badges — the box-back
 facts Steam shows for an owned game, but hides from shortcuts.
 
-Implemented as `steam-cartridges` `features/game-info` (ex `steamgriddb-artwork`, merged in P1):
+Implemented in `steam-cartridges` (`app/metadata.ts`, `surfaces/game-info`; ex `steamgriddb-artwork`, merged in P1):
 
 - **Local Database Single Source of Truth:** Stored as `C:\game\steam\library_metadata.json`
   with 2-space indentation. Easily user-editable and preserved with `custom_override`.

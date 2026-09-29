@@ -70,7 +70,7 @@ let navRedirects = 0;
  * unowned/unknown. Without this tag, `isKnownApp` (used by
  * `navigationTarget` below) saw the fallback's truthiness and treated the
  * unowned native app as "known", which suppressed the Navigator.App ->
- * shortcut redirect and regressed check 16 in scratch/check_parity.mjs
+ * shortcut redirect and regressed check 16 in steam-cartridges/tests/live/check_parity.mjs
  * (found live 2026-09-26 while executing this fix — see
  * steam-cartridges-friends-boat-crash.md § 12).
  */

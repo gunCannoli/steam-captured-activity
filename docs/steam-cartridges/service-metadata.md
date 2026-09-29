@@ -128,7 +128,7 @@ from the now-deleted `tests/game-info-policy.test.ts`), `steam-store metadata
 is never written to library_metadata.json`, `GetAllRecords is disk only`. Add
 to `package.json` `test:lua`.
 
-Live: M5b's exit checks — `scratch/audit_missing_metadata.mjs` (`0 missing`), AM2R Game Info intact
+Live: M5b's exit checks — `steam-cartridges/tests/live/audit_missing_metadata.mjs` (`0 missing`), AM2R Game Info intact
 with route `none`, WUCHANG Game Info from the Steam store, a web-scraping game shows its IGDB data,
 `count_cycle.mjs` PASS, § 0.5 full baseline, switch-off `game-info`.
 

@@ -75,8 +75,7 @@ edges. Rule-allowed edges are listed in `LAYER_RULES` in
    allowlisted edge no longer exists (stale entry — must be deleted, never left).
    Regenerate deliberately with `ARCH_WRITE_ALLOWLIST=1 npm run test:ts`, and only
    a migration plan step may do this.
-2. **RPC registration**: every backend method name `frontend/rpc.ts` or
-   `frontend/ports/backend.ts` calls must be assigned as a global in
+2. **RPC registration**: every backend method name `frontend/ports/backend.ts` calls must be assigned as a global in
    `backend/main.lua`; calling an unregistered method crashes the backend host.
 
 Live: migration plan § 0.5's full baseline (render loop, Properties ×2, nav
@@ -142,3 +141,5 @@ why in its root-cause section, or it is rejected.
   `captures` gains the Post-Game Summary session write (K14). `frontend/features/achievements/` is deleted (its `PURGE(M6)` ports with it).
 - M7a/M7b (2026-09-29): `backend/net.lua`, `fresh_policy.lua`, `registry.lua`; `app/ingest.ts` and `app/view.ts` added. `frontend/features/scraper/`
   and `features/source-view.ts` are deleted; only `features/game-info/controller.ts` and `features/steam-store/` remain under `features/` (M9a moves them).
+- M9a (2026-09-29): `frontend/features/`, `frontend/rpc.ts` and `safety/switches.ts` are gone (`app/steam-store.ts`, `app/controller.ts`, `domain/steam-cdn.ts`, `ports/backend.ts`; the switches instance is created in `index.tsx`). `tests/architecture-allowlist.json` is `[]`; ADR-0041 (one jsx hook per concern, guarded by a test). Seven RPC aliases deleted ([rpc.md](rpc.md)).
+- M9b (2026-09-29): the live scripts moved to `steam-cartridges/tests/live/` (`npm run test:live`), the migration's execution aids were deleted.

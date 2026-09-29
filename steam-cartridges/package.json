@@ -10,7 +10,8 @@
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
     "test:ts": "node --experimental-strip-types --test tests/*.test.ts",
     "test:lua": "lua tests/test_backend.lua && lua tests/test_steam_store.lua && lua tests/test_migrate.lua && lua tests/test_identity.lua && lua tests/test_metadata_service.lua && lua tests/test_art_service.lua && lua tests/test_ach_service.lua && lua tests/test_freshness.lua",
-    "test": "npm run test:ts && npm run test:lua"
+    "test": "npm run test:ts && npm run test:lua",
+    "test:live": "node tests/live/run.mjs"
   },
   "dependencies": {
     "@steambrew/client": "^5.8.5",

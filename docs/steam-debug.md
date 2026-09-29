@@ -280,7 +280,7 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
      second over a fixed window (e.g. 1,521 "Enriched native Game Info" lines in
      10 s gave the 2026-09-28 loop away).
   5. Restart Steam (`start-steam-dev.ps1 -Restart`). A hung renderer never recovers.
-- **Tools:** `scratch/arch-m0/` (`catch_hang.mjs` does steps 1–3,
+- **Tools:** `steam-cartridges/tests/live/` (`catch_hang.mjs` does steps 1–3,
   `count_cycle.mjs` step 4, `test_props.mjs` gives a one-line OK/HUNG verdict).
   Each hung repro costs a Steam restart (~1 min), so form a hypothesis from the
   first stack sample before running another.
@@ -346,8 +346,8 @@ with the cheapest method that actually answers it, in this order:
    a `data-*` attribute, 1–3 `getComputedStyle` properties, an element count, or a
    single store field (see § 5 for the WebSocket one-liner pattern). Trim or
    `.slice()` any string before returning it.
-2. **Reuse existing scripts before writing new ones.** `scratch/test_nav_cycle.js`
-   and `scratch/check_all_tabs.js` (Routine 3 in [AGENTS.md](../AGENTS.md)), plus
+2. **Reuse existing scripts before writing new ones.** `steam-cartridges/tests/live/test_nav_cycle.js`
+   and `steam-cartridges/tests/live/check_all_tabs.js` (Routine 3 in [AGENTS.md](../AGENTS.md)), plus
    plugin `tests/`, e.g. `enhanced-notifications/tests/categories.mjs`,
    `enhanced-achievements/tests/smoke.mjs`. Run them and report only PASS/FAIL,
    not their raw output.

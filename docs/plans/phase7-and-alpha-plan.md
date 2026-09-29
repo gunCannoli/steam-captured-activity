@@ -377,7 +377,7 @@ is not overridable per tier; themes.md does not document it.
 7. Restore settings (delete the keys it set) and `setCaptureDryRun(false)`.
 
 Then run the existing `tests/smoke.mjs`, `tests/tiers.mjs`, `tests/settings-sound.mjs`,
-and core Routines 1–3 (`scratch/test_nav_cycle.js`, `scratch/check_all_tabs.js`).
+and core Routines 1–3 (`steam-cartridges/tests/live/test_nav_cycle.js`, `steam-cartridges/tests/live/check_all_tabs.js`).
 All must still PASS.
 
 ### A5. Docs to update (Part A)
@@ -489,7 +489,7 @@ plugins.md § 6 checklist item, so this is **question Q1**. On an answer, add
 A3.1, then A4 (unit tests), A3.2 to A3.9, B2, B1, B3, B4, B5, B7, A5, then run the
 full suite: `npm run verify` in both plugins, then deploy with `dev.ps1`
 (graceful restart, **no SharedJSContext reload**), then all live `tests/*.mjs`
-for EA and EN, then `scratch/test_nav_cycle.js` and `scratch/check_all_tabs.js`.
+for EA and EN, then `steam-cartridges/tests/live/test_nav_cycle.js` and `steam-cartridges/tests/live/check_all_tabs.js`.
 B6 waits on Q1.
 
 ---

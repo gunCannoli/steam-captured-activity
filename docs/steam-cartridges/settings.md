@@ -21,11 +21,11 @@
 
 ## Tests
 
-`tests/settings-defaults.test.ts` (2), `tests/troubleshooting-core.test.ts` (3). Live: `node scratch/check_settings_panel.mjs`
+`tests/settings-defaults.test.ts` (2), `tests/troubleshooting-core.test.ts` (3). Live: `node steam-cartridges/tests/live/check_settings_panel.mjs`
 mounts `PLUGIN_LIST['steam-cartridges-dev'].SettingsPanel` in a detached div and prints `PASS <title>` for the 8 titles.
 
 ## How to add a panel
 
 1. New `settings/panels/<name>.tsx` exporting `<Name>Section`; read settings with `useSetting`, the app with `usePanelContext()`.
 2. Anything it needs from the app: add it to `PanelContext` and wire it in `index.tsx`. Never import `app/`.
-3. Add it to `panel.tsx` and its title to `scratch/check_settings_panel.mjs`.
+3. Add it to `panel.tsx` and its title to `steam-cartridges/tests/live/check_settings_panel.mjs`.

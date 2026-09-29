@@ -138,7 +138,7 @@ the allowlist.
   (import path updated to `frontend/domain/routing/pending.ts` in M4a — D11).
 - `tests/architecture.test.ts`: the sensor area-isolation rule.
 - Live: migration plan § 0.5 baseline, plus the M2 `Viewed shortcut …` /
-  `Left shortcut …` log-line count (`scratch/count_cycle.mjs`).
+  `Left shortcut …` log-line count (`steam-cartridges/tests/live/count_cycle.mjs`).
 
 ## How to add a sensor
 

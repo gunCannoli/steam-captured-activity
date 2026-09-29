@@ -100,7 +100,7 @@ run strictly in order (a `STALE` line on `check` means an earlier step is missin
 | Plugin source | `C:\game\millennium\steam-cartridges` |
 | Steam | `C:\game\steam` (DevTools `http://127.0.0.1:8080`; use `127.0.0.1`, never `localhost`) |
 | Deployed dev plugin | `C:\game\steam\millennium\plugins\steam-cartridges-dev` (created by `dev.ps1`) |
-| Node | v24 (built-in `WebSocket`; the `scratch/arch-m0` scripts need no npm packages) |
+| Node | v24 (built-in `WebSocket`; the `steam-cartridges/tests/live` scripts need no npm packages) |
 | Lua | LuaJIT 2.1 at `C:\dev\tools\lua` (on the user `PATH`; `lua` and `luajit` both work; built from source 2026-09-28, see its `README.txt`) |
 | Test shortcuts | AM2R `4263274102` (unmapped, local metadata, captures) · WUCHANG: Fallen Feathers `3135033888` (mapped → native `2277560`) · Jotunnslayer `2315502503` (mapped → `2820820`) |
 
@@ -140,11 +140,11 @@ the dev plugin and restarts Steam.
 
 | Command | PASS output (exact line) |
 | --- | --- |
-| `node scratch/arch-m0/count_cycle.mjs 4263274102` | last line starts `PASS render loop:` (all three counts ≤ 3; measured after M0a: `enrich(page)=1 enrich(properties)=0 achievementLoads(page)=1`) |
-| `node scratch/arch-m0/test_props.mjs 3135033888 --page` | `appid 3135033888 page=true: OK; popup=["WUCHANG: Fallen Feathers"]` |
-| `node scratch/arch-m0/test_props.mjs 2315502503 --page` | `appid 2315502503 page=true: OK; popup=["Jotunnslayer: Hordes of Hel"]` |
-| `node scratch/test_nav_cycle.js` | six lines starting `PASS`, no `FAIL` |
-| `node scratch/check_all_tabs.js` | eleven lines starting `PASS`, no `FAIL` |
+| `node steam-cartridges/tests/live/count_cycle.mjs 4263274102` | last line starts `PASS render loop:` (all three counts ≤ 3; measured after M0a: `enrich(page)=1 enrich(properties)=0 achievementLoads(page)=1`) |
+| `node steam-cartridges/tests/live/test_props.mjs 3135033888 --page` | `appid 3135033888 page=true: OK; popup=["WUCHANG: Fallen Feathers"]` |
+| `node steam-cartridges/tests/live/test_props.mjs 2315502503 --page` | `appid 2315502503 page=true: OK; popup=["Jotunnslayer: Hordes of Hel"]` |
+| `node steam-cartridges/tests/live/test_nav_cycle.js` | six lines starting `PASS`, no `FAIL` |
+| `node steam-cartridges/tests/live/check_all_tabs.js` | eleven lines starting `PASS`, no `FAIL` |
 
 Until M0c fixes it, `check_all_tabs.js` line `A -> B -> A: activity cards intact (hasEvent)`
 can fail once from timing (it compares DOM card counts, which Steam reveals
@@ -231,7 +231,7 @@ from `planned` to `current`, with a link, in the same commit.
 - No Steam write outside the code the step names. From M3 on: no Steam write outside `surfaces/`.
 - No store write, event, RPC, timer or prototype walk inside a Steam render, getter, prototype hook or jsx handler ([guardrail 17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components)).
 - No mixing a module move and a behaviour change in one step.
-- No editing the pass criteria in § 0.5 or the checks in `scratch/check_all_tabs.js` / `scratch/test_nav_cycle.js`, except M0c's one fix.
+- No editing the pass criteria in § 0.5 or the checks in `steam-cartridges/tests/live/check_all_tabs.js` / `steam-cartridges/tests/live/test_nav_cycle.js`, except M0c's one fix.
 
 ### 0.10 How to execute a `Build` step
 
@@ -307,7 +307,7 @@ Steam's shared objects are patched from about a dozen places, none of which own 
 **User report:** opening **Properties** of the non-Steam game *WUCHANG: Fallen
 Feathers* made Steam show its "restart the UI" dialog.
 
-**Reproduced** with the dev build of `ec16203`/`22bac99` (tools in `scratch/arch-m0/`):
+**Reproduced** with the dev build of `ec16203`/`22bac99` (tools in `steam-cartridges/tests/live/`):
 
 | Test | Result |
 | --- | --- |
@@ -688,7 +688,7 @@ the baseline changes only through an accepted ADR).
 | `npm run check` | exit 0, no output |
 | `npm run test:ts` | `ℹ tests 64` · `ℹ pass 64` · `ℹ fail 0` |
 | Lua tests (run 2026-09-28 with `C:\dev\tools\lua`) | `test_steam_store.lua` ALL PASS · `test_emulator_controllers.lua` ALL PASS · `test_backend.lua` 76 PASS, **2 FAIL** (§ 12 K7, K8) |
-| Cross-area imports in `frontend/` | 51 (list: `scratch/arch-m0/m0c/architecture.test.ts` regenerates it) |
+| Cross-area imports in `frontend/` | 51 (list: `steam-cartridges/tests/live/m0c/architecture.test.ts` regenerates it) |
 | Expected test counts after each Ready step (dry-run, cumulative) | M0a 64 · M0b-1 71 · M0c 73 · M1 81 · M2 87 · M3.0–M3.3 86 · M3.4–M3.10 87 (allowlist after M2 41, M3.0 39, M3.1 38, M3.2–M3.8 35, M3.9 33, M3.10 31) |
 | Live (M0a+M0b-1 applied, then reverted) | `PASS render loop` · Properties OK ×3 · nav cycle 6/6 · `check_all_tabs.js` 11/11 (4 runs with the M0c fix) |
 
@@ -725,10 +725,10 @@ What the blocks do:
 
 **Actions** (from `C:\game\millennium\steam-cartridges`):
 
-1. `python ../scratch/arch-m0/m0a_blocks.py . check`
+1. `python ../steam-cartridges/tests/live/m0a_blocks.py . check`
    → 15 lines in this order: `STEP 1.1`, `1.2`, `1.3`, `1.4`, `2.1`, `2.2`, `2.3`, `2.4`, `2.9`,
    `2.5`, `2.6`, `2.7`, `2.8`, `3.1`, `3.2`, each followed by `: ok (<path>)`. No `STALE`.
-2. `python ../scratch/arch-m0/m0a_blocks.py . apply` → the same 15 lines.
+2. `python ../steam-cartridges/tests/live/m0a_blocks.py . apply` → the same 15 lines.
    (Equivalent by hand: apply each block below with an exact find-and-replace. The
    script is the reference; if the two ever differ, stop and report.)
 3. `git diff --stat` →
@@ -771,7 +771,7 @@ FAIL, restore Steam per § 0.5 step 4.
 11 (refresh still covers main and Big Picture) · 12 (Properties is deliberately excluded) ·
 14 (local Game Info still applied: `check_all_tabs` check 4 PASS) · 15 (no check edited) · 17 (the point of the step).
 
-The literal blocks (identical to `scratch/arch-m0/m0a_blocks.py`):
+The literal blocks (identical to `steam-cartridges/tests/live/m0a_blocks.py`):
 
 **Block 1.1** · `frontend/features/game-info/metadata.ts`
 
@@ -1151,11 +1151,11 @@ SharedJSContext console, then restarts Steam:
 
 **Actions** (from `C:\game\millennium\steam-cartridges`):
 
-1. `python ../scratch/arch-m0/m0b/m0b1_blocks.py . check` → 18 lines, order `1.1 1.2 1.4 1.3 2.1 … 2.14`, all `ok`.
-2. `python ../scratch/arch-m0/m0b/m0b1_blocks.py . apply` → the same 18 lines.
+1. `python ../steam-cartridges/tests/live/m0b/m0b1_blocks.py . check` → 18 lines, order `1.1 1.2 1.4 1.3 2.1 … 2.14`, all `ok`.
+2. `python ../steam-cartridges/tests/live/m0b/m0b1_blocks.py . apply` → the same 18 lines.
 3. `New-Item -ItemType Directory frontend/safety` (PowerShell) and copy the three files:
-   `Copy-Item ../scratch/arch-m0/m0b/safety/features.ts, ../scratch/arch-m0/m0b/safety/boot.ts, ../scratch/arch-m0/m0b/switches.ts frontend/safety/`
-   and `Copy-Item ../scratch/arch-m0/m0b/safety.test.ts tests/`.
+   `Copy-Item ../steam-cartridges/tests/live/m0b/safety/features.ts, ../steam-cartridges/tests/live/m0b/safety/boot.ts, ../steam-cartridges/tests/live/m0b/switches.ts frontend/safety/`
+   and `Copy-Item ../steam-cartridges/tests/live/m0b/safety.test.ts tests/`.
    Then `Get-ChildItem frontend/safety | % Name` → `boot.ts`, `features.ts`, `switches.ts`.
 4. `npm run check` → exit 0, no output.
 5. `npm run test:ts` → `ℹ tests 71` / `ℹ pass 71` / `ℹ fail 0`.
@@ -1167,12 +1167,12 @@ SharedJSContext console, then restarts Steam:
 8. Commit: the files above; message `feat(steam-cartridges): kill switches, error budget and safe mode (M0b-1)`.
 
 **Live:** verifier runs § 0.5. Additionally:
-`node scratch/arch-m0/probe.mjs "PLUGIN_LIST['steam-cartridges-dev'].safetyDiagnostics()"` →
+`node steam-cartridges/tests/live/probe.mjs "PLUGIN_LIST['steam-cartridges-dev'].safetyDiagnostics()"` →
 `{"safeMode": false, "disabled": [], "tripped": [], "errors": {}}` (pretty-printed), and
-after 60 s `node scratch/arch-m0/probe.mjs "localStorage.getItem('steam-cartridges.boot')"`
+after 60 s `node steam-cartridges/tests/live/probe.mjs "localStorage.getItem('steam-cartridges.boot')"`
 → contains `"pending":false`.
 
-The literal blocks (identical to `scratch/arch-m0/m0b/m0b1_blocks.py`):
+The literal blocks (identical to `steam-cartridges/tests/live/m0b/m0b1_blocks.py`):
 
 **Block 1.1** · `frontend/settings/settings.ts`
 
@@ -1495,8 +1495,8 @@ After:
 ```
 
 
-The three new files are in `scratch/arch-m0/m0b/` (`safety/features.ts`, `safety/boot.ts`,
-`switches.ts`) and the test in `scratch/arch-m0/m0b/safety.test.ts`. Copy them
+The three new files are in `steam-cartridges/tests/live/m0b/` (`safety/features.ts`, `safety/boot.ts`,
+`switches.ts`) and the test in `steam-cartridges/tests/live/m0b/safety.test.ts`. Copy them
 byte-for-byte; do not retype them.
 
 ### M0b-2 — Fail-open Steam hooks (folded into M3)
@@ -1549,12 +1549,12 @@ checks still PASS and Game Info shows Steam's stock grey box. Then set it back t
 message on a planted forbidden import and on an unregistered RPC name, and the
 `check_all_tabs.js` fix passed 4 runs in a row live.
 **Files:** new `steam-cartridges/tests/architecture.test.ts`, new
-`steam-cartridges/tests/architecture-allowlist.json`, `scratch/check_all_tabs.js`,
+`steam-cartridges/tests/architecture-allowlist.json`, `steam-cartridges/tests/live/check_all_tabs.js`,
 new `docs/steam-cartridges/README.md`, `docs/steam-architecture.md` § 3, CHANGELOGs, `TASK.md`, this plan.
 
 **Actions** (from `C:\game\millennium\steam-cartridges` unless stated):
 
-1. `Copy-Item ../scratch/arch-m0/m0c/architecture.test.ts tests/`
+1. `Copy-Item ../steam-cartridges/tests/live/m0c/architecture.test.ts tests/`
 2. `Set-Content tests/architecture-allowlist.json '[]'`
 3. `$env:ARCH_WRITE_ALLOWLIST='1'; npm run test:ts; Remove-Item Env:ARCH_WRITE_ALLOWLIST`
    → ends `ℹ tests 73` / `ℹ pass 73` / `ℹ fail 0`.
@@ -1562,23 +1562,23 @@ new `docs/steam-cartridges/README.md`, `docs/steam-architecture.md` § 3, CHANGE
    `node -e "const a=require('./tests/architecture-allowlist.json');console.log(a.filter(x=>x.includes('safety')).join(' | '))"`
    → `index -> safety | safety -> settings`.
 5. `npm run test:ts` (without the variable) → `ℹ tests 73` / `ℹ pass 73` / `ℹ fail 0`.
-6. From `C:\game\millennium`: `python scratch/arch-m0/m0c/m0c_blocks.py . check` → `STEP 1.1: ok …`, `STEP 1.2: ok …`;
+6. From `C:\game\millennium`: `python steam-cartridges/tests/live/m0c/m0c_blocks.py . check` → `STEP 1.1: ok …`, `STEP 1.2: ok …`;
    then `… apply` → the same two lines.
 7. Write `docs/steam-cartridges/README.md` (the migration's overview doc; template § 0.6
    adapted: "What it owns" = the layer list of § 4.1 with each layer's status; "May import"
    = the § 4.1 table; "Tests" = `architecture.test.ts`; "How to add a feature" = § 4.6).
    Flip the Overview row in `docs/steam-architecture.md` § 3.
 8. Docs + commit: message `test(steam-cartridges): architecture ratchet and RPC registration check (M0c)`;
-   paths: the two test files, `scratch/check_all_tabs.js`, `docs/steam-cartridges/README.md`,
+   paths: the two test files, `steam-cartridges/tests/live/check_all_tabs.js`, `docs/steam-cartridges/README.md`,
    `docs/steam-architecture.md`, CHANGELOGs, `TASK.md`, this plan.
 
 **Live:** verifier runs § 0.5; the `A -> B -> A: activity cards intact` line now prints
 `({"cards":N,"days":D,"daysBefore":D})` with the two `D` equal. The temporary re-run
 allowance in § 0.5 no longer applies once M0c is `Done`.
 
-The `check_all_tabs.js` blocks (identical to `scratch/arch-m0/m0c/m0c_blocks.py`):
+The `check_all_tabs.js` blocks (identical to `steam-cartridges/tests/live/m0c/m0c_blocks.py`):
 
-**Block 1.1** · `scratch/check_all_tabs.js`
+**Block 1.1** · `steam-cartridges/tests/live/check_all_tabs.js`
 
 Before:
 
@@ -1597,7 +1597,7 @@ After:
     const daysA = await activityDays();
 ```
 
-**Block 1.2** · `scratch/check_all_tabs.js`
+**Block 1.2** · `steam-cartridges/tests/live/check_all_tabs.js`
 
 Before:
 
@@ -1640,8 +1640,8 @@ After:
 `docs/steam-architecture.md` § 3, CHANGELOGs, `TASK.md`, this plan.
 
 **Actions:**
-1. `New-Item -ItemType Directory frontend/kernel`; `Copy-Item ../scratch/arch-m0/m1/kernel/*.ts frontend/kernel/`;
-   `Copy-Item ../scratch/arch-m0/m1/kernel.test.ts tests/`.
+1. `New-Item -ItemType Directory frontend/kernel`; `Copy-Item ../steam-cartridges/tests/live/m1/kernel/*.ts frontend/kernel/`;
+   `Copy-Item ../steam-cartridges/tests/live/m1/kernel.test.ts tests/`.
    `Get-ChildItem frontend/kernel | % Name` → `appid.ts`, `events.ts`, `record.ts`, `surface.ts`.
 2. `npm run check` → exit 0, no output.
 3. `npm run test:ts` → `ℹ tests 81` / `ℹ pass 81` / `ℹ fail 0`.
@@ -1669,7 +1669,7 @@ below. A step that needs to break one needs an ADR first.
 | D7 | **`touches` naming:** `<SteamObject>.<member>` for patches and store writes (`CAppDetailsSections.GetSections`); `jsx:<name>` for a handler on the jsx runtime; `SteamClient.<Api>.<Method>` for client API calls that write. `CWorkshopStore.m_mapPublishedFiles` belongs to `captures`, because `steam/activity.ts` writes it. Its only other writer, `steam/community-store.ts`, is unreachable (K9). | `assertDisjointTouches` throws when a target has two owners. |
 | D8 | **`index.tsx`'s exports are a public API** (CDP scripts in `scratch/`, `tests/buckets.mjs`, the settings panel alias block). Names and behaviour stay until M9. | `PLUGIN_LIST[...].bucketReport()`, `setSteamStoreMapping()` and others are called from outside. |
 | D9 | **Every step lists its deliberate behaviour deltas.** Any other difference the verifier finds is a bug in the step. | § 5 behaviour freeze. |
-| D10 | **Packaging of a `Ready` step:** `scratch/arch-m0/<step>/files/` holds every changed file as dry-run; `<step>_apply.py` (a copy of `m2/m2_apply.py` with new hashes and file lists) checks and applies; `<step>.diff` is the review copy. The plan section says what changed and why, and the script plus the diff are the literal blocks. | For the executing agent, a whole-file copy guarded by a hash of the "before" file is more reliable than 30 find-and-replace blocks, and it still detects a stale plan (`STALE`). |
+| D10 | **Packaging of a `Ready` step:** `steam-cartridges/tests/live/<step>/files/` holds every changed file as dry-run; `<step>_apply.py` (a copy of `m2/m2_apply.py` with new hashes and file lists) checks and applies; `<step>.diff` is the review copy. The plan section says what changed and why, and the script plus the diff are the literal blocks. | For the executing agent, a whole-file copy guarded by a hash of the "before" file is more reliable than 30 find-and-replace blocks, and it still detects a stale plan (`STALE`). |
 | D12 | **Payload shapes a surface needs live in the kernel.** `GameMetadata`, `GameCategories`, the achievement schema/unlock records and the artwork URL/asset shapes move from `rpc.ts` to `kernel/record.ts` in the M3 step that first needs them. `rpc.ts` keeps the old names as type aliases until M9. | Surfaces may not import `rpc` (§ 4.1), and a type-only import still counts as an edge. These are the record's own shapes, which the kernel reserved ("filled in by the service steps"). |
 | D13 | **Dead code is purged before it would move; temporary code is marked.** Code nothing uses is deleted in a purge step that runs before the layer's moves (M3.0 for the frontend, M4.0 for the backend), never migrated. Temporary live code (D3 ports and setters) is marked on its first line (or above the symbol) with `// PURGE(<step>): <why>. Ledger: migration plan § 7.9.` and listed in § 7.9 with the step that deletes it. M9 ends with `git grep -n "PURGE(" -- frontend` printing nothing. | User decision 4 (2026-09-28): "we delete legacy as the migration is completed" and "no need to migrate dead code". |
 | D14 | **Migration steps are pure moves.** A behaviour bug found while moving code (K3, K4, K6, K13) goes to § 12 with its own bugfix plan after M3, and is never fixed inside a move step. | User, 2026-09-28: each layer has a very specific input/job/output; mixing a fix into a move hides which one caused a regression. |
@@ -1685,7 +1685,7 @@ below. A step that needs to break one needs an ADR first.
    compare `git diff tests/architecture-allowlist.json` with the step's **Allowlist delta**.
    An edge that would be *added* means the design is wrong. Fix it with D3. Never list the edge.
 3. Package it per D10. From M3 on, commit the step inside the worktree and run
-   `python C:/game/millennium/scratch/arch-m0/pack_step.py . HEAD~1 HEAD C:/game/millennium/scratch/arch-m0/<step>`
+   `python C:/game/millennium/steam-cartridges/tests/live/pack_step.py . HEAD~1 HEAD C:/game/millennium/steam-cartridges/tests/live/<step>`
    (it writes `manifest.json`, `files/` and `<step>.diff`; the executing agent uses `apply_step.py`).
    Replay every package, in order, on a second clean worktree, and diff the result against the dry-run
    tree. The step's expected outputs are what you saw in that replay.
@@ -1721,7 +1721,7 @@ bus event, with the same body. Owned-apps detection moves in M4, next to its onl
 **Do not touch:** `steam/gamepad-appid.ts` and `steam/jsx-hook.ts` (the sensor uses them as they are), `features/buckets/index.ts`,
 `resolve.ts`, every other feature, `renderers/`, `settings/`.
 
-**What changes** (the full diff is `scratch/arch-m0/m2/m2.diff`, 769 lines):
+**What changes** (the full diff is `steam-cartridges/tests/live/m2/m2.diff`, 769 lines):
 
 | File | Change |
 | --- | --- |
@@ -1756,7 +1756,7 @@ bus event, with the same body. Owned-apps detection moves in M4, next to its onl
 
 **Actions** (from `C:\game\millennium\steam-cartridges`):
 
-1. `python ../scratch/arch-m0/m2/m2_apply.py . check` → exactly these 13 lines, exit code 0:
+1. `python ../steam-cartridges/tests/live/m2/m2_apply.py . check` → exactly these 13 lines, exit code 0:
    ```
    EDIT frontend/features/buckets/collections.ts: ok
    EDIT frontend/features/buckets/ready.ts: ok
@@ -1773,7 +1773,7 @@ bus event, with the same body. Owned-apps detection moves in M4, next to its onl
    NEW tests/sensors.test.ts: ok
    ```
    Any line with `STALE` means stop (§ 0.8). The script has written nothing.
-2. `python ../scratch/arch-m0/m2/m2_apply.py . apply` → the same 13 lines, exit code 0.
+2. `python ../steam-cartridges/tests/live/m2/m2_apply.py . apply` → the same 13 lines, exit code 0.
 3. `git diff --stat` → last line ` 7 files changed, 117 insertions(+), 144 deletions(-)`.
    `git status --short` → the 7 `M` paths from action 1, plus `?? frontend/app/`,
    `?? frontend/sensors/`, `?? tests/sensors.test.ts`.
@@ -1828,7 +1828,7 @@ bus event, with the same body. Owned-apps detection moves in M4, next to its onl
 library home, not AM2R: a view is a *change* of page. Additional PASS conditions:
 - `count_cycle.mjs 4263274102` prints a line of the form `    1 A:page :: … Viewed shortcut # (desktop).`
   (count exactly 1), and no `B:properties` line contains `Viewed shortcut`.
-- In Big Picture (`..\start-steam-dev.ps1 -BigPicture`), `node scratch/check_all_tabs.js` → eleven `PASS`.
+- In Big Picture (`..\start-steam-dev.ps1 -BigPicture`), `node steam-cartridges/tests/live/check_all_tabs.js` → eleven `PASS`.
 - Optional user check (only the user can launch games): launch AM2R, wait 15 s, quit. The
   SharedJSContext console then shows `AM2R closed; refreshing its activity.` once.
 
@@ -1858,16 +1858,16 @@ bugfix plans (§ 12).
 
 #### Common to every M3.x step (read before each one)
 
-**Tool:** `scratch/arch-m0/apply_step.py` (generic; one `scratch/arch-m0/<step>/manifest.json` per
+**Tool:** `steam-cartridges/tests/live/apply_step.py` (generic; one `steam-cartridges/tests/live/<step>/manifest.json` per
 step, with the new content in `<step>/files/` and the review diff in `<step>/<step>.diff`).
 
 **Actions** (from `C:\game\millennium\steam-cartridges`; `<step>` is `m3.0` … `m3.10`):
 
-1. `python ../scratch/arch-m0/apply_step.py <step> check` → exactly the step's **Check lines** below,
+1. `python ../steam-cartridges/tests/live/apply_step.py <step> check` → exactly the step's **Check lines** below,
    in that order (`EDIT` sorted, then `DELETE`, then `NEW`), each ending in `: ok`, exit code 0.
    Any `STALE` means stop (§ 0.8). The script has written nothing. `STALE` on a first run usually
    means an earlier step is not applied.
-2. `python ../scratch/arch-m0/apply_step.py <step> apply` → the same lines, exit code 0. It writes the
+2. `python ../steam-cartridges/tests/live/apply_step.py <step> apply` → the same lines, exit code 0. It writes the
    edited and new files, deletes the `DELETE` files and removes folders left empty.
 3. `npm run check` → exit 0, no output after the npm banner.
 4. `npm run test:ts` → `ℹ tests <T>` / `ℹ pass <T>` / `ℹ fail 0`, with `<T>` from the step table.
@@ -1877,7 +1877,7 @@ step, with the new content in `<step>/files/` and the review diff in `<step>/<st
    a folder that is entirely new shows once as `?? <folder>/`) and nothing else.
 8. Docs: the common list below, plus the step's own.
 9. Commit (§ 0.7). Stage with
-   `git add -- $(python ../scratch/arch-m0/apply_step.py <step> paths)` (the manifest paths, one per
+   `git add -- $(python ../steam-cartridges/tests/live/apply_step.py <step> paths)` (the manifest paths, one per
    line; this works in PowerShell and in bash, and stages deletions too), then `git add` the doc paths
    from the repo root. The message is in the step table.
 
@@ -2213,7 +2213,7 @@ returns the unmodified value, the `Navigator.App` beforePatch passes the argumen
 observer does nothing. `touches`: `appStore.GetAppOverviewByAppID`, `Navigator.App`,
 `jsx:native-sections`. D3 `setNativeLinksSink` (steam-store → `setNativeAppid`).
 `nativeSectionsDiagnostics` (D8) is unchanged.
-**Extra live:** `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL`; switch-off `native-links` →
+**Extra live:** `node steam-cartridges/tests/live/check_parity.mjs` → `17 PASS / 0 FAIL`; switch-off `native-links` →
 Jotunnslayer's Links, Friends and Community sections are stock.
 
 #### M3.8 — Purge markers on the temporary ports (Done)
@@ -2564,7 +2564,7 @@ what it owns = identity; sources = saved mapping, owned candidates, store search
    `tests/app-identity.test.ts` (5: not steam-store → unsupported without a call; memo per session;
    pending not memoised; error retried only after 5 min; invalidate re-resolves), minus the deleted
    TS matching tests.
-**Exit:** § 0.5 PASS; `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL` (Jotunnslayer: links, friends,
+**Exit:** § 0.5 PASS; `node steam-cartridges/tests/live/check_parity.mjs` → `17 PASS / 0 FAIL` (Jotunnslayer: links, friends,
 community, news from native 2820820); WUCHANG shows its native sections; AM2R (route `none`) shows none
 and makes no identity call (backend log has no `EnsureFresh` for 4263274102); M3 switch-off checks for
 `sections`, `native-links`, `captures`.
@@ -2634,7 +2634,7 @@ be identical per shortcut (the exit checks prove it).
    `matched`), the metadata part of `features/scraper/on-update.ts`, setters `setGameInfoWriter`,
    `setGameInfoSink`, `setGameInfoEnricher`, `setGameInfoProbe` (sections reads `record.metadata.status`).
    `features/source-view.ts` shrinks to: route → identity → metadata → (steam-store artwork until M5c).
-**Exit:** `node scratch/audit_missing_metadata.mjs` → `0 missing` (220/220 shortcuts with Game Info, as
+**Exit:** `node steam-cartridges/tests/live/audit_missing_metadata.mjs` → `0 missing` (220/220 shortcuts with Game Info, as
 before); AM2R Game Info intact with route `none` (ADR-0035); WUCHANG Game Info from the Steam store
 (release date, developer, badges as before); a web-scraping game shows its IGDB data; `count_cycle.mjs`
 → `PASS render loop`; § 0.5 PASS; switch-off `game-info`.
@@ -3017,14 +3017,14 @@ first action below pins that with a test.
 5. Architecture (D1): after M8 the allowlist has **no** `settings -> *` edge (`settings -> rpc`,
    `settings -> features/*` go); `settings -> domain` and `settings -> ports` are rule-allowed; `settings -> app`
    stays forbidden (the context is the port). Record the exact delta in the report.
-6. **Read-only render check** `scratch/check_settings_panel.mjs` (new; the implementer writes it; CDP on
+6. **Read-only render check** `steam-cartridges/tests/live/check_settings_panel.mjs` (new; the implementer writes it; CDP on
    `127.0.0.1:8080`, SharedJSContext): mount `PLUGIN_LIST['steam-cartridges-dev'].SettingsPanel` into a
    **detached** `<div>` with Steam's React (`SP_REACTDOM.createRoot(div).render(SP_REACT.createElement(Panel))`,
    or `SP_REACTDOM.render` when `createRoot` is absent), wait 3 s, and for each title print `PASS <title>` if
    `div.textContent` contains it, else `FAIL <title>`: `Metadata`, `Achievements`, `Notifications`,
    `Activity Feed`, `Community & Media`, `Routing Rules`, `Library Audit`, `Troubleshooting`. Then unmount.
    It clicks nothing and writes nothing.
-**Exit:** `npm run test:ts` green with +5 tests; `node scratch/check_settings_panel.mjs` → 8 `PASS` lines;
+**Exit:** `npm run test:ts` green with +5 tests; `node steam-cartridges/tests/live/check_settings_panel.mjs` → 8 `PASS` lines;
 `PLUGIN_LIST['steam-cartridges-dev'].safetyDiagnostics()` unchanged before/after deploy; § 0.5 PASS.
 **User test:** open the plugin's settings page; every section shows as before, plus Troubleshooting;
 switching one feature off there and restarting Steam shows it off in `safetyDiagnostics()`.
@@ -3035,7 +3035,7 @@ switching one feature off there and restarting Steam shows it off in `safetyDiag
 (`enrich(page)=1`, both Properties OK, nav 6/6, tabs 11/11), and `disabledFeatures: "toasts"` showed `disabled: ["toasts"]` after a restart
 (reset afterwards). No defect found. Not yet checked or deliberately left, for a later look:
 - M8-1 (fixed): `ctx.safety.surfaces()` is now wired to `runner.status()` and the panel prints one line per surface (`installed`, `not installed`, `off`). Live: all 9 surfaces read `installed`.
-- M8-2 (checked live, `scratch/click_settings_panel.mjs`): the Troubleshooting toggle writes and reverts `disabledFeatures` (on → off → on; the config write takes about 2 s to show), "+ Add Rule" opens its modal, "Review" opens the audit modal, and `SaveServiceCredentials` writes and clears a probe key. The audit's "Scan" button could not be clicked: the library has no flagged shortcut (Issues 0, Unknown Input 0, Not Scraped 0). That path is covered by the M8-3 unit test.
+- M8-2 (checked live, `steam-cartridges/tests/live/click_settings_panel.mjs`): the Troubleshooting toggle writes and reverts `disabledFeatures` (on → off → on; the config write takes about 2 s to show), "+ Add Rule" opens its modal, "Review" opens the audit modal, and `SaveServiceCredentials` writes and clears a probe key. The audit's "Scan" button could not be clicked: the library has no flagged shortcut (Issues 0, Unknown Input 0, Not Scraped 0). That path is covered by the M8-3 unit test.
 - M8-3 (fixed): `app/ingest.ts` no longer drops the scope of a request made during a run. Queued requests merge (`forceAll` or-ed, `onlyAppids` unioned, a whole-library request wins) and run as one follow-up; a scoped request's promise resolves when that follow-up ends, so the audit shows "Scanned" only after it ran. Test `a per-game scan requested during a run keeps its scope and resolves after it ran` (`test:ts` 142/142).
 
 ### M9a — Cleanup: code (Build)
@@ -3093,13 +3093,13 @@ switching one feature off there and restarting Steam shows it off in `safetyDiag
 **Why:** the docs must describe the real tree, and the live checks must live with the plugin.
 **Behaviour: none.**
 **Design:**
-1. **Live scripts:** `git mv scratch/arch-m0/{cdp,probe,test_props,count_cycle,catch_hang}.mjs` and
+1. **Live scripts:** `git mv steam-cartridges/tests/live/{cdp,probe,test_props,count_cycle,catch_hang}.mjs` and
    `scratch/{check_all_tabs.js,test_nav_cycle.js,check_parity.mjs,check_settings_panel.mjs,audit_missing_metadata.mjs}`
    into `steam-cartridges/tests/live/` (fix their relative imports), add `npm run test:live` that runs the
    § 0.5 set in order, and update every reference: this plan's § 0.5 table and step exits, `AGENTS.md`
    Routine 3, `docs/plugins.md` guardrail 17, `docs/steam-debug.md` Trap 10 and § 7
    (`git grep -n "scratch/" -- docs AGENTS.md` must list only historical CHANGELOG lines afterwards).
-2. **Execution aids:** delete `scratch/arch-m0/m*/` packages, `apply_step.py` and `pack_step.py` (§ 7.9 row);
+2. **Execution aids:** delete `steam-cartridges/tests/live/m*/` packages, `apply_step.py` and `pack_step.py` (§ 7.9 row);
    the migration's history stays in git and CHANGELOG.
 3. **Docs to the real tree:** `docs/millennium-architecture.md` § Module layout (generated from
    `git ls-files steam-cartridges/frontend steam-cartridges/backend`, one line per file with its layer);
@@ -3138,7 +3138,7 @@ printing nothing, and every row below being deleted.
 | ~~`rpc.ts` type aliases, and `rpc.ts` itself~~ | — | ~~M9~~ **done (M9a)** | importers use the kernel names (D12) and `ports/` |
 | ~~old RPC names kept as aliases for the M4–M7 facade~~ | — | ~~M9~~ **done (M9a)** (`SteamStoreGetMapping` kept: still called) | the registration test proves which are unused |
 | ~~`steam/route.ts` `isNonSteamAppId`~~ | — | ~~M9~~ **done (M9a)** | `kernel/appid.ts` everywhere |
-| `scratch/arch-m0/<step>/` packages, `apply_step.py`, `pack_step.py` | — | M9 | execution aids, not product code; the live scripts move to `steam-cartridges/tests/live/` |
+| `steam-cartridges/tests/live/<step>/` packages, `apply_step.py`, `pack_step.py` | — | M9 | execution aids, not product code; the live scripts move to `steam-cartridges/tests/live/` |
 
 ### 7.10 Unwired features register (§ 11 item 7)
 
@@ -3287,5 +3287,5 @@ Executing agents add to this list instead of fixing things outside their step.
 | K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | Bugfix plan after M3 (D14): find a non-render trigger for Steam's overview rebuild, else an ADR exception for the idempotent render-time repair |
 | K16 | Every kill switch was silently inert: `settings.ts` `apply()` ran `JSON.parse(raw)` unconditionally on a stored string value and discarded it (`raw = undefined`, falling back to `DEFAULTS[k]`) whenever the value wasn't valid JSON — which `disabledFeatures` (a plain comma-separated string, e.g. `"sections"`) never is. `setSetting('disabledFeatures', id)` therefore persisted to disk correctly but the in-memory `current.disabledFeatures` (and so `features.isEnabled`) stayed `''` forever, live or after a restart. Present since M0b-1; found live-testing M3.1's switch-off check (2026-09-28) | `safetyDiagnostics().disabled` stayed `[]` after `setSetting('disabledFeatures','sections')` and a restart; DOM still showed the sections | **User decision (2026-09-28): fixed inline in M3.1**, not deferred — every M3.x switch-off live check depends on it. Fix: on a `JSON.parse` failure, keep the original string instead of discarding it |
 | K17 | **Fixed 2026-09-29** (`surfaces/toasts/achievement.ts`): the protobuf setters are on the prototype of an *instance* (`Object.getPrototypeOf(new Class())`), not on `Class.prototype`, so the resolver's `Class.prototype.set_achievement_id` check found nothing on this build; it now instantiates candidate classes. The notification type id (`ok` of the type enum export) was already right (5). Live: `dispatchAchievementToast` returns `true` and Steam opens its `notificationtoasts` window. Was: `dispatchAchievementToast`'s `resolveAchievementProto()` webpack scanner never finds `CClientNotificationAchievement` on this Steam build/version: every call logs "Could not resolve Steam achievement notification protobuf." and returns `false`, so the native achievement toast never fires. Present before M3.6 too (confirmed on the pre-move build); a pure move (D14) does not fix it | `PLUGIN_LIST['steam-cartridges-dev'].dispatchAchievementToast(...)` → `false` on both the pre-M3.6 and M3.6 builds; `Could not resolve Steam achievement notification protobuf.` in the SharedJSContext console | Bugfix plan after M3 (D14): needs a fresh scanner signature check against the live Steam build (ADR-0005 signatures may be stale) |
-| K18 | `check_parity.mjs` check 15 (header links: Store Page, Community Hub, Discussions, Guides, Support) fails on the native `HelpAppPage` ("Support") link — it never resolves for a mapped shortcut, so the header's Support link stays on the shortcut's own (non-existent) page instead of opening the native app's. Present before M3.7 too (confirmed 16 PASS / 1 FAIL on both the pre-move and M3.7 builds) | `node scratch/check_parity.mjs` → check 15 FAIL with `needIds` missing `HelpAppPage`, on both builds | Bugfix plan after M3 (D14): `native-links` needs to also map the Support header link, not just Store/Community Hub/Discussions/Guides |
-| K19 | **Fixed 2026-09-29** (`surfaces/achievements/store.ts`, `core.ts` `getAchievementsAction`): Steam's `GetAchievements(e)` is `t = GetAppData(e); void 0 === t.details?.achievements.vecHighlight && this.RequestAchievements(e); return t.details?.achievements`, and a shortcut's `details` is null (guardrail 8), so for any shortcut with nothing of ours the original always reached `RequestAchievements` and threw. That predates M6 (the wrapper's fall-through is unchanged since M3.5). The wrapper now answers `undefined` (what the original returns) without calling it. Live: no exception on AM2R, WUCHANG or Castlevania. The `Uncaught (in promise)` object rejections that remain also occur on native games (730, 570), so they are Steam's own. Was: Opening any shortcut page logs two unhandled `TypeError: Cannot read properties of null (reading 'achievements')` from Steam's `AppDetailsStore.RequestAchievements`, called through our `GetAchievements` wrapper (`surfaces/achievements/store.ts`) before the record's achievements have loaded (also for AM2R, which has none). The wrapper's own code is unchanged since M3.5, but it was **not** compared against a pre-M6 build, so it may predate M6 | `node scratch/arch-m0/exception_stack.mjs 4263274102` (2026-09-29) | open: bugfix plan (return an empty achievement set for a shortcut with no data instead of falling through to Steam's original) |
+| K18 | `check_parity.mjs` check 15 (header links: Store Page, Community Hub, Discussions, Guides, Support) fails on the native `HelpAppPage` ("Support") link — it never resolves for a mapped shortcut, so the header's Support link stays on the shortcut's own (non-existent) page instead of opening the native app's. Present before M3.7 too (confirmed 16 PASS / 1 FAIL on both the pre-move and M3.7 builds) | `node steam-cartridges/tests/live/check_parity.mjs` → check 15 FAIL with `needIds` missing `HelpAppPage`, on both builds | Bugfix plan after M3 (D14): `native-links` needs to also map the Support header link, not just Store/Community Hub/Discussions/Guides |
+| K19 | **Fixed 2026-09-29** (`surfaces/achievements/store.ts`, `core.ts` `getAchievementsAction`): Steam's `GetAchievements(e)` is `t = GetAppData(e); void 0 === t.details?.achievements.vecHighlight && this.RequestAchievements(e); return t.details?.achievements`, and a shortcut's `details` is null (guardrail 8), so for any shortcut with nothing of ours the original always reached `RequestAchievements` and threw. That predates M6 (the wrapper's fall-through is unchanged since M3.5). The wrapper now answers `undefined` (what the original returns) without calling it. Live: no exception on AM2R, WUCHANG or Castlevania. The `Uncaught (in promise)` object rejections that remain also occur on native games (730, 570), so they are Steam's own. Was: Opening any shortcut page logs two unhandled `TypeError: Cannot read properties of null (reading 'achievements')` from Steam's `AppDetailsStore.RequestAchievements`, called through our `GetAchievements` wrapper (`surfaces/achievements/store.ts`) before the record's achievements have loaded (also for AM2R, which has none). The wrapper's own code is unchanged since M3.5, but it was **not** compared against a pre-M6 build, so it may predate M6 | `node steam-cartridges/tests/live/probes/exception_stack.mjs 4263274102` (2026-09-29) | open: bugfix plan (return an empty achievement set for a shortcut with no data instead of falling through to Steam's original) |

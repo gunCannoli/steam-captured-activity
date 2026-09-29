@@ -10,13 +10,32 @@ on top of this.
 
 ## Metadata and artwork (ex steamgriddb-artwork)
 
-The `features/game-info` module enriches Steam's Game Info tab for shortcuts
+The `game-info` surface (fed by `app/metadata.ts`) enriches Steam's Game Info tab for shortcuts
 (IGDB metadata, cached in `library_metadata.json`), and the backend exposes
 `GetArtworkForGame` for SteamGridDB. Credentials live in the plugin data folder
 `<Steam>/millennium/config/steam-cartridges/.env` (keys `twitch_client_id`,
 `twitch_client_secret`, `steamgriddb_api`; never commit values). On first start
 `migrate.run()` copies any legacy credentials and `<Steam>/library_metadata.json`
 there; originals are left in place.
+
+## Code layout
+
+Layer docs: [docs/steam-cartridges/README.md](../docs/steam-cartridges/README.md). Full file list: [millennium-architecture.md § Module layout](../docs/millennium-architecture.md#module-layout).
+
+| Folder (`frontend/`) | Layer | Rule |
+| --- | --- | --- |
+| `kernel/` | `ShortcutId`, events, `GameRecord`, `Surface` contract | imports nothing of ours |
+| `domain/` | pure policy (routing, art plans, store-item mapping) | imports `kernel/` only |
+| `sensors/` | read what the user does in Steam (view, lifecycle, collections, owned apps) | write nothing |
+| `ports/` | `backend.ts` (typed RPC client), `transport.ts` | imports `kernel/` only |
+| `app/` | use cases: identity, metadata, artwork, achievements, ingest, routing | talks to Steam only through injected functions |
+| `surfaces/` | the only code that writes to Steam, one folder per surface | each has a kill switch |
+| `steam/` | bindings onto Steam's internals | used by sensors and surfaces |
+| `settings/` | settings store and panels | reaches the app through `context.ts` |
+| `safety/` | kill switches, error budget, boot sentinel | — |
+| `index.tsx` | composition root and the public plugin API | no logic |
+
+Backend (`backend/*.lua`): `main.lua` registers every RPC; services hold the logic. Tests: `npm test` (TypeScript + Lua); `npm run test:live` (needs the dev plugin running in Steam).
 
 ## How it works
 

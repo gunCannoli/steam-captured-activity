@@ -128,11 +128,11 @@ Never test only a single "clean restart ➔ open game" navigation path. Single-p
 
 ### Routine 3: Automated CDP Verification Suite
 
-Run automated diagnostic scripts in `scratch/` against the running Steam client (`127.0.0.1:8080`):
+Run the live diagnostic scripts in `steam-cartridges/tests/live/` (or `npm run test:live` inside `steam-cartridges/`) against the running Steam client (`127.0.0.1:8080`):
 
 ```powershell
-node scratch/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
-node scratch/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
+node steam-cartridges/tests/live/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
+node steam-cartridges/tests/live/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
 ```
 
 For cheap ways to answer a debugging question (cheapest method first, screenshots

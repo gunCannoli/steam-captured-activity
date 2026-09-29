@@ -573,7 +573,7 @@ about a `null` result**:
 > "known", and stopped redirecting native news clicks back to the shortcut —
 > a real, working feature silently regressed by a fix to something else
 > entirely. Caught only by re-running the full parity gate
-> (`scratch/check_parity.mjs`, 17→16 PASS) after the first deploy, not by
+> (`steam-cartridges/tests/live/check_parity.mjs`, 17→16 PASS) after the first deploy, not by
 > code reading.
 >
 > **The fix:** never patch a shared store method to change its return value
@@ -946,7 +946,7 @@ news and partner events (`surfaces/captures/activity.ts`). Two facts:
 - **Rule:** never make a native activity fetch a start-up side effect. A record-driven surface renders whenever a
   record part changes, so preloading `identity` for every mapped shortcut at boot triggered exactly that. Preload
   only what the surface for that part can safely apply at boot (`metadata`), and resolve identity on the first view.
-  Probe: `node scratch/arch-m0/native_news_state.mjs` (read-only; does not trigger a fetch).
+  Probe: `node steam-cartridges/tests/live/probes/native_news_state.mjs` (read-only; does not trigger a fetch).
 
 ## Part 8 — Achievement internals on this Steam build (verified live 2026-09-29)
 
@@ -962,7 +962,7 @@ news and partner events (`surfaces/captures/activity.ts`). Two facts:
   achievement type passed to `NotificationStore.OnNotification(id, type, binary)`.
 - **Noise:** `Uncaught (in promise)` rejections with a plain-object value and no stack (1-2 per page) also occur when a
   *native* game page opens (appids 730, 570), so they are Steam's own, not the plugin's.
-- **Probes:** `scratch/arch-m0/find_ach_proto.mjs` (which modules mention the protobuf), `exceptions_all.mjs`,
+- **Probes:** `steam-cartridges/tests/live/probes/find_ach_proto.mjs` (which modules mention the protobuf), `exceptions_all.mjs`,
   `exception_stack.mjs`, `toast_live.mjs`.
 
 ## Sources

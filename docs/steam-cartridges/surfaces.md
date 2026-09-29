@@ -269,7 +269,7 @@ shortcut shows the same accordion drawer a native game does.
 - `SurfaceDeps & { controllerContext(appid): ControllerContext; metadataOf(appid): GameMetadata | undefined }`, passed to `createGameInfoSurface`. `metadataOf` now reads `records.get(appid)?.metadata?.data` (M5b; was `features/game-info`'s `getCachedLibraryMetadata`, deleted with that file).
 
 **API (reached only through this setter):**
-- `setGameInfoRefresher({ refresh })` (`features/steam-store`) — wired to `refreshGameInfoInstances` from `index.tsx`; `steam-store`'s artwork path calls it after a Steam Store view (guardrail 11), narrowed to `refresh` only. `setGameInfoWriter`, `setGameInfoSink` and `setGameInfoEnricher` are gone (M5b): nothing outside this surface writes Game Info any more — `render(appid, record)` is the only writer.
+- `setGameInfoRefresher({ refresh })` (`app/steam-store.ts`) — wired to `refreshGameInfoInstances` from `index.tsx`; `steam-store`'s artwork path calls it after a Steam Store view (guardrail 11), narrowed to `refresh` only. `setGameInfoWriter`, `setGameInfoSink` and `setGameInfoEnricher` are gone (M5b): nothing outside this surface writes Game Info any more — `render(appid, record)` is the only writer.
 
 **`render(appid, record)`** (M5b): `record.metadata.status` is `"ok"` (or `"error"` with `data`) →
 `enrichGameDetails(appid, metadata.data)` (idempotent, M0a); otherwise, if the app was enriched →

@@ -67,8 +67,8 @@ export function watchBoot(
 ```
 
 ```ts
-// frontend/safety/switches.ts
-export const features: FeatureSwitches; // the plugin's one instance, wired to the `disabledFeatures` setting
+// frontend/index.tsx (M9a: safety/switches.ts was folded into the composition root)
+const features: FeatureSwitches; // the plugin's one instance: readDisabled reads the `disabledFeatures` setting, onSettingChange reloads it
 ```
 
 ```ts
@@ -82,9 +82,8 @@ export const safetyDiagnostics: () => ReturnType<FeatureSwitches["diagnostics"]>
 | --- | --- |
 | `frontend/safety/features.ts` | `FeatureId`s, `createFeatureSwitches` (enable/disable, error budget, safe mode) |
 | `frontend/safety/boot.ts` | Boot sentinel: `beginBoot`, `markHealthy`, `watchBoot` |
-| `frontend/safety/switches.ts` | The plugin's one `features` instance, wired to the `disabledFeatures` setting |
 | `frontend/settings/settings.ts` | `disabledFeatures` setting: type, default, validator |
-| `frontend/index.tsx` | Wires `features.run`/`features.isEnabled` around every feature's start-up; boot sentinel init; `safetyDiagnostics()` export |
+| `frontend/index.tsx` | Creates the plugin's one `features` instance (M9a) and wires `features.run`/`features.isEnabled` around every feature's start-up; boot sentinel init; `safetyDiagnostics()` export |
 | `tests/safety.test.ts` | Unit tests for `createFeatureSwitches` and the boot sentinel |
 
 ## Provider credentials (M5c)

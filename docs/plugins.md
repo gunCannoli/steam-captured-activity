@@ -499,11 +499,11 @@ user-facing breaks. Numbers are stable — code comments cite them.
 
 ### 9. Automated CDP Verification Suite
 
-Before concluding any work, run the automated diagnostic scripts in `scratch/`:
+Before concluding any work, run the live diagnostic scripts in `steam-cartridges/tests/live/` (`npm run test:live` runs the whole set):
 
 ```powershell
-node scratch/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
-node scratch/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
+node steam-cartridges/tests/live/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
+node steam-cartridges/tests/live/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
 ```
 
 Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categories.mjs`).
@@ -613,8 +613,8 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   3. A refresh force-updates only instances of components **we patched**
      (flags such as `__nsga_props_hooked`), only in the main window and Big Picture,
      and never walks ancestors.
-  4. Verify with `node scratch/arch-m0/count_cycle.mjs` (must print `PASS render loop`)
-     and `node scratch/arch-m0/test_props.mjs <appid> --page` (must print `OK`)
+  4. Verify with `node steam-cartridges/tests/live/count_cycle.mjs` (must print `PASS render loop`)
+     and `node steam-cartridges/tests/live/test_props.mjs <appid> --page` (must print `OK`)
      for any change to Game Info, sections or store feeding.
 
 ---
@@ -742,7 +742,7 @@ against Millennium's plugin database with the public repo URL.
 - [ ] Store stubs retained in memory across unmounts (`StoreItemCache.m_mapApps`)
 - [ ] Popup hooks confirmed to see the target window (guardrail 12)
 - [ ] Multi-tab verification passed (Summary, Activity, Your Stuff, Game Info)
-- [ ] Two-way navigation lifecycle verified (`node scratch/test_nav_cycle.js`)
+- [ ] Two-way navigation lifecycle verified (`node steam-cartridges/tests/live/test_nav_cycle.js`)
 - [ ] No gate hides data that was shown before (guardrail 14); no check weakened (guardrail 15)
 - [ ] `README.md` + `CHANGELOG.md` present
 - [ ] Added to the plugin table in the workspace [README](../README.md)

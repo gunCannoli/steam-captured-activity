@@ -71,5 +71,5 @@ try {
     const s = await state();
     check('fixture restored (manual mapping)', s.mappings[owned]?.source === 'manual');
 }
-console.log('Manual: run node scratch/check_all_tabs.js <SC_STEAM_OWNED> and <SC_RETRO_A>; node scratch/test_nav_cycle.js <SC_STEAM_OWNED> 435150; verify AM2R capture views unchanged.');
+console.log('Manual: run node steam-cartridges/tests/live/check_all_tabs.js <SC_STEAM_OWNED> and <SC_RETRO_A>; node steam-cartridges/tests/live/test_nav_cycle.js <SC_STEAM_OWNED> 435150; verify AM2R capture views unchanged.');
 process.exit(failed ? 1 : 0);
