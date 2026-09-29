@@ -5,7 +5,6 @@ import { isNonSteamAppId } from "../../steam/route";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { loadControllerInference } from "./controller";
-import { enrichGameDetails, revertGameDetails } from "./metadata";
 import { normalizeMetadata } from "./normalize";
 import { gameInfoPlan } from "./policy";
 import {
@@ -15,12 +14,20 @@ import {
     onBucketsChanged,
     setMetadataAppidSource,
 } from "../buckets";
-import {
-    patchGameInfoComponent,
-    setCachedStores,
-    setMetadataResolver,
-    enrichedAppIds,
-} from "./game-info-patch";
+
+/** The game-info surface, wired in index.tsx (plan § 7.0 D3). No-ops until then. */
+let gameInfo: {
+    enrich(appid: number, meta: ConsolidatedMetadata): boolean;
+    revert(appid: number): void;
+    isEnriched(appid: number): boolean;
+} = { enrich: () => false, revert: () => {}, isEnriched: () => false };
+
+export function setGameInfoWriter(writer: typeof gameInfo): void {
+    gameInfo = writer;
+}
+const enrichGameDetails = (appid: number, meta: ConsolidatedMetadata) => gameInfo.enrich(appid, meta);
+const revertGameDetails = (appid: number) => gameInfo.revert(appid);
+const enrichedAppIds = { has: (appid: number) => gameInfo.isEnriched(appid) };
 
 /** In-memory cache of library metadata */
 const libraryCache = new Map<number, ConsolidatedMetadata>();
@@ -105,12 +112,7 @@ export async function initGameInfo(): Promise<void> {
         );
     }
 
-    // Cache SharedJSContext singletons for stores before portals render
-    setCachedStores((window as any).appDetailsStore, (window as any).appStore);
-
-    // Bypass Big Picture native shortcut filter on Game Info tab
-    patchGameInfoComponent();
-    setMetadataResolver(getCachedLibraryMetadata, enrichGameDetails);
+    // The Game Info components are patched by the game-info surface (surfaces/game-info, plan M3.3).
 
     // Controller support per shortcut from its emulator, before any badge is written (ADR-0038 addendum).
     await loadControllerInference();

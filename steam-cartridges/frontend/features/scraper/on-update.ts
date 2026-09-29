@@ -1,4 +1,4 @@
-import { rpc } from "../../rpc";
+import { rpc, type ConsolidatedMetadata } from "../../rpc";
 import { logger } from "../../logger";
 import { checkObserverUnlocks } from "../achievements";
 import { resolveShortcutTitle } from "../../steam/shortcut";
@@ -6,9 +6,15 @@ import { listCollections, membersOf } from "../buckets";
 import { getAutoRoutingProfile } from "../buckets/auto-routing";
 import { isServiceAllowed } from "../buckets/resolve";
 import { setting } from "../../settings/settings";
-import { enrichGameDetails } from "../game-info/metadata";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
+
+/** Writes Game Info; wired to the game-info surface in index.tsx (plan § 7.0 D3). */
+let enrichGameDetails: (appid: number, meta: ConsolidatedMetadata) => boolean = () => false;
+
+export function setGameInfoEnricher(fn: (appid: number, meta: ConsolidatedMetadata) => boolean): void {
+    enrichGameDetails = fn;
+}
 
 /** Re-reads an app's captures; wired to the captures surface in index.tsx (plan § 7.0 D3). */
 let refreshLibraryApp: (appid: number) => Promise<void> = async () => {};

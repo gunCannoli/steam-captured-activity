@@ -1,3 +1,5 @@
+import type { GameCategories, GameMetadata } from "./kernel/record";
+
 async function call<R>(name: string, payload: object = {}): Promise<R> {
   const millennium = (window as any)['Millennium'];
   const callFn = millennium ? millennium['callServerMethod'] : undefined;
@@ -36,6 +38,10 @@ export interface LibraryStat {
 
 // ---- Web metadata + artwork (ex steamgriddb-artwork), unchanged ----
 
+// Game Info payload shapes live in the kernel (migration plan § 7.0 D12); the old names stay.
+export type { GameCategories };
+export type ConsolidatedMetadata = GameMetadata;
+
 export interface ProviderStatus {
     has_twitch: boolean;
     has_sgdb: boolean;
@@ -45,40 +51,7 @@ export interface ProviderStatus {
     db_count: number;
 }
 
-export interface GameCategories {
-    single_player?: boolean;
-    multiplayer?: boolean;
-    coop?: boolean;
-    split_screen?: boolean;
-    full_controller?: boolean;
-    partial_controller?: boolean;
-    achievements?: boolean;
-    remote_play_together?: boolean;
-}
 
-export interface ConsolidatedMetadata {
-    appid: number;
-    title: string;
-    igdb_id?: number;
-    matched_title?: string;
-    short_description?: string;
-    summary?: string;
-    description?: string;
-    developers?: string[];
-    publishers?: string[];
-    franchises?: string[];
-    release_date?: number;
-    /** First release (Early Access start) when it differs from release_date; Steam Store only. */
-    original_release_date?: number;
-    genres?: string[];
-    categories?: GameCategories;
-    /** Steam's own player + controller category ids (StoreItemCache); filtered by category-policy.ts. */
-    store_category_ids?: number[];
-    custom_override?: boolean;
-    /** Set by the Steam Store bucket. */
-    source?: string;
-    steam_appid?: number;
-}
 
 export interface MetadataResponse {
     success?: boolean;

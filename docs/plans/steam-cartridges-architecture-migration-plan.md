@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1 and M3.2 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1 and M3.2 also live-validated). **M3.3–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1, M3.2 and M3.3 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1, M3.2 and M3.3 also live-validated). **M3.4–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -63,7 +63,7 @@ Statuses (what the executing agent does with the row):
 | M3.0 | Purge dead frontend code (D13) | **Done** | — (the CHANGELOG line lists what went) |
 | M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Done** | `docs/steam-cartridges/surfaces.md` (created) |
 | M3.2 | Surface `captures` | **Done** | `surfaces.md` § captures |
-| M3.3 | Surface `game-info` | **Ready** | `surfaces.md` § game-info |
+| M3.3 | Surface `game-info` | **Done** | `surfaces.md` § game-info |
 | M3.4 | Surface `playbar` | **Ready** | `surfaces.md` § playbar |
 | M3.5 | Surface `achievements` | **Ready** | `surfaces.md` § achievements |
 | M3.6 | Surface `toasts` | **Ready** | `surfaces.md` § toasts |
@@ -2049,7 +2049,7 @@ template literal is indented 4 spaces more (whitespace only).
 **Extra live:** switch-off `captures` → no Post-Game Summary cards and no activity cards; then
 switch-off `headline` alone → the activity headline reads "shared N screenshots" again.
 
-#### M3.3 — `game-info` (Ready)
+#### M3.3 — `game-info` (Done)
 
 **Check lines:**
 ```

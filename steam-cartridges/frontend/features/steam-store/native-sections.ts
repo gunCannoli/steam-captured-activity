@@ -1,7 +1,7 @@
 import { afterPatch, beforePatch, findModuleByExport } from "@steambrew/client";
 import { logger } from "../../logger";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
-import { getSteamRequire } from "../game-info/game-info-patch";
+import { steamRequire } from "../../steam/modules";
 import { cleanLinksProps, navigationTarget, redirectProps, type RedirectKind } from "./native-sections-core";
 
 /**
@@ -152,7 +152,7 @@ function wrapNavigators(): void {
 }
 
 function resolveTypes(): void {
-    const req = getSteamRequire();
+    const req = (steamRequire() as any);
     if (!req?.m) {
         logger.warn("Webpack require unavailable; native sections stay stock.");
         return;

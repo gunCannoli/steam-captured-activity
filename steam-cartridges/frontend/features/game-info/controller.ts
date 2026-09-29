@@ -1,7 +1,13 @@
 import { logger } from "../../logger";
 import { rpc } from "../../rpc";
 import { setting } from "../../settings/settings";
-import type { ControllerContext } from "./category-policy";
+
+/** Structural copy of surfaces/game-info/category-policy ControllerContext (plan § 7.0 D3). */
+export interface ControllerContext {
+    inferred?: boolean;
+    defaultFull?: boolean;
+    override?: 'full' | 'partial' | 'none' | 'auto';
+}
 
 /**
  * Controller support inferred from each shortcut's emulator (backend

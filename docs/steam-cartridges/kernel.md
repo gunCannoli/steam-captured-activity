@@ -69,7 +69,19 @@ export interface Identity {
     native?: { appid: number; source: "manual" | "owned" | "search" };
     web?: { igdb?: number; ra?: number; ss?: number; romHash?: string };
 }
-export type GameMetadata = Record<string, unknown>;
+export interface GameCategories {
+    single_player?: boolean; multiplayer?: boolean; coop?: boolean; split_screen?: boolean;
+    full_controller?: boolean; partial_controller?: boolean; achievements?: boolean;
+    remote_play_together?: boolean;
+}
+export interface GameMetadata {
+    appid: number; title: string; igdb_id?: number; matched_title?: string;
+    short_description?: string; summary?: string; description?: string;
+    developers?: string[]; publishers?: string[]; franchises?: string[];
+    release_date?: number; original_release_date?: number; genres?: string[];
+    categories?: GameCategories; store_category_ids?: number[]; custom_override?: boolean;
+    source?: string; steam_appid?: number;
+}
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
 export type ArtworkPlan = Record<string, unknown>;
@@ -174,3 +186,6 @@ Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-pla
   `Surface` contract/runner. Not yet adopted by any runtime code path.
 - M3.1: `SurfaceDeps` (additive) — the kill switches and error counter every
   surface is given by the composition root.
+- M3.3: `GameMetadata`, `GameCategories` (D12) — moved from `rpc.ts`'s
+  `ConsolidatedMetadata`/`GameCategories`; `rpc.ts` keeps both names as type
+  aliases so no other importer changes.

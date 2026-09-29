@@ -7,7 +7,7 @@ import {
     type RoutingRule,
     type AutoRoutingProfile,
 } from '../frontend/features/buckets/resolve.ts';
-import { inferredControllerIds } from '../frontend/features/game-info/category-policy.ts';
+import { inferredControllerIds } from '../frontend/surfaces/game-info/category-policy.ts';
 
 test('matchesRegex: handles valid regex and handles syntax error gracefully', () => {
     assert.equal(matchesRegex('Castlevania - Symphony of the Night', 'Castlevania.*'), true);

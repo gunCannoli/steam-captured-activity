@@ -8,8 +8,6 @@ import {
 } from "../../rpc";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { applyCustomArtworkFromUrls } from "../artwork/artwork";
-import { refreshGameInfoInstances } from "../game-info/game-info-patch";
-import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
 import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
@@ -20,6 +18,20 @@ import { setNativeAppid } from "./native-sections";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
 import { loadAchievementsForApp } from "../achievements";
+
+/** Game-info surface calls, wired in index.tsx (plan § 7.0 D3). */
+let gameInfo: {
+    enrich(appid: number, meta: ConsolidatedMetadata): boolean;
+    revert(appid: number): void;
+    refresh(): void;
+} = { enrich: () => false, revert: () => {}, refresh: () => {} };
+
+export function setGameInfoSink(writer: typeof gameInfo): void {
+    gameInfo = writer;
+}
+const enrichGameDetails = (appid: number, meta: ConsolidatedMetadata) => gameInfo.enrich(appid, meta);
+const revertGameDetails = (appid: number) => gameInfo.revert(appid);
+const refreshGameInfoInstances = () => gameInfo.refresh();
 
 /** Captures surface calls, wired in index.tsx (plan § 7.0 D3). */
 let setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void = () => {};

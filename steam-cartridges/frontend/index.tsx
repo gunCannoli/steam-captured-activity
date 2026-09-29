@@ -49,9 +49,11 @@ import {
     setGameInfoProbe,
     setHasContent,
 } from "./surfaces/sections";
-import { isAppEnriched } from "./features/game-info/game-info-patch";
-import { setCapturesSinks, setExtraSectionsSink } from "./features/steam-store";
-import { setCapturesRefresher } from "./features/scraper/on-update";
+import { createGameInfoSurface, gameInfoWriter, isAppEnriched } from "./surfaces/game-info";
+import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-info";
+import { controllerContext } from "./features/game-info/controller";
+import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink } from "./features/steam-store";
+import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
 import { setSectionsRefresher } from "./features/achievements/store";
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
@@ -120,6 +122,9 @@ async function init() {
     setSectionsRefresher(refreshSections);
     setCapturesSinks({ setNativeActivitySource, republish: patchLibraryApp });
     setCapturesRefresher(refreshLibraryApp);
+    setGameInfoWriter(gameInfoWriter);
+    setGameInfoSink(gameInfoWriter);
+    setGameInfoEnricher(gameInfoWriter.enrich);
 
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
@@ -191,7 +196,12 @@ async function init() {
     // ===== Native Achievements Subsystem =====
     features.run("achievements", () => initAchievements());
 
-    // ===== Game Info (ex steamgriddb-artwork) =====
+    // ===== Game Info (surfaces/game-info, plan M3.3) =====
+    // Steam's Game Info components and AppOverview hooks; the data pipeline below fills it.
+    runner.register(createGameInfoSurface({ ...surfaceDeps, controllerContext, metadataOf: getCachedLibraryMetadata }));
+    runner.installAll();
+
+    // ===== Game Info data (ex steamgriddb-artwork) =====
     // Not awaited: the two halves load independently, as the two plugins did
     // (ADR-0010), and a failure here must not affect activity.
     features.run("game-info", () => {

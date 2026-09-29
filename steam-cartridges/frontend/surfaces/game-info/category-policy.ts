@@ -10,7 +10,7 @@
  * (FeaturesList) and StoreItemCache's three category groups
  * (docs/steam-components.md, "Store categories and feature badges").
  */
-import type { GameCategories } from '../../rpc';
+import type { GameCategories } from '../../kernel/record';
 
 /** Allowed: StoreItemCache `supported_player_categoryids` and `controller_categoryids` ids with a known meaning. */
 export const PORTABLE_CATEGORY_IDS: readonly number[] = [

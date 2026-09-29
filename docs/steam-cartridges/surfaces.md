@@ -58,6 +58,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/sections/index.ts` | `sections` surface (§ sections below) |
 | `frontend/surfaces/captures/index.ts` | `captures` surface: `createCapturesSurface`, re-exports (§ captures below) |
 | `frontend/surfaces/captures/{summary,activity,headline,activity-cards,publish,bpm-style,deps}.ts` | `captures`'s six parts, one file each |
+| `frontend/surfaces/game-info/index.ts` | `game-info` surface: `createGameInfoSurface`, `gameInfoWriter` (§ game-info below) |
+| `frontend/surfaces/game-info/{patch,metadata,category-policy,deps}.ts` | `game-info`'s hooks, enrich/revert, category filtering, injected deps |
 
 ## Steam targets touched
 
@@ -105,6 +107,8 @@ until the service steps (M4+) feed them through `render()`.
 - M3.2 (2026-09-28): `captures` surface added (moved from `steam/summary.ts`,
   `steam/activity.ts`, `steam/headline-patch.ts`, `steam/activity-cards-patch.ts`,
   `renderers/library-app.tsx`, and the Big Picture `<style>` block out of `index.tsx`).
+- M3.3 (2026-09-28): `game-info` surface added (moved from `features/game-info/game-info-patch.ts`,
+  `metadata.ts`, `category-policy.ts`). `GameMetadata`/`GameCategories` move to `kernel/record.ts` (D12).
 
 ## sections
 
@@ -175,3 +179,45 @@ doesn't take down the others.
 **Hooks:** `BIsAppMissing` (fail-open under `store-cache`), the headline observer (fail-open under `headline`), the activity-cards `replaceType` (fail-open under `activity-cards`).
 
 **Record-driven in:** M4.
+
+## game-info
+
+Writes Game Info into Steam (descriptions, developer/publisher, release date,
+category badges) and hooks Steam's own Game Info components (`k`, `G`) so a
+shortcut shows the same accordion drawer a native game does.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `GameInfo.k.render` | 1 |
+| `GameInfo.k.props` | 1 |
+| `GameInfo.G.render` | 1 |
+| `GameInfo.G.props` | 1 |
+| `PlayBar.render` | 1 (until M3.4, when `playbar` takes it) |
+| `PlayBar.props` | 1 (until M3.4) |
+| `AppOverview.GetGameID` | 1 |
+| `AppOverview.BHasStoreCategory` | 1 |
+| `AppOverview.rt_original_release_date` | 1 |
+| `AppOverview.m_setStoreCategories` | 1 |
+| `AppDetailsStore.descriptionsData` | 1 |
+| `AppDetailsStore.associationData` | 1 |
+
+**reads:** `metadata` (record-driven from M5, D4).
+
+**Kill switch:** `game-info`. Checked at the top of every hook (D6).
+
+**Injected deps:**
+- `SurfaceDeps & { controllerContext(appid): ControllerContext; metadataOf(appid): GameMetadata | undefined }`, passed to `createGameInfoSurface`. `metadataOf` is `features/game-info`'s `getCachedLibraryMetadata`.
+
+**API (reached only through these setters):**
+- `setGameInfoWriter(gameInfoWriter)` — wired to `features/game-info` (D3).
+- `setGameInfoSink(gameInfoWriter)` — wired to `steam-store` (D3).
+- `setGameInfoEnricher(gameInfoWriter.enrich)` — wired to `scraper/on-update` (D3).
+- `setGameInfoProbe` — `sections` reads `isAppEnriched` through this (wired in M3.1).
+
+**Hooks:** all seven Game Info/PlayBar/AppOverview hooks are fail-open — `render` runs Steam's original on error, the `props` getter returns `this._nsga_raw_props`, `GetGameID`/`BHasStoreCategory` return the original's result. `install` = `setCachedStores` + `patchGameInfoComponent`.
+
+**Webpack scanner:** `steamRequire()` from `steam/modules.ts` — the same one scanner every surface shares (guardrail 3); the old `getSteamRequire` retry-on-every-call duplicate is deleted.
+
+**Record-driven in:** M5.

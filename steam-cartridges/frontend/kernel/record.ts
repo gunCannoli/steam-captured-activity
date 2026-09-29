@@ -24,8 +24,47 @@ export interface Identity {
     web?: { igdb?: number; ra?: number; ss?: number; romHash?: string };
 }
 
+/** Player and controller flags from a metadata source (moved from rpc.ts in M3.3, plan § 7.0 D12). */
+export interface GameCategories {
+    single_player?: boolean;
+    multiplayer?: boolean;
+    coop?: boolean;
+    split_screen?: boolean;
+    full_controller?: boolean;
+    partial_controller?: boolean;
+    achievements?: boolean;
+    remote_play_together?: boolean;
+}
+
+/**
+ * Normalized Game Info of one shortcut, as the backend stores it in library_metadata.json
+ * (moved from rpc.ts `ConsolidatedMetadata` in M3.3, plan § 7.0 D12; rpc.ts keeps that name).
+ */
+export interface GameMetadata {
+    appid: number;
+    title: string;
+    igdb_id?: number;
+    matched_title?: string;
+    short_description?: string;
+    summary?: string;
+    description?: string;
+    developers?: string[];
+    publishers?: string[];
+    franchises?: string[];
+    release_date?: number;
+    /** First release (Early Access start) when it differs from release_date; Steam Store only. */
+    original_release_date?: number;
+    genres?: string[];
+    categories?: GameCategories;
+    /** Steam's own player + controller category ids (StoreItemCache); filtered by category-policy.ts. */
+    store_category_ids?: number[];
+    custom_override?: boolean;
+    /** Set by the Steam Store bucket. */
+    source?: string;
+    steam_appid?: number;
+}
+
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
-export type GameMetadata = Record<string, unknown>;
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
 export type ArtworkPlan = Record<string, unknown>;

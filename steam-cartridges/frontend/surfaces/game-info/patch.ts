@@ -1,5 +1,9 @@
+// Surface `game-info` (migration plan M3.3, ADR-0039): Steam's Game Info components and the
+// AppOverview hooks that let a shortcut show them. Moved from features/game-info/game-info-patch.ts.
 import { logger } from "../../logger";
+import { steamRequire } from "../../steam/modules";
 import { isNonSteamAppId } from "../../steam/route";
+import { deps } from "./deps";
 
 export const enrichedAppIds = new Set<number>();
 
@@ -20,57 +24,13 @@ export function unmarkAppEnriched(appid: number): void {
     enrichedAppIds.delete(appid | 0);
 }
 
-interface WebpackRequire {
-    (id: string): any;
-    m: Record<string, unknown>;
-}
-
-type ChunkGlobal = Array<
-    [string[], Record<string, unknown>, ((r: WebpackRequire) => void)?]
->;
-
-let cachedRequire: WebpackRequire | undefined;
-
-export function getSteamRequire(): WebpackRequire | undefined {
-    if (cachedRequire) return cachedRequire;
-    try {
-        const chunks = (window as any).webpackChunksteamui as
-            | ChunkGlobal
-            | undefined;
-        if (!Array.isArray(chunks)) return undefined;
-
-        const key = `__nsga_meta_probe_${Date.now()}`;
-        let captured: WebpackRequire | undefined;
-
-        chunks.push([
-            [key],
-            {
-                [key]: (_m: unknown, _e: unknown, r: WebpackRequire) => {
-                    captured = r;
-                },
-            },
-            (r: any) => {
-                r((r.s = key));
-            },
-        ]);
-
-        cachedRequire = captured;
-    } catch (err) {
-        logger.warn("Could not capture Steam module require:", err);
-    }
-    return cachedRequire;
-}
-
 let cachedDetailsStore: any = undefined;
 let cachedAppStore: any = undefined;
-let onGetMetadata: ((appid: number) => any) | undefined;
+const onGetMetadata = (appid: number): any => deps.metadataOf(appid);
 let onEnrichGameDetails: ((appid: number, meta: any) => boolean) | undefined;
 
-export function setMetadataResolver(
-    getMeta: (appid: number) => any,
-    enrich: (appid: number, meta: any) => boolean,
-): void {
-    onGetMetadata = getMeta;
+/** metadata.ts registers its enrichGameDetails here (patch.ts must not import it: a cycle). */
+export function setEnricher(enrich: (appid: number, meta: any) => boolean): void {
     onEnrichGameDetails = enrich;
 }
 
@@ -229,8 +189,13 @@ export function ensureAppOverviewHooked(overview: any): boolean {
             curr.__nsga_getgameid_hooked = true;
             const origGetGameID = curr.GetGameID;
             curr.GetGameID = function () {
-                if (this.m_gameid) {
-                    return this.m_gameid;
+                if (!deps.isEnabled("game-info")) return origGetGameID.apply(this, arguments);
+                try {
+                    if (this.m_gameid) {
+                        return this.m_gameid;
+                    }
+                } catch (err) {
+                    deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
                 }
                 return origGetGameID.apply(this, arguments);
             };
@@ -244,17 +209,24 @@ export function ensureAppOverviewHooked(overview: any): boolean {
             curr.__nsga_bhascat_hooked = true;
             const origBHasStoreCategory = curr.BHasStoreCategory;
             curr.BHasStoreCategory = function (catId: number) {
-                if (
-                    this.m_setStoreCategories &&
-                    this.m_setStoreCategories.has(catId)
-                ) {
-                    return true;
+                if (!deps.isEnabled("game-info")) {
+                    return origBHasStoreCategory ? origBHasStoreCategory.call(this, catId) : false;
                 }
-                const cached = appCategoriesCache.get(this.appid) ||
-                    appCategoriesCache.get(this.appid >>> 0) ||
-                    appCategoriesCache.get(this.appid | 0);
-                if (cached && cached.has(catId)) {
-                    return true;
+                try {
+                    if (
+                        this.m_setStoreCategories &&
+                        this.m_setStoreCategories.has(catId)
+                    ) {
+                        return true;
+                    }
+                    const cached = appCategoriesCache.get(this.appid) ||
+                        appCategoriesCache.get(this.appid >>> 0) ||
+                        appCategoriesCache.get(this.appid | 0);
+                    if (cached && cached.has(catId)) {
+                        return true;
+                    }
+                } catch (err) {
+                    deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
                 }
                 return origBHasStoreCategory
                     ? origBHasStoreCategory.call(this, catId)
@@ -301,6 +273,8 @@ function hookComponentProps(
     componentClass: any,
     options: {
         requireMetadata?: boolean;
+        /** Kill-switch id of the surface that owns this component (plan § 7.0 D6). */
+        id: string;
     },
 ): void {
     if (
@@ -316,75 +290,81 @@ function hookComponentProps(
     try {
         Object.defineProperty(componentClass.prototype, "props", {
             get() {
-                liveInstances.add(this);
-                const rawProps = this._nsga_raw_props;
-                if (!rawProps) return rawProps;
-                const overview = rawProps.overview;
-                if (!overview) return rawProps;
-                ensureAppOverviewHooked(overview);
-
-                if (
-                    isNonSteamAppId(overview.appid) ||
-                    (typeof overview.BIsModOrShortcut === "function" &&
-                        overview.BIsModOrShortcut())
-                ) {
-                    const rawAppid = overview.appid >>> 0;
-
-                    if (options.requireMetadata) {
-                        const store = getAppDetailsStore();
-                        let appData =
-                            store?.GetAppData?.(overview.appid) ||
-                            store?.GetAppData?.(rawAppid);
-
-                        if (
-                            !appData?.descriptionsData?.strSnippet &&
-                            onGetMetadata &&
-                            onEnrichGameDetails
-                        ) {
-                            const meta =
-                                onGetMetadata(rawAppid) ||
-                                onGetMetadata(overview.appid);
-                            if (meta) {
-                                onEnrichGameDetails(rawAppid, meta);
-                                appData =
-                                    store?.GetAppData?.(overview.appid) ||
-                                    store?.GetAppData?.(rawAppid);
-                            }
-                        }
-
-                        const hasMetadata =
-                            isAppEnriched(overview.appid) ||
-                            Boolean(
-                                appData?.descriptionsData?.strSnippet ||
-                                    appData?.descriptionsData?.strFullDescription ||
-                                    appData?.associationData?.rgDevelopers?.length ||
-                                    appData?.associationData?.rgPublishers?.length ||
-                                    appData?.associationData?.rgFranchises?.length,
-                            );
-
-                        if (!hasMetadata) {
-                            return rawProps;
-                        }
-                    }
+                if (!deps.isEnabled(options.id)) return this._nsga_raw_props;
+                try {
+                    liveInstances.add(this);
+                    const rawProps = this._nsga_raw_props;
+                    if (!rawProps) return rawProps;
+                    const overview = rawProps.overview;
+                    if (!overview) return rawProps;
+                    ensureAppOverviewHooked(overview);
 
                     if (
-                        this._nsga_patched_props &&
-                        this._nsga_last_raw_props === rawProps
+                        isNonSteamAppId(overview.appid) ||
+                        (typeof overview.BIsModOrShortcut === "function" &&
+                            overview.BIsModOrShortcut())
                     ) {
+                        const rawAppid = overview.appid >>> 0;
+
+                        if (options.requireMetadata) {
+                            const store = getAppDetailsStore();
+                            let appData =
+                                store?.GetAppData?.(overview.appid) ||
+                                store?.GetAppData?.(rawAppid);
+
+                            if (
+                                !appData?.descriptionsData?.strSnippet &&
+                                onGetMetadata &&
+                                onEnrichGameDetails
+                            ) {
+                                const meta =
+                                    onGetMetadata(rawAppid) ||
+                                    onGetMetadata(overview.appid);
+                                if (meta) {
+                                    onEnrichGameDetails(rawAppid, meta);
+                                    appData =
+                                        store?.GetAppData?.(overview.appid) ||
+                                        store?.GetAppData?.(rawAppid);
+                                }
+                            }
+
+                            const hasMetadata =
+                                isAppEnriched(overview.appid) ||
+                                Boolean(
+                                    appData?.descriptionsData?.strSnippet ||
+                                        appData?.descriptionsData?.strFullDescription ||
+                                        appData?.associationData?.rgDevelopers?.length ||
+                                        appData?.associationData?.rgPublishers?.length ||
+                                        appData?.associationData?.rgFranchises?.length,
+                                );
+
+                            if (!hasMetadata) {
+                                return rawProps;
+                            }
+                        }
+
+                        if (
+                            this._nsga_patched_props &&
+                            this._nsga_last_raw_props === rawProps
+                        ) {
+                            return this._nsga_patched_props;
+                        }
+                        this._nsga_last_raw_props = rawProps;
+                        this._nsga_patched_props = new Proxy(rawProps, {
+                            get(target, prop, receiver) {
+                                if (prop === "overview") {
+                                    return createPatchedOverview(overview);
+                                }
+                                return Reflect.get(target, prop, receiver);
+                            },
+                        });
                         return this._nsga_patched_props;
                     }
-                    this._nsga_last_raw_props = rawProps;
-                    this._nsga_patched_props = new Proxy(rawProps, {
-                        get(target, prop, receiver) {
-                            if (prop === "overview") {
-                                return createPatchedOverview(overview);
-                            }
-                            return Reflect.get(target, prop, receiver);
-                        },
-                    });
-                    return this._nsga_patched_props;
+                    return rawProps;
+                } catch (err) {
+                    deps.reportError(options.id, err); // fail-open (plan § 7.0 D6)
+                    return this._nsga_raw_props;
                 }
-                return rawProps;
             },
             set(newProps) {
                 this._nsga_raw_props = newProps;
@@ -416,55 +396,60 @@ function patchKComponent(k: any): boolean {
     k.__nsga_gameinfo_patched = true;
 
     // 1. Prototype props descriptor (intercepts both MobX instance reactions and normal renders)
-    hookComponentProps(k, { requireMetadata: true });
+    hookComponentProps(k, { requireMetadata: true, id: "game-info" });
 
     // 2. Wrap k.prototype.render as secondary fallback
     const origKRender = k.prototype.render;
     if (typeof origKRender === "function") {
         k.prototype.render = function () {
-            liveInstances.add(this);
-            const overview = this.props?.overview;
-            if (overview) {
-                ensureAppOverviewHooked(overview);
-            }
-            if (
-                overview &&
-                (isNonSteamAppId(overview.appid) ||
-                    (typeof overview.BIsModOrShortcut === "function" &&
-                        overview.BIsModOrShortcut()))
-            ) {
-                const rawAppid = overview.appid >>> 0;
-                const store = getAppDetailsStore();
-                let appData =
-                    store?.GetAppData?.(overview.appid) ||
-                    store?.GetAppData?.(rawAppid);
+            if (!deps.isEnabled("game-info")) return origKRender.apply(this, arguments);
+            try {
+                liveInstances.add(this);
+                const overview = this.props?.overview;
+                if (overview) {
+                    ensureAppOverviewHooked(overview);
+                }
+                if (
+                    overview &&
+                    (isNonSteamAppId(overview.appid) ||
+                        (typeof overview.BIsModOrShortcut === "function" &&
+                            overview.BIsModOrShortcut()))
+                ) {
+                    const rawAppid = overview.appid >>> 0;
+                    const store = getAppDetailsStore();
+                    let appData =
+                        store?.GetAppData?.(overview.appid) ||
+                        store?.GetAppData?.(rawAppid);
 
-                // Every render re-checks: enrichGameDetails is a no-op while our data is
-                // live, and re-applies once after Steam rebuilds the overview (M0a).
-                if (onGetMetadata && onEnrichGameDetails) {
-                    const meta =
-                        onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
-                    if (meta) {
-                        onEnrichGameDetails(rawAppid, meta);
+                    // Every render re-checks: enrichGameDetails is a no-op while our data is
+                    // live, and re-applies once after Steam rebuilds the overview (M0a).
+                    if (onGetMetadata && onEnrichGameDetails) {
+                        const meta =
+                            onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
+                        if (meta) {
+                            onEnrichGameDetails(rawAppid, meta);
+                        }
+                    }
+
+                    const hasMetadata =
+                        isAppEnriched(overview.appid) ||
+                        Boolean(
+                            appData?.descriptionsData?.strSnippet ||
+                                appData?.descriptionsData?.strFullDescription ||
+                                appData?.associationData?.rgDevelopers?.length ||
+                                appData?.associationData?.rgPublishers?.length ||
+                                appData?.associationData?.rgFranchises?.length,
+                        );
+
+                    if (hasMetadata) {
+                        this.props = {
+                            ...this.props,
+                            overview: createPatchedOverview(overview),
+                        };
                     }
                 }
-
-                const hasMetadata =
-                    isAppEnriched(overview.appid) ||
-                    Boolean(
-                        appData?.descriptionsData?.strSnippet ||
-                            appData?.descriptionsData?.strFullDescription ||
-                            appData?.associationData?.rgDevelopers?.length ||
-                            appData?.associationData?.rgPublishers?.length ||
-                            appData?.associationData?.rgFranchises?.length,
-                    );
-
-                if (hasMetadata) {
-                    this.props = {
-                        ...this.props,
-                        overview: createPatchedOverview(overview),
-                    };
-                }
+            } catch (err) {
+                deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
             }
 
             return origKRender.apply(this, arguments);
@@ -487,7 +472,7 @@ export function patchGameInfoComponent(): boolean {
     if (hasPatchedGameInfo) return true;
 
     try {
-        const req = getSteamRequire();
+        const req = steamRequire() as ((id: string) => any) & { m: Record<string, unknown> } | undefined;
         if (!req?.m) {
             logger.warn(
                 "Webpack require unavailable; Game Info patch deferred.",
@@ -569,68 +554,78 @@ export function patchGameInfoComponent(): boolean {
             targetG.__nsga_g_patched = true;
             hookComponentProps(targetG, {
                 requireMetadata: true,
+                id: "game-info",
             });
 
             const origGRender = targetG.prototype.render;
             if (typeof origGRender === "function") {
                 targetG.prototype.render = function () {
-                    liveInstances.add(this);
-                    const overview = this.props?.overview;
-                    if (overview) {
-                        ensureAppOverviewHooked(overview);
-                    }
-                    if (
-                        overview &&
-                        (isNonSteamAppId(overview.appid) ||
-                            (typeof overview.BIsModOrShortcut === "function" &&
-                                overview.BIsModOrShortcut()))
-                    ) {
-                        const rawAppid = overview.appid >>> 0;
-
-                        const store = getAppDetailsStore();
-                        let appData =
-                            store?.GetAppData?.(overview.appid) ||
-                            store?.GetAppData?.(rawAppid);
-
-                        // Every render re-checks: enrichGameDetails is a no-op while our data is
-                        // live, and re-applies once after Steam rebuilds the overview (M0a).
+                    if (!deps.isEnabled("game-info")) return origGRender.apply(this, arguments);
+                    try {
+                        liveInstances.add(this);
+                        const overview = this.props?.overview;
+                        if (overview) {
+                            ensureAppOverviewHooked(overview);
+                        }
                         if (
-                            onGetMetadata &&
-                            onEnrichGameDetails
+                            overview &&
+                            (isNonSteamAppId(overview.appid) ||
+                                (typeof overview.BIsModOrShortcut === "function" &&
+                                    overview.BIsModOrShortcut()))
                         ) {
-                            const meta =
-                                onGetMetadata(rawAppid) ||
-                                onGetMetadata(overview.appid);
-                            if (meta) {
-                                onEnrichGameDetails(rawAppid, meta);
-                                appData =
-                                    store?.GetAppData?.(overview.appid) ||
-                                    store?.GetAppData?.(rawAppid);
+                            const rawAppid = overview.appid >>> 0;
+
+                            const store = getAppDetailsStore();
+                            let appData =
+                                store?.GetAppData?.(overview.appid) ||
+                                store?.GetAppData?.(rawAppid);
+
+                            // Every render re-checks: enrichGameDetails is a no-op while our data is
+                            // live, and re-applies once after Steam rebuilds the overview (M0a).
+                            if (
+                                onGetMetadata &&
+                                onEnrichGameDetails
+                            ) {
+                                const meta =
+                                    onGetMetadata(rawAppid) ||
+                                    onGetMetadata(overview.appid);
+                                if (meta) {
+                                    onEnrichGameDetails(rawAppid, meta);
+                                    appData =
+                                        store?.GetAppData?.(overview.appid) ||
+                                        store?.GetAppData?.(rawAppid);
+                                }
+                            }
+
+                            const hasMetadata =
+                                isAppEnriched(overview.appid) ||
+                                Boolean(
+                                    appData?.descriptionsData?.strSnippet ||
+                                        appData?.descriptionsData?.strFullDescription ||
+                                        appData?.associationData?.rgDevelopers?.length ||
+                                        appData?.associationData?.rgPublishers?.length ||
+                                        appData?.associationData?.rgFranchises?.length,
+                                );
+
+                            if (hasMetadata) {
+                                this.props = {
+                                    ...this.props,
+                                    overview: createPatchedOverview(overview),
+                                };
                             }
                         }
-
-                        const hasMetadata =
-                            isAppEnriched(overview.appid) ||
-                            Boolean(
-                                appData?.descriptionsData?.strSnippet ||
-                                    appData?.descriptionsData?.strFullDescription ||
-                                    appData?.associationData?.rgDevelopers?.length ||
-                                    appData?.associationData?.rgPublishers?.length ||
-                                    appData?.associationData?.rgFranchises?.length,
-                            );
-
-                        if (hasMetadata) {
-                            this.props = {
-                                ...this.props,
-                                overview: createPatchedOverview(overview),
-                            };
-                        }
+                    } catch (err) {
+                        deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
                     }
 
                     const vdom = origGRender.apply(this, arguments);
-                    const kChild = vdom?.props?.children?.[0]?.type;
-                    if (kChild) {
-                        patchKComponent(kChild);
+                    try {
+                        const kChild = vdom?.props?.children?.[0]?.type;
+                        if (kChild) {
+                            patchKComponent(kChild);
+                        }
+                    } catch (err) {
+                        deps.reportError("game-info", err);
                     }
                     return vdom;
                 };
@@ -641,26 +636,31 @@ export function patchGameInfoComponent(): boolean {
         // Restores native ⓘ "Show/Hide game details" button on Desktop normal mode PlayBar
         if (targetPlayBar && !targetPlayBar.__nsga_playbar_patched) {
             targetPlayBar.__nsga_playbar_patched = true;
-            hookComponentProps(targetPlayBar, { requireMetadata: false });
+            hookComponentProps(targetPlayBar, { requireMetadata: false, id: "game-info" });
 
             const origPlayBarRender = targetPlayBar.prototype.render;
             if (typeof origPlayBarRender === "function") {
                 targetPlayBar.prototype.render = function () {
-                    liveInstances.add(this);
-                    const overview = this.props?.overview;
-                    if (overview) {
-                        ensureAppOverviewHooked(overview);
-                    }
-                    if (
-                        overview &&
-                        (isNonSteamAppId(overview.appid) ||
-                            (typeof overview.BIsModOrShortcut === "function" &&
-                                overview.BIsModOrShortcut()))
-                    ) {
-                        this.props = {
-                            ...this.props,
-                            overview: createPatchedOverview(overview),
-                        };
+                    if (!deps.isEnabled("game-info")) return origPlayBarRender.apply(this, arguments);
+                    try {
+                        liveInstances.add(this);
+                        const overview = this.props?.overview;
+                        if (overview) {
+                            ensureAppOverviewHooked(overview);
+                        }
+                        if (
+                            overview &&
+                            (isNonSteamAppId(overview.appid) ||
+                                (typeof overview.BIsModOrShortcut === "function" &&
+                                    overview.BIsModOrShortcut()))
+                        ) {
+                            this.props = {
+                                ...this.props,
+                                overview: createPatchedOverview(overview),
+                            };
+                        }
+                    } catch (err) {
+                        deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
                     }
                     return origPlayBarRender.apply(this, arguments);
                 };
