@@ -59,7 +59,7 @@ Statuses (what the executing agent does with the row):
 | M0b-2 | Fail-open wrappers on every Steam hook | **Folded into M3** (§ 7.0 D6) | `docs/steam-cartridges/safety.md` (update) |
 | M0c | Architecture test (import ratchet, RPC registration) + `check_all_tabs.js` flake fix | **Done** | `docs/steam-cartridges/README.md` |
 | M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Done** | `docs/steam-cartridges/kernel.md` |
-| M2 | Sensors (view, lifecycle, collections; owned apps moves to M4) | **Ready** | `docs/steam-cartridges/sensors.md` |
+| M2 | Sensors (view, lifecycle, collections; owned apps moves to M4) | **Done** | `docs/steam-cartridges/sensors.md` |
 | M3.0 | Purge dead frontend code (D13) | **Ready** | — (the CHANGELOG line lists what went) |
 | M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Ready** | `docs/steam-cartridges/surfaces.md` (created) |
 | M3.2 | Surface `captures` | **Ready** | `surfaces.md` § captures |
@@ -1700,7 +1700,7 @@ below. A step that needs to break one needs an ADR first.
 
 ---
 
-### M2 — Sensors (Ready)
+### M2 — Sensors (Done)
 
 **Why:** § 1.4 (the same trigger is detected three times) and § 4.5.
 **Validated:** dry-run on `915cb1a` (M1 Done): `tsc` exit 0, `ℹ tests 87` / `ℹ pass 87` / `ℹ fail 0`,

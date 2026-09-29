@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isCollectionStoreReady, pendingOr, readUserCollections } from '../frontend/features/buckets/ready.ts';
+import { pendingOr } from '../frontend/features/buckets/ready.ts';
+import { isCollectionStoreReady, readUserCollections } from '../frontend/sensors/collections/index.ts';
 
 function fakeStore(getter?: () => unknown) {
     const store: any = { reads: 0, m_mapCollectionsFromStorage: undefined };

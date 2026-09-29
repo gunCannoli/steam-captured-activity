@@ -30,7 +30,7 @@ saturated Steam's shared renderer.
 M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
 M0c done (architecture ratchet, RPC registration check, check_all_tabs.js flake fix).
 M1 done (kernel: `ShortcutId`, events, `GameRecord`, `Surface`; not yet adopted by any runtime code).
-Next: execute **M2**, then **M3.0 → M3.10** (`Ready`: packaged, apply), then **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing is open for the user.
+M2 done (sensors). Next: **M3.0 → M3.10** (`Ready`: packaged, apply), then **M4.0 → M9b** (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing is open for the user.
 
 ## Next
 

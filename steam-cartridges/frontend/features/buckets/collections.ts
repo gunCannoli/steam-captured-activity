@@ -1,12 +1,24 @@
 import { logger } from '../../logger';
 import { SHORTCUT_MIN } from './resolve';
-import { isCollectionStoreReady, readUserCollections } from './ready';
 
 /**
- * The only file that touches `collectionStore` (steam-components.md
- * "Collections"). Failure to resolve means empty results, so everything falls
- * back to bucket `none`.
+ * Membership for bucket rules, read through the collections sensor
+ * (sensors/collections, wired in index.tsx; migration plan M2). Failure to
+ * resolve means empty results, so everything falls back to bucket `none`.
  */
+
+/** Structural match of sensors/collections `collectionsSource` (no import: ADR-0039 layers). */
+export interface CollectionsSource {
+    ready(): boolean;
+    list(): any[] | undefined;
+}
+
+let source: CollectionsSource = { ready: () => false, list: () => undefined };
+
+/** Called once by index.tsx, before anything resolves a bucket. */
+export function setCollectionsSource(next: CollectionsSource): void {
+    source = next;
+}
 
 export interface CollectionInfo {
     id: string;
@@ -20,19 +32,18 @@ let warned = false;
 const cache = new Map<string, { at: number; set: ReadonlySet<number> }>();
 
 export function collectionsReady(): boolean {
-    return isCollectionStoreReady((window as any).collectionStore);
+    return source.ready();
 }
 
 function userCollections(): any[] | undefined {
-    const s = (window as any).collectionStore;
-    if (!isCollectionStoreReady(s)) {
+    if (!source.ready()) {
         if (!warned) {
             warned = true;
             logger.info('collectionStore not ready yet; games resolve as pending.');
         }
         return undefined;
     }
-    const list = readUserCollections(s);
+    const list = source.list();
     if (!list) logger.warn('collectionStore.userCollections unavailable; treating as empty.');
     return list;
 }
@@ -51,7 +62,7 @@ function shortcutIds(coll: any): Set<number> {
 export async function waitForCollections(timeoutMs = 30_000): Promise<boolean> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-        if (collectionsReady()) return readUserCollections((window as any).collectionStore) !== undefined;
+        if (collectionsReady()) return source.list() !== undefined;
         await new Promise((r) => setTimeout(r, 250));
     }
     return false;

@@ -6,6 +6,8 @@
 //    list can only shrink. Regenerate after a deliberate change with:
 //        ARCH_WRITE_ALLOWLIST=1 npm run test:ts
 //    (only a migration plan step may do this, and it must say so).
+//    Edges the target layering allows (migration plan § 4.1, LAYER_RULES below, M2) never
+//    need the allowlist and must not be in it: the allowlist holds only legacy edges.
 // 2. RPC registration: every backend method name frontend/rpc.ts calls must be assigned
 //    as a global in backend/main.lua. Calling an unregistered method crashes the backend
 //    host (knowledgebase.md, "Backend RPC crash trap").
@@ -31,13 +33,34 @@ function walk(dir: string): string[] {
     return out;
 }
 
-/** "features/game-info", "steam", "renderers", "settings", or a root file name ("rpc", "index"). */
+/** Folders whose children are separate areas: one feature, sensor or surface each. */
+const GROUPED = new Set(['features', 'sensors', 'surfaces']);
+
+/** "features/game-info", "sensors/view", "steam", "kernel", or a root file name ("rpc", "index"). */
 export function areaOf(file: string): string {
     const parts = relative(FRONTEND, file).split(sep);
     const stem = (s: string) => s.replace(/\.(ts|tsx)$/, '');
     if (parts.length === 1) return stem(parts[0]);
-    if (parts[0] === 'features') return parts.length === 2 ? `features/${stem(parts[1])}` : `features/${parts[1]}`;
+    if (GROUPED.has(parts[0])) return parts.length === 2 ? `${parts[0]}/${stem(parts[1])}` : `${parts[0]}/${parts[1]}`;
     return parts[0];
+}
+
+/**
+ * Edges the target layering allows (migration plan § 4.1): [from, to] regexes on areas.
+ * Every other cross-area edge must be a legacy edge in the allowlist, which only shrinks.
+ */
+const LAYER_RULES: [RegExp, RegExp][] = [
+    [/^index$/, /./], // composition root: wires everything, holds no logic
+    [/^(?!kernel$)/, /^kernel$/], // every layer may use the kernel; the kernel imports nothing of ours
+    [/^sensors\//, /^steam$/], // sensors read Steam through steam/ (never another sensor, app or surfaces)
+    [/^surfaces\//, /^steam$/], // surfaces write Steam through steam/ (never another surface, app, ports, sensors)
+    [/^app$/, /^(domain|ports)$/], // use cases
+    [/^settings$/, /^ports$/], // settings panels talk to the backend port only
+];
+
+export function ruleAllows(edge: string): boolean {
+    const [from, to] = edge.split(' -> ');
+    return LAYER_RULES.some(([f, t]) => f.test(from!) && t.test(to!));
 }
 
 function resolveImport(from: string, spec: string): string | undefined {
@@ -68,13 +91,20 @@ export function computeEdges(): string[] {
 test('architecture: no new cross-area import (ratchet)', () => {
     const edges = computeEdges();
     if (process.env.ARCH_WRITE_ALLOWLIST === '1') {
-        writeFileSync(ALLOWLIST, JSON.stringify(edges, null, 2) + '\n');
+        writeFileSync(ALLOWLIST, JSON.stringify(edges.filter((e) => !ruleAllows(e)), null, 2) + '\n');
     }
     const allowed: string[] = JSON.parse(readFileSync(ALLOWLIST, 'utf8'));
-    const added = edges.filter((e) => !allowed.includes(e));
-    const gone = allowed.filter((e) => !edges.includes(e));
+    const added = edges.filter((e) => !ruleAllows(e) && !allowed.includes(e));
+    const gone = allowed.filter((e) => !edges.includes(e) || ruleAllows(e));
     assert.deepEqual(added, [], `New cross-area imports (not allowed by ADR-0039): ${added.join(', ')}`);
-    assert.deepEqual(gone, [], `Allowlisted imports that no longer exist; delete them from tests/architecture-allowlist.json: ${gone.join(', ')}`);
+    assert.deepEqual(gone, [], `Allowlisted imports that no longer exist or are allowed by LAYER_RULES; delete them from tests/architecture-allowlist.json: ${gone.join(', ')}`);
+});
+
+test('architecture: layer rules allow the § 4.1 edges and nothing it forbids', () => {
+    const allowedEdges = ['index -> features/game-info', 'app -> kernel', 'sensors/view -> kernel', 'sensors/view -> steam', 'surfaces/sections -> steam', 'app -> ports', 'settings -> ports'];
+    const forbidden = ['kernel -> steam', 'sensors/view -> sensors/lifecycle', 'sensors/view -> app', 'surfaces/sections -> surfaces/captures', 'surfaces/sections -> app', 'surfaces/sections -> ports', 'app -> steam', 'app -> sensors/view', 'features/game-info -> sensors/collections', 'steam -> surfaces/sections'];
+    for (const e of allowedEdges) assert.ok(ruleAllows(e), `should be allowed: ${e}`);
+    for (const e of forbidden) assert.ok(!ruleAllows(e), `should be forbidden: ${e}`);
 });
 
 test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {

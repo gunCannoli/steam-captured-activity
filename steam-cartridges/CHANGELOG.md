@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: one place detects which game page is open (2026-09-28)**: desktop and Big Picture page views, game launches and quits now come from dedicated sensors. Big Picture no longer re-runs the page pipeline on every re-render; switching directly between two non-Steam games now clears the first one's activity, as Big Picture already did.
+
 - **Internal: architecture kernel (2026-09-28)**: added the shared foundation (`ShortcutId`, an event bus, the `GameRecord` read model, and the `Surface` contract) that later steps build every surface and service on. No user-visible change; nothing uses it yet.
 
 - **Internal: architecture ratchet + RPC registration test (2026-09-28)**: an automated test now blocks any new cross-module import that doesn't fit the plugin's target architecture, and catches an RPC call to a backend method name that isn't registered (which previously crashed the backend). Also fixed a flaky check in the automated tab-verification script.

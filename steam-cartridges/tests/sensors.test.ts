@@ -1,0 +1,71 @@
+// Sensor unit tests (migration plan M2). Real appids from this machine.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { toShortcutId } from '../frontend/kernel/appid.ts';
+import { createViewTracker, GAMEPAD_QUIET_MS } from '../frontend/sensors/view/core.ts';
+import type { ViewPayload } from '../frontend/sensors/view/core.ts';
+
+const AM2R = 4263274102, WUCHANG = 3135033888, NATIVE = 2277560;
+
+function tracker() {
+    const log: string[] = [];
+    let now = 0;
+    const t = createViewTracker({
+        toShortcutId,
+        now: () => now,
+        viewed: (p: ViewPayload) => log.push(`viewed ${p.appid} ${p.mode}`),
+        left: (p: ViewPayload) => log.push(`left ${p.appid} ${p.mode}`),
+    });
+    return { t, log, advance: (ms: number) => (now += ms) };
+}
+
+test('view: desktop route emits one view per navigation, left on leaving', () => {
+    const { t, log } = tracker();
+    t.route(AM2R);
+    t.route(AM2R); // same page, e.g. a search/hash change
+    t.route(undefined); // library home
+    assert.deepEqual(log, [`viewed ${AM2R} desktop`, `left ${AM2R} desktop`]);
+});
+
+test('view: desktop A -> B leaves A before viewing B; native pages are not views', () => {
+    const { t, log } = tracker();
+    t.route(AM2R);
+    t.route(WUCHANG);
+    t.route(NATIVE);
+    assert.deepEqual(log, [`viewed ${AM2R} desktop`, `left ${AM2R} desktop`, `viewed ${WUCHANG} desktop`, `left ${WUCHANG} desktop`]);
+});
+
+test('view: signed CEF appids are normalized (same page, one view)', () => {
+    const { t, log } = tracker();
+    t.route(-31693194); // AM2R as signed int32
+    t.route(AM2R);
+    assert.deepEqual(log, [`viewed ${AM2R} desktop`]);
+    assert.equal(t.current('desktop'), AM2R);
+});
+
+test('view: gamepad re-renders are one view; a sighting after silence is a new view', () => {
+    const { t, log, advance } = tracker();
+    for (let i = 0; i < 50; i++) {
+        t.sighting(AM2R);
+        advance(100);
+    }
+    assert.deepEqual(log, [`viewed ${AM2R} gamepad`]);
+    advance(GAMEPAD_QUIET_MS);
+    t.sighting(AM2R);
+    assert.deepEqual(log, [`viewed ${AM2R} gamepad`, `viewed ${AM2R} gamepad`]);
+});
+
+test('view: gamepad switch and close emit left; modes are independent', () => {
+    const { t, log } = tracker();
+    t.route(WUCHANG);
+    t.sighting(AM2R);
+    t.sighting(NATIVE);
+    t.close('gamepad');
+    t.close('desktop');
+    assert.deepEqual(log, [
+        `viewed ${WUCHANG} desktop`,
+        `viewed ${AM2R} gamepad`,
+        `left ${AM2R} gamepad`,
+        `left ${WUCHANG} desktop`,
+    ]);
+});

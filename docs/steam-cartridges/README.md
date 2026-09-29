@@ -15,7 +15,7 @@ for the authoritative, up-to-date state):
 | Safety: kill switches, error budget, boot sentinel / safe mode | done (M0b-1) — [safety.md](safety.md) |
 | Architecture ratchet: import allowlist, RPC registration test | done (M0c) — this doc |
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | planned (M1) |
-| Sensors: view, lifecycle, collections, owned apps | planned (M2) |
+| Sensors: view, lifecycle, collections (owned apps: M4) | done (M2) — [sensors.md](sensors.md) |
 | Surfaces: the only code that writes to Steam | planned (M3.1–M3.10) |
 | Resolver service + RPC facade | planned (M4) |
 | Metadata service | planned (M5) |
@@ -55,8 +55,10 @@ The full dependency rule (from migration plan § 4.1):
 | `index.tsx` | everything (composition root only, no logic) | — |
 
 Every cross-area import not yet migrated to this shape is recorded in
-`tests/architecture-allowlist.json` (53 entries as of M0c). The allowlist never
-grows — a step that removes a module's old path deletes its edges.
+`tests/architecture-allowlist.json` (53 entries as of M0c; 41 as of M2). The
+allowlist never grows — a step that removes a module's old path deletes its
+edges. Rule-allowed edges are listed in `LAYER_RULES` in
+`tests/architecture.test.ts` (D1) and never in the allowlist.
 
 ## Tests
 

@@ -1,11 +1,5 @@
 import { definePlugin, IconsModule } from "@steambrew/client";
-import { Steam } from "steambrew-utils";
-import {
-    onAppLaunch,
-    onLocationChange,
-    onPopupCreate,
-    PopupType,
-} from "steambrew-utils/watchers";
+import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
 import { logger } from "./logger";
 import { rpc } from "./rpc";
 import {
@@ -18,13 +12,11 @@ import {
     refresh as refreshLibraryHome,
     register as registerLibraryHome,
 } from "./renderers/library-home";
-import { watchGamepadAppid } from "./steam/gamepad-appid";
 import { installHeadlinePatch } from "./steam/headline-patch";
 import { installActivityCardsPatch } from "./steam/activity-cards-patch";
 import { ensureStoreCacheHooked } from "./steam/activity";
-import { appIdFromPath, isNonSteamAppId } from "./steam/route";
 import { initGameInfo } from "./features/game-info";
-import { initSourceView } from "./features/source-view";
+import { initSourceView, onSourceView } from "./features/source-view";
 import { installNativeSections } from "./features/steam-store/native-sections";
 import {
     initAchievements,
@@ -44,6 +36,12 @@ import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
 import { triggerSync } from "./features/scraper/sync-manager";
 import { features } from "./safety/switches";
 import { beginBoot, watchBoot } from "./safety/boot";
+import type { ShortcutId } from "./kernel/appid";
+import { bus } from "./app/bus";
+import { installViewSensor } from "./sensors/view";
+import { installLifecycleSensor } from "./sensors/lifecycle";
+import { collectionsSource } from "./sensors/collections";
+import { setCollectionsSource } from "./features/buckets/collections";
 
 export { setSetting, resetSettings };
 /** Kill switches, error counts and safe mode (migration plan M0b). */
@@ -86,6 +84,9 @@ const LEGACY_PLUGINS = [
 ];
 
 async function init() {
+    // Buckets read collection membership through the collections sensor (migration plan M2).
+    setCollectionsSource(collectionsSource);
+
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
 
@@ -159,6 +160,7 @@ async function init() {
     features.run("game-info", () => {
         void loadAutoRoutingProfiles();
         initSourceView();
+        bus.on("shortcut.viewed", ({ appid }) => void onSourceView(appid));
         void initGameInfo().catch((e) => {
             features.reportError("game-info", e);
             logger.error("Game Info feature failed; activity is unaffected.", e);
@@ -179,36 +181,17 @@ async function init() {
     // Publishing is keyed on the app, not the window: Steam's store is global, so
     // one publish serves every window showing that game.
 
+    // Views come from the view sensor (sensors/view, migration plan M2), for desktop
+    // and Big Picture alike.
+    bus.on("shortcut.viewed", ({ appid }) => {
+        if (features.isEnabled("captures")) void patchLibraryApp(appid);
+    });
+    bus.on("shortcut.left", ({ appid }) => {
+        if (features.isEnabled("captures")) unpatchLibraryApp(appid);
+    });
+
     onPopupCreate((popup, type) => {
         if (!features.isEnabled("captures")) return undefined;
-        if (type === PopupType.Desktop) {
-            // Desktop feeds Steam's own store (steam/summary.ts) - Steam's own
-            // component renders in whichever window is open, so this is global,
-            // not per-window.
-            let current: number | undefined;
-
-            const stopWatching = onLocationChange(
-                () => Steam.MainWindowBrowserManager?.m_lastLocation,
-                ({ pathname }) => {
-                    const appid = appIdFromPath(pathname);
-
-                    if (appid !== undefined && isNonSteamAppId(appid)) {
-                        current = appid;
-                        void patchLibraryApp(appid);
-                    } else if (current !== undefined) {
-                        // Either a native Steam game, which we leave alone, or another page.
-                        unpatchLibraryApp(current);
-                        current = undefined;
-                    }
-                },
-            );
-
-            return () => {
-                stopWatching();
-                if (current !== undefined) unpatchLibraryApp(current);
-            };
-        }
-
         if (type === PopupType.Gamepad) {
             // Big Picture renders through a React portal from SharedJSContext
             // into the gamepad popup window (ADR-0029). Both UI modes share the
@@ -260,57 +243,59 @@ async function init() {
                 doc.head?.appendChild(styleEl);
             }
 
-            let current: number | undefined;
-
-            const stopWatching = watchGamepadAppid((appid) => {
-                if (isNonSteamAppId(appid)) {
-                    if (current !== undefined && current !== appid) {
-                        unpatchLibraryApp(current);
-                    }
-                    current = appid;
-                    void patchLibraryApp(appid);
-                } else if (current !== undefined) {
-                    unpatchLibraryApp(current);
-                    current = undefined;
-                }
-            });
-
             return () => {
-                stopWatching();
-                if (current !== undefined) unpatchLibraryApp(current);
                 if (styleEl && styleEl.parentNode) {
                     styleEl.parentNode.removeChild(styleEl);
                 }
             };
         }
 
-        // Modal, ContextMenu, Unknown: not a page we touch.
+        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
         return undefined;
     });
 
     // ===== Refresh after play =====
     // Quitting a game is exactly when new screenshots and clips exist, so
-    // invalidate then rather than polling (ADR-0007).
+    // invalidate then rather than polling (ADR-0007). Launch and quit come from the
+    // lifecycle sensor (sensors/lifecycle, migration plan M2).
 
-    onAppLaunch((app, { onQuit }) => {
-        if (!isNonSteamAppId(app.appid)) return;
+    /** Running shortcuts: display name and the achievement observer's stop function. */
+    const sessions = new Map<ShortcutId, { name: string; stop?: () => void; quit?: boolean }>();
+
+    bus.on("shortcut.launched", ({ appid, name }) => {
+        const session: { name: string; stop?: () => void; quit?: boolean } = { name };
+        sessions.set(appid, session);
 
         // Startup notification if enabled ("Local Achievements Enabled")
-        features.run("achievements-observer", () => handleAppLaunchAchievements(app.appid));
+        features.run("achievements-observer", () => handleAppLaunchAchievements(appid));
 
         // Start active observer session while game is running
-        if (features.isEnabled("achievements-observer")) void rpc.steamStoreGetMapping(app.appid).then((res) => {
+        if (features.isEnabled("achievements-observer")) void rpc.steamStoreGetMapping(appid).then((res) => {
             const nativeAppId = res?.mapping?.steam_appid || 0;
-            const stopObserver = startAchievementsObserver(app.appid, nativeAppId, app.display_name);
-            onQuit(() => stopObserver());
+            const stopObserver = startAchievementsObserver(appid, nativeAppId, name);
+            // The game may have quit while the mapping loaded.
+            if (session.quit) stopObserver();
+            else session.stop = stopObserver;
         }).catch((e) => logger.warn("Failed resolving mapping for achievement observer:", e));
-
-        onQuit(() => {
-            logger.info(`${app.display_name} closed; refreshing its activity.`);
-            void refreshLibraryApp(app.appid);
-            void refreshLibraryHome();
-        });
     });
+
+    bus.on("shortcut.quit", ({ appid }) => {
+        const session = sessions.get(appid);
+        sessions.delete(appid);
+        if (session) {
+            session.quit = true;
+            session.stop?.();
+        }
+        logger.info(`${session?.name ?? appid} closed; refreshing its activity.`);
+        void refreshLibraryApp(appid);
+        void refreshLibraryHome();
+    });
+
+    // ===== Sensors (migration plan M2) =====
+    // Installed after every subscriber above: they report the current page and the
+    // windows already open immediately.
+    installViewSensor(bus);
+    installLifecycleSensor(bus);
 
     logger.info("Ready. Non-Steam games now use Steam's own detail sections.");
     // Automatically start background sync for un-scraped games after startup

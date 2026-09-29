@@ -1,11 +1,4 @@
-import { Steam } from "steambrew-utils";
-import {
-    onLocationChange,
-    onPopupCreate,
-    PopupType,
-} from "steambrew-utils/watchers";
-import { watchGamepadAppid } from "../steam/gamepad-appid";
-import { appIdFromPath, isNonSteamAppId } from "../steam/route";
+import { toShortcutId } from "../kernel/appid";
 import { getBucket, waitForCollections } from "./buckets";
 import { handleWebScrapingView } from "./game-info";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
@@ -23,8 +16,8 @@ const rerun = new Set<number>();
 
 /** Route a view of a shortcut to the handler for its bucket (ADR-0033). */
 export async function onSourceView(appid: number): Promise<void> {
-    const rawAppid = appid >>> 0;
-    if (!isNonSteamAppId(rawAppid)) return;
+    const rawAppid = toShortcutId(appid);
+    if (rawAppid === undefined) return;
     if (inflight.has(rawAppid)) {
         rerun.add(rawAppid);
         return;
@@ -65,32 +58,14 @@ export async function onSourceView(appid: number): Promise<void> {
 }
 
 /**
- * Wires every place a game page can open (Big Picture, desktop). A Steam render never
- * triggers a view: that closed a render -> enrich -> re-render loop (M0a).
+ * Replays views that arrived before collections were ready. Views themselves come from
+ * the view sensor (sensors/view, migration plan M2): index.tsx subscribes onSourceView to
+ * shortcut.viewed. A Steam render never triggers a view (M0a).
  */
 export function initSourceView(): void {
     void waitForCollections().then(() => {
         const list = [...deferred];
         deferred.clear();
         list.forEach((a) => void onSourceView(a));
-    });
-
-    // Big Picture renders through a SharedJSContext portal; react/jsx-runtime
-    // interception captures the active appid without depending on popups.
-    watchGamepadAppid((appid) => {
-        if (isNonSteamAppId(appid)) void onSourceView(appid);
-    });
-
-    onPopupCreate((_popup, type) => {
-        if (type !== PopupType.Desktop) return undefined;
-        return onLocationChange(
-            () => Steam.MainWindowBrowserManager?.m_lastLocation,
-            ({ pathname }) => {
-                const appid = appIdFromPath(pathname);
-                if (appid !== undefined && isNonSteamAppId(appid)) {
-                    void onSourceView(appid);
-                }
-            },
-        );
     });
 }
