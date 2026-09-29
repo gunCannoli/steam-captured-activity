@@ -8,14 +8,8 @@ import {
     TextField,
     Toggle as SteamToggle,
 } from "@steambrew/client";
-import { useSetting, type ControllerOverride } from "./settings";
+import { useSetting, getRouting, type ControllerOverride } from "./settings";
 import { rpc, type ProviderStatus, type RetroStatusResponse } from "../rpc";
-import {
-    listCollections,
-    listShortcuts,
-    membersOf,
-    shortcutName,
-} from "../features/buckets";
 import {
     type RoutingRule,
     type ServiceTarget,
@@ -23,7 +17,7 @@ import {
     type ConditionType,
     type AutoRoutingProfile,
     isServiceAllowed,
-} from "../features/buckets/resolve";
+} from "../domain/routing/policy";
 import { type ConsolidatedMetadata } from "../rpc";
 import { getLocalAchievements } from "../features/achievements";
 import {
@@ -1107,8 +1101,8 @@ function RulesSection() {
     const [suggestionFilter, setSuggestionFilter] = useState("");
 
     // Collections & Shortcuts for suggestions
-    const collections = listCollections();
-    const shortcuts = listShortcuts();
+    const collections = getRouting().listCollections();
+    const shortcuts = getRouting().listShortcuts();
     const seenShortcutNames = new Set<string>();
     const uniqueShortcuts = shortcuts.filter((s) => {
         if (!s.name || seenShortcutNames.has(s.name)) return false;
@@ -1795,7 +1789,8 @@ function RevisionSection() {
     const syncProgress = useSyncProgress();
     const prevSyncingRef = useRef(syncProgress.isSyncing);
 
-    const shortcuts = listShortcuts();
+    const shortcuts = getRouting().listShortcuts();
+    const shortcutName = (appid: number): string => shortcuts.find((s) => s.appid === appid)?.name ?? String(appid);
 
     const refreshAuditData = useCallback(async () => {
         await loadControllerInference();
@@ -1846,10 +1841,10 @@ function RevisionSection() {
         prevSyncingRef.current = syncProgress.isSyncing;
     }, [syncProgress.isSyncing, refreshAuditData]);
 
-    const collections = listCollections();
+    const collections = getRouting().listCollections();
     const collMap: Record<number, string[]> = {};
     for (const c of collections) {
-        const members = membersOf(c.id);
+        const members = getRouting().membersOf(c.id);
         if (members) {
             for (const appid of members) {
                 if (!collMap[appid]) collMap[appid] = [];

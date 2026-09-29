@@ -7,8 +7,8 @@ import {
     resolveBucket,
     splitPatterns,
     validateConfig,
-} from '../frontend/features/buckets/resolve.ts';
-import type { BucketsConfig, CollectionRule } from '../frontend/features/buckets/resolve.ts';
+} from '../frontend/domain/routing/policy.ts';
+import type { BucketsConfig, CollectionRule } from '../frontend/domain/routing/policy.ts';
 
 const A = 0x8000_0001, B = 0x8000_0002, C = 0x8000_0003, D = 0x8000_0004, N = 435150;
 const sets: Record<string, Set<number>> = { steam: new Set([A, C, N]), retro: new Set([B, C]) };

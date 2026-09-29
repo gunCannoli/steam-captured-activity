@@ -1,7 +1,29 @@
 import { useEffect, useState } from 'react';
 import { pluginConfig, subscribePluginConfig } from '@steambrew/client';
 import { logger } from '../logger';
-import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig, type RoutingRule } from '../features/buckets/resolve';
+import { DEFAULT_BUCKETS, validateConfig, type BucketsConfig, type RoutingRule } from '../domain/routing/policy';
+
+/** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
+interface RoutingSource {
+    listCollections(): { id: string; name: string; dynamic: boolean; shortcutCount: number }[];
+    listShortcuts(): { appid: number; name: string }[];
+    membersOf(id: string): ReadonlySet<number> | undefined;
+}
+
+/** Routing, for the settings panel only (plan § 7.0 D3: never an import of app/). */
+let routing: RoutingSource = {
+    listCollections: () => [],
+    listShortcuts: () => [],
+    membersOf: () => undefined,
+};
+
+export function setRouting(r: RoutingSource): void {
+    routing = r;
+}
+
+export function getRouting(): RoutingSource {
+    return routing;
+}
 
 export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
 

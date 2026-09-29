@@ -1,11 +1,31 @@
 import { useState, useEffect } from 'react';
 import { rpc } from '../../rpc';
-import { listShortcuts, listCollections, membersOf } from '../buckets';
-import { getAutoRoutingProfile, loadAutoRoutingProfiles } from '../buckets/auto-routing';
-import { isServiceAllowed } from '../buckets/resolve';
+import { isServiceAllowed, type AutoRoutingProfile } from '../../domain/routing/policy';
 import { setting } from '../../settings/settings';
 import { getLocalAchievements } from '../achievements';
 import { logger } from '../../logger';
+
+/** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
+interface RoutingSource {
+    listShortcuts(): { appid: number; name: string }[];
+    listCollections(): { id: string; name: string }[];
+    membersOf(id: string): ReadonlySet<number> | undefined;
+    getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined;
+    loadAutoRoutingProfiles(): Promise<void>;
+}
+
+/** Routing; wired to the app/routing instance in index.tsx (plan § 7.0 D3). */
+let routing: RoutingSource = {
+    listShortcuts: () => [],
+    listCollections: () => [],
+    membersOf: () => undefined,
+    getAutoRoutingProfile: () => undefined,
+    loadAutoRoutingProfiles: async () => {},
+};
+
+export function setRouting(r: RoutingSource): void {
+    routing = r;
+}
 
 export interface SyncProgress {
     isSyncing: boolean;
@@ -132,9 +152,9 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
     pendingRerun = false;
 
     try {
-        await loadAutoRoutingProfiles();
+        await routing.loadAutoRoutingProfiles();
 
-        const shortcuts = listShortcuts();
+        const shortcuts = routing.listShortcuts();
         if (!shortcuts || shortcuts.length === 0) {
             isRunning = false;
             return;
@@ -156,8 +176,8 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
         const services = setting('services');
 
         const collMap: Record<number, string[]> = {};
-        for (const c of listCollections()) {
-            const mem = membersOf(c.id);
+        for (const c of routing.listCollections()) {
+            const mem = routing.membersOf(c.id);
             if (mem) {
                 for (const id of mem) {
                     if (!collMap[id]) collMap[id] = [];
@@ -173,7 +193,7 @@ export async function startSync(options?: { forceAll?: boolean; onlyAppids?: num
             if (targetAppids && !targetAppids.has(sc.appid)) continue;
 
             const collNames = collMap[sc.appid] || [];
-            const profile = getAutoRoutingProfile(sc.appid);
+            const profile = routing.getAutoRoutingProfile(sc.appid);
 
             // Is game allowed by routing rules or auto mode?
             const isAllowed = isServiceAllowed(

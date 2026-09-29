@@ -3,17 +3,29 @@ import { rpc, type ConsolidatedMetadata } from "../../rpc";
 import { onSettingChange } from "../../settings/settings";
 import { isNonSteamAppId } from "../../steam/route";
 import { resolveShortcutTitle } from "../../steam/shortcut";
+import type { Resolution } from "../../domain/routing/policy";
 import { storeEnrichedAppIds } from "../steam-store/enriched";
 import { loadControllerInference } from "./controller";
 import { normalizeMetadata } from "./normalize";
 import { gameInfoPlan } from "./policy";
-import {
-    collectionsReady,
-    getBucket,
-    invalidateMembership,
-    onBucketsChanged,
-    setMetadataAppidSource,
-} from "../buckets";
+
+/** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
+interface RoutingSource {
+    getBucket(appid: number): Resolution;
+    onBucketsChanged(fn: () => void): void;
+    bucketReport(): { ready: boolean };
+}
+
+/** Routing; wired to the app/routing instance in index.tsx (plan § 7.0 D3). */
+let routing: RoutingSource = {
+    getBucket: () => ({ bucket: "none", via: "pending" }),
+    onBucketsChanged: (fn) => fn(),
+    bucketReport: () => ({ ready: false }),
+};
+
+export function setRouting(r: RoutingSource): void {
+    routing = r;
+}
 
 /** The game-info surface, wired in index.tsx (plan § 7.0 D3). No-ops until then. */
 let gameInfo: {
@@ -36,6 +48,11 @@ export function getCachedLibraryMetadata(appid: number): ConsolidatedMetadata | 
     return libraryCache.get(appid >>> 0) || libraryCache.get(appid) || libraryCache.get(appid | 0);
 }
 
+/** For app/routing's `RoutingInputs.metadataAppids` (plan § 7.0 D3; avoids an import cycle). */
+export function libraryCacheAppids(): Iterable<number> {
+    return libraryCache.keys();
+}
+
 /** Set of appids we have already enriched this session */
 const processedApps = new Set<number>();
 
@@ -48,7 +65,7 @@ export async function handleWebScrapingView(appid: number, storeMatched?: boolea
     const rawAppid = appid >>> 0;
     if (!isNonSteamAppId(rawAppid)) return;
 
-    const { bucket, via } = getBucket(rawAppid);
+    const { bucket, via } = routing.getBucket(rawAppid);
     const plan = gameInfoPlan(bucket, via, storeMatched);
 
     const meta = libraryCache.get(rawAppid) || libraryCache.get(appid);
@@ -119,7 +136,7 @@ export async function initGameInfo(): Promise<void> {
 
     // Preload all cached metadata into appDetailsStore immediately. Local data
     // applies to every shortcut that is not steam-store (ADR-0035), so this does
-    // not wait for collections; getBucket returns 'pending' until they load
+    // not wait for collections; routing.getBucket returns 'pending' until they load
     // (guardrail 13: it never reads collectionStore computeds before then).
     try {
         const all = await rpc.getAllMetadata();
@@ -132,7 +149,7 @@ export async function initGameInfo(): Promise<void> {
                     const clean = normalizeMetadata(meta);
                     libraryCache.set(rawAppid, clean);
                     libraryCache.set(rawAppid | 0, clean);
-                    const { bucket, via } = getBucket(rawAppid);
+                    const { bucket, via } = routing.getBucket(rawAppid);
                     if (
                         gameInfoPlan(bucket, via).applyLocal &&
                         enrichGameDetails(rawAppid, clean)
@@ -149,21 +166,18 @@ export async function initGameInfo(): Promise<void> {
         logger.warn("Could not preload library metadata cache:", err);
     }
 
-    setMetadataAppidSource(() => libraryCache.keys());
-
     // ===== Bucket changes (no restart needed) =====
-    onBucketsChanged(() => {
-        invalidateMembership();
-        if (!collectionsReady()) return;
+    routing.onBucketsChanged(() => {
+        if (!routing.bucketReport().ready) return;
         // A game that left steam-store drops the store's Game Info (ADR-0033) ...
         for (const appid of [...storeEnrichedAppIds]) {
-            if (getBucket(appid).bucket === "steam-store") continue;
+            if (routing.getBucket(appid).bucket === "steam-store") continue;
             revertGameDetails(appid);
             storeEnrichedAppIds.delete(appid);
         }
         // ... and every shortcut that is not steam-store shows its local Game Info (ADR-0035).
         for (const [appid, meta] of libraryCache) {
-            const { bucket, via } = getBucket(appid);
+            const { bucket, via } = routing.getBucket(appid);
             if (!enrichedAppIds.has(appid) && gameInfoPlan(bucket, via).applyLocal) {
                 enrichGameDetails(appid, meta);
             }

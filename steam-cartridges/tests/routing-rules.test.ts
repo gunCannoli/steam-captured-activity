@@ -6,7 +6,7 @@ import {
     isServiceAllowedByAutoMode,
     type RoutingRule,
     type AutoRoutingProfile,
-} from '../frontend/features/buckets/resolve.ts';
+} from '../frontend/domain/routing/policy.ts';
 import { inferredControllerIds } from '../frontend/surfaces/game-info/category-policy.ts';
 
 test('matchesRegex: handles valid regex and handles syntax error gracefully', () => {

@@ -56,6 +56,7 @@ const LAYER_RULES: [RegExp, RegExp][] = [
     [/^surfaces\//, /^steam$/], // surfaces write Steam through steam/ (never another surface, app, ports, sensors)
     [/^app$/, /^(domain|ports)$/], // use cases
     [/^settings$/, /^ports$/], // settings panels talk to the backend port only
+    [/^(app|settings|features\/.+)$/, /^domain$/], // the pure domain is a leaf like the kernel (M4a)
 ];
 
 export function ruleAllows(edge: string): boolean {
@@ -101,8 +102,8 @@ test('architecture: no new cross-area import (ratchet)', () => {
 });
 
 test('architecture: layer rules allow the § 4.1 edges and nothing it forbids', () => {
-    const allowedEdges = ['index -> features/game-info', 'app -> kernel', 'sensors/view -> kernel', 'sensors/view -> steam', 'surfaces/sections -> steam', 'app -> ports', 'settings -> ports'];
-    const forbidden = ['kernel -> steam', 'sensors/view -> sensors/lifecycle', 'sensors/view -> app', 'surfaces/sections -> surfaces/captures', 'surfaces/sections -> app', 'surfaces/sections -> ports', 'app -> steam', 'app -> sensors/view', 'features/game-info -> sensors/collections', 'steam -> surfaces/sections'];
+    const allowedEdges = ['index -> features/game-info', 'app -> kernel', 'sensors/view -> kernel', 'sensors/view -> steam', 'surfaces/sections -> steam', 'app -> ports', 'settings -> ports', 'features/scraper -> domain'];
+    const forbidden = ['kernel -> steam', 'sensors/view -> sensors/lifecycle', 'sensors/view -> app', 'surfaces/sections -> surfaces/captures', 'surfaces/sections -> app', 'surfaces/sections -> ports', 'app -> steam', 'app -> sensors/view', 'features/game-info -> sensors/collections', 'steam -> surfaces/sections', 'domain -> steam'];
     for (const e of allowedEdges) assert.ok(ruleAllows(e), `should be allowed: ${e}`);
     for (const e of forbidden) assert.ok(!ruleAllows(e), `should be forbidden: ${e}`);
 });

@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Internal: identity resolution moved to the backend (M4b, 2026-09-29)**: a new backend service (`resolve_identity.lua`) and two RPCs (`GetGameRecord`, `EnsureFresh`) can now resolve a shortcut's Steam Store match in one call instead of up to three. Nothing calls them yet — no user-visible change until M4c.
+
+- **Internal: routing policy moved behind its own layer (M4a, 2026-09-29)**: bucket resolution and the routing rules engine now live in `frontend/domain/routing` (pure, unit-tested TypeScript) with a small stateful wrapper in `frontend/app/routing.ts`. No behaviour change (ADR-0040).
+
 - **Fixed: cleaned up five leftover Game Info records from removed/test shortcuts (2026-09-28)**: `library_metadata.json` had records for two games removed from the library and three left over from earlier test sessions. They're now removed automatically once on update; a backup (`library_metadata.json.bak-v2`) is kept, and any record with manual edits is never touched.
 
 - **Added: an `artwork` switch to turn off custom art slot/logo writes separately (2026-09-28)**: previously not independently switchable.

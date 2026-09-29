@@ -1,11 +1,27 @@
 import { toShortcutId } from "../kernel/appid";
-import { getBucket, waitForCollections } from "./buckets";
+import type { Resolution } from "../domain/routing/policy";
 import { handleWebScrapingView } from "./game-info";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
 import { storeEnrichedAppIds } from "./steam-store/enriched";
 import { loadAchievementsForApp } from "./achievements";
 
 import { handleGameOpenUpdate } from "./scraper/on-update";
+
+/** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
+interface RoutingSource {
+    getBucket(appid: number): Resolution;
+    waitForCollections(timeoutMs?: number): Promise<boolean>;
+}
+
+/** Routing; wired to the app/routing instance in index.tsx (plan § 7.0 D3). */
+let routing: RoutingSource = {
+    getBucket: () => ({ bucket: "none", via: "pending" }),
+    waitForCollections: async () => false,
+};
+
+export function setRouting(r: RoutingSource): void {
+    routing = r;
+}
 
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
 const inflight = new Set<number>();
@@ -24,7 +40,7 @@ export async function onSourceView(appid: number): Promise<void> {
     }
     inflight.add(rawAppid);
     try {
-        const { bucket, via } = getBucket(rawAppid);
+        const { bucket, via } = routing.getBucket(rawAppid);
         if (via === "pending") {
             // Local Game Info only until collections load (ADR-0035); replayed then.
             deferred.add(rawAppid);
@@ -63,7 +79,7 @@ export async function onSourceView(appid: number): Promise<void> {
  * shortcut.viewed. A Steam render never triggers a view (M0a).
  */
 export function initSourceView(): void {
-    void waitForCollections().then(() => {
+    void routing.waitForCollections().then(() => {
         const list = [...deferred];
         deferred.clear();
         list.forEach((a) => void onSourceView(a));

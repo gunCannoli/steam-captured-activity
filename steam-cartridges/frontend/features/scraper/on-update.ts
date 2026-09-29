@@ -2,12 +2,28 @@ import { rpc, type ConsolidatedMetadata } from "../../rpc";
 import { logger } from "../../logger";
 import { checkObserverUnlocks } from "../achievements";
 import { resolveShortcutTitle } from "../../steam/shortcut";
-import { listCollections, membersOf } from "../buckets";
-import { getAutoRoutingProfile } from "../buckets/auto-routing";
-import { isServiceAllowed } from "../buckets/resolve";
+import { isServiceAllowed, type AutoRoutingProfile } from "../../domain/routing/policy";
 import { setting } from "../../settings/settings";
 import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
+
+/** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
+interface RoutingSource {
+    listCollections(): { id: string; name: string }[];
+    membersOf(id: string): ReadonlySet<number> | undefined;
+    getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined;
+}
+
+/** Routing; wired to the app/routing instance in index.tsx (plan § 7.0 D3). */
+let routing: RoutingSource = {
+    listCollections: () => [],
+    membersOf: () => undefined,
+    getAutoRoutingProfile: () => undefined,
+};
+
+export function setRouting(r: RoutingSource): void {
+    routing = r;
+}
 
 /** Writes Game Info; wired to the game-info surface in index.tsx (plan § 7.0 D3). */
 let enrichGameDetails: (appid: number, meta: ConsolidatedMetadata) => boolean = () => false;
@@ -60,11 +76,11 @@ export async function handleGameOpenUpdate(appid: number): Promise<void> {
     try {
         const autoMode = setting("autoRoutingMode");
         const rules = setting("routingRules");
-        const profile = getAutoRoutingProfile(appid);
+        const profile = routing.getAutoRoutingProfile(appid);
 
         const collMap: Record<number, string[]> = {};
-        for (const c of listCollections()) {
-            const mem = membersOf(c.id);
+        for (const c of routing.listCollections()) {
+            const mem = routing.membersOf(c.id);
             if (mem && mem.has(appid)) {
                 if (!collMap[appid]) collMap[appid] = [];
                 collMap[appid].push(c.name);

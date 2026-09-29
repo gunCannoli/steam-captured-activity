@@ -14,10 +14,12 @@ for the authoritative, up-to-date state):
 | --- | --- |
 | Safety: kill switches, error budget, boot sentinel / safe mode | done (M0b-1) — [safety.md](safety.md) |
 | Architecture ratchet: import allowlist, RPC registration test | done (M0c) — this doc |
-| Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | planned (M1) |
+| Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | done (M1) |
+| Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
 | Sensors: view, lifecycle, collections (owned apps: M4) | done (M2) — [sensors.md](sensors.md) |
+| App: use cases (routing, M4a; records, identity: M4c) | current (M4a) |
 | Surfaces: the only code that writes to Steam | done (M3.1–M3.10) — [surfaces.md](surfaces.md) |
-| Resolver service + RPC facade | planned (M4) |
+| Resolver service + RPC facade | planned (M4b–M4c) |
 | Metadata service | planned (M5) |
 | Achievements service | planned (M6) |
 | Freshness + ingestion | planned (M7) |
@@ -90,7 +92,7 @@ From migration plan § 4.6 — what changes and what does not:
 | New achievement source (e.g. Xenia) | `src_xenia.lua`, the achievements source list | game-info, captures, sections |
 | New thing shown on the page from existing data | one new surface folder + its `touches` | services, other surfaces |
 | New record field | `kernel/record.ts` (additive), the producing service, the consuming surface | everything else |
-| New routing rule type | backend `resolve_policy.lua` + its Lua tests | surfaces, other services |
+| New routing rule type | `frontend/domain/routing/policy.ts` + its TS tests (ADR-0040) | surfaces, services |
 
 A child plan whose diff crosses more boundaries than its row allows must explain
 why in its root-cause section, or it is rejected.
@@ -101,3 +103,9 @@ why in its root-cause section, or it is rejected.
   (`tests/architecture.test.ts`, `tests/architecture-allowlist.json`, 53
   entries); fixed `check_all_tabs.js`'s `A -> B -> A: activity cards intact`
   flake (compares `appActivityStore` day counts, not DOM card counts).
+- M4a (2026-09-29): `frontend/features/buckets/` moved behind `domain/routing/`
+  (pure policy: `policy.ts`, `pending.ts`) and `app/routing.ts`
+  (`createRouting`, the stateful factory every former buckets caller now
+  reaches through a D3 setter). `LAYER_RULES` gained
+  `[/^(app|settings|features\/.+)$/, /^domain$/]`; every `* -> features/buckets`
+  and `features/buckets -> *` allowlist entry is gone. ADR-0040.

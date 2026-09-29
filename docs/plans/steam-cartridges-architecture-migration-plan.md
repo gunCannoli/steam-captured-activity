@@ -72,8 +72,8 @@ Statuses (what the executing agent does with the row):
 | M3.9 | Surface `artwork` | **Done** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Done** | `surfaces.md` § library-home |
 | M4.0 | Backend inventory: live / unwired / dead; purge only the dead | **Done** | `rpc.md` (created) |
-| M4a | Routing policy → `domain/routing` (ADR-0040) | Build | `README.md` layer list, ADR-0040 |
-| M4b | Identity service + record facade (backend) | Build | `service-resolver.md`, `rpc.md` |
+| M4a | Routing policy → `domain/routing` (ADR-0040) | **Done (implementer); live verification pending § 0.5** | `README.md` layer list, ADR-0040 |
+| M4b | Identity service + record facade (backend) | **Done (implementer); live verification pending § 0.5** | `service-resolver.md`, `rpc.md` |
 | M4c | Frontend adopts records and identity | Build | `rpc.md`, `surfaces.md`, `sensors.md` |
 | M5a | Metadata service (backend) | Build | `service-metadata.md`, `rpc.md` |
 | M5b | Frontend adopts metadata | Build | `service-metadata.md`, `surfaces.md`, `sensors.md` |

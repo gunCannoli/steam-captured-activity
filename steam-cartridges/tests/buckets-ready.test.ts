@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pendingOr } from '../frontend/features/buckets/ready.ts';
+import { pendingOr } from '../frontend/domain/routing/pending.ts';
 import { isCollectionStoreReady, readUserCollections } from '../frontend/sensors/collections/index.ts';
 
 function fakeStore(getter?: () => unknown) {

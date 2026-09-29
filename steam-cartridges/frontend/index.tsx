@@ -15,7 +15,7 @@ import {
     refresh as refreshLibraryHome,
 } from "./surfaces/library-home";
 import { initGameInfo } from "./features/game-info";
-import { initSourceView, onSourceView } from "./features/source-view";
+import { initSourceView, onSourceView, setRouting as setSourceViewRouting } from "./features/source-view";
 import { createNativeLinksSurface, setNativeAppid } from "./surfaces/native-links";
 import { artworkWriter, createArtworkSurface } from "./surfaces/artwork";
 import {
@@ -30,10 +30,11 @@ import {
     startAchievementsObserver,
     dispatchAchievementToast,
 } from "./features/achievements";
-import { initSettings, resetSettings, setSetting, setting } from "./settings/settings";
+import { initSettings, resetSettings, setSetting, setting, setRouting as setSettingsRouting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
-import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
-import { triggerSync } from "./features/scraper/sync-manager";
+import { createRouting } from "./app/routing";
+import { triggerSync, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
+import { setRouting as setOnUpdateRouting } from "./features/scraper/on-update";
 import { features } from "./safety/switches";
 import type { FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
@@ -42,7 +43,6 @@ import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
-import { setCollectionsSource } from "./features/buckets/collections";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
 import {
     createSectionsSurface,
@@ -59,7 +59,7 @@ import {
     trackInstance,
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
-import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-info";
+import { getCachedLibraryMetadata, libraryCacheAppids, setGameInfoWriter, setRouting as setGameInfoRouting } from "./features/game-info";
 import { controllerContext } from "./features/game-info/controller";
 import {
     setArtworkSink,
@@ -89,10 +89,34 @@ const runner = createSurfaceRunner({
     },
 });
 
+/** Routing (app/routing.ts, plan M4a / ADR-0040), wired to every former buckets caller through D3 setters. */
+const routing = createRouting({
+    buckets: () => setting("buckets"),
+    autoMode: () => setting("autoRoutingMode"),
+    collections: collectionsSource,
+    titleOf: (appid) => {
+        try {
+            const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
+            return typeof name === "string" ? name : undefined;
+        } catch {
+            return undefined;
+        }
+    },
+    shortcuts: () => {
+        const all: any[] = (window as any).appStore?.allApps ?? [];
+        return all
+            .filter((a) => a?.appid >= 0x8000_0000)
+            .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
+    },
+    loadProfiles: async () => (await rpc.getAutoRoutingProfiles())?.profiles ?? {},
+    metadataAppids: () => libraryCacheAppids(),
+});
+
 export { setSetting, resetSettings };
 /** Kill switches, error counts and safe mode (migration plan M0b). */
 export const safetyDiagnostics = () => features.diagnostics();
-export { bucketReport, loadAutoRoutingProfiles };
+export const bucketReport = () => routing.bucketReport();
+export const loadAutoRoutingProfiles = () => routing.loadAutoRoutingProfiles();
 export {
     clearSteamStore,
     setSteamStoreMapping,
@@ -130,8 +154,12 @@ const LEGACY_PLUGINS = [
 ];
 
 async function init() {
-    // Buckets read collection membership through the collections sensor (migration plan M2).
-    setCollectionsSource(collectionsSource);
+    // Routing reaches every former buckets caller only through these setters (plan § 7.0 D3).
+    setSourceViewRouting(routing);
+    setGameInfoRouting(routing);
+    setSyncRouting(routing);
+    setOnUpdateRouting(routing);
+    setSettingsRouting(routing);
 
     // Surface APIs reach the features only through these setters (plan § 7.0 D3).
     setGameInfoProbe(isAppEnriched);

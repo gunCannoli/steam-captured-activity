@@ -2559,3 +2559,52 @@ Three options were considered:
 - Cost: moving orchestration to the backend means porting TS logic (bucket
   resolution, the scraper queue) to Lua. The TS tests move with it or get Lua
   equivalents.
+
+---
+
+## ADR-0040: Routing policy stays pure TypeScript in the frontend domain layer
+
+**Status:** Accepted · 2026-09-28 (migration plan M4a) · **Amends [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)** and § 11 decision 1 of the migration plan, for routing only
+
+### Context
+
+ADR-0039 put the pipeline — identity, fetching, storage, freshness — in the
+backend, moved bucket resolution into "the Resolver," and expected routing to
+follow. Routing policy is pure TypeScript in
+[`frontend/domain/routing`](../plans/steam-cartridges-architecture-migration-plan.md#4-target-architecture),
+and one of its rule types has a `regex` condition matched with JavaScript
+`RegExp` semantics (`isServiceAllowed`, `conditionType: 'regex'`). Lua has no
+regex engine (only patterns, a different, less expressive language), so
+porting that rule type would mean either reimplementing `RegExp` semantics in
+Lua or silently narrowing what a routing rule can match.
+
+### Decision
+
+Routing policy — bucket resolution, collection rules, the multi-service
+routing engine (`isServiceAllowed`, `isServiceAllowedByAutoMode`) — is pure
+TypeScript in `frontend/domain/routing/` (`policy.ts`, `pending.ts`), wrapped
+in a stateful factory in `frontend/app/routing.ts` (`createRouting`). The
+frontend evaluates the policy and passes the resulting route (and which
+services it allows) to the backend as **context** on `EnsureFresh`. The
+backend keeps everything ADR-0039 already gave it: identity, fetching,
+storage and freshness.
+
+`domain/` is a leaf layer like `kernel/`: it may import only `kernel/`, and
+every other layer may import `domain/` (`tests/architecture.test.ts`
+`LAYER_RULES`).
+
+### Consequences
+
+- Routing rules keep full `RegExp` semantics; no rule-matching behavior
+  changes for the user.
+- `domain/routing` is pure and unit-tested without Steam or the backend
+  (`tests/buckets.test.ts`, `tests/buckets-ready.test.ts`,
+  `tests/routing-rules.test.ts`, `tests/app-routing.test.ts`).
+- The backend resolver, metadata and achievement services (M4b onward) take
+  the evaluated route as an opaque `{ bucket, via }` context value; they never
+  re-derive it and never see a routing rule.
+- Cost: one more frontend layer (`domain/`) than ADR-0039's diagram implied,
+  and `app/routing.ts` is the frontend's first module with a genuine
+  cross-file runtime import outside `tests/` — `tsconfig.json` gained
+  `noEmit: true` and `allowImportingTsExtensions: true` so `tsc` and Node's
+  `--experimental-strip-types` test runner can both resolve it.
