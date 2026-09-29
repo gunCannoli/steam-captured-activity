@@ -7,7 +7,7 @@ const A = { appid: 4000000001, name: 'Alpha' };
 const B = { appid: 4000000002, name: 'Beta' };
 const C = { appid: 4000000003, name: 'Gamma' };
 
-function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<number, { bucket: string; via: string }>; respond?: (appid: number, parts: string[], ctx: any) => any } = {}) {
+function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<number, { bucket: string; via: string }>; respond?: (appid: number, parts: string[], ctx: any) => any; schedule?: (fn: () => void) => void } = {}) {
     const calls: { appid: number; parts: string[]; ctx: any }[] = [];
     const known: number[][] = [];
     const sleeps: number[] = [];
@@ -36,7 +36,7 @@ function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<numbe
         hardcore: () => true,
         sleep: async (ms: number) => { sleeps.push(ms); },
         onRulesUpdated: () => {},
-        schedule: () => {},
+        schedule: over.schedule ?? (() => {}),
     });
     return { ingest, calls, known, sleeps, get maxActive() { return maxActive; }, get newCalls() { return newCalls; } };
 }
@@ -150,4 +150,17 @@ test('a second startSync while one runs is queued, not run in parallel', async (
     await s.ingest.startSync();
     await first;
     assert.equal(s.maxActive, 1);
+});
+
+test('a per-game scan requested during a run keeps its scope and resolves after it ran', async () => {
+    const later: (() => void)[] = [];
+    const s = setup({ newOnes: [A, B], library: [A, B], schedule: (fn) => { later.push(fn); } });
+    const first = s.ingest.startSync();
+    let done = false;
+    const scan = s.ingest.startSync({ forceAll: true, onlyAppids: [B.appid] }).then(() => void (done = true));
+    await first;
+    assert.equal(done, false);
+    later.shift()!();
+    await scan;
+    assert.equal(done, true);
 });

@@ -3034,9 +3034,9 @@ switching one feature off there and restarting Steam shows it off in `safetyDiag
 **Live result (2026-09-29) and open list.** All 8 titles render (`check_settings_panel.mjs`), § 0.5 baseline green
 (`enrich(page)=1`, both Properties OK, nav 6/6, tabs 11/11), and `disabledFeatures: "toasts"` showed `disabled: ["toasts"]` after a restart
 (reset afterwards). No defect found. Not yet checked or deliberately left, for a later look:
-- M8-1: the Troubleshooting panel lists a state per feature id, not per surface (`installed`); Steam exposes no surface status yet.
-- M8-2: no click-through of the panels (only rendering); Audit "scan game" (`ctx.ingest.start`) and Rules/Metadata credential saves were not exercised live.
-- M8-3: a per-game audit scan while a sync runs is queued instead of run at once (`ingest.startSync` returns early).
+- M8-1 (fixed): `ctx.safety.surfaces()` is now wired to `runner.status()` and the panel prints one line per surface (`installed`, `not installed`, `off`). Live: all 9 surfaces read `installed`.
+- M8-2 (checked live, `scratch/click_settings_panel.mjs`): the Troubleshooting toggle writes and reverts `disabledFeatures` (on → off → on; the config write takes about 2 s to show), "+ Add Rule" opens its modal, "Review" opens the audit modal, and `SaveServiceCredentials` writes and clears a probe key. The audit's "Scan" button could not be clicked: the library has no flagged shortcut (Issues 0, Unknown Input 0, Not Scraped 0). That path is covered by the M8-3 unit test.
+- M8-3 (fixed): `app/ingest.ts` no longer drops the scope of a request made during a run. Queued requests merge (`forceAll` or-ed, `onlyAppids` unioned, a whole-library request wins) and run as one follow-up; a scoped request's promise resolves when that follow-up ends, so the audit shows "Scanned" only after it ran. Test `a per-game scan requested during a run keeps its scope and resolves after it ran` (`test:ts` 142/142).
 
 ### M9a — Cleanup: code (Build)
 

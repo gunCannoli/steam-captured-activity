@@ -322,7 +322,7 @@ async function init() {
         records: { achievementsOf: (appid) => getLocalAchievements(appid) },
         controller: { load: loadControllerInference, inferredFor: getInferredControllerSupport },
         steamStore: { setMapping: setSteamStoreMapping },
-        safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics() },
+        safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
     });
 
     // The manual mapping API (features/steam-store, public per D8) reaches app/ only through these setters.

@@ -28,6 +28,7 @@ export interface PanelContext {
     safety: {
         featureIds: readonly string[];
         diagnostics(): { safeMode: boolean; disabled: string[]; tripped: string[]; errors: Record<string, number> };
+        surfaces(): { id: string; installed: boolean; disabled: boolean; errors: number; lastError?: string }[];
     };
 }
 
@@ -47,7 +48,7 @@ const INERT: PanelContext = {
     records: { achievementsOf: () => undefined },
     controller: { load: async () => {}, inferredFor: () => undefined },
     steamStore: { setMapping: async () => ({ error: 'not ready' }) },
-    safety: { featureIds: [], diagnostics: () => ({ safeMode: false, disabled: [], tripped: [], errors: {} }) },
+    safety: { featureIds: [], diagnostics: () => ({ safeMode: false, disabled: [], tripped: [], errors: {} }), surfaces: () => [] },
 };
 
 let context: PanelContext = INERT;

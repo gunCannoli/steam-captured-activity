@@ -9,12 +9,19 @@ export function TroubleshootingSection() {
     const ctx = usePanelContext();
     const [raw, setRaw] = useSetting("disabledFeatures");
     const diag = ctx.safety.diagnostics();
+    const surfaces = ctx.safety.surfaces();
     const off = new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
 
     const state = (id: string): string => {
         if (diag.tripped.includes(id)) return `tripped (${diag.errors[id] ?? 0} errors)`;
         if (diag.disabled.includes(id) || off.has(id)) return "off";
         return diag.errors[id] ? `on (${diag.errors[id]} errors)` : "on";
+    };
+
+    const surfaceState = (x: (typeof surfaces)[number]): string => {
+        if (x.disabled) return "off";
+        if (!x.installed) return x.errors ? `not installed (${x.errors} errors)` : "not installed";
+        return x.errors ? `installed (${x.errors} errors)` : "installed";
     };
 
     return (
@@ -36,6 +43,12 @@ export function TroubleshootingSection() {
                     {ctx.safety.featureIds.map((id) => (
                         <div key={id}>
                             {id}: {state(id)}
+                        </div>
+                    ))}
+                    {surfaces.length > 0 && <div style={{ marginTop: "6px" }}>surfaces:</div>}
+                    {surfaces.map((x) => (
+                        <div key={x.id}>
+                            {x.id}: {surfaceState(x)}
                         </div>
                     ))}
                 </div>

@@ -74,7 +74,8 @@ export function createIngest(deps: IngestDeps): Ingest {
     let progress: SyncProgress = { isSyncing: false, total: 0, current: 0, currentGame: "", phase: "idle" };
     const listeners = new Set<(p: SyncProgress) => void>();
     let running = false;
-    let pendingRerun = false;
+    /** Runs requested while one was running, merged into one follow-up (scope is kept, not dropped). */
+    let pending: { forceAll: boolean; only: Set<number> | null; waiters: (() => void)[] } | null = null;
     let debounce: ReturnType<typeof setTimeout> | null = null;
 
     function setProgress(update: Partial<SyncProgress>): void {
@@ -123,11 +124,17 @@ export function createIngest(deps: IngestDeps): Ingest {
 
     async function startSync(options?: { forceAll?: boolean; onlyAppids?: number[] }): Promise<void> {
         if (running) {
-            pendingRerun = true;
-            return;
+            const only = options?.onlyAppids ? new Set(options.onlyAppids) : null;
+            if (!pending) pending = { forceAll: options?.forceAll === true, only, waiters: [] };
+            else {
+                pending.forceAll ||= options?.forceAll === true;
+                pending.only = pending.only && only ? new Set([...pending.only, ...only]) : null;
+            }
+            // A per-game scan (audit panel) resolves when its follow-up run ends; plain requests are debounced re-runs.
+            if (!only) return;
+            return new Promise<void>((resolve) => pending!.waiters.push(resolve));
         }
         running = true;
-        pendingRerun = false;
         const force = options?.forceAll === true;
         try {
             await deps.ready();
@@ -181,9 +188,11 @@ export function createIngest(deps: IngestDeps): Ingest {
             setProgress({ isSyncing: false, phase: "idle" });
         } finally {
             running = false;
-            if (pendingRerun) {
-                pendingRerun = false;
-                (deps.schedule ?? ((fn, ms) => void setTimeout(fn, ms)))(() => void startSync(), 1000);
+            if (pending) {
+                const next = pending;
+                pending = null;
+                const again = { forceAll: next.forceAll, onlyAppids: next.only ? [...next.only] : undefined };
+                (deps.schedule ?? ((fn, ms) => void setTimeout(fn, ms)))(() => void startSync(again).finally(() => next.waiters.forEach((w) => w())), 1000);
             }
         }
     }

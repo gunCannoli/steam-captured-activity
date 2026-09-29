@@ -14,9 +14,10 @@
   Shared rows are in `components.tsx`.
 - **Troubleshooting** (`panels/troubleshooting.tsx`): one toggle per `FEATURE_IDS` entry (on = not in `disabledFeatures`), written with
   the pure `toggleFeature` (`troubleshooting-core.ts`); a read-only block with safe mode and each feature's state
-  (`on`, `off`, `tripped (n errors)`). Changes take effect after Steam restarts. There is no per-surface `installed` state yet
-  (nothing in Steam reports it); a feature's state comes from `features.diagnostics()`.
-- The audit's per-game scan calls `ctx.ingest.start({ forceAll: true, onlyAppids: [appid] })`.
+  (`on`, `off`, `tripped (n errors)`) and one line per surface from `ctx.safety.surfaces()` (the surface runner's status:
+  `installed`, `not installed`, `off`, with error counts). Changes take effect after Steam restarts.
+- The audit's per-game scan calls `ctx.ingest.start({ forceAll: true, onlyAppids: [appid] })`. If a sync is already running, the
+  request is queued with its scope (merged with other queued ones) and the returned promise resolves after the follow-up run.
 
 ## Tests
 
