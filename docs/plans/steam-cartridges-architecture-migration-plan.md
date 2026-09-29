@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.0–M3.10 are Ready** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.0–M3.10 are Ready (packaged); M4.0–M7b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -11,8 +11,10 @@
 
 ### 0.1 How to execute a step
 
-You execute **one step per session**, the first row in § 0.2 whose status is `Ready`.
-Do exactly this, in order:
+You execute **one step per session**, the first row in § 0.2 whose status is `Ready` or `Build`.
+A `Ready` step is packaged: follow this section. A `Build` step is a detailed spec you implement
+yourself: follow § 0.10 instead of actions 3 and 6 below. A `Spec` step is **not** for you: stop and
+report that it needs an architect. Do exactly this, in order:
 
 1. Read § 0 completely. Then read that step's section in § 7 completely.
 2. Run § 0.4 (preconditions). Every expected output must match **exactly**. If
@@ -40,8 +42,15 @@ stop and report the conflict. Do not choose.
 
 ### 0.2 Status board
 
-Statuses: `Ready` = mechanical, execute it · `Spec` = specified, an architect must
-write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
+Statuses (what the executing agent does with the row):
+
+| Status | Meaning | Who acts |
+| --- | --- | --- |
+| `Ready` | packaged and dry-run: apply the blocks or the package, check every expected output | implementer, § 0.1 |
+| `Build` | detailed spec with binding contracts and named tests; the code is not written yet | implementer, § 0.10 |
+| `Spec` | not detailed enough to implement (open decisions or investigation) | architect only; an implementer stops |
+| `Done` | executed and verified | — |
+| `Blocked (<why>)` | waiting on the named thing | whoever it names |
 
 | Step | What | Status | Layer doc |
 | --- | --- | --- | --- |
@@ -62,16 +71,18 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M3.8 | Purge markers on the two temporary ports (D13) | **Ready** | § 7.9 ledger |
 | M3.9 | Surface `artwork` | **Ready** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Ready** | `surfaces.md` § library-home |
-| M4.0 | Backend inventory: live / unwired / dead; purge only the dead | Spec | `rpc.md` (created) |
-| M4a | Routing policy → `domain/routing` (ADR-0040) | Spec | `README.md` layer list, ADR-0040 |
-| M4b | Identity service + record facade (backend) | Spec | `service-resolver.md`, `rpc.md` |
-| M4c | Frontend adopts records and identity | Spec | `rpc.md`, `surfaces.md`, `sensors.md` |
-| M5a | Metadata service (backend) | Spec | `service-metadata.md`, `rpc.md` |
-| M5b | Frontend adopts metadata | Spec | `service-metadata.md`, `surfaces.md`, `sensors.md` |
-| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Spec | `service-artwork.md`, `safety.md` (credentials) |
-| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Spec | `service-metadata.md` |
-| M6 | Achievements service | Spec | `service-achievements.md` |
-| M7 | Freshness + ingestion | Spec | `service-freshness.md` |
+| M4.0 | Backend inventory: live / unwired / dead; purge only the dead | Build | `rpc.md` (created) |
+| M4a | Routing policy → `domain/routing` (ADR-0040) | Build | `README.md` layer list, ADR-0040 |
+| M4b | Identity service + record facade (backend) | Build | `service-resolver.md`, `rpc.md` |
+| M4c | Frontend adopts records and identity | Build | `rpc.md`, `surfaces.md`, `sensors.md` |
+| M5a | Metadata service (backend) | Build | `service-metadata.md`, `rpc.md` |
+| M5b | Frontend adopts metadata | Build | `service-metadata.md`, `surfaces.md`, `sensors.md` |
+| M5c | SteamGridDB artwork source (feature; decided § 11 item 8) | Build | `service-artwork.md`, `safety.md` (credentials) |
+| M5d | ScreenScraper metadata source (feature; decided § 11 item 8) | Build | `service-metadata.md` |
+| M6a | Achievements service (backend; fixes K1, K2, K7) | Build | `service-achievements.md`, `rpc.md` |
+| M6b | Frontend adopts achievements; Flow C (fixes K14) | Build | `service-achievements.md`, `surfaces.md` |
+| M7a | Freshness, throttle, registry (backend; fixes K15) | Build | `service-freshness.md`, `rpc.md` |
+| M7b | Frontend drives ingestion; sync manager deleted | Build | `service-freshness.md` |
 | M8 | Settings split | Spec | `settings.md` |
 | M9 | Cleanup + docs | Spec | all |
 
@@ -220,6 +231,34 @@ from `planned` to `current`, with a link, in the same commit.
 - No store write, event, RPC, timer or prototype walk inside a Steam render, getter, prototype hook or jsx handler ([guardrail 17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components)).
 - No mixing a module move and a behaviour change in one step.
 - No editing the pass criteria in § 0.5 or the checks in `scratch/check_all_tabs.js` / `scratch/test_nav_cycle.js`, except M0c's one fix.
+
+### 0.10 How to execute a `Build` step
+
+A `Build` step gives you the design, the binding contracts, the named tests and the exit checks; you
+write the code. Rules, in order:
+
+1. Read § 0, § 7.0 (decisions D1–D14), the step's own section, and every section it points to
+   (for M4–M5: "M4–M5 overview" and "Shared contracts"). Run § 0.4. For a step that touches `backend/`,
+   also record the three Lua suites' current last lines (`ALL PASS`, or the known K7/K8 failures).
+2. **Files:** you may create or change only the files the step's Design and Tests name, the docs its
+   Docs line names, `package.json` `test:lua` when a step adds a Lua suite, and `tests/architecture-allowlist.json`
+   through `ARCH_WRITE_ALLOWLIST=1` (it may only shrink). Any other file: stop and report.
+3. **Contracts are binding.** Names, signatures, JSON shapes, status meanings and TTL values in the step
+   (and in "Shared contracts") are not yours to change. You may add private helpers. If a contract cannot
+   be met, stop (§ 0.8) and write why in `TASK.md` § Active failures; never adapt the contract.
+4. **Tests first.** Write the step's named tests with the exact names given, run them and see them fail,
+   then implement until they pass. Never edit or weaken an existing test, except a path change under D11
+   or a deletion the step names explicitly.
+5. Implement the Design's numbered items in order. After each item: `npm run check` (exit 0), `npm run test:ts`
+   (`ℹ fail 0`), and the Lua suites the item touches. The architecture test must pass after every item:
+   a new cross-layer import means the design was misread (fix it with D3, never by listing the edge).
+6. Exit: run every command in the step's **Exit** line and paste the outputs in your report, with the new
+   test counts and the allowlist before/after.
+7. Docs per the step, then commit per § 0.7 with the paths from rule 2 and the message
+   `<type>(steam-cartridges): <what> (<step id>)`. Push.
+8. Live: the verifier runs § 0.5 and the step's live checks (§ 0.1 action 7 applies). A `Build` step is
+   `Done` only after the verifier's PASS.
+9. Ambiguity: if the spec allows two readings, stop and ask. Do not pick one.
 
 ---
 
@@ -1803,6 +1842,7 @@ inside a Steam render: D5).
 code nothing uses, so no step moves dead code (user, 2026-09-28: "no need to migrate dead code").
 After M3, every Steam write lives under `frontend/surfaces/`, one folder per surface, each with
 declared `touches`, a kill switch and fail-open hooks, and `frontend/renderers/` no longer exists.
+One exception remains until M6b: K14 (`observer-session.ts` writes the spotlight session).
 **Validated (all eleven, 2026-09-28):** dry-run cumulatively on top of M2 (tree `5b6b2c8` + M2).
 Then the packages were **replayed** on a clean worktree in order (M2, then M3.0 … M3.10):
 every `check` all `ok`, `tsc` with 0 errors, tests green after every step, `build Succeeded`,
@@ -2250,10 +2290,9 @@ M7) connect them (§ 7.10).
 | M5c | SteamGridDB artwork source (feature) | feature | new: art for shortcuts without a Steam match, empty slots only |
 | M5d | ScreenScraper metadata source (feature) | feature | new: metadata when IGDB is not configured or finds nothing |
 
-Every step: architect pass per § 7.0.1 (dry-run and package per D10 unless the step says otherwise),
-§ 0.5 live verification by the verifier, the M3 common switch-off check for any surface the step
-changes. The contracts below are **binding**: the dry-run may add private helpers, but it must not
-change a contract without amending this section first.
+Every step is `Build`: the implementer follows § 0.10; the verifier runs § 0.5 and the M3 common
+switch-off check for any surface the step changes. The contracts below are **binding**: the implementer
+may add private helpers, but a contract changes only by an architect amending this section first.
 
 #### Shared contracts (M4b, M4c, M5a, M5b)
 
@@ -2277,6 +2316,8 @@ export interface FreshContext {
     storeItem?: GameMetadata | null;                 // metadata only (M5): StoreItemCache data for identity.native
     allowWeb?: boolean;                              // metadata only (M5): igdb enabled and allowed by routing
     noNetwork?: boolean;                             // true = disk and context only (bulk re-evaluation)
+    hardcore?: boolean;                              // achievements only (M6a): setting raHardcoreMode
+    force?: boolean;                                 // M7a: ignore TTLs, never a custom_override record
 }
 export interface RecordResponse {
     appid: number;
@@ -2306,7 +2347,7 @@ writes `steam_store.json` through `steam_store_store.lua`, metadata reads and wr
 
 ---
 
-### M4.0 — Backend inventory, purge only the dead (Spec; run before M4a)
+### M4.0 — Backend inventory, purge only the dead (Build; run before M4a)
 
 **Why:** D13 (dead code is purged, not moved) with § 11 item 7 (unwired features are kept).
 **Design:**
@@ -2330,9 +2371,12 @@ writes `steam_store.json` through `steam_store_store.lua`, metadata reads and wr
 
    If the table holds, M4.0 deletes **nothing** and is docs-only (`rpc.md` + § 7.10 checked). If the
    inventory finds a truly dead RPC, delete it here with its test lines, packaged per D10.
-**Exit:** the RPC registration test passes; the Lua suites give the same output as before (K7, K8 known).
+**K8 (ask the user first):** `test_backend.lua` expects 216 RetroArch shortcuts and the library has 215. If
+the user confirms one was removed on purpose, change the fixture to the live count in this step
+(`test(steam-cartridges): update RetroArch fixture count (K8)`); otherwise leave it and note it.
+**Exit:** the RPC registration test passes; the Lua suites give the same output as before (K7; K8 unless fixed here).
 
-### M4a — Routing policy to the domain (Spec)
+### M4a — Routing policy to the domain (Build)
 
 **Why:** § 11 item 6. The policy is pure and tested; this step gives it its layer and moves the
 stateful `getBucket` / `bucketReport` into `app/`. **Behaviour: none.**
@@ -2382,12 +2426,12 @@ membership change; (2) `pending` (collections not ready, rules present) is not m
 `onBucketsChanged()` clears the memo; (4) `bucketReport()` returns `ready: false` and only `games`
 before collections are ready. Plus the one layer-rule assertion.
 **Allowlist delta (expected):** every `* -> features/buckets` edge and `features/buckets -> *` edge
-disappears; `settings -> features/buckets` goes. Record the exact list from the dry-run.
+disappears; `settings -> features/buckets` goes. Record the exact list in the report.
 **Live:** § 0.5; `node steam-cartridges/tests/buckets.mjs` is **not** run (it writes config); instead
 the verifier compares `PLUGIN_LIST['steam-cartridges-dev'].bucketReport()` before and after deploy:
 identical JSON.
 
-### M4b — Identity service and record facade (Spec)
+### M4b — Identity service and record facade (Build)
 
 **Why:** Flow A, first half: the backend decides whether a shortcut is a Steam game. Today that takes
 up to three frontend round trips (`SteamStoreGetMapping`, `SteamStoreSaveKnownMatch`, `SteamStoreSearch`,
@@ -2445,7 +2489,7 @@ in `features/steam-store/index.ts` `resolveMapping`). **Behaviour: none** (nothi
 **Docs:** `rpc.md` (the two new methods with request/response), `service-resolver.md` (new, § 0.6 template:
 what it owns = identity; sources = saved mapping, owned candidates, store search; "How to add a source").
 
-### M4c — Frontend adopts records and identity (Spec)
+### M4c — Frontend adopts records and identity (Build)
 
 **Why:** D4: the first record-driven surfaces. **Behaviour delta:** identity comes from one
 `EnsureFresh` call (log lines change: the backend logs the search; the frontend logs `Identity <appid>:
@@ -2482,7 +2526,7 @@ what it owns = identity; sources = saved mapping, owned candidates, store search
    - `captures.render`: when `identity` is in the changed parts, `setNativeActivitySource(appid, native?.appid)`
      then `publish(appid)` (was the steam-store `republish`). Delete `setCapturesSinks`.
    - `game-info`: unchanged in M4c (`refreshGameInfoInstances` after a new mapping stays in steam-store until M5b).
-7. Tests (+N, exact in the dry-run): `tests/render-queue.test.ts` (2: coalescing; one flush per tick),
+7. Tests (+N; report the exact count): `tests/render-queue.test.ts` (2: coalescing; one flush per tick),
    `tests/app-identity.test.ts` (5: not steam-store → unsupported without a call; memo per session;
    pending not memoised; error retried only after 5 min; invalidate re-resolves), minus the deleted
    TS matching tests.
@@ -2493,7 +2537,7 @@ and makes no identity call (backend log has no `EnsureFresh` for 4263274102); M3
 **Docs:** `rpc.md` (ports), `surfaces.md` (the three "Record-driven in" cells → done), `sensors.md` (owned-apps),
 `README.md` layer list (`app/`, `ports/` current), § 7.9 (tick the M4 rows).
 
-### M5a — Metadata service (Spec)
+### M5a — Metadata service (Build)
 
 **Why:** Flow A, second half. Today Game Info selection is spread over `features/game-info/index.ts`
 (`handleWebScrapingView`, the preload), `policy.ts` (`gameInfoPlan`), `features/steam-store/index.ts`
@@ -2528,7 +2572,7 @@ and makes no identity call (backend log has no `EnsureFresh` for 4263274102); M3
    Expected `ALL PASS`; add to `test:lua`.
 **Exit:** new suite `ALL PASS`; the others unchanged; § 0.5 PASS. **Docs:** `rpc.md`, `service-metadata.md` (new).
 
-### M5b — Frontend adopts metadata (Spec)
+### M5b — Frontend adopts metadata (Build)
 
 **Why:** D4 for `game-info`. **Behaviour delta:** Game Info is selected by the backend; the result must
 be identical per shortcut (the exit checks prove it).
@@ -2584,7 +2628,7 @@ panel; they are saved locally and safely. Today's mechanism already does most of
 - Encryption at rest (e.g. Windows DPAPI) is **not** available from the Lua sandbox; the protection is
   the user's own profile folder. `safety.md` states this plainly.
 
-### M5c — SteamGridDB artwork source (Spec; feature, after M5b)
+### M5c — SteamGridDB artwork source (Build; feature, after M5b)
 
 **Why:** § 7.10 row 1. SteamGridDB is the artwork source for non-Steam games; the provider exists
 (`web_sgdb.lua`: search by title, lookup by Steam appid, portrait/hero/logo/wide URLs), but nothing
@@ -2601,7 +2645,7 @@ calls it since the `steamgriddb-artwork` merge. **Behaviour: new** (feature free
   exactly like the Steam Store path, so "Clear" removes only ours. A slot the user set is never touched.
 - **Credentials:** the API key is entered in the settings panel (new "SteamGridDB" service entry next to
   ScreenScraper and IGDB, one masked field), saved per "Provider credentials" above.
-**Design outline (the architect pass turns it into literal blocks):**
+**Design:**
 1. Backend Artwork service `backend/art_service.lua`: `EnsureFresh(["artwork"])` → `record.artwork =
    Part<{ urls: ArtworkUrls; source: "steam-cdn" | "steamgriddb" }>`. Sources: `steam_cdn` (identity has a
    native: today's CDN URLs, incl. the hashed URLs the frontend reads from StoreItemCache, passed as
@@ -2610,8 +2654,10 @@ calls it since the `steamgriddb-artwork` merge. **Behaviour: new** (feature free
 2. `art-plan.ts` → `frontend/domain/art-plan.ts` (pure; tests path, D11), extended with "empty slots only"
    for the `steamgriddb` source.
 3. The `artwork` surface becomes record-driven (`reads: ["artwork"]`); `setArtworkSink` is deleted
-   (§ 7.9). It asks Steam which slots already hold custom art (the architect names the Steam API in the
-   step, verified live) and writes only the empty ones.
+   (§ 7.9). A slot is **empty** when none of its grid files exists in `<user>/config/grid/`
+   (`steam_store_store.slot_files(appid, slot)` names them: `<appid>p`, `<appid>_hero`, `<appid>_logo`,
+   `<appid>` with `.png` / `.jpg` / `.jpeg`; the same check `prune_missing_slots` already uses). The backend
+   returns the empty slots with the part (`data.emptySlots`), and the surface writes only those.
 4. New settings key `services.steamgriddbEnabled` (default `true`; additive, no existing key changes).
 5. Lua tests: no key → `needs-setup` without a request; search miss → negative cache; mapped game →
    `steam-cdn` and no SteamGridDB request; the credential never appears in a `logger:` call.
@@ -2619,7 +2665,7 @@ calls it since the `steamgriddb-artwork` merge. **Behaviour: new** (feature free
 SteamGridDB; a shortcut whose portrait the user set keeps it (only the other slots are filled);
 "Clear" removes only our slots; AM2R (bucket `none`) makes no SteamGridDB request; § 0.5 PASS.
 
-### M5d — ScreenScraper metadata source (Spec; feature, after M5b)
+### M5d — ScreenScraper metadata source (Build; feature, after M5b)
 
 **Why:** § 7.10 row 2. ScreenScraper credentials are in settings, but no metadata ever came from it:
 `screenscraper_media.lua` fetches only media (screenshots, fanart, video, manual) through `jeuInfos.php`.
@@ -2628,9 +2674,9 @@ SteamGridDB; a shortcut whose portrait the user set keeps it (only the other slo
   in when IGDB is not configured or finds no match. ScreenScraper matters because it is the easy one:
   a plain free account is enough, while IGDB needs a Twitch developer app.
 - **Credentials:** as today (settings panel, masked, `.env`), per "Provider credentials" above.
-- **Fields (proposed default; confirm in the architect pass):** synopsis → `description`, release date,
+- **Fields (default, unless the user changes it before the step starts):** synopsis → `description`, release date,
   developer, publisher, genres, player count → `categories`.
-**Design outline:** `src_screenscraper` in `metadata_service.lua`, reusing `screenscraper_media.lua`'s
+**Design:** `src_screenscraper` in `metadata_service.lua`, reusing `screenscraper_media.lua`'s
 `jeuInfos.php` client and ROM hashing (CRC/MD5 of the ROM path from the shortcut's launch options),
 gated by `services.screenscraperEnabled` and the routing service `screenscraper`. Selection for
 `web-scraping` and unmatched `steam-store` becomes: local DB → IGDB (if configured and allowed) →
@@ -2640,49 +2686,201 @@ ScreenScraper credentials gets its synopsis and credits.
 **Beyond metadata:** ScreenScraper is also the main source for the community/media section
 (artwork, fanart, videos, manuals and guides; § 7.10 row 3, Media service after M7).
 
-### M6 — Achievements service (Spec)
+### M6a — Achievements service (Build)
 
-**Design:** `backend/ach_service.lua` with sources `src_steam_schema`, `src_retroachievements`
-(`retroachievements.lua`), `src_ps3_trophies`, `src_ps4_trophies` and `src_engine_logs` plus emulator channels
-(`achievements_observer.lua`, `emulator_controllers.lua`). `supports(ctx)` returns false for a PC game
-without a ROM path, so its status is `unsupported` and nothing is logged (fixes **K2**). Flow C:
-`shortcut.launched` → backend observer session; unlocks → `achievements.unlocked` → `toasts` surface
-and a record update → the `achievements` surface re-feeds Steam's stores. Fix **K1**
-(`newUnlocks.map is not a function`: normalize the RPC result to an array at the port) and **K7**
-(the byte-wise dash class: match `–`/`—` as whole UTF-8 sequences, collapse double spaces).
-Remove `features/achievements/` (including the `PURGE(M6)` ports `store-port.ts` and `toast-port.ts`)
-and the achievement parts of `features/scraper/on-update.ts` once their callers use the port.
-**Inputs carried from removed plans** (read in full with `git show 0d599cf:<path>`):
+**Why:** Flow C and § 4.3. Achievement selection is spread over `CartridgesAchievementsGet`
+(backend, a fixed fall-through chain) and `features/achievements/*` (frontend loader, observer polling,
+launch toast). Fixes **K1**, **K2** and **K7**. **Behaviour:** none visible except the three fixes
+(nothing calls the new part until M6b).
+**Design:**
+1. `backend/ach_service.lua` with sources behind the § 4.3 contract and injectable deps for tests:
 
-| Removed doc | Open goals M6 must decide or carry |
-| --- | --- |
-| `docs/plans/steam-cartridges-achievements-plan.md` | Agnostic local-unlock detector (engine logs, save files, emulator logs); launch toast setting Off / First run / All runs (exists: `localAchievementsNotifyOnLaunch`); later: make the unlock real on Steam's side |
-| `docs/plans/steam-cartridges-native-achievements-mirror-plan.md` | Mirror a mapped shortcut's native schema/progress: choose between redirecting Steam's component to the native appid and fetching the schema; ADR-0038's open question; needs live investigation incl. UI performance |
-| `docs/plans/steam-cartridges-retrogames-achievements-plan.md`, `docs/steam-cartridges-retrogames-achievements.md` | Multi-console hashing (N64 endian, NES header, Genesis SMD, `.m3u`, PS1/PS2 `SYSTEM.CNF`), standalone emulator discovery (DuckStation, PCSX2, Dolphin, PPSSPP), RPCS3 trophies. Audit what already exists (`ps3_trophies.lua`, `ps4_trophies.lua`, `emulator_controllers.lua`, `ra_hasher.js`) before planning |
+   ```lua
+   local M = {}
+   M.deps = {
+     entry = nil,        -- nil = shortcuts.vdf lookup (steam_paths + shortcuts.by_appid); tests inject a table
+     steam = nil,        -- nil = achievements_store.get_or_fetch(shortcut, native)
+     ps3 = nil, ps4 = nil, ra = nil,   -- nil = ps3_trophies/ps4_trophies/retroachievements .get_or_fetch
+   }
+   --- ctx = { native = number|nil, hardcore = boolean, title = string }
+   --- Returns Part<{ schema, unlocks }> with source = "steam" | "rpcs3" | "shadps4" | "retroachievements".
+   function M.ensure(appid, ctx) end
+   --- Disk only: achievements_store.get_state(appid) as a part, or nil.
+   function M.local_part(appid) end
+   return M
+   ```
 
-These are **feature work**: M6 moves what exists and fixes K1, K2 and K7. Each open goal becomes its
-own plan after M6, and M6 only records the decision on where it plugs in (which source, which part).
-**Exit:** Animaniacs `0/98`; Castlevania: Aria of Sorrow 66 achievements; AM2R shows no achievements
-and `count_cycle.mjs` phase A has no `achievements for shortcut` line (K2); `test_backend.lua` has no
-FAIL (K7); a real unlock toast (user test). **Doc:** `service-achievements.md` replaces
-`docs/steam-cartridges-achievements.md`.
+   Sources in this **order** (today's chain, unchanged), each with `supports(ctx, entry)`:
 
-### M7 — Freshness + ingestion (Spec)
+   | Source | supports | fetch |
+   | --- | --- | --- |
+   | `steam` | `ctx.native > 0` | `achievements_store.get_or_fetch(appid, native)` |
+   | `rpcs3` | `ps3_trophies.find_trophy_dir(entry.exe, entry.launch_options)` is not nil | `ps3_trophies.get_or_fetch(appid)` |
+   | `shadps4` | `ps4_trophies.find_trophy_dir(entry.exe, entry.launch_options)` is not nil | `ps4_trophies.get_or_fetch(appid)` |
+   | `retroachievements` | `retroachievements.extract_rom_path(entry.exe, entry.launch_options)` is not nil | `retroachievements.get_or_fetch(appid, ctx.hardcore)` |
 
-**Design:** `backend/fresh_policy.lua`: per-part `checkedAt`, TTL 24 h, a negative TTL separate from
-the positive one, a per-source throttle and a circuit breaker (from `steam_store_throttle.lua` and the
-cooldown in `sync-manager.ts`). `EnsureFresh` consults it for every part. `backend/registry_diff.lua`:
-shortcuts added since the last run (known-shortcut index persisted next to the other data files, a new
-file, so no format change) → background `EnsureFresh`, rate-limited (user decision 2). Add
-`GetDiagnostics().http_calls` (a counter in `_lib/http.lua`) so the exit can be measured.
-Replace `features/scraper/sync-manager.ts`: the settings panel's progress UI (`useSyncProgress`, "sync now"
-with `forceAll`) talks to `IngestStatus()` / `IngestNow({ force })` through `ports/`. Delete
-`sync-manager.ts` and `on-update.ts` when no caller remains, and remove the `background-sync` run in
-`index.tsx` (keep the FeatureId: it now gates the backend ingest through a setting read by the backend).
-**Exit:** restart Steam and wait 10 minutes without opening a page, then
-`GetDiagnostics().http_calls` shows only calls for shortcuts added since the last run (zero if none);
-opening a page whose metadata is older than 24 h increases it for that app only; § 0.5 PASS.
-**Doc:** `service-freshness.md`.
+   Outcomes: the first supporting source that returns a schema → `ok`; a supporting source that returns
+   `nil, err` → try the next; no source supports the shortcut → `{ status = "unsupported" }` and **no log
+   line** (**K2**: AM2R has no ROM path, so RetroAchievements is never asked); every supporting source
+   failed → `{ status = "error", message = <last err> }`. `CartridgesAchievementsGet` becomes a thin alias
+   that calls `M.ensure` (same response shape: `{ schema, unlocks }` or `{ error }`).
+2. `record_rpc.lua`: `EnsureFresh` handles `"achievements"` (`ctx.native` comes from the saved identity,
+   `ctx.hardcore` from the frontend setting `raHardcoreMode`, passed in `FreshContext.hardcore`, a new
+   optional field); `GetGameRecord` and `GetAllRecords` add `achievements = ach_service.local_part(appid)`.
+3. `CheckUnlocks` (new RPC; `CartridgesAchievementsCheckUnlocks` stays as an alias): the body of
+   `achievements_observer.check_unlocks`, returning `{ new_unlocks = [...] }`. **K1:** Millennium's
+   `cjson` encodes an empty Lua table as `{}`, so the frontend got an object; the port normalizes
+   (`Array.isArray(x) ? x : Object.values(x ?? {})`, M6b) and the Lua side sets
+   `setmetatable(list, cjson.array_mt)` when `cjson.array_mt` exists (belt and braces).
+4. **K7:** `achievements_observer.get_possible_folder_names`: replace the byte class
+   `[:\xe2\x80\x93\xe2\x80\x94]` with whole-sequence substitutions (`:` → `-`, `–` → `-`, `—` → `-`) and
+   collapse runs of spaces to one. The existing `test_backend.lua` check `keeps colon-to-dash normalized
+   title` then passes (its expectation is the spec; do not edit it).
+5. New hermetic `tests/test_ach_service.lua` (stubs as `test_identity.lua`; `deps` injected; no files
+   read): `PC game without a ROM path is unsupported and silent` (assert the injected `ra` is not called
+   and no `logger:warn` fired) · `native schema wins` · `rpcs3 trophy dir selects rpcs3` ·
+   `shadps4 trophy dir selects shadps4` · `ROM path selects retroachievements with hardcore flag` ·
+   `failing source falls through to the next` · `all supporting sources failing is error` ·
+   `local_part is disk only` · `CheckUnlocks returns a list when nothing is new` ·
+   `EnsureFresh achievements uses the saved identity`. Expected `ALL PASS`; add to `test:lua`.
+**Exit:** `lua tests/test_ach_service.lua` → `ALL PASS`; `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua`
+→ only the K8 line fails (`retroarch shortcut count`) unless M4.0 already fixed the fixture, then `ALL PASS`;
+other suites unchanged; § 0.5 PASS.
+**Docs:** `rpc.md`; `service-achievements.md` (new, replaces `docs/steam-cartridges-achievements.md`: sources,
+order, `supports` rules, status meanings); § 12 K1/K2/K7 → fixed by M6a.
+
+### M6b — Frontend adopts achievements; Flow C (Build)
+
+**Why:** D4 for the `achievements` and `toasts` surfaces; Flow C (launch → observe → unlock → toast).
+Deletes `features/achievements/` (the `PURGE(M6)` ports included). Fixes **K14**.
+**Design:**
+1. `frontend/app/achievements.ts`: `createAchievements({ backend, records, bus, hardcore, now })`:
+   - `ensure(appid)`: `EnsureFresh(["achievements"], { …, hardcore })` → `records.update(appid, { achievements })`.
+     Called from the view pipeline for every route except `none`, and on `shortcut.quit` (new captures,
+     new unlocks).
+   - Session (Flow C, replaces `observer-session.ts` and the launch/quit handlers in `index.tsx`):
+     on `shortcut.launched` → launch toast policy (below), then poll `CheckUnlocks(appid)` every 2000 ms
+     (today's interval) until `shortcut.quit`, plus one final check at quit. Each poll result is
+     normalized to an array (K1); non-empty → `records.update(appid, { achievements: <merged> })` and
+     `bus.emit("achievements.unlocked", { appid, ids })`.
+   - Launch toast policy (moved from `launch-toast.ts`, unchanged): setting `localAchievementsNotifyOnLaunch`
+     `off` / `first_run` / `all_runs`, and only when the record has achievements with `nTotal > 0`.
+2. Surfaces become record-driven (D4):
+   - `achievements.render(appid, record)`: feeds Steam's stores from `record.achievements.data`
+     (`updateShortcutState`, which today's loader calls). Deletes `features/achievements/store-port.ts`.
+   - `toasts`: subscribed in `index.tsx` to `achievements.unlocked`; it shows one toast per id, reading the
+     name/description/icon/global % from `records.get(appid).achievements.data.schema`. Launch toast via the
+     same surface. Deletes `features/achievements/toast-port.ts`.
+   - `captures` gains `addSessionAchievement(appid, item)` and subscribes to `achievements.unlocked`: the
+     `appSpotlightStore.GetOrCreateAppData(appid).m_session.AddAchievement(...)` write moves here from
+     `observer-session.ts` (**K14**: the last Steam write outside `surfaces/`). `touches` gains
+     `AppSpotlightStore.m_session.AddAchievement`.
+3. Public API (D8) stays on `index.tsx`, reimplemented over `app/achievements.ts` and the ports:
+   `loadAchievementsForApp`, `triggerAchievement`, `resetAchievements`, `getLocalAchievements`,
+   `getLocalSchema`, `checkObserverUnlocks`, `startAchievementsObserver`, `dispatchAchievementToast`,
+   `initAchievements` (the `cartridges:trigger_fake_achievement` window event listener stays: it is a
+   documented test hook). Same names, same argument order, same return types.
+4. Deleted: `features/achievements/` (all files), the achievements half of `features/scraper/on-update.ts`,
+   the launch/quit achievement code in `index.tsx`. `FEATURE_IDS` unchanged (`achievements`,
+   `achievements-observer`, `toasts` keep their meaning: `achievements-observer` gates the session).
+5. Tests: `tests/app-achievements.test.ts`: `poll result object is normalized to an array` (K1) ·
+   `launch toast off / first_run / all_runs` (3) · `unlock emits achievements.unlocked with the new ids` ·
+   `quit stops polling and runs one final check` · `route none makes no achievements call`.
+   `tests/achievements.test.ts` keeps testing `surfaces/achievements/core.ts` unchanged.
+**Exit:** Animaniacs shows `0/98` (`node scratch/test_animaniacs_achievements.mjs`, output identical to the
+pre-deploy run); Castlevania: Aria of Sorrow shows 66 achievements; AM2R shows no achievements and
+`count_cycle.mjs` phase A has no `achievements for shortcut` line (K2); opening WUCHANG logs no
+`newUnlocks.map` error (K1); `git grep -n "appSpotlightStore" -- frontend/features frontend/app` → nothing
+(K14); § 0.5 PASS; switch-off `achievements` and `toasts`. **User test (only the user can):** a real
+unlock during play shows one Steam toast, and the game's page lists it afterwards.
+**Carry-over from the removed achievement plans** (read with `git show 0d599cf:<path>`; M6 **decides where each
+plugs in**, it does not build them; each becomes its own feature plan):
+
+| Removed doc | Open goal | Plugs in as |
+| --- | --- | --- |
+| `docs/plans/steam-cartridges-achievements-plan.md` | Agnostic local-unlock detector (engine logs, save files, emulator logs) | more channels inside `CheckUnlocks` (`achievements_observer.lua`), no new part |
+| same | Launch toast Off / First run / All runs | done (setting exists; M6b keeps it) |
+| same | Make the unlock real on Steam's side | out of scope (Steam-side write; ADR needed) |
+| `docs/plans/steam-cartridges-native-achievements-mirror-plan.md` | Mirror a mapped shortcut's native schema/progress (ADR-0038 open question) | the `steam` source of `ach_service.lua` (schema already fetched); progress mirroring needs live investigation |
+| `docs/plans/steam-cartridges-retrogames-achievements-plan.md`, `docs/steam-cartridges-retrogames-achievements.md` | Multi-console hashing, standalone emulator discovery (DuckStation, PCSX2, Dolphin, PPSSPP), RPCS3 trophies | new `supports`/fetch pairs in `ach_service.lua` (one source per emulator family); audit `ps3_trophies.lua`, `ps4_trophies.lua`, `emulator_controllers.lua`, `ra_hasher.js` first |
+
+**Docs:** `service-achievements.md`, `surfaces.md` (achievements, toasts, captures record-driven),
+`README.md`, § 7.9 (M6 rows ticked), § 12 (K14 fixed).
+
+### M7a — Freshness, throttle and ingestion in the backend (Build)
+
+**Why:** Flow B and user decision 2: only **new** shortcuts are fetched in the background; everything
+else refreshes only when its page is opened and its data is stale. Today `features/scraper/sync-manager.ts`
+scans the whole library for missing data (up to 100 per run) and keeps its history in SharedJSContext
+`localStorage`; `on-update.ts` re-queries on every open. Fixes **K15** (a forced sync could overwrite a
+user's manual Game Info edits). **Behaviour:** none until M7b calls it, except K15.
+**Design:**
+1. `backend/net.lua`: the **one** outgoing HTTP entry point. `net.get(url, opts)`, `net.post(url, body, opts)`
+   wrap Millennium's `http` module and keep, per source id (`opts.source`: `"steam-store"`, `"igdb"`,
+   `"retroachievements"`, `"steam-web"`, `"sgdb"`, `"screenscraper"`), a call counter and a circuit
+   breaker: HTTP 429 → that source paused 30 min; 5 consecutive failures → paused 15 min (today's
+   sync-manager numbers); while paused, calls return `nil, "paused"` without a request. `steam_store_throttle`
+   keeps its rate limit and offline detection and calls `net`. Every module that did `require("http")`
+   switches to `net` (list them with `git grep -n 'require("http")' -- backend` and put the list in the report). `GetDiagnostics` gains `http_calls = { [source] = n }` and `paused = { [source] = until }`.
+2. `backend/fresh_policy.lua`: per `(appid, part)` it stores `checkedAt` (ms) in a **new** file
+   `<data dir>/freshness.json` (`{ version = 1, parts = { ["<appid>"] = { identity = ms, metadata = ms, achievements = ms } } }`;
+   a new file, so no existing format changes). `M.is_stale(appid, part, status, now)` with one table of TTLs:
+
+   | Part / status | TTL | Why |
+   | --- | --- | --- |
+   | any, `custom` source | never | user edits are never refreshed (K15) |
+   | identity `ok` with native | never | a Steam match is sticky; the user clears it in settings |
+   | identity `ok` without native | 7 days | same as the store search negative cache |
+   | metadata `ok` (igdb / screenscraper / fallback) | 24 h | Flow B |
+   | metadata / identity / achievements `error` | 30 min | retry soon, never in a loop |
+   | achievements `ok` | 24 h for the schema; unlocks are checked on every open (local files, no network for emulators) | Flow C covers play sessions |
+
+   `EnsureFresh` consults it: a part that is not stale is returned from disk with no source call;
+   `ctx.force = true` (new optional `FreshContext` field) ignores the TTL but **never** a `custom_override`
+   record (**K15**: `RefreshGameMetadata`'s `force` stays for its alias callers only, and M7b removes them).
+3. `backend/registry.lua`: `known_shortcuts.json` (new file: `{ version = 1, appids = [...] }`).
+   `GetNewShortcuts()` → shortcuts in `shortcuts.vdf` not in the file, as `[{ appid, name, exe }]`.
+   **First run** (no file): write every current shortcut as known and return `[]` (existing shortcuts were
+   handled by the old sync; this prevents a 220-game storm). `MarkKnown({ appids })` adds to the file.
+   The backend has no timer, so the frontend drives the loop (M7b).
+4. Lua tests `tests/test_freshness.lua` (hermetic, clock injected): each TTL row as one check;
+   `custom override is never forced` (K15); `first run seeds without new shortcuts`; `a new shortcut is
+   reported once, then known after MarkKnown`; `429 pauses the source for 30 min`; `5 failures pause for
+   15 min`; `a paused source makes no request`; `http_calls counts per source`. `ALL PASS`; add to `test:lua`.
+**Exit:** the new suite and every other Lua suite pass (K8 per M4.0); § 0.5 PASS.
+**Docs:** `service-freshness.md` (new: the TTL table, the breaker numbers, the registry rule); `rpc.md`.
+
+### M7b — Frontend drives ingestion; sync manager and on-update deleted (Build)
+
+**Why:** Flow B finished in the frontend; one owner for "when do we fetch". **Behaviour delta (user
+decision 2):** the startup background job fetches **only new shortcuts**; opening a page refreshes only
+its stale parts; the settings panel's "sync now" refreshes everything that is stale (or everything, with
+force) but never a manual edit.
+**Design:**
+1. `frontend/app/ingest.ts` (replaces `sync-manager.ts`): `createIngest({ backend, routing, records, … })` with
+   the same public surface the settings panel uses today, so the panel only changes an import path:
+   `getSyncProgress`, `onSyncProgress`, `useSyncProgress`-equivalent hook data, `startSync({ forceAll, onlyAppids })`,
+   `triggerSync(delayMs)`. Startup (`background-sync` switch, `triggerSync(3000)` as today): `GetNewShortcuts()`
+   → for each, one at a time, 300 ms apart (today's pause): `EnsureFresh(appid, ["identity","metadata","achievements"], ctx)`
+   with the route and allowed services from `domain/routing`, then `MarkKnown`. Stops on a `paused` result.
+   `startSync({ forceAll })` from the panel: every shortcut, `ctx.force = forceAll`, same pacing and stop rule.
+   Progress is reported exactly as today (`SyncProgress` shape unchanged).
+2. The view pipeline (`features/source-view.ts` → `app/view.ts`, the last `features/` file of the pipeline):
+   route → `EnsureFresh(parts, ctx)` for the parts the route allows; the backend's TTLs decide what is fetched.
+   `on-update.ts` is deleted (its three jobs are covered: captures republish on every view since M2, unlocks by
+   M6b's `ensure` on open, metadata by `EnsureFresh` with TTL).
+3. Deleted: `features/scraper/` (both files), `features/source-view.ts` (now `app/view.ts`), the
+   `steam_cartridges_sync_history_v1` localStorage key is ignored (not deleted: another profile may read it;
+   M9 decides), `setCapturesRefresher` (§ 7.9).
+4. Tests `tests/app-ingest.test.ts`: `startup ingests only new shortcuts` · `pacing is sequential` ·
+   `a paused result stops the run` · `force sets ctx.force` · `progress events keep the SyncProgress shape`.
+**Exit:** restart Steam and leave it 10 minutes on the library home without opening a game page:
+`GetDiagnostics().http_calls` shows calls only for shortcuts added since the last run (zero if none).
+Agents never change the library (§ 0.9); to see the positive case, **the user** adds one shortcut before
+the restart, and exactly that one is fetched. Opening a page
+whose metadata is older than 24 h increases `http_calls.igdb` by 1 for that app only; opening it again at
+once adds 0. A shortcut with `custom_override` keeps its edits after "sync now" with force. § 0.5 PASS.
+**Docs:** `service-freshness.md`, `README.md`, § 7.9 (M7 rows), § 12 (K15 fixed).
 
 ### M8 — Settings split (Spec)
 
@@ -2866,16 +3064,18 @@ Executing agents add to this list instead of fixing things outside their step.
 
 | Id | Issue | Evidence | Fixed by |
 | --- | --- | --- | --- |
-| K1 | `checkObserverUnlocks` throws `TypeError: newUnlocks.map is not a function` | SharedJSContext console on opening WUCHANG, stack `checkObserverUnlocks < handleGameOpenUpdate` (`features/achievements`, `features/scraper/on-update.ts`) | M6 |
-| K2 | A plain PC game (AM2R) goes through RetroAchievements and logs `Failed loading achievements for shortcut …: cannot extract rom path` on every view; should be `unsupported` and silent (ADR-0014) | `count_cycle.mjs` phase A output | M6 |
+| K1 | `checkObserverUnlocks` throws `TypeError: newUnlocks.map is not a function` | SharedJSContext console on opening WUCHANG, stack `checkObserverUnlocks < handleGameOpenUpdate`; cause: Millennium's `cjson` encodes an empty Lua table as `{}` | M6a (backend) + M6b (port normalizes) |
+| K2 | A plain PC game (AM2R) goes through RetroAchievements and logs `Failed loading achievements for shortcut …: cannot extract rom path` on every view; should be `unsupported` and silent (ADR-0014) | `count_cycle.mjs` phase A output | M6a (`supports` needs a ROM path) |
 | K3 | `liveInstances` in `game-info-patch.ts` (now `surfaces/game-info/patch.ts`) never drops unmounted component instances (slow leak; `forceUpdate` on them is a no-op) | source read | Bugfix plan after M3 (D14; needs a live check of React's unmount state) |
 | K4 | "Mark as Private" is enabled for an enriched shortcut and would send the shortcut appid to the private-apps service | [steam-components.md § Header buttons](../steam-components.md#header-buttons-manage-and-properties) | Bugfix plan after M3 (D14; user decides hide-or-keep there) |
 | K5 | **Resolved 2026-09-28:** LuaJIT 2.1 installed at `C:\dev\tools\lua` and added to the user `PATH`. Was: no Lua interpreter on this machine: `tools/lua/` is missing and `lua`/`luajit` are not on `PATH`, so `tests/test_backend.lua` and `tests/test_steam_store.lua` cannot run. AGENTS.md Routine 4 assumes `tools/lua/` | `which lua luajit` → nothing | **User**: provide a LuaJIT/Lua 5.1 binary in `tools/lua/`. Blocks M4–M7 |
-| K7 | `achievements_observer.get_possible_folder_names` (commit `22bac99`, never run: there was no Lua until K5 was fixed) turns `"WUCHANG: Fallen Feathers"` into `"WUCHANG -  Fallen Feathers"` (two spaces), and its `[:\xe2\x80\x93\xe2\x80\x94]` byte class replaces **each byte** of an en/em dash, so `"A – B"` becomes `"A  -  -  -  B"` | `test_backend.lua`: `FAIL keeps colon-to-dash normalized title`; `lua -e` repro | M6 (or a bugfix plan before it) |
+| K7 | `achievements_observer.get_possible_folder_names` (commit `22bac99`, never run: there was no Lua until K5 was fixed) turns `"WUCHANG: Fallen Feathers"` into `"WUCHANG -  Fallen Feathers"` (two spaces), and its `[:\xe2\x80\x93\xe2\x80\x94]` byte class replaces **each byte** of an en/em dash, so `"A – B"` becomes `"A  -  -  -  B"` | `test_backend.lua`: `FAIL keeps colon-to-dash normalized title`; `lua -e` repro | M6a |
 | K8 | `test_backend.lua` fixture `FIXTURE.retroarch = 216`; the live library now has 215 RetroArch shortcuts (library-dependent fixture, AGENTS.md Routine 4) | `FAIL retroarch shortcut count -> 215` | Update the fixture to the live count in the next backend step, after confirming the user removed one on purpose |
 | K9 | `renderers/community-tab.tsx` is imported by nothing, so `steam/community-store.ts` (the second writer of `CWorkshopStore.m_mapPublishedFiles`, D7) never runs; the trailers/manual/links RPCs have no frontend caller | `git grep -n "community-tab\|community-store" -- frontend` (2026-09-28) | M3.0 (deleted before any move) |
 | K10 | Desktop A → B between two shortcuts never unpublished A (Big Picture did) | `index.tsx` desktop `onLocationChange` block, read 2026-09-28 | M2 (behaviour delta 1) |
 | K11 | An achievement observer whose mapping resolved after the game quit was never stopped (`onQuit` registered too late) | `steambrew-utils` `onAppLaunch` source: quit callbacks run once, at quit | M2 (behaviour delta 5) |
 | K12 | `source-view.ts`'s Big Picture detector ran the view pipeline synchronously from inside a jsx call (inside Steam's render), on every re-render | `watchGamepadAppid` observes `jsx()` calls; source read 2026-09-28 | M2 (D5: timer emit, re-render dedupe) |
 | K13 | `surfaces/captures/activity-cards.ts` (ex `steam/activity-cards-patch.ts`) has its own `getSteamRequire` chunk-push scanner next to `steam/modules.ts` `steamRequire` (guardrail 3: one scanner) | `git grep -n getSteamRequire -- frontend` after M3.3 | Bugfix plan after M3 (D14) |
+| K14 | `features/achievements/observer-session.ts` writes Steam's `appSpotlightStore` session (`m_session.AddAchievement`) directly: the last Steam write outside `surfaces/` after M3 | `git grep -n appSpotlightStore -- frontend/features` (2026-09-28) | M6b (moves into the `captures` surface) |
+| K15 | The settings panel's "sync all" (`startSync({ forceAll })`) calls `RefreshGameMetadata`, whose `force` write bypasses `custom_override`, so a full sync can overwrite a user's manual Game Info edits | `web_rpc.lua` `RefreshGameMetadata` → `metadata_db.set(appid, meta, true)`; `sync-manager.ts` | M7a (TTLs never force a custom record) + M7b (the panel stops calling it) |
 | K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | Bugfix plan after M3 (D14): find a non-render trigger for Steam's overview rebuild, else an ADR exception for the idempotent render-time repair |
