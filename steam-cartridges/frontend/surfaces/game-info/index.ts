@@ -58,8 +58,13 @@ export function createGameInfoSurface(
             // Bypass Big Picture native shortcut filter on Game Info tab
             patchGameInfoComponent();
         },
-        render() {
-            /* record-driven from M5 (plan § 7.0 D4) */
+        render(appid, record) {
+            const metadata = record?.metadata;
+            if (metadata?.status === "ok" || (metadata?.status === "error" && metadata.data)) {
+                enrichGameDetails(appid, metadata.data!);
+            } else if (isAppEnriched(appid)) {
+                revertGameDetails(appid);
+            }
         },
         clear: (appid) => revertGameDetails(appid),
         uninstall() {

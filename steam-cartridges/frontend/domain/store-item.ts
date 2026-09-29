@@ -1,9 +1,9 @@
-import type { ArtworkUrls, ConsolidatedMetadata, GameCategories } from '../../rpc';
+import type { ArtworkUrls, GameCategories, GameMetadata } from '../kernel/record';
 
 /**
- * Metadata for a native app straight from Steam's own StoreItemCache (P0 T3:
- * loads unowned apps through Steam's transport). First rung of the ADR-0009
- * ladder; the backend `appdetails` call is the fallback.
+ * Pure mapping from Steam's own StoreItemCache to our metadata shape (migration
+ * plan M5b; moved from features/steam-store/store-item.ts, D12: kernel types).
+ * First rung of the ADR-0009 ladder; the backend `appdetails` call is the fallback.
  */
 
 // Same mapping as backend/steam_store_appdetails.lua CATEGORY_FLAGS.
@@ -62,8 +62,8 @@ export function gameCategoryIds(item: any): number[] | undefined {
     ];
 }
 
-/** Pure: a StoreItemCache item -> ConsolidatedMetadata (explicit flags; achievements always false). */
-export function metadataFromStoreItem(item: any, steamAppid: number, shortcutAppid: number): ConsolidatedMetadata | null {
+/** Pure: a StoreItemCache item -> GameMetadata (explicit flags; achievements always false). */
+export function metadataFromStoreItem(item: any, steamAppid: number, shortcutAppid: number): GameMetadata | null {
     const title = item?.m_strName;
     if (!title) return null;
     const categories: GameCategories = {
@@ -134,38 +134,4 @@ export function assetUrlsFromItem(item: any): ArtworkUrls {
         /* fall back to CDN paths */
     }
     return out;
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** The item fields this plugin reads. BHasApp(id, request) is true only once all of them are loaded. */
-const STORE_ITEM_REQUEST = {
-    include_assets: true,
-    include_basic_info: true,
-    include_release: true,
-    include_full_description: true,
-};
-
-/** Queue the request and poll (Steam loads it asynchronously; ~4 s observed). */
-export async function loadStoreItem(steamAppid: number, timeoutMs = 8000): Promise<any | null> {
-    const cache = (window as any).StoreItemCache;
-    if (!cache?.QueueAppRequest) return null;
-    try {
-        // Steam already failed to load it (delisted or unknown): go straight to the fallback (P4 H4).
-        if (cache.BIsAppMissing?.(steamAppid)) return null;
-        if (!cache.BHasApp?.(steamAppid, STORE_ITEM_REQUEST)) {
-            cache.QueueAppRequest(steamAppid, STORE_ITEM_REQUEST);
-        }
-        const deadline = Date.now() + timeoutMs;
-        while (Date.now() < deadline) {
-            if (cache.BHasApp?.(steamAppid, STORE_ITEM_REQUEST)) {
-                const item = cache.GetApp?.(steamAppid);
-                if (item?.m_strName) return item;
-            }
-            await sleep(500);
-        }
-    } catch {
-        /* fall through to the backend fallback */
-    }
-    return null;
 }

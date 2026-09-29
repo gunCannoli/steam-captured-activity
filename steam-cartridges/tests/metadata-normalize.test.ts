@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeMetadata } from '../frontend/features/game-info/normalize.ts';
+import { normalizeMetadata } from '../frontend/domain/metadata-normalize.ts';
 
 test('empty Lua tables ({}) become empty arrays (the metadata.ts TypeError)', () => {
     const m = normalizeMetadata({ appid: 1, title: 't', franchises: {} as unknown as string[], developers: ['A'] });

@@ -13,8 +13,7 @@ import {
     ready as libraryHomeReady,
     refresh as refreshLibraryHome,
 } from "./surfaces/library-home";
-import { initGameInfo } from "./features/game-info";
-import { initSourceView, onSourceView, setIdentity as setSourceViewIdentity, setRouting as setSourceViewRouting } from "./features/source-view";
+import { initSourceView, onSourceView, setIdentity as setSourceViewIdentity, setMetadata as setSourceViewMetadata, setRouting as setSourceViewRouting } from "./features/source-view";
 import { createNativeLinksSurface } from "./surfaces/native-links";
 import { artworkWriter, createArtworkSurface } from "./surfaces/artwork";
 import {
@@ -32,10 +31,13 @@ import {
 import { initSettings, resetSettings, setSetting, setting, setRouting as setSettingsRouting } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
 import { createRouting } from "./app/routing";
+import { isServiceAllowed } from "./domain/routing/policy";
 import { createRecords } from "./app/records";
 import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
+import { createMetadata } from "./app/metadata";
 import { ownedCandidates } from "./sensors/owned-apps";
+import { loadStoreItem } from "./sensors/store-item";
 import { triggerSync, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
 import { setRouting as setOnUpdateRouting } from "./features/scraper/on-update";
 import { features } from "./safety/switches";
@@ -52,21 +54,18 @@ import { backend } from "./ports/backend";
 import {
     createSectionsSurface,
     refreshSections,
-    setGameInfoProbe,
     setHasContent,
 } from "./surfaces/sections";
 import {
     createGameInfoSurface,
     ensureAppOverviewHooked,
-    gameInfoWriter,
-    isAppEnriched,
+    refreshGameInfoInstances,
     trackInstance,
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
-import { getCachedLibraryMetadata, libraryCacheAppids, setGameInfoWriter, setRouting as setGameInfoRouting } from "./features/game-info";
 import { controllerContext } from "./features/game-info/controller";
-import { setArtworkSink, setGameInfoSink, setIdentitySource } from "./features/steam-store";
-import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
+import { setArtworkSink, setGameInfoRefresher, setIdentitySource, setMetadataSource, setStoreItemSource } from "./features/steam-store";
+import { setCapturesRefresher } from "./features/scraper/on-update";
 import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
 import { setAchievementsStore } from "./features/achievements/store-port";
 import { createToastsSurface, dispatchAchievementToast as showAchievementToast, dispatchLaunchToast } from "./surfaces/toasts";
@@ -86,6 +85,9 @@ const runner = createSurfaceRunner({
         else logger.warn(message, err ?? "");
     },
 });
+
+/** Records (app/records.ts, plan M4c): the one read model every record-driven surface reads. */
+const records = createRecords(bus);
 
 /** Routing (app/routing.ts, plan M4a / ADR-0040), wired to every former buckets caller through D3 setters. */
 const routing = createRouting({
@@ -107,11 +109,8 @@ const routing = createRouting({
             .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
     },
     loadProfiles: async () => (await rpc.getAutoRoutingProfiles())?.profiles ?? {},
-    metadataAppids: () => libraryCacheAppids(),
+    metadataAppids: () => records.store.all().filter((r) => r.metadata).map((r) => r.appid),
 });
-
-/** Records (app/records.ts, plan M4c): the one read model every record-driven surface reads. */
-const records = createRecords(bus);
 
 /** Render queue (app/render-queue.ts, plan § 7.0 D5): coalesces record.updated into one
  *  runner.render() per appid per tick, never from inside a Steam render. */
@@ -132,6 +131,31 @@ const identity = createIdentity({
         }
     },
     now: () => Date.now(),
+});
+
+/** Metadata (app/metadata.ts, plan M5b): selects Game Info for a shortcut through one
+ *  EnsureFresh call instead of the old scattered local/store/IGDB pipeline. */
+const metadata = createMetadata({
+    backend,
+    records: records.store,
+    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
+    storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+    allowWeb: (appid) => {
+        if (setting("services").igdbEnabled === false) return false;
+        const title = resolveShortcutTitle(appid) ?? "";
+        const collNames = routing.listCollections()
+            .filter((c) => routing.membersOf(c.id)?.has(appid))
+            .map((c) => c.name);
+        return isServiceAllowed(
+            "igdb",
+            appid,
+            title,
+            collNames,
+            setting("routingRules"),
+            setting("autoRoutingMode"),
+            routing.getAutoRoutingProfile(appid),
+        );
+    },
 });
 
 export { setSetting, resetSettings };
@@ -178,7 +202,6 @@ const LEGACY_PLUGINS = [
 async function init() {
     // Routing reaches every former buckets caller only through these setters (plan § 7.0 D3).
     setSourceViewRouting(routing);
-    setGameInfoRouting(routing);
     setSyncRouting(routing);
     setOnUpdateRouting(routing);
     setSettingsRouting(routing);
@@ -187,16 +210,18 @@ async function init() {
     setSourceViewIdentity(identity);
     setIdentitySource(identity);
 
+    // Metadata reaches its callers only through these setters (plan § 7.0 D3).
+    setSourceViewMetadata(metadata);
+    setMetadataSource(metadata);
+
     // Surface APIs reach the features only through these setters (plan § 7.0 D3).
-    setGameInfoProbe(isAppEnriched);
     setContentListener(setHasContent);
     setAchievementsStore(achievementsStore);
     setToasts({ achievement: showAchievementToast, launch: dispatchLaunchToast });
     setCapturesRefresher(refreshLibraryApp);
-    setGameInfoWriter(gameInfoWriter);
-    setGameInfoSink(gameInfoWriter);
+    setGameInfoRefresher({ refresh: refreshGameInfoInstances });
     setArtworkSink(artworkWriter);
-    setGameInfoEnricher(gameInfoWriter.enrich);
+    setStoreItemSource({ load: (steamAppid) => loadStoreItem(steamAppid) });
 
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
     // timer after record.updated, never from inside a Steam render (plan § 7.0 D5).
@@ -283,23 +308,28 @@ async function init() {
     runner.installAll();
     features.run("achievements", () => initAchievements());
 
-    // ===== Game Info (surfaces/game-info, plan M3.3) =====
-    // Steam's Game Info components and AppOverview hooks; the data pipeline below fills it.
-    runner.register(createGameInfoSurface({ ...surfaceDeps, controllerContext, metadataOf: getCachedLibraryMetadata }));
+    // ===== Game Info (surfaces/game-info, plan M3.3; record-driven from M5b) =====
+    // Steam's Game Info components and AppOverview hooks; app/metadata (below) fills the record.
+    runner.register(
+        createGameInfoSurface({
+            ...surfaceDeps,
+            controllerContext,
+            metadataOf: (appid) => records.store.get(appid as ShortcutId)?.metadata?.data,
+        }),
+    );
     // The desktop PlayBar's ⓘ button (surfaces/playbar, plan M3.4); on only while game-info is.
     runner.register(createPlaybarSurface({ ...surfaceDeps, hookOverview: ensureAppOverviewHooked, track: trackInstance }));
     runner.installAll();
 
     // ===== Game Info data (ex steamgriddb-artwork) =====
-    // Not awaited: the two halves load independently, as the two plugins did
-    // (ADR-0010), and a failure here must not affect activity.
+    // Not awaited: a failure here must not affect activity (ADR-0010).
     features.run("game-info", () => {
         void loadAutoRoutingProfiles();
         initSourceView();
         bus.on("shortcut.viewed", ({ appid }) => void onSourceView(appid));
-        void initGameInfo().catch((e) => {
+        void metadata.preload().catch((e) => {
             features.reportError("game-info", e);
-            logger.error("Game Info feature failed; activity is unaffected.", e);
+            logger.error("Game Info preload failed; activity is unaffected.", e);
         });
     });
 

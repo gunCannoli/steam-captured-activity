@@ -1,6 +1,7 @@
-// The record facade RPC client (migration plan M4b/M4c). Imports kernel types
-// only; transport from ports/transport.ts.
-import type { Part, RecordPart } from "../kernel/record";
+// The record facade RPC client (migration plan M4b/M4c; M5a extends it with
+// metadata and GetAllRecords). Imports kernel types only; transport from
+// ports/transport.ts.
+import type { GameMetadata, Part, RecordPart } from "../kernel/record";
 import { call } from "./transport";
 
 export interface OwnedCandidate {
@@ -16,7 +17,7 @@ export interface FreshContext {
     /** Identity only: natives Steam already knows (sensors/owned-apps). */
     owned?: OwnedCandidate[];
     /** Metadata only (M5): StoreItemCache data for identity.native. */
-    storeItem?: unknown;
+    storeItem?: GameMetadata | null;
     /** Metadata only (M5): igdb enabled and allowed by routing. */
     allowWeb?: boolean;
     /** true = disk and context only (bulk re-evaluation). */
@@ -41,5 +42,9 @@ export const backend = {
     },
     ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse> {
         return call<RecordResponse>("EnsureFresh", { appid, parts, context: ctx });
+    },
+    /** Disk only: every DB record and every saved mapping (M5a). */
+    getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
+        return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {});
     },
 };

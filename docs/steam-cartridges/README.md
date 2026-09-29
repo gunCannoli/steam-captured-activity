@@ -16,12 +16,12 @@ for the authoritative, up-to-date state):
 | Architecture ratchet: import allowlist, RPC registration test | done (M0c) — this doc |
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | done (M1) |
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
-| Sensors: view, lifecycle, collections, owned-apps | done (M2, M4c) — [sensors.md](sensors.md) |
-| App: use cases (routing M4a; records, render-queue, identity M4c) | current (M4c) |
-| Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c) — [rpc.md](rpc.md) |
-| Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c) — [surfaces.md](surfaces.md) |
+| Sensors: view, lifecycle, collections, owned-apps, store-item | done (M2, M4c, M5b) — [sensors.md](sensors.md) |
+| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b) | current (M5b) |
+| Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c, M5b) — [rpc.md](rpc.md) |
+| Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c), `metadata` (M5b) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
-| Metadata service | planned (M5) |
+| Metadata service + RPC facade | done (M5a–M5b) — [service-metadata.md](service-metadata.md), [rpc.md](rpc.md) |
 | Achievements service | planned (M6) |
 | Freshness + ingestion | planned (M7) |
 | Settings split | planned (M8) |
@@ -118,3 +118,15 @@ why in its root-cause section, or it is rejected.
   TS-side matching helpers — the backend's `normalize` is now the only matcher).
   `LAYER_RULES` gained `[/^rpc$/, /^ports$/]` (temporary until M9). Identity now
   resolves through one `EnsureFresh` call instead of up to three round trips.
+- M5a (2026-09-29): `backend/metadata_service.lua` added; `record_rpc.lua`'s
+  `EnsureFresh`/`GetGameRecord` extended with `metadata`, new `GetAllRecords`.
+  Backend only — nothing calls the new part or RPC yet.
+- M5b (2026-09-29): `app/metadata.ts` added; `sensors/store-item` added (moved
+  from `features/steam-store/store-item.ts`; its pure mapping half moved to
+  `domain/store-item.ts`, D12). `game-info` becomes record-driven for
+  `metadata` (`features/game-info/index.ts`, `policy.ts` and
+  `tests/game-info-policy.test.ts` deleted — selection ported to the backend
+  in M5a). `sections` reads `record.metadata.status` directly instead of the
+  `setGameInfoProbe` push wiring (deleted). `features/steam-store/index.ts`
+  keeps only artwork; a new D3 setter (`setStoreItemSource`) reaches
+  `sensors/store-item` since `features -> sensors` is not an allowed edge.

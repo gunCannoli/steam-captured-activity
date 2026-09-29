@@ -27,6 +27,13 @@ steam-cartridges architecture (ADR-0039); index:
   `createIdentity({ owned, ... })` and from there to the backend resolver's
   `EnsureFresh` context (M4c; moved verbatim from
   `features/steam-store/known-apps.ts` `readNativeGames`, which is deleted).
+- A native app's own store data: `frontend/sensors/store-item/` is the only
+  code that queues and polls Steam's `StoreItemCache` for one app. It exposes
+  `loadStoreItem(steamAppid)`, passed to `app/metadata.ts`'s `storeItemFor`
+  and, through a D3 setter (`setStoreItemSource`), to
+  `features/steam-store/index.ts`'s artwork asset-URL lookup (M5b; moved
+  verbatim from `features/steam-store/store-item.ts`, which is deleted — its
+  pure mapping half moved to `domain/store-item.ts`).
 - The plugin's one event bus: `frontend/app/bus.ts` wraps
   `kernel/events.createEventBus`. Sensors emit into it; `index.tsx`
   subscribes the handlers.
@@ -82,6 +89,11 @@ export interface OwnedCandidate { appid: number; name: string }
 export function ownedCandidates(): OwnedCandidate[];
 ```
 
+```ts
+// frontend/sensors/store-item/index.ts (M5b)
+export function loadStoreItem(steamAppid: number, timeoutMs?: number): Promise<any | null>;
+```
+
 ## Files
 
 | File | Role |
@@ -92,6 +104,7 @@ export function ownedCandidates(): OwnedCandidate[];
 | `frontend/sensors/lifecycle/index.ts` | Wires `onAppLaunch`/`onQuit` to `shortcut.launched`/`shortcut.quit` |
 | `frontend/sensors/collections/index.ts` | `isCollectionStoreReady`, `readUserCollections`, `collectionsSource` (moved verbatim from `features/buckets/ready.ts` in M2) |
 | `frontend/sensors/owned-apps/index.ts` | `ownedCandidates()` (moved verbatim from `features/steam-store/known-apps.ts` `readNativeGames` in M4c) |
+| `frontend/sensors/store-item/index.ts` | `loadStoreItem()` (moved verbatim from `features/steam-store/store-item.ts` in M5b) |
 | `tests/sensors.test.ts` | Unit tests for the view tracker |
 
 ## Steam targets touched
@@ -106,10 +119,13 @@ Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-pla
 `sensors/` may import `kernel/` and `steam/` (read-only resolution), and must
 never import `surfaces/`, `app/`, `ports/`, or another sensor. Sensors never import
 each other: D1 makes each sensor folder (`sensors/view`, `sensors/lifecycle`,
-`sensors/collections`, `sensors/owned-apps`) its own area, so a sensor
+`sensors/collections`, `sensors/owned-apps`, `sensors/store-item`) its own area, so a sensor
 importing another sensor fails the architecture test. `sensors/owned-apps`
 defines its own structural `OwnedCandidate` (no import of `ports/backend`,
-which declares the same shape) for the same reason. Rule-allowed edges are
+which declares the same shape) for the same reason. A `features/` file needing
+a sensor (e.g. `features/steam-store/index.ts`'s artwork asset-URL lookup)
+reaches it only through a D3 setter from `index.tsx` — `features -> sensors`
+is not a `LAYER_RULES` edge either. Rule-allowed edges are
 listed in `LAYER_RULES` in `tests/architecture.test.ts` and never appear in
 the allowlist.
 
@@ -147,3 +163,10 @@ the allowlist.
   along with the TS matching helpers only it used). `collectionsSource`'s
   consumer moves from `features/buckets/collections.ts` (deleted in M4a) to
   `app/routing.ts`, with no change to the sensor itself.
+- M5b (2026-09-29): `store-item` sensor added (moved verbatim from
+  `features/steam-store/store-item.ts`, which is deleted; its pure mapping
+  half — `metadataFromStoreItem`, `categoryIds`, `gameCategoryIds`,
+  `assetUrlsFromItem` — moved to `domain/store-item.ts`, D12). Used by
+  `app/metadata.ts` directly and by `features/steam-store/index.ts` through a
+  new D3 setter (`setStoreItemSource`), since `features/` may not import
+  `sensors/` directly.

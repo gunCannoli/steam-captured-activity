@@ -11,12 +11,8 @@ const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
 /** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
 let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
 
-/** Does the shortcut show our Game Info? Wired by index.tsx to game-info (D3). */
-let hasGameInfo: (appid: number) => boolean = () => false;
-
-export function setGameInfoProbe(fn: (appid: number) => boolean): void {
-    hasGameInfo = fn;
-}
+/** Does the shortcut show our Game Info? Record-driven (migration plan M5b). */
+const hasGameInfoByAppid = new Map<number, boolean>();
 
 /**
  * Re-enable the app detail sections Steam hides from non-Steam games.
@@ -237,7 +233,7 @@ export function patchSections(): boolean {
                 // REPLACED_SECTIONS.
                 if (
                     appid !== undefined &&
-                    (appsWithContent.has(appid) || hasGameInfo(appid))
+                    (appsWithContent.has(appid) || hasGameInfoByAppid.get(appid))
                 ) {
                     for (const name of REPLACED_SECTIONS) sections.delete(name);
                 }
@@ -288,9 +284,15 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
         },
         render(appid, record) {
             setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined);
+            const meta = record?.metadata;
+            const hasInfo = meta?.status === "ok" || (meta?.status === "error" && !!meta.data);
+            if (hasGameInfoByAppid.get(appid) === hasInfo) return;
+            hasGameInfoByAppid.set(appid, hasInfo);
+            refreshInstances();
         },
         clear(appid) {
             setExtraSections(appid, undefined);
+            hasGameInfoByAppid.delete(appid);
         },
         uninstall: unpatchSections,
     };

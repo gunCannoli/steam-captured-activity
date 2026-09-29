@@ -108,9 +108,9 @@ from the now-deleted `tests/game-info-policy.test.ts`), `steam-store metadata
 is never written to library_metadata.json`, `GetAllRecords is disk only`. Add
 to `package.json` `test:lua`.
 
-Live: none required by M5a (nothing calls the `metadata` part or
-`GetAllRecords` yet); § 0.5's full baseline still applies since
-`record_rpc.lua` changed (backend loads: the log shows `Backend loaded.`).
+Live: M5b's exit checks — `scratch/audit_missing_metadata.mjs` (`0 missing`), AM2R Game Info intact
+with route `none`, WUCHANG Game Info from the Steam store, a web-scraping game shows its IGDB data,
+`count_cycle.mjs` PASS, § 0.5 full baseline, switch-off `game-info`.
 
 ## How to add a source
 
@@ -128,3 +128,7 @@ decision (M5d: IGDB first when configured, ScreenScraper fills in).
   `loadNative` + `web_rpc.lua` `GetGameMetadata`'s selection) and
   `record_rpc.lua` extended with `metadata` and `GetAllRecords`. Nothing calls
   the new part or RPC yet — the frontend adopts them in M5b.
+- M5b (2026-09-29): wired. `app/metadata.ts` calls `EnsureFresh(["metadata"])` per view and
+  `GetAllRecords()` once at start-up (replacing the old `getAllMetadata`/`initGameInfo` preload).
+  `frontend/surfaces/game-info` is now record-driven for `metadata` (`surfaces.md`); the old push
+  pipeline (`features/game-info/index.ts`, `policy.ts`, `tests/game-info-policy.test.ts`) is deleted.

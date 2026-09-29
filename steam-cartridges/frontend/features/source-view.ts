@@ -1,9 +1,7 @@
 import { toShortcutId } from "../kernel/appid";
 import type { Resolution } from "../domain/routing/policy";
-import type { Identity, Part } from "../kernel/record";
-import { handleWebScrapingView } from "./game-info";
+import type { GameMetadata, Identity, Part } from "../kernel/record";
 import { handleSteamStoreView, leaveSteamStore } from "./steam-store";
-import { storeEnrichedAppIds } from "./steam-store/enriched";
 import { loadAchievementsForApp } from "./achievements";
 
 import { handleGameOpenUpdate } from "./scraper/on-update";
@@ -36,12 +34,30 @@ export function setIdentity(i: IdentitySource): void {
     identity = i;
 }
 
+/** Structural match of app/metadata's public shape (no import: ADR-0039 layers). */
+interface MetadataSource {
+    ensure(
+        appid: number,
+        route: { bucket: "steam-store" | "web-scraping" | "none"; via: string },
+        identity: Part<Identity> | undefined,
+    ): Promise<Part<GameMetadata>>;
+}
+
+/** Metadata; wired to the app/metadata instance in index.tsx (plan § 7.0 D3). */
+let metadata: MetadataSource = { ensure: async () => ({ status: "pending" }) };
+
+export function setMetadata(m: MetadataSource): void {
+    metadata = m;
+}
+
 /** Appids currently being dispatched (desktop and Big Picture can both fire). */
 const inflight = new Set<number>();
 /** Views seen before collections were ready; replayed once they are. */
 const deferred = new Set<number>();
 /** A view that arrived while the same appid was in flight; replayed once afterwards (P4 H6). */
 const rerun = new Set<number>();
+/** Appids currently showing the Steam Store bucket's data (for leaveSteamStore below). */
+const inSteamStore = new Set<number>();
 
 /** Route a view of a shortcut to the handler for its bucket (ADR-0033). */
 export async function onSourceView(appid: number): Promise<void> {
@@ -54,10 +70,11 @@ export async function onSourceView(appid: number): Promise<void> {
     inflight.add(rawAppid);
     try {
         const { bucket, via } = routing.getBucket(rawAppid);
+        const route = { bucket, via };
         if (via === "pending") {
             // Local Game Info only until collections load (ADR-0035); replayed then.
             deferred.add(rawAppid);
-            await handleWebScrapingView(rawAppid);
+            await metadata.ensure(rawAppid, route, undefined);
             void loadAchievementsForApp(rawAppid, 0);
             void handleGameOpenUpdate(rawAppid);
             return;
@@ -65,17 +82,18 @@ export async function onSourceView(appid: number): Promise<void> {
         if (bucket === "steam-store") {
             // ADR-0036: Steam Store first; no Steam match -> web scraping fallback;
             // not known yet (title missing) -> local Game Info only.
-            const identityPart = await identity.ensure(rawAppid, { bucket, via });
+            const identityPart = await identity.ensure(rawAppid, route);
             const matched = await handleSteamStoreView(rawAppid, identityPart);
+            if (matched === true) inSteamStore.add(rawAppid);
+            await metadata.ensure(rawAppid, route, identityPart);
             if (matched !== true) {
-                await handleWebScrapingView(rawAppid, matched);
                 void loadAchievementsForApp(rawAppid, 0);
             }
         } else {
-            // web-scraping or none. Came from steam-store: drop its Game Info first;
-            // the handler then applies local data (and fetches for web-scraping only).
-            if (storeEnrichedAppIds.has(rawAppid)) leaveSteamStore(rawAppid);
-            await handleWebScrapingView(rawAppid);
+            // web-scraping or none. Came from steam-store: drop its artwork memory first;
+            // metadata is record-driven and reverts itself on the new route's result.
+            if (inSteamStore.delete(rawAppid)) leaveSteamStore(rawAppid);
+            await metadata.ensure(rawAppid, route, undefined);
             void loadAchievementsForApp(rawAppid, 0);
         }
 

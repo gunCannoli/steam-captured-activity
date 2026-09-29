@@ -63,14 +63,15 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetGameManual` | `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) |
 | `GetGameTrailers` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
 | `GetGameCommunityLinks` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
-| `GetGameRecord` | `record_rpc.lua` | unwired | M4b: still no caller; M5a extends it with `metadata`; M5b's frontend adoption wires it |
-| `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, still unwired for that part until M5b |
-| `GetAllRecords` | `record_rpc.lua` | unwired | M5a: disk-only bulk read (every DB record + every saved mapping); replaces the frontend's `getAllMetadata` preload in M5b |
+| `GetGameRecord` | `record_rpc.lua` | unwired | M4b: still no caller; M5a extends it with `metadata`. No frontend caller as of M5b either — `app/identity.ts` and `app/metadata.ts` both use `EnsureFresh`/`GetAllRecords` instead |
+| `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, wired by `app/metadata.ts`'s `ensure()` in M5b |
+| `GetAllRecords` | `record_rpc.lua` | live | M5a: disk-only bulk read (every DB record + every saved mapping); M5b's `app/metadata.ts` `preload()` calls it once at start-up, replacing the frontend's old `getAllMetadata`/`initGameInfo` preload |
 
 **Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b added 2 more
 unwired (the record facade); M4c wires `EnsureFresh` (26 live, 6 unwired). M5a
-adds `GetAllRecords` (still unwired) and extends `GetGameRecord`/`EnsureFresh`
-with `metadata` (behaviour unchanged until M5b: 26 live, 7 unwired).
+adds `GetAllRecords` (unwired) and extends `EnsureFresh` with `metadata`
+(26 live, 7 unwired); M5b wires `GetAllRecords` and the `metadata` part of
+`EnsureFresh` (27 live, 6 unwired). `GetGameRecord` stays unwired throughout.
 
 ## Record facade (M4b)
 
@@ -108,8 +109,8 @@ RPC.GetAllRecords = method("GetAllRecords", function(_) end) -- -> { records }
 `context.storeItem` (identity has a native match, frontend's StoreItemCache data — not persisted),
 `context.allowWeb` (igdb enabled and allowed by routing) and `context.noNetwork` (disk and context
 only, for bulk re-evaluation) are metadata-only context fields; see
-[service-metadata.md](service-metadata.md) for the selection order. Nothing calls the `metadata`
-part yet — the frontend adopts it in M5b.
+[service-metadata.md](service-metadata.md) for the selection order. `app/metadata.ts` calls the
+`metadata` part per view (M5b) and `GetAllRecords()` once at start-up.
 
 ## Ports (M4c)
 
@@ -126,10 +127,12 @@ export interface RecordResponse { appid: number; parts: Partial<Record<RecordPar
 export const backend: {
     getGameRecord(appid: number): Promise<RecordResponse>;
     ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse>;
+    getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }>;
 };
 ```
 
-`app/identity.ts` is the only caller so far (`backend.ensureFresh`). The RPC
+`app/identity.ts` calls `backend.ensureFresh` (M4c); `app/metadata.ts` calls
+`backend.ensureFresh` and `backend.getAllRecords` (M5b). The RPC
 registration test scans both `rpc.ts` and `ports/backend.ts` for method names
 that must be registered in `backend/main.lua`.
 
@@ -189,3 +192,8 @@ Live: none — a docs-only step changes no runtime code path.
   Nothing calls the `metadata` part or `GetAllRecords` yet — the frontend adopts
   them in M5b. `GetGameMetadata`/`RefreshGameMetadata`/`GetAllMetadata` stay
   registered as aliases (the settings panel and M7's sync still call them).
+- M5b (2026-09-29): `metadata` part and `GetAllRecords` wired — `app/metadata.ts`
+  (new) calls both from `ports/backend.ts` (extended with `getAllRecords`),
+  replacing the old `getGameMetadata`/`getAllMetadata` frontend calls in the
+  Game Info path. `main.lua` registers `GetAllRecords` (added in M5a but not
+  yet wired as a global; fixed here). `GetGameRecord` stays unwired.

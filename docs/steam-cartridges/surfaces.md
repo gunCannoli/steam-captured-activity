@@ -144,6 +144,12 @@ until the service steps (M4+) feed them through `render()`.
 - M4c (2026-09-29): `sections`, `native-links` and `captures` become record-driven for `identity`:
   each `render(appid, record)` reads `record?.identity?.data?.native` instead of a sink written from
   `steam-store/index.ts`. `setExtraSectionsSink`, `setNativeLinksSink` and `setCapturesSinks` are gone.
+- M5b (2026-09-29): `game-info` becomes record-driven for `metadata`: `render(appid, record)` enriches
+  or reverts from `record.metadata` instead of the old push pipeline (`features/game-info/index.ts`,
+  `policy.ts` deleted; selection ported to the backend, `service-metadata.md`). `sections` reads
+  `record.metadata.status` directly instead of the `setGameInfoProbe`/`isAppEnriched` push wiring
+  (also gone). `setGameInfoWriter` and `setGameInfoEnricher` are gone; `steam-store/index.ts` keeps
+  only artwork (its metadata half — `metaCache`, `loadNative`, `matched` — moved to `app/metadata.ts`).
 
 ## sections
 
@@ -158,27 +164,30 @@ Restores the app-detail sections Steam hides from shortcuts
 | `CAppDetailsSections.GetSections` | 1 (one patch owns this prototype method) |
 | `CAppDetailsSections.m_setSectionsMemo` | 1 |
 
-**reads:** `identity`, `metadata`, `achievements` (`identity` is record-driven since M4c; `metadata`
-and `achievements` still write through their own sinks until M5/M6 add those parts).
+**reads:** `identity`, `metadata`, `achievements` (`identity` and `metadata` are record-driven since
+M4c/M5b; `achievements` still writes through its own sink until M6 adds that part).
 
 **Kill switch:** `sections` (`disabledFeatures`). Checked inside `patchedGetSections` on every call (D6).
 
 **Injected deps:**
 - `SurfaceDeps` (`isEnabled`, `reportError`), passed to `createSectionsSurface`.
-- `setGameInfoProbe(fn)` — wired to game-info's `isAppEnriched` in `index.tsx` (D3); tells `sections` whether to drop the placeholder even without captures.
 
 **API (reached only through these setters):**
 - `setHasContent(appid, hasContent)` — wired from `library-app`'s content listener via `setContentListener`.
 - `refreshSections()` — wired from the achievements store via `setSectionsRefresher`.
 
-**`render(appid, record)`** (M4c): `setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined)`
+**`render(appid, record)`** (M4c; M5b adds the `metadata` half):
+`setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined)`
 (`NATIVE_SECTIONS = ["friends", "community", "achievements"]`, moved here from `steam-store/index.ts`).
-`clear(appid)` drops them. `setExtraSectionsSink` is gone — nothing outside this file calls
-`setExtraSections` any more.
+Also tracks whether the shortcut has Game Info (`record?.metadata?.status === "ok"`, or `"error"`
+with `data`) in a local `hasGameInfoByAppid` map and re-renders on change — replaces the old
+`setGameInfoProbe`/`isAppEnriched` push wiring (M5b: probe deleted, sections now reads the record
+directly). `clear(appid)` drops both. `setExtraSectionsSink` and `setGameInfoProbe` are gone —
+nothing outside this file calls `setExtraSections`, and nothing pushes a Game Info probe in any more.
 
 **Hooks:** `patchedGetSections` (fail-open: Steam's `base.call` runs first; a throw in our part returns Steam's own result and counts against `sections`).
 
-**Record-driven in:** M4c (`identity`); M5/M6 (`metadata`, `achievements`).
+**Record-driven in:** M4c (`identity`); M5b (`metadata`); M6 (`achievements`).
 
 ## captures
 
@@ -246,24 +255,28 @@ shortcut shows the same accordion drawer a native game does.
 | `AppDetailsStore.descriptionsData` | 1 |
 | `AppDetailsStore.associationData` | 1 |
 
-**reads:** `metadata` (record-driven from M5, D4).
+**reads:** `metadata` (record-driven since M5b, D4).
 
 **Kill switch:** `game-info`. Checked at the top of every hook (D6).
 
 **Injected deps:**
-- `SurfaceDeps & { controllerContext(appid): ControllerContext; metadataOf(appid): GameMetadata | undefined }`, passed to `createGameInfoSurface`. `metadataOf` is `features/game-info`'s `getCachedLibraryMetadata`.
+- `SurfaceDeps & { controllerContext(appid): ControllerContext; metadataOf(appid): GameMetadata | undefined }`, passed to `createGameInfoSurface`. `metadataOf` now reads `records.get(appid)?.metadata?.data` (M5b; was `features/game-info`'s `getCachedLibraryMetadata`, deleted with that file).
 
-**API (reached only through these setters):**
-- `setGameInfoWriter(gameInfoWriter)` — wired to `features/game-info` (D3).
-- `setGameInfoSink(gameInfoWriter)` — wired to `steam-store` (D3).
-- `setGameInfoEnricher(gameInfoWriter.enrich)` — wired to `scraper/on-update` (D3).
-- `setGameInfoProbe` — `sections` reads `isAppEnriched` through this (wired in M3.1).
+**API (reached only through this setter):**
+- `setGameInfoRefresher({ refresh })` (`features/steam-store`) — wired to `refreshGameInfoInstances` from `index.tsx`; `steam-store`'s artwork path calls it after a Steam Store view (guardrail 11), narrowed to `refresh` only. `setGameInfoWriter`, `setGameInfoSink` and `setGameInfoEnricher` are gone (M5b): nothing outside this surface writes Game Info any more — `render(appid, record)` is the only writer.
+
+**`render(appid, record)`** (M5b): `record.metadata.status` is `"ok"` (or `"error"` with `data`) →
+`enrichGameDetails(appid, metadata.data)` (idempotent, M0a); otherwise, if the app was enriched →
+`revertGameDetails(appid)`. Replaces the old push pipeline (`features/game-info/index.ts`'s
+`handleWebScrapingView`, `initGameInfo` preload, the bucket-change hook — all deleted): a bucket
+change no longer proactively re-scans every cached shortcut; the next view re-resolves `metadata`
+through `app/metadata.ts`, which writes a new part and lets this `render()` react to it.
 
 **Hooks:** all seven Game Info/PlayBar/AppOverview hooks are fail-open — `render` runs Steam's original on error, the `props` getter returns `this._nsga_raw_props`, `GetGameID`/`BHasStoreCategory` return the original's result. `install` = `setCachedStores` + `patchGameInfoComponent`.
 
 **Webpack scanner:** `steamRequire()` from `steam/modules.ts` — the same one scanner every surface shares (guardrail 3); the old `getSteamRequire` retry-on-every-call duplicate is deleted.
 
-**Record-driven in:** M5.
+**Record-driven in:** M5b.
 
 ## playbar
 

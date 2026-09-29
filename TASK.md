@@ -70,7 +70,18 @@ read). `npm run check` clean, `npm run test:ts` 100/100 (unchanged — backend o
 unchanged except the new `tests/test_metadata_service.lua` (24/24). Nothing calls the new part
 or RPC yet — no behaviour change until M5b.
 
-Next: **M5b → M5d**, then M6a onward (`Build`: detailed specs the implementer builds per plan
+**M5b done (2026-09-29, implementer; live verification pending § 0.5).** Frontend adopts
+metadata: `app/metadata.ts` resolves Game Info through one `EnsureFresh` call per view and
+`GetAllRecords()` once at start-up; `surfaces/game-info` is now record-driven
+(`render(appid, record)` enriches/reverts from `record.metadata`, replacing the old push
+pipeline). `features/game-info/index.ts`, `policy.ts` and `tests/game-info-policy.test.ts` are
+deleted (selection ported to the backend in M5a). New sensor `sensors/store-item`
+(`domain/store-item.ts` holds its pure mapping half). `npm run check` clean, `npm run test:ts`
+94/94 (-6: the deleted policy test, ported to Lua); Lua suites unchanged; `npm run build`
+succeeds. Nothing behaviour-visible changes — the exit checks (pending live verification) prove
+Game Info stays identical per shortcut.
+
+Next: **M5c → M5d**, then M6a onward (`Build`: detailed specs the implementer builds per plan
 § 0.10). No `Spec` steps remain. Nothing is open for the user.
 
 ## Next

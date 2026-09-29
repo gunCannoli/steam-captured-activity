@@ -1,10 +1,9 @@
-import { rpc, type ConsolidatedMetadata } from "../../rpc";
+import { rpc } from "../../rpc";
 import { logger } from "../../logger";
 import { checkObserverUnlocks } from "../achievements";
 import { resolveShortcutTitle } from "../../steam/shortcut";
 import { isServiceAllowed, type AutoRoutingProfile } from "../../domain/routing/policy";
 import { setting } from "../../settings/settings";
-import { normalizeMetadata } from "../game-info/normalize";
 import { NON_STEAM_APPID_MIN } from "../../steam/route";
 
 /** Structural match of app/routing's public shape (no import: ADR-0039 layers). */
@@ -25,13 +24,6 @@ export function setRouting(r: RoutingSource): void {
     routing = r;
 }
 
-/** Writes Game Info; wired to the game-info surface in index.tsx (plan § 7.0 D3). */
-let enrichGameDetails: (appid: number, meta: ConsolidatedMetadata) => boolean = () => false;
-
-export function setGameInfoEnricher(fn: (appid: number, meta: ConsolidatedMetadata) => boolean): void {
-    enrichGameDetails = fn;
-}
-
 /** Re-reads an app's captures; wired to the captures surface in index.tsx (plan § 7.0 D3). */
 let refreshLibraryApp: (appid: number) => Promise<void> = async () => {};
 
@@ -48,8 +40,7 @@ const ON_OPEN_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes per game throttle
  * After initial scraping, when a game's details page is viewed:
  * 1. Checks for new activities (screenshots & clips captured during play or externally).
  * 2. Checks for new achievement/trophy unlocks (RPCS3, shadPS4, RetroArch, Goldberg) and triggers toasts.
- * 3. Checks if metadata needs refresh (if previously missing/failed or stale) and updates Game Info.
- * 
+ *
  * Non-blocking: executes smoothly in the background while local cached UI renders instantly.
  */
 export async function handleGameOpenUpdate(appid: number): Promise<void> {
@@ -103,16 +94,5 @@ export async function handleGameOpenUpdate(appid: number): Promise<void> {
         }
     } catch (e) {
         logger.warn(`[On-Update] Failed checking achievement unlocks for ${appid}:`, e);
-    }
-
-    // 3. Check for metadata updates (if missing or previously failed)
-    try {
-        const metaRes = await rpc.getGameMetadata(appid, title).catch(() => null);
-        if (metaRes?.success && metaRes.metadata) {
-            const clean = normalizeMetadata(metaRes.metadata);
-            enrichGameDetails(appid, clean);
-        }
-    } catch (e) {
-        logger.warn(`[On-Update] Failed checking metadata update for ${appid}:`, e);
     }
 }

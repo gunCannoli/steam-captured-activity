@@ -56,9 +56,10 @@ CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
 CartridgesAchievementsCheckUnlocks = ACH_RPC.CartridgesAchievementsCheckUnlocks
 CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroStatus
 
--- Record facade (migration M4b).
+-- Record facade (migration M4b; M5a adds GetAllRecords).
 GetGameRecord = RECORD_RPC.GetGameRecord
 EnsureFresh    = RECORD_RPC.EnsureFresh
+GetAllRecords  = RECORD_RPC.GetAllRecords
 
 -- Community & Media (ScreenScraper + IGDB)
 local SS_MEDIA = require("screenscraper_media")

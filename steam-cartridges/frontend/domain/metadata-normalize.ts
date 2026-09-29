@@ -1,11 +1,13 @@
 /**
- * Metadata shape guard (P4 H1). Millennium's Lua `json.encode` writes an empty
- * table as `{}`, so list fields in library_metadata.json and in backend replies
- * can arrive as objects (14 `franchises: {}` entries on the dev machine). Code
- * that calls `.join` on them throws. Pure, `import type` only, so Node can run
- * the unit tests with type stripping.
+ * Metadata shape guard (P4 H1; migration plan M5b, moved from
+ * features/game-info/normalize.ts, D12: kernel types). Millennium's Lua
+ * `json.encode` writes an empty table as `{}`, so list fields in
+ * library_metadata.json and in backend replies can arrive as objects (14
+ * `franchises: {}` entries on the dev machine). Code that calls `.join` on
+ * them throws. Pure, `import type` only, so Node can run the unit tests with
+ * type stripping.
  */
-import type { ConsolidatedMetadata } from '../../rpc';
+import type { GameMetadata } from '../kernel/record';
 
 function strings(v: unknown): string[] {
     if (typeof v === 'string') return v ? [v] : [];
@@ -19,7 +21,7 @@ function seconds(v: unknown): number {
 }
 
 /** Every list field becomes a string array; dates become numbers (0 = unknown). */
-export function normalizeMetadata(meta: ConsolidatedMetadata): ConsolidatedMetadata {
+export function normalizeMetadata(meta: GameMetadata): GameMetadata {
     return {
         ...meta,
         developers: strings(meta.developers),
