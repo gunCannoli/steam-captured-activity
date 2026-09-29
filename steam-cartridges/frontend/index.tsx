@@ -15,7 +15,7 @@ import {
 } from "./surfaces/library-home";
 import { createView } from "./app/view";
 import { createIngest } from "./app/ingest";
-import { createNativeLinksSurface } from "./surfaces/native-links";
+import { createNativeLinksSurface, wrapNavigators } from "./surfaces/native-links";
 import { createArtworkSurface } from "./surfaces/artwork";
 import {
     initSettings,
@@ -502,6 +502,7 @@ async function init() {
     // Views come from the view sensor (sensors/view, migration plan M2), for desktop
     // and Big Picture alike.
     bus.on("shortcut.viewed", ({ appid }) => {
+        if (features.isEnabled("native-links")) features.run("native-links", () => wrapNavigators());
         if (features.isEnabled("captures")) void patchLibraryApp(appid);
     });
     bus.on("shortcut.left", ({ appid }) => {

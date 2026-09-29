@@ -1,6 +1,7 @@
 import React from 'react';
 import { findModuleByExport } from '@steambrew/client';
 import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
+import { steamRequire } from '../../steam/modules';
 import { logger } from '../../logger';
 import type { MediaItem } from './activity';
 import { deps } from './deps';
@@ -8,45 +9,6 @@ import { deps } from './deps';
 interface JsxRuntimeModule {
   jsx(type: unknown, props: unknown, key?: unknown): unknown;
   jsxs(type: unknown, props: unknown, key?: unknown): unknown;
-}
-
-interface WebpackRequire {
-  (id: string): any;
-  m: Record<string, any>;
-}
-
-type ChunkGlobal = Array<
-  [string[], Record<string, unknown>, ((r: WebpackRequire) => void)?]
->;
-
-let cachedRequire: WebpackRequire | undefined;
-
-function getSteamRequire(): WebpackRequire | undefined {
-  if (cachedRequire) return cachedRequire;
-  try {
-    const chunks = (window as any).webpackChunksteamui as ChunkGlobal | undefined;
-    if (!Array.isArray(chunks)) return undefined;
-
-    const key = `__nsga_card_probe_${Date.now()}`;
-    let captured: WebpackRequire | undefined;
-
-    chunks.push([
-      [key],
-      {
-        [key]: (_m: unknown, _e: unknown, r: WebpackRequire) => {
-          captured = r;
-        },
-      },
-      (r: any) => {
-        r((r.s = key));
-      },
-    ]);
-
-    cachedRequire = captured;
-  } catch (err) {
-    logger.warn('Could not capture Steam module require for activity cards:', err);
-  }
-  return cachedRequire;
 }
 
 let hasScanned = false;
@@ -59,8 +21,9 @@ function initCardComponents(): void {
   if (hasScanned) return;
   hasScanned = true;
 
-  const req = getSteamRequire();
-  if (!req?.m) return;
+  const steamReq = steamRequire();
+  if (!steamReq?.m) return;
+  const req = steamReq as unknown as ((id: string) => any) & { m: Record<string, any> };
 
   for (const id of Object.keys(req.m)) {
     try {

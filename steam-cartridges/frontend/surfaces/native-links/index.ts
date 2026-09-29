@@ -141,9 +141,11 @@ function wrapAppOverviewLookup(): void {
  * chain stays unpatchable). Steam's native news cards and the event overlay's
  * app icon call `Navigator.App(<native appid>)`, a no-op for an unowned app;
  * a mapped native appid is sent to its shortcut instead. Called on each mapped
- * view, so a Big Picture window opened later is picked up. Not a hot path.
+ * view (setNativeAppid) and on every shortcut view (index.tsx), so a window created later
+ * (Big Picture, or the desktop window after a UI-mode switch) is picked up. Not a hot path.
  */
-function wrapNavigators(): void {
+export function wrapNavigators(): void {
+    if (shortcutFor.size === 0) return; // nothing mapped yet: nothing to redirect
     try {
         const windows = (window as any).SteamUIStore?.WindowStore?.SteamUIWindows ?? [];
         for (const w of windows) {

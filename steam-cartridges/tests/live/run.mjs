@@ -7,13 +7,14 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
+    // first: something in the later checks makes Steam drop back into Big Picture, which has no desktop window
+    { name: "parity (needs the desktop window, not Big Picture)", file: "check_parity.mjs", args: [], must: /./, skipWhen: /No CDP target: desktop Steam window/ },
     { name: "render loop", file: "count_cycle.mjs", args: ["4263274102"], must: /^PASS render loop:/m },
     { name: "Properties (WUCHANG)", file: "test_props.mjs", args: ["3135033888", "--page"], must: /page=true: OK/ },
     { name: "Properties (Jotunnslayer)", file: "test_props.mjs", args: ["2315502503", "--page"], must: /page=true: OK/ },
     { name: "navigation cycle", file: "test_nav_cycle.js", args: [], must: /^PASS/m },
     { name: "tabs", file: "check_all_tabs.js", args: [], must: /^PASS/m, retry: true },
     { name: "settings panel renders", file: "check_settings_panel.mjs", args: [], must: /^PASS Troubleshooting/m },
-    { name: "parity (needs the desktop window, not Big Picture)", file: "check_parity.mjs", args: [], must: /./, skipWhen: /No CDP target: desktop Steam window/ },
     { name: "audit: no missing metadata", file: "audit_missing_metadata.mjs", args: [], must: /./ },
 ];
 

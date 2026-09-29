@@ -200,9 +200,9 @@ try {
     );
     const toNative = (u) => (u.includes(`/app/${N}`) || u.includes(`appid=${N}`)) && !u.includes(String(S));
     const linkIds = new Set(links.map((l) => l.link).filter(Boolean));
-    const needIds = ['GameHub', 'GameHubDiscussions', 'GameHubGuides', 'HelpAppPage'];
+    const needIds = ['GameHub', 'GameHubDiscussions', 'GameHubGuides']; // Support (HelpAppPage) is stripped on purpose: native-links cleanLinksProps
     check(
-        '15. Header links (Store Page, Community Hub, Discussions, Guides, Support) open the native app',
+        '15. Header links (Store Page, Community Hub, Discussions, Guides) open the native app; Support is stripped',
         linkUrls.length > 0 && linkUrls.every(toNative) && needIds.every((id) => linkIds.has(id)) && linkUrls.some((u) => u.includes(`store.steampowered.com/app/${N}`)),
         linkUrls.map((u, i) => `${links[i].label}=${toNative(u) ? 'native' : u}`).join(' | ') || 'no links',
     );

@@ -58,11 +58,20 @@ export function getAppStore(): any {
     return undefined;
 }
 
-const liveInstances = new Set<any>();
+/** Mounted components, held weakly (K3): an unmounted instance is collected instead of kept alive, and
+ *  `forceUpdate` on one is a no-op anyway. `tracked` dedupes the per-render add. */
+const liveInstances = new Set<WeakRef<any>>();
+const tracked = new WeakSet<object>();
+
+function remember(inst: any): void {
+    if (!inst || typeof inst !== "object" || tracked.has(inst)) return;
+    tracked.add(inst);
+    liveInstances.add(new WeakRef(inst));
+}
 
 /** Remember a mounted component so refreshGameInfoInstances re-renders it (the playbar surface uses this). */
 export function trackInstance(inst: any): void {
-    liveInstances.add(inst);
+    remember(inst);
 }
 
 /**
@@ -71,11 +80,16 @@ export function trackInstance(inst: any): void {
  * reflects newly injected descriptions and credits immediately.
  */
 export function refreshGameInfoInstances(): void {
-    for (const inst of [...liveInstances]) {
+    for (const ref of [...liveInstances]) {
+        const inst = ref.deref();
+        if (!inst) {
+            liveInstances.delete(ref); // collected: it was unmounted
+            continue;
+        }
         try {
             inst.forceUpdate?.();
         } catch {
-            liveInstances.delete(inst);
+            liveInstances.delete(ref);
         }
     }
 
@@ -270,7 +284,7 @@ function hookComponentProps(
             get() {
                 if (!deps.isEnabled(options.id)) return this._nsga_raw_props;
                 try {
-                    liveInstances.add(this);
+                    remember(this);
                     const rawProps = this._nsga_raw_props;
                     if (!rawProps) return rawProps;
                     const overview = rawProps.overview;
@@ -382,7 +396,7 @@ function patchKComponent(k: any): boolean {
         k.prototype.render = function () {
             if (!deps.isEnabled("game-info")) return origKRender.apply(this, arguments);
             try {
-                liveInstances.add(this);
+                remember(this);
                 const overview = this.props?.overview;
                 if (overview) {
                     ensureAppOverviewHooked(overview);
@@ -532,7 +546,7 @@ export function patchGameInfoComponent(): boolean {
                 targetG.prototype.render = function () {
                     if (!deps.isEnabled("game-info")) return origGRender.apply(this, arguments);
                     try {
-                        liveInstances.add(this);
+                        remember(this);
                         const overview = this.props?.overview;
                         if (overview) {
                             ensureAppOverviewHooked(overview);
