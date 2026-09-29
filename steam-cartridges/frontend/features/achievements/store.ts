@@ -4,7 +4,13 @@ import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../rpc
 import type { SteamAppAchievements } from "./types";
 import { buildAchievementProgress, buildSteamAchievements } from "./achievements-core";
 import { resolveSingleton } from "../../steam/modules";
-import { refreshSections } from "../../steam/sections";
+
+/** Re-renders Steam's section list; wired to the sections surface in index.tsx (plan § 7.0 D3). */
+let refreshSections: () => void = () => {};
+
+export function setSectionsRefresher(fn: () => void): void {
+    refreshSections = fn;
+}
 
 const achievementsMap = new Map<number, SteamAppAchievements>();
 const schemasMap = new Map<number, AchievementSchemaRecord>();

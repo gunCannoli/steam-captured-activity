@@ -103,6 +103,10 @@ export interface Surface {
     clear(appid: ShortcutId): void;
     uninstall(): void;
 }
+export interface SurfaceDeps {
+    isEnabled(id: string): boolean;
+    reportError(id: string, err: unknown): void;
+}
 export interface SurfaceStatus { id: string; installed: boolean; disabled: boolean; errors: number; lastError?: string }
 export interface SurfaceRunnerOptions {
     isEnabled: (id: string) => boolean;
@@ -168,3 +172,5 @@ Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-pla
 
 - M1 (2026-09-28): created. `ShortcutId`, the event bus, `GameRecord` and the
   `Surface` contract/runner. Not yet adopted by any runtime code path.
+- M3.1: `SurfaceDeps` (additive) — the kill switches and error counter every
+  surface is given by the composition root.

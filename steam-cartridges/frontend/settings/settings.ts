@@ -133,11 +133,12 @@ function apply(key: string, value: unknown): void {
     const k = key as SettingKey;
     let raw = value;
     if (typeof raw === 'string') {
-        // Some Millennium builds hand JSON values back as strings.
+        // Some Millennium builds hand JSON values back as strings; a key whose own value
+        // is a plain string (e.g. disabledFeatures) fails to parse as JSON, so keep it as-is.
         try {
             raw = JSON.parse(raw);
         } catch {
-            raw = undefined;
+            /* raw stays the original string */
         }
     }
     const next = raw === undefined || raw === null ? DEFAULTS[k] : VALIDATORS[k](raw);

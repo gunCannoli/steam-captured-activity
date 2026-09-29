@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: kill switches in Settings never actually turned a feature off (2026-09-28)**: switching a feature off in `disabledFeatures` saved correctly but silently had no effect, in the current session or after restarting Steam. Switches now work as documented.
+
 - **Changed: one place detects which game page is open (2026-09-28)**: desktop and Big Picture page views, game launches and quits now come from dedicated sensors. Big Picture no longer re-runs the page pipeline on every re-render; switching directly between two non-Steam games now clears the first one's activity, as Big Picture already did.
 
 - **Internal: architecture kernel (2026-09-28)**: added the shared foundation (`ShortcutId`, an event bus, the `GameRecord` read model, and the `Surface` contract) that later steps build every surface and service on. No user-visible change; nothing uses it yet.

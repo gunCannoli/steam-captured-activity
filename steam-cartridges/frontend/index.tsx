@@ -5,7 +5,7 @@ import { rpc } from "./rpc";
 import {
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
-    register as registerLibraryApp,
+    setContentListener,
     unpatch as unpatchLibraryApp,
 } from "./renderers/library-app";
 import {
@@ -35,6 +35,7 @@ import { SettingsPanel } from "./settings/settings-panel";
 import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
 import { triggerSync } from "./features/scraper/sync-manager";
 import { features } from "./safety/switches";
+import type { FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
 import type { ShortcutId } from "./kernel/appid";
 import { bus } from "./app/bus";
@@ -42,6 +43,32 @@ import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
 import { setCollectionsSource } from "./features/buckets/collections";
+import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
+import {
+    createSectionsSurface,
+    refreshSections,
+    setExtraSections,
+    setGameInfoProbe,
+    setHasContent,
+} from "./surfaces/sections";
+import { isAppEnriched } from "./features/game-info/game-info-patch";
+import { setExtraSectionsSink } from "./features/steam-store";
+import { setSectionsRefresher } from "./features/achievements/store";
+
+/** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
+const surfaceDeps: SurfaceDeps = {
+    isEnabled: (id) => features.isEnabled(id as FeatureId),
+    reportError: (id, err) => features.reportError(id as FeatureId, err),
+};
+
+/** The one surface runner (plan § 4.4): installs each surface in isolation, in registration order. */
+const runner = createSurfaceRunner({
+    isEnabled: surfaceDeps.isEnabled,
+    log: (level, message, err) => {
+        if (level === "error") logger.error(message, err ?? "");
+        else logger.warn(message, err ?? "");
+    },
+});
 
 export { setSetting, resetSettings };
 /** Kill switches, error counts and safe mode (migration plan M0b). */
@@ -87,6 +114,12 @@ async function init() {
     // Buckets read collection membership through the collections sensor (migration plan M2).
     setCollectionsSource(collectionsSource);
 
+    // Surface APIs reach the features only through these setters (plan § 7.0 D3).
+    setGameInfoProbe(isAppEnriched);
+    setContentListener(setHasContent);
+    setExtraSectionsSink(setExtraSections);
+    setSectionsRefresher(refreshSections);
+
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
 
@@ -126,7 +159,9 @@ async function init() {
     // Steam hides Post-Game Summary from shortcuts with an app-type filter in its
     // section registry. Putting the name back is what makes the native component
     // render at all, so nothing else matters if this fails.
-    if (features.isEnabled("sections") && !features.run("sections", () => registerLibraryApp())) {
+    runner.register(createSectionsSurface(surfaceDeps));
+    runner.installAll();
+    if (features.isEnabled("sections") && !runner.status().find((s) => s.id === "sections")?.installed) {
         logger.error(
             "Could not restore Steam's app detail sections; summaries are unavailable.",
         );

@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2 and M3.0 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2 and M3.0 also live-validated). **M3.1–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0 and M3.1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0 and M3.1 also live-validated). **M3.2–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -61,7 +61,7 @@ Statuses (what the executing agent does with the row):
 | M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Done** | `docs/steam-cartridges/kernel.md` |
 | M2 | Sensors (view, lifecycle, collections; owned apps moves to M4) | **Done** | `docs/steam-cartridges/sensors.md` |
 | M3.0 | Purge dead frontend code (D13) | **Done** | — (the CHANGELOG line lists what went) |
-| M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Ready** | `docs/steam-cartridges/surfaces.md` (created) |
+| M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Done** | `docs/steam-cartridges/surfaces.md` (created) |
 | M3.2 | Surface `captures` | **Ready** | `surfaces.md` § captures |
 | M3.3 | Surface `game-info` | **Ready** | `surfaces.md` § game-info |
 | M3.4 | Surface `playbar` | **Ready** | `surfaces.md` § playbar |
@@ -1964,7 +1964,7 @@ dead code (§ 7.10): M4.0 classifies them and M5c/M5d/the Media service connect 
 `CHANGELOG.md` line, name the four files and "dead exports and RPC wrappers (plan M3.0 table)".
 **Live:** § 0.5 only (no switch-off check: no surface yet).
 
-#### M3.1 — `sections` (Ready)
+#### M3.1 — `sections` (Done)
 
 **Check lines:**
 ```
@@ -1990,11 +1990,18 @@ NEW frontend/surfaces/sections/index.ts: ok
   `setExtraSections`), `setSectionsRefresher` (achievements store → `refreshSections`).
   `library-app.register()` is deleted, because install belongs to the runner.
 - Allowlist −1: `steam -> features/game-info`.
-**Deltas:** none besides the common one. **Extra docs:** create `surfaces.md`; in
-`docs/steam-architecture.md` § 3, flip the Surfaces row to `current` with a link; add `SurfaceDeps` to
-`kernel.md` Contract (History: `M3.1: SurfaceDeps`).
+**Deltas:** the common one, plus one out-of-scope bugfix (K16, user decision 2026-09-28): the switch-off
+live check surfaced that every kill switch was inert (`settings.ts` `apply()` discarded any stored value
+that wasn't valid JSON, which `disabledFeatures` never is). Fixed in `settings.ts` in this step because
+every remaining M3.x switch-off check depends on it; the fix is one line (keep the original string on a
+`JSON.parse` failure instead of discarding it) and touches no M3.1 file. **Extra docs:** create
+`surfaces.md`; in `docs/steam-architecture.md` § 3, flip the Surfaces row to `current` with a link; add
+`SurfaceDeps` to `kernel.md` Contract (History: `M3.1: SurfaceDeps`); § 12 gets K16.
 **Extra live:** switch-off `sections` → the Post-Game Summary and Activity sections are gone and Steam
-shows "information is unavailable".
+shows "information is unavailable". **Verified 2026-09-28** (live, after the K16 fix): `disabled` reads
+`["sections"]` in `safetyDiagnostics()` across a restart; the desktop AM2R page drops "Post-Game Summary"
+and "Activity" and shows Steam's "detailed information … is unavailable" text; § 0.5 baseline (render
+loop PASS, 11/11 `check_all_tabs.js`) still holds with the switch restored to `''`.
 
 #### M3.2 — `captures` (Ready)
 
@@ -3255,3 +3262,4 @@ Executing agents add to this list instead of fixing things outside their step.
 | K14 | `features/achievements/observer-session.ts` writes Steam's `appSpotlightStore` session (`m_session.AddAchievement`) directly: the last Steam write outside `surfaces/` after M3 | `git grep -n appSpotlightStore -- frontend/features` (2026-09-28) | M6b (moves into the `captures` surface) |
 | K15 | The settings panel's "sync all" (`startSync({ forceAll })`) calls `RefreshGameMetadata`, whose `force` write bypasses `custom_override`, so a full sync can overwrite a user's manual Game Info edits | `web_rpc.lua` `RefreshGameMetadata` → `metadata_db.set(appid, meta, true)`; `sync-manager.ts` | M7a (TTLs never force a custom record) + M7b (the panel stops calling it) |
 | K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | Bugfix plan after M3 (D14): find a non-render trigger for Steam's overview rebuild, else an ADR exception for the idempotent render-time repair |
+| K16 | Every kill switch was silently inert: `settings.ts` `apply()` ran `JSON.parse(raw)` unconditionally on a stored string value and discarded it (`raw = undefined`, falling back to `DEFAULTS[k]`) whenever the value wasn't valid JSON — which `disabledFeatures` (a plain comma-separated string, e.g. `"sections"`) never is. `setSetting('disabledFeatures', id)` therefore persisted to disk correctly but the in-memory `current.disabledFeatures` (and so `features.isEnabled`) stayed `''` forever, live or after a restart. Present since M0b-1; found live-testing M3.1's switch-off check (2026-09-28) | `safetyDiagnostics().disabled` stayed `[]` after `setSetting('disabledFeatures','sections')` and a restart; DOM still showed the sections | **User decision (2026-09-28): fixed inline in M3.1**, not deferred — every M3.x switch-off live check depends on it. Fix: on a `JSON.parse` failure, keep the original string instead of discarding it |

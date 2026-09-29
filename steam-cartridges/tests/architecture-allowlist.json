@@ -36,6 +36,5 @@
   "settings -> features/game-info",
   "settings -> features/scraper",
   "settings -> rpc",
-  "steam -> features/game-info",
   "steam -> settings"
 ]

@@ -93,7 +93,7 @@ updated by every later step that changes it (template in the
 | Safety: kill switches, safe mode, error budget, fail-open hooks | [safety.md](steam-cartridges/safety.md) (M0b) | current |
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | [kernel.md](steam-cartridges/kernel.md) (M1) | current |
 | Sensors: view, lifecycle, collections (owned apps: M4) | [sensors.md](steam-cartridges/sensors.md) (M2) | current |
-| Surfaces: the only code that writes to Steam, one section each | `docs/steam-cartridges/surfaces.md` (M3.1, a section added by each M3.x) | planned |
+| Surfaces: the only code that writes to Steam, one section each | [surfaces.md](steam-cartridges/surfaces.md) (M3.1, a section added by each M3.x) | current |
 | Backend port and RPC facade | `docs/steam-cartridges/rpc.md` (M4) | planned |
 | Resolver service (Steam native match, web identity, routing policy) | `docs/steam-cartridges/service-resolver.md` (M4) | planned |
 | Metadata service and its sources | `docs/steam-cartridges/service-metadata.md` (M5) | planned |

@@ -21,6 +21,16 @@ export interface Surface {
     uninstall(): void;
 }
 
+/**
+ * What every surface is given by the composition root (migration plan § 7.0 D6): the
+ * kill switches and the error counter of safety/, by FeatureId. A surface checks
+ * isEnabled(id) at the top of every hook it installs and reports from its fail-open catch.
+ */
+export interface SurfaceDeps {
+    isEnabled(id: string): boolean;
+    reportError(id: string, err: unknown): void;
+}
+
 export interface SurfaceStatus {
     id: string;
     installed: boolean;

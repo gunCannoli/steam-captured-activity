@@ -1,7 +1,6 @@
 import { logger } from "../logger";
 import { clearActivity, publishActivity } from "../steam/activity";
 import { gameIdFromAppId } from "../steam/gameid";
-import { patchSections, setHasContent } from "../steam/sections";
 import { clearSummary, publishSummary } from "../steam/summary";
 
 /**
@@ -11,7 +10,7 @@ import { clearSummary, publishSummary } from "../steam/summary";
  * the components; it just hides them from shortcuts and never loads their data.
  * So we do exactly two things:
  *
- *   1. put the section names back into Steam's registry (steam/sections.ts)
+ *   1. put the section names back into Steam's registry (surfaces/sections)
  *   2. put events into Steam's own stores           (steam/summary.ts & steam/activity.ts)
  *
  * Steam renders. That is the whole renderer.
@@ -25,9 +24,11 @@ import { clearSummary, publishSummary } from "../steam/summary";
 /** Apps whose summary or activity we have published, so a quitting game can refresh them. */
 const published = new Set<number>();
 
-/** Set up the section patch once, at plugin load. */
-export function register(): boolean {
-    return patchSections();
+/** Tells the sections surface whether an app has content (wired in index.tsx, plan § 7.0 D3). */
+let setHasContent: (appid: number, hasContent: boolean) => void = () => {};
+
+export function setContentListener(fn: (appid: number, hasContent: boolean) => void): void {
+    setHasContent = fn;
 }
 
 /**

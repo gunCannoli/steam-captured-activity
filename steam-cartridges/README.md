@@ -83,7 +83,7 @@ Non-Steam Games Activity  Ready. Non-Steam games now use Steam's own detail sect
 | Module                       | Does                                                           | State                   |
 | ---------------------------- | -------------------------------------------------------------- | ----------------------- |
 | `steam/modules.ts`           | Steam's webpack cache; resolve by signature                    | ✅ verified in Steam    |
-| `steam/sections.ts`          | Restore sections (`postgamesummary`, `activity`)               | ✅ verified in Steam    |
+| `surfaces/sections/index.ts` | Restore sections (`postgamesummary`, `activity`)               | ✅ verified in Steam    |
 | `steam/summary.ts`           | Feed `CGamePlaySession`; provider API                          | ✅ verified in Steam    |
 | `steam/activity.ts`          | Feed `CAppActivityStore`, stub `StoreItemCache`, workshop URLs | ✅ verified in Steam    |
 | `steam/stores.ts`            | Typed store/service/payload shapes & resolvers                 | ✅ verified in Steam    |

@@ -1,7 +1,19 @@
-import { logger } from "../logger";
-import { appDetailsSections } from "./stores";
-import { isNonSteamAppId } from "./route";
-import { isAppEnriched } from "../features/game-info/game-info-patch";
+// Surface `sections` (migration plan M3.1, ADR-0039): the only code that patches Steam's
+// app detail section registry. Moved from steam/sections.ts.
+import { logger } from "../../logger";
+import type { Surface, SurfaceDeps } from "../../kernel/surface";
+import { appDetailsSections } from "../../steam/stores";
+import { isNonSteamAppId } from "../../steam/route";
+
+/** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
+let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
+
+/** Does the shortcut show our Game Info? Wired by index.tsx to game-info (D3). */
+let hasGameInfo: (appid: number) => boolean = () => false;
+
+export function setGameInfoProbe(fn: (appid: number) => boolean): void {
+    hasGameInfo = fn;
+}
 
 /**
  * Re-enable the app detail sections Steam hides from non-Steam games.
@@ -201,34 +213,40 @@ export function patchSections(): boolean {
         // which is exactly how an earlier version of this patch appeared to work
         // (the summary showed) while the placeholder removal never took effect.
         const sections = base.call(this, overview, details);
+        if (!deps.isEnabled("sections")) return sections;
 
-        if (!isShortcut(overview)) return sections;
-
-        // Remember this instance so a later publish can re-render it.
-        instances.add(this);
-
+        // Fail-open (D6): any error returns Steam's own result.
         try {
-            for (const name of RESTORED_SECTIONS) sections.add(name);
+            if (!isShortcut(overview)) return sections;
 
-            const appid = (overview as AppOverview | undefined)?.appid;
-            const extra = appid !== undefined ? extraSections.get(appid) : undefined;
-            if (extra) for (const name of extra) sections.add(name);
+            // Remember this instance so a later publish can re-render it.
+            instances.add(this);
 
-            // Only drop a section once we have something in its place; otherwise the
-            // page loses an explanation and gains nothing. Empty today - see
-            // REPLACED_SECTIONS.
-            if (
-                appid !== undefined &&
-                (appsWithContent.has(appid) || isAppEnriched(appid))
-            ) {
-                for (const name of REPLACED_SECTIONS) sections.delete(name);
+            try {
+                for (const name of RESTORED_SECTIONS) sections.add(name);
+
+                const appid = (overview as AppOverview | undefined)?.appid;
+                const extra = appid !== undefined ? extraSections.get(appid) : undefined;
+                if (extra) for (const name of extra) sections.add(name);
+
+                // Only drop a section once we have something in its place; otherwise the
+                // page loses an explanation and gains nothing. Empty today - see
+                // REPLACED_SECTIONS.
+                if (
+                    appid !== undefined &&
+                    (appsWithContent.has(appid) || hasGameInfo(appid))
+                ) {
+                    for (const name of REPLACED_SECTIONS) sections.delete(name);
+                }
+
+                // Keep the memo pointing at the object we just edited, so a later call
+                // that hits the cache sees our version.
+                this.m_setSectionsMemo = sections;
+            } catch (error) {
+                logger.warn("Could not adjust the section list:", error);
             }
-
-            // Keep the memo pointing at the object we just edited, so a later call
-            // that hits the cache sees our version.
-            this.m_setSectionsMemo = sections;
-        } catch (error) {
-            logger.warn("Could not adjust the section list:", error);
+        } catch (err) {
+            deps.reportError("sections", err);
         }
 
         return sections;
@@ -252,4 +270,25 @@ export function unpatchSections(): void {
     extraSections.clear();
     refreshInstances();
     instances.clear();
+}
+
+/** The `sections` surface. Its API (setHasContent, setExtraSections, refreshSections) is
+ *  reached by the features only through setters wired in index.tsx (D3, D4). */
+export function createSectionsSurface(d: SurfaceDeps): Surface {
+    deps = d;
+    return {
+        id: "sections",
+        touches: ["CAppDetailsSections.GetSections", "CAppDetailsSections.m_setSectionsMemo"],
+        reads: ["identity", "metadata", "achievements"],
+        install() {
+            if (!patchSections()) throw new Error("CAppDetailsSections not found; sections stay stock.");
+        },
+        render() {
+            /* record-driven from M4 (D4) */
+        },
+        clear() {
+            /* per-app state is set through setHasContent / setExtraSections */
+        },
+        uninstall: unpatchSections,
+    };
 }
