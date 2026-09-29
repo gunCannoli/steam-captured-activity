@@ -1,0 +1,19 @@
+{
+  "deleted": {
+    "frontend/features/achievements/dispatcher.ts": "855e46c7a9025ccd"
+  },
+  "edited": {
+    "frontend/features/achievements/index.ts": "e3a59be4a8412632",
+    "frontend/features/achievements/launch-toast.ts": "8659af0d5b00b056",
+    "frontend/features/achievements/observer-session.ts": "62abda71e9e3282c",
+    "frontend/index.tsx": "5b292202c7d4724f",
+    "frontend/safety/features.ts": "2f43bd841e3bdca0"
+  },
+  "new": [
+    "frontend/features/achievements/toast-port.ts",
+    "frontend/surfaces/toasts/achievement.ts",
+    "frontend/surfaces/toasts/deps.ts",
+    "frontend/surfaces/toasts/index.ts",
+    "frontend/surfaces/toasts/launch.ts"
+  ]
+}

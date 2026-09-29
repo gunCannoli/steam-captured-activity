@@ -1,0 +1,42 @@
+diff --git a/steam-cartridges/frontend/features/achievements/store-port.ts b/steam-cartridges/frontend/features/achievements/store-port.ts
+index dcf3919..63d6625 100644
+--- a/steam-cartridges/frontend/features/achievements/store-port.ts
++++ b/steam-cartridges/frontend/features/achievements/store-port.ts
+@@ -1,5 +1,6 @@
+ // The achievements surface as the features see it (migration plan M3.5, § 7.0 D3): wired in
+-// index.tsx to surfaces/achievements, no-ops until then. Remove in M6 (purge ledger).
++// index.tsx to surfaces/achievements, no-ops until then.
++// PURGE(M6): delete when M6 moves the achievements pipeline to the backend. Ledger: migration plan § 7.9.
+ import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../rpc";
+ import type { SteamAppAchievements } from "../../steam/achievement-types";
+ 
+diff --git a/steam-cartridges/frontend/features/achievements/toast-port.ts b/steam-cartridges/frontend/features/achievements/toast-port.ts
+index 190ed14..815a8c9 100644
+--- a/steam-cartridges/frontend/features/achievements/toast-port.ts
++++ b/steam-cartridges/frontend/features/achievements/toast-port.ts
+@@ -1,5 +1,6 @@
+ // The toasts surface as the features see it (migration plan M3.6, § 7.0 D3): wired in
+-// index.tsx to surfaces/toasts, no-ops until then. Remove in M6 (purge ledger).
++// index.tsx to surfaces/toasts, no-ops until then.
++// PURGE(M6): delete when M6 moves the achievements pipeline to the backend. Ledger: migration plan § 7.9.
+ 
+ /** Structural copy of surfaces/toasts ToastAchievementPayload. */
+ export interface ToastAchievementPayload {
+diff --git a/steam-cartridges/frontend/renderers/community-tab.tsx b/steam-cartridges/frontend/renderers/community-tab.tsx
+index 07224b5..4bd5491 100644
+--- a/steam-cartridges/frontend/renderers/community-tab.tsx
++++ b/steam-cartridges/frontend/renderers/community-tab.tsx
+@@ -1,3 +1,4 @@
++// PURGE(M9): unreachable legacy, nothing imports this component (K9). Ledger: migration plan § 7.9.
+ import React, { useState, useEffect } from "react";
+ import { getCommunityData, loadCommunityData, type CommunityData } from "../steam/community-store";
+ import { setting } from "../settings/settings";
+diff --git a/steam-cartridges/frontend/steam/community-store.ts b/steam-cartridges/frontend/steam/community-store.ts
+index db718c5..0830e3f 100644
+--- a/steam-cartridges/frontend/steam/community-store.ts
++++ b/steam-cartridges/frontend/steam/community-store.ts
+@@ -1,3 +1,4 @@
++// PURGE(M9): unreachable legacy, only community-tab.tsx imports this (K9). Ledger: migration plan § 7.9.
+ /**
+  * Community Store & Media Integration for Non-Steam Games.
+  *

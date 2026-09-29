@@ -1,0 +1,160 @@
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index dd5e7be..a8a7e3b 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -10,9 +10,10 @@ import {
+     unpatch as unpatchLibraryApp,
+ } from "./surfaces/captures";
+ import {
++    createLibraryHomeSurface,
++    ready as libraryHomeReady,
+     refresh as refreshLibraryHome,
+-    register as registerLibraryHome,
+-} from "./renderers/library-home";
++} from "./surfaces/library-home";
+ import { initGameInfo } from "./features/game-info";
+ import { initSourceView, onSourceView } from "./features/source-view";
+ import { createNativeLinksSurface, setNativeAppid } from "./surfaces/native-links";
+@@ -246,13 +247,9 @@ async function init() {
+ 
+     // ===== Library grid =====
+     // Fills in last-played dates Steam does not have, from capture timestamps.
+-    if (features.isEnabled("library-home")) {
+-        try {
+-            await registerLibraryHome();
+-        } catch (e) {
+-            features.reportError("library-home", e);
+-        }
+-    }
++    runner.register(createLibraryHomeSurface({ ...surfaceDeps, loadLibraryStats: () => rpc.getLibraryStats() }));
++    runner.installAll();
++    await libraryHomeReady();
+ 
+     // ===== App detail pages =====
+     // Publishing is keyed on the app, not the window: Steam's store is global, so
+diff --git a/steam-cartridges/frontend/renderers/library-home.tsx b/steam-cartridges/frontend/surfaces/library-home/grid.ts
+similarity index 85%
+rename from steam-cartridges/frontend/renderers/library-home.tsx
+rename to steam-cartridges/frontend/surfaces/library-home/grid.ts
+index 5d6cbb6..b117add 100644
+--- a/steam-cartridges/frontend/renderers/library-home.tsx
++++ b/steam-cartridges/frontend/surfaces/library-home/grid.ts
+@@ -1,8 +1,15 @@
++// Surface `library-home` (migration plan M3.10): moved from renderers/library-home.tsx.
+ import { afterPatch } from '@steambrew/client';
+ import { Steam, waitFor } from 'steambrew-utils';
+-import { logger } from '../logger';
+-import { rpc } from '../rpc';
+-import { isNonSteamAppId } from '../steam/route';
++import { logger } from '../../logger';
++import type { SurfaceDeps } from '../../kernel/surface';
++import { isNonSteamAppId } from '../../steam/route';
++
++/** Set by createLibraryHomeSurface (plan § 7.0 D3/D6); open defaults until then. */
++export const deps: SurfaceDeps & {
++  /** Capture stats per non-Steam appid (rpc.getLibraryStats). */
++  loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>>;
++} = { isEnabled: () => true, reportError: () => {}, loadLibraryStats: async () => ({}) };
+ 
+ /**
+  * Fills in recent-activity timestamps for non-Steam games from their captures.
+@@ -64,7 +71,7 @@ let stats = new Map<number, CaptureStats>();
+ /** Fetch capture stats for every non-Steam app that has any. */
+ async function loadStats(): Promise<void> {
+   try {
+-    const raw = await rpc.getLibraryStats();
++    const raw = await deps.loadLibraryStats();
+     const next = new Map<number, CaptureStats>();
+ 
+     for (const [appid, value] of Object.entries(raw)) {
+@@ -146,13 +153,18 @@ export async function register(): Promise<VoidFunction | undefined> {
+     owner,
+     'OnAppOverviewChange',
+     (args: unknown[], ret: unknown) => {
+-      const apps = args[0];
+-      if (!Array.isArray(apps)) return ret;
+-
+-      for (const app of apps as Steam.AppOverview[]) {
+-        // Cheap early-out: this runs on every overview change, including
+-        // large batches during startup.
+-        if (app?.appid && isNonSteamAppId(app.appid)) enrich(app);
++      if (!deps.isEnabled('library-home')) return ret;
++      try {
++        const apps = args[0];
++        if (!Array.isArray(apps)) return ret;
++
++        for (const app of apps as Steam.AppOverview[]) {
++          // Cheap early-out: this runs on every overview change, including
++          // large batches during startup.
++          if (app?.appid && isNonSteamAppId(app.appid)) enrich(app);
++        }
++      } catch (err) {
++        deps.reportError('library-home', err); // fail-open (plan § 7.0 D6)
+       }
+ 
+       return ret;
+diff --git a/steam-cartridges/frontend/surfaces/library-home/index.ts b/steam-cartridges/frontend/surfaces/library-home/index.ts
+new file mode 100644
+index 0000000..36a8762
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/library-home/index.ts
+@@ -0,0 +1,47 @@
++// Surface `library-home` (migration plan M3.10, ADR-0039): fills in the library grid's
++// "last played" fields of shortcuts from capture timestamps, through
++// collectionStore.OnAppOverviewChange. Registration is async (it waits for the stats and
++// the store); install() starts it and ready() lets index.tsx keep its start-up order.
++import type { Surface, SurfaceDeps } from "../../kernel/surface";
++import { deps, register } from "./grid";
++
++export { refresh } from "./grid";
++
++let registration: Promise<unknown> = Promise.resolve();
++
++/** Resolves when the grid patch is registered (or failed); never rejects. */
++export function ready(): Promise<void> {
++    return registration.then(
++        () => undefined,
++        () => undefined,
++    );
++}
++
++export function createLibraryHomeSurface(
++    d: SurfaceDeps & {
++        loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>>;
++    },
++): Surface {
++    deps.isEnabled = d.isEnabled;
++    deps.reportError = d.reportError;
++    deps.loadLibraryStats = d.loadLibraryStats;
++    return {
++        id: "library-home",
++        touches: [
++            "collectionStore.OnAppOverviewChange",
++            "AppOverview.rt_recent_activity_time",
++            "AppOverview.rt_last_time_played_or_installed",
++        ],
++        reads: [],
++        install() {
++            registration = register().catch((err) => deps.reportError("library-home", err));
++        },
++        render() {
++            /* stats stay an RPC until M7 decides (plan § 7.0 D4) */
++        },
++        clear() {},
++        uninstall() {
++            /* the patch stays until Steam restarts, as before M3.10 */
++        },
++    };
++}
+diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
+index 44a0afb..7dd5bc6 100644
+--- a/steam-cartridges/tests/architecture-allowlist.json
++++ b/steam-cartridges/tests/architecture-allowlist.json
+@@ -24,7 +24,6 @@
+   "features/steam-store -> features/game-info",
+   "features/steam-store -> rpc",
+   "features/steam-store -> steam",
+-  "renderers -> rpc",
+   "renderers -> settings",
+   "renderers -> steam",
+   "safety -> settings",

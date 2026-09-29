@@ -1,0 +1,13 @@
+{
+  "deleted": {
+    "frontend/renderers/library-home.tsx": "96600d92b28a0b03"
+  },
+  "edited": {
+    "frontend/index.tsx": "9cf37c5d2c74ad78",
+    "tests/architecture-allowlist.json": "81323424a11e5001"
+  },
+  "new": [
+    "frontend/surfaces/library-home/grid.ts",
+    "frontend/surfaces/library-home/index.ts"
+  ]
+}

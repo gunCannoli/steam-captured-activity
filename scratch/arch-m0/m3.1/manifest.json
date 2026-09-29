@@ -1,0 +1,16 @@
+{
+  "deleted": {
+    "frontend/steam/sections.ts": "539ea4211e489746"
+  },
+  "edited": {
+    "frontend/features/achievements/store.ts": "322cd370b77bc28a",
+    "frontend/features/steam-store/index.ts": "6ce08999e600b615",
+    "frontend/index.tsx": "41516045b8cc8280",
+    "frontend/kernel/surface.ts": "a5dc1df116656658",
+    "frontend/renderers/library-app.tsx": "c9175bcfe278e601",
+    "tests/architecture-allowlist.json": "2ea6fcb03da17169"
+  },
+  "new": [
+    "frontend/surfaces/sections/index.ts"
+  ]
+}

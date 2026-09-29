@@ -30,7 +30,7 @@ saturated Steam's shared renderer.
 M0a done (render loop fixed). M0b-1 done (kill switches, error budget, safe mode).
 M0c done (architecture ratchet, RPC registration check, check_all_tabs.js flake fix).
 M1 done (kernel: `ShortcutId`, events, `GameRecord`, `Surface`; not yet adopted by any runtime code).
-Next: execute **M2** (sensors, Ready: dry-run and packaged in `scratch/arch-m0/m2/`). M3–M9 are detailed specs; M0b-2 is folded into M3. Open user decision: plan § 11 item 4 (unreachable community code, blocks M3.8).
+Next: execute **M2**, then **M3.1 → M3.10** in order (all Ready: dry-run, packaged in `scratch/arch-m0/`, replayed in order on a clean tree). M4–M9 are detailed specs; M0b-2 is folded into M3. Legacy is marked `PURGE(<step>)` and deleted by the step in the plan's § 7.9 ledger.
 
 ## Next
 

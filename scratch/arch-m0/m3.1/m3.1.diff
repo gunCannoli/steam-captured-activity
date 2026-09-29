@@ -1,0 +1,313 @@
+diff --git a/steam-cartridges/frontend/features/achievements/store.ts b/steam-cartridges/frontend/features/achievements/store.ts
+index 61ca381..02239f4 100644
+--- a/steam-cartridges/frontend/features/achievements/store.ts
++++ b/steam-cartridges/frontend/features/achievements/store.ts
+@@ -4,7 +4,13 @@ import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../rpc
+ import type { SteamAppAchievements } from "./types";
+ import { buildAchievementProgress, buildSteamAchievements } from "./achievements-core";
+ import { resolveSingleton } from "../../steam/modules";
+-import { refreshSections } from "../../steam/sections";
++
++/** Re-renders Steam's section list; wired to the sections surface in index.tsx (plan § 7.0 D3). */
++let refreshSections: () => void = () => {};
++
++export function setSectionsRefresher(fn: () => void): void {
++    refreshSections = fn;
++}
+ 
+ const achievementsMap = new Map<number, SteamAppAchievements>();
+ const schemasMap = new Map<number, AchievementSchemaRecord>();
+diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
+index 4915a9b..8c9dcf3 100644
+--- a/steam-cartridges/frontend/features/steam-store/index.ts
++++ b/steam-cartridges/frontend/features/steam-store/index.ts
+@@ -13,7 +13,6 @@ import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
+ import { normalizeMetadata } from "../game-info/normalize";
+ import { NON_STEAM_APPID_MIN } from "../../steam/route";
+ import { setNativeActivitySource } from "../../steam/activity";
+-import { setExtraSections } from "../../steam/sections";
+ import { patch as patchLibraryApp } from "../../renderers/library-app";
+ import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
+ import { storeEnrichedAppIds } from "./enriched";
+@@ -24,6 +23,13 @@ import { cdnArtworkUrls } from "./resolve";
+ import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
+ import { loadAchievementsForApp } from "../achievements";
+ 
++/** Extra Steam sections for a mapped shortcut; wired to the sections surface in index.tsx (plan § 7.0 D3). */
++let setExtraSections: (appid: number, names: readonly string[] | undefined) => void = () => {};
++
++export function setExtraSectionsSink(fn: (appid: number, names: readonly string[] | undefined) => void): void {
++    setExtraSections = fn;
++}
++
+ /** Appids handled this session (one lookup per game per session, as in the web path). */
+ const processed = new Set<number>();
+ /** Metadata already fetched this session, re-applied on later views. */
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index a08382c..8a05cfb 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -5,7 +5,7 @@ import { rpc } from "./rpc";
+ import {
+     patch as patchLibraryApp,
+     refresh as refreshLibraryApp,
+-    register as registerLibraryApp,
++    setContentListener,
+     unpatch as unpatchLibraryApp,
+ } from "./renderers/library-app";
+ import {
+@@ -35,6 +35,7 @@ import { SettingsPanel } from "./settings/settings-panel";
+ import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
+ import { triggerSync } from "./features/scraper/sync-manager";
+ import { features } from "./safety/switches";
++import type { FeatureId } from "./safety/features";
+ import { beginBoot, watchBoot } from "./safety/boot";
+ import type { ShortcutId } from "./kernel/appid";
+ import { bus } from "./app/bus";
+@@ -42,6 +43,32 @@ import { installViewSensor } from "./sensors/view";
+ import { installLifecycleSensor } from "./sensors/lifecycle";
+ import { collectionsSource } from "./sensors/collections";
+ import { setCollectionsSource } from "./features/buckets/collections";
++import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
++import {
++    createSectionsSurface,
++    refreshSections,
++    setExtraSections,
++    setGameInfoProbe,
++    setHasContent,
++} from "./surfaces/sections";
++import { isAppEnriched } from "./features/game-info/game-info-patch";
++import { setExtraSectionsSink } from "./features/steam-store";
++import { setSectionsRefresher } from "./features/achievements/store";
++
++/** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
++const surfaceDeps: SurfaceDeps = {
++    isEnabled: (id) => features.isEnabled(id as FeatureId),
++    reportError: (id, err) => features.reportError(id as FeatureId, err),
++};
++
++/** The one surface runner (plan § 4.4): installs each surface in isolation, in registration order. */
++const runner = createSurfaceRunner({
++    isEnabled: surfaceDeps.isEnabled,
++    log: (level, message, err) => {
++        if (level === "error") logger.error(message, err ?? "");
++        else logger.warn(message, err ?? "");
++    },
++});
+ 
+ export { setSetting, resetSettings };
+ /** Kill switches, error counts and safe mode (migration plan M0b). */
+@@ -87,6 +114,12 @@ async function init() {
+     // Buckets read collection membership through the collections sensor (migration plan M2).
+     setCollectionsSource(collectionsSource);
+ 
++    // Surface APIs reach the features only through these setters (plan § 7.0 D3).
++    setGameInfoProbe(isAppEnriched);
++    setContentListener(setHasContent);
++    setExtraSectionsSink(setExtraSections);
++    setSectionsRefresher(refreshSections);
++
+     // Settings first: the Game Info gate reads them (ADR-0033).
+     await initSettings();
+ 
+@@ -126,7 +159,9 @@ async function init() {
+     // Steam hides Post-Game Summary from shortcuts with an app-type filter in its
+     // section registry. Putting the name back is what makes the native component
+     // render at all, so nothing else matters if this fails.
+-    if (features.isEnabled("sections") && !features.run("sections", () => registerLibraryApp())) {
++    runner.register(createSectionsSurface(surfaceDeps));
++    runner.installAll();
++    if (features.isEnabled("sections") && !runner.status().find((s) => s.id === "sections")?.installed) {
+         logger.error(
+             "Could not restore Steam's app detail sections; summaries are unavailable.",
+         );
+diff --git a/steam-cartridges/frontend/kernel/surface.ts b/steam-cartridges/frontend/kernel/surface.ts
+index f1ad5fe..4b6e292 100644
+--- a/steam-cartridges/frontend/kernel/surface.ts
++++ b/steam-cartridges/frontend/kernel/surface.ts
+@@ -21,6 +21,16 @@ export interface Surface {
+     uninstall(): void;
+ }
+ 
++/**
++ * What every surface is given by the composition root (migration plan § 7.0 D6): the
++ * kill switches and the error counter of safety/, by FeatureId. A surface checks
++ * isEnabled(id) at the top of every hook it installs and reports from its fail-open catch.
++ */
++export interface SurfaceDeps {
++    isEnabled(id: string): boolean;
++    reportError(id: string, err: unknown): void;
++}
++
+ export interface SurfaceStatus {
+     id: string;
+     installed: boolean;
+diff --git a/steam-cartridges/frontend/renderers/library-app.tsx b/steam-cartridges/frontend/renderers/library-app.tsx
+index bfbbc13..36ebde8 100644
+--- a/steam-cartridges/frontend/renderers/library-app.tsx
++++ b/steam-cartridges/frontend/renderers/library-app.tsx
+@@ -1,7 +1,6 @@
+ import { logger } from "../logger";
+ import { clearActivity, publishActivity } from "../steam/activity";
+ import { gameIdFromAppId } from "../steam/gameid";
+-import { patchSections, setHasContent } from "../steam/sections";
+ import { clearSummary, publishSummary } from "../steam/summary";
+ 
+ /**
+@@ -11,7 +10,7 @@ import { clearSummary, publishSummary } from "../steam/summary";
+  * the components; it just hides them from shortcuts and never loads their data.
+  * So we do exactly two things:
+  *
+- *   1. put the section names back into Steam's registry (steam/sections.ts)
++ *   1. put the section names back into Steam's registry (surfaces/sections)
+  *   2. put events into Steam's own stores           (steam/summary.ts & steam/activity.ts)
+  *
+  * Steam renders. That is the whole renderer.
+@@ -25,9 +24,11 @@ import { clearSummary, publishSummary } from "../steam/summary";
+ /** Apps whose summary or activity we have published, so a quitting game can refresh them. */
+ const published = new Set<number>();
+ 
+-/** Set up the section patch once, at plugin load. */
+-export function register(): boolean {
+-    return patchSections();
++/** Tells the sections surface whether an app has content (wired in index.tsx, plan § 7.0 D3). */
++let setHasContent: (appid: number, hasContent: boolean) => void = () => {};
++
++export function setContentListener(fn: (appid: number, hasContent: boolean) => void): void {
++    setHasContent = fn;
+ }
+ 
+ /**
+diff --git a/steam-cartridges/frontend/steam/sections.ts b/steam-cartridges/frontend/surfaces/sections/index.ts
+similarity index 73%
+rename from steam-cartridges/frontend/steam/sections.ts
+rename to steam-cartridges/frontend/surfaces/sections/index.ts
+index 17baa2b..5bd3f91 100644
+--- a/steam-cartridges/frontend/steam/sections.ts
++++ b/steam-cartridges/frontend/surfaces/sections/index.ts
+@@ -1,7 +1,19 @@
+-import { logger } from "../logger";
+-import { appDetailsSections } from "./stores";
+-import { isNonSteamAppId } from "./route";
+-import { isAppEnriched } from "../features/game-info/game-info-patch";
++// Surface `sections` (migration plan M3.1, ADR-0039): the only code that patches Steam's
++// app detail section registry. Moved from steam/sections.ts.
++import { logger } from "../../logger";
++import type { Surface, SurfaceDeps } from "../../kernel/surface";
++import { appDetailsSections } from "../../steam/stores";
++import { isNonSteamAppId } from "../../steam/route";
++
++/** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
++let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
++
++/** Does the shortcut show our Game Info? Wired by index.tsx to game-info (D3). */
++let hasGameInfo: (appid: number) => boolean = () => false;
++
++export function setGameInfoProbe(fn: (appid: number) => boolean): void {
++    hasGameInfo = fn;
++}
+ 
+ /**
+  * Re-enable the app detail sections Steam hides from non-Steam games.
+@@ -201,34 +213,40 @@ export function patchSections(): boolean {
+         // which is exactly how an earlier version of this patch appeared to work
+         // (the summary showed) while the placeholder removal never took effect.
+         const sections = base.call(this, overview, details);
++        if (!deps.isEnabled("sections")) return sections;
+ 
+-        if (!isShortcut(overview)) return sections;
++        // Fail-open (D6): any error returns Steam's own result.
++        try {
++            if (!isShortcut(overview)) return sections;
+ 
+-        // Remember this instance so a later publish can re-render it.
+-        instances.add(this);
++            // Remember this instance so a later publish can re-render it.
++            instances.add(this);
+ 
+-        try {
+-            for (const name of RESTORED_SECTIONS) sections.add(name);
+-
+-            const appid = (overview as AppOverview | undefined)?.appid;
+-            const extra = appid !== undefined ? extraSections.get(appid) : undefined;
+-            if (extra) for (const name of extra) sections.add(name);
+-
+-            // Only drop a section once we have something in its place; otherwise the
+-            // page loses an explanation and gains nothing. Empty today - see
+-            // REPLACED_SECTIONS.
+-            if (
+-                appid !== undefined &&
+-                (appsWithContent.has(appid) || isAppEnriched(appid))
+-            ) {
+-                for (const name of REPLACED_SECTIONS) sections.delete(name);
+-            }
++            try {
++                for (const name of RESTORED_SECTIONS) sections.add(name);
+ 
+-            // Keep the memo pointing at the object we just edited, so a later call
+-            // that hits the cache sees our version.
+-            this.m_setSectionsMemo = sections;
+-        } catch (error) {
+-            logger.warn("Could not adjust the section list:", error);
++                const appid = (overview as AppOverview | undefined)?.appid;
++                const extra = appid !== undefined ? extraSections.get(appid) : undefined;
++                if (extra) for (const name of extra) sections.add(name);
++
++                // Only drop a section once we have something in its place; otherwise the
++                // page loses an explanation and gains nothing. Empty today - see
++                // REPLACED_SECTIONS.
++                if (
++                    appid !== undefined &&
++                    (appsWithContent.has(appid) || hasGameInfo(appid))
++                ) {
++                    for (const name of REPLACED_SECTIONS) sections.delete(name);
++                }
++
++                // Keep the memo pointing at the object we just edited, so a later call
++                // that hits the cache sees our version.
++                this.m_setSectionsMemo = sections;
++            } catch (error) {
++                logger.warn("Could not adjust the section list:", error);
++            }
++        } catch (err) {
++            deps.reportError("sections", err);
+         }
+ 
+         return sections;
+@@ -253,3 +271,24 @@ export function unpatchSections(): void {
+     refreshInstances();
+     instances.clear();
+ }
++
++/** The `sections` surface. Its API (setHasContent, setExtraSections, refreshSections) is
++ *  reached by the features only through setters wired in index.tsx (D3, D4). */
++export function createSectionsSurface(d: SurfaceDeps): Surface {
++    deps = d;
++    return {
++        id: "sections",
++        touches: ["CAppDetailsSections.GetSections", "CAppDetailsSections.m_setSectionsMemo"],
++        reads: ["identity", "metadata", "achievements"],
++        install() {
++            if (!patchSections()) throw new Error("CAppDetailsSections not found; sections stay stock.");
++        },
++        render() {
++            /* record-driven from M4 (D4) */
++        },
++        clear() {
++            /* per-app state is set through setHasContent / setExtraSections */
++        },
++        uninstall: unpatchSections,
++    };
++}
+diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
+index dc67f3c..2f8425a 100644
+--- a/steam-cartridges/tests/architecture-allowlist.json
++++ b/steam-cartridges/tests/architecture-allowlist.json
+@@ -37,7 +37,6 @@
+   "settings -> features/game-info",
+   "settings -> features/scraper",
+   "settings -> rpc",
+-  "steam -> features/game-info",
+   "steam -> rpc",
+   "steam -> settings"
+ ]

@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 is Ready** (dry-run 2026-09-28, packaged in `scratch/arch-m0/m2/`). M3–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c and M1 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1 and the M0c check fix also live-validated). **M2 and M3.1–M3.10 are Ready** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -51,7 +51,16 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M0c | Architecture test (import ratchet, RPC registration) + `check_all_tabs.js` flake fix | **Done** | `docs/steam-cartridges/README.md` |
 | M1 | Kernel (`ShortcutId`, events, `GameRecord`, `Surface`) | **Done** | `docs/steam-cartridges/kernel.md` |
 | M2 | Sensors (view, lifecycle, collections; owned apps moves to M4) | **Ready** | `docs/steam-cartridges/sensors.md` |
-| M3.1–M3.10 | Surfaces, one per step (M3.8 `Blocked (user decision 4, § 11)`) | Spec | `docs/steam-cartridges/surfaces.md` (one section per surface) |
+| M3.1 | Surface `sections` (also creates the `SurfaceRunner` wiring) | **Ready** | `docs/steam-cartridges/surfaces.md` (created) |
+| M3.2 | Surface `captures` | **Ready** | `surfaces.md` § captures |
+| M3.3 | Surface `game-info` | **Ready** | `surfaces.md` § game-info |
+| M3.4 | Surface `playbar` | **Ready** | `surfaces.md` § playbar |
+| M3.5 | Surface `achievements` | **Ready** | `surfaces.md` § achievements |
+| M3.6 | Surface `toasts` | **Ready** | `surfaces.md` § toasts |
+| M3.7 | Surface `native-links` | **Ready** | `surfaces.md` § native-links |
+| M3.8 | Purge markers (D13) | **Ready** | § 7.9 ledger |
+| M3.9 | Surface `artwork` | **Ready** | `surfaces.md` § artwork |
+| M3.10 | Surface `library-home` | **Ready** | `surfaces.md` § library-home |
 | M4 | Resolver service + RPC facade | Spec | `service-resolver.md`, `rpc.md` |
 | M5 | Metadata service | Spec | `service-metadata.md` |
 | M6 | Achievements service | Spec | `service-achievements.md` |
@@ -61,7 +70,8 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 
 Order is fixed: never start a row while an earlier row is not `Done`. M0b-2 is not a
 step of its own any more: each M3.x applies its wrapper to the hooks it moves (§ 7.0 D6).
-M3.8 may be skipped while its user decision is open; M3.9 does not depend on it.
+M3.1–M3.10 are cumulative: each package's hashes are the previous step's result, so they
+run strictly in order (a `STALE` line on `check` means an earlier step is missing).
 
 ### 0.3 Environment and commands (this machine)
 
@@ -80,7 +90,7 @@ Commands, run from `C:\game\millennium\steam-cartridges` unless stated otherwise
 | Command | Expected output (exact) |
 | --- | --- |
 | `npm run check` | the two npm banner lines `> steam-cartridges@0.1.0 check` and `> tsc --noEmit`, then nothing; exit code 0 |
-| `npm run test:ts` | ends with `ℹ tests 64` / `ℹ pass 64` / `ℹ fail 0` (71 after M0b-1, 73 after M0c, 81 after M1, 87 after M2) |
+| `npm run test:ts` | ends with `ℹ tests 64` / `ℹ pass 64` / `ℹ fail 0` (71 after M0b-1, 73 after M0c, 81 after M1, 87 after M2 and M3.1–M3.3, 88 from M3.4 on) |
 | `npm run build` | contains `build Succeeded`; ignore the `@steambrew/ttc` update nag |
 | `git status --short` (repo root) | empty before you start |
 
@@ -630,7 +640,7 @@ the baseline changes only through an accepted ADR).
 | `npm run test:ts` | `ℹ tests 64` · `ℹ pass 64` · `ℹ fail 0` |
 | Lua tests (run 2026-09-28 with `C:\dev\tools\lua`) | `test_steam_store.lua` ALL PASS · `test_emulator_controllers.lua` ALL PASS · `test_backend.lua` 76 PASS, **2 FAIL** (§ 12 K7, K8) |
 | Cross-area imports in `frontend/` | 51 (list: `scratch/arch-m0/m0c/architecture.test.ts` regenerates it) |
-| Expected test counts after each Ready step (dry-run, cumulative) | M0a 64 · M0b-1 71 · M0c 73 · M1 81 · M2 87 |
+| Expected test counts after each Ready step (dry-run, cumulative) | M0a 64 · M0b-1 71 · M0c 73 · M1 81 · M2 87 · M3.1–M3.3 87 · M3.4–M3.10 88 (allowlist after M2 41, M3.1 40, M3.2–M3.8 37, M3.9 35, M3.10 34) |
 | Live (M0a+M0b-1 applied, then reverted) | `PASS render loop` · Properties OK ×3 · nav cycle 6/6 · `check_all_tabs.js` 11/11 (4 runs with the M0c fix) |
 
 ---
@@ -1605,12 +1615,15 @@ below. A step that needs to break one needs an ADR first.
 | D2 | **A file that a node test loads has only `import type` relative imports, or none.** Pure logic goes in `core.ts` (tested); the Steam wiring goes in `index.ts` (not tested). Tests pass collaborators in (e.g. `toShortcutId`). | `node --experimental-strip-types` cannot resolve the extensionless imports that `tsc` and `millennium-ttc` accept. `kernel/` and `buckets/resolve.ts` already follow this. |
 | D3 | **Composition-root injection instead of imports.** When module A needs module B and the rules forbid the import, A exports a setter that holds a no-op default (`setCollectionsSource`, `setContentListener`, …). `index.tsx` wires B into it at start-up. The setter's parameter is typed structurally inside A, with no type import from B. | Keeps "one module moves per step": old callers keep working with no forbidden edge. This **replaces** the old M3 idea of `app/legacy-*.ts` adapters: they would read `features/` state, which is an `app -> features` edge the ratchet forbids. |
 | D4 | **M3 moves ownership; M4–M7 move data.** In M3 a surface keeps its imperative API (e.g. `setHasContent`), and callers reach it only through D3 setters. Its `render(appid, record)` stays a no-op until the service step that produces the parts it reads (column **Record-driven in** of the M3 table). That step replaces the setter with a read of the record. | No record part has a producer until the backend facade exists (M4). A fake producer in M3 would be the long-lived parallel implementation that § 5 forbids. |
-| D5 | **Store writes never run on a Steam render stack.** The view sensor emits on a `setTimeout(0)` (M2). From M3.1, `record.updated` goes through `app/render-queue.ts`: changed parts are coalesced per appid and flushed to `runner.render` on a `setTimeout(0)`. | A Big Picture sighting arrives from inside a jsx call, which runs inside Steam's render. Legacy code can also update state from inside a render (K6). Guardrail 17. |
+| D5 | **Store writes never run on a Steam render stack.** The view sensor emits on a `setTimeout(0)` (M2). From M4 (the first `record.updated` producer), `record.updated` goes through `app/render-queue.ts`: changed parts are coalesced per appid and flushed to `runner.render` on a `setTimeout(0)`. | A Big Picture sighting arrives from inside a jsx call, which runs inside Steam's render. Legacy code can also update state from inside a render (K6). Guardrail 17. |
 | D6 | **M0b-2 is folded into M3.** Each M3.x step wraps the hooks it moves in the M0b-2 fail-open shape, using the "On error return" column of the M0b-2 table. A surface's `id` is its FeatureId. Existing ids are never renamed, because users type them. A surface that takes over several ids (`captures` takes `store-cache`, `captures`, `headline`, `activity-cards`) gets `isEnabled(id)` and `reportError(id, err)` injected and checks the right id in each hook. New ids are appended to `FEATURE_IDS`. | A separate M0b-2 would edit every hook once, and then M3 would move them all again. |
 | D7 | **`touches` naming:** `<SteamObject>.<member>` for patches and store writes (`CAppDetailsSections.GetSections`); `jsx:<name>` for a handler on the jsx runtime; `SteamClient.<Api>.<Method>` for client API calls that write. `CWorkshopStore.m_mapPublishedFiles` belongs to `captures`, because `steam/activity.ts` writes it. Its only other writer, `steam/community-store.ts`, is unreachable (K9). | `assertDisjointTouches` throws when a target has two owners. |
 | D8 | **`index.tsx`'s exports are a public API** (CDP scripts in `scratch/`, `tests/buckets.mjs`, the settings panel alias block). Names and behaviour stay until M9. | `PLUGIN_LIST[...].bucketReport()`, `setSteamStoreMapping()` and others are called from outside. |
 | D9 | **Every step lists its deliberate behaviour deltas.** Any other difference the verifier finds is a bug in the step. | § 5 behaviour freeze. |
 | D10 | **Packaging of a `Ready` step:** `scratch/arch-m0/<step>/files/` holds every changed file as dry-run; `<step>_apply.py` (a copy of `m2/m2_apply.py` with new hashes and file lists) checks and applies; `<step>.diff` is the review copy. The plan section says what changed and why, and the script plus the diff are the literal blocks. | For the executing agent, a whole-file copy guarded by a hash of the "before" file is more reliable than 30 find-and-replace blocks, and it still detects a stale plan (`STALE`). |
+| D12 | **Payload shapes a surface needs live in the kernel.** `GameMetadata`, `GameCategories`, the achievement schema/unlock records and the artwork URL/asset shapes move from `rpc.ts` to `kernel/record.ts` in the M3 step that first needs them. `rpc.ts` keeps the old names as type aliases until M9. | Surfaces may not import `rpc` (§ 4.1), and a type-only import still counts as an edge. These are the record's own shapes, which the kernel reserved ("filled in by the service steps"). |
+| D13 | **Purge marker and ledger.** Legacy that must go when the migration is complete is not deleted early. It is marked on its first line (or above the symbol) with `// PURGE(<step>): <why>. Ledger: migration plan § 7.9.` and listed in § 7.9 with the step that deletes it. M9 ends with `git grep -n "PURGE(" -- frontend` printing nothing. | User decision 4 (2026-09-28): "usually we delete legacy as the migration is completed". |
+| D14 | **Migration steps are pure moves.** A behaviour bug found while moving code (K3, K4, K6, K13) goes to § 12 with its own bugfix plan after M3, and is never fixed inside a move step. | User, 2026-09-28: each layer has a very specific input/job/output; mixing a fix into a move hides which one caused a regression. |
 | D11 | **Test files move with their module.** When a step moves a tested file, it updates only the test's import path, and the test body stays byte-identical. This is the one test edit a step may make without saying more. | § 0.1 forbids changing tests to make them pass. A path is not behaviour. |
 
 #### 7.0.1 How an architect turns a `Spec` step into `Ready`
@@ -1622,8 +1635,14 @@ below. A step that needs to break one needs an ADR first.
    `npm run test:ts` and `npm run build`. Then run `ARCH_WRITE_ALLOWLIST=1 npm run test:ts` and
    compare `git diff tests/architecture-allowlist.json` with the step's **Allowlist delta**.
    An edge that would be *added* means the design is wrong. Fix it with D3. Never list the edge.
-3. Package it per D10. Replay the apply on a reset worktree (`git checkout -- .`, then delete
-   the new files). The step's expected outputs are what you saw in that replay.
+3. Package it per D10. From M3 on, commit the step inside the worktree and run
+   `python C:/game/millennium/scratch/arch-m0/pack_step.py . HEAD~1 HEAD C:/game/millennium/scratch/arch-m0/<step>`
+   (it writes `manifest.json`, `files/` and `<step>.diff`; the executing agent uses `apply_step.py`).
+   Replay every package, in order, on a second clean worktree, and diff the result against the dry-run
+   tree. The step's expected outputs are what you saw in that replay.
+   **Trap:** before removing a worktree, delete the `node_modules` junction link itself (PowerShell:
+   `(Get-Item <wt>/steam-cartridges/node_modules -Force).Delete()`). `git worktree remove` follows the
+   junction and deletes files in the real `node_modules` (it did on 2026-09-28: `.bin` had to be rebuilt).
 4. If the step says "architect live-validates": deploy from the worktree
    (`powershell -ExecutionPolicy Bypass -File dev.ps1` in `<scratch>\wt\steam-cartridges`),
    run § 0.5, then put the user's build back by running `dev.ps1` from
@@ -1751,7 +1770,7 @@ bus event, with the same body. Owned-apps detection moves in M4, next to its onl
      - **Changed: one place detects which game page is open (2026-09-28)**: desktop and Big Picture page views, game launches and quits now come from dedicated sensors. Big Picture no longer re-runs the page pipeline on every re-render; switching directly between two non-Steam games now clears the first one's activity, as Big Picture already did.
      ```
    - `TASK.md` § Now: replace `Next: **M2** (sensors, spec; needs an architect pass first), or M0b-2 (spec).`
-     with `M2 done (sensors). Next: **M3.1** (sections surface, spec; needs an architect pass first, see plan § 7.0.1).`
+     with `M2 done (sensors). Next: **M3.1** (sections surface, Ready).`
    - This plan, § 0.2: M2 → `Done`.
 10. Commit (§ 0.7) with paths `steam-cartridges/frontend/app steam-cartridges/frontend/sensors steam-cartridges/tests/sensors.test.ts steam-cartridges/frontend/features/buckets/collections.ts steam-cartridges/frontend/features/buckets/ready.ts steam-cartridges/frontend/features/source-view.ts steam-cartridges/frontend/index.tsx steam-cartridges/tests/architecture.test.ts steam-cartridges/tests/architecture-allowlist.json steam-cartridges/tests/buckets-ready.test.ts docs/steam-cartridges/sensors.md docs/steam-cartridges/README.md docs/steam-architecture.md CHANGELOG.md steam-cartridges/CHANGELOG.md TASK.md docs/plans/steam-cartridges-architecture-migration-plan.md`
     and message `refactor(steam-cartridges): sensors own view, lifecycle and collections detection (M2)`.
@@ -1771,226 +1790,396 @@ read only by `sensors/collections`; `renderers/library-home.tsx` patches `OnAppO
 which is a write owned by M3.10) · 15 (no check edited) · 17 (sensors emit on a timer, never
 inside a Steam render: D5).
 
-### M3.1–M3.10 — Surfaces (Spec, one step each, in this order)
+### M3.1–M3.10 — Surfaces (Ready, one step each, in this order)
 
-**Design common to all** (read D3–D7 first):
+**Why:** § 1.2 (no single owner of Steam mutations) and § 4.4. After M3, every Steam write
+lives under `frontend/surfaces/`, one folder per surface, each with declared `touches`, a
+kill switch and fail-open hooks. The one exception is the unreachable `steam/community-store.ts`,
+marked `PURGE(M9)`.
+**Validated (all ten, 2026-09-28):** dry-run cumulatively on top of M2 (tree `6a046a8` + M2).
+Then the packages were **replayed** on a clean worktree in order (M2, then M3.1 … M3.10):
+every `check` all `ok`, `tsc` with 0 errors, tests green after every step, `build Succeeded`,
+and the replayed tree byte-identical to the dry-run tree. Not live-validated: the verifier runs
+the live checks after each step.
+**Boundary:** pure moves (user, 2026-09-28: "each layer has a very specific input/job/output").
+Code moves into its surface. Callers reach it through D3 setters wired in `index.tsx`. Hooks get the
+D6 fail-open wrapper. Known behaviour bugs stay as they are: K3, K4, K6 and K13 go to their own
+bugfix plans (§ 12).
 
-1. Create `frontend/surfaces/<id>/index.ts`. It exports `create<Name>Surface(opts): Surface & <api>`,
-   where `<api>` is the surface's imperative API (D4) and `opts` holds the injected needs:
-   always `isEnabled(featureId)` and `reportError(featureId, err)` from `safety/switches`, plus the
-   step's extra options. Pure logic goes in `surfaces/<id>/core.ts` (D2) with tests.
-2. Move the listed code **verbatim** (`git mv`, then edit). Only four kinds of edit are allowed:
-   imports, D3 setters in place of forbidden imports, the D6 fail-open wrapper on each hook, and
-   the `Surface` object at the bottom of the file.
-3. `index.tsx` registers the surface with the one `SurfaceRunner` (created in M3.1) and replaces
-   the old start-up call (`features.run("<id>", () => install…())`) with `runner.register(surface)`.
-   `runner.installAll()` runs where the first old install ran. Everything is wired before the sensors are installed.
-4. A surface imports only `kernel/`, `steam/`, `logger` and its own folder (D1 enforces this).
-   Everything else is injected. Every hook it installs is fail-open (D6) and a pure read
-   (guardrail 2 and 17).
-5. Callers of the moved code (`features/*`, `renderers/*`) get a D3 setter wired in `index.tsx`.
-   They must not import the surface.
-6. Each step adds one section to `docs/steam-cartridges/surfaces.md` (M3.1 creates the file per § 0.6):
-   the `touches` list with one row per target and the guardrail that governs it, the injected options,
-   the imperative API and the step that makes it record-driven.
-7. Exit for every M3.x: `tsc` 0; tests = previous count + the step's new tests; `build Succeeded`;
-   the **Allowlist delta** exactly; § 0.5 PASS; plus the step's own live check. Then one extra check:
-   switch the surface off (`PLUGIN_LIST['steam-cartridges-dev'].setSetting('disabledFeatures', '<id>')`,
-   restart), confirm the other § 0.5 checks still PASS and the view falls back to Steam's stock
-   behaviour, then set it back to `''` and restart. This is the one setting the M3 live steps may
-   change, and they must restore it.
+#### Common to every M3.x step (read before each one)
 
-| Step | Surface `id` (FeatureId) | Moves in (old file · symbols) | `touches` | Injected (D3) | Record-driven in |
+**Tool:** `scratch/arch-m0/apply_step.py` (generic; one `scratch/arch-m0/<step>/manifest.json` per
+step, with the new content in `<step>/files/` and the review diff in `<step>/<step>.diff`).
+
+**Actions** (from `C:\game\millennium\steam-cartridges`; `<step>` is `m3.1` … `m3.10`):
+
+1. `python ../scratch/arch-m0/apply_step.py <step> check` → exactly the step's **Check lines** below,
+   in that order (`EDIT` sorted, then `DELETE`, then `NEW`), each ending in `: ok`, exit code 0.
+   Any `STALE` means stop (§ 0.8). The script has written nothing. `STALE` on a first run usually
+   means an earlier step is not applied.
+2. `python ../scratch/arch-m0/apply_step.py <step> apply` → the same lines, exit code 0. It writes the
+   edited and new files, deletes the `DELETE` files and removes folders left empty.
+3. `npm run check` → exit 0, no output after the npm banner.
+4. `npm run test:ts` → `ℹ tests <T>` / `ℹ pass <T>` / `ℹ fail 0`, with `<T>` from the step table.
+5. `npm run build` → contains `build Succeeded`.
+6. `node -e "console.log(require('./tests/architecture-allowlist.json').length)"` → `<A>` from the step table.
+7. `git status --short` → one line per manifest path (` M` for `EDIT`, ` D` for `DELETE`, `??` for `NEW`;
+   a folder that is entirely new shows once as `?? <folder>/`) and nothing else.
+8. Docs: the common list below, plus the step's own.
+9. Commit (§ 0.7). Stage with
+   `git add -- $(python ../scratch/arch-m0/apply_step.py <step> paths)` (the manifest paths, one per
+   line; this works in PowerShell and in bash, and stages deletions too), then `git add` the doc paths
+   from the repo root. The message is in the step table.
+
+**Docs, every step:**
+- `docs/steam-cartridges/surfaces.md`: M3.1 creates it per § 0.6. Its **Contract** section holds
+  `Surface` and `SurfaceDeps` from `kernel/surface.ts`, and **How to add a surface** is the common
+  design of this section. Each step then adds one `## <id>` section with: `touches` (one row per
+  target, with the guardrail that governs it), `reads`, the kill switch(es), the injected deps, the
+  API and the setter the features use to reach it, the hooks with their fail-open return, and
+  "Record-driven in: <step>".
+- `steam-cartridges/README.md` module table: replace the rows of moved files with their new paths.
+- `CHANGELOG.md`, at the top of the list: `- **steam-cartridges: <surface> surface (migration <step>, <date>)**: <one line from "What changes">. Allowlist <A-before> → <A>.`
+- `steam-cartridges/CHANGELOG.md`: only for steps with a **User-visible** line (new kill switches).
+- `TASK.md` § Now: `<step> done. Next: <next step>.` (after M3.10: `M3 done; the feature freeze (§ 5) ends. Next: M4 (spec).`)
+- This plan, § 0.2: the step's row → `Done`.
+
+**Live, every step:** the verifier runs § 0.5, then the **switch-off check**: run
+`PLUGIN_LIST['steam-cartridges-dev'].setSetting('disabledFeatures', '<id>')` in the SharedJSContext
+console and restart Steam (`..\start-steam-dev.ps1 -Restart`). Confirm that the other § 0.5 checks
+still PASS and the view the step names falls back to Steam's stock behaviour. Then set
+`disabledFeatures` back to `''` and restart. This is the only setting M3 live checks may change,
+and they must restore it.
+
+**Behaviour delta common to all M3 steps (D6):** every wrapped hook reads its kill switch when it
+is **called**, not only at install, so a switch changed in settings takes effect for existing hooks
+without a restart. The live checks still restart.
+
+| Step | Surface | Check lines (E/D/N) | Tests `<T>` | Allowlist `<A>` | Commit message |
 | --- | --- | --- | --- | --- | --- |
-| M3.1 | `sections` | `steam/sections.ts` (all) | `CAppDetailsSections.GetSections`, `CAppDetailsSections.m_setSectionsMemo` | `hasGameInfo(appid)` ← `isAppEnriched` (game-info) | M4 (extra sections from `identity.native`), M5 (`hasGameInfo` from `metadata.status`) |
-| M3.2 | `captures` (+ `store-cache`, `headline`, `activity-cards`) | `steam/summary.ts`, `steam/activity.ts`, `steam/headline-patch.ts`, `steam/activity-cards-patch.ts`, `renderers/library-app.tsx`, the Big Picture `<style>` block in `index.tsx` | `AppSpotlightStore.GetOrCreateAppData` (app data it returns), `AppActivityStore.m_mapAppActivity`, `StoreItemCache.m_mapApps`, `StoreItemCache.m_setUnavailableApps`, `StoreItemCache.BIsAppMissing`, `CWorkshopStore.m_mapPublishedFiles`, `jsx:headline`, `jsx:activity-cards`, `BPM.style#nsga-bpm-activity-thumbs` | `activitySettings()` ← `setting("activityShowAddedToLibrary"/"activityShowFirstPlayed")`; `onContent(appid, has)` → `sections.setHasContent` | never (captures are Steam's own data, ADR-0022); native activity source in M4 |
-| M3.3 | `game-info` | `features/game-info/game-info-patch.ts` (k, G, `hookComponentProps`, `ensureAppOverviewHooked`, `refreshGameInfoInstances`, categories cache, `createPatchedOverview`), `metadata.ts`, `category-policy.ts` | `GameInfo.k.render`, `GameInfo.k.props`, `GameInfo.G.render`, `GameInfo.G.props`, `AppOverview.GetGameID`, `AppOverview.BHasStoreCategory`, `AppDetailsStore.descriptionsData`, `AppDetailsStore.associationData`, `AppOverview.rt_original_release_date`, `AppOverview.m_setStoreCategories` | `controllerContext(appid)` ← `features/game-info/controller.ts` | M5 |
-| M3.4 | `playbar` (new id) | `targetPlayBar` hook from `game-info-patch.ts` | `PlayBar.render`, `PlayBar.props` | `isEnriched(appid)` ← game-info surface | M5 |
-| M3.5 | `achievements` | `features/achievements/store.ts`, `achievements-core.ts`, `types.ts` | `AppDetailsStore.achievements`, `AchievementsFullStore.*` (the hooked methods, listed by name), `appAchievementProgressCache.m_achievementProgress` | `refreshSections()` ← `sections.refresh` | M6 |
-| M3.6 | `toasts` (new id) | `features/achievements/dispatcher.ts`, `launch-toast.ts` | `NotificationStore.OnNotification` | `launchNotify()` ← setting `localAchievementsNotifyOnLaunch`; `localAchievements(appid)` ← achievements surface | M6 (`achievements.unlocked` event) |
-| M3.7 | `native-links` | `features/steam-store/native-sections.ts`, `native-sections-core.ts` | `appStore.GetAppOverviewByAppID`, `Navigator.App`, `jsx:native-sections` | — (after M3.3 it uses `steamRequire` from `steam/modules.ts` in place of `getSteamRequire`) | M4 (`identity.native`) |
-| M3.8 | `community` | **user decision 4 (§ 11)**: the code is unreachable (K9) | — | — | — |
-| M3.9 | `artwork` (new id) | `features/artwork/artwork.ts`, `features/steam-store/logo.ts`, the three `ClearCustomArtworkForApp` calls in `features/steam-store/index.ts` | `SteamClient.Apps.SetCustomArtworkForApp`, `SteamClient.Apps.ClearCustomArtworkForApp`, `AppDetailsStore.SaveCustomLogoPosition`, `AppDetailsStore.ClearCustomLogoPosition` | `downloadImage(url)` ← `rpc.steamStoreDownloadImage` | M4 (art plan from the resolver) |
-| M3.10 | `library-home` | `renderers/library-home.tsx` | `collectionStore.OnAppOverviewChange`, `AppOverview.rt_recent_activity_time`, `AppOverview.rt_last_time_played_or_installed` | `loadLibraryStats()` ← `rpc.getLibraryStats` | M7 (stats in the record, or stays an RPC; decide in M7) |
+| M3.1 | `sections` | 6 / 1 / 1 | 87 | 40 | `refactor(steam-cartridges): sections surface (M3.1)` |
+| M3.2 | `captures` | 4 / 5 / 8 | 87 | 37 | `refactor(steam-cartridges): captures surface (M3.2)` |
+| M3.3 | `game-info` | 10 / 3 / 5 | 87 | 37 | `refactor(steam-cartridges): game-info surface (M3.3)` |
+| M3.4 | `playbar` | 5 / 0 / 2 | 88 | 37 | `refactor(steam-cartridges): playbar surface (M3.4)` |
+| M3.5 | `achievements` | 7 / 3 / 5 | 88 | 37 | `refactor(steam-cartridges): achievements surface (M3.5)` |
+| M3.6 | `toasts` | 5 / 1 / 5 | 88 | 37 | `refactor(steam-cartridges): toasts surface (M3.6)` |
+| M3.7 | `native-links` | 4 / 2 / 2 | 88 | 37 | `refactor(steam-cartridges): native-links surface (M3.7)` |
+| M3.8 | — (purge markers) | 4 / 0 / 0 | 88 | 37 | `chore(steam-cartridges): mark legacy files for purge (M3.8)` |
+| M3.9 | `artwork` | 6 / 2 / 4 | 88 | 35 | `refactor(steam-cartridges): artwork surface (M3.9)` |
+| M3.10 | `library-home` | 2 / 1 / 2 | 88 | 34 | `refactor(steam-cartridges): library-home surface (M3.10)` |
 
-`art-plan.ts` does **not** move in M3.9. It is policy used by the Steam Store pipeline, and its
-new home is the backend resolver (M4). This changes the old M3.9 row.
+`index.tsx` after M3: one `SurfaceRunner` and one `surfaceDeps` (`isEnabled` / `reportError` from
+`safety/switches`). All D3 setters are wired at the top of `init()`, and each surface is registered
+and installed (`runner.register(...)`, `runner.installAll()`) where its old start-up call was, so
+the start-up order is unchanged.
 
-#### M3.1 — `sections` (Spec)
+#### M3.1 — `sections` (Ready)
 
-**Why:** § 1.2 (`GetSections` is patched from `steam/sections.ts`, which also imports game-info
-state), § 4.4. **Also creates:** `SurfaceRunner` wiring and `app/render-queue.ts` (D5).
-**Design:**
-1. `git mv frontend/steam/sections.ts frontend/surfaces/sections/index.ts`. Move the pure part of
-   `patchedGetSections` (restore names, add extras, drop the placeholder) into
-   `surfaces/sections/core.ts` as `adjustSections(sections: Set<string>, appid: number | undefined, s: { extra?: readonly string[]; hasContent: boolean; hasGameInfo: boolean }): void`.
-   Add +3 tests in `tests/surfaces-sections.test.ts`: restores `RESTORED_SECTIONS`; adds the extras;
-   drops `nonsteam` only when there is content or Game Info.
-2. Replace `import { isAppEnriched } from "../features/game-info/game-info-patch"` with D3
-   `setGameInfoProbe(fn)` (default `() => false`); `index.tsx` wires `isAppEnriched`.
-3. Wrap `patchedGetSections` per D6: `if (!opts.isEnabled("sections")) return base.call(this, overview, details)`,
-   try { existing body } catch (err) { opts.reportError("sections", err); return base.call(this, overview, details); }.
-   Careful: `base.call` must not run twice on the success path. The existing body already calls it once, first.
-4. Export `sectionsSurface = createSectionsSurface(...)`: `{ id: "sections", touches: [...], reads: ["identity", "metadata", "achievements"], install: () => { if (!patchSections()) throw new Error("CAppDetailsSections not found"); }, render: () => {}, clear: () => {}, uninstall: unpatchSections }`,
-   with `setHasContent`, `setExtraSections`, `refresh` (= `refreshSections`) as its API.
-5. Callers, via D3 setters wired in `index.tsx`:
-   - `renderers/library-app.tsx`: `register()` is deleted (install moves to the runner); `setHasContent` → `setContentListener(fn)`.
-   - `features/steam-store/index.ts`: `setExtraSections` → `setExtraSectionsSink(fn)`.
-   - `features/achievements/store.ts`: `refreshSections` → `setSectionsRefresher(fn)`.
-6. `index.tsx`: `const runner = createSurfaceRunner({ isEnabled: (id) => features.isEnabled(id as FeatureId), log })`.
-   Keep the old `"Could not restore Steam's app detail sections"` error log when `runner.status()`
-   shows `sections` not installed. `app/render-queue.ts` (`createRenderQueue(render: (appid, parts) => void)`
-   coalesces and flushes on `setTimeout(0)`) is created and tested (+2 tests: coalescing; one
-   flush per tick). It is wired in M4 when the first `record.updated` producer exists; M3.1 only creates it.
-**Allowlist delta:** −`steam -> features/game-info`. `renderers -> steam` stays (library-app still imports `steam/activity`, `steam/summary`, `steam/gameid`).
-**Behaviour deltas:** none.
-**Tests:** +5 (3 core, 2 render queue).
-**Live:** § 0.5; the M3 switch-off check with `sections` (expected: the Post-Game Summary section disappears and Steam shows "information is unavailable").
-**Guardrails:** 10, 11 (the memo reset and `forceUpdate` stay inside the surface), 17.
-**Traps:** `refreshInstances` must keep deleting the memo before `forceUpdate`. Do not "simplify" it (guardrail 10).
+**Check lines:**
+```
+EDIT frontend/features/achievements/store.ts: ok
+EDIT frontend/features/steam-store/index.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT frontend/kernel/surface.ts: ok
+EDIT frontend/renderers/library-app.tsx: ok
+EDIT tests/architecture-allowlist.json: ok
+DELETE frontend/steam/sections.ts: ok
+NEW frontend/surfaces/sections/index.ts: ok
+```
+**What changes:**
+- `steam/sections.ts` → `surfaces/sections/index.ts`, plus `createSectionsSurface(deps)`:
+  `touches` `CAppDetailsSections.GetSections`, `CAppDetailsSections.m_setSectionsMemo`; `reads`
+  identity, metadata, achievements. `install` throws if the registry component is not found; the old
+  error log in `index.tsx` stays and now reads `runner.status()`.
+- `patchedGetSections` is fail-open: Steam's `base.call` runs first, exactly as before, and a throw in
+  our part returns Steam's result and counts against `sections`.
+- `kernel/surface.ts` gains `SurfaceDeps { isEnabled(id), reportError(id, err) }` (additive).
+- D3 setters replace imports: `setGameInfoProbe` (sections ← game-info `isAppEnriched`),
+  `setContentListener` (`library-app` → `setHasContent`), `setExtraSectionsSink` (`steam-store` →
+  `setExtraSections`), `setSectionsRefresher` (achievements store → `refreshSections`).
+  `library-app.register()` is deleted, because install belongs to the runner.
+- Allowlist −1: `steam -> features/game-info`.
+**Deltas:** none besides the common one. **Extra docs:** create `surfaces.md`; in
+`docs/steam-architecture.md` § 3, flip the Surfaces row to `current` with a link; add `SurfaceDeps` to
+`kernel.md` Contract (History: `M3.1: SurfaceDeps`).
+**Extra live:** switch-off `sections` → the Post-Game Summary and Activity sections are gone and Steam
+shows "information is unavailable".
 
-#### M3.2 — `captures` (Spec)
+#### M3.2 — `captures` (Ready)
 
-**Why:** five files patch capture-related Steam stores, and `index.tsx` holds UI styling.
-**Design:**
-1. Move the six sources into `surfaces/captures/`: `summary.ts`, `activity.ts`, `headline.ts`,
-   `activity-cards.ts`, `publish.ts` (ex `renderers/library-app.tsx`: `patch`, `refresh`, `unpatch`, `unpatchAll`)
-   and `bpm-style.ts` (the `<style>` block and its `onPopupCreate`, moved from `index.tsx`; `onPopupCreate` is Steam I/O and allowed here).
-   `steam/stores.ts`, `steam/gameid.ts` and `steam/jsx-hook.ts` stay in `steam/` (shared bindings).
-2. `activity.ts` imports `setting` → D3 `activitySettings()` option.
-3. Fail-open (D6): `BIsAppMissing` hook → `store-cache`; headline jsx handler → `headline`;
-   activity-cards jsx handler → `activity-cards`; publish/clear → `captures`. In safe mode `headline` and
-   `activity-cards` stay off, as today (the injected `isEnabled` already does this).
-4. Surface API: `publish(appid)`, `refresh(appid)`, `unpublish(appid)`, `setNativeActivitySource(appid, native)`.
-   `index.tsx` bus handlers call `captures.publish` / `captures.unpublish` (previously `patchLibraryApp`).
-   `clear(appid)` = `unpublish(appid)` (guardrail 5: stubs stay).
-5. Public exports that stay on `index.tsx` (D8): `registerSummaryProvider`, `headlineJsxDiagnostics`,
-   `activityCardsJsxDiagnostics`, the `Summary*` types. Re-export them from the surface.
-6. `features/steam-store/index.ts` calls `setNativeActivitySource` and `patchLibraryApp` →
-   D3 setters `setNativeActivitySink`, `setRepublish`.
-**Allowlist delta:** −`renderers -> steam` (only if `renderers/` then holds nothing that imports `steam/`; `community-tab.tsx` still imports `steam/community-store`, so this edge may stay until M3.8), −`steam -> settings`, −`features/steam-store -> renderers`.
-Recompute in the dry-run and write the exact list here.
-**Behaviour deltas:** none.
-**Tests:** +0 unless a pure helper is extracted. `community-core` is not touched here.
-**Live:** § 0.5 (all four views are captures); the switch-off check with `captures` (expected: no
-Post-Game Summary cards and no activity cards, and Steam's own page otherwise intact). Then repeat with
-`headline` alone (expected: headline reads "shared N screenshots" again).
-**Guardrails:** 4, 5 (never delete `StoreItemCache` stubs; purge `m_setUnavailableApps`), 6, 9, 17.
+**Check lines:**
+```
+EDIT frontend/features/scraper/on-update.ts: ok
+EDIT frontend/features/steam-store/index.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT tests/architecture-allowlist.json: ok
+DELETE frontend/renderers/library-app.tsx: ok
+DELETE frontend/steam/activity-cards-patch.ts: ok
+DELETE frontend/steam/activity.ts: ok
+DELETE frontend/steam/headline-patch.ts: ok
+DELETE frontend/steam/summary.ts: ok
+NEW frontend/surfaces/captures/activity-cards.ts: ok
+NEW frontend/surfaces/captures/activity.ts: ok
+NEW frontend/surfaces/captures/bpm-style.ts: ok
+NEW frontend/surfaces/captures/deps.ts: ok
+NEW frontend/surfaces/captures/headline.ts: ok
+NEW frontend/surfaces/captures/index.ts: ok
+NEW frontend/surfaces/captures/publish.ts: ok
+NEW frontend/surfaces/captures/summary.ts: ok
+```
+**What changes:**
+- Moves into `surfaces/captures/`: `summary.ts`, `activity.ts`, `headline.ts` (ex `headline-patch.ts`),
+  `activity-cards.ts` (ex `activity-cards-patch.ts`), `publish.ts` (ex `renderers/library-app.tsx`) and
+  `bpm-style.ts` (the Big Picture thumbnail `<style>` block, moved out of `index.tsx`).
+- `touches`: `AppSpotlightStore.GetOrCreateAppData`, `AppActivityStore.m_mapAppActivity`,
+  `StoreItemCache.m_mapApps`, `StoreItemCache.m_setUnavailableApps`, `StoreItemCache.BIsAppMissing`,
+  `CWorkshopStore.m_mapPublishedFiles`, `jsx:headline`, `jsx:activity-cards`, `BPM.style#nsga-bpm-activity-thumbs`.
+- Four kill switches in one surface (D6): `install` installs each part under its own id
+  (`store-cache`, `headline`, `activity-cards`). The `BIsAppMissing` hook, the headline observer and the
+  activity-cards `replaceType` are fail-open under their own id. `activity.ts` gets the two activity
+  settings through `deps.activityOptions()` in place of importing `settings`.
+- D3 setters: `setCapturesSinks({ setNativeActivitySource, republish })` (steam-store) and
+  `setCapturesRefresher` (scraper/on-update).
+- `index.tsx` public exports (D8) are unchanged: `registerSummaryProvider`, the `Summary*` types,
+  `headlineJsxDiagnostics` and `activityCardsJsxDiagnostics` are now re-exported from `surfaces/captures`.
+- Allowlist −3: `features/scraper -> renderers`, `features/steam-store -> renderers`, `steam -> settings`.
+**Deltas:** (1) switching `captures` off now also skips `store-cache`, `headline` and `activity-cards`
+(the runner does not install a switched-off surface; the three parts only serve captures).
+(2) The Big Picture `<style>` is registered when the surface installs, earlier in start-up, and
+`onPopupCreate` replays open windows, so the result is the same. (3) The CSS text inside the
+template literal is indented 4 spaces more (whitespace only).
+**Extra live:** switch-off `captures` → no Post-Game Summary cards and no activity cards; then
+switch-off `headline` alone → the activity headline reads "shared N screenshots" again.
 
-#### M3.3 — `game-info` (Spec; the architect **live-validates**)
+#### M3.3 — `game-info` (Ready)
 
-**Why:** § 1.2 and § 1.3: the hottest hooks in the plugin. Closes K3 and K6.
-**Design:**
-1. Move `game-info-patch.ts`, `metadata.ts` and `category-policy.ts` into `surfaces/game-info/`.
-   `normalize.ts`, `policy.ts` and `controller.ts` stay in `features/game-info/`: they are
-   pipeline and policy, not Steam writes. `tests/category-policy.test.ts` and `tests/routing-rules.test.ts`
-   update their import path (D11).
-2. `getSteamRequire` is deleted. Its only external user, `features/steam-store/native-sections.ts`,
-   switches to `steamRequire` from `steam/modules.ts` (same chunk-push technique, one capture per plugin).
-   The architect verifies live that both return a require with the same `m` keys.
-3. `metadata.ts` imports `controllerContext` → D3 option.
-4. The writer API, reached by the features through one D3 setter `setGameInfoWriter(w)` in
-   `features/game-info/index.ts`, `features/steam-store/index.ts` and `features/scraper/on-update.ts`:
-   `{ enrich(appid, meta): boolean; revert(appid): void; refresh(): void; isEnriched(appid): boolean; patch(): boolean; setStores(details, app): void }`.
-5. D6 hooks: k.render, G.render and PlayBar.render return the original; the props getter returns
-   `this._nsga_raw_props`; `GetGameID` and `BHasStoreCategory` return the original's result.
-6. **K3:** `liveInstances` becomes a `Set` pruned in `refreshGameInfoInstances` (an instance whose
-   `updater.isMounted?.(inst) === false` is deleted). Verify the React 19 API live first; if there
-   is none, prune instances whose fiber has no `return`.
-7. **K6 (investigation, then decide):** the overview re-check in `G.render`/`k.render` writes during a
-   render. Find a non-render trigger for Steam's overview rebuild. Candidates:
-   `appStore` overview-change callbacks, or `collectionStore.OnAppOverviewChange`, which M3.10 owns
-   and which would then need a D3 hook from library-home to game-info. If one is found, move the
-   re-check there and make the render hooks pure. If none is found, keep the idempotent
-   re-check (M0a) and record the exception in an ADR ("render-time idempotent repair of fields Steam rebuilds").
-   Either outcome needs `count_cycle.mjs` → `PASS render loop` and AM2R's release date and badges present.
-**Allowlist delta:** −`features/steam-store -> features/game-info` (only if steam-store no longer imports
-`game-info-patch`/`metadata` directly; it still imports `normalize`, so write the exact result),
-−`features/scraper -> features/game-info` (same condition).
-**Behaviour deltas:** K3 (unmounted instances dropped). K6 per the decision.
-**Live:** § 0.5; the three Properties checks; switch-off check with `game-info` (expected: Steam's
-stock grey Game Info box and no Properties hang).
-**Guardrails:** 1 (the proxy stays scoped; `touches` must not contain `AppOverview.BIsModOrShortcut`),
-2, 7, 8, 11, 12, 17.
+**Check lines:**
+```
+EDIT frontend/features/game-info/controller.ts: ok
+EDIT frontend/features/game-info/index.ts: ok
+EDIT frontend/features/scraper/on-update.ts: ok
+EDIT frontend/features/steam-store/index.ts: ok
+EDIT frontend/features/steam-store/native-sections.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT frontend/kernel/record.ts: ok
+EDIT frontend/rpc.ts: ok
+EDIT tests/category-policy.test.ts: ok
+EDIT tests/routing-rules.test.ts: ok
+DELETE frontend/features/game-info/category-policy.ts: ok
+DELETE frontend/features/game-info/game-info-patch.ts: ok
+DELETE frontend/features/game-info/metadata.ts: ok
+NEW frontend/surfaces/game-info/category-policy.ts: ok
+NEW frontend/surfaces/game-info/deps.ts: ok
+NEW frontend/surfaces/game-info/index.ts: ok
+NEW frontend/surfaces/game-info/metadata.ts: ok
+NEW frontend/surfaces/game-info/patch.ts: ok
+```
+**What changes:**
+- `game-info-patch.ts` → `surfaces/game-info/patch.ts`; `metadata.ts` and `category-policy.ts` move with
+  it. `normalize.ts`, `policy.ts` and `controller.ts` stay in `features/game-info` (pipeline and policy).
+- **D12:** `GameMetadata` (the `ConsolidatedMetadata` shape) and `GameCategories` move from `rpc.ts` into
+  `kernel/record.ts`; `rpc.ts` keeps both names as type aliases, so no other importer changes.
+  `controller.ts` keeps a structural copy of `ControllerContext` (D3).
+- `touches`: `GameInfo.k.render`, `GameInfo.k.props`, `GameInfo.G.render`, `GameInfo.G.props`,
+  `PlayBar.render`, `PlayBar.props` (until M3.4), `AppOverview.GetGameID`, `AppOverview.BHasStoreCategory`,
+  `AppOverview.rt_original_release_date`, `AppOverview.m_setStoreCategories`,
+  `AppDetailsStore.descriptionsData`, `AppDetailsStore.associationData`.
+- Fail-open on all seven hooks: k/G/PlayBar `render` run Steam's original on error; the `props` getter
+  returns `this._nsga_raw_props`; `GetGameID` and `BHasStoreCategory` return the original's result.
+  `install` = `setCachedStores` + `patchGameInfoComponent` (moved out of `initGameInfo`).
+- One webpack scanner (guardrail 3): `getSteamRequire` is deleted; `patch.ts` and
+  `native-sections.ts` use `steamRequire()` from `steam/modules.ts` (same chunk-push technique).
+- D3: `setGameInfoWriter` (features/game-info), `setGameInfoSink` (steam-store) and
+  `setGameInfoEnricher` (scraper), all wired to `gameInfoWriter { enrich, revert, refresh, isEnriched }`.
+  The surface gets `controllerContext` and `metadataOf` (= `getCachedLibraryMetadata`) as deps.
+- Allowlist: no change. `steam-store -> game-info` and `scraper -> game-info` remain because of
+  `normalize.ts` (M5).
+**Deltas:** `steamRequire` caches a failed capture, where `getSteamRequire` retried on every call. Both
+callers call it once at start-up, so there is no practical difference.
+**Extra docs:** `kernel.md` (History: `M3.3: GameMetadata, GameCategories (D12)`).
+**Extra live:** the three Properties checks of § 0.5 are the core of this step. Switch-off `game-info` →
+Steam's stock grey Game Info box, no ⓘ button, no Properties hang.
 
-#### M3.4 — `playbar` (Spec)
+#### M3.4 — `playbar` (Ready)
 
-**Design:** split the `targetPlayBar` hook out of `surfaces/game-info/` into `surfaces/playbar/`.
-The shared `createPatchedOverview` proxy moves to `steam/overview-proxy.ts` with the comment
-"only surfaces/game-info and surfaces/playbar import this (guardrail 1)". Add a test to
-`architecture.test.ts` that asserts its importers are exactly those two (+1 test). Append FeatureId `playbar`.
-**K4 (decide):** "Mark as Private" on an enriched shortcut. Either hide it (a D6-wrapped check in the
-PlayBar props) or leave it and document why. The user chooses; ask before the dry-run.
-**Allowlist delta:** none expected (surface-internal split).
-**Live:** § 0.5; the PlayBar ⓘ toggle shows on AM2R; switch-off check with `playbar`.
+**Check lines:**
+```
+EDIT frontend/index.tsx: ok
+EDIT frontend/safety/features.ts: ok
+EDIT frontend/surfaces/game-info/index.ts: ok
+EDIT frontend/surfaces/game-info/patch.ts: ok
+EDIT tests/architecture.test.ts: ok
+NEW frontend/steam/overview-proxy.ts: ok
+NEW frontend/surfaces/playbar/index.ts: ok
+```
+**What changes:**
+- The PlayBar lookup and hooks leave `game-info` for `surfaces/playbar`. PlayBar is resolved with
+  `resolveOnce` (the shared scanner) by its static signature. The props getter is the
+  `requireMetadata: false` path of game-info's `hookComponentProps`; the render fallback is moved verbatim.
+- `createPatchedOverview` → `steam/overview-proxy.ts`. A new architecture test (+1) asserts that
+  only `surfaces/game-info` and `surfaces/playbar` import it (guardrail 1).
+- The PlayBar hooks call game-info's `ensureAppOverviewHooked` and `trackInstance` through deps, and
+  the PlayBar class keeps the `__nsga_props_hooked` flag, so `refreshGameInfoInstances` still re-renders it.
+- New FeatureId `playbar` (appended). The ⓘ button is on only while both `playbar` **and**
+  `game-info` are on, as before the split.
+**Deltas:** none. **User-visible:** a new kill switch, `playbar`. **Extra docs:** `safety.md`
+(FeatureId list). **Extra live:** the desktop PlayBar of AM2R shows the ⓘ button; switch-off
+`playbar` → the ⓘ button is gone and Game Info itself stays.
+**K4** ("Mark as Private"): untouched here, per the user (pure move); see § 12.
 
-#### M3.5 — `achievements` (Spec)
+#### M3.5 — `achievements` (Ready)
 
-**Design:** move `store.ts`, `achievements-core.ts` and `types.ts` into `surfaces/achievements/`.
-`features/achievements/index.ts` (the RPC pipeline) stays until M6 and reaches the surface through
-`setAchievementsWriter({ set, update, get, getSchema, getUnlocks, hook })`. `refreshSections` →
-injected `refreshSections` option (wired to `sections.refresh`). `tests/achievements.test.ts` updates
-its import path (D11). D6: the `AchievementsFullStore` and `GetAchievements` hooks return the original's result.
-**Allowlist delta:** −`features/achievements -> steam` (if `dispatcher.ts` no longer imports
-`steam/modules`; it moves in M3.6, so the edge may only disappear there; record which).
-**Live:** § 0.5; `node scratch/test_animaniacs_achievements.mjs` (or the equivalent check the
-architect names) shows `0/98`; switch-off check with `achievements`.
-**Guardrails:** 8 (never `appData.details = {}`), 11, 17.
+**Check lines:**
+```
+EDIT frontend/features/achievements/index.ts: ok
+EDIT frontend/features/achievements/launch-toast.ts: ok
+EDIT frontend/features/achievements/observer-session.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT frontend/kernel/record.ts: ok
+EDIT frontend/rpc.ts: ok
+EDIT tests/achievements.test.ts: ok
+DELETE frontend/features/achievements/achievements-core.ts: ok
+DELETE frontend/features/achievements/store.ts: ok
+DELETE frontend/features/achievements/types.ts: ok
+NEW frontend/features/achievements/store-port.ts: ok
+NEW frontend/steam/achievement-types.ts: ok
+NEW frontend/surfaces/achievements/core.ts: ok
+NEW frontend/surfaces/achievements/index.ts: ok
+NEW frontend/surfaces/achievements/store.ts: ok
+```
+**What changes:**
+- `store.ts` and `achievements-core.ts` (→ `core.ts`) move to `surfaces/achievements/`. `types.ts` holds
+  Steam's own achievement shapes and moves to `steam/achievement-types.ts`, where surfaces may import it.
+- **D12:** `AchievementSchemaItem`, `AchievementSchemaRecord` and `AchievementUnlockRecord` move to the
+  kernel; `rpc.ts` keeps the names.
+- Fail-open on all six hooks (`AppDetailsStore.GetAchievements`; `AchievementsFullStore`
+  `LoadMyAchievements`, `GetMyAchievements`, `GetGlobalAchievements`, `GetPlayerAchievements`,
+  `LoadFriendAchievements`) through one `failOpen()` helper. It handles sync throws and rejected promises.
+- The features reach the store through `features/achievements/store-port.ts` (D3; `PURGE(M6)` from M3.8).
+  Its five functions have the old names, so the feature files only change an import path. The
+  retry loop in `initAchievements` stays.
+**Deltas:** none. **Extra docs:** `kernel.md` History (D12 types).
+**Extra live:** before deploying, the verifier runs `node scratch/test_animaniacs_achievements.mjs` on
+the current build and keeps the output; after deploying, the output must be identical. Switch-off
+`achievements` → the Achievements section of a mapped game shows Steam's stock state.
 
-#### M3.6 — `toasts` (Spec)
+#### M3.6 — `toasts` (Ready)
 
-**Design:** move `dispatcher.ts` and `launch-toast.ts` into `surfaces/toasts/`. Append FeatureId
-`toasts`. The toast is triggered by the `achievements.unlocked` event from `observer-session.ts`: the
-observer emits it through an injected `emitUnlocked`, and `index.tsx` subscribes `toasts.show`.
-`dispatchAchievementToast` stays exported from `index.tsx` (D8).
-**Behaviour deltas:** toasts move from a direct call to an event (same order, same payload).
-**Live:** user test only (a real unlock, § 11 user decisions / alpha checklist U-items). The verifier
-checks `PLUGIN_LIST['steam-cartridges-dev'].dispatchAchievementToast(...)` with a test payload the architect writes down.
+**Check lines:**
+```
+EDIT frontend/features/achievements/index.ts: ok
+EDIT frontend/features/achievements/launch-toast.ts: ok
+EDIT frontend/features/achievements/observer-session.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT frontend/safety/features.ts: ok
+DELETE frontend/features/achievements/dispatcher.ts: ok
+NEW frontend/features/achievements/toast-port.ts: ok
+NEW frontend/surfaces/toasts/achievement.ts: ok
+NEW frontend/surfaces/toasts/deps.ts: ok
+NEW frontend/surfaces/toasts/index.ts: ok
+NEW frontend/surfaces/toasts/launch.ts: ok
+```
+**What changes:**
+- `dispatcher.ts` → `surfaces/toasts/achievement.ts`. From `launch-toast.ts`, only the Steam write
+  (`dispatchLaunchToast`) moves, to `surfaces/toasts/launch.ts`; the launch policy (setting + local
+  achievements) stays in `features/achievements/launch-toast.ts`.
+- `touches`: `NotificationStore.OnNotification`, `NotificationStore.ProcessNotification`,
+  `NotificationStore.m_nNextTestNotificationID`. No hooks, so there is nothing to fail open. Both
+  writes return `false` while `toasts` is off.
+- The features reach it through `features/achievements/toast-port.ts` (D3; `PURGE(M6)` from M3.8).
+  Toasts stay direct calls. The switch to the `achievements.unlocked` event is a flow change and belongs to M6.
+- New FeatureId `toasts`. The public `dispatchAchievementToast` export (D8) is unchanged.
+**User-visible:** a new kill switch, `toasts`. **Extra docs:** `safety.md`.
+**Extra live:** in the console, run
+`PLUGIN_LIST['steam-cartridges-dev'].dispatchAchievementToast(4263274102, {id:'m36',name:'M3.6 check',description:'toast surface',icon:'https://media.retroachievements.org/Badge/00001.png'})`
+→ `true` and a Steam achievement toast appears. With `toasts` switched off → `false` and no toast.
 
-#### M3.7 — `native-links` (Spec)
+#### M3.7 — `native-links` (Ready)
 
-**Design:** move `native-sections.ts` and `native-sections-core.ts` into `surfaces/native-links/`.
-`tests/native-sections.test.ts` updates its path (D11). `setNativeAppid` (called by `features/steam-store/index.ts`)
-→ D3 `setNativeLinksSink`. D6: the `GetAppOverviewByAppID` afterPatch returns the unmodified value,
-`Navigator.App` beforePatch passes the arguments through, and the jsx handler does nothing.
-`nativeSectionsDiagnostics` stays exported (D8).
-**Allowlist delta:** −`features/steam-store -> steam` only if nothing else in steam-store imports `steam/`
-(it does: `shortcut`, `route`, `activity`). Expect none; record it.
-**Live:** § 0.5; `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL` (Jotunnslayer links, friends, community).
+**Check lines:**
+```
+EDIT frontend/features/steam-store/index.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT frontend/surfaces/sections/index.ts: ok
+EDIT tests/native-sections.test.ts: ok
+DELETE frontend/features/steam-store/native-sections-core.ts: ok
+DELETE frontend/features/steam-store/native-sections.ts: ok
+NEW frontend/surfaces/native-links/core.ts: ok
+NEW frontend/surfaces/native-links/index.ts: ok
+```
+**What changes:** `native-sections.ts` → `surfaces/native-links/index.ts`, and `native-sections-core.ts`
+→ `core.ts` (test path, D11). The three hooks are fail-open: the `GetAppOverviewByAppID` afterPatch
+returns the unmodified value, the `Navigator.App` beforePatch passes the arguments through, and the jsx
+observer does nothing. `touches`: `appStore.GetAppOverviewByAppID`, `Navigator.App`,
+`jsx:native-sections`. D3 `setNativeLinksSink` (steam-store → `setNativeAppid`).
+`nativeSectionsDiagnostics` (D8) is unchanged.
+**Extra live:** `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL`; switch-off `native-links` →
+Jotunnslayer's Links, Friends and Community sections are stock.
 
-#### M3.8 — `community` (Blocked: user decision 4, § 11)
+#### M3.8 — Purge markers (Ready)
 
-`renderers/community-tab.tsx` is imported by nothing, and `steam/community-store.ts` is imported
-only by it (K9). Nothing reaches `loadCommunityData` or `registerWorkshopMedia` at runtime, so no
-surface is needed. Default if the user does not decide: **delete** `renderers/community-tab.tsx`
-and `steam/community-store.ts`, and keep `steam/community-core.ts` with `tests/community.test.ts`
-(pure, tested, reused when media becomes a record part). Write the deletion commit's SHA in
-`surfaces.md` so the code can be restored with `git show <sha>^:<path>`. The backend RPCs
-(`GetGameMedia`, `GetGameManual`, `GetGameTrailers`, `GetGameCommunityLinks`) stay registered,
-because `rpc.ts` still declares them (M9 decides).
-**Allowlist delta (delete option):** −`renderers -> settings`, −`steam -> rpc` if `community-store.ts`
-was the last `steam/` file importing `rpc` (verify with `git grep -n "../rpc" -- frontend/steam`).
+**Check lines:**
+```
+EDIT frontend/features/achievements/store-port.ts: ok
+EDIT frontend/features/achievements/toast-port.ts: ok
+EDIT frontend/renderers/community-tab.tsx: ok
+EDIT frontend/steam/community-store.ts: ok
+```
+**What changes:** comments only. It introduces the purge marker (D13): `// PURGE(<step>): <why>. Ledger:
+migration plan § 7.9.` It marks the two unreachable community files `PURGE(M9)` (K9; user decision 4)
+and the two M3 ports `PURGE(M6)`. `git grep -n "PURGE(" -- frontend` then lists exactly the four
+files, plus `applyCustomArtwork` after M3.9.
+**Extra docs:** fill in § 7.9 (it is already written; tick the M3.8 rows). **Live:** none (comments
+only); say so in the report.
 
-#### M3.9 — `artwork` (Spec)
+#### M3.9 — `artwork` (Ready)
 
-**Design:** move `features/artwork/artwork.ts` and `features/steam-store/logo.ts` into `surfaces/artwork/`.
-The three `apps?.ClearCustomArtworkForApp` calls in `features/steam-store/index.ts` become
-`artwork.clearSlots(appid, slots)`, reached through the D3 `setArtworkWriter`. `artwork.ts` imports
-`rpc` → injected `downloadImage(url)`. Append FeatureId `artwork`. `art-plan.ts` stays (see the note above the M3.1 section).
-**Allowlist delta:** −`features/artwork -> rpc`, −`features/steam-store -> features/artwork`.
-**Live:** § 0.5; with a mapped game whose art is already applied (WUCHANG), nothing is re-written
-(the log shows no `applied N art slot(s)` line on a second view); switch-off check with `artwork`.
+**Check lines:**
+```
+EDIT frontend/features/steam-store/index.ts: ok
+EDIT frontend/index.tsx: ok
+EDIT frontend/kernel/record.ts: ok
+EDIT frontend/rpc.ts: ok
+EDIT frontend/safety/features.ts: ok
+EDIT tests/architecture-allowlist.json: ok
+DELETE frontend/features/artwork/artwork.ts: ok
+DELETE frontend/features/steam-store/logo.ts: ok
+NEW frontend/surfaces/artwork/artwork.ts: ok
+NEW frontend/surfaces/artwork/deps.ts: ok
+NEW frontend/surfaces/artwork/index.ts: ok
+NEW frontend/surfaces/artwork/logo.ts: ok
+```
+**What changes:**
+- `features/artwork/artwork.ts` and `features/steam-store/logo.ts` → `surfaces/artwork/`. The three
+  `ClearCustomArtworkForApp` calls in `steam-store/index.ts` become `artwork.clearSlot()` through
+  `setArtworkSink` (D3), which calls on the object, never an extracted method.
+  `rpc.steamStoreDownloadImage` becomes the `downloadImage` dep. `art-plan.ts` stays (pipeline policy, M4).
+- **D12:** `ArtworkUrls`, `ImageAsset` and `ArtworkBundle` move to the kernel; `rpc.ts` keeps the names.
+- `applyCustomArtwork` (the bundle variant) is unreachable and gets a `PURGE(M9)` marker above it.
+- New FeatureId `artwork`: while it is off, no slot is written or cleared and the logo position is not touched.
+- Allowlist −2: `features/artwork -> rpc`, `features/steam-store -> features/artwork`.
+**User-visible:** a new kill switch, `artwork`. **Extra docs:** `safety.md`, `kernel.md` History.
+**Extra live:** open WUCHANG twice; the second view logs no `Steam Store: applied … art slot(s)` line
+(art already applied). Switch-off `artwork` → no art writes on a newly mapped game.
 
-#### M3.10 — `library-home` (Spec)
+#### M3.10 — `library-home` (Ready)
 
-**Design:** move `renderers/library-home.tsx` into `surfaces/library-home/`. `rpc.getLibraryStats`
-→ injected `loadLibraryStats()`. `refresh()` stays the quit handler's call in `index.tsx`. D6: the
-`OnAppOverviewChange` afterPatch returns unmodified. The architect lists each overview field it
-writes as a `touches` entry.
-**Allowlist delta:** −`renderers -> rpc` (and `renderers` disappears as an area if M3.8 deleted
-`community-tab.tsx`).
-**Live:** § 0.5; the library grid shows "last played" for AM2R (from captures).
-**After M3.10:** the feature freeze of § 5 ends. Write that in `TASK.md`.
+**Check lines:**
+```
+EDIT frontend/index.tsx: ok
+EDIT tests/architecture-allowlist.json: ok
+DELETE frontend/renderers/library-home.tsx: ok
+NEW frontend/surfaces/library-home/grid.ts: ok
+NEW frontend/surfaces/library-home/index.ts: ok
+```
+**What changes:** `renderers/library-home.tsx` → `surfaces/library-home/grid.ts`. `touches`:
+`collectionStore.OnAppOverviewChange`, `AppOverview.rt_recent_activity_time`,
+`AppOverview.rt_last_time_played_or_installed`. The afterPatch is fail-open (returns Steam's value).
+`rpc.getLibraryStats` becomes the `loadLibraryStats` dep. Registration stays async: `install()` starts
+it, and `index.tsx` awaits `ready()`, so the start-up order is unchanged. Allowlist −1: `renderers -> rpc`.
+**Extra live:** the library grid sorts AM2R by its newest capture ("last played"); switch-off
+`library-home` → Steam's own values.
+**After M3.10:** the feature freeze (§ 5) ends. Write that in `TASK.md`.
 
 ### M4 — Resolver service + RPC facade (Spec)
 
@@ -2021,10 +2210,14 @@ writes as a `touches` entry.
    Extend the RPC-registration test to scan `ports/backend.ts` as well as `rpc.ts` (+0 tests, same test).
 6. `app/records.ts`: `createRecordStore(bus)`. On `shortcut.viewed`, it calls `GetGameRecord`, upserts the
    base fields (title from the view's overview; D3 `titleOf` injected), then `EnsureFresh(appid, ["route","identity"], context)`,
-   and writes the parts with `records.update`. Wire `app/render-queue.ts` to `record.updated` → `runner.render`.
+   and writes the parts with `records.update`. Create `app/render-queue.ts` (D5:
+   `createRenderQueue(render: (appid, parts) => void)` coalesces changed parts per appid and flushes on
+   `setTimeout(0)`; +2 tests: coalescing, one flush per tick) and wire it: `record.updated` → queue →
+   `runner.render`. The runner already exists (M3.1, in `index.tsx`).
 7. Record-driven switch (D4): `sections` reads `identity.native` for its extra sections; `native-links`
-   reads `identity.native`; `captures` reads it for the native activity source. Delete
-   `setExtraSectionsSink`, `setNativeLinksSink` and `setNativeActivitySink` in the same step.
+   reads `identity.native`; `captures` reads it for the native activity source; `artwork` gets the art
+   plan. Delete the M4 rows of the § 7.9 ledger (`setExtraSectionsSink`, `setNativeLinksSink`, the
+   `setNativeActivitySource` half of `setCapturesSinks`, `setArtworkSink`, `setCollectionsSource`) in the same step.
 8. `features/steam-store/index.ts` `resolveMapping` and `features/buckets` `getBucket` call the backend
    through the port. Delete the TS resolution code only once no caller remains (list the callers
    in the dry-run; `settings-panel.tsx` `bucketReport` is one, so `bucketReport` keeps working via the port).
@@ -2045,8 +2238,8 @@ none → local only, ADR-0035). Storage stays `library_metadata.json`, and `cust
 `EnsureFresh(appid, ["metadata"])` fills `record.metadata`. Frontend: `game-info` becomes record-driven
 (reads `record.metadata.data`) and `sections.hasGameInfo` reads `metadata.status === "ok"`. Delete
 `features/game-info/index.ts` `libraryCache`, `handleWebScrapingView` and the `getAllMetadata` preload, and
-replace them with one `ListRecords()` (disk only) at start-up that fills every record. Also delete
-`setGameInfoWriter` callers that no longer exist.
+replace them with one `ListRecords()` (disk only) at start-up that fills every record. Delete the M5
+rows of the § 7.9 ledger.
 **Exit:** `node scratch/audit_missing_metadata.mjs` → 0 missing (220/220); AM2R Game Info intact with
 bucket `none` (ADR-0035); § 0.5 PASS. Lua tests for each source's `supports`. **Doc:** `service-metadata.md`.
 
@@ -2060,7 +2253,8 @@ without a ROM path, so its status is `unsupported` and nothing is logged (fixes 
 and a record update → the `achievements` surface re-feeds Steam's stores. Fix **K1**
 (`newUnlocks.map is not a function`: normalize the RPC result to an array at the port) and **K7**
 (the byte-wise dash class: match `–`/`—` as whole UTF-8 sequences, collapse double spaces).
-Remove `features/achievements/` and `features/scraper/on-update.ts` achievement parts once their callers use the port.
+Remove `features/achievements/` (including the `PURGE(M6)` ports `store-port.ts` and `toast-port.ts`)
+and the achievement parts of `features/scraper/on-update.ts` once their callers use the port.
 **Inputs carried from removed plans** (read in full with `git show 0d599cf:<path>`):
 
 | Removed doc | Open goals M6 must decide or carry |
@@ -2117,9 +2311,37 @@ the "all tabs render" script it names); § 0.5 PASS; allowlist loses every `sett
    (do-not-touch 6: the hook is shared by identical copy with `enhanced-achievements`).
 5. Rewrite [millennium-architecture.md](../millennium-architecture.md) § Module layout to the real tree;
    update AGENTS.md Routine 4 paths; D8: decide which `index.tsx` exports stay public.
-6. Move `scratch/arch-m0/{cdp,probe,test_props,count_cycle,catch_hang}.mjs` into
+6. Execute § 7.9, the purge ledger: delete every row whose "Delete in" is M9 (or decide the "M9 decides"
+   rows and write the decision in the ledger). Exit: `git grep -n "PURGE(" -- frontend` → no output.
+7. Move `scratch/arch-m0/{cdp,probe,test_props,count_cycle,catch_hang}.mjs` into
    `steam-cartridges/tests/live/` and update every reference (§ 0.5, plugins.md guardrail 17,
    steam-debug.md Trap 10).
+
+### 7.9 Purge ledger (D13)
+
+Legacy the migration leaves behind on purpose, and the step that deletes it. Each file row
+carries a `PURGE(<step>)` marker in the code from the step in "Marked". Setters are D3 wiring:
+the listed step replaces them with a read of the record or a backend call, and deletes them
+from both the feature and `index.tsx`. M9's exit includes `git grep -n "PURGE(" -- frontend`
+printing nothing, and every row below being deleted.
+
+| Item | Marked | Delete in | Why |
+| --- | --- | --- | --- |
+| `frontend/renderers/community-tab.tsx` | M3.8 `PURGE(M9)` | M9 | unreachable: nothing imports it (K9) |
+| `frontend/steam/community-store.ts` | M3.8 `PURGE(M9)` | M9 | only `community-tab.tsx` imports it (K9) |
+| `frontend/steam/community-core.ts` + `tests/community.test.ts` | — | M9 decides | pure and tested; keep only if media becomes a record part by then |
+| `applyCustomArtwork` in `surfaces/artwork/artwork.ts`, plus `ArtworkBundle` and `ImageAsset` | M3.9 `PURGE(M9)` | M9 | unreachable: nothing calls it |
+| `frontend/features/achievements/store-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; M6 moves the achievements pipeline to the backend |
+| `frontend/features/achievements/toast-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; toasts become `achievements.unlocked` subscribers |
+| setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks` (`setNativeActivitySource` part), `setArtworkSink` | — | M4 | `identity.native` and the art plan come from the record |
+| setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`, and deps `metadataOf` / `controllerContext` of the game-info surface | — | M5 | Game Info comes from `record.metadata` |
+| setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts` | — | M7 | freshness and ingestion move to the backend |
+| setter `setContentListener` | — | M9 decides | the content flag stays captures → sections; keep the setter or move it to an event |
+| setter `setCollectionsSource` | — | M4 | membership becomes resolver context |
+| `rpc.ts` type aliases (`ConsolidatedMetadata`, `GameCategories`, achievement and artwork shapes) | — | M9 | importers use the kernel names (D12) |
+| RPC names with no caller (backend aliases) | — | M9 | the registration test proves which are unused |
+| `steam/route.ts` `isNonSteamAppId` | — | M9 | `kernel/appid.ts` everywhere |
+| `scratch/arch-m0/<step>/` packages, `apply_step.py`, `pack_step.py` | — | M9 | execution aids, not product code; the live scripts move to `steam-cartridges/tests/live/` |
 
 ---
 
@@ -2203,11 +2425,12 @@ AGENTS.md Routine 6.
 2. **New shortcuts are fetched in the background** at startup, rate-limited. All
    other refreshes happen only when the page is opened (Flow B).
 3. **Feature freeze** on `steam-cartridges` until M3 is complete.
-4. **Pending (asked 2026-09-28): the unreachable community code (K9).** Nothing imports
-   `renderers/community-tab.tsx`, so `steam/community-store.ts` never runs. Options:
-   (a) delete both frontend files, keep `steam/community-core.ts` and its test, and restore
-   the rest from git when media becomes a record part (**default**); (b) keep them untouched
-   until M9. M3.8 stays `Blocked` until the user answers, and applies (a) if told "default".
+4. **Legacy is deleted when the migration completes, not before** (2026-09-28, answering K9):
+   unreachable or temporary code is marked `PURGE(<step>)` and listed in the § 7.9 ledger (D13);
+   M3.8 marks the community files, M9 deletes them.
+5. **Migration steps are pure moves** (2026-09-28, answering K4): "the point of the migration is a
+   hexagonal architecture where each layer has a very specific input/job/output". Behaviour bugs
+   found on the way get their own bugfix plans (D14).
 
 Recorded in [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
 
@@ -2221,13 +2444,14 @@ Executing agents add to this list instead of fixing things outside their step.
 | --- | --- | --- | --- |
 | K1 | `checkObserverUnlocks` throws `TypeError: newUnlocks.map is not a function` | SharedJSContext console on opening WUCHANG, stack `checkObserverUnlocks < handleGameOpenUpdate` (`features/achievements`, `features/scraper/on-update.ts`) | M6 |
 | K2 | A plain PC game (AM2R) goes through RetroAchievements and logs `Failed loading achievements for shortcut …: cannot extract rom path` on every view; should be `unsupported` and silent (ADR-0014) | `count_cycle.mjs` phase A output | M6 |
-| K3 | `liveInstances` in `game-info-patch.ts` never drops unmounted component instances (slow leak; `forceUpdate` on them is a no-op) | source read | M3.3 |
-| K4 | "Mark as Private" is enabled for an enriched shortcut and would send the shortcut appid to the private-apps service | [steam-components.md § Header buttons](../steam-components.md#header-buttons-manage-and-properties) | M3.4 (decide) |
+| K3 | `liveInstances` in `game-info-patch.ts` (now `surfaces/game-info/patch.ts`) never drops unmounted component instances (slow leak; `forceUpdate` on them is a no-op) | source read | Bugfix plan after M3 (D14; needs a live check of React's unmount state) |
+| K4 | "Mark as Private" is enabled for an enriched shortcut and would send the shortcut appid to the private-apps service | [steam-components.md § Header buttons](../steam-components.md#header-buttons-manage-and-properties) | Bugfix plan after M3 (D14; user decides hide-or-keep there) |
 | K5 | **Resolved 2026-09-28:** LuaJIT 2.1 installed at `C:\dev\tools\lua` and added to the user `PATH`. Was: no Lua interpreter on this machine: `tools/lua/` is missing and `lua`/`luajit` are not on `PATH`, so `tests/test_backend.lua` and `tests/test_steam_store.lua` cannot run. AGENTS.md Routine 4 assumes `tools/lua/` | `which lua luajit` → nothing | **User**: provide a LuaJIT/Lua 5.1 binary in `tools/lua/`. Blocks M4–M7 |
 | K7 | `achievements_observer.get_possible_folder_names` (commit `22bac99`, never run: there was no Lua until K5 was fixed) turns `"WUCHANG: Fallen Feathers"` into `"WUCHANG -  Fallen Feathers"` (two spaces), and its `[:\xe2\x80\x93\xe2\x80\x94]` byte class replaces **each byte** of an en/em dash, so `"A – B"` becomes `"A  -  -  -  B"` | `test_backend.lua`: `FAIL keeps colon-to-dash normalized title`; `lua -e` repro | M6 (or a bugfix plan before it) |
 | K8 | `test_backend.lua` fixture `FIXTURE.retroarch = 216`; the live library now has 215 RetroArch shortcuts (library-dependent fixture, AGENTS.md Routine 4) | `FAIL retroarch shortcut count -> 215` | Update the fixture to the live count in the next backend step, after confirming the user removed one on purpose |
-| K9 | `renderers/community-tab.tsx` is imported by nothing, so `steam/community-store.ts` (the second writer of `CWorkshopStore.m_mapPublishedFiles`, D7) never runs; the trailers/manual/links RPCs have no frontend caller | `git grep -n "community-tab\|community-store" -- frontend` (2026-09-28) | M3.8 (user decision 4) |
+| K9 | `renderers/community-tab.tsx` is imported by nothing, so `steam/community-store.ts` (the second writer of `CWorkshopStore.m_mapPublishedFiles`, D7) never runs; the trailers/manual/links RPCs have no frontend caller | `git grep -n "community-tab\|community-store" -- frontend` (2026-09-28) | Marked M3.8, deleted M9 (§ 7.9) |
 | K10 | Desktop A → B between two shortcuts never unpublished A (Big Picture did) | `index.tsx` desktop `onLocationChange` block, read 2026-09-28 | M2 (behaviour delta 1) |
 | K11 | An achievement observer whose mapping resolved after the game quit was never stopped (`onQuit` registered too late) | `steambrew-utils` `onAppLaunch` source: quit callbacks run once, at quit | M2 (behaviour delta 5) |
 | K12 | `source-view.ts`'s Big Picture detector ran the view pipeline synchronously from inside a jsx call (inside Steam's render), on every re-render | `watchGamepadAppid` observes `jsx()` calls; source read 2026-09-28 | M2 (D5: timer emit, re-render dedupe) |
-| K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | M3.3 (investigate a non-render trigger, else ADR exception; see M3.3 design 7) |
+| K13 | `surfaces/captures/activity-cards.ts` (ex `steam/activity-cards-patch.ts`) has its own `getSteamRequire` chunk-push scanner next to `steam/modules.ts` `steamRequire` (guardrail 3: one scanner) | `git grep -n getSteamRequire -- frontend` after M3.3 | Bugfix plan after M3 (D14) |
+| K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | Bugfix plan after M3 (D14): find a non-render trigger for Steam's overview rebuild, else an ADR exception for the idempotent render-time repair |

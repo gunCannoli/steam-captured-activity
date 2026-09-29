@@ -1,0 +1,399 @@
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index bf335cc..1bd9f6b 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -49,7 +49,14 @@ import {
+     setGameInfoProbe,
+     setHasContent,
+ } from "./surfaces/sections";
+-import { createGameInfoSurface, gameInfoWriter, isAppEnriched } from "./surfaces/game-info";
++import {
++    createGameInfoSurface,
++    ensureAppOverviewHooked,
++    gameInfoWriter,
++    isAppEnriched,
++    trackInstance,
++} from "./surfaces/game-info";
++import { createPlaybarSurface } from "./surfaces/playbar";
+ import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-info";
+ import { controllerContext } from "./features/game-info/controller";
+ import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink } from "./features/steam-store";
+@@ -199,6 +206,8 @@ async function init() {
+     // ===== Game Info (surfaces/game-info, plan M3.3) =====
+     // Steam's Game Info components and AppOverview hooks; the data pipeline below fills it.
+     runner.register(createGameInfoSurface({ ...surfaceDeps, controllerContext, metadataOf: getCachedLibraryMetadata }));
++    // The desktop PlayBar's ⓘ button (surfaces/playbar, plan M3.4); on only while game-info is.
++    runner.register(createPlaybarSurface({ ...surfaceDeps, hookOverview: ensureAppOverviewHooked, track: trackInstance }));
+     runner.installAll();
+ 
+     // ===== Game Info data (ex steamgriddb-artwork) =====
+diff --git a/steam-cartridges/frontend/safety/features.ts b/steam-cartridges/frontend/safety/features.ts
+index 5c5a202..8f298c1 100644
+--- a/steam-cartridges/frontend/safety/features.ts
++++ b/steam-cartridges/frontend/safety/features.ts
+@@ -19,6 +19,7 @@ export const FEATURE_IDS = [
+     "game-info",
+     "library-home",
+     "background-sync",
++    "playbar",
+ ] as const;
+ export type FeatureId = (typeof FEATURE_IDS)[number];
+ 
+diff --git a/steam-cartridges/frontend/steam/overview-proxy.ts b/steam-cartridges/frontend/steam/overview-proxy.ts
+new file mode 100644
+index 0000000..423da07
+--- /dev/null
++++ b/steam-cartridges/frontend/steam/overview-proxy.ts
+@@ -0,0 +1,32 @@
++// The scoped AppOverview proxy (guardrail 1): hands one component an overview whose
++// BIsModOrShortcut() is false, without touching AppOverview.prototype. Moved from
++// game-info in M3.4 so the two surfaces that need it share one copy.
++// ONLY surfaces/game-info and surfaces/playbar may import this (tests/architecture.test.ts).
++
++export function createPatchedOverview(overview: any): any {
++    if (!overview) return overview;
++    if (overview.__nsga_is_patched_proxy) return overview;
++    return new Proxy(overview, {
++        get(target, prop, receiver) {
++            if (prop === "__nsga_is_patched_proxy") return true;
++            if (prop === "BIsModOrShortcut") {
++                return () => false;
++            }
++            if (prop === "GetGameID") {
++                return () =>
++                    target.m_gameid ||
++                    (typeof target.GetGameID === "function"
++                        ? target.GetGameID()
++                        : target.appid?.toString());
++            }
++            if (prop === "gameid") {
++                return target.m_gameid || target.gameid;
++            }
++            const val = Reflect.get(target, prop, receiver);
++            if (typeof val === "function") {
++                return val.bind(target);
++            }
++            return val;
++        },
++    });
++}
+diff --git a/steam-cartridges/frontend/surfaces/game-info/index.ts b/steam-cartridges/frontend/surfaces/game-info/index.ts
+index dde0a2c..f2bfa64 100644
+--- a/steam-cartridges/frontend/surfaces/game-info/index.ts
++++ b/steam-cartridges/frontend/surfaces/game-info/index.ts
+@@ -7,9 +7,17 @@ import type { Surface, SurfaceDeps } from "../../kernel/surface";
+ import type { ControllerContext } from "./category-policy";
+ import { deps } from "./deps";
+ import { enrichGameDetails, revertGameDetails } from "./metadata";
+-import { enrichedAppIds, isAppEnriched, patchGameInfoComponent, refreshGameInfoInstances, setCachedStores } from "./patch";
++import {
++    enrichedAppIds,
++    ensureAppOverviewHooked,
++    isAppEnriched,
++    patchGameInfoComponent,
++    refreshGameInfoInstances,
++    setCachedStores,
++    trackInstance,
++} from "./patch";
+ 
+-export { enrichGameDetails, revertGameDetails, isAppEnriched, refreshGameInfoInstances };
++export { enrichGameDetails, revertGameDetails, isAppEnriched, refreshGameInfoInstances, ensureAppOverviewHooked, trackInstance };
+ 
+ /** What the features call (structurally matched by their setters). */
+ export const gameInfoWriter = {
+@@ -36,8 +44,6 @@ export function createGameInfoSurface(
+             "GameInfo.k.props",
+             "GameInfo.G.render",
+             "GameInfo.G.props",
+-            "PlayBar.render",
+-            "PlayBar.props",
+             "AppOverview.GetGameID",
+             "AppOverview.BHasStoreCategory",
+             "AppOverview.rt_original_release_date",
+diff --git a/steam-cartridges/frontend/surfaces/game-info/patch.ts b/steam-cartridges/frontend/surfaces/game-info/patch.ts
+index cb95f2a..2faca89 100644
+--- a/steam-cartridges/frontend/surfaces/game-info/patch.ts
++++ b/steam-cartridges/frontend/surfaces/game-info/patch.ts
+@@ -2,6 +2,7 @@
+ // AppOverview hooks that let a shortcut show them. Moved from features/game-info/game-info-patch.ts.
+ import { logger } from "../../logger";
+ import { steamRequire } from "../../steam/modules";
++import { createPatchedOverview } from "../../steam/overview-proxy";
+ import { isNonSteamAppId } from "../../steam/route";
+ import { deps } from "./deps";
+ 
+@@ -59,6 +60,11 @@ export function getAppStore(): any {
+ 
+ const liveInstances = new Set<any>();
+ 
++/** Remember a mounted component so refreshGameInfoInstances re-renders it (the playbar surface uses this). */
++export function trackInstance(inst: any): void {
++    liveInstances.add(inst);
++}
++
+ /**
+  * Re-render all mounted Game Info container and overview components across all windows.
+  * Called when metadata is loaded or updated asynchronously so Steam's UI
+@@ -130,34 +136,6 @@ export function refreshGameInfoInstances(): void {
+     }
+ }
+ 
+-function createPatchedOverview(overview: any): any {
+-    if (!overview) return overview;
+-    if (overview.__nsga_is_patched_proxy) return overview;
+-    return new Proxy(overview, {
+-        get(target, prop, receiver) {
+-            if (prop === "__nsga_is_patched_proxy") return true;
+-            if (prop === "BIsModOrShortcut") {
+-                return () => false;
+-            }
+-            if (prop === "GetGameID") {
+-                return () =>
+-                    target.m_gameid ||
+-                    (typeof target.GetGameID === "function"
+-                        ? target.GetGameID()
+-                        : target.appid?.toString());
+-            }
+-            if (prop === "gameid") {
+-                return target.m_gameid || target.gameid;
+-            }
+-            const val = Reflect.get(target, prop, receiver);
+-            if (typeof val === "function") {
+-                return val.bind(target);
+-            }
+-            return val;
+-        },
+-    });
+-}
+-
+ const appCategoriesCache = new Map<number, Set<number>>();
+ 
+ export function setAppCategories(appid: number, categories: Set<number>): void {
+@@ -489,7 +467,6 @@ export function patchGameInfoComponent(): boolean {
+         }
+ 
+         let targetG: any = undefined;
+-        let targetPlayBar: any = undefined;
+ 
+         for (const id of Object.keys(req.m)) {
+             let mod: any;
+@@ -512,16 +489,9 @@ export function patchGameInfoComponent(): boolean {
+                     ) {
+                         targetG = exp;
+                     }
+-                    if (
+-                        !targetPlayBar &&
+-                        exp.s_setGameInfoVisible instanceof Set &&
+-                        Array.isArray(exp.s_rgFakeDetails)
+-                    ) {
+-                        targetPlayBar = exp;
+-                    }
+                 }
+             }
+-            if (targetG && targetPlayBar) break;
++            if (targetG) break;
+         }
+ 
+         if (!targetG) {
+@@ -640,44 +610,6 @@ export function patchGameInfoComponent(): boolean {
+             }
+         }
+ 
+-        // 3. Hook targetPlayBar (prototype props descriptor + render fallback)
+-        // Restores native ⓘ "Show/Hide game details" button on Desktop normal mode PlayBar
+-        if (targetPlayBar && !targetPlayBar.__nsga_playbar_patched) {
+-            targetPlayBar.__nsga_playbar_patched = true;
+-            hookComponentProps(targetPlayBar, { requireMetadata: false, id: "game-info" });
+-
+-            const origPlayBarRender = targetPlayBar.prototype.render;
+-            if (typeof origPlayBarRender === "function") {
+-                targetPlayBar.prototype.render = function () {
+-                    if (!deps.isEnabled("game-info")) return origPlayBarRender.apply(this, arguments);
+-                    try {
+-                        liveInstances.add(this);
+-                        const overview = this.props?.overview;
+-                        if (overview) {
+-                            ensureAppOverviewHooked(overview);
+-                        }
+-                        if (
+-                            overview &&
+-                            (isNonSteamAppId(overview.appid) ||
+-                                (typeof overview.BIsModOrShortcut === "function" &&
+-                                    overview.BIsModOrShortcut()))
+-                        ) {
+-                            this.props = {
+-                                ...this.props,
+-                                overview: createPatchedOverview(overview),
+-                            };
+-                        }
+-                    } catch (err) {
+-                        deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
+-                    }
+-                    return origPlayBarRender.apply(this, arguments);
+-                };
+-            }
+-            logger.info(
+-                "Successfully patched Steam PlayBar component (show/hide game details ⓘ button restored).",
+-            );
+-        }
+-
+         hasPatchedGameInfo = true;
+         logger.info(
+             "Game Info native shortcut filter bypass hooked successfully.",
+diff --git a/steam-cartridges/frontend/surfaces/playbar/index.ts b/steam-cartridges/frontend/surfaces/playbar/index.ts
+new file mode 100644
+index 0000000..515d6df
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/playbar/index.ts
+@@ -0,0 +1,132 @@
++// Surface `playbar` (migration plan M3.4, ADR-0039): restores the ⓘ "Show/Hide game details"
++// button on a shortcut's desktop PlayBar. Split out of surfaces/game-info; the hooks are the
++// ones game-info installed before (hookComponentProps with requireMetadata: false, and the
++// PlayBar render fallback). The button opens Game Info, so it is on only while both
++// `playbar` and `game-info` are (as before the split, when game-info owned it).
++import { logger } from "../../logger";
++import type { Surface, SurfaceDeps } from "../../kernel/surface";
++import { resolveOnce } from "../../steam/modules";
++import { createPatchedOverview } from "../../steam/overview-proxy";
++import { isNonSteamAppId } from "../../steam/route";
++
++let deps: SurfaceDeps & {
++    /** game-info's ensureAppOverviewHooked (GetGameID / BHasStoreCategory on the overview's prototype chain). */
++    hookOverview(overview: any): void;
++    /** game-info's trackInstance, so its refresh re-renders the PlayBar too. */
++    track(inst: any): void;
++} = { isEnabled: () => true, reportError: () => {}, hookOverview: () => {}, track: () => {} };
++
++const on = () => deps.isEnabled("playbar") && deps.isEnabled("game-info");
++
++function isShortcutOverview(overview: any): boolean {
++    return (
++        isNonSteamAppId(overview.appid) ||
++        (typeof overview.BIsModOrShortcut === "function" && overview.BIsModOrShortcut())
++    );
++}
++
++/** The requireMetadata: false path of game-info's hookComponentProps, for the PlayBar class. */
++function hookPlayBarProps(componentClass: any): void {
++    if (componentClass.__nsga_props_hooked) return;
++    // game-info's refreshGameInfoInstances finds hooked components by this flag.
++    componentClass.__nsga_props_hooked = true;
++    try {
++        Object.defineProperty(componentClass.prototype, "props", {
++            get() {
++                if (!on()) return this._nsga_raw_props;
++                try {
++                    deps.track(this);
++                    const rawProps = this._nsga_raw_props;
++                    if (!rawProps) return rawProps;
++                    const overview = rawProps.overview;
++                    if (!overview) return rawProps;
++                    deps.hookOverview(overview);
++
++                    if (isShortcutOverview(overview)) {
++                        if (
++                            this._nsga_patched_props &&
++                            this._nsga_last_raw_props === rawProps
++                        ) {
++                            return this._nsga_patched_props;
++                        }
++                        this._nsga_last_raw_props = rawProps;
++                        this._nsga_patched_props = new Proxy(rawProps, {
++                            get(target, prop, receiver) {
++                                if (prop === "overview") {
++                                    return createPatchedOverview(overview);
++                                }
++                                return Reflect.get(target, prop, receiver);
++                            },
++                        });
++                        return this._nsga_patched_props;
++                    }
++                    return rawProps;
++                } catch (err) {
++                    deps.reportError("playbar", err); // fail-open (plan § 7.0 D6)
++                    return this._nsga_raw_props;
++                }
++            },
++            set(newProps) {
++                this._nsga_raw_props = newProps;
++                this._nsga_last_raw_props = undefined;
++                this._nsga_patched_props = undefined;
++            },
++            configurable: true,
++        });
++    } catch (e) {
++        logger.warn("Could not define props descriptor on component:", e);
++    }
++}
++
++function patchPlayBar(): void {
++    const targetPlayBar = resolveOnce<any>(
++        "PlayBar component",
++        (v) => typeof v === "function" && (v as any).s_setGameInfoVisible instanceof Set && Array.isArray((v as any).s_rgFakeDetails),
++    );
++    if (!targetPlayBar || targetPlayBar.__nsga_playbar_patched) return;
++    targetPlayBar.__nsga_playbar_patched = true;
++    hookPlayBarProps(targetPlayBar);
++
++    const origPlayBarRender = targetPlayBar.prototype.render;
++    if (typeof origPlayBarRender === "function") {
++        targetPlayBar.prototype.render = function () {
++            if (!on()) return origPlayBarRender.apply(this, arguments);
++            try {
++                deps.track(this);
++                const overview = this.props?.overview;
++                if (overview) {
++                    deps.hookOverview(overview);
++                }
++                if (overview && isShortcutOverview(overview)) {
++                    this.props = {
++                        ...this.props,
++                        overview: createPatchedOverview(overview),
++                    };
++                }
++            } catch (err) {
++                deps.reportError("playbar", err); // fail-open (plan § 7.0 D6)
++            }
++            return origPlayBarRender.apply(this, arguments);
++        };
++    }
++    logger.info(
++        "Successfully patched Steam PlayBar component (show/hide game details ⓘ button restored).",
++    );
++}
++
++export function createPlaybarSurface(d: typeof deps): Surface {
++    deps = d;
++    return {
++        id: "playbar",
++        touches: ["PlayBar.render", "PlayBar.props"],
++        reads: ["metadata"],
++        install: patchPlayBar,
++        render() {
++            /* record-driven from M5 (plan § 7.0 D4) */
++        },
++        clear() {},
++        uninstall() {
++            /* the patch stays until Steam restarts, as before M3.4 */
++        },
++    };
++}
+diff --git a/steam-cartridges/tests/architecture.test.ts b/steam-cartridges/tests/architecture.test.ts
+index 0394246..3ef2e98 100644
+--- a/steam-cartridges/tests/architecture.test.ts
++++ b/steam-cartridges/tests/architecture.test.ts
+@@ -107,6 +107,14 @@ test('architecture: layer rules allow the § 4.1 edges and nothing it forbids',
+     for (const e of forbidden) assert.ok(!ruleAllows(e), `should be forbidden: ${e}`);
+ });
+ 
++test('architecture: only game-info and playbar import the scoped overview proxy (guardrail 1)', () => {
++    const importers = walk(FRONTEND)
++        .filter((f) => /from\s*['"][./]*\/?steam\/overview-proxy['"]/.test(readFileSync(f, 'utf8')))
++        .map((f) => areaOf(f))
++        .sort();
++    assert.deepEqual([...new Set(importers)], ['surfaces/game-info', 'surfaces/playbar']);
++});
++
+ test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {
+     const rpcSrc = readFileSync(join(FRONTEND, 'rpc.ts'), 'utf8');
+     const called = new Set<string>();

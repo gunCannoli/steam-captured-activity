@@ -1,0 +1,610 @@
+diff --git a/steam-cartridges/frontend/features/scraper/on-update.ts b/steam-cartridges/frontend/features/scraper/on-update.ts
+index 1254aad..fea6d77 100644
+--- a/steam-cartridges/frontend/features/scraper/on-update.ts
++++ b/steam-cartridges/frontend/features/scraper/on-update.ts
+@@ -1,6 +1,5 @@
+ import { rpc } from "../../rpc";
+ import { logger } from "../../logger";
+-import { refresh as refreshLibraryApp } from "../../renderers/library-app";
+ import { checkObserverUnlocks } from "../achievements";
+ import { resolveShortcutTitle } from "../../steam/shortcut";
+ import { listCollections, membersOf } from "../buckets";
+@@ -11,6 +10,13 @@ import { enrichGameDetails } from "../game-info/metadata";
+ import { normalizeMetadata } from "../game-info/normalize";
+ import { NON_STEAM_APPID_MIN } from "../../steam/route";
+ 
++/** Re-reads an app's captures; wired to the captures surface in index.tsx (plan § 7.0 D3). */
++let refreshLibraryApp: (appid: number) => Promise<void> = async () => {};
++
++export function setCapturesRefresher(fn: (appid: number) => Promise<void>): void {
++    refreshLibraryApp = fn;
++}
++
+ const lastOnOpenCheck = new Map<number, number>();
+ const ON_OPEN_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes per game throttle
+ 
+diff --git a/steam-cartridges/frontend/features/steam-store/index.ts b/steam-cartridges/frontend/features/steam-store/index.ts
+index 8c9dcf3..56c7e51 100644
+--- a/steam-cartridges/frontend/features/steam-store/index.ts
++++ b/steam-cartridges/frontend/features/steam-store/index.ts
+@@ -12,8 +12,6 @@ import { refreshGameInfoInstances } from "../game-info/game-info-patch";
+ import { enrichGameDetails, revertGameDetails } from "../game-info/metadata";
+ import { normalizeMetadata } from "../game-info/normalize";
+ import { NON_STEAM_APPID_MIN } from "../../steam/route";
+-import { setNativeActivitySource } from "../../steam/activity";
+-import { patch as patchLibraryApp } from "../../renderers/library-app";
+ import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
+ import { storeEnrichedAppIds } from "./enriched";
+ import { knownAppName, matchKnownNative } from "./known-apps";
+@@ -23,6 +21,18 @@ import { cdnArtworkUrls } from "./resolve";
+ import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
+ import { loadAchievementsForApp } from "../achievements";
+ 
++/** Captures surface calls, wired in index.tsx (plan § 7.0 D3). */
++let setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void = () => {};
++let patchLibraryApp: (appid: number) => Promise<void> = async () => {};
++
++export function setCapturesSinks(sinks: {
++    setNativeActivitySource: (appid: number, nativeAppid: number | undefined) => void;
++    republish: (appid: number) => Promise<void>;
++}): void {
++    setNativeActivitySource = sinks.setNativeActivitySource;
++    patchLibraryApp = sinks.republish;
++}
++
+ /** Extra Steam sections for a mapped shortcut; wired to the sections surface in index.tsx (plan § 7.0 D3). */
+ let setExtraSections: (appid: number, names: readonly string[] | undefined) => void = () => {};
+ 
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index 8a05cfb..232bd72 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -1,20 +1,18 @@
+ import { definePlugin, IconsModule } from "@steambrew/client";
+-import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
+ import { logger } from "./logger";
+ import { rpc } from "./rpc";
+ import {
++    createCapturesSurface,
+     patch as patchLibraryApp,
+     refresh as refreshLibraryApp,
+     setContentListener,
++    setNativeActivitySource,
+     unpatch as unpatchLibraryApp,
+-} from "./renderers/library-app";
++} from "./surfaces/captures";
+ import {
+     refresh as refreshLibraryHome,
+     register as registerLibraryHome,
+ } from "./renderers/library-home";
+-import { installHeadlinePatch } from "./steam/headline-patch";
+-import { installActivityCardsPatch } from "./steam/activity-cards-patch";
+-import { ensureStoreCacheHooked } from "./steam/activity";
+ import { initGameInfo } from "./features/game-info";
+ import { initSourceView, onSourceView } from "./features/source-view";
+ import { installNativeSections } from "./features/steam-store/native-sections";
+@@ -30,7 +28,7 @@ import {
+     startAchievementsObserver,
+     dispatchAchievementToast,
+ } from "./features/achievements";
+-import { initSettings, resetSettings, setSetting } from "./settings/settings";
++import { initSettings, resetSettings, setSetting, setting } from "./settings/settings";
+ import { SettingsPanel } from "./settings/settings-panel";
+ import { bucketReport, loadAutoRoutingProfiles } from "./features/buckets";
+ import { triggerSync } from "./features/scraper/sync-manager";
+@@ -52,7 +50,8 @@ import {
+     setHasContent,
+ } from "./surfaces/sections";
+ import { isAppEnriched } from "./features/game-info/game-info-patch";
+-import { setExtraSectionsSink } from "./features/steam-store";
++import { setCapturesSinks, setExtraSectionsSink } from "./features/steam-store";
++import { setCapturesRefresher } from "./features/scraper/on-update";
+ import { setSectionsRefresher } from "./features/achievements/store";
+ 
+ /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
+@@ -92,16 +91,16 @@ export {
+     dispatchAchievementToast,
+ };
+ 
+-export { registerSummaryProvider } from "./steam/summary";
++export { registerSummaryProvider } from "./surfaces/captures";
+ export { jsxDiagnostics } from "./steam/gamepad-appid";
+-export { headlineJsxDiagnostics } from "./steam/headline-patch";
+-export { activityCardsJsxDiagnostics } from "./steam/activity-cards-patch";
++export { headlineJsxDiagnostics } from "./surfaces/captures";
++export { activityCardsJsxDiagnostics } from "./surfaces/captures";
+ export { nativeSectionsDiagnostics } from "./features/steam-store/native-sections";
+ export type {
+     SummaryContext,
+     SummaryContribution,
+     SummaryProvider,
+-} from "./steam/summary";
++} from "./surfaces/captures";
+ 
+ const LEGACY_PLUGINS = [
+     "non-steam-games-activity",
+@@ -119,6 +118,8 @@ async function init() {
+     setContentListener(setHasContent);
+     setExtraSectionsSink(setExtraSections);
+     setSectionsRefresher(refreshSections);
++    setCapturesSinks({ setNativeActivitySource, republish: patchLibraryApp });
++    setCapturesRefresher(refreshLibraryApp);
+ 
+     // Settings first: the Game Info gate reads them (ADR-0033).
+     await initSettings();
+@@ -167,19 +168,20 @@ async function init() {
+         );
+     }
+ 
+-    // ===== Store Cache Immunity Hook =====
+-    // Permanently immunizes non-Steam shortcuts from StoreItemCache negative blacklist
+-    features.run("store-cache", () => ensureStoreCacheHooked());
+-
+-    // ===== Headline phrasing =====
+-    // Replaces community UGC string ("cannoliGun shared 2 screenshots") with native action
+-    // phrasing ("cannoliGun captured") for non-Steam captures.
+-    features.run("headline", () => installHeadlinePatch());
+-
+-    // ===== Native Activity Cards =====
+-    // Replaces community screenshot viewer with genuine Post-Game Summary cards
+-    // (PostGameSummaryClip and SummaryScreenshot) with hover video scrubbers and native playback.
+-    features.run("activity-cards", () => installActivityCardsPatch());
++    // ===== Captures (surfaces/captures, plan M3.2) =====
++    // StoreItemCache immunity (store-cache), "{Username} captured" headlines (headline),
++    // native Post-Game Summary cards in the activity feed (activity-cards) and Big
++    // Picture thumbnail styling; each part keeps its own kill switch.
++    runner.register(
++        createCapturesSurface({
++            ...surfaceDeps,
++            activityOptions: () => ({
++                showAdded: setting("activityShowAddedToLibrary") !== false,
++                showFirstPlayed: setting("activityShowFirstPlayed") !== false,
++            }),
++        }),
++    );
++    runner.installAll();
+ 
+     // ===== Native sections for mapped games (parity plan C) =====
+     // Steam's own Links / Friends / Community sections read the native appid
+@@ -225,70 +227,6 @@ async function init() {
+         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
+     });
+ 
+-    onPopupCreate((popup, type) => {
+-        if (!features.isEnabled("captures")) return undefined;
+-        if (type === PopupType.Gamepad) {
+-            // Big Picture renders through a React portal from SharedJSContext
+-            // into the gamepad popup window (ADR-0029). Both UI modes share the
+-            // same store singletons, webpack chunks, and CAppDetailsSections registry.
+-            //
+-            // Because Ge.T (module 53074) is already built into Big Picture's
+-            // "ACTIVITY" tab, feeding appSpotlightStore via patchLibraryApp(appid)
+-            // makes Steam render its genuine native GamePlaySummaryContainer with
+-            // controller focus rings and carousel scrolling automatically.
+-
+-            // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
+-            const doc = popup.window?.document;
+-            let styleEl: HTMLStyleElement | null = doc
+-                ? doc.createElement("style")
+-                : null;
+-            if (styleEl && doc) {
+-                styleEl.id = "nsga-bpm-activity-thumbs";
+-                styleEl.textContent = `
+-          [class*="CarouselThumbs"] {
+-            display: flex !important;
+-            flex-direction: row !important;
+-            overflow-x: auto !important;
+-            overflow-y: hidden !important;
+-            gap: 16px !important;
+-            width: 100% !important;
+-            max-width: 100% !important;
+-            flex: 1 1 auto !important;
+-          }
+-          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) {
+-            width: 320px !important;
+-            height: 180px !important;
+-            max-width: 320px !important;
+-            max-height: 180px !important;
+-            flex: 0 0 320px !important;
+-            border-radius: 4px !important;
+-            overflow: hidden !important;
+-          }
+-          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) [class*="ImageWrapper"] {
+-            width: 100% !important;
+-            height: 100% !important;
+-          }
+-          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) img {
+-            width: 100% !important;
+-            height: 100% !important;
+-            object-fit: cover !important;
+-            display: block !important;
+-          }
+-        `;
+-                doc.head?.appendChild(styleEl);
+-            }
+-
+-            return () => {
+-                if (styleEl && styleEl.parentNode) {
+-                    styleEl.parentNode.removeChild(styleEl);
+-                }
+-            };
+-        }
+-
+-        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
+-        return undefined;
+-    });
+-
+     // ===== Refresh after play =====
+     // Quitting a game is exactly when new screenshots and clips exist, so
+     // invalidate then rather than polling (ADR-0007). Launch and quit come from the
+diff --git a/steam-cartridges/frontend/steam/activity-cards-patch.ts b/steam-cartridges/frontend/surfaces/captures/activity-cards.ts
+similarity index 94%
+rename from steam-cartridges/frontend/steam/activity-cards-patch.ts
+rename to steam-cartridges/frontend/surfaces/captures/activity-cards.ts
+index c2f24e9..350f6be 100644
+--- a/steam-cartridges/frontend/steam/activity-cards-patch.ts
++++ b/steam-cartridges/frontend/surfaces/captures/activity-cards.ts
+@@ -1,8 +1,9 @@
+ import React from 'react';
+ import { findModuleByExport } from '@steambrew/client';
+-import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
+-import { logger } from '../logger';
++import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
++import { logger } from '../../logger';
+ import type { MediaItem } from './activity';
++import { deps } from './deps';
+ 
+ interface JsxRuntimeModule {
+   jsx(type: unknown, props: unknown, key?: unknown): unknown;
+@@ -242,7 +243,15 @@ export function installActivityCardsPatch(): void {
+ 
+   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
+     label: 'steam-cartridges.activity-cards',
+-    replaceType: (type, props) => handleActivityCardReplace(type, props),
++    replaceType: (type, props) => {
++      if (!deps.isEnabled('activity-cards')) return undefined;
++      try {
++        return handleActivityCardReplace(type, props);
++      } catch (err) {
++        deps.reportError('activity-cards', err); // fail-open (plan § 7.0 D6)
++        return undefined;
++      }
++    },
+   });
+   logger.info('Installed Activity Feed native Post-Game Summary cards patch.');
+ }
+diff --git a/steam-cartridges/frontend/steam/activity.ts b/steam-cartridges/frontend/surfaces/captures/activity.ts
+similarity index 97%
+rename from steam-cartridges/frontend/steam/activity.ts
+rename to steam-cartridges/frontend/surfaces/captures/activity.ts
+index a81ef5a..4850051 100644
+--- a/steam-cartridges/frontend/steam/activity.ts
++++ b/steam-cartridges/frontend/surfaces/captures/activity.ts
+@@ -1,6 +1,6 @@
+-import { logger } from "../logger";
+-import { setting } from "../settings/settings";
+-import { isNonSteamAppId } from "./route";
++import { logger } from "../../logger";
++import { isNonSteamAppId } from "../../steam/route";
++import { deps } from "./deps";
+ import {
+     appActivityStore,
+     clipsSince,
+@@ -14,7 +14,7 @@ import {
+     type AppActivityStore,
+     type SteamClip,
+     type SteamScreenshot,
+-} from "./stores";
++} from "../../steam/stores";
+ 
+ const ACTIVITY_TIMESTAMPS_KEY = "steam-cartridges:activity-timestamps";
+ 
+@@ -187,8 +187,13 @@ export function ensureStoreCacheHooked(): boolean {
+     const origBIsAppMissing = proto.BIsAppMissing;
+ 
+     proto.BIsAppMissing = function (appid: number) {
+-        if (typeof appid === "number" && isNonSteamAppId(appid)) {
+-            return false;
++        if (!deps.isEnabled("store-cache")) return origBIsAppMissing.apply(this, arguments);
++        try {
++            if (typeof appid === "number" && isNonSteamAppId(appid)) {
++                return false;
++            }
++        } catch (err) {
++            deps.reportError("store-cache", err); // fail-open (plan § 7.0 D6)
+         }
+         return origBIsAppMissing.apply(this, arguments);
+     };
+@@ -217,8 +222,7 @@ export async function publishActivity(
+     appid: number,
+     gameid: string,
+ ): Promise<number> {
+-    const showAdded = setting("activityShowAddedToLibrary") !== false;
+-    const showFirstPlayed = setting("activityShowFirstPlayed") !== false;
++    const { showAdded, showFirstPlayed } = deps.activityOptions();
+ 
+     const [screenshots, clips, nativeDays] = await Promise.all([
+         screenshotsSince(appid, 0),
+diff --git a/steam-cartridges/frontend/surfaces/captures/bpm-style.ts b/steam-cartridges/frontend/surfaces/captures/bpm-style.ts
+new file mode 100644
+index 0000000..27a4e2e
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/captures/bpm-style.ts
+@@ -0,0 +1,74 @@
++// Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2).
++// Moved verbatim from index.tsx; a <style> element in the gamepad popup is a Steam write.
++import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
++import { deps } from "./deps";
++
++let installed = false;
++
++export function installBpmStyle(): void {
++    if (installed) return;
++    installed = true;
++    onPopupCreate((popup, type) => {
++        if (!deps.isEnabled("captures")) return undefined;
++        if (type === PopupType.Gamepad) {
++            // Big Picture renders through a React portal from SharedJSContext
++            // into the gamepad popup window (ADR-0029). Both UI modes share the
++            // same store singletons, webpack chunks, and CAppDetailsSections registry.
++            //
++            // Because Ge.T (module 53074) is already built into Big Picture's
++            // "ACTIVITY" tab, feeding appSpotlightStore via patchLibraryApp(appid)
++            // makes Steam render its genuine native GamePlaySummaryContainer with
++            // controller focus rings and carousel scrolling automatically.
++
++            // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
++            const doc = popup.window?.document;
++            let styleEl: HTMLStyleElement | null = doc
++                ? doc.createElement("style")
++                : null;
++            if (styleEl && doc) {
++                styleEl.id = "nsga-bpm-activity-thumbs";
++                styleEl.textContent = `
++          [class*="CarouselThumbs"] {
++            display: flex !important;
++            flex-direction: row !important;
++            overflow-x: auto !important;
++            overflow-y: hidden !important;
++            gap: 16px !important;
++            width: 100% !important;
++            max-width: 100% !important;
++            flex: 1 1 auto !important;
++          }
++          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) {
++            width: 320px !important;
++            height: 180px !important;
++            max-width: 320px !important;
++            max-height: 180px !important;
++            flex: 0 0 320px !important;
++            border-radius: 4px !important;
++            overflow: hidden !important;
++          }
++          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) [class*="ImageWrapper"] {
++            width: 100% !important;
++            height: 100% !important;
++          }
++          [class*="CarouselThumb"]:not([class*="CarouselThumbs"]) img {
++            width: 100% !important;
++            height: 100% !important;
++            object-fit: cover !important;
++            display: block !important;
++          }
++        `;
++                doc.head?.appendChild(styleEl);
++            }
++
++            return () => {
++                if (styleEl && styleEl.parentNode) {
++                    styleEl.parentNode.removeChild(styleEl);
++                }
++            };
++        }
++
++        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
++        return undefined;
++    });
++}
+diff --git a/steam-cartridges/frontend/surfaces/captures/deps.ts b/steam-cartridges/frontend/surfaces/captures/deps.ts
+new file mode 100644
+index 0000000..3b469d8
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/captures/deps.ts
+@@ -0,0 +1,16 @@
++// Surface `captures`: what the composition root gives it (migration plan M3.2, § 7.0 D3/D6).
++// Set once by createCapturesSurface; open defaults until then.
++import type { SurfaceDeps } from "../../kernel/surface";
++
++export interface ActivityOptions {
++    /** Show Steam's "Added to library" event (setting activityShowAddedToLibrary). */
++    showAdded: boolean;
++    /** Show Steam's "Played for the first time" event (setting activityShowFirstPlayed). */
++    showFirstPlayed: boolean;
++}
++
++export const deps: SurfaceDeps & { activityOptions(): ActivityOptions } = {
++    isEnabled: () => true,
++    reportError: () => {},
++    activityOptions: () => ({ showAdded: true, showFirstPlayed: true }),
++};
+diff --git a/steam-cartridges/frontend/steam/headline-patch.ts b/steam-cartridges/frontend/surfaces/captures/headline.ts
+similarity index 86%
+rename from steam-cartridges/frontend/steam/headline-patch.ts
+rename to steam-cartridges/frontend/surfaces/captures/headline.ts
+index dd3159b..65f0cd8 100644
+--- a/steam-cartridges/frontend/steam/headline-patch.ts
++++ b/steam-cartridges/frontend/surfaces/captures/headline.ts
+@@ -1,7 +1,8 @@
+ import { findModuleByExport } from '@steambrew/client';
+-import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
+-import { logger } from '../logger';
+-import { isNonSteamAppId } from './route';
++import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
++import { logger } from '../../logger';
++import { isNonSteamAppId } from '../../steam/route';
++import { deps } from './deps';
+ 
+ interface JsxRuntimeModule {
+   jsx(type: unknown, props: unknown, key?: unknown): unknown;
+@@ -69,7 +70,14 @@ export function installHeadlinePatch(): void {
+ 
+   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
+     label: 'steam-cartridges.headline',
+-    observe: (type, props) => handleHeadlineIntercept(type, props),
++    observe: (type, props) => {
++      if (!deps.isEnabled('headline')) return;
++      try {
++        handleHeadlineIntercept(type, props);
++      } catch (err) {
++        deps.reportError('headline', err); // fail-open (plan § 7.0 D6)
++      }
++    },
+   });
+   logger.info('Installed Activity Feed headline patch ("{Username} captured").');
+ }
+diff --git a/steam-cartridges/frontend/surfaces/captures/index.ts b/steam-cartridges/frontend/surfaces/captures/index.ts
+new file mode 100644
+index 0000000..fc399aa
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/captures/index.ts
+@@ -0,0 +1,62 @@
++// Surface `captures` (migration plan M3.2, ADR-0039): the only code that writes Steam's
++// spotlight, activity and StoreItemCache stores and the activity feed's jsx, from Steam's
++// own captures (ADR-0022). Takes over the kill switches `captures`, `store-cache`,
++// `headline` and `activity-cards` (plan § 7.0 D6).
++import type { Surface, SurfaceDeps } from "../../kernel/surface";
++import { ensureStoreCacheHooked } from "./activity";
++import { installActivityCardsPatch } from "./activity-cards";
++import { installBpmStyle } from "./bpm-style";
++import { deps, type ActivityOptions } from "./deps";
++import { installHeadlinePatch } from "./headline";
++import { unpatch } from "./publish";
++
++export { patch, refresh, setContentListener, unpatch, unpatchAll } from "./publish";
++export { setNativeActivitySource } from "./activity";
++export { registerSummaryProvider } from "./summary";
++export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
++export { headlineJsxDiagnostics } from "./headline";
++export { activityCardsJsxDiagnostics } from "./activity-cards";
++
++/** Install one part under its own kill switch; a failure counts against that switch only. */
++function part(id: string, install: () => unknown): void {
++    if (!deps.isEnabled(id)) return;
++    try {
++        install();
++    } catch (err) {
++        deps.reportError(id, err);
++    }
++}
++
++export function createCapturesSurface(d: SurfaceDeps & { activityOptions(): ActivityOptions }): Surface {
++    deps.isEnabled = d.isEnabled;
++    deps.reportError = d.reportError;
++    deps.activityOptions = d.activityOptions;
++    return {
++        id: "captures",
++        touches: [
++            "AppSpotlightStore.GetOrCreateAppData",
++            "AppActivityStore.m_mapAppActivity",
++            "StoreItemCache.m_mapApps",
++            "StoreItemCache.m_setUnavailableApps",
++            "StoreItemCache.BIsAppMissing",
++            "CWorkshopStore.m_mapPublishedFiles",
++            "jsx:headline",
++            "jsx:activity-cards",
++            "BPM.style#nsga-bpm-activity-thumbs",
++        ],
++        reads: [],
++        install() {
++            part("store-cache", ensureStoreCacheHooked);
++            part("headline", installHeadlinePatch);
++            part("activity-cards", installActivityCardsPatch);
++            installBpmStyle();
++        },
++        render() {
++            /* captures are Steam's own data, read live (ADR-0022); publishing is event-driven */
++        },
++        clear: (appid) => unpatch(appid),
++        uninstall() {
++            /* the patches stay until Steam restarts, as before M3.2 */
++        },
++    };
++}
+diff --git a/steam-cartridges/frontend/renderers/library-app.tsx b/steam-cartridges/frontend/surfaces/captures/publish.ts
+similarity index 89%
+rename from steam-cartridges/frontend/renderers/library-app.tsx
+rename to steam-cartridges/frontend/surfaces/captures/publish.ts
+index 36ebde8..b10c525 100644
+--- a/steam-cartridges/frontend/renderers/library-app.tsx
++++ b/steam-cartridges/frontend/surfaces/captures/publish.ts
+@@ -1,7 +1,7 @@
+-import { logger } from "../logger";
+-import { clearActivity, publishActivity } from "../steam/activity";
+-import { gameIdFromAppId } from "../steam/gameid";
+-import { clearSummary, publishSummary } from "../steam/summary";
++import { logger } from "../../logger";
++import { clearActivity, publishActivity } from "./activity";
++import { gameIdFromAppId } from "../../steam/gameid";
++import { clearSummary, publishSummary } from "./summary";
+ 
+ /**
+  * Brings the native app detail sections to a non-Steam game's page.
+@@ -11,7 +11,7 @@ import { clearSummary, publishSummary } from "../steam/summary";
+  * So we do exactly two things:
+  *
+  *   1. put the section names back into Steam's registry (surfaces/sections)
+- *   2. put events into Steam's own stores           (steam/summary.ts & steam/activity.ts)
++ *   2. put events into Steam's own stores           (summary.ts & activity.ts)
+  *
+  * Steam renders. That is the whole renderer.
+  *
+diff --git a/steam-cartridges/frontend/steam/summary.ts b/steam-cartridges/frontend/surfaces/captures/summary.ts
+similarity index 99%
+rename from steam-cartridges/frontend/steam/summary.ts
+rename to steam-cartridges/frontend/surfaces/captures/summary.ts
+index 58770e1..5584f2b 100644
+--- a/steam-cartridges/frontend/steam/summary.ts
++++ b/steam-cartridges/frontend/surfaces/captures/summary.ts
+@@ -1,4 +1,4 @@
+-import { logger } from '../logger';
++import { logger } from '../../logger';
+ import {
+   clipsSince,
+   screenshotsSince,
+@@ -6,7 +6,7 @@ import {
+   type GamePlaySession,
+   type SteamClip,
+   type SteamScreenshot,
+-} from './stores';
++} from '../../steam/stores';
+ 
+ /**
+  * The Post-Game Summary API.
+diff --git a/steam-cartridges/tests/architecture-allowlist.json b/steam-cartridges/tests/architecture-allowlist.json
+index 2f8425a..d20b292 100644
+--- a/steam-cartridges/tests/architecture-allowlist.json
++++ b/steam-cartridges/tests/architecture-allowlist.json
+@@ -13,7 +13,6 @@
+   "features/scraper -> features/achievements",
+   "features/scraper -> features/buckets",
+   "features/scraper -> features/game-info",
+-  "features/scraper -> renderers",
+   "features/scraper -> rpc",
+   "features/scraper -> settings",
+   "features/scraper -> steam",
+@@ -25,7 +24,6 @@
+   "features/steam-store -> features/achievements",
+   "features/steam-store -> features/artwork",
+   "features/steam-store -> features/game-info",
+-  "features/steam-store -> renderers",
+   "features/steam-store -> rpc",
+   "features/steam-store -> steam",
+   "renderers -> rpc",
+@@ -37,6 +35,5 @@
+   "settings -> features/game-info",
+   "settings -> features/scraper",
+   "settings -> rpc",
+-  "steam -> rpc",
+-  "steam -> settings"
++  "steam -> rpc"
+ ]

@@ -1,0 +1,10 @@
+{
+  "deleted": {},
+  "edited": {
+    "frontend/features/achievements/store-port.ts": "3d8c077eeb733a22",
+    "frontend/features/achievements/toast-port.ts": "759673b1a8123c8c",
+    "frontend/renderers/community-tab.tsx": "ef29c7e269c5605f",
+    "frontend/steam/community-store.ts": "b39194a9f7b71281"
+  },
+  "new": []
+}
