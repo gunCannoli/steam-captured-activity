@@ -81,7 +81,7 @@ const appsWithContent = new Set<number>();
 /**
  * Extra Steam sections per shortcut (parity plan C3). A shortcut with a Steam
  * Store match gets Steam's own `friends` and `community` sections, which then
- * load the native app's data (features/steam-store/native-sections.ts).
+ * load the native app's data (surfaces/native-links).
  */
 const extraSections = new Map<number, readonly string[]>();
 

@@ -15,7 +15,7 @@ import {
 } from "./renderers/library-home";
 import { initGameInfo } from "./features/game-info";
 import { initSourceView, onSourceView } from "./features/source-view";
-import { installNativeSections } from "./features/steam-store/native-sections";
+import { createNativeLinksSurface, setNativeAppid } from "./surfaces/native-links";
 import {
     initAchievements,
     loadAchievementsForApp,
@@ -59,7 +59,7 @@ import {
 import { createPlaybarSurface } from "./surfaces/playbar";
 import { getCachedLibraryMetadata, setGameInfoWriter } from "./features/game-info";
 import { controllerContext } from "./features/game-info/controller";
-import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink } from "./features/steam-store";
+import { setCapturesSinks, setExtraSectionsSink, setGameInfoSink, setNativeLinksSink } from "./features/steam-store";
 import { setCapturesRefresher, setGameInfoEnricher } from "./features/scraper/on-update";
 import { achievementsStore, createAchievementsSurface } from "./surfaces/achievements";
 import { setAchievementsStore } from "./features/achievements/store-port";
@@ -107,7 +107,7 @@ export { registerSummaryProvider } from "./surfaces/captures";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
 export { headlineJsxDiagnostics } from "./surfaces/captures";
 export { activityCardsJsxDiagnostics } from "./surfaces/captures";
-export { nativeSectionsDiagnostics } from "./features/steam-store/native-sections";
+export { nativeSectionsDiagnostics } from "./surfaces/native-links";
 export type {
     SummaryContext,
     SummaryContribution,
@@ -135,6 +135,7 @@ async function init() {
     setCapturesRefresher(refreshLibraryApp);
     setGameInfoWriter(gameInfoWriter);
     setGameInfoSink(gameInfoWriter);
+    setNativeLinksSink(setNativeAppid);
     setGameInfoEnricher(gameInfoWriter.enrich);
 
     // Settings first: the Game Info gate reads them (ADR-0033).
@@ -202,7 +203,8 @@ async function init() {
     // ===== Native sections for mapped games (parity plan C) =====
     // Steam's own Links / Friends / Community sections read the native appid
     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
-    features.run("native-links", () => installNativeSections());
+    runner.register(createNativeLinksSurface(surfaceDeps));
+    runner.installAll();
 
     // ===== Native Achievements Subsystem =====
     // Steam's achievement stores (surfaces/achievements, plan M3.5); the loader below feeds them.

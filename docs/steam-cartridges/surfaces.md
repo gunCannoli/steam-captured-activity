@@ -67,6 +67,8 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/steam/achievement-types.ts` | Steam's own achievement shapes; importable by surfaces |
 | `frontend/surfaces/toasts/index.ts` | `toasts` surface: `createToastsSurface` (§ toasts below) |
 | `frontend/surfaces/toasts/{achievement,launch,deps}.ts` | The two `NotificationStore` writes, injected deps |
+| `frontend/surfaces/native-links/index.ts` | `native-links` surface: `createNativeLinksSurface` (§ native-links below) |
+| `frontend/surfaces/native-links/core.ts` | Pure redirect logic (tested with node) |
 
 ## Steam targets touched
 
@@ -126,6 +128,9 @@ until the service steps (M4+) feed them through `render()`.
   (achievement toast) plus the Steam write out of `launch-toast.ts` (launch toast). New kill
   switch `toasts` (User-visible). K17 logged: the achievement toast's webpack scanner already
   failed on this Steam build before the move; out of scope for a pure move (D14).
+- M3.7 (2026-09-28): `native-links` surface added (moved from `features/steam-store/native-sections.ts`,
+  `native-sections-core.ts`). K18 logged: the Support header link already failed parity check 15
+  before the move; out of scope for a pure move (D14).
 
 ## sections
 
@@ -335,3 +340,33 @@ move too); every dispatch logs "Could not resolve Steam achievement notification
 returns `false`. Out of scope for M3.6 (pure move, D14); tracked for a bugfix plan after M3.
 
 **Record-driven in:** not applicable — `toasts` is event-driven (an achievement unlock or a launch), never per-record.
+
+## native-links
+
+Hands Steam's own Links, Friends and Community sections the native appid of
+a mapped shortcut, so those sections load the real game's data instead of
+the shortcut's own (empty) page (parity plan C).
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `appStore.GetAppOverviewByAppID` | 1 |
+| `Navigator.App` | 1 |
+| `jsx:native-sections` | 2, 3 (one webpack scan at startup; the jsx handler is one Map lookup on element type, then one on appid) |
+
+**reads:** none — driven by `setNativeAppid`, not by the record.
+
+**Kill switch:** `native-links`. All three hooks are fail-open: the `GetAppOverviewByAppID` afterPatch returns the unmodified value, the `Navigator.App` beforePatch passes its arguments through unchanged, and the jsx observer does nothing.
+
+**Injected deps:** `SurfaceDeps`, passed to `createNativeLinksSurface`.
+
+**API (reached only through this setter):**
+- `setNativeLinksSink` — wired from `steam-store`'s `setNativeAppid` (D3).
+- `nativeSectionsDiagnostics` (D8) — `index.tsx`'s public export is unchanged.
+
+**Known issue:** K18 — the Support ("HelpAppPage") header link isn't among the four
+resolved link ids, so `check_parity.mjs` check 15 fails on both the pre-M3.7 and M3.7
+builds. Out of scope for a pure move (D14); tracked for a bugfix plan after M3.
+
+**Record-driven in:** not applicable — driven by the steam-store mapping, not the record.

@@ -14,10 +14,16 @@ import { artworkPlan, mergeArtResult, pickUrls, slotList } from "./art-plan";
 import { storeEnrichedAppIds } from "./enriched";
 import { knownAppName, matchKnownNative } from "./known-apps";
 import { clearLogoPosition, ensureLogoPosition } from "./logo";
-import { setNativeAppid } from "./native-sections";
 import { cdnArtworkUrls } from "./resolve";
 import { assetUrlsFromItem, loadStoreItem, metadataFromStoreItem } from "./store-item";
 import { loadAchievementsForApp } from "../achievements";
+
+/** Native Links/Friends/Community redirect (surfaces/native-links), wired in index.tsx (plan § 7.0 D3). */
+let setNativeAppid: (appid: number, nativeAppid: number | undefined) => void = () => {};
+
+export function setNativeLinksSink(fn: (appid: number, nativeAppid: number | undefined) => void): void {
+    setNativeAppid = fn;
+}
 
 /** Game-info surface calls, wired in index.tsx (plan § 7.0 D3). */
 let gameInfo: {

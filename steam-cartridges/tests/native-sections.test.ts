@@ -6,7 +6,7 @@ import {
     nativeDetails,
     navigationTarget,
     redirectProps,
-} from '../frontend/features/steam-store/native-sections-core.ts';
+} from '../frontend/surfaces/native-links/core.ts';
 
 const SHORTCUT = 2315502503;
 const NATIVE = 2820820;

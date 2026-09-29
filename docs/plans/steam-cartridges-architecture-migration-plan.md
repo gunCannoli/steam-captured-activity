@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5 and M3.6 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5 and M3.6 also live-validated). **M3.7–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** Accepted 2026-09-28. **M0a, M0b-1, M0c, M1, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5, M3.6 and M3.7 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, M3.0, M3.1, M3.2, M3.3, M3.4, M3.5, M3.6 and M3.7 also live-validated). **M3.8–M3.10 are Ready (packaged); M4.0–M9b are Build (detailed specs an implementer builds, § 0.10)** (dry-run 2026-09-28, packaged in `scratch/arch-m0/`, and the packages replayed in order on a clean tree). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -67,7 +67,7 @@ Statuses (what the executing agent does with the row):
 | M3.4 | Surface `playbar` | **Done** | `surfaces.md` § playbar |
 | M3.5 | Surface `achievements` | **Done** | `surfaces.md` § achievements |
 | M3.6 | Surface `toasts` | **Done** | `surfaces.md` § toasts |
-| M3.7 | Surface `native-links` | **Ready** | `surfaces.md` § native-links |
+| M3.7 | Surface `native-links` | **Done** | `surfaces.md` § native-links |
 | M3.8 | Purge markers on the two temporary ports (D13) | **Ready** | § 7.9 ledger |
 | M3.9 | Surface `artwork` | **Ready** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Ready** | `surfaces.md` § library-home |
@@ -2192,7 +2192,7 @@ NEW frontend/surfaces/toasts/launch.ts: ok
 `PLUGIN_LIST['steam-cartridges-dev'].dispatchAchievementToast(4263274102, {id:'m36',name:'M3.6 check',description:'toast surface',icon:'https://media.retroachievements.org/Badge/00001.png'})`
 → `true` and a Steam achievement toast appears. With `toasts` switched off → `false` and no toast.
 
-#### M3.7 — `native-links` (Ready)
+#### M3.7 — `native-links` (Done)
 
 **Check lines:**
 ```
@@ -3264,3 +3264,4 @@ Executing agents add to this list instead of fixing things outside their step.
 | K6 | Render-time Steam store writes remain in `G.render`/`k.render`/the props getter (idempotent after M0a, but still writes during render) | M0a design | Bugfix plan after M3 (D14): find a non-render trigger for Steam's overview rebuild, else an ADR exception for the idempotent render-time repair |
 | K16 | Every kill switch was silently inert: `settings.ts` `apply()` ran `JSON.parse(raw)` unconditionally on a stored string value and discarded it (`raw = undefined`, falling back to `DEFAULTS[k]`) whenever the value wasn't valid JSON — which `disabledFeatures` (a plain comma-separated string, e.g. `"sections"`) never is. `setSetting('disabledFeatures', id)` therefore persisted to disk correctly but the in-memory `current.disabledFeatures` (and so `features.isEnabled`) stayed `''` forever, live or after a restart. Present since M0b-1; found live-testing M3.1's switch-off check (2026-09-28) | `safetyDiagnostics().disabled` stayed `[]` after `setSetting('disabledFeatures','sections')` and a restart; DOM still showed the sections | **User decision (2026-09-28): fixed inline in M3.1**, not deferred — every M3.x switch-off live check depends on it. Fix: on a `JSON.parse` failure, keep the original string instead of discarding it |
 | K17 | `dispatchAchievementToast`'s `resolveAchievementProto()` webpack scanner never finds `CClientNotificationAchievement` on this Steam build/version: every call logs "Could not resolve Steam achievement notification protobuf." and returns `false`, so the native achievement toast never fires. Present before M3.6 too (confirmed on the pre-move build); a pure move (D14) does not fix it | `PLUGIN_LIST['steam-cartridges-dev'].dispatchAchievementToast(...)` → `false` on both the pre-M3.6 and M3.6 builds; `Could not resolve Steam achievement notification protobuf.` in the SharedJSContext console | Bugfix plan after M3 (D14): needs a fresh scanner signature check against the live Steam build (ADR-0005 signatures may be stale) |
+| K18 | `check_parity.mjs` check 15 (header links: Store Page, Community Hub, Discussions, Guides, Support) fails on the native `HelpAppPage` ("Support") link — it never resolves for a mapped shortcut, so the header's Support link stays on the shortcut's own (non-existent) page instead of opening the native app's. Present before M3.7 too (confirmed 16 PASS / 1 FAIL on both the pre-move and M3.7 builds) | `node scratch/check_parity.mjs` → check 15 FAIL with `needIds` missing `HelpAppPage`, on both builds | Bugfix plan after M3 (D14): `native-links` needs to also map the Support header link, not just Store/Community Hub/Discussions/Guides |

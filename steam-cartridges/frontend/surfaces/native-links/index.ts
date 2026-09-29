@@ -1,12 +1,18 @@
+// Surface `native-links` (migration plan M3.7, ADR-0039). Moved from
+// features/steam-store/native-sections.ts; pure logic in core.ts (ex native-sections-core.ts).
 import { afterPatch, beforePatch, findModuleByExport } from "@steambrew/client";
 import { logger } from "../../logger";
+import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
 import { steamRequire } from "../../steam/modules";
-import { cleanLinksProps, navigationTarget, redirectProps, type RedirectKind } from "./native-sections-core";
+import { cleanLinksProps, navigationTarget, redirectProps, type RedirectKind } from "./core";
+
+/** Set by createNativeLinksSurface (plan § 7.0 D6); open defaults until then. */
+let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
 
 /**
  * Hands Steam's own Links, Friends and Community sections the native appid of
- * a mapped shortcut (parity plan C; pure logic in native-sections-core.ts).
+ * a mapped shortcut (parity plan C; pure logic in core.ts).
  *
  * The three components are resolved ONCE at startup (guardrail 3) by their
  * webpack factory source, keyed on localisation tokens (steam-debug.md § 3.2).
@@ -113,10 +119,16 @@ function wrapAppOverviewLookup(): void {
     if (!store || typeof store.GetAppOverviewByAppID !== "function") return;
     try {
         afterPatch(store, "GetAppOverviewByAppID", (args: unknown[], ret: unknown) => {
-            if (ret !== null && ret !== undefined) return ret;
-            const appid = args[0];
-            if (typeof appid !== "number" || !shortcutFor.has(appid)) return ret;
-            return UNOWNED_NATIVE_APP_FALLBACK;
+            if (!deps.isEnabled("native-links")) return ret;
+            try {
+                if (ret !== null && ret !== undefined) return ret;
+                const appid = args[0];
+                if (typeof appid !== "number" || !shortcutFor.has(appid)) return ret;
+                return UNOWNED_NATIVE_APP_FALLBACK;
+            } catch (err) {
+                deps.reportError("native-links", err); // fail-open (plan § 7.0 D6)
+                return ret;
+            }
         });
         appOverviewPatched = true;
     } catch (err) {
@@ -138,10 +150,15 @@ function wrapNavigators(): void {
             const nav = w?.Navigator;
             if (!nav || typeof nav.App !== "function" || wrappedNavigators.has(nav)) continue;
             beforePatch(nav, "App", (args: unknown[]) => {
-                const target = navigationTarget(args[0], isKnownApp, (n) => shortcutFor.get(n));
-                if (target === undefined) return;
-                args[0] = target;
-                navRedirects++;
+                if (!deps.isEnabled("native-links")) return;
+                try {
+                    const target = navigationTarget(args[0], isKnownApp, (n) => shortcutFor.get(n));
+                    if (target === undefined) return;
+                    args[0] = target;
+                    navRedirects++;
+                } catch (err) {
+                    deps.reportError("native-links", err); // fail-open (plan § 7.0 D6)
+                }
             });
             wrappedNavigators.add(nav);
             navigatorPatches++;
@@ -211,17 +228,22 @@ export function installNativeSections(): void {
         hook = keepJsxPatched(runtime, {
             label: "steam-cartridges.native-sections",
             observe: (type, props) => {
-                const p = props as Record<string, any> | null | undefined;
-                if (!p) return;
-                if (Array.isArray(p.links)) {
-                    cleanLinksProps(p, (n) => shortcutFor.has(n));
-                }
-                const kind = TYPES.get(type);
-                if (kind === undefined) return;
-                const used = redirectProps(kind, p, nativeOf);
-                if (used !== undefined) {
-                    counts[kind]++;
-                    lastNative[kind] = used;
+                if (!deps.isEnabled("native-links")) return;
+                try {
+                    const p = props as Record<string, any> | null | undefined;
+                    if (!p) return;
+                    if (Array.isArray(p.links)) {
+                        cleanLinksProps(p, (n) => shortcutFor.has(n));
+                    }
+                    const kind = TYPES.get(type);
+                    if (kind === undefined) return;
+                    const used = redirectProps(kind, p, nativeOf);
+                    if (used !== undefined) {
+                        counts[kind]++;
+                        lastNative[kind] = used;
+                    }
+                } catch (err) {
+                    deps.reportError("native-links", err); // fail-open (plan § 7.0 D6)
                 }
             },
         });
@@ -249,5 +271,22 @@ export function nativeSectionsDiagnostics(): {
         jsx: hook?.diagnostics() ?? [],
         navigatorPatches,
         navRedirects,
+    };
+}
+
+export function createNativeLinksSurface(d: SurfaceDeps): Surface {
+    deps = d;
+    return {
+        id: "native-links",
+        touches: ["appStore.GetAppOverviewByAppID", "Navigator.App", "jsx:native-sections"],
+        reads: ["identity"],
+        install: installNativeSections,
+        render() {
+            /* record-driven (identity.native) from M4 (plan § 7.0 D4) */
+        },
+        clear: (appid) => setNativeAppid(appid, undefined),
+        uninstall() {
+            /* the patches stay until Steam restarts, as before M3.7 */
+        },
     };
 }
