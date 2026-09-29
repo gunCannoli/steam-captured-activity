@@ -62,9 +62,14 @@ write its literal blocks and dry-run them first · `Done` · `Blocked (<why>)`.
 | M3.8 | Purge markers on the two temporary ports (D13) | **Ready** | § 7.9 ledger |
 | M3.9 | Surface `artwork` | **Ready** | `surfaces.md` § artwork |
 | M3.10 | Surface `library-home` | **Ready** | `surfaces.md` § library-home |
-| M4.0 | Purge dead backend code (D13) | Spec | `rpc.md` (the removed names) |
-| M4 | Resolver service + RPC facade | Spec | `service-resolver.md`, `rpc.md` |
-| M5 | Metadata service | Spec | `service-metadata.md` |
+| M4.0 | Backend inventory: live / unwired / dead; purge only the dead | Spec | `rpc.md` (created) |
+| M4a | Routing policy → `domain/routing` (ADR-0040) | Spec | `README.md` layer list, ADR-0040 |
+| M4b | Identity service + record facade (backend) | Spec | `service-resolver.md`, `rpc.md` |
+| M4c | Frontend adopts records and identity | Spec | `rpc.md`, `surfaces.md`, `sensors.md` |
+| M5a | Metadata service (backend) | Spec | `service-metadata.md`, `rpc.md` |
+| M5b | Frontend adopts metadata | Spec | `service-metadata.md`, `surfaces.md`, `sensors.md` |
+| M5c | SteamGridDB artwork source (feature; user decisions first) | Spec | `service-artwork.md` |
+| M5d | ScreenScraper metadata source (feature; user decisions first) | Spec | `service-metadata.md` |
 | M6 | Achievements service | Spec | `service-achievements.md` |
 | M7 | Freshness + ingestion | Spec | `service-freshness.md` |
 | M8 | Settings split | Spec | `settings.md` |
@@ -440,7 +445,7 @@ Games that are never opened are never fetched again. The startup batch
 | Module | May import | Must never import |
 | --- | --- | --- |
 | `kernel/` | nothing of ours | Steam, `@steambrew/*`, RPC, any other folder |
-| `domain/` (pure frontend policy: display rules, normalization; routing and freshness live in the backend per §11) | `kernel/` | Steam, RPC, sensors, surfaces |
+| `domain/` (pure frontend policy: routing (ADR-0040), display rules, normalization; freshness lives in the backend per §11) | `kernel/` | Steam, RPC, sensors, surfaces |
 | `sensors/` | `kernel/`, `steam/` (read-only resolution) | `surfaces/`, `app/`, other sensors |
 | `app/` (use cases, orchestration) | `kernel/`, `domain/`, `ports/` | `steam/`, `surfaces/`, `sensors/` internals |
 | `ports/backend/` | `kernel/` | everything else |
@@ -608,7 +613,7 @@ wrapped in its own try/catch and O(1).
 | New achievement source (e.g. Xenia) | `src_xenia.lua`, the achievements source list | game-info, captures, sections |
 | New thing shown on the page from existing data | one new surface folder + its `touches` | services, other surfaces |
 | New record field | `kernel/record.ts` (additive), the producing service, the consuming surface | everything else |
-| New routing rule type | backend `resolve_policy.lua` + its Lua tests | surfaces, other services |
+| New routing rule type | `frontend/domain/routing/policy.ts` + its TS tests (ADR-0040) | surfaces, services |
 
 A child plan whose diff crosses more boundaries than its row allows must explain why
 in its root-cause section, or it is rejected.
@@ -1910,7 +1915,8 @@ DELETE tests/community.test.ts: ok
 | `rpc.ts` wrappers `getDiagnostics`, `saveGameMetadata`, `getArtworkForGame`, `steamStoreRejectSuggestion`, `getGameMedia`, `getGameManual`, `getGameTrailers`, `getGameCommunityLinks`, and the types only they used: `Diagnostics`, `ImageAsset`, `ArtworkBundle`, `GameArtworkResponse`, `GameMediaResponse`, `GameManualResponse`, `GameTrailerItem`, `GameTrailersResponse`, `GameCommunityLinkItem`, `GameArtworkCommunityItem`, `GameCommunityLinksResponse` | no frontend caller (the four community ones only had the dead `community-store.ts`) |
 
 The backend methods behind those wrappers stay registered in `main.lua` (a registered but uncalled
-method is harmless; an unregistered called one crashes the host). Their removal is M4.0.
+method is harmless; an unregistered called one crashes the host). They are **unwired features**, not
+dead code (§ 7.10): M4.0 classifies them and M5c/M5d/the Media service connect them.
 - Allowlist −2: `renderers -> settings`, `steam -> rpc`. Tests 87 → 86 (the deleted `community.test.ts`
   tested only deleted code; this is the one test deletion the migration makes, and it says so here).
 **Deltas:** none (nothing deleted was reachable). **Extra docs:** none beyond the common list; in the
@@ -2223,88 +2229,367 @@ it, and `index.tsx` awaits `ready()`, so the start-up order is unchanged. Allowl
 `library-home` → Steam's own values.
 **After M3.10:** the feature freeze (§ 5) ends. Write that in `TASK.md`.
 
-### M4.0 — Purge dead backend code (Spec; run before M4)
+### M4–M5 overview (read before any of these steps)
 
-**Why:** D13: the backend moves in M4–M7, and dead Lua must not move with it. After M3.0 the
-frontend calls none of these RPCs (the M0c registration test lists what it does call).
-**Candidates** (found 2026-09-28; the architect re-verifies each with the method below):
+**Decided 2026-09-28 (§ 11 items 6 and 7):** (6) the routing policy (buckets and service rules)
+stays **pure TypeScript** in `frontend/domain/routing/`, because routing rules have a `regex`
+condition evaluated with JavaScript `RegExp` and Lua has no regex engine. The backend still owns
+identity, fetching, storage and freshness, and receives the evaluated route as **context**
+(ADR-0040, written in M4a). (7) SteamGridDB, ScreenScraper and IGDB-community are **unwired
+features**, not dead code: their backend providers stay, and M5c/M5d (and the Media service after
+M7) connect them (§ 7.10).
 
-| Candidate | Evidence it is dead | Verify before deleting |
-| --- | --- | --- |
-| `SaveGameMetadata` (`web_rpc.lua`, registered in `main.lua`) | no frontend wrapper after M3.0 | `git grep -n SaveGameMetadata` finds only `main.lua` and `web_rpc.lua` |
-| `GetArtworkForGame` (`web_rpc.lua`) + `web_sgdb.lua` + the SteamGridDB key handling in `web_config.lua` (`sgdb_key.txt`, `steamgriddb_api`) + the `has_sgdb` status field | `web_sgdb` is required only by `web_rpc.lua` for this RPC | `migrate.lua` still reads the legacy `sgdb_key.txt` (keep or drop with the key); `tests/test_backend.lua` line ~183 loads `web_sgdb` (update it); the routing rule option `steamgriddb` in `features/buckets/resolve.ts` becomes a no-op (**ask the user**: settings keys and defaults are do-not-touch 1, so the option can only be documented as inert, not removed, without an ADR) |
-| `GetGameMedia`, `GetGameManual` → `screenscraper_media.lua`; `GetGameTrailers`, `GetGameCommunityLinks` → `igdb_community.lua` | both modules are required only by `main.lua` for these four RPCs; their only frontend caller was the dead `community-store.ts` | the ScreenScraper credentials in settings and the `screenscraper` routing option; if no other module uses the credentials, same user question as `steamgriddb`. M5 must not plan a source "from `screenscraper_media.lua`": it never fed metadata (see M5) |
-| `SteamStoreRejectSuggestion` (`steam_store_rpc.lua`) | no frontend wrapper after M3.0 | `tests/test_steam_store.lua` lines ~326/347 register and call it (delete those lines with it); the reject list itself (`rejected` in `steam_store.json`) stays: `SteamStoreClearMapping(appid, reject=true)` still writes it |
-| `GetDiagnostics` (`rpc.lua`) | no frontend wrapper after M3.0 | **keep**: documented debug RPC (`millennium-architecture.md`) and M7's exit reads `http_calls` from it |
+| Step | What | Kind | Behaviour |
+| --- | --- | --- | --- |
+| M4.0 | Backend inventory: every RPC classified live / unwired / dead; only dead code is deleted | backend | none |
+| M4a | Routing policy → `domain/routing`; `getBucket` / `bucketReport` → `app/routing.ts` | frontend move | none |
+| M4b | Identity service + record facade (`GetGameRecord`, `EnsureFresh`) in the backend, Lua-tested | backend addition | none (nothing calls it yet) |
+| M4c | Frontend adopts it: records, render queue, ports, owned-apps sensor; sections / native-links / captures record-driven | frontend switch | identity resolved by one backend call instead of up to three |
+| M5a | Metadata service in the backend (steam appdetails, IGDB, local DB, store-item context) | backend addition | none (nothing calls it yet) |
+| M5b | Frontend adopts it: store-item sensor, game-info surface record-driven, old pipeline deleted | frontend switch | Game Info selection done by the backend |
+| M5c | SteamGridDB artwork source (feature) | feature | new: art for unmapped shortcuts |
+| M5d | ScreenScraper metadata source (feature) | feature | new: metadata for retro games |
 
-**Method:** list every global assigned in `main.lua`; for each, `git grep` the name across
-`steam-cartridges/`, `scratch/` and `docs/`; a name with no caller outside `main.lua` and its own
-module is a candidate. For each candidate module, `git grep -n 'require("<module>")'` must show
-only the dead RPC's file. Then run both Lua suites (`NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua`,
-`lua tests/test_steam_store.lua`) before and after: only the deleted RPCs' own test lines may disappear.
-**Exit:** the RPC registration test (M0c) still passes; the Lua suites pass with the known K7/K8
-exceptions; § 0.5 PASS. Packaged per D10 like M3.
+Every step: architect pass per § 7.0.1 (dry-run and package per D10 unless the step says otherwise),
+§ 0.5 live verification by the verifier, the M3 common switch-off check for any surface the step
+changes. The contracts below are **binding**: the dry-run may add private helpers, but it must not
+change a contract without amending this section first.
 
-### M4 — Resolver service + RPC facade (Spec)
+#### Shared contracts (M4b, M4c, M5a, M5b)
 
-**Why:** user decision 1 (the pipeline lives in the backend) and Flow A. This is the first producer of
-`GameRecord`, so from here on surfaces become record-driven (D4).
-**Preconditions (besides § 0.4):** `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua`
-(from `steam-cartridges/`) → only the two known FAILs (K7, K8). The user has confirmed K8
-(one RetroArch shortcut removed on purpose); update the fixture to 215 as this step's first commit
-(`test(steam-cartridges): update RetroArch fixture count (K8)`).
+**Parts on the wire.** A part is the kernel `Part<T>` as JSON. The backend writes times in **ms**
+(`os.time() * 1000`). Status meanings for this migration:
+
+| Part | `ok` | `pending` | `unsupported` | `error` |
+| --- | --- | --- | --- | --- |
+| identity | resolved; `data.native` present = Steam match, absent = no match | title unknown, try again on the next view | no store lookup for this shortcut (emulator launcher, or route is not `steam-store`) | the lookup failed (network); retry after 5 min |
+| metadata | `data` is a `GameMetadata` to show | nothing local and no fetch allowed yet (route `pending`, or identity not known) | route `none` and nothing local | the fetch failed; local data, if any, is still in `data` |
+
+**RPC facade** (backend `record_rpc.lua`, registered in `main.lua`; frontend `ports/backend.ts`):
+
+```ts
+// frontend/ports/backend.ts (M4c). Imports kernel types only; transport from ports/transport.ts.
+export interface OwnedCandidate { appid: number; name: string }
+export interface FreshContext {
+    title: string;                                   // the shortcut's display name ("" when unknown)
+    route: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
+    owned?: OwnedCandidate[];                        // identity only: natives Steam knows (sensors/owned-apps)
+    storeItem?: GameMetadata | null;                 // metadata only (M5): StoreItemCache data for identity.native
+    allowWeb?: boolean;                              // metadata only (M5): igdb enabled and allowed by routing
+    noNetwork?: boolean;                             // true = disk and context only (bulk re-evaluation)
+}
+export interface RecordResponse {
+    appid: number;
+    parts: Partial<Record<RecordPart, Part<unknown>>>;
+    error?: string;                                  // set instead of parts when the call failed
+}
+export const backend: {
+    getGameRecord(appid: ShortcutId): Promise<RecordResponse>;                 // disk only
+    ensureFresh(appid: ShortcutId, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse>;
+    getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }>;  // M5a, disk only
+};
+```
+
+```lua
+-- backend/record_rpc.lua (M4b; M5a adds "metadata" and GetAllRecords). Wrapped in rpc.lua method():
+-- never throws across the boundary, errors come back as { error = "..." }.
+RPC.GetGameRecord  = method("GetGameRecord",  function(d) --[[ {appid} ]] end)                -- -> { appid, parts }
+RPC.EnsureFresh    = method("EnsureFresh",    function(d) --[[ {appid, parts, context} ]] end) -- -> { appid, parts }
+RPC.GetAllRecords  = method("GetAllRecords",  function(_) end)                                  -- M5a -> { records }
+```
+
+Unknown part names in `parts` are ignored (not an error). `appid` must be a shortcut (≥ 2^31) or the
+call returns `{ error = "not a shortcut" }`. Persisted formats do not change (§ 4.3): identity reads and
+writes `steam_store.json` through `steam_store_store.lua`, metadata reads and writes
+`library_metadata.json` through `web_metadata_db.lua`, and **native Steam metadata is never persisted**
+(steam_store_store.lua rule; M5a returns it without writing it).
+
+---
+
+### M4.0 — Backend inventory, purge only the dead (Spec; run before M4a)
+
+**Why:** D13 (dead code is purged, not moved) with § 11 item 7 (unwired features are kept).
 **Design:**
-1. **Oracle first.** Port `tests/buckets.test.ts` and `tests/routing-rules.test.ts` to
-   `tests/test_resolve_policy.lua` with the same cases and names, and keep the TS tests. The Lua port
-   of `features/buckets/resolve.ts` + `auto-routing.ts` (`backend/resolve_policy.lua`) must pass every
-   ported case before any frontend change. Both suites run in this step's actions.
-2. `backend/resolve_identity.lua`: native match, in the order manual mapping (`steam_store_store.lua`) →
-   owned candidates (from `context.owned`) → store search (`steam_store_search.lua`); then web identity
-   (IGDB id, RA game id/hash, ScreenScraper id). Negative results get their own TTL, separate from
-   positive ones. Sources follow the § 4.3 contract and are always `pcall`-wrapped.
-3. `backend/record_rpc.lua`: `GetGameRecord(payload)` assembles the record from disk only
-   (mappings, `library_metadata.json`, `achievements.json`; the shapes are unchanged, § 4.3).
-   `EnsureFresh(payload)` takes `{ appid, parts, context }` and runs only the requested parts.
-   `context = { title, collections: string[] /* ids containing appid */, owned: {appid,name}[], autoProfile? }`.
-   Register both in `main.lua`. Old RPC names stay.
-4. **Owned-apps sensor** (moved here from M2): `sensors/owned-apps/index.ts` exports `ownedCandidates()`,
-   which is `readNativeGames` moved verbatim from `features/steam-store/known-apps.ts`. The
-   `known-apps.ts` index stays for the settings panel until M8.
-5. `ports/backend.ts`: typed wrappers for `GetGameRecord` and `EnsureFresh` only (the new facade).
-   Extend the RPC-registration test to scan `ports/backend.ts` as well as `rpc.ts` (+0 tests, same test).
-6. `app/records.ts`: `createRecordStore(bus)`. On `shortcut.viewed`, it calls `GetGameRecord`, upserts the
-   base fields (title from the view's overview; D3 `titleOf` injected), then `EnsureFresh(appid, ["route","identity"], context)`,
-   and writes the parts with `records.update`. Create `app/render-queue.ts` (D5:
-   `createRenderQueue(render: (appid, parts) => void)` coalesces changed parts per appid and flushes on
-   `setTimeout(0)`; +2 tests: coalescing, one flush per tick) and wire it: `record.updated` → queue →
-   `runner.render`. The runner already exists (M3.1, in `index.tsx`).
-7. Record-driven switch (D4): `sections` reads `identity.native` for its extra sections; `native-links`
-   reads `identity.native`; `captures` reads it for the native activity source; `artwork` gets the art
-   plan. Delete the M4 rows of the § 7.9 ledger (`setExtraSectionsSink`, `setNativeLinksSink`, the
-   `setNativeActivitySource` half of `setCapturesSinks`, `setArtworkSink`, `setCollectionsSource`) in the same step.
-8. `features/steam-store/index.ts` `resolveMapping` and `features/buckets` `getBucket` call the backend
-   through the port. Delete the TS resolution code only once no caller remains (list the callers
-   in the dry-run; `settings-panel.tsx` `bucketReport` is one, so `bucketReport` keeps working via the port).
-**Exit:** `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL`; both policy suites pass; § 0.5 PASS.
-**Docs:** `service-resolver.md`, `rpc.md` (every RPC name, old or new, with payload and response and its
-`main.lua` line; mark the aliases). **Guardrails:** 13, 14 (routing gates fetching only), 15.
-**Architect note:** this is the largest step. Split it into M4a (Lua policy + oracle tests, no
-frontend change), M4b (identity + facade + ports) and M4c (record-driven surfaces, delete sinks)
-if the dry-run diff exceeds ~600 lines. Add the rows to § 0.2 when you split.
+1. List every global assigned in `backend/main.lua`. For each, record its callers: the frontend
+   (`rpc.ts` after M3.0), other backend modules, Lua tests, `scratch/` scripts, docs.
+2. Classify into the table below and write it into `docs/steam-cartridges/rpc.md` (created here; M4b
+   and M5a extend it):
+   - **live**: the frontend calls it.
+   - **unwired**: implemented, no caller, a feature the user wants → stays registered, gets a row in § 7.10.
+   - **dead**: no caller and no feature behind it → deleted, with its Lua test lines and any module only it uses.
+3. Expected result (verify, do not assume):
 
-### M5 — Metadata service (Spec)
+| RPC | Class | Note |
+| --- | --- | --- |
+| `GetArtworkForGame` + `web_sgdb.lua` | unwired | § 7.10: SteamGridDB artwork (M5c) |
+| `GetGameMedia`, `GetGameManual` + `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) and metadata (M5d) |
+| `GetGameTrailers`, `GetGameCommunityLinks` + `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
+| `SaveGameMetadata` | unwired | § 7.10: manual Game Info editing (`custom_override`); no UI yet |
+| `SteamStoreRejectSuggestion` | unwired | § 7.10: reject a suggestion in the Steam Store settings list; no UI yet |
+| `GetDiagnostics` | live (debug) | keep: documented in millennium-architecture.md; M7 adds `http_calls` |
 
-**Design:** `backend/metadata_service.lua` with the source list `src_steam_appdetails` (from
-`steam_store_appdetails.lua` + `steam_store_normalize.lua`) and `src_igdb` (`web_igdb.lua`), each `{ id, supports(ctx), fetch(ctx) → { status, data, ttl } }`.
-Selection order follows the resolved route (steam-store → appdetails; web-scraping → IGDB → ScreenScraper;
-none → local only, ADR-0035). Storage stays `library_metadata.json`, and `custom_override` always wins.
-`EnsureFresh(appid, ["metadata"])` fills `record.metadata`. Frontend: `game-info` becomes record-driven
-(reads `record.metadata.data`) and `sections.hasGameInfo` reads `metadata.status === "ok"`. Delete
-`features/game-info/index.ts` `libraryCache`, `handleWebScrapingView` and the `getAllMetadata` preload, and
-replace them with one `ListRecords()` (disk only) at start-up that fills every record. Delete the M5
-rows of the § 7.9 ledger.
-**Exit:** `node scratch/audit_missing_metadata.mjs` → 0 missing (220/220); AM2R Game Info intact with
-bucket `none` (ADR-0035); § 0.5 PASS. Lua tests for each source's `supports`. **Doc:** `service-metadata.md`.
+   If the table holds, M4.0 deletes **nothing** and is docs-only (`rpc.md` + § 7.10 checked). If the
+   inventory finds a truly dead RPC, delete it here with its test lines, packaged per D10.
+**Exit:** the RPC registration test passes; the Lua suites give the same output as before (K7, K8 known).
+
+### M4a — Routing policy to the domain (Spec)
+
+**Why:** § 11 item 6. The policy is pure and tested; this step gives it its layer and moves the
+stateful `getBucket` / `bucketReport` into `app/`. **Behaviour: none.**
+**Design:**
+1. `git mv frontend/features/buckets/resolve.ts frontend/domain/routing/policy.ts` (verbatim).
+   `frontend/features/buckets/ready.ts` (`pendingOr`) → `frontend/domain/routing/pending.ts` (verbatim).
+   Test paths (D11): `tests/buckets.test.ts`, `tests/routing-rules.test.ts`, `tests/buckets-ready.test.ts`.
+2. `frontend/app/routing.ts` = `features/buckets/index.ts` + `collections.ts` + `auto-routing.ts`, rewritten
+   as a factory over injected inputs so it is node-testable (D2) and needs no forbidden import:
+
+   ```ts
+   export interface RoutingInputs {
+       buckets(): BucketsConfig;                 // setting('buckets')
+       autoMode(): boolean;                      // setting('autoRoutingMode')
+       collections: { ready(): boolean; list(): any[] | undefined };   // sensors/collections (M2)
+       titleOf(appid: number): string | undefined;                      // appStore display name
+       shortcuts(): { appid: number; name: string }[];                   // appStore.allApps shortcuts
+       loadProfiles(): Promise<Record<string, AutoRoutingProfile>>;      // rpc.getAutoRoutingProfiles
+       metadataAppids(): Iterable<number>;       // for bucketReport.unbucketedWithMetadata
+   }
+   export function createRouting(inputs: RoutingInputs): {
+       getBucket(appid: number): Resolution;     // same memo rules as today: sticky per session, 'pending' never memoised
+       onBucketsChanged(): void;                 // clears the memo and the membership cache (was the onSettingChange hook)
+       bucketReport(): BucketReport;             // same shape as today (D8: public API)
+       listCollections(): CollectionInfo[]; membersOf(id: string): ReadonlySet<number> | undefined;
+       waitForCollections(timeoutMs?: number): Promise<boolean>;
+       loadAutoRoutingProfiles(): Promise<void>; getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined;
+       listShortcuts(): { appid: number; name: string }[];
+   };
+   ```
+
+   `index.tsx` creates the one instance (`export const routing = createRouting({...})` lives in
+   `index.tsx` or `app/routing-instance.ts` wired there) and passes it to every former caller through
+   D3 setters: `features/source-view.ts`, `features/game-info/index.ts`, `features/scraper/*`,
+   `settings/settings-panel.tsx` (the panel gets it through a setter in `settings.ts`, not an import of `app/`).
+   `features/buckets/` is deleted.
+3. Architecture test (D1): add `[/^(app|settings|features\/.+)$/, /^domain$/]` to `LAYER_RULES` (the
+   pure domain is a leaf like the kernel; `domain` itself may import only `kernel`). +1 assertion
+   in the layer-rules test: `features/scraper -> domain` allowed, `domain -> steam` forbidden.
+4. ADR-0040 in `docs/decisions.md` (text): *"Routing policy is pure TypeScript in `frontend/domain/routing`.
+   Routing rules include a `regex` condition with JavaScript `RegExp` semantics that Lua cannot evaluate.
+   The frontend app layer evaluates the policy and passes the route and allowed services to the backend
+   as context; the backend keeps identity, fetching, storage and freshness. Amends ADR-0039 and § 11
+   decision 1 of the migration plan for routing only."*
+**Tests:** +4 in new `tests/app-routing.test.ts`: (1) a resolved bucket is memoised and survives a
+membership change; (2) `pending` (collections not ready, rules present) is not memoised; (3)
+`onBucketsChanged()` clears the memo; (4) `bucketReport()` returns `ready: false` and only `games`
+before collections are ready. Plus the one layer-rule assertion.
+**Allowlist delta (expected):** every `* -> features/buckets` edge and `features/buckets -> *` edge
+disappears; `settings -> features/buckets` goes. Record the exact list from the dry-run.
+**Live:** § 0.5; `node steam-cartridges/tests/buckets.mjs` is **not** run (it writes config); instead
+the verifier compares `PLUGIN_LIST['steam-cartridges-dev'].bucketReport()` before and after deploy:
+identical JSON.
+
+### M4b — Identity service and record facade (Spec)
+
+**Why:** Flow A, first half: the backend decides whether a shortcut is a Steam game. Today that takes
+up to three frontend round trips (`SteamStoreGetMapping`, `SteamStoreSaveKnownMatch`, `SteamStoreSearch`,
+in `features/steam-store/index.ts` `resolveMapping`). **Behaviour: none** (nothing calls the new RPCs until M4c).
+**Design:**
+1. `backend/resolve_identity.lua`, a port of `resolveMapping` plus the two existing RPC bodies, with
+   injectable dependencies for tests:
+
+   ```lua
+   local M = {}
+   M.deps = {
+     http_get = nil,          -- nil = steam_store_throttle.http_get (search.search's default)
+     is_emulator = nil,       -- nil = launches_emulator(appid) as in steam_store_rpc.lua (moved here, shared)
+     now = function() return os.time() end,
+   }
+   --- Disk only: the saved mapping as an identity part, or nil. Never touches the network.
+   function M.saved(appid) end
+   --- Full resolution: saved mapping -> owned candidates -> store search. Returns a Part (table).
+   --- ctx = { title = string, owned = { {appid=, name=}, ... } | nil, route = { bucket=, via= } }
+   function M.ensure(appid, ctx) end
+   return M
+   ```
+
+   Order and outcomes (each line is one test in step 4):
+   - route bucket ≠ `steam-store` → `{ status = "unsupported" }` (no disk write, no network).
+   - saved mapping exists → `{ status="ok", data={ native={ appid=, source=<mapping.source> } }, source="steam-store" }`.
+   - `is_emulator(appid)` → `{ status="unsupported" }` (same rule as today's `skipped = "emulator"`).
+   - title `""` → `{ status="pending" }`.
+   - owned candidates: the **unique** candidate whose `steam_store_normalize.normalize(name)` equals
+     `normalize(title)` and is not in `rejected` → `store.set_mapping(appid, id, name, "owned")` → ok with
+     `source="owned"`. Two candidates with the same normalized name = no owned match (as `matchKnownIndex`).
+   - store search (`steam_store_search.search(title, deps.http_get, store)`): `exact` not rejected →
+     `set_mapping(..., "search")`, `remove_suggestion` → ok with `source="search"`; exact but rejected →
+     ok without native; suggestions only → `store.add_suggestions` → ok without native; `skipped="negative"`
+     → ok without native; `error` → `{ status="error", message=<error> }`.
+   - every returned part gets `checkedAt = deps.now() * 1000`.
+2. `backend/record_rpc.lua`: `GetGameRecord` returns `{ appid, parts = { identity = resolve_identity.saved(appid) } }`
+   (omit `identity` when nil). `EnsureFresh` runs `resolve_identity.ensure` when `"identity"` is in `parts`.
+   Register both in `main.lua` under a new comment `-- Record facade (migration M4b).`
+3. `steam_store_rpc.lua` keeps its RPCs (aliases until M9) and its `launches_emulator` moves into
+   `resolve_identity.lua` as the default `is_emulator` (steam_store_rpc requires it from there).
+4. New hermetic `tests/test_identity.lua`, modelled on `test_steam_store.lua` (same stubs, `M._path` on the
+   store, `deps.http_get` injected, `http` stubbed to throw). Cases, one `check` each, in this order:
+   `route not steam-store is unsupported` · `saved manual mapping, no network` · `emulator is unsupported` ·
+   `empty title is pending` · `unique owned match saves source owned` · `duplicate owned names are no match` ·
+   `rejected owned candidate is skipped` · `store exact saves source search` · `store exact but rejected, no native` ·
+   `suggestions only are stored, no native` · `negative cache skips the request` (assert the injected
+   http_get is not called twice) · `network error is status error` · `checkedAt is in ms` ·
+   `GetGameRecord is disk only` · `EnsureFresh ignores unknown parts` · `EnsureFresh rejects a native appid`.
+   Expected output ends `ALL PASS`. Add it to `package.json` `test:lua`.
+5. Frontend: no change. M4b is backend-only, and the RPC registration test is unaffected because
+   the frontend does not call the new names yet (M4c does).
+**Exit:** `lua tests/test_identity.lua` → `ALL PASS` (16 checks); the other Lua suites unchanged (K7/K8);
+`npm run test:ts` unchanged; § 0.5 PASS (backend loads: the log shows `Backend loaded.`).
+**Docs:** `rpc.md` (the two new methods with request/response), `service-resolver.md` (new, § 0.6 template:
+what it owns = identity; sources = saved mapping, owned candidates, store search; "How to add a source").
+
+### M4c — Frontend adopts records and identity (Spec)
+
+**Why:** D4: the first record-driven surfaces. **Behaviour delta:** identity comes from one
+`EnsureFresh` call (log lines change: the backend logs the search; the frontend logs `Identity <appid>:
+<status> <native|->` once per resolution).
+**Design:**
+1. `frontend/ports/transport.ts`: the `call()` function moved from `rpc.ts` (verbatim); `rpc.ts` imports it
+   (add `[/^rpc$/, /^ports$/]` to `LAYER_RULES`, temporary until M9 folds `rpc.ts` into `ports/`).
+   `frontend/ports/backend.ts`: the contract above. Extend the RPC registration test to scan
+   `ports/backend.ts` as well as `rpc.ts` (same regex; it must find `GetGameRecord` and `EnsureFresh`).
+2. `frontend/sensors/owned-apps/index.ts`: `ownedCandidates(): OwnedCandidate[]` = `readNativeGames` moved
+   verbatim from `features/steam-store/known-apps.ts`. `known-apps.ts` is deleted, and so are the TS matching
+   helpers only it used (`buildKnownIndex`, `matchKnownIndex`, `matchKnownApp`, `normalizeTitle` in
+   `features/steam-store/resolve.ts`) with their tests in `tests/steam-store.test.ts`: the backend's
+   `normalize` (tested by `tests/fixtures/normalize-cases.json` in Lua) is now the only matcher. State the
+   test-count change in the step.
+3. `frontend/app/records.ts`: `createRecords(bus)` → `{ store: RecordStore, ensureBase(appid, title) }`
+   (`ensureBase` upserts `{appid, gameid: toGameId(appid), title, exe: ""}`).
+   `frontend/app/render-queue.ts` (D5): `createRenderQueue(render: (appid, parts) => void, schedule = (f) => setTimeout(f, 0))`;
+   coalesces parts per appid; one flush per tick; `index.tsx` wires `bus.on("record.updated") → queue → runner.render(appid, records.get(appid), parts)`.
+4. `frontend/app/identity.ts`: `createIdentity({ backend, records, owned, titleOf, now })` →
+   `{ ensure(appid, route): Promise<Part<Identity>>, invalidate(appid) }` with today's session rules:
+   one resolution per appid per session; `pending` is not memoised; `error` is retried on a view after
+   5 min (the old `RETRY_MS`); `invalidate` drops the memo (manual mapping, clear). It writes the part with
+   `records.update(appid, { identity })`. Route not `steam-store` → it writes `{ status: "unsupported" }`
+   without calling the backend.
+5. `features/source-view.ts` steam-store branch: `const identity = await app.identity.ensure(appid, route)`
+   replaces the `resolveMapping` half of `handleSteamStoreView`; `handleSteamStoreView(appid, identity)`
+   keeps its metadata and artwork half (until M5b/M5c). `setSteamStoreMapping` and `clearSteamStore`
+   (public, D8) call `identity.invalidate(appid)` after the backend write and re-run the view.
+6. Record-driven surfaces (D4), each `reads` updated and its sink deleted:
+   - `sections.render(appid, record)`: `setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined)`
+     (`NATIVE_SECTIONS` moves from steam-store into the surface). Delete `setExtraSectionsSink`.
+   - `native-links.render`: `setNativeAppid(appid, record?.identity?.data?.native?.appid)`. Delete `setNativeLinksSink`.
+   - `captures.render`: when `identity` is in the changed parts, `setNativeActivitySource(appid, native?.appid)`
+     then `publish(appid)` (was the steam-store `republish`). Delete `setCapturesSinks`.
+   - `game-info`: unchanged in M4c (`refreshGameInfoInstances` after a new mapping stays in steam-store until M5b).
+7. Tests (+N, exact in the dry-run): `tests/render-queue.test.ts` (2: coalescing; one flush per tick),
+   `tests/app-identity.test.ts` (5: not steam-store → unsupported without a call; memo per session;
+   pending not memoised; error retried only after 5 min; invalidate re-resolves), minus the deleted
+   TS matching tests.
+**Exit:** § 0.5 PASS; `node scratch/check_parity.mjs` → `17 PASS / 0 FAIL` (Jotunnslayer: links, friends,
+community, news from native 2820820); WUCHANG shows its native sections; AM2R (route `none`) shows none
+and makes no identity call (backend log has no `EnsureFresh` for 4263274102); M3 switch-off checks for
+`sections`, `native-links`, `captures`.
+**Docs:** `rpc.md` (ports), `surfaces.md` (the three "Record-driven in" cells → done), `sensors.md` (owned-apps),
+`README.md` layer list (`app/`, `ports/` current), § 7.9 (tick the M4 rows).
+
+### M5a — Metadata service (Spec)
+
+**Why:** Flow A, second half. Today Game Info selection is spread over `features/game-info/index.ts`
+(`handleWebScrapingView`, the preload), `policy.ts` (`gameInfoPlan`), `features/steam-store/index.ts`
+(`loadNative`) and `features/scraper/on-update.ts`. **Behaviour: none** (nothing calls it until M5b).
+**Design:**
+1. `backend/metadata_service.lua` with injectable deps (`igdb_fetch = igdb.fetch_game_metadata`,
+   `appdetails_fetch = appdetails.fetch`, `shortcut_info = web_rpc.get_shortcut_info`, `now`):
+   `M.local_part(appid)` (disk only) and `M.ensure(appid, ctx) → Part<GameMetadata>` with this selection,
+   a port of `gameInfoPlan` + `loadNative` + `GetGameMetadata` (one test per line):
+   - DB record with `custom_override = true` → ok, `source="custom"`, whatever the route (user edits win).
+   - `route.via == "pending"` → DB record → ok `source="local_db"`; none → `pending`. No network.
+   - `route.bucket == "steam-store"` and identity has native: `ctx.storeItem` present → ok with it,
+     `source="steam-store"`, **not persisted**; else `appdetails_fetch(native)` → `to_metadata` → ok,
+     `source="steam-appdetails"`, not persisted; appdetails error → the DB record if any with `status="error"`.
+   - `route.bucket == "steam-store"` and identity ok without native, or `route.bucket == "web-scraping"`:
+     DB record → ok `local_db`; none and `ctx.allowWeb` and not `ctx.noNetwork` → `igdb_fetch` → persist →
+     ok `source="igdb"`; IGDB no match → persist the fallback record exactly as `GetGameMetadata` does →
+     ok `source="fallback"`; not allowed → `pending`.
+   - `route.bucket == "steam-store"` and identity not known (`pending`/`error`) → DB record or `pending` (local only, as today).
+   - `route.bucket == "none"` → DB record → ok `local_db`; none → `unsupported`.
+   The service needs the identity: `EnsureFresh(appid, ["identity","metadata"], ctx)` resolves identity
+   first in the same call; `["metadata"]` alone reads the saved identity (`resolve_identity.saved`).
+2. `record_rpc.lua`: `EnsureFresh` handles `"metadata"`; `GetGameRecord` adds `metadata = metadata_service.local_part(appid)`;
+   new `GetAllRecords` → `{ records = { ["<appid>"] = { identity=?, metadata=? } } }` for every DB record and
+   every saved mapping (disk only; replaces the frontend's `getAllMetadata` preload in M5b).
+3. `GetGameMetadata` / `RefreshGameMetadata` / `GetAllMetadata` stay registered (aliases until M9; the
+   settings panel and M7's sync still call them).
+4. New hermetic `tests/test_metadata_service.lua` (stubs as `test_identity.lua`; `library_metadata.json` in
+   a temp dir via `data_dir` override): the selection lines above as checks, plus the six cases of
+   `tests/game-info-policy.test.ts` ported by name (that TS test is deleted in M5b with `policy.ts`), plus
+   `steam-store metadata is never written to library_metadata.json` and `GetAllRecords is disk only`.
+   Expected `ALL PASS`; add to `test:lua`.
+**Exit:** new suite `ALL PASS`; the others unchanged; § 0.5 PASS. **Docs:** `rpc.md`, `service-metadata.md` (new).
+
+### M5b — Frontend adopts metadata (Spec)
+
+**Why:** D4 for `game-info`. **Behaviour delta:** Game Info is selected by the backend; the result must
+be identical per shortcut (the exit checks prove it).
+**Design:**
+1. `frontend/sensors/store-item/index.ts`: `loadStoreItem(steamAppid)` moved from
+   `features/steam-store/store-item.ts` (it queues Steam's own StoreItemCache request and polls; a read of
+   Steam's data, so a sensor). The pure mapping (`metadataFromStoreItem`, `categoryIds`, `gameCategoryIds`,
+   `assetUrlsFromItem`) → `frontend/domain/store-item.ts` (types from the kernel, D12); `tests/steam-store.test.ts`
+   paths (D11). `normalize.ts` (metadata normalization) → `frontend/domain/metadata-normalize.ts`
+   (`tests/metadata-normalize.test.ts` path).
+2. `frontend/app/metadata.ts`: `createMetadata({ backend, records, storeItemFor, allowWeb })` →
+   `ensure(appid, route, identity)`: when identity has a native, `ctx.storeItem = domain.metadataFromStoreItem(await storeItemFor(native))`;
+   `ctx.allowWeb = services.igdbEnabled !== false && isServiceAllowed('igdb', …)` (domain, M4a);
+   one `EnsureFresh(["metadata"])`; `records.update(appid, { metadata })`. Start-up: `getAllRecords()` →
+   `records.update` for every shortcut (replaces the `initGameInfo` preload). Bucket settings change:
+   re-route every record, and for each whose route changed call `ensure` with `noNetwork: true`
+   (today's behaviour: revert store data, apply local, fetch nothing until the next view).
+3. `game-info.render(appid, record)`: `metadata.status` is `ok` (or `error` with `data`) → `enrich(appid, data)`
+   (idempotent, M0a); otherwise, if the app was enriched → `revert(appid)`. After a new identity, it
+   calls `refreshGameInfoInstances()` (was in steam-store, guardrail 11). Its deps `metadataOf` now reads
+   `records.get(appid)?.metadata?.data`.
+4. Deleted (and their § 7.9 rows ticked): `features/game-info/index.ts` (libraryCache, `handleWebScrapingView`,
+   `initGameInfo` preload, the bucket-change hook), `features/game-info/policy.ts` + `tests/game-info-policy.test.ts`
+   (ported to Lua in M5a), the metadata half of `features/steam-store/index.ts` (`metaCache`, `loadNative`,
+   `matched`), the metadata part of `features/scraper/on-update.ts`, setters `setGameInfoWriter`,
+   `setGameInfoSink`, `setGameInfoEnricher`, `setGameInfoProbe` (sections reads `record.metadata.status`).
+   `features/source-view.ts` shrinks to: route → identity → metadata → (steam-store artwork until M5c).
+**Exit:** `node scratch/audit_missing_metadata.mjs` → `0 missing` (220/220 shortcuts with Game Info, as
+before); AM2R Game Info intact with route `none` (ADR-0035); WUCHANG Game Info from the Steam store
+(release date, developer, badges as before); a web-scraping game shows its IGDB data; `count_cycle.mjs`
+→ `PASS render loop`; § 0.5 PASS; switch-off `game-info`.
+**Docs:** `service-metadata.md`, `surfaces.md` (game-info record-driven), `sensors.md` (store-item),
+`README.md`, § 7.9.
+
+### M5c — SteamGridDB artwork source (Spec; feature, after M5b)
+
+**Why:** § 7.10 row 1. SteamGridDB is the artwork source for non-Steam games; the provider exists
+(`web_sgdb.lua`: search by title, lookup by Steam appid, portrait/hero/logo/wide URLs), but nothing
+calls it since the `steamgriddb-artwork` merge. **Behaviour: new** (feature freeze ended with M3).
+**Decisions to ask the user before the architect pass:** (a) which shortcuts get SteamGridDB art
+(proposal: routes `web-scraping` and `steam-store` without a Steam match; mapped games keep Steam CDN art);
+(b) never overwrite art the user set themselves (proposal: write only empty slots, and record our slots
+in `applied_artwork` exactly as the Steam Store path does, so Clear removes only ours); (c) where the API
+key is entered (today only `.env` / `sgdb_key.txt`; proposal: a field in the settings panel through
+`SaveServiceCredentials`, which already accepts it).
+**Design outline:** an Artwork service (`backend/art_service.lua`) with sources `steam_cdn` (the current
+mapped path) and `sgdb` (`web_sgdb.lua`); `record.artwork = { urls, source }`; `art-plan.ts` → `domain/`;
+the `artwork` surface becomes record-driven and `setArtworkSink` is deleted; routing service `steamgriddb`
+(already in the rules UI) gates the SGDB source.
+
+### M5d — ScreenScraper metadata source (Spec; feature, after M5b)
+
+**Why:** § 7.10 row 2. ScreenScraper credentials are in settings, but no metadata ever came from it:
+`screenscraper_media.lua` fetches only media (screenshots, fanart, video, manual) through `jeuInfos.php`.
+**Decisions to ask the user:** (a) priority against IGDB for retro games (proposal: ScreenScraper first for
+routes whose auto profile is `retroarch` / `console_emulator`, IGDB first for PC); (b) which fields
+(synopsis, release date, developer, publisher, genres, players).
+**Design outline:** `src_screenscraper` in `metadata_service.lua` using the same `jeuInfos.php` response
+(ROM path, CRC/MD5 as `screenscraper_media.fetch_media` already computes), gated by `services.screenscraperEnabled`
+and routing service `screenscraper`; Lua tests with a recorded `jeuInfos` fixture; `audit_missing_metadata.mjs`
+must stay at 0 missing.
 
 ### M6 — Achievements service (Spec)
 
@@ -2392,18 +2677,33 @@ printing nothing, and every row below being deleted.
 | Item | Marked | Delete in | Why |
 | --- | --- | --- | --- |
 | dead frontend code (community tab/store/core, `applyCustomArtwork`, 8 unused exports, 8 RPC wrappers) | — | **M3.0 (done before any move)** | see the M3.0 table |
-| dead backend code (the RPCs behind the M3.0 wrappers and the modules only they use) | — | **M4.0 (before the backend moves)** | see M4.0 |
+| dead backend code, if the M4.0 inventory finds any (the RPCs behind the M3.0 wrappers are **unwired features**, § 7.10, and stay) | — | **M4.0 (before the backend moves)** | see M4.0 |
 | `frontend/features/achievements/store-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; M6 moves the achievements pipeline to the backend |
 | `frontend/features/achievements/toast-port.ts` | M3.8 `PURGE(M6)` | M6 | D3 port; toasts become `achievements.unlocked` subscribers |
-| setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks` (`setNativeActivitySource` part), `setArtworkSink` | — | M4 | `identity.native` and the art plan come from the record |
-| setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`, and deps `metadataOf` / `controllerContext` of the game-info surface | — | M5 | Game Info comes from `record.metadata` |
+| setters `setExtraSectionsSink`, `setNativeLinksSink`, `setCapturesSinks` | — | M4c | `identity.native` comes from the record |
+| setter `setArtworkSink` | — | M5c | the artwork part comes from the Artwork service |
+| `features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts` | — | M4c | the backend's `normalize` is the only matcher |
+| setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`; `features/game-info/index.ts`, `policy.ts` | — | M5b | Game Info comes from `record.metadata` |
 | setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts` | — | M7 | freshness and ingestion move to the backend |
 | setter `setContentListener` | — | M9 decides | the content flag stays captures → sections; keep the setter or move it to an event |
-| setter `setCollectionsSource` | — | M4 | membership becomes resolver context |
-| `rpc.ts` type aliases (`ConsolidatedMetadata`, `GameCategories`, achievement and artwork shapes) | — | M9 | importers use the kernel names (D12) |
+| `rpc.ts` type aliases (`ConsolidatedMetadata`, `GameCategories`, achievement and artwork shapes), and `rpc.ts` itself (its `call` moves to `ports/transport.ts` in M4c) | — | M9 | importers use the kernel names (D12) and `ports/` |
 | old RPC names kept as aliases for the M4–M7 facade | — | M9 | the registration test proves which are unused |
 | `steam/route.ts` `isNonSteamAppId` | — | M9 | `kernel/appid.ts` everywhere |
 | `scratch/arch-m0/<step>/` packages, `apply_step.py`, `pack_step.py` | — | M9 | execution aids, not product code; the live scripts move to `steam-cartridges/tests/live/` |
+
+### 7.10 Unwired features register (§ 11 item 7)
+
+Backend providers that are implemented and wanted but have no caller. They are **kept** (not dead
+code, D13 does not apply) and each has the step that connects it. M4.0 verifies this list.
+
+| # | Feature | What exists | What is missing | Wired in |
+| --- | --- | --- | --- | --- |
+| 1 | SteamGridDB artwork for shortcuts | `web_sgdb.lua` (search by title, lookup by Steam appid, portrait/hero/logo/wide URLs), `GetArtworkForGame`, key storage in `web_config.lua`, routing option `steamgriddb`, the frontend URL writer with the SGDB CORS proxy fallback (`surfaces/artwork`) | a caller; a settings field for the key; the rule for which shortcuts get it | M5c |
+| 2 | ScreenScraper metadata for retro games | credentials in settings, `screenscraper_media.lua` (`jeuInfos.php` client, ROM hashing), service toggle and routing option | any metadata mapping (the module extracts media only); a caller | M5d |
+| 3 | ScreenScraper media (screenshots, fanart, video, manuals) | `GetGameMedia`, `GetGameManual`, `screenscraper_media.lua` | a surface that shows them (the old custom tab was never mounted and was deleted in M3.0; restore with `git show 5b6b2c8:steam-cartridges/frontend/renderers/community-tab.tsx` if wanted, but ADR-0022 prefers Steam's own sections) | Media service, after M7 |
+| 4 | IGDB community (trailers, links, official artworks) | `igdb_community.lua`, `GetGameTrailers`, `GetGameCommunityLinks` | a surface; the `media` record part | Media service, after M7 |
+| 5 | Manual Game Info editing | `SaveGameMetadata` (sets `custom_override`, which `web_metadata_db` and M5a honour) | a settings UI | settings step after M8 (M8 does not add features) |
+| 6 | Reject a Steam Store suggestion | `SteamStoreRejectSuggestion`, the `rejected` list | a button in the Steam Store settings list | settings step after M8 |
 
 ---
 
@@ -2482,7 +2782,7 @@ AGENTS.md Routine 6.
 ## 11. User decisions (2026-09-28)
 
 1. **Pipeline logic lives in the backend** (M4–M7): resolution, freshness and
-   metadata/achievement selection. The frontend is sensors, surfaces and a thin `app/`
+   metadata/achievement selection (routing excepted: item 6). The frontend is sensors, surfaces and a thin `app/`
    that calls `GetGameRecord` / `EnsureFresh`.
 2. **New shortcuts are fetched in the background** at startup, rate-limited. All
    other refreshes happen only when the page is opened (Flow B).
@@ -2494,6 +2794,12 @@ AGENTS.md Routine 6.
 5. **Migration steps are pure moves** (2026-09-28, answering K4): "the point of the migration is a
    hexagonal architecture where each layer has a very specific input/job/output". Behaviour bugs
    found on the way get their own bugfix plans (D14).
+6. **Routing policy stays pure TypeScript** (2026-09-28): routing rules have a `regex` condition
+   (JavaScript `RegExp`) that Lua cannot evaluate, so buckets and service rules live in
+   `frontend/domain/routing/`; the backend gets the route as context and keeps identity, fetching,
+   storage and freshness. Amends decision 1 for routing only (ADR-0040, written in M4a).
+7. **SteamGridDB, ScreenScraper and IGDB-community are features to wire, not dead code** (2026-09-28):
+   their backend providers are kept and connected by M5c, M5d and the Media service (§ 7.10).
 
 Recorded in [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
 
