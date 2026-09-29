@@ -288,6 +288,13 @@ function M.ensure(appid, ctx)
     return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() }
   end
 
+  -- A paused source (429, or 5 failures) is not "no match": do not write the fallback record over the
+  -- chance of real data; ask again once it is free.
+  local net = require("net")
+  if (ctx.allowWeb and net.is_paused("igdb")) or (ctx.allowScreenscraper and net.is_paused("screenscraper")) then
+    return { status = "pending", message = "paused", checkedAt = now_ms() }
+  end
+
   local fallback = fallback_record(appid, title)
   metadata_db.set(appid, fallback)
   fresh().touch(appid, "metadata", now_ms())

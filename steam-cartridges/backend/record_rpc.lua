@@ -87,7 +87,11 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
     -- Unknown part names are ignored (not an error).
   end
 
-  return { appid = tonumber(appid), parts = parts }
+  -- Which sources are paused right now (M7a breakers), so a background run can stop instead of hammering.
+  local result = { appid = tonumber(appid), parts = parts }
+  local paused = require("net").stats().paused
+  if next(paused) ~= nil then result.paused = paused end
+  return result
 end)
 
 --- Every DB record and every saved mapping, disk only. Replaces the frontend's

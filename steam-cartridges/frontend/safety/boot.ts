@@ -3,7 +3,7 @@
 // round: every start marks the boot "pending"; a clean shutdown (pagehide) or 60 s of
 // error-free running clears it. If a start finds the previous boot still pending, that
 // boot ended badly. After two bad boots in a row, the plugin starts in safe mode.
-// SharedJSContext's localStorage survives Steam restarts (sync-manager relies on it too).
+// SharedJSContext's localStorage survives Steam restarts (the old sync manager relied on it too).
 
 export const BOOT_KEY = "steam-cartridges.boot";
 /** Bad boots in a row that switch safe mode on. */

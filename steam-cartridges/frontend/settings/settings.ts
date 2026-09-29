@@ -40,6 +40,39 @@ export function getAchievementsSource(): AchievementsSource {
     return achievementsSource;
 }
 
+/** Progress of the background sync (app/ingest.ts), for the panel (plan § 7.0 D3: never an import of app/). */
+export interface SyncProgress {
+    isSyncing: boolean;
+    total: number;
+    current: number;
+    currentGame: string;
+    phase: 'idle' | 'scraping' | 'complete';
+}
+
+interface SyncSource {
+    getSyncProgress(): SyncProgress;
+    onSyncProgress(fn: (p: SyncProgress) => void): () => void;
+    triggerSync(delayMs?: number): void;
+}
+
+const IDLE_SYNC: SyncProgress = { isSyncing: false, total: 0, current: 0, currentGame: '', phase: 'idle' };
+let syncSource: SyncSource = { getSyncProgress: () => IDLE_SYNC, onSyncProgress: () => () => {}, triggerSync: () => {} };
+
+export function setSyncSource(s: SyncSource): void {
+    syncSource = s;
+}
+
+/** Queue a background sync (debounced): new shortcuts only; see app/ingest.ts. */
+export function triggerSync(delayMs?: number): void {
+    syncSource.triggerSync(delayMs);
+}
+
+export function useSyncProgress(): SyncProgress {
+    const [progress, setProgress] = useState(() => syncSource.getSyncProgress());
+    useEffect(() => syncSource.onSyncProgress(setProgress), []);
+    return progress;
+}
+
 export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
 
 export interface ServicesConfig {

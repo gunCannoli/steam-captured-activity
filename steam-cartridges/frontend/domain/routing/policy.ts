@@ -4,7 +4,7 @@
  *
  * ADR-0036: a shortcut that no rule claims gets the fixed default bucket
  * `steam-store`. A steam-store game with no Steam match falls back to web
- * scraping at view time (features/source-view.ts), not here. Each collection
+ * scraping at view time (app/view.ts), not here. Each collection
  * rule may narrow itself with title patterns (include / exclude).
  */
 export type Bucket = 'steam-store' | 'web-scraping' | 'none';

@@ -42,6 +42,8 @@ export interface RecordResponse {
     parts: Partial<Record<RecordPart, Part<unknown>>>;
     /** Set instead of parts when the call failed. */
     error?: string;
+    /** Sources the backend has paused (429, or repeated failures), by source id (M7a). */
+    paused?: Record<string, number>;
 }
 
 export const backend = {
@@ -68,6 +70,13 @@ export const backend = {
             "CartridgesAchievementsReset",
             { shortcut_appid: appid },
         );
+    },
+    /** Shortcuts not seen before (M7a). The first call seeds the library and returns none. */
+    getNewShortcuts(): Promise<{ shortcuts?: unknown }> {
+        return call<{ shortcuts?: unknown }>("GetNewShortcuts", {});
+    },
+    markKnown(appids: number[]): Promise<{ ok?: boolean; error?: string }> {
+        return call<{ ok?: boolean; error?: string }>("MarkKnown", { appids });
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

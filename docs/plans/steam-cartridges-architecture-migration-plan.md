@@ -82,7 +82,7 @@ Statuses (what the executing agent does with the row):
 | M6a | Achievements service (backend; fixes K1, K2, K7) | **Done** (live-verified 2026-09-29) | `service-achievements.md`, `rpc.md` |
 | M6b | Frontend adopts achievements; Flow C (fixes K14) | **Done** (live-verified 2026-09-29; a real unlock during play is still the user's test) | `service-achievements.md`, `surfaces.md` |
 | M7a | Freshness, throttle, registry (backend; fixes K15) | Done (implementer); live verification pending § 0.5 | `service-freshness.md`, `rpc.md` |
-| M7b | Frontend drives ingestion; sync manager deleted | Build | `service-freshness.md` |
+| M7b | Frontend drives ingestion; sync manager deleted | Done (implementer); live verification pending § 0.5 | `service-freshness.md` |
 | M8 | Settings split + Troubleshooting panel | Build | `settings.md`, `safety.md` |
 | M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | Build | `rpc.md`, `README.md`, ADR-0041 |
 | M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | Build | all |
@@ -3112,7 +3112,7 @@ printing nothing, and every row below being deleted.
 | ~~setter `setArtworkSink`~~ | — | ~~M5c~~ **done** | the artwork part comes from the Artwork service (`app/artwork.ts`); `features/steam-store` asks `artworkSource.clearSlots`, the surface clears |
 | ~~`features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts`~~ | — | ~~M4c~~ **done** | the backend's `normalize` is the only matcher |
 | ~~setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`; `features/game-info/index.ts`, `policy.ts`~~ | — | ~~M5b~~ **done** | Game Info comes from `record.metadata`; `setGameInfoSink` (an enrich/revert writer) is fully gone — the refresh-only call guardrail 11 still needs is a new, narrower setter (`setGameInfoRefresher`, not a purge item) |
-| setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts` | — | M7 | freshness and ingestion move to the backend |
+| ~~setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts`~~ | — | ~~M7~~ **done (M7b)** | freshness and ingestion moved to the backend (`app/ingest.ts`, `app/view.ts`) |
 | setter `setContentListener` | — | M9 decides | the content flag stays captures → sections; keep the setter or move it to an event |
 | `rpc.ts` type aliases (`ConsolidatedMetadata`, `GameCategories`, achievement and artwork shapes), and `rpc.ts` itself (its `call` moves to `ports/transport.ts` in M4c) | — | M9 | importers use the kernel names (D12) and `ports/` |
 | old RPC names kept as aliases for the M4–M7 facade | — | M9 | the registration test proves which are unused |

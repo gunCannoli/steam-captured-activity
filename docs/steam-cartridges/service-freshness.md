@@ -62,6 +62,26 @@ for 15 min; a success resets the count; while paused a call returns `nil, "pause
 `steam-store`, `igdb`, `retroachievements`, `steam-web`, `sgdb`, `screenscraper`. `steam_store_throttle` keeps its rate
 limit and offline detection and calls `net`.
 
+## Frontend (M7b)
+
+- **`frontend/app/ingest.ts`** (`createIngest`, replaces `features/scraper/sync-manager.ts`). At start-up
+  (`background-sync` switch, `triggerSync(3000)` as before) it calls `GetNewShortcuts()` and, for each new shortcut, one at a
+  time and 300 ms apart, `EnsureFresh` with the route and the allowed services from `domain/routing`, then `MarkKnown`.
+  A `steam-store` shortcut asks identity first: a native match needs only achievements (its Game Info is read from Steam when
+  its page opens, never persisted), no match asks metadata (IGDB, then ScreenScraper) and achievements. Route `none` fetches
+  nothing (ADR-0035) and is still marked known. A backend `paused` answer for a source the job uses stops the run and leaves
+  that shortcut unknown, so it is retried next time. `startSync({ forceAll, onlyAppids })` (the panel's "sync") walks the
+  library instead of the registry, with `ctx.force = forceAll`; the backend never refreshes a manual edit. Progress keeps the
+  `SyncProgress` shape (`isSyncing`, `total`, `current`, `currentGame`, `phase`). It writes **no records**: the backend
+  persists what it fetches and a record picks it up on the shortcut's next view (writing a record per shortcut at start-up
+  makes every record-driven surface render at once, knowledgebase Part 7).
+- **`frontend/app/view.ts`** (`createView`, was `features/source-view.ts`): route -> identity -> metadata -> artwork ->
+  achievements when a page opens; each service asks the backend, whose TTLs decide whether anything is fetched, so a fresh
+  page costs no network. The steam-store side effects and `leave` come in as a dependency. `features/scraper/on-update.ts`
+  is gone: captures republish on every view (sensors), unlocks load through `app/achievements.ts`, metadata through the TTL.
+- The settings panel reads progress and calls `triggerSync` through `settings.ts` (`setSyncSource`, `useSyncProgress`), a D3
+  setter like routing. `steam_cartridges_sync_history_v1` in `localStorage` is now ignored, not deleted (M9 decides).
+
 ## Files
 
 | File | Role |
@@ -71,6 +91,7 @@ limit and offline detection and calls `net`.
 | `backend/registry.lua` | `known_shortcuts.json`, new shortcuts |
 | `backend/record_rpc.lua` | `GetNewShortcuts`, `MarkKnown`, the freshness use in `EnsureFresh` |
 | `backend/metadata_service.lua` | The refresh rule for local records |
+| `frontend/app/ingest.ts`, `frontend/app/view.ts` | The background job and the view pipeline (M7b) |
 | `backend/steam_store_throttle.lua`, `web_igdb.lua`, `igdb_community.lua`, `web_sgdb.lua`, `retroachievements.lua`, `screenscraper_media.lua`, `achievements_store.lua`, `steam_store_rpc.lua` | Call `net` instead of `http` |
 
 ## Steam targets touched
@@ -84,11 +105,18 @@ the SDK stub). A new network source picks a `source` id and calls `net`.
 
 ## Tests
 
-`tests/test_freshness.lua` (39 checks, hermetic, clock injected): each TTL row; custom override never forced (K15);
+Frontend: `tests/app-ingest.test.ts` (12: startup ingests only new shortcuts, pacing is sequential, a paused result stops the run,
+a source the job does not use does not, force sets `ctx.force`, `onlyAppids`, routes decide the parts, steam-store identity first,
+progress shape, no parallel runs) and `tests/app-view.test.ts` (6: order per route, pending replay, leaving steam-store, coalescing).
+Backend: `tests/test_freshness.lua` (43 checks, hermetic, clock injected): each TTL row; custom override never forced (K15);
 a stale record refreshes once and again at once adds no request; a refresh that finds nothing keeps the record and retries
 after 30 min; `noNetwork` and no allowed source never refresh; first run seeds; a new shortcut is reported until marked
 known; signed appids; 429 pauses 30 min; 5 failures pause 15 min; a paused source makes no request; `http_calls` counts
 per source; a throwing transport is an error result.
+
+Live: after a restart with the library home open for 10 minutes and no page opened, `GetDiagnostics().http_calls` shows calls
+only for shortcuts added since the last run (none if none); opening a page whose metadata is older than 24 h adds one
+`igdb` call for that app only, and opening it again at once adds none.
 
 ## How to add a source
 
@@ -100,3 +128,6 @@ per source; a throwing transport is an error result.
 - M7a (2026-09-29): created. `net.lua`, `fresh_policy.lua`, `registry.lua`; every `require("http")` in the backend moved to
   `net`; `GetNewShortcuts`, `MarkKnown`, `GetDiagnostics` `http_calls`/`paused`; K15 fixed (a forced refresh never
   overwrites a manual edit). Nothing calls the new RPCs until M7b.
+- M7b (2026-09-29): `app/ingest.ts` and `app/view.ts` added; `features/scraper/` and `features/source-view.ts` deleted. The
+  start-up job fetches only new shortcuts (user decision 2); a page open refreshes only stale parts. `EnsureFresh` reports
+  `paused` sources and `metadata_service` writes no fallback record while IGDB or ScreenScraper is paused.

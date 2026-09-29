@@ -151,7 +151,13 @@ four fresh loads (1, 1, 1, 1 after two cold starts and two deploys), so no defec
 window, and it now prints the enriched appids so a future 2 is attributable. Tests: `test:ts` 118/118 (+4). Baseline re-run green (a stale
 WUCHANG Properties window left by an earlier run briefly made that check report `popup=[]`; closed and rerun).
 
-Next: M7a onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+**M7a and M7b done (2026-09-29, implementer; live verification next).** Backend: `net.lua` (the one HTTP entry point, per-source counters and
+breakers), `fresh_policy.lua` (TTL table, `freshness.json`), `registry.lua` (`known_shortcuts.json`); K15 fixed. Frontend: `app/ingest.ts` replaces the sync
+manager (only new shortcuts at start-up, user decision 2), `app/view.ts` replaces `features/source-view.ts`; `features/scraper/` deleted. `test:ts` 136/136,
+`test_freshness.lua` 43 checks, all Lua suites `ALL PASS`, build succeeds. **The first start after this update seeds `known_shortcuts.json` with the current
+library and fetches nothing** (by design, so there is no 220-game storm); the positive case (one new shortcut is fetched) needs the user to add a shortcut.
+
+Next: live verification for M7, then M8 onward (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
 
 ## Next
 

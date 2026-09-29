@@ -315,6 +315,32 @@ local r2, e2 = net.get("u", { source = "screenscraper" })
 check("a throwing transport is an error result, not a crash", r2 == nil and e2:find("boom") ~= nil)
 net.deps.http, net.deps.now = nil, nil
 
+-- ---------- pause handling (M7b) ----------
+print("paused source")
+local net2 = require("net")
+wipe(); fp_wipe(); net2._reset()
+local clock2 = 9000
+net2.deps.now = function() return clock2 end
+net2.deps.http = { get = function() return { status = 429 } end }
+net2.get("u", { source = "igdb" })
+igdb_stub(false)
+r = metadata.ensure(SC, { title = "New Game", route = ROUTE_WEB, allowWeb = true })
+check("a paused igdb does not persist a fallback record", r.status == "pending" and r.message == "paused" and metadata_db.get(SC) == nil)
+clock2 = 9000 + 1800
+r = metadata.ensure(SC, { title = "New Game", route = ROUTE_WEB, allowWeb = true })
+check("once free again the fallback path works as before", r.status == "ok" and r.source == "fallback")
+
+wipe(); fp_wipe(); net2._reset(); clock2 = 9000
+net2.get("u", { source = "igdb" })
+igdb_stub(false)
+local resp = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "metadata" }, context = { title = "x", route = ROUTE_WEB, allowWeb = true } })))
+check("EnsureFresh reports paused sources", resp.paused ~= nil and resp.paused.igdb == 9000 + 1800)
+net2._reset()
+resp = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "metadata" }, context = { title = "x", route = ROUTE_WEB, allowWeb = true } })))
+check("... and nothing when none is paused", resp.paused == nil)
+net2.deps.http, net2.deps.now = nil, nil
+metadata.deps.igdb_fetch = nil
+
 fp_wipe()
 os.remove(META_PATH); os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))

@@ -14,7 +14,8 @@ import {
     ready as libraryHomeReady,
     refresh as refreshLibraryHome,
 } from "./surfaces/library-home";
-import { initSourceView, onSourceView, setAchievements as setSourceViewAchievements, setArtwork as setSourceViewArtwork, setIdentity as setSourceViewIdentity, setMetadata as setSourceViewMetadata, setRouting as setSourceViewRouting } from "./features/source-view";
+import { createView } from "./app/view";
+import { createIngest } from "./app/ingest";
 import { createNativeLinksSurface } from "./surfaces/native-links";
 import { createArtworkSurface } from "./surfaces/artwork";
 import {
@@ -23,6 +24,7 @@ import {
     setSetting,
     setting,
     setAchievementsSource,
+    setSyncSource,
     setRouting as setSettingsRouting,
 } from "./settings/settings";
 import { SettingsPanel } from "./settings/settings-panel";
@@ -36,7 +38,6 @@ import { createArtwork } from "./app/artwork";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
-import { triggerSync, setAchievements as setSyncAchievements, setRouting as setSyncRouting } from "./features/scraper/sync-manager";
 import { features } from "./safety/switches";
 import type { FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
@@ -61,8 +62,7 @@ import {
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
 import { controllerContext } from "./features/game-info/controller";
-import { setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
-import { setCapturesRefresher } from "./features/scraper/on-update";
+import { handleSteamStoreView, leaveSteamStore, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./features/steam-store";
 import {
     createAchievementsSurface,
     ensureAchievementsStoreHooked,
@@ -195,6 +195,34 @@ const artwork = createArtwork({
     now: () => Date.now(),
 });
 
+/** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
+const view = createView({
+    routing,
+    identity,
+    metadata,
+    artwork,
+    achievements,
+    steamStore: { onView: handleSteamStoreView, leave: leaveSteamStore },
+});
+
+/** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
+const ingest = createIngest({
+    backend,
+    shortcuts: () => routing.listShortcuts(),
+    ready: async () => {
+        await routing.loadAutoRoutingProfiles();
+        await routing.waitForCollections();
+    },
+    routeOf: (appid) => routing.getBucket(appid),
+    isAllowed: (appid) => serviceAllowed("all", appid),
+    owned: ownedCandidates,
+    allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
+    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
+    hardcore: () => setting("raHardcoreMode"),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    onRulesUpdated: () => window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated")),
+});
+
 export { setSetting, resetSettings };
 /** Kill switches, error counts and safe mode (migration plan M0b). */
 export const safetyDiagnostics = () => features.diagnostics();
@@ -277,31 +305,22 @@ const LEGACY_PLUGINS = [
 ];
 
 async function init() {
-    // Routing reaches every former buckets caller only through these setters (plan § 7.0 D3).
-    setSourceViewRouting(routing);
-    setSyncRouting(routing);
+    // Routing reaches the settings panel only through this setter (plan § 7.0 D3).
     setSettingsRouting(routing);
 
-    // Identity reaches its callers only through these setters (plan § 7.0 D3).
-    setSourceViewIdentity(identity);
+    // The manual mapping API (features/steam-store, public per D8) reaches app/ only through these setters.
     setIdentitySource(identity);
-
-    // Metadata reaches its callers only through these setters (plan § 7.0 D3).
-    setSourceViewMetadata(metadata);
     setMetadataSource(metadata);
-
-    // Achievements reach the view pipeline only through this setter (plan § 7.0 D3).
-    setSourceViewAchievements(achievements);
-
-    // Artwork reaches its callers only through these setters (plan § 7.0 D3).
-    setSourceViewArtwork(artwork);
     setArtworkSource(artwork);
 
-    // Surface APIs reach the features only through these setters (plan § 7.0 D3).
+    // Surface and app APIs reach the settings panel and the features only through these setters (plan § 7.0 D3).
     setContentListener(setHasContent);
     setAchievementsSource({ getLocalAchievements });
-    setSyncAchievements({ getLocalAchievements });
-    setCapturesRefresher(refreshLibraryApp);
+    setSyncSource({
+        getSyncProgress: ingest.getSyncProgress,
+        onSyncProgress: ingest.onSyncProgress,
+        triggerSync: ingest.triggerSync,
+    });
     setGameInfoRefresher({ refresh: refreshGameInfoInstances });
 
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
@@ -440,8 +459,8 @@ async function init() {
     // Not awaited: a failure here must not affect activity (ADR-0010).
     features.run("game-info", () => {
         void loadAutoRoutingProfiles();
-        initSourceView();
-        bus.on("shortcut.viewed", ({ appid }) => void onSourceView(appid));
+        view.init();
+        bus.on("shortcut.viewed", ({ appid }) => void view.onSourceView(appid));
         void metadata.preload().catch((e) => {
             features.reportError("game-info", e);
             logger.error("Game Info preload failed; activity is unaffected.", e);
@@ -492,7 +511,7 @@ async function init() {
 
     logger.info("Ready. Non-Steam games now use Steam's own detail sections.");
     // Automatically start background sync for un-scraped games after startup
-    features.run("background-sync", () => triggerSync(3000));
+    features.run("background-sync", () => ingest.triggerSync(3000));
 }
 
 export default definePlugin(() => {

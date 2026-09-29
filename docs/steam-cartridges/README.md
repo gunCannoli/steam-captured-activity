@@ -17,14 +17,14 @@ for the authoritative, up-to-date state):
 | Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | done (M1) |
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
 | Sensors: view, lifecycle, collections, owned-apps, store-item | done (M2, M4c, M5b) — [sensors.md](sensors.md) |
-| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c; achievements M6b) | current (M6b) |
+| App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c; achievements M6b; ingest and view M7b) | current (M7b) |
 | Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c, M5b) — [rpc.md](rpc.md) |
 | Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c), `metadata` (M5b) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
 | Metadata service + RPC facade | done (M5a–M5b) — [service-metadata.md](service-metadata.md), [rpc.md](rpc.md) |
 | Artwork service (SteamGridDB, Steam CDN) | done (M5c) — [service-artwork.md](service-artwork.md) |
 | Achievements service | planned (M6) |
-| Freshness + ingestion | planned (M7) |
+| Freshness + ingestion | done (M7a-M7b) — [service-freshness.md](service-freshness.md) |
 | Settings split | planned (M8) |
 
 ## Contract
@@ -139,3 +139,5 @@ why in its root-cause section, or it is rejected.
   now passes its known identity as context).
 - M6a/M6b (2026-09-29): `backend/ach_service.lua` and `app/achievements.ts` added; `achievements` and `toasts` surfaces record-/event-driven,
   `captures` gains the Post-Game Summary session write (K14). `frontend/features/achievements/` is deleted (its `PURGE(M6)` ports with it).
+- M7a/M7b (2026-09-29): `backend/net.lua`, `fresh_policy.lua`, `registry.lua`; `app/ingest.ts` and `app/view.ts` added. `frontend/features/scraper/`
+  and `features/source-view.ts` are deleted; only `features/game-info/controller.ts` and `features/steam-store/` remain under `features/` (M9a moves them).

@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: the background job now only fetches new games (M7b, 2026-09-29)**: at start-up the plugin fetches data only for shortcuts added since the last run (the first run after this update treats your existing library as already seen, so nothing is fetched in one go). Every other game refreshes when you open its page and its data is more than 24 hours old (a Steam match and your own manual edits are never refreshed). If a provider rate-limits or keeps failing, the job stops and picks up again later. "Sync" in settings still walks the whole library.
+- **Fixed: a full sync could overwrite Game Info you edited by hand (K15, M7a, 2026-09-29)**: edited entries are never refreshed now, forced or not.
+
 - **Fixed: achievement unlock toasts now show (K17, 2026-09-29)**: the native Steam toast for a local achievement unlock never appeared on the current Steam build because the plugin could not find Steam's notification format. It does now.
 - **Fixed: opening a non-Steam game page no longer throws two Steam errors (K19, 2026-09-29)**: Steam's achievements lookup failed on every shortcut with an internal error; the plugin now answers it directly. No visible change beyond a quieter console.
 

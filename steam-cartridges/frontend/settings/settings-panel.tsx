@@ -8,7 +8,7 @@ import {
     TextField,
     Toggle as SteamToggle,
 } from "@steambrew/client";
-import { useSetting, getAchievementsSource, getRouting, type ControllerOverride } from "./settings";
+import { useSetting, getAchievementsSource, getRouting, triggerSync, useSyncProgress, type ControllerOverride } from "./settings";
 import { rpc, type ProviderStatus, type RetroStatusResponse } from "../rpc";
 import {
     type RoutingRule,
@@ -24,7 +24,7 @@ import {
     loadControllerInference,
     getInferredControllerSupport,
 } from "../features/game-info/controller";
-import { useSyncProgress, triggerSync } from "../features/scraper/sync-manager";
+
 
 /**
  * Compact row wrapper to reduce inter-item vertical spacing and
