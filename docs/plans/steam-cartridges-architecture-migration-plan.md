@@ -1,6 +1,6 @@
 # Plan: steam-cartridges Architecture Migration (ports & adapters)
 
-**Status:** Accepted 2026-09-28. **M0a through M4.0 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, and every M3.x except M3.8 also live-validated; M3.8 and M4.0 are docs/backend-only, no frontend live check needed). **M3 is complete and the § 5 feature freeze on `steam-cartridges` ends.** **M4a–M9b are Build** (detailed specs an implementer builds, § 0.10). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
+**Status:** **Complete 2026-09-29** (M0a-M9b all Done). Accepted 2026-09-28. **M0a through M4.0 are Done** (mechanical; dry-run cumulatively; M0a, M0b-1, the M0c check fix, M2, and every M3.x except M3.8 also live-validated; M3.8 and M4.0 are docs/backend-only, no frontend live check needed). **M3 is complete and the § 5 feature freeze on `steam-cartridges` ends.** **M4a–M9b are Build** (detailed specs an implementer builds, § 0.10). M4–M9 are detailed specs; § 7.0 holds the architect decisions that bind them and the procedure that turns each into `Ready`.
 **Kind:** Umbrella plan plus execution manual. § 0 tells the executing agent exactly how to work. § 7 holds every step. M0a–M1 have literal blocks; M2 ships as hash-guarded whole files plus a diff (§ 7.0 D10). Every later step gets the same when its row in § 0.2 is flipped to `Ready`, because earlier steps change the code it edits.
 **ADR:** [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) (accepted).
 **Tracking:** [TASK.md](../../TASK.md) · **Docs index:** [steam-architecture.md](../steam-architecture.md)
@@ -84,8 +84,8 @@ Statuses (what the executing agent does with the row):
 | M7a | Freshness, throttle, registry (backend; fixes K15) | **Done** (live-verified 2026-09-29) | `service-freshness.md`, `rpc.md` |
 | M7b | Frontend drives ingestion; sync manager deleted | **Done** (live-verified 2026-09-29; the "user adds a shortcut" case was simulated, see TASK.md) | `service-freshness.md` |
 | M8a–M8d | Settings split + Troubleshooting panel (a: pin defaults **done**, b: panel context **done**, c: split **done**, d: Troubleshooting **done**); live-verified 2026-09-29 | `settings.md`, `safety.md` |
-| M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | Build | `rpc.md`, `README.md`, ADR-0041 |
-| M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | Build | all |
+| M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | **Done** (live-verified 2026-09-29) | `rpc.md`, `README.md`, ADR-0041 |
+| M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | **Done** (live-verified 2026-09-29) | all |
 
 Order is fixed: never start a row while an earlier row is not `Done`. M0b-2 is not a
 step of its own any more: each M3.x applies its wrapper to the hooks it moves (§ 7.0 D6).
@@ -3113,6 +3113,14 @@ switching one feature off there and restarting Steam shows it off in `safetyDiag
 **Exit:** `npm run test:live` → every § 0.5 line PASS; `git grep -n "arch-m0" -- . ':!CHANGELOG.md'` → nothing;
 the docs index links resolve (`git grep -n "](steam-cartridges/" -- docs/steam-architecture.md` → every target exists).
 **Docs:** everything listed above.
+
+**Live result (2026-09-29).** `npm run test:live`: render loop, both Properties dialogs, navigation cycle 6/6, tabs 11/11,
+settings panel (8 titles) and the audit (0 missing) PASS; `safetyDiagnostics()` clean. Parity was SKIPPED: after
+`ExitBigPictureMode()` Steam restarted its UI straight back into Big Picture, so the desktop window the check needs never stayed open
+(run `node tests/live/check_parity.mjs` with Steam on the desktop to close that gap). Done differently from the text above:
+M9a item 3 kept `SteamStoreGetMapping` (still called by `index.tsx`); item 5's remaining `>>> 0` / `| 0` lookups were left alone
+because they key Steam-facing maps (`surfaces/*`) or the audit's plain-object profile maps and converting them changes lookup
+behaviour; `isNonSteamAppId` became `isShortcutAppId` everywhere; ADR-0041 names `steam/gamepad-appid` (the view sensor's hook) as the third `keepJsxPatched` site; `scratch/arch-m0/*.mjs` probes moved to `tests/live/probes/`.
 
 ### 7.9 Purge ledger (D13)
 

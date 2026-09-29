@@ -165,7 +165,7 @@ nav cycle 6/6, `check_all_tabs` 11/11, parity 16/1 (K18 only), audit 0 missing, 
 (the clock cannot be moved) and K15 (no `custom_override` record exists and creating one would change your data); both are covered by `tests/test_freshness.lua`.
 Every game's first page open after this update refreshes its metadata once (no freshness entry yet counts as stale), then not again for 24 h.
 
-M8a-M8c done (defaults pinned; `settings/context.ts` + ports wrappers; `settings-panel.tsx` split into `settings/panel.tsx`, `components.tsx`, `sync-progress.tsx`, `panels/*`; allowlist -2). M8d done and M8 live-verified 2026-09-29 (8 panel titles render, § 0.5 baseline green, a feature switched off persists across restart); the open list M8-1 to M8-3 is closed (see the plan). Next: M9 (`Build`: detailed specs the implementer builds per plan § 0.10). No `Spec` steps remain. Nothing else is open for the user.
+M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.ts` and the import allowlist are gone, live checks live in `steam-cartridges/tests/live/` (`npm run test:live`). Open: run `check_parity.mjs` with Steam on the desktop (the last live run was in Big Picture). Next work, in order: the § 7.10 unwired features (Media service, manual Game Info editing UI, reject-suggestion UI) and the D14 bugfix plans for K3, K4, K6, K13.
 
 ## Next
 
