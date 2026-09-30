@@ -177,9 +177,6 @@ export const backend = {
     ) {
         return call<{ ok?: boolean; error?: string }>("SteamStoreRecordArtwork", { appid, steam_appid, slots, failed, ...extra });
     },
-    steamStoreDownloadImage(url: string) {
-        return call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url });
-    },
     /** Icon plan: store our copy of the icon image; `previous` is the shortcuts.vdf value it replaces. */
     steamStoreSaveIcon(appid: number, url: string, source: "steam-cdn" | "steamgriddb", steam_appid?: number, base64?: string) {
         return call<{ path?: string; previous?: string; error?: string }>("SteamStoreSaveIcon", { appid, url, source, steam_appid, base64 });

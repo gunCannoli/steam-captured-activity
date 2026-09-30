@@ -1,11 +1,13 @@
 // Surface `artwork` (migration plan M3.9, record-driven since M5c, ADR-0039): the only code that
-// writes a shortcut's custom artwork slots and logo position. No hooks. `render(appid, record)`
-// executes the plan app/artwork.ts put in `record.artwork` (which slots to clear, which to
-// write from which URLs); it never decides what art a game gets.
+// writes a shortcut's custom artwork slots, logo position and library icon. No hooks. `render(appid,
+// record)` executes the plan app/artwork.ts put in `record.artwork` (which slots to clear, which to
+// write, the icon file to point at), with the bytes app/artwork put in the image bin; it never decides
+// what art a game gets and never does I/O (M10). What it wrote goes out as `artwork.applied`.
+import type { ShortcutId } from "../../kernel/appid";
 import type { ArtworkPlan } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
-import { applyCustomArtworkFromUrls } from "./artwork";
-import { deps, type RecordArtworkInfo } from "./deps";
+import { applyCustomArtwork } from "./artwork";
+import { deps } from "./deps";
 import { applyIcon } from "./icon";
 import { clearLogoPosition, ensureLogoPosition } from "./logo";
 
@@ -18,7 +20,7 @@ async function clearSlot(appid: number, slot: number): Promise<void> {
 
 const union = (a: readonly number[], b: readonly number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y);
 
-async function execute(appid: number, plan: ArtworkPlan): Promise<void> {
+async function execute(appid: ShortcutId, plan: ArtworkPlan): Promise<void> {
     if (!deps.isEnabled("artwork")) return;
 
     for (const slot of plan.clear) {
@@ -28,46 +30,33 @@ async function execute(appid: number, plan: ArtworkPlan): Promise<void> {
     }
     if (plan.clear.includes(2)) await clearLogoPosition(appid);
 
-    let written: number[] = [];
-    if (plan.write.length > 0) {
-        written = await applyCustomArtworkFromUrls(appid, plan.urls);
-        const info: RecordArtworkInfo = {
-            source: plan.source === "steamgriddb" ? "steamgriddb" : "steam-cdn",
-            steamAppid: plan.steamAppid,
-            // SteamGridDB: the backend unions with what it already holds; Steam CDN: kept + written.
-            slots: plan.source === "steamgriddb" ? written : union(plan.kept, written),
-            failed: plan.write.filter((s) => !written.includes(s)),
-            tried: plan.tried,
-        };
-        const res = await deps.recordArtwork(appid, info);
-        if (res?.error) {
-            // The mapping was cleared while we were writing: remove what we just wrote (P4 H5).
-            for (const slot of written) {
-                try {
-                    await clearSlot(appid, slot);
-                } catch {}
-            }
-            return;
-        }
-    }
+    const written = plan.write.length > 0 ? await applyCustomArtwork(appid, plan.write, deps.images.get(appid)) : [];
     // Parity E: our logo needs a position or Steam never draws it.
     if (union(plan.kept, written).includes(2)) await ensureLogoPosition(appid);
-    // Icon plan: the library icon (a write, or a Clear's restore) comes after the slots.
-    if (plan.icon) await applyIcon(appid, plan.icon, plan.source === "steamgriddb" ? "steamgriddb" : "steam-cdn", plan.steamAppid);
+    // Icon plan: the library icon (ours, or a Clear's restore) comes after the slots.
+    const iconSet = plan.icon ? await applyIcon(appid, plan.icon) : false;
+
+    if (plan.source === "cleared" || (plan.write.length === 0 && !iconSet)) return;
+    deps.bus.emit("artwork.applied", {
+        appid,
+        source: plan.source,
+        steamAppid: plan.steamAppid,
+        attempted: plan.write,
+        kept: plan.kept,
+        tried: plan.tried,
+        written,
+        ...(iconSet && plan.icon && "path" in plan.icon ? { icon: { path: plan.icon.path, previous: plan.icon.previous } } : {}),
+    });
 }
 
 /** One plan at a time per shortcut (a Clear followed by a write must not interleave). */
 const queues = new Map<number, Promise<void>>();
 
-export function createArtworkSurface(
-    d: SurfaceDeps & Pick<typeof deps, "downloadImage" | "recordArtwork" | "saveIcon" | "recordIcon">,
-): Surface {
+export function createArtworkSurface(d: SurfaceDeps & Pick<typeof deps, "images" | "bus">): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
-    deps.downloadImage = d.downloadImage;
-    deps.recordArtwork = d.recordArtwork;
-    deps.saveIcon = d.saveIcon;
-    deps.recordIcon = d.recordIcon;
+    deps.images = d.images;
+    deps.bus = d.bus;
     return {
         id: "artwork",
         touches: [

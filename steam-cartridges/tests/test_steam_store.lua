@@ -321,8 +321,8 @@ package.loaded["rpc"] = package.loaded["rpc"] or { method = function(_, f)
   end
 end }
 local RPC = require("steam_store_rpc")
-check("all eight RPCs exist", (function()
-  for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork", "SteamStoreDownloadImage" }) do
+check("all seven RPCs exist", (function()
+  for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork" }) do
     if type(RPC[n]) ~= "function" then return false, n end
   end
   return true
@@ -343,8 +343,6 @@ store.add_suggestions(EMU, { { steam_appid = 55, name = "S", reason = "near" } }
 RPC.SteamStoreRejectSuggestion(json.encode({ appid = EMU, steam_appid = 55 }))
 out = json.decode(RPC.SteamStoreGetMapping(json.encode({ appid = EMU })))
 check("rejecting a suggestion removes it and remembers it", #store.get(EMU).suggestions == 0 and store.is_rejected(EMU, 55))
-out = json.decode(RPC.SteamStoreDownloadImage(json.encode({ url = "https://evil.example/x.jpg" })))
-check("DownloadImage enforces the allowlist", out.error ~= nil)
 
 os.remove(path)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))

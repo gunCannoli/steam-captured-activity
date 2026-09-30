@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPlan, createArtwork } from '../frontend/app/artwork.ts';
+import { createArtwork } from '../frontend/app/artwork.ts';
+import { buildPlan } from '../frontend/domain/art-plan.ts';
 import { createRecordStore } from '../frontend/kernel/record.ts';
 import { createEventBus } from '../frontend/kernel/events.ts';
+import { createImageBin } from '../frontend/kernel/image-bin.ts';
 
 const URLS = { portrait: 'p', hero: 'h', logo: 'l', wide: 'w' };
 const SC = 4263274102 as any;
@@ -12,6 +14,11 @@ function setup(over: Partial<Record<string, any>> = {}) {
     const records = createRecordStore(bus);
     records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
     const calls: any[] = [];
+    const saved: any[] = [];
+    const recorded: any[] = [];
+    const icons: any[] = [];
+    const fetched: [string, boolean | undefined][] = [];
+    const images = createImageBin();
     let clock = 1000;
     const art = createArtwork({
         backend: {
@@ -19,20 +26,39 @@ function setup(over: Partial<Record<string, any>> = {}) {
                 calls.push({ appid, parts, ctx });
                 return over.response ?? { appid, parts: { artwork: { status: 'ok', data: { urls: URLS, source: 'steamgriddb', emptySlots: [0, 1, 2, 3] } } } };
             },
+            async steamStoreSaveIcon(...args: any[]) {
+                saved.push(args);
+                return over.saveIcon ?? { path: 'C:/icons/1.jpg', previous: 'game.exe' };
+            },
+            async steamStoreRecordArtwork(...args: any[]) {
+                recorded.push(args);
+                return over.recordArtwork ?? { ok: true };
+            },
+            async steamStoreRecordIcon(...args: any[]) {
+                icons.push(args);
+                return over.recordIcon ?? { ok: true };
+            },
         } as any,
         records,
+        bus,
+        images,
         ensureBase: () => records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' }),
         titleOf: () => 'Game',
         storeItemFor: async () => null,
-        fetchImage: async () => over.image === undefined ? { base64: 'QUJD', ext: 'jpg' } : over.image,
+        fetchImage: async (url: string, forcePng?: boolean) => {
+            fetched.push([url, forcePng]);
+            if (over.failUrl === url) return null;
+            return over.image === undefined ? { base64: 'QUJD', ext: forcePng ? 'png' : 'jpg' } : over.image;
+        },
         allowSgdb: () => true,
         now: () => clock,
     });
-    return { art, records, calls, tick: (ms: number) => (clock += ms) };
+    art.install();
+    return { art, bus, records, images, calls, saved, recorded, icons, fetched, tick: (ms: number) => (clock += ms) };
 }
 
 test('steamgriddb plan: only empty slots with a url, our earlier slots kept', () => {
-    const plan = buildPlan({ urls: { portrait: 'p', hero: 'h' }, source: 'steamgriddb', emptySlots: [1, 2, 3], applied: { source: 'steamgriddb', slots: [0], tried: [0] } }, 5);
+    const { plan } = buildPlan({ urls: { portrait: 'p', hero: 'h' }, source: 'steamgriddb', emptySlots: [1, 2, 3], applied: { source: 'steamgriddb', slots: [0], tried: [0] } }, 5);
     assert.deepEqual(plan.write, [1]);
     assert.deepEqual(plan.urls, { hero: 'h' });
     assert.deepEqual(plan.kept, [0]);
@@ -41,21 +67,21 @@ test('steamgriddb plan: only empty slots with a url, our earlier slots kept', ()
 });
 
 test('steam-cdn plan: a different native app clears ours and writes all four', () => {
-    const plan = buildPlan({ urls: URLS, source: 'steam-cdn', steamAppid: 2, applied: { steam_appid: 1, slots: [0, 2] } }, 5);
+    const { plan } = buildPlan({ urls: URLS, source: 'steam-cdn', steamAppid: 2, applied: { steam_appid: 1, slots: [0, 2] } }, 5);
     assert.deepEqual(plan.clear, [0, 2]);
     assert.deepEqual(plan.write, [0, 1, 2, 3]);
     assert.deepEqual(plan.kept, []);
 });
 
-test('icon: an eligible icon url rides on either plan; not eligible means no icon', () => {
+test('icon: an eligible icon url comes with either plan; not eligible means no icon', () => {
     const cdn = buildPlan({ urls: { ...URLS, icon: 'i' }, source: 'steam-cdn', steamAppid: 2, iconEligible: true }, 5);
-    assert.deepEqual(cdn.icon, { url: 'i' });
-    assert.equal(cdn.urls.icon, undefined);
+    assert.equal(cdn.iconUrl, 'i');
+    assert.equal(cdn.plan.urls.icon, undefined);
     const sgdb = buildPlan({ urls: { icon: 'i' }, source: 'steamgriddb', emptySlots: {}, iconEligible: true }, 5);
-    assert.deepEqual(sgdb.icon, { url: 'i' });
-    assert.deepEqual(sgdb.write, []);
+    assert.equal(sgdb.iconUrl, 'i');
+    assert.deepEqual(sgdb.plan.write, []);
     const no = buildPlan({ urls: { ...URLS, icon: 'i' }, source: 'steam-cdn', steamAppid: 2, iconEligible: false }, 5);
-    assert.equal('icon' in no, false);
+    assert.equal(no.iconUrl, undefined);
 });
 
 test('icon: clearSlots with only a restore still writes a plan; without either it does nothing', () => {
@@ -129,13 +155,59 @@ test('clearSlots writes a clear-only plan, and a repeated clear re-renders', () 
     assert.equal(changed, 2);
 });
 
-test('icon: app fetches the icon bytes into the plan; a failed fetch drops the icon, slots stay', async () => {
+test('icon: app stores the icon file and the plan carries its path; a failed fetch or a refusal drops the icon, slots stay', async () => {
     const ok = { appid: SC, parts: { artwork: { status: 'ok', data: { urls: { ...URLS, icon: 'i' }, source: 'steamgriddb', emptySlots: [0], iconEligible: true } } } };
     const a = setup({ response: ok });
     const part: any = await a.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
-    assert.deepEqual(part.data.icon, { url: 'i', base64: 'QUJD' });
-    const b = setup({ response: ok, image: null });
+    assert.deepEqual(part.data.icon, { path: 'C:/icons/1.jpg', previous: 'game.exe' });
+    assert.deepEqual(a.saved, [[SC, 'i', 'steamgriddb', undefined, 'QUJD']]);
+    const b = setup({ response: ok, failUrl: 'i' });
     const bad: any = await b.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
     assert.equal('icon' in bad.data, false);
     assert.deepEqual(bad.data.write, [0]);
+    assert.equal(b.saved.length, 0);
+    const c = setup({ response: ok, saveIcon: { error: 'not eligible' } });
+    const refused: any = await c.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.equal('icon' in refused.data, false);
+});
+
+test('the slot bytes wait in the image bin before the plan reaches the record; the logo is fetched as png', async () => {
+    const a = setup();
+    await a.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.deepEqual(Object.keys(a.images.get(SC)).sort(), ['hero', 'logo', 'portrait', 'wide']);
+    assert.deepEqual(a.images.get(SC).logo, { base64: 'QUJD', ext: 'png' });
+    assert.deepEqual(a.fetched.filter(([, png]) => png), [['l', true]]);
+});
+
+test('a slot whose fetch fails is left out of the bin but stays in the plan (the surface reports it failed)', async () => {
+    const a = setup({ failUrl: 'h' });
+    const part: any = await a.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.equal(a.images.get(SC).hero, undefined);
+    assert.deepEqual(part.data.write, [0, 1, 2, 3]);
+});
+
+test('artwork.applied is recorded through the port (SteamGridDB: written; failed = attempted - written)', async () => {
+    const a = setup();
+    a.bus.emit('artwork.applied', { appid: SC, source: 'steamgriddb', attempted: [0, 1], kept: [3], tried: [0, 1], written: [0] });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(a.recorded, [[SC, undefined, [0], [1], { source: 'steamgriddb', tried: [0, 1] }]]);
+});
+
+test('a refused record (the match changed meanwhile) puts a clear plan for the written slots and the icon in the record', async () => {
+    const a = setup({ recordArtwork: { error: 'no mapping' } });
+    a.bus.emit('artwork.applied', { appid: SC, source: 'steam-cdn', steamAppid: 2, attempted: [0, 2], kept: [], tried: [], written: [0, 2], icon: { path: 'p', previous: 'game.exe' } });
+    await new Promise((r) => setTimeout(r, 0));
+    const plan: any = a.records.get(SC)?.artwork?.data;
+    assert.deepEqual(plan.clear, [0, 2]);
+    assert.deepEqual(plan.icon, { restore: 'game.exe' });
+    assert.equal(a.icons.length, 0);
+});
+
+test('the icon is recorded after the slots; a refused icon record restores the previous icon', async () => {
+    const a = setup({ recordIcon: { error: 'mapped' } });
+    a.bus.emit('artwork.applied', { appid: SC, source: 'steam-cdn', steamAppid: 2, attempted: [], kept: [], tried: [], written: [], icon: { path: 'p', previous: 'game.exe' } });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(a.recorded.length, 0);
+    assert.deepEqual(a.icons, [[SC, { path: 'p', previous: 'game.exe', source: 'steam-cdn', steamAppid: 2 }]]);
+    assert.deepEqual((a.records.get(SC)?.artwork?.data as any).icon, { restore: 'game.exe' });
 });

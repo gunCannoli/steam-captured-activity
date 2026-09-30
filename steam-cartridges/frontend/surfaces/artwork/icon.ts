@@ -1,12 +1,12 @@
 // Surface `artwork`: the shortcut's library icon (icon plan). Not a SetCustomArtworkForApp slot:
 // Steam draws a shortcut's icon from the file its shortcuts.vdf `icon` field names, or from the
-// exe when that is empty (32 px, pixelated when scaled up). The backend stores our copy of the
-// image; this points the shortcut at it with SteamClient.Apps.SetShortcutIcon, which rewrites
-// shortcuts.vdf and swaps the overview's icon_data at once. Runtime imports carry `.ts` so Node
-// can run tests/artwork-icon.test.ts.
+// exe when that is empty (32 px, pixelated when scaled up). app/artwork stored our copy of the image
+// through the backend (M10); this points the shortcut at it with SteamClient.Apps.SetShortcutIcon,
+// which rewrites shortcuts.vdf and swaps the overview's icon_data at once. Runtime imports carry
+// `.ts` so Node can run tests/artwork-icon.test.ts.
 import { logger } from "../../logger.ts";
 import type { IconPlan } from "../../kernel/record";
-import { deps, type RecordIconInfo } from "./deps.ts";
+import { deps } from "./deps.ts";
 
 /** Called on the object: never extract the method. False when Steam has no such call. */
 async function setShortcutIcon(appid: number, path: string): Promise<boolean> {
@@ -19,32 +19,15 @@ async function setShortcutIcon(appid: number, path: string): Promise<boolean> {
     return true;
 }
 
-/** Write the icon (`url`) or put back the one ours replaced (`restore`). Kill switch: `artwork`. */
-export async function applyIcon(
-    appid: number,
-    plan: IconPlan,
-    source: RecordIconInfo["source"],
-    steamAppid?: number,
-): Promise<void> {
-    if (!deps.isEnabled("artwork")) return;
+/** Point the shortcut at our stored icon (`path`) or put back the one ours replaced (`restore`).
+ *  True when ours was set (app/artwork then records it). Kill switch: `artwork`. */
+export async function applyIcon(appid: number, plan: IconPlan): Promise<boolean> {
+    if (!deps.isEnabled("artwork")) return false;
     if ("restore" in plan) {
         if (await setShortcutIcon(appid, plan.restore)) logger.info(`Restored the library icon for appid ${appid}`);
-        return;
+        return false;
     }
-    // The bytes come with the plan (app/artwork fetched them); a surface only writes.
-    if (!plan.base64) return;
-    const saved = await deps.saveIcon(appid, plan.url, source, steamAppid, plan.base64);
-    if (!saved?.path || saved.error) {
-        logger.warn(`Library icon for appid ${appid} not stored: ${saved?.error ?? "no response"}`);
-        return;
-    }
-    const previous = saved.previous ?? "";
-    if (!(await setShortcutIcon(appid, saved.path))) return;
-    const res = await deps.recordIcon(appid, { path: saved.path, previous, source, steamAppid });
-    if (res?.error) {
-        // The match changed while we were writing: put the replaced icon back (as the slots, P4 H5).
-        await setShortcutIcon(appid, previous);
-        return;
-    }
+    if (!(await setShortcutIcon(appid, plan.path))) return false;
     logger.info(`Set the library icon for appid ${appid}`);
+    return true;
 }

@@ -137,10 +137,11 @@ export interface ArtworkPlan {
 }
 
 /**
- * The shortcut's library icon (not an artwork slot): `url` = store that image and point the
- * shortcut at it (`base64` = the image bytes app/artwork fetched, so no surface does network I/O); `restore` = put back the shortcuts.vdf icon value ours replaced ("" = the exe).
+ * The shortcut's library icon (not an artwork slot): `path` = point the shortcut at this file, which
+ * app/artwork already stored through the backend (`previous` = the shortcuts.vdf value it replaces);
+ * `restore` = put back the value ours replaced ("" = the exe). No bytes and no URL: a surface only writes.
  */
-export type IconPlan = { url: string; base64?: string } | { restore: string };
+export type IconPlan = { path: string; previous: string } | { restore: string };
 
 /**
  * The routing policy's answer for one shortcut (domain/routing, ADR-0040): which bucket, and why.

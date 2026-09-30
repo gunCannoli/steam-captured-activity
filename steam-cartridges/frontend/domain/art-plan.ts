@@ -10,7 +10,7 @@
  * A slot the user removed in Steam is pruned from `slots` by the backend and is
  * not in `failed`, so it is never written again (the user wins).
  */
-import type { ArtworkUrls, IconPlan, StoreApplied } from '../kernel/record';
+import type { ArtworkPlan, ArtworkUrls, StoreApplied } from '../kernel/record';
 
 export const ALL_SLOTS: readonly number[] = [0, 1, 2, 3];
 
@@ -72,7 +72,7 @@ export function sgdbPlan(urls: ArtworkUrls, emptySlots: unknown): ArtPlan {
  * The library icon (icon plan): written only when the backend called it eligible (Steam draws it
  * from the exe, or it is still ours) and there is a url. Anything but `true` is not eligible.
  */
-export function iconPlan(urls: ArtworkUrls, eligible: unknown): IconPlan | undefined {
+export function iconPlan(urls: ArtworkUrls, eligible: unknown): { url: string } | undefined {
     return eligible === true && typeof urls.icon === 'string' && urls.icon !== '' ? { url: urls.icon } : undefined;
 }
 
@@ -80,4 +80,58 @@ export function iconPlan(urls: ArtworkUrls, eligible: unknown): IconPlan | undef
 export function iconRestoreOf(res: unknown): string | undefined {
     const v = res && typeof res === 'object' ? (res as { icon_restore?: unknown }).icon_restore : undefined;
     return typeof v === 'string' ? v : undefined;
+}
+
+/** The backend's `artwork` part data (backend/art_service.lua). */
+export interface RawArtwork {
+    urls: ArtworkUrls;
+    source: 'steam-cdn' | 'steamgriddb';
+    steamAppid?: number;
+    applied?: StoreApplied | null;
+    emptySlots?: unknown;
+    /** The library icon may be set (icon plan; backend art_service.icon_eligible). */
+    iconEligible?: unknown;
+}
+
+const union = (a: number[], b: number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y);
+
+/**
+ * The artwork plan for the backend's part (moved from app/artwork, M10): which slots to clear and write
+ * from which URLs, and the icon URL to store when the icon is eligible (app/artwork stores it; the plan
+ * gets its path).
+ */
+export function buildPlan(raw: RawArtwork, at: number): { plan: ArtworkPlan; iconUrl?: string } {
+    const applied = raw.applied && typeof raw.applied === 'object' ? raw.applied : null;
+    const iconUrl = iconPlan(raw.urls ?? {}, raw.iconEligible)?.url;
+    if (raw.source === 'steam-cdn' && raw.steamAppid !== undefined) {
+        const plan = artworkPlan(applied, raw.steamAppid, false);
+        const kept = applied && applied.steam_appid === raw.steamAppid ? slotList(applied.slots) : [];
+        return {
+            plan: { source: 'steam-cdn', steamAppid: raw.steamAppid, urls: pickUrls(raw.urls, plan.write), write: plan.write, clear: plan.clear, tried: [], kept, at },
+            iconUrl,
+        };
+    }
+    const plan = sgdbPlan(raw.urls, raw.emptySlots);
+    const ours = applied && applied.source === 'steamgriddb' ? applied : null;
+    return {
+        plan: {
+            source: 'steamgriddb',
+            urls: pickUrls(raw.urls, plan.write),
+            write: plan.write,
+            clear: [],
+            tried: union(slotList(ours?.tried), plan.write),
+            kept: slotList(ours?.slots),
+            at,
+        },
+        iconUrl,
+    };
+}
+
+/** What to record for the slots a plan wrote (P4 H5): SteamGridDB records the written slots (the backend
+ *  unions with what it holds), the Steam CDN kept + written; failed = attempted - written. */
+export function recordedSlots(source: 'steam-cdn' | 'steamgriddb', kept: number[], attempted: number[], written: number[]): { slots: number[]; failed: number[] } {
+    return {
+        slots: source === 'steamgriddb' ? [...written].sort((x, y) => x - y) : union(kept, written),
+        failed: attempted.filter((s) => !written.includes(s)),
+    };
 }

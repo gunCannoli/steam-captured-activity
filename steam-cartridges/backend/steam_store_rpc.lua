@@ -5,7 +5,6 @@
 --- bucket, ADR-0032), so the network is never touched for anything else.
 
 local fs          = require("fs")
-local utils       = require("utils")
 local steam_paths = require("steam_paths")
 local core        = require("rpc")
 local store       = require("steam_store_store")
@@ -89,19 +88,6 @@ RPC.SteamStoreRecordArtwork = method("SteamStoreRecordArtwork", function(data)
   local ok, err = store.record_artwork(need(data, "appid"), need(data, "steam_appid"), data.slots or {}, nil, data.failed or {})
   if not ok then return { error = err } end
   return { ok = true }
-end)
-
---- Fallback only: the frontend fetches CDN art itself (P0 T2).
-RPC.SteamStoreDownloadImage = method("SteamStoreDownloadImage", function(data)
-  local url = tostring(need(data, "url"))
-  if not url:match("^https://[%w%.%-]*steamstatic%.com/") then error("url not allowed") end
-  if throttle.is_offline() then error("offline") end -- P4 H3: no timeout per view while offline
-  throttle.acquire()
-  local res, err = require("net").get(url, { source = "steam-store", headers = { ["User-Agent"] = throttle.USER_AGENT }, timeout = throttle.TIMEOUT })
-  if err == "paused" then error("paused") end
-  if not res or res.status ~= 200 or not res.body then error("download failed") end
-  local ext = url:match("%.(%w+)[%?]?[^/]*$") or "jpg"
-  return { base64 = utils.base64_encode(res.body), ext = ext:lower() == "png" and "png" or "jpg" }
 end)
 
 --- Icon plan: store our copy of the chosen icon ({ appid, url, source, steam_appid? }) and

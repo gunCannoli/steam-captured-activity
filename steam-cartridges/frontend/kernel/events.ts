@@ -20,6 +20,20 @@ export interface Events {
     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };
     /** The launch toast policy (app/achievements) decided a launch gets the "Achievements Enabled" toast. */
     "achievements.launch-toast": { appid: ShortcutId };
+    /** What the artwork surface wrote for a plan (app/artwork records it through the port, M10). */
+    "artwork.applied": {
+        appid: ShortcutId;
+        source: "steam-cdn" | "steamgriddb";
+        steamAppid?: number;
+        /** The plan's `write`, `kept` and `tried`. */
+        attempted: number[];
+        kept: number[];
+        tried: number[];
+        /** The slots Steam accepted. */
+        written: number[];
+        /** The library icon set, when the plan had one. */
+        icon?: { path: string; previous: string };
+    };
     "settings.changed": { key: string };
 }
 

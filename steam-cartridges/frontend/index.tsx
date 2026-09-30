@@ -40,6 +40,7 @@ import { loadStoreItem } from "./sensors/store-item";
 import { createFeatureSwitches, FEATURE_IDS, type FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
 import type { ShortcutId } from "./kernel/appid";
+import { createImageBin } from "./kernel/image-bin";
 import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
@@ -159,9 +160,14 @@ const achievements = createAchievements({
 
 /** Artwork (app/artwork.ts, plan M5c): SteamGridDB for shortcuts with no Steam match, the Steam
  *  CDN for mapped ones; the artwork surface executes the plan it puts in the record. */
+/** The fetched art waiting for the artwork surface (kernel/image-bin): app/artwork puts, surfaces/artwork reads. */
+const images = createImageBin();
+
 const artwork = createArtwork({
     backend,
     records: records.store,
+    bus,
+    images,
     ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
     titleOf: (appid) => shortcutTitle(appid),
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
@@ -356,22 +362,10 @@ async function init() {
     runner.register(createNativeLinksSurface(surfaceDeps));
     // Custom artwork slots and logo position for mapped games (surfaces/artwork, plan M3.9).
     runner.register(
-        createArtworkSurface({
-            ...surfaceDeps,
-            downloadImage: (url) => backend.steamStoreDownloadImage(url),
-            recordArtwork: (appid, info) =>
-                backend.steamStoreRecordArtwork(
-                    appid,
-                    info.steamAppid,
-                    info.slots,
-                    info.failed,
-                    info.source === "steamgriddb" ? { source: "steamgriddb", tried: info.tried } : undefined,
-                ),
-            saveIcon: (appid, url, source, steamAppid, base64) => backend.steamStoreSaveIcon(appid, url, source, steamAppid, base64),
-            recordIcon: (appid, info) => backend.steamStoreRecordIcon(appid, info),
-        }),
+        createArtworkSurface({ ...surfaceDeps, images, bus }),
     );
     runner.installAll();
+    artwork.install();
 
     // ===== Native Achievements Subsystem =====
     // Steam's achievement stores (surfaces/achievements, plan M3.5); the loader below feeds them.
