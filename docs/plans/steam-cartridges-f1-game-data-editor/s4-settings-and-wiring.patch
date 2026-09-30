@@ -1,0 +1,463 @@
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index 8ccf339..d95a4ff 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -59,7 +59,8 @@ import {
+ import { createPlaybarSurface } from "./surfaces/playbar";
+ import { controllerContext, getInferredControllerSupport, loadControllerInference } from "./app/controller";
+ import { setPanelContext } from "./settings/context";
+-import { handleSteamStoreView, leaveSteamStore, setSteamStoreMapping, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./app/steam-store";
++import { createGameEditor } from "./app/game-editor";
++import { clearSteamStore, handleSteamStoreView, leaveSteamStore, setSteamStoreMapping, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./app/steam-store";
+ import {
+     createAchievementsSurface,
+     ensureAchievementsStoreHooked,
+@@ -204,6 +205,17 @@ const artwork = createArtwork({
+     now: () => Date.now(),
+ });
+ 
++/** Game Data editor (app/game-editor.ts, features plan F1): the settings popup's use cases. */
++const gameEditor = createGameEditor({
++    backend,
++    records: records.store,
++    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
++    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
++    routeOf: (appid) => routing.getBucket(appid),
++    metadata,
++    steamStore: { setMapping: setSteamStoreMapping, clear: clearSteamStore },
++});
++
+ /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
+ const view = createView({
+     routing,
+@@ -246,6 +258,8 @@ export {
+ } from "./app/steam-store";
+ 
+ export { getLocalAchievements, getLocalSchema, dispatchAchievementToast };
++/** The Game Data editor (features plan F1), for CDP: tests/live/probes/game_editor.mjs calls it without clicking. */
++export const gameData = gameEditor;
+ 
+ /** The `cartridges:trigger_fake_achievement` window event is a documented test hook. */
+ let fakeListenerRegistered = false;
+@@ -335,6 +349,7 @@ async function init() {
+         records: { achievementsOf: (appid) => getLocalAchievements(appid) },
+         controller: { load: loadControllerInference, inferredFor: getInferredControllerSupport },
+         steamStore: { setMapping: setSteamStoreMapping },
++        editor: gameEditor,
+         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
+     });
+ 
+diff --git a/steam-cartridges/frontend/settings/context.ts b/steam-cartridges/frontend/settings/context.ts
+index 8ea99e3..af76cd0 100644
+--- a/steam-cartridges/frontend/settings/context.ts
++++ b/steam-cartridges/frontend/settings/context.ts
+@@ -2,8 +2,22 @@
+ // setPanelContext() at the top of init(); panels read it with usePanelContext(). Structural types only,
+ // never an import of app/, surfaces/ or features/. Backend calls go through ports/backend.ts.
+ import type { AutoRoutingProfile } from '../domain/routing/policy';
++import type { MetadataDraft } from '../domain/metadata-edit';
++import type { GameMetadata } from '../kernel/record';
++import type { StoreCandidate, StoreMapping } from '../ports/backend';
+ import type { SyncProgress } from './settings';
+ 
++/** Structural copy of app/game-editor.ts EditorSnapshot (settings never import app/; index.tsx checks the match). */
++export interface EditorSnapshot {
++    appid: number;
++    title: string;
++    metadata: GameMetadata;
++    hasMetadata: boolean;
++    custom: boolean;
++    link: StoreMapping | null;
++    rejected: number[];
++}
++
+ export interface PanelContext {
+     routing: {
+         listCollections(): { id: string; name: string; dynamic: boolean; shortcutCount: number }[];
+@@ -25,6 +39,14 @@ export interface PanelContext {
+     };
+     controller: { load(): Promise<void>; inferredFor(appid: number): boolean | undefined };
+     steamStore: { setMapping(appid: number, steamAppid: number, name?: string): Promise<{ mapping?: unknown; error?: string }> };
++    editor: {
++        load(appid: number): Promise<EditorSnapshot>;
++        save(appid: number, draft: MetadataDraft): Promise<void>;
++        revert(appid: number): Promise<void>;
++        search(term: string): Promise<{ candidates: StoreCandidate[]; error?: string }>;
++        link(appid: number, steamAppid: number, name?: string): Promise<{ error?: string }>;
++        unlink(appid: number, reject: boolean): Promise<{ error?: string }>;
++    };
+     safety: {
+         featureIds: readonly string[];
+         diagnostics(): { safeMode: boolean; disabled: string[]; tripped: string[]; errors: Record<string, number> };
+@@ -48,6 +70,14 @@ const INERT: PanelContext = {
+     records: { achievementsOf: () => undefined },
+     controller: { load: async () => {}, inferredFor: () => undefined },
+     steamStore: { setMapping: async () => ({ error: 'not ready' }) },
++    editor: {
++        load: async (appid) => ({ appid, title: String(appid), metadata: { appid, title: String(appid) }, hasMetadata: false, custom: false, link: null, rejected: [] }),
++        save: async () => {},
++        revert: async () => {},
++        search: async () => ({ candidates: [] }),
++        link: async () => ({ error: 'not ready' }),
++        unlink: async () => ({ error: 'not ready' }),
++    },
+     safety: { featureIds: [], diagnostics: () => ({ safeMode: false, disabled: [], tripped: [], errors: {} }), surfaces: () => [] },
+ };
+ 
+diff --git a/steam-cartridges/frontend/settings/game-editor/game-picker.tsx b/steam-cartridges/frontend/settings/game-editor/game-picker.tsx
+new file mode 100644
+index 0000000..e16b27c
+--- /dev/null
++++ b/steam-cartridges/frontend/settings/game-editor/game-picker.tsx
+@@ -0,0 +1,27 @@
++// Game Data editor: the text filter and the dropdown of every non-Steam shortcut (features plan F1).
++import { Dropdown } from "@steambrew/client";
++import { usePanelContext } from "../context";
++import { INPUT_STYLE, LABEL_STYLE } from "./styles";
++
++export function GamePicker({ filter, onFilter, appid, onPick }: { filter: string; onFilter: (text: string) => void; appid: number | undefined; onPick: (appid: number) => void }) {
++    const shortcuts = usePanelContext().routing.listShortcuts();
++    const needle = filter.trim().toLowerCase();
++    const shown = needle ? shortcuts.filter((s) => s.name.toLowerCase().includes(needle)) : shortcuts;
++    // Keep the chosen game selectable even when the filter hides it.
++    const chosen = appid === undefined ? undefined : shortcuts.find((s) => s.appid === appid);
++    const options = (chosen && !shown.includes(chosen) ? [chosen, ...shown] : shown).map((s) => ({ data: s.appid, label: s.name }));
++
++    return (
++        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
++            <span style={LABEL_STYLE}>Game ({shown.length} of {shortcuts.length})</span>
++            <input type="text" placeholder="Type to filter…" value={filter} onChange={(e) => onFilter(e.target.value)} style={INPUT_STYLE} />
++            <Dropdown
++                rgOptions={options}
++                selectedOption={appid}
++                onChange={(o) => onPick(o.data as number)}
++                contextMenuPositionOptions={{ bMatchWidth: true }}
++                strDefaultLabel="Choose a game…"
++            />
++        </div>
++    );
++}
+diff --git a/steam-cartridges/frontend/settings/game-editor/metadata-form.tsx b/steam-cartridges/frontend/settings/game-editor/metadata-form.tsx
+new file mode 100644
+index 0000000..3b5ceec
+--- /dev/null
++++ b/steam-cartridges/frontend/settings/game-editor/metadata-form.tsx
+@@ -0,0 +1,72 @@
++// Game Data editor: one input per editable field, then the player badges (features plan F1).
++import { DialogButton } from "@steambrew/client";
++import { EDITABLE_FIELDS, PLAYER_FLAGS, type MetadataDraft } from "../../domain/metadata-edit";
++import { BLOCK_STYLE, INPUT_STYLE, LABEL_STYLE, NOTE_STYLE } from "./styles";
++
++export function MetadataForm({
++    draft,
++    onChange,
++    errors,
++    dirty,
++    custom,
++    hasMetadata,
++    busy,
++    onSave,
++    onRevert,
++}: {
++    draft: MetadataDraft;
++    onChange: (next: MetadataDraft) => void;
++    errors: string[];
++    dirty: boolean;
++    custom: boolean;
++    hasMetadata: boolean;
++    busy: boolean;
++    onSave: () => void;
++    onRevert: () => void;
++}) {
++    return (
++        <div style={BLOCK_STYLE}>
++            {!hasMetadata && <span style={NOTE_STYLE}>No data yet for this game. Open its page once to fetch some, or fill it in by hand.</span>}
++            {EDITABLE_FIELDS.map((f) => (
++                <label key={f.key} style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
++                    <span style={LABEL_STYLE}>
++                        {f.label}
++                        {f.kind === "list" ? " (separate with ;)" : f.kind === "date" ? " (YYYY-MM-DD, empty = unknown)" : ""}
++                    </span>
++                    {f.kind === "textarea" ? (
++                        <textarea rows={5} value={draft[f.key]} onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })} style={{ ...INPUT_STYLE, resize: "vertical" }} />
++                    ) : (
++                        <input type="text" value={draft[f.key]} onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })} style={INPUT_STYLE} />
++                    )}
++                </label>
++            ))}
++            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
++                {PLAYER_FLAGS.map((p) => (
++                    <label key={p.flag} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px" }}>
++                        <input
++                            type="checkbox"
++                            checked={draft.players[p.flag]}
++                            onChange={(e) => onChange({ ...draft, players: { ...draft.players, [p.flag]: e.target.checked } })}
++                        />
++                        {p.label}
++                    </label>
++                ))}
++            </div>
++            <span style={NOTE_STYLE}>Controller support follows Settings → Metadata and the Library Audit, not this form.</span>
++            {errors.map((e) => (
++                <span key={e} style={{ fontSize: "12px", color: "#e57373" }}>
++                    {e}
++                </span>
++            ))}
++            <div style={{ display: "flex", gap: "8px" }}>
++                <DialogButton onClick={onSave} disabled={busy || !dirty || errors.length > 0} style={{ padding: "0 14px", minWidth: 0, width: "auto" }}>
++                    Save
++                </DialogButton>
++                <DialogButton onClick={onRevert} disabled={busy || !custom} style={{ padding: "0 14px", minWidth: 0, width: "auto" }}>
++                    Revert to fetched data
++                </DialogButton>
++            </div>
++            {custom && <span style={NOTE_STYLE}>This game has a manual edit: refreshes never overwrite it.</span>}
++        </div>
++    );
++}
+diff --git a/steam-cartridges/frontend/settings/game-editor/modal.tsx b/steam-cartridges/frontend/settings/game-editor/modal.tsx
+new file mode 100644
+index 0000000..9ba7ecc
+--- /dev/null
++++ b/steam-cartridges/frontend/settings/game-editor/modal.tsx
+@@ -0,0 +1,77 @@
++// Game Data editor popup (features plan F1): pick a shortcut, edit its metadata, manage its Steam link.
++// Reads the app only through usePanelContext().editor; nothing here writes to Steam.
++import { useRef, useState } from "react";
++import { SettingsModal } from "../components";
++import { usePanelContext, type EditorSnapshot } from "../context";
++import { diff, draftOf, validate, type MetadataDraft } from "../../domain/metadata-edit";
++import { GamePicker } from "./game-picker";
++import { MetadataForm } from "./metadata-form";
++import { SteamLink } from "./steam-link";
++
++export function GameDataEditor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
++    const editor = usePanelContext().editor;
++    const [filter, setFilter] = useState("");
++    const [appid, setAppid] = useState<number | undefined>();
++    const [snapshot, setSnapshot] = useState<EditorSnapshot | undefined>();
++    const [draft, setDraft] = useState<MetadataDraft | undefined>();
++    const [busy, setBusy] = useState(false);
++    const [message, setMessage] = useState<{ text: string; error: boolean } | undefined>();
++    const loadId = useRef(0);
++
++    async function load(id: number) {
++        const mine = ++loadId.current;
++        const snap = await editor.load(id);
++        if (mine !== loadId.current) return; // the user picked another game meanwhile
++        setSnapshot(snap);
++        setDraft(draftOf(snap.metadata));
++    }
++
++    function pick(id: number) {
++        setAppid(id);
++        setSnapshot(undefined);
++        setDraft(undefined);
++        setMessage(undefined);
++        void load(id).catch((e) => setMessage({ text: String(e?.message ?? e), error: true }));
++    }
++
++    /** Runs one editor action, then reloads the game so the form shows what was stored. */
++    function run(work: () => Promise<{ error?: string } | void>, done: string) {
++        if (appid === undefined) return;
++        setBusy(true);
++        setMessage(undefined);
++        work()
++            .then(async (res) => {
++                if (res && res.error) setMessage({ text: res.error, error: true });
++                else setMessage({ text: done, error: false });
++                await load(appid);
++            })
++            .catch((e) => setMessage({ text: String(e?.message ?? e), error: true }))
++            .finally(() => setBusy(false));
++    }
++
++    const errors = draft ? validate(draft) : [];
++    const dirty = snapshot && draft ? diff(snapshot.metadata, draft).length > 0 : false;
++
++    return (
++        <SettingsModal title="Game Data" isOpen={isOpen} onClose={onClose} width="640px">
++            <GamePicker filter={filter} onFilter={setFilter} appid={appid} onPick={pick} />
++            {message && <span style={{ fontSize: "12px", color: message.error ? "#e57373" : "#66c0f4" }}>{message.text}</span>}
++            {snapshot && draft && (
++                <>
++                    <MetadataForm
++                        draft={draft}
++                        onChange={setDraft}
++                        errors={errors}
++                        dirty={dirty}
++                        custom={snapshot.custom}
++                        hasMetadata={snapshot.hasMetadata}
++                        busy={busy}
++                        onSave={() => run(() => editor.save(snapshot.appid, draft), "Saved.")}
++                        onRevert={() => run(() => editor.revert(snapshot.appid), "Reverted to fetched data.")}
++                    />
++                    <SteamLink snapshot={snapshot} busy={busy} run={run} />
++                </>
++            )}
++        </SettingsModal>
++    );
++}
+diff --git a/steam-cartridges/frontend/settings/game-editor/steam-link.tsx b/steam-cartridges/frontend/settings/game-editor/steam-link.tsx
+new file mode 100644
+index 0000000..0860072
+--- /dev/null
++++ b/steam-cartridges/frontend/settings/game-editor/steam-link.tsx
+@@ -0,0 +1,76 @@
++// Game Data editor: the Steam link block (features plan F1). A manual link replaces the old
++// "reject this suggestion" button: linking clears the game's suggestions, and "never suggest again" is a choice on Unlink.
++import { useState } from "react";
++import { DialogButton } from "@steambrew/client";
++import { usePanelContext, type EditorSnapshot } from "../context";
++import type { StoreCandidate } from "../../ports/backend";
++import { BLOCK_STYLE, INPUT_STYLE, LABEL_STYLE, NOTE_STYLE } from "./styles";
++
++const BUTTON = { padding: "0 14px", minWidth: 0, width: "auto" } as const;
++
++export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; busy: boolean; run: (work: () => Promise<{ error?: string } | void>, done: string) => void }) {
++    const editor = usePanelContext().editor;
++    const [term, setTerm] = useState("");
++    const [results, setResults] = useState<StoreCandidate[] | undefined>();
++    const [searchError, setSearchError] = useState<string | undefined>();
++
++    async function search() {
++        setSearchError(undefined);
++        const res = await editor.search(term);
++        setResults(res.candidates);
++        if (res.error) setSearchError(res.error);
++    }
++
++    return (
++        <div style={BLOCK_STYLE}>
++            <span style={LABEL_STYLE}>Steam link</span>
++            <span style={{ fontSize: "12px" }}>
++                {snapshot.link ? `Linked to ${snapshot.link.name || "app"} (${snapshot.link.steam_appid}, ${snapshot.link.source})` : "Not linked to a Steam game."}
++            </span>
++            {snapshot.link && (
++                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
++                    <DialogButton style={BUTTON} disabled={busy} onClick={() => run(() => editor.unlink(snapshot.appid, false), "Unlinked.")}>
++                        Unlink
++                    </DialogButton>
++                    <DialogButton style={BUTTON} disabled={busy} onClick={() => run(() => editor.unlink(snapshot.appid, true), "Unlinked; this game will not be suggested again.")}>
++                        Unlink and never suggest it again
++                    </DialogButton>
++                </div>
++            )}
++            <div style={{ display: "flex", gap: "8px" }}>
++                <input
++                    type="text"
++                    placeholder="Search Steam's games…"
++                    value={term}
++                    onChange={(e) => setTerm(e.target.value)}
++                    onKeyDown={(e) => e.key === "Enter" && void search()}
++                    style={INPUT_STYLE}
++                />
++                <DialogButton style={BUTTON} disabled={busy || term.trim().length < 2} onClick={() => void search()}>
++                    Search
++                </DialogButton>
++            </div>
++            {searchError && <span style={{ fontSize: "12px", color: "#e57373" }}>Search failed: {searchError}</span>}
++            {results && results.length === 0 && !searchError && <span style={NOTE_STYLE}>No Steam games found.</span>}
++            {results?.map((c) => (
++                <div key={c.steam_appid} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", fontSize: "12px" }}>
++                    <span>
++                        {c.name} <span style={{ opacity: 0.6 }}>({c.steam_appid})</span>
++                    </span>
++                    <DialogButton
++                        style={BUTTON}
++                        disabled={busy || snapshot.link?.steam_appid === c.steam_appid}
++                        onClick={() =>
++                            run(() => editor.link(snapshot.appid, c.steam_appid, c.name), `Linked to ${c.name}.`)
++                        }
++                    >
++                        Link
++                    </DialogButton>
++                </div>
++            ))}
++            {snapshot.custom && snapshot.link && (
++                <span style={NOTE_STYLE}>Your manual edit is kept after linking. Use "Revert to fetched data" to show Steam's data instead.</span>
++            )}
++        </div>
++    );
++}
+diff --git a/steam-cartridges/frontend/settings/game-editor/styles.ts b/steam-cartridges/frontend/settings/game-editor/styles.ts
+new file mode 100644
+index 0000000..f459e08
+--- /dev/null
++++ b/steam-cartridges/frontend/settings/game-editor/styles.ts
+@@ -0,0 +1,25 @@
++// Game Data editor: the few inline styles its parts share (features plan F1).
++import type { CSSProperties } from "react";
++
++export const INPUT_STYLE: CSSProperties = {
++    background: "rgba(0, 0, 0, 0.4)",
++    border: "1px solid rgba(255, 255, 255, 0.15)",
++    color: "#fff",
++    borderRadius: "3px",
++    padding: "5px 8px",
++    fontSize: "12px",
++    width: "100%",
++    boxSizing: "border-box",
++};
++
++export const LABEL_STYLE: CSSProperties = { fontSize: "11px", opacity: 0.75, fontWeight: 600 };
++
++export const BLOCK_STYLE: CSSProperties = {
++    display: "flex",
++    flexDirection: "column",
++    gap: "8px",
++    padding: "10px 0",
++    borderTop: "1px solid rgba(255, 255, 255, 0.08)",
++};
++
++export const NOTE_STYLE: CSSProperties = { fontSize: "11px", opacity: 0.7 };
+diff --git a/steam-cartridges/frontend/settings/panel.tsx b/steam-cartridges/frontend/settings/panel.tsx
+index 5910962..e803715 100644
+--- a/steam-cartridges/frontend/settings/panel.tsx
++++ b/steam-cartridges/frontend/settings/panel.tsx
+@@ -1,6 +1,7 @@
+ // Settings panel shell (migration plan M8c): the sections in their fixed order.
+ import { useEffect, useState } from "react";
+ import { MetadataSection } from "./panels/metadata";
++import { GameDataSection } from "./panels/game-data";
+ import { AchievementsSection } from "./panels/achievements";
+ import { NotificationsSection } from "./panels/notifications";
+ import { ActivitySection } from "./panels/activity";
+@@ -22,6 +23,7 @@ export function SettingsPanel() {
+     return (
+         <div style={{ paddingBottom: "70px", position: "relative" }}>
+             <MetadataSection />
++            <GameDataSection />
+             <AchievementsSection />
+             <NotificationsSection />
+             <ActivitySection />
+diff --git a/steam-cartridges/frontend/settings/panels/game-data.tsx b/steam-cartridges/frontend/settings/panels/game-data.tsx
+new file mode 100644
+index 0000000..ba00c0b
+--- /dev/null
++++ b/steam-cartridges/frontend/settings/panels/game-data.tsx
+@@ -0,0 +1,24 @@
++// Settings: Game Data (features plan F1): the button that opens the Game Data editor popup.
++import { useState } from "react";
++import { DialogButton, PanelSection } from "@steambrew/client";
++import { ItemRow } from "../components";
++import { GameDataEditor } from "../game-editor/modal";
++
++export function GameDataSection() {
++    const [open, setOpen] = useState(false);
++    return (
++        <PanelSection title="Game Data">
++            <ItemRow>
++                <div style={{ fontSize: "12px", opacity: 0.7, padding: "0 0 6px" }}>
++                    Correct a game's Game Info by hand, or link it to a Steam game. Manual edits are never overwritten by a refresh.
++                </div>
++            </ItemRow>
++            <ItemRow>
++                <DialogButton onClick={() => setOpen(true)} style={{ padding: "0 14px", minWidth: 0, width: "auto" }}>
++                    Edit game data…
++                </DialogButton>
++            </ItemRow>
++            <GameDataEditor isOpen={open} onClose={() => setOpen(false)} />
++        </PanelSection>
++    );
++}

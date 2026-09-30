@@ -8,6 +8,8 @@
 *.tsx   text eol=lf
 *.json  text eol=lf
 *.md    text eol=lf
+# Plan patches are applied with `git apply`: they must keep LF on Windows checkouts.
+*.patch text eol=lf
 
 # PowerShell prefers CRLF on Windows.
 *.ps1   text eol=crlf

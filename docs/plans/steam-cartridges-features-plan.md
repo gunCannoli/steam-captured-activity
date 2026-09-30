@@ -31,7 +31,7 @@ new surface with declared `touches` (disjoint from every other surface; a test e
 
 | # | Feature | Why this order |
 | --- | --- | --- |
-| F1 | Game Data editor: manual metadata and manual Steam link (settings popup) | Small, no new Steam write, backend mostly done. Fixes wrong data and unwanted suggestions today. |
+| F1 | Game Data editor: manual metadata and manual Steam link (settings popup) | Small, no new Steam write. Fixes wrong data and unwanted suggestions today. **Executable plan written and dry-run 2026-09-29** ([F1 plan](steam-cartridges-f1-game-data-editor-plan.md)). |
 | F2 | Media in the Community tab | Larger: new record part, new service, new surface. Needs live research first (see F2 open questions). |
 
 Each feature ships separately (own commit series, own live verification, own CHANGELOG entry).
@@ -40,51 +40,55 @@ Each feature ships separately (own commit series, own live verification, own CHA
 
 ## F1: Game Data editor (manual Game Info and manual linking)
 
+**Detailed, executable plan:** [steam-cartridges-f1-game-data-editor-plan.md](steam-cartridges-f1-game-data-editor-plan.md)
+(five verified patches, preconditions, expected outputs, live checklist). This section keeps the scope and the decisions.
+
 ### What the user sees
 
 Settings → a new section **"Game Data"** with a button **"Edit game data…"**. The button opens a modal
 (`SettingsModal`, already in `settings/components.tsx`):
 
 - Top: a **text filter** and a **dropdown** listing every non-Steam shortcut (filtered as you type).
-- After choosing a game: a form with **every field of the game's metadata** (title, summary/description, developers,
-  publishers, franchises, genres, release date, categories/modes, controller support, …), each editable, with **Save**
-  and **Revert to fetched data**.
+- After choosing a game: a form with every field Steam's Game Info shows (title, description, developers, publishers,
+  franchises, genres, release date, first release, player badges), each editable, with **Save** and
+  **Revert to fetched data**. Controller support is not a field (it follows the emulator inference and the controller
+  setting; the popup says so).
 - A **"Steam link"** block: the current link (or "not linked"), a **search box over Steam's native games** with results
-  to pick from, **Link**, and **Unlink** (with a "never suggest again" choice).
-- A saved edit is never overwritten by a refresh (the backend already guarantees it through `custom_override`, K15).
+  to pick from and **Link**; **Unlink** and **Unlink and never suggest it again** (a plain Unlink can match the same
+  game again by title).
+- A saved edit is never overwritten by a refresh (`custom_override`, K15), and it beats a Steam link too: an edited game
+  keeps its edited data after linking until **Revert**.
 
-### Modules touched, by layer
+### Modules touched, by layer (as built in the detailed plan)
 
 | Layer | Module | Change |
 | --- | --- | --- |
-| kernel | `kernel/record.ts` | none expected (`GameMetadata`, `Identity`, `StoreApplied` exist). Architect: confirm the editable field list against `GameMetadata`. |
-| domain | `domain/metadata-edit.ts` (new, pure) | The editable-field table (key, label, type), `parseDraft(form) -> GameMetadata`, `validate`, `diff(original, draft)`. Unit tests, no imports beyond `kernel/`. |
-| backend | `web_rpc.lua` `SaveGameMetadata` (exists, unwired) | Verify payload shape and that it sets `custom_override`; add a way to **clear** the override (revert), if missing. |
-| backend | `steam_store_rpc.lua` (+ `steam_store_search.lua`, exists) | New read-only RPC `SteamStoreSearchCandidates(title)` returning native candidates **without writing anything**. (`SteamStoreSearch` was deleted in M9a because it auto-mapped; this one never maps.) Register in `main.lua`; Lua test. |
-| backend | `steam_store_store.lua` (exists) | `SteamStoreClearMapping(appid, reject)` already supports "never suggest again". Confirm `set_mapping` clears the appid's pending suggestions (that is what makes reject unnecessary). |
-| ports | `ports/backend.ts` | Add `saveGameMetadata`, `clearMetadataOverride` (if added), `steamStoreSearchCandidates`. The registration test then checks them against `main.lua`. |
-| app | `app/game-editor.ts` (new) | Use case: `load(appid)` (record + native link state), `save(appid, draft)`, `revert(appid)`, `search(title)`, `link(appid, steamAppid)` (reuses `app/steam-store.ts` `setSteamStoreMapping`), `unlink(appid, reject)` (reuses `clearSteamStore`). After a write it invalidates and re-ensures the record so surfaces re-render (D5: never on a Steam render stack). |
-| settings | `settings/panels/game-data.tsx` (new) | The section with the button. |
-| settings | `settings/game-editor/` (new folder: `modal.tsx`, `game-picker.tsx`, `metadata-form.tsx`, `steam-link.tsx`) | The popup. Reads the app only through `usePanelContext()`. |
-| settings | `settings/context.ts`, `settings/panel.tsx` | Add `ctx.editor` (structural type of `app/game-editor.ts`), add the section. |
-| index | `index.tsx` | Build the editor from `createGameEditor(...)` and pass it to `setPanelContext`. |
+| kernel | `kernel/record.ts` | none (`GameMetadata`, `Identity` already cover it). |
+| domain | `domain/metadata-edit.ts` (new, pure) | Field table, `MetadataDraft`, `draftOf`, `validate`, `diff`, `applyDraft` (also edits `store_category_ids`, which Game Info prefers over `categories`). |
+| backend | `metadata_service.lua`, `record_rpc.lua`, `web_metadata_db.lua` | `save_custom`, `clear_custom`, `delete`; RPCs `SaveCustomMetadata`, `ClearCustomMetadata`. The unwired `SaveGameMetadata` is deleted (it took native appids and validated nothing). |
+| backend | `steam_store_search.lua`, `steam_store_rpc.lua` | `candidates()` and `SteamStoreSearchCandidates`: read-only, raw store hits, never maps. |
+| backend | `steam_store_store.lua` | none: `set_mapping` already clears pending suggestions and `clear(appid, true)` already remembers a rejection. |
+| ports | `ports/backend.ts` | `saveCustomMetadata`, `clearCustomMetadata`, `steamStoreSearchCandidates`. |
+| app | `app/game-editor.ts` (new) | `load`, `save`, `revert`, `search`, `link`, `unlink`; `link`/`unlink` reuse `app/steam-store.ts`. Writes only the record; the `game-info` surface re-renders from it. |
+| settings | `settings/panels/game-data.tsx`, `settings/game-editor/*`, `settings/context.ts`, `settings/panel.tsx` | The section and the popup; reaches the app only through `ctx.editor`. |
+| index | `index.tsx` | Builds the editor, passes it to `setPanelContext`, exports `gameData` for the live probe. |
 
-No new surface and no new Steam write: the existing `game-info` surface re-renders from the changed `record.metadata`.
+No new surface, no new Steam write, no kill switch (the editor writes only our own files; the Steam side stays behind
+`game-info`'s switch).
 
-### Open questions for the architect
+### Answers to the earlier open questions
 
-- Which `GameMetadata` fields exist today and which does Steam's Game Info actually show (description, developers, …)?
-- Is `SaveGameMetadata`'s response enough for the app to update `record.metadata` directly, or must it call
-  `EnsureFresh`? (A `custom_override` record must come back as `ok` and must not trigger network.)
-- The shortcut list: reuse `ctx.routing.listShortcuts()` (already in the context).
-- Do we need a kill switch for the editor? (It writes only our own files; probably not.)
+- Editable fields: the ones `enrichGameDetails` reads (`description`, credits, `release_date`, `original_release_date`) plus title, genres
+  and the four player badges. `short_description`/`summary` are dropped by the DB on every write, so they are not fields.
+- `SaveCustomMetadata` returns the `custom` part, so the app updates the record without `EnsureFresh`; only Revert re-resolves.
+- The shortcut list is `ctx.routing.listShortcuts()`.
+- No kill switch (see above).
 
 ### Tests and live verification
 
-- `tests/metadata-edit.test.ts` (domain), `tests/game-editor.test.ts` (app, fake ports), one Lua test per new RPC.
-- Live (extend `tests/live/click_settings_panel.mjs`): open the modal, pick AM2R, change the description, Save, open the
-  game's page and read the new description; Revert restores it. Link a shortcut to a native app by search, then Unlink.
-- `npm run test:live` stays all PASS; the migration's architecture tests stay green.
+- Unit: `tests/metadata-edit.test.ts` (9), `tests/game-editor.test.ts` (8); Lua: `test_metadata_service.lua` 49 → 64, `test_steam_store.lua` 84 → 91.
+- Live: `tests/live/probes/game_editor.mjs` (save → Game Info shows it → revert → search), `check_settings_panel.mjs` (9 titles),
+  `npm run test:live`, plus the by-hand checklist in the detailed plan § 7 (filter, edit, link, unlink, Big Picture).
 
 ---
 

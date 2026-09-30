@@ -1,0 +1,298 @@
+diff --git a/steam-cartridges/frontend/app/game-editor.ts b/steam-cartridges/frontend/app/game-editor.ts
+new file mode 100644
+index 0000000..032661b
+--- /dev/null
++++ b/steam-cartridges/frontend/app/game-editor.ts
+@@ -0,0 +1,118 @@
++// app/game-editor: the Game Data editor's use cases (features plan F1). The settings popup reaches this
++// only through settings/context.ts. Every write goes to the backend (our own files); Steam is updated by
++// the existing surfaces, which re-render from record.metadata / record.identity (never from here, D5).
++import type { ShortcutId } from "../kernel/appid";
++import { toShortcutId } from "../kernel/appid.ts";
++import type { GameMetadata, Identity, Part, RecordStore } from "../kernel/record";
++import type { backend as Backend, StoreCandidate, StoreMapping } from "../ports/backend";
++import { applyDraft, type MetadataDraft } from "../domain/metadata-edit.ts";
++import type { MetadataRoute } from "./metadata";
++
++export interface EditorSnapshot {
++    appid: number;
++    title: string;
++    /** What Game Info shows now; a bare { appid, title } while the game has no metadata yet. */
++    metadata: GameMetadata;
++    hasMetadata: boolean;
++    /** A manual edit is stored (Revert is available). */
++    custom: boolean;
++    /** The manual or automatic Steam link, or null. */
++    link: StoreMapping | null;
++    /** Native appids the user chose "never suggest again" for. */
++    rejected: number[];
++}
++
++export interface GameEditor {
++    load(appid: number): Promise<EditorSnapshot>;
++    /** Validates, stores as a manual edit, updates the record. Throws Error(message) on an invalid draft. */
++    save(appid: number, draft: MetadataDraft): Promise<void>;
++    /** Drops the manual edit and re-resolves the game from its sources. */
++    revert(appid: number): Promise<void>;
++    search(term: string): Promise<{ candidates: StoreCandidate[]; error?: string }>;
++    link(appid: number, steamAppid: number, name?: string): Promise<{ error?: string }>;
++    /** reject = also remember the native app as "never suggest again". */
++    unlink(appid: number, reject: boolean): Promise<{ error?: string }>;
++}
++
++export interface GameEditorDeps {
++    backend: Pick<typeof Backend, "saveCustomMetadata" | "clearCustomMetadata" | "steamStoreSearchCandidates" | "steamStoreGetMapping">;
++    records: RecordStore;
++    ensureBase(appid: ShortcutId): void;
++    titleOf(appid: number): string | undefined;
++    routeOf(appid: number): MetadataRoute;
++    metadata: { ensure(appid: ShortcutId, route: MetadataRoute, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
++    /** app/steam-store.ts setSteamStoreMapping / clearSteamStore (they re-run identity, metadata and artwork). */
++    steamStore: {
++        setMapping(appid: number, steamAppid: number, name?: string): Promise<{ mapping?: unknown; error?: string }>;
++        clear(appid: number, reject: boolean): Promise<{ error?: string }>;
++    };
++}
++
++export function createGameEditor(deps: GameEditorDeps): GameEditor {
++    function shortcut(appid: number): ShortcutId {
++        const id = toShortcutId(appid);
++        if (id === undefined) throw new Error(`Not a non-Steam shortcut: ${appid}`);
++        return id;
++    }
++
++    /** The stored metadata of a shortcut, or a bare record to edit from scratch. */
++    function currentOf(id: ShortcutId): { metadata: GameMetadata; hasMetadata: boolean } {
++        const data = deps.records.get(id)?.metadata?.data;
++        if (data) return { metadata: data, hasMetadata: true };
++        return { metadata: { appid: id, title: deps.titleOf(id) ?? "" }, hasMetadata: false };
++    }
++
++    return {
++        async load(appid) {
++            const id = shortcut(appid);
++            deps.ensureBase(id);
++            const { metadata, hasMetadata } = currentOf(id);
++            const mapping = await deps.backend.steamStoreGetMapping(id).catch(() => null);
++            return {
++                appid: id,
++                title: deps.titleOf(id) ?? metadata.title,
++                metadata,
++                hasMetadata,
++                custom: metadata.custom_override === true,
++                link: mapping?.mapping ?? null,
++                rejected: mapping?.rejected ?? [],
++            };
++        },
++
++        async save(appid, draft) {
++            const id = shortcut(appid);
++            deps.ensureBase(id);
++            const next = applyDraft(currentOf(id).metadata, draft); // throws on an invalid draft
++            const res = await deps.backend.saveCustomMetadata(id, next);
++            if (res.error || !res.part) throw new Error(res.error ?? "Could not save.");
++            deps.records.update(id, { metadata: res.part });
++        },
++
++        async revert(appid) {
++            const id = shortcut(appid);
++            deps.ensureBase(id);
++            const res = await deps.backend.clearCustomMetadata(id);
++            if (res.error) throw new Error(res.error);
++            await deps.metadata.ensure(id, deps.routeOf(id), deps.records.get(id)?.identity);
++        },
++
++        async search(term) {
++            const res = await deps.backend.steamStoreSearchCandidates(term);
++            return { candidates: res.candidates ?? [], error: res.error };
++        },
++
++        async link(appid, steamAppid, name) {
++            const id = shortcut(appid);
++            deps.ensureBase(id);
++            const res = await deps.steamStore.setMapping(id, steamAppid, name);
++            return { error: res.error };
++        },
++
++        async unlink(appid, reject) {
++            const id = shortcut(appid);
++            deps.ensureBase(id);
++            const res = await deps.steamStore.clear(id, reject);
++            return { error: res.error };
++        },
++    };
++}
+diff --git a/steam-cartridges/frontend/ports/backend.ts b/steam-cartridges/frontend/ports/backend.ts
+index 1d356a3..78d2945 100644
+--- a/steam-cartridges/frontend/ports/backend.ts
++++ b/steam-cartridges/frontend/ports/backend.ts
+@@ -60,6 +60,11 @@ export interface StoreState {
+     applied_artwork: Record<string, StoreApplied>;
+ }
+ 
++export interface StoreCandidate {
++    steam_appid: number;
++    name: string;
++}
++
+ export interface OwnedCandidate {
+     appid: number;
+     name: string;
+@@ -134,6 +139,14 @@ export const backend = {
+     markKnown(appids: number[]): Promise<{ ok?: boolean; error?: string }> {
+         return call<{ ok?: boolean; error?: string }>("MarkKnown", { appids });
+     },
++    /** Game Data editor: stores a manual edit (custom_override) and returns the metadata part to put in the record. */
++    saveCustomMetadata(appid: number, metadata: GameMetadata) {
++        return call<{ part?: Part<GameMetadata>; error?: string }>("SaveCustomMetadata", { appid, metadata });
++    },
++    /** Game Data editor: drops the manual edit; follow with ensureFresh(["metadata"]) for the fetched data. */
++    clearCustomMetadata(appid: number) {
++        return call<{ removed?: boolean; error?: string }>("ClearCustomMetadata", { appid });
++    },
+     /** Disk only: every DB record and every saved mapping (M5a). */
+     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
+         return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {});
+@@ -173,6 +186,10 @@ export const backend = {
+     steamStoreClearMapping(appid: number, reject: boolean) {
+         return call<{ steam_appid?: number; slots: number[]; error?: string }>("SteamStoreClearMapping", { appid, reject });
+     },
++    /** Read-only store search for the manual link picker: nothing is mapped or cached. */
++    steamStoreSearchCandidates(term: string) {
++        return call<{ candidates: StoreCandidate[]; error?: string }>("SteamStoreSearchCandidates", { term });
++    },
+     steamStoreRecordArtwork(
+         appid: number,
+         steam_appid: number | undefined,
+diff --git a/steam-cartridges/tests/game-editor.test.ts b/steam-cartridges/tests/game-editor.test.ts
+new file mode 100644
+index 0000000..b444484
+--- /dev/null
++++ b/steam-cartridges/tests/game-editor.test.ts
+@@ -0,0 +1,126 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { createGameEditor } from '../frontend/app/game-editor.ts';
++import { createRecordStore } from '../frontend/kernel/record.ts';
++import { createEventBus } from '../frontend/kernel/events.ts';
++import { draftOf } from '../frontend/domain/metadata-edit.ts';
++
++const SC = 4263274102 as any;
++const ROUTE = { bucket: 'web-scraping', via: 'default' } as const;
++
++function setup(over: { metadata?: any; mapping?: any; saveResponse?: any } = {}) {
++    const bus = createEventBus();
++    const records = createRecordStore(bus);
++    const ensureBase = () => records.upsert({ appid: SC, gameid: 'g', title: 'AM2R', exe: '' });
++    ensureBase();
++    if (over.metadata) records.update(SC, { metadata: { status: 'ok', data: over.metadata, source: 'igdb' } });
++    const events: any[] = [];
++    bus.on('record.updated', (e: any) => events.push(e));
++    const calls: any[] = [];
++    const editor = createGameEditor({
++        backend: {
++            async saveCustomMetadata(appid: number, metadata: any) {
++                calls.push(['save', appid, metadata]);
++                return over.saveResponse ?? { part: { status: 'ok', source: 'custom', data: { ...metadata, custom_override: true } } };
++            },
++            async clearCustomMetadata(appid: number) {
++                calls.push(['clear', appid]);
++                return { removed: true };
++            },
++            async steamStoreSearchCandidates(term: string) {
++                calls.push(['search', term]);
++                return { candidates: [{ steam_appid: 1, name: 'A' }] };
++            },
++            async steamStoreGetMapping() {
++                return { mapping: over.mapping ?? null, rejected: [7], applied: null };
++            },
++        } as any,
++        records,
++        ensureBase,
++        titleOf: () => 'AM2R',
++        routeOf: () => ROUTE,
++        metadata: {
++            async ensure(appid: any, route: any, identity: any) {
++                calls.push(['ensure', appid, route, identity]);
++                const part = { status: 'ok', source: 'igdb', data: { appid, title: 'Fetched' } } as any;
++                records.update(SC, { metadata: part });
++                return part;
++            },
++        },
++        steamStore: {
++            async setMapping(appid: number, steamAppid: number, name?: string) {
++                calls.push(['link', appid, steamAppid, name]);
++                return { mapping: {} };
++            },
++            async clear(appid: number, reject: boolean) {
++                calls.push(['unlink', appid, reject]);
++                return {};
++            },
++        },
++    });
++    return { editor, records, calls, events };
++}
++
++test('load: current metadata, custom flag, link and rejections', async () => {
++    const { editor } = setup({ metadata: { appid: SC, title: 'AM2R', custom_override: true }, mapping: { steam_appid: 5, name: 'X', source: 'manual' } });
++    const snap = await editor.load(SC);
++    assert.equal(snap.hasMetadata, true);
++    assert.equal(snap.custom, true);
++    assert.equal(snap.link?.steam_appid, 5);
++    assert.deepEqual(snap.rejected, [7]);
++});
++
++test('load without metadata gives a bare record to edit from scratch', async () => {
++    const { editor } = setup();
++    const snap = await editor.load(SC);
++    assert.equal(snap.hasMetadata, false);
++    assert.deepEqual(snap.metadata, { appid: SC, title: 'AM2R' });
++    assert.equal(snap.link, null);
++});
++
++test('save: applies the draft to the current record, sends it, puts the custom part in the record', async () => {
++    const orig = { appid: SC, title: 'AM2R', description: 'old', igdb_id: 9, source: 'igdb' };
++    const { editor, records, calls, events } = setup({ metadata: orig });
++    await editor.save(SC, { ...draftOf(orig), description: 'new' });
++    const sent = calls.find((c) => c[0] === 'save')!;
++    assert.equal(sent[2].description, 'new');
++    assert.equal(sent[2].igdb_id, 9);
++    assert.equal(records.get(SC)?.metadata?.source, 'custom');
++    assert.equal(records.get(SC)?.metadata?.data?.description, 'new');
++    assert.deepEqual(events.at(-1).parts, ['metadata']);
++});
++
++test('save: an invalid draft throws before any backend call', async () => {
++    const { editor, calls } = setup({ metadata: { appid: SC, title: 'AM2R' } });
++    await assert.rejects(editor.save(SC, { ...draftOf({ title: 'AM2R' }), title: '' }), /Title is required/);
++    assert.equal(calls.length, 0);
++});
++
++test('save: a backend error throws and leaves the record alone', async () => {
++    const orig = { appid: SC, title: 'AM2R' };
++    const { editor, records } = setup({ metadata: orig, saveResponse: { error: 'not a shortcut' } });
++    await assert.rejects(editor.save(SC, { ...draftOf(orig), description: 'x' }), /not a shortcut/);
++    assert.equal(records.get(SC)?.metadata?.source, 'igdb');
++});
++
++test('revert: clears the override, then re-resolves with the current route and identity', async () => {
++    const { editor, records, calls } = setup({ metadata: { appid: SC, title: 'Mine', custom_override: true } });
++    await editor.revert(SC);
++    assert.deepEqual(calls.map((c) => c[0]), ['clear', 'ensure']);
++    assert.deepEqual(calls[1][2], ROUTE);
++    assert.equal(records.get(SC)?.metadata?.data?.title, 'Fetched');
++});
++
++test('link / unlink go through app/steam-store; search is read-only', async () => {
++    const { editor, calls } = setup();
++    assert.deepEqual(await editor.link(SC, 2820820, 'Jotunnslayer'), { error: undefined });
++    await editor.unlink(SC, true);
++    const found = await editor.search('doom');
++    assert.equal(found.candidates.length, 1);
++    assert.deepEqual(calls, [['link', SC, 2820820, 'Jotunnslayer'], ['unlink', SC, true], ['search', 'doom']]);
++});
++
++test('a native appid is refused', async () => {
++    const { editor } = setup();
++    await assert.rejects(editor.load(12345), /Not a non-Steam shortcut/);
++});
