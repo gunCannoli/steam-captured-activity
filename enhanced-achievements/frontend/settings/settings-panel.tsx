@@ -11,7 +11,6 @@ import {
 } from "@steambrew/client";
 import { logger } from "../logger";
 import { rpc, type ThemeEntry } from "../rpc";
-import { previewTier } from "../steam/notifications";
 import { toastsEnabled } from "../steam/notification-settings";
 import { activeTheme, onThemeChange, reloadTheme } from "../theme/active-theme";
 import { TIERS, type Tier } from "../theme/theme";
@@ -254,7 +253,7 @@ function tierRule(tier: Tier): string {
     }
 }
 
-function PreviewSection({ disabled }: { disabled: boolean }) {
+function PreviewSection({ disabled, onPreview }: { disabled: boolean; onPreview: (tier: Tier) => void }) {
     const [, rerender] = useState(0);
 
     useEffect(() => onThemeChange(() => rerender((n) => n + 1)), []);
@@ -268,7 +267,7 @@ function PreviewSection({ disabled }: { disabled: boolean }) {
                     description={tierRule(tier)}
                     buttonLabel="Preview"
                     disabled={disabled}
-                    onClick={() => void previewTier(tier)}
+                    onClick={() => void onPreview(tier)}
                 />
             ))}
         </PanelSection>
@@ -342,7 +341,8 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
     );
 }
 
-export function SettingsPanel() {
+/** `onPreview` is injected by index.tsx: this panel must not import a surface (migration D7). */
+export function SettingsPanel({ onPreview }: { onPreview: (tier: Tier) => void }) {
     const disabled = usePanelDisabled();
 
     return (
@@ -356,7 +356,7 @@ export function SettingsPanel() {
             )}
 
             <ThemeSection disabled={disabled} />
-            <PreviewSection disabled={disabled} />
+            <PreviewSection disabled={disabled} onPreview={onPreview} />
 
             <PanelSection title="General">
                 <ToggleRow

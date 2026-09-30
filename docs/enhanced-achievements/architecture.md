@@ -13,9 +13,9 @@ Every migration step updates this doc; the **Status** column says what is built.
 | Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode | current (E0a) |
 | Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | current (E1a) |
 | Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
-| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the shared jsx-runtime hook | current; split in E1b |
-| Sensor | `frontend/sensors/` | Sees an achievement toast shown and emits `achievement.unlocked` once | planned (E1b) |
-| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `banner`, `sound`, `duration`, `toasts`, `captures` | planned (E1b, E1c) |
+| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the one `PlayNotificationSound` hook (`notification-hook.ts`, infrastructure), the shared jsx-runtime hook | current (E1b); `toast-patch.ts` and `recording.ts` move in E1c |
+| Sensor | `frontend/sensors/unlock/` | Sees an achievement toast shown and emits `achievement.unlocked` once, one macrotask later | current (E1b) |
+| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `sound`, `duration`, `toasts` (current, E1b); `banner`, `captures` (planned, E1c) | partly current |
 | Composition root | `frontend/index.tsx`, `frontend/claims.ts` | Start-up order, wiring, the public exports and `claims()` | current |
 
 ## Safety net (E0a)
@@ -44,10 +44,11 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 | Steam target | Owner (file) | Guardrail |
 | --- | --- | --- |
-| `NotificationStore.prototype.PlayNotificationSound` (wrapper) | `steam/notifications.ts` | [2](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components) |
-| `NotificationStore` instance `ChooseSound` (for one call) | `steam/notifications.ts` | 2 |
-| `NotificationStore.OnNotification` (synthetic toasts) | `steam/notifications.ts` | — |
-| Achievement type config `toastDurationMS` | `steam/notifications.ts` | — |
+| `NotificationStore.prototype.PlayNotificationSound` (wrapper) | `steam/notification-hook.ts` | [2](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components) |
+| `NotificationStore` instance `ChooseSound` (for one call) | `steam/notification-hook.ts` | 2 |
+| The hook's sound slot | `surfaces/sound/index.ts` | 2 |
+| `NotificationStore.OnNotification` (synthetic toasts) | `surfaces/toasts/post.ts` | — |
+| Achievement type config `toastDurationMS` | `surfaces/duration/index.ts` | — |
 | `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `steam/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](../plugins.md#sharing-the-jsx-runtime-between-plugins) |
 | Notification `fnNotificationResolved` (popup hold) | `banner/themed-toast.tsx` | 17 |
 | Toast popup `SteamClient.Window.MoveTo` (pin) | `banner/window-pin.ts` | — |
@@ -71,6 +72,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 ## History
 
+- 2026-09-30 E1b: `steam/notifications.ts` split into `steam/notification-store.ts` (discovery), `steam/notification-hook.ts` (the one wrapper), `sensors/unlock` and surfaces `sound`, `duration`, `toasts`; captures and the 100% toast run from `achievement.unlocked` one macrotask after the toast; a tripped feature has its surface uninstalled; allowlist 7 → 6.
 - 2026-09-30 E1a: kernel contracts (`kernel/notification|events|surface.ts`); the tier is a pure function (`tierOfNotification`, memo `tierFor` in `theme/active-theme.ts`); `themedDisplayMs` is pure; feature id `toasts` and `onTrip`; final layer rules, allowlist 15 → 7.
 - 2026-09-29 E0a: safety net (kill switches, error budget, safe mode); `claims()` made O(1).
 - 2026-09-29 E0b: architecture test, `npm run test:live`; `queue-stress.mjs` restores the stored settings.

@@ -4,6 +4,5 @@
   "capture -> settings",
   "capture -> steam",
   "steam -> banner",
-  "steam -> capture",
   "steam -> theme"
 ]

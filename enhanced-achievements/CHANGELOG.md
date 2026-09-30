@@ -71,6 +71,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- The 100% completion toast and the unlock captures now run one macrotask after the toast is shown, never inside Steam's own call; the sound, duration and synthetic-toast code sit behind their own switches, and a feature that trips its error budget has its Steam patch removed, not only gated (migration E1b).
+
 - **`[v]` in `scale`, `margin`, `padding` and `gap` now means both values**,
   like a bare `v` (`[5]` = `[5, 5]`); `[a, b]` still sets each. Previously
   `[5]` padding was `[5, 10]`.

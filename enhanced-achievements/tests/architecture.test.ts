@@ -139,6 +139,11 @@ export const PURE = [
     'safety/boot.ts',
     'safety/features.ts',
     'safety/runtime.ts',
+    'sensors/unlock/unlock.ts',
+    'steam/notification-hook.ts',
+    'surfaces/duration/duration.ts',
+    'surfaces/sound/sound.ts',
+    'surfaces/toasts/completion.ts',
     'theme/jsonc.ts',
     'theme/theme.ts',
 ];
@@ -178,10 +183,10 @@ test('architecture: pure files import only other pure files at runtime', () => {
 
 /** Each Steam write pattern and the one file allowed to contain it (plan § 4.3). */
 export const OWNERS: [string, RegExp, string][] = [
-    ['NotificationStore.prototype.PlayNotificationSound', /\.PlayNotificationSound\s*=(?!=)/, 'steam/notifications.ts'],
-    ['NotificationStore ChooseSound (per call)', /\.ChooseSound\s*=(?!=)/, 'steam/notifications.ts'],
-    ['NotificationStore.OnNotification (synthetic toasts)', /\.OnNotification\s*\(/, 'steam/notifications.ts'],
-    ['achievement type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'steam/notifications.ts'],
+    ['NotificationStore.prototype.PlayNotificationSound', /\.PlayNotificationSound\s*=(?!=)/, 'steam/notification-hook.ts'],
+    ['NotificationStore ChooseSound (per call)', /\.ChooseSound\s*=(?!=)/, 'steam/notification-hook.ts'],
+    ['NotificationStore.OnNotification (synthetic toasts)', /\.OnNotification\s*\(/, 'surfaces/toasts/post.ts'],
+    ['achievement type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'surfaces/duration/index.ts'],
     ['notification fnNotificationResolved (popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'banner/themed-toast.tsx'],
     ['toast popup SteamClient.Window.MoveTo (pin)', /\.MoveTo\s*=(?!=)/, 'banner/window-pin.ts'],
     ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'steam/toast-patch.ts'],

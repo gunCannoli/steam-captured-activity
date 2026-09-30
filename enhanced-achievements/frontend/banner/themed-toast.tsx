@@ -3,13 +3,14 @@ import { IconsModule } from '@steambrew/client';
 import { logger } from '../logger';
 import { activeTheme, tierFor, type LoadedTheme } from '../theme/active-theme';
 import type { AnchorPosition, IconSlot, ResolvedTier } from '../theme/theme';
-import { themedDisplayMs, type SteamNotification } from '../steam/notifications';
+import type { SteamNotification } from '../kernel/notification';
+import { notificationStore } from '../steam/notification-store';
 import { BANNER_CSS } from './styles';
 import { bannerSize, placeBanner } from './geometry';
 import { pinToastWindow, type PinnedWindow } from './window-pin';
 import { setting } from '../settings/settings';
 import { admit, finish, forget, MAX_QUEUE, phaseOf, subscribe, type Phase } from './queue';
-import { bannerTiming } from './timing';
+import { bannerTiming, themedDisplayMs } from './timing';
 import { reportError } from '../safety/runtime';
 
 /**
@@ -143,7 +144,7 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedTheme; n: SteamN
     const { text, icons } = tier;
     const data = n.data;
     const size = bannerSize(theme.layout, banner);
-    const timing = bannerTiming(theme.animation, themedDisplayMs(theme));
+    const timing = bannerTiming(theme.animation, themedDisplayMs(theme.displayTimeMs, notificationStore()?.pristineDurationMs));
 
     // Read once per toast: toggling the setting affects later toasts, not this one.
     const [queued] = useState(() => setting('queue.enabled'));

@@ -3,12 +3,12 @@ import { setting } from '../settings/settings';
 import type { Tier } from '../theme/theme';
 import { addTimelineEntry, runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from '../steam/recording';
 import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from './plan';
-import type { SteamNotification } from '../steam/notifications';
+import type { SteamNotification } from '../kernel/notification';
 import { reportError } from '../safety/runtime';
 
 /**
  * Schedules Phase 7 auto-captures (screenshot / clip / timeline marker) on
- * achievement unlock. The hook in `steam/notifications.ts` calls `onUnlock`
+ * achievement unlock. The `achievement.unlocked` subscriber in `index.tsx` calls `onUnlock`
  * synchronously (O(1): dedupe, snapshot, schedule); every RPC runs later, in a
  * `setTimeout` callback, never in the hook itself (the one scoped exception to
  * guardrail 5 — see docs/plans/phase7-and-alpha-plan.md § A1.7).
@@ -124,7 +124,7 @@ async function sendMarker(gameId: string, timelineId: string, action: Extract<Ac
     pushLog({ at: Date.now(), appid, tier, gameId, dryRun: false, actions, skipped: [] });
 }
 
-/** Called from the sound hook. O(1): dedupe, tier merge, snapshot, schedule. Never awaits an RPC. */
+/** Called from the `achievement.unlocked` event, one macrotask after the toast. O(1): dedupe, tier merge, snapshot, schedule. Never awaits an RPC. */
 export function onUnlock(n: SteamNotification, tier: Tier): void {
     try {
         if (seen.has(n.data)) return;
