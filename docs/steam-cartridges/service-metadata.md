@@ -14,7 +14,7 @@ shortcut? Part of the steam-cartridges architecture (ADR-0039); index:
   (`web_metadata_db.lua`, unchanged format, § 4.3). Native Steam metadata
   (a mapped app's Store data) is **never** persisted (steam_store_store.lua
   rule, extended here).
-- Manual edits (`custom_override = true`) always win, whatever the route.
+- Manual edits (`custom_override = true`) always win, whatever the route. `save_custom` / `clear_custom` store and drop one (the Game Data editor, F1); `clear_custom` only removes a record that is a manual edit.
 
 It does **not** own identity resolution (`service-resolver.md`, M4b) or
 artwork (M5c): it reads the saved identity (`resolve_identity.saved`) and

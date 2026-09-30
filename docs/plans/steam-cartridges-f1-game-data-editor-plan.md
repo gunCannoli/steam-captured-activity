@@ -1,11 +1,12 @@
 # Plan: F1 Game Data editor (manual Game Info and manual Steam link)
 
-**Stale after M10 (2026-09-30):** [the M10 plan](steam-cartridges-m10-gap-batch-plan.md) runs first (ADR-0044 Q6) and edits
-`backend/main.lua`, `web_rpc.lua`, `steam_store_rpc.lua`, `frontend/ports/backend.ts`, `app/steam-store.ts`, `settings/panels/*` and
-`tests/test_steam_store.lua`. An architect regenerates these patches on top of M10 before F1 is executed; the RPCs F1 wires or
-deletes are listed in `steam-cartridges/tests/architecture-unwired-rpcs.json` (remove them from it in the same step).
-**Status:** Ready to execute (2026-09-29). Dry-run done: every patch applies in order to `HEAD` (`c20c654`), and the resulting tree
-passes `tsc`, `test:ts` (164/164), the Lua suites and `npm run build` (§ 9).
+**Status:** **Code done and committed 2026-09-30, on top of M10; live verification (§ 7) pending.** The original patches
+(2026-09-29) no longer applied after M10, so they were re-applied with `git apply --reject` and the rejected hunks merged by hand: the RPC
+registrations in `main.lua`, `steam_store_rpc.lua`, `web_rpc.lua`, `StoreCandidate` in `ports/backend.ts`, `index.tsx` and
+`settings/context.ts` (the `Route` type now comes from the kernel; `SteamStore` is a factory). One real difference: the capability ratchet
+(ADR-0044) forbids `new Date(` in `domain/`, so `metadata-edit.ts` formats dates with pure arithmetic. `SaveGameMetadata` is also removed from
+`tests/architecture-unwired-rpcs.json`. Counts now: `test:ts` 202/202, `test_metadata_service` and `test_steam_store` green. The patch
+folder was deleted: the commits are the record (`git log --grep "F1"`). Steps 1-6 below describe what was done; do not re-run them.
 **Kind:** Feature plan, written for the weak implementer ([the plan writing standard](README.md)). The literal before/after
 blocks are the five patch files in [steam-cartridges-f1-game-data-editor/](steam-cartridges-f1-game-data-editor/); each step
 applies one and checks it.

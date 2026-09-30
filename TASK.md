@@ -23,6 +23,8 @@ theme Steam's toasts and sounds.
 enhanced-achievements migration: E0a and E0b done and live-verified (2026-09-30: desktop `npm run test:live` green twice, Big Picture 2/2 PASS, `disabledFeatures=sound` hands the chime back: 1 themed clip on, 0 off); E1a done and live-verified (kernel, pure tier and timing; allowlist 15 → 7); E1b done and live-verified (hook, sensor, sound/duration/toasts surfaces; allowlist 7 → 6); next E1c. (Before E0a the
 working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7-and-alpha-plan.md` (plan § 6, EA-K8), now resolved.)
 
+**F1 Game Data editor (2026-09-30): code committed on top of M10** (`test:ts` 202/202, build OK); waiting for the live verification in [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`dev.ps1`, `check_settings_panel.mjs` 9 titles, `probes/game_editor.mjs`, `npm run test:live`, the by-hand check). The M10 leftover duplicates `asList` and `union` moved to `kernel/lists.ts`; the per-surface `deps` objects stay (a redesign, not a cleanup).
+
 **Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
 
 **M10 gap batch: done 2026-09-30** (live-verified 2026-09-30: test:live 10/10 plus probes; five visual hand checks of § 8.3 not run); the F1 plan's patches must be regenerated on top of M10 before F1 runs.

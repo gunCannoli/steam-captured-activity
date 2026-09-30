@@ -287,4 +287,4 @@ Only after 1–3 pass: set this plan's **Status** to "Done (live-verified <date>
 | --- | --- | --- | --- |
 | K20 | Nothing loads the controller inference at start-up (only the audit panel calls `controller.load()`), although `app/controller`'s comment says "loaded once at start-up (ADR-0038 addendum)". Until the panel is opened, emulator-inferred controller badges are missing. | `git grep -n "controller.load\|loadControllerInference" -- steam-cartridges/frontend` (before and after M10) | a one-line bugfix plan: `void controller.load()` in `init()`, with a live check of AM2R's badge |
 | — | `shortcut_icon.lua`'s download fallback and `web_sgdb.download_image` stay (fail closed, tested) | § 0 | none |
-| — | Remaining small duplicates: `asList` (app/achievements, app/ingest), `union` (domain/art-plan, surfaces/artwork), per-surface `deps` objects | `bash docs/plans/steam-cartridges-architecture-audit/scan.sh` D1 | later, if ever |
+| — | Remaining small duplicates: ~~`asList`, `union`~~ (moved to `kernel/lists.ts`, 2026-09-30), per-surface `deps` objects | `bash docs/plans/steam-cartridges-architecture-audit/scan.sh` D1 | later, if ever |

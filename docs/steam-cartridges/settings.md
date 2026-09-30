@@ -13,7 +13,7 @@
   context is inert. Panels may import `domain/` for types and validators, never to evaluate policy (ADR-0044).
 - **Change notices** go through the settings store's own `onSettingChange` and `ingest.onProgress` (M10: the
   `steam-cartridges:rule-updated` window event is gone).
-- **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Achievements, Notifications, Activity Feed,
+- **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Game Data, Achievements, Notifications, Activity Feed,
   Community & Media, Routing Rules, Library Audit, Troubleshooting; then the sticky `sync-progress.tsx` bar.
   Shared rows are in `components.tsx`.
 - **Troubleshooting** (`panels/troubleshooting.tsx`): one toggle per `FEATURE_IDS` entry (on = not in `disabledFeatures`), written with
@@ -26,7 +26,7 @@
 ## Tests
 
 `tests/settings-defaults.test.ts` (2), `tests/troubleshooting-core.test.ts` (3). Live: `node steam-cartridges/tests/live/check_settings_panel.mjs`
-mounts `PLUGIN_LIST['steam-cartridges-dev'].SettingsPanel` in a detached div and prints `PASS <title>` for the 8 titles.
+mounts `PLUGIN_LIST['steam-cartridges-dev'].SettingsPanel` in a detached div and prints `PASS <title>` for the 9 titles. F1's `tests/metadata-edit.test.ts` (9) and `tests/game-editor.test.ts` (8) cover the Game Data editor; its popup is `settings/game-editor/`, reached only through `PanelContext.editor`.
 
 ## How to add a panel
 

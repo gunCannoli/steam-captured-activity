@@ -36,7 +36,8 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetLibraryStats` | `rpc.lua` | live | library grid capture timestamps |
 | `GetDiagnostics` | `rpc.lua` | live (debug) | no frontend caller; called directly from the SharedJSContext console. Documented in [millennium-architecture.md](../millennium-architecture.md); M7 adds `http_calls` |
 | `GetStatus` | `web_rpc.lua` | live | provider status |
-| `SaveGameMetadata` | `web_rpc.lua` | unwired | § 7.10: manual Game Info editing (`custom_override`); no UI yet |
+| `SaveCustomMetadata` | `record_rpc.lua` (→ `metadata_service.save_custom`) | live | F1: `app/game-editor.ts` `save()`; replaced the unwired `SaveGameMetadata` |
+| `ClearCustomMetadata` | `record_rpc.lua` (→ `metadata_service.clear_custom`) | live | F1: `app/game-editor.ts` `revert()`; only removes a `custom_override` record |
 | `GetControllerInference` | `web_rpc.lua` | live | controller support badges |
 | `GetAutoRoutingProfiles` | `web_rpc.lua` | live | auto-routing bucket profiles |
 | `SaveServiceCredentials` | `web_rpc.lua` | live | settings panel service credentials |
@@ -44,6 +45,7 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `SteamStoreGetMapping` | `steam_store_rpc.lua` | live | shortcut → native appid lookup |
 | `SteamStoreSetMapping` | `steam_store_rpc.lua` | live | manual mapping |
 | `SteamStoreClearMapping` | `steam_store_rpc.lua` | live | unmap / reject |
+| `SteamStoreSearchCandidates` | `steam_store_rpc.lua` (→ `steam_store_search.candidates`) | live | F1: read-only store search for the manual link picker; never maps or caches |
 | `SteamStoreRejectSuggestion` | `steam_store_rpc.lua` | unwired | § 7.10: reject a suggestion in the Steam Store settings list; no UI yet (Lua-tested: `test_steam_store.lua` "rejecting a suggestion removes it and remembers it") |
 | `SteamStoreRecordArtwork` | `steam_store_rpc.lua` | live | records which artwork slots were applied |
 | `SteamStoreSaveIcon` | `steam_store_rpc.lua` (→ `shortcut_icon.save`) | live | icon plan: store our copy of the library icon; refused unless still eligible |
