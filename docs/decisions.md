@@ -2832,9 +2832,15 @@ fetch them (no CORS), and Millennium's Lua `http.get` cuts binary bodies.
 ### Consequences
 
 - Steam's own grid, viewer and YouTube player; nothing of ours is drawn.
-- Each card keeps Steam's Report, vote, award, comment and author controls, which act on Valve's servers with our ids
-  (they fail server-side). If the live check (F2 plan § 9.3) shows a visible fault, the fallback is to render our own
-  grid from Steam's exported parts (`kB` YouTube player, the viewer module, the section CSS), which needs a new ADR.
+- Amended 2026-09-30 after the live check (Big Picture): Steam's vote, award, comment and Report controls act on Valve's
+  servers with our ids, so on our cards (file ids from 9e14) those components render nothing and the gamepad options
+  menu is removed. The author row stays (Steam's own). Steam's image viewer opens with a creator and a date and without a
+  comment thread (it shows "Created by", the date and Close, like a native item). Each source is a made-up Steam account
+  below 2^31 (2147483101 IGDB, 2147483102 ScreenScraper); Steam's own "Created by" avatar and name components render the
+  source's name and inline icon for them. All of it is `replaceType` on Steam's jsx elements (`surfaces/community`, a
+  second, persistent hook), for our ids only; any other element is untouched.
+- If a later check shows a visible fault, the fallback is to render our own grid from Steam's exported parts (`kB`
+  YouTube player, the viewer module, the section CSS), which needs a new ADR.
 - A Steam update that renames the loader method or its class's prototype methods leaves the section stock (the
   learn fails, reported to the `community` switch), never a crash.
 - Steam's own first-page trigger can miss (its on-screen signal may arrive after its 1 s timer), so for a shortcut with a

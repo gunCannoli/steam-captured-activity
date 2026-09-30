@@ -445,6 +445,7 @@ shortcut's community media: IGDB trailers (Steam's YouTube card), IGDB and Scree
 | `CommunityContentLoader.LoadCommunityContentAndVotes` (the loader class's prototype) | 2 (one Map lookup per page), 12 (one class for every window) |
 | `CommunityContentLoader.OnBind`, `OnResize` (after-patches, same prototype) | 2 (two property checks, then a guarded `LoadAdditionalContent` once), 12 |
 | `jsx:community-section` | 2, 17 (learn-once: property checks until the section class is seen, then disposed; the patch runs on a timer, never in the render) |
+| `jsx:community-cards` (`replaceType`, persistent once a feed exists) | 2 (a few property reads per element, `cardElement` and friends in `core.ts`), 1 (made-up accounts stay below 2^31), 17 |
 
 **reads:** `media`. **Injected deps:** `SurfaceDeps` + `imageOf(appid, key)` (the media bin, a pure read).
 
@@ -461,7 +462,15 @@ so the user's "disable community content" setting still applies). `LoadAdditiona
 Native apps keep Steam's timing. Each card's author icon is an inline SVG data URI per source (`CREATOR_AVATARS`), not
 Steam's "?" avatar.
 
-**API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `firstPageLoads`, `jsx`), exported by `index.tsx` for the live probe.
+**Cards and viewer (2026-09-30, ADR-0046).** For our cards only (published file id from 9e14): Steam's vote, award, comment
+and Report components render nothing and the card's gamepad menu is removed; the viewer Steam opens on an image click gets a
+creator and a date (`file_details`), no comment thread and no appid (an appid makes Steam look up app info for a non-Steam
+app and assert); Steam's "Created by" avatar and name render the source's inline icon and name for the made-up accounts
+(IGDB 2147483101, ScreenScraper 2147483102, below 2^31: above it Steam's signed conversion fails a protobuf uint32 assert
+when it opens the comment thread); the viewer's placeholder game icon (`AppIcon` with the default avatar as `src`) renders as
+an empty span. The date is when the media was fetched (`record.media.checkedAt`).
+
+**API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `firstPageLoads`, `cardsHidden`, `cardsHook`, `jsx`), exported by `index.tsx` for the live probe.
 
 **Record-driven in:** F2.
 

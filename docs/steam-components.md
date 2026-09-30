@@ -1778,6 +1778,14 @@ for the reusable lesson and CHANGELOG.md for the fix record.
 
 ### Community Content (module `77163`, export `wb`) and Friends (module `2326`)
 
+Verified live 2026-09-30 (Big Picture): a card is `Ce` > `_e` (image card `ye`, author row `ve`, menu button `Ie` with prop
+`onReported`, controls row `xe` with prop `showVotingControls`); `xe` has the award, thumbs and comments buttons. An image click
+runs `Se(event, card)`: `PublishedFile.GetDetails` for the card's id, then module `94715`'s `N({ strURL, strTitle, children:
+comment thread, appid, file_details })`. The viewer (`I` in `94715`) shows the "Created by" row only when `file_details` is
+set (`{ creator: steamid string, time_created, file_description }`; the row looks the creator up in the friends store and renders
+its persona); an appid in it makes Steam load app info (asserts for a non-Steam app). Desktop mode on this machine failed to
+open the viewer with `CVRPathHelpers not found` (a Steam-internal native call, native cards too); Big Picture opens it.
+
 - `wb({ appid })` → class `oe` → loader `ae(appid)` (`m_unAppID`); it loads pages when
   on screen (unless `library_disable_community_content` is set, which shows a Load
   button). Cards open `CommunityFilePage` by `published_file_id`: no appid involved.

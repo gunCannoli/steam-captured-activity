@@ -26,6 +26,21 @@ export function feedId(appid: number, index: number): string {
 
 export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper" };
 
+/**
+ * Each source is a made-up Steam account (public individual accounts 2147483101 and 2147483102, at the top of the signed
+ * int32 range), so `new SteamID(...)` is valid and Steam's own author and "Created by" components accept it. They must
+ * stay below 2^31: Steam converts an account id with signed bit operations when it opens a comment thread, and a
+ * protobuf uint32 writer then asserts on the negative value (verified live 2026-09-30, guardrail 1). The 64-bit ids are
+ * decimal strings because they exceed 2^53.
+ */
+export const CREATOR_STEAMIDS: Record<MediaItem["source"], string> = { igdb: "76561200107748829", screenscraper: "76561200107748830" };
+const ACCOUNT_SOURCE: Record<number, MediaItem["source"]> = { 2147483101: "igdb", 2147483102: "screenscraper" };
+
+/** The source whose made-up account this is, or undefined for any real account. O(1). */
+export function sourceOfAccount(accountId: unknown): MediaItem["source"] | undefined {
+    return typeof accountId === "number" ? ACCOUNT_SOURCE[accountId] : undefined;
+}
+
 /** A card's author icon: a small inline SVG per source, so Steam shows a logo instead of its "?" avatar (no request, no file). */
 function sourceIcon(label: string, fill: string, size: number): string {
     const svg =
@@ -121,7 +136,7 @@ export function toFeedItems(appid: number, items: readonly MediaItem[], imageOf:
             rating_stars: 0,
             maybe_inappropriate_sex: 0,
             maybe_inappropriate_violence: 0,
-            creator: { name: CREATOR_NAMES[item.source] ?? "", steamid: "0", avatar: CREATOR_AVATARS[item.source] ?? "", online_state: 0 },
+            creator: { name: CREATOR_NAMES[item.source] ?? "", steamid: CREATOR_STEAMIDS[item.source] ?? "0", avatar: CREATOR_AVATARS[item.source] ?? "", online_state: 0 },
             reactions: [],
         });
     });
@@ -174,4 +189,43 @@ export function shouldLoadFirstPage(
     if (!loader || loader.m_nNextPage !== 1 || loader.m_bHasEmptyRows !== true) return false;
     const appid = toShortcutId(loader.m_unAppID);
     return appid !== undefined && hasFeed(appid);
+}
+
+/** Is this a published file id of ours (15 digits from FEED_ID_BASE)? O(1). */
+export function isOurFeedId(id: unknown): boolean {
+    return typeof id === "string" && id.length === 15 && Number(id) >= FEED_ID_BASE;
+}
+
+/** What to do with one jsx element of Steam's Community Content cards. */
+export type CardElement = "hide" | "strip-menu";
+
+/**
+ * Steam's card renders vote, award and comment buttons (`showVotingControls` + comments) and a Report menu for every card,
+ * and they act on Valve's servers with the card's file id, which for ours Valve does not know. So for our cards those
+ * components render nothing, and the card's gamepad options menu (Report only) is removed. Any other element: undefined.
+ */
+export function cardElement(props: unknown): CardElement | undefined {
+    const p = props as Record<string, any> | null | undefined;
+    if (!p || typeof p !== "object") return undefined;
+    const card = p.card;
+    if (card !== undefined) {
+        if (!isOurFeedId(card?.item?.published_file_id)) return undefined;
+        if ("showVotingControls" in p) return "hide"; // the award, thumbs and comments row
+        if ("onReported" in p) return "hide"; // the Report menu button
+        return undefined;
+    }
+    if (typeof p.onMenuButton === "function" && isOurFeedId(p["data-id"])) return "strip-menu";
+    return undefined;
+}
+
+/**
+ * The viewer's date row shows the game's icon (`AppIcon`) from app info. A non-Steam file has no appid, so Steam falls back
+ * to its default avatar (`avatars.steamstatic.com`, never an app icon's host) and the image draws a broken mark (verified
+ * live 2026-09-30). Such an image, or one with no `src`, is rendered as an empty span instead. O(1).
+ */
+export function isPlaceholderAppIcon(type: unknown, props: unknown): boolean {
+    if (type !== "img") return false;
+    const p = props as { src?: unknown; className?: unknown } | null | undefined;
+    if (!p || typeof p.className !== "string" || !p.className.includes("AppIcon")) return false;
+    return p.src === undefined || (typeof p.src === "string" && p.src.includes("avatars.steamstatic.com/"));
 }

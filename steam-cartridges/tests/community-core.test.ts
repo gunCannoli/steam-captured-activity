@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CREATOR_AVATARS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, loaderAnswer, shouldLoadFirstPage, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isOurFeedId, isPlaceholderAppIcon, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -42,7 +42,7 @@ test('community core: every card has the fields Steam\'s card code reads, with c
     assert.equal(item!.votes_for, null);
     assert.deepEqual(item!.reactions, []);
     assert.equal(item!.spoiler_tag, false);
-    assert.deepEqual(item!.creator, { name: 'IGDB', steamid: '0', avatar: CREATOR_AVATARS.igdb, online_state: 0 });
+    assert.deepEqual(item!.creator, { name: 'IGDB', steamid: CREATOR_STEAMIDS.igdb, avatar: CREATOR_AVATARS.igdb, online_state: 0 });
 });
 
 test('community core: a ScreenScraper image shows only with its object URL, at the bin\'s size', () => {
@@ -104,4 +104,48 @@ test('community core: the first page loads early only for a shortcut with a feed
     assert.equal(shouldLoadFirstPage({ ...fresh, m_unAppID: SC + 1 }, has), false, 'a shortcut with no feed');
     assert.equal(shouldLoadFirstPage({}, has), false);
     assert.equal(shouldLoadFirstPage(undefined, has), false);
+});
+
+test('community core: each source is a made-up Steam account below 2^31 (signed-int32 safe)', () => {
+    assert.ok(2147483101 < 2 ** 31 && 2147483102 < 2 ** 31);
+    assert.equal(sourceOfAccount(2147483101), 'igdb');
+    assert.equal(sourceOfAccount(2147483102), 'screenscraper');
+    assert.equal(sourceOfAccount(83513586), undefined, 'a real account');
+    assert.equal(sourceOfAccount('2147483101'), undefined);
+    assert.equal(sourceOfAccount(undefined), undefined);
+    // the 64-bit id is the individual-account base plus the account id, as a decimal string (it exceeds 2^53)
+    assert.equal(BigInt(CREATOR_STEAMIDS.igdb) - 76561197960265728n, 2147483101n);
+    assert.equal(BigInt(CREATOR_STEAMIDS.screenscraper) - 76561197960265728n, 2147483102n);
+});
+
+test('community core: only our published file ids are ours', () => {
+    assert.equal(isOurFeedId(feedId(SC, 0)), true);
+    assert.equal(isOurFeedId('3843261199'), false, "a Valve id");
+    assert.equal(isOurFeedId(900000000000000), false, 'a number, not the string Steam gives');
+    assert.equal(isOurFeedId(undefined), false);
+});
+
+test('community core: vote, award, comment and Report controls go only from our cards; the gamepad menu too', () => {
+    const ours = { item: { published_file_id: feedId(SC, 1) } };
+    const valve = { item: { published_file_id: '3843261199' } };
+    assert.equal(cardElement({ card: ours, showVotingControls: true, onVoted() {} }), 'hide', 'the controls row');
+    assert.equal(cardElement({ card: ours, onReported() {} }), 'hide', 'the Report menu button');
+    assert.equal(cardElement({ card: valve, showVotingControls: true }), undefined, "Steam's own card keeps its controls");
+    assert.equal(cardElement({ card: valve, onReported() {} }), undefined);
+    assert.equal(cardElement({ card: ours, index: 0, dismissedInappropriate: false }), undefined, 'the card itself is not hidden');
+    assert.equal(cardElement({ onMenuButton() {}, 'data-id': feedId(SC, 1) }), 'strip-menu');
+    assert.equal(cardElement({ onMenuButton() {}, 'data-id': '3843261199' }), undefined);
+    assert.equal(cardElement({ onMenuButton() {} }), undefined);
+    assert.equal(cardElement(null), undefined);
+    assert.equal(cardElement('x'), undefined);
+});
+
+test('community core: only the viewer placeholder game icon is replaced', () => {
+    assert.equal(isPlaceholderAppIcon('img', { className: 'x AppIcon y' }), true, 'no src');
+    assert.equal(isPlaceholderAppIcon('img', { className: 'x AppIcon', src: 'https://avatars.steamstatic.com/0618.jpg' }), true, 'the default avatar fallback');
+    assert.equal(isPlaceholderAppIcon('img', { className: 'x AppIcon', src: 'https://cdn.steamstatic.com/steamcommunity/public/images/apps/1/a.jpg' }), false, 'a real icon stays');
+    assert.equal(isPlaceholderAppIcon('img', { className: 'Avatar', src: 'https://avatars.steamstatic.com/0618.jpg' }), false, 'an avatar is not an app icon');
+    assert.equal(isPlaceholderAppIcon('img', {}), false);
+    assert.equal(isPlaceholderAppIcon('div', { className: 'AppIcon' }), false);
+    assert.equal(isPlaceholderAppIcon('img', null), false);
 });
