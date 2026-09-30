@@ -385,6 +385,35 @@ for _, file in ipairs({ "art_service.lua", "web_sgdb.lua", "shortcut_icon.lua" }
 end
 check("the credential never appears in a logger: call", not leak)
 
+-- The frontend hands the image over as base64 (Millennium's http.get cuts a binary body at a NUL byte).
+check("decode_base64 keeps NUL and high bytes", icon_file.decode_base64("/9j/4AAQ") == "\255\216\255\224\0\16")
+check("decode_base64 ignores padding, whitespace and a data: prefix", icon_file.decode_base64("data:image/png;base64,QQ==\n") == "A")
+check("decode_base64 rejects text that is not base64", icon_file.decode_base64("not base64!") == nil)
+local b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local function encode(s)
+  local out = {}
+  for i = 1, #s, 3 do
+    local a, b, c = s:byte(i, i + 2)
+    local n = a * 65536 + (b or 0) * 256 + (c or 0)
+    local q = { math.floor(n / 262144) % 64, math.floor(n / 4096) % 64, math.floor(n / 64) % 64, n % 64 }
+    for k = 1, (c and 4) or (b and 3) or 2 do out[#out + 1] = b64chars:sub(q[k] + 1, q[k] + 1) end
+    out[#out + 1] = (c and "") or (b and "=") or "=="
+  end
+  return table.concat(out)
+end
+local BIN = "\255\216\255\224\0\16JFIF\0" .. string.rep("\0\1\2\3", 40)
+saved_file = nil
+vdf_icon(EXE)
+store.release_icon(SC)
+sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://shared.steamstatic.com/i_full.jpg", source = "steamgriddb", base64 = encode(BIN) })))
+check("SaveIcon with base64 writes the exact bytes as <appid>.jpg", (function()
+  local p = sv.path and sv.path:gsub("\\", "/")
+  if p ~= TMP .. "/" .. SC .. ".jpg" then return false end
+  local f = io.open(p, "rb")
+  local c = f and f:read("*a")
+  if f then f:close() end
+  return c == BIN
+end)())
 os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

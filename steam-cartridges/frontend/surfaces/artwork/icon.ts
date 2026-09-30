@@ -31,7 +31,14 @@ export async function applyIcon(
         if (await setShortcutIcon(appid, plan.restore)) logger.info(`Restored the library icon for appid ${appid}`);
         return;
     }
-    const saved = await deps.saveIcon(appid, plan.url, source, steamAppid);
+    const image = deps.fetchImage ? await deps.fetchImage(plan.url) : null;
+    if (deps.fetchImage && !image) {
+        logger.warn(`Library icon for appid ${appid} not fetched: ${plan.url}`);
+        return;
+    }
+    const saved = image
+        ? await deps.saveIcon(appid, plan.url, source, steamAppid, image.base64)
+        : await deps.saveIcon(appid, plan.url, source, steamAppid);
     if (!saved?.path || saved.error) {
         logger.warn(`Library icon for appid ${appid} not stored: ${saved?.error ?? "no response"}`);
         return;

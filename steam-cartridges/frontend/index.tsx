@@ -433,7 +433,7 @@ async function init() {
                     info.failed,
                     info.source === "steamgriddb" ? { source: "steamgriddb", tried: info.tried } : undefined,
                 ),
-            saveIcon: (appid, url, source, steamAppid) => backend.steamStoreSaveIcon(appid, url, source, steamAppid),
+            saveIcon: (appid, url, source, steamAppid, base64) => backend.steamStoreSaveIcon(appid, url, source, steamAppid, base64),
             recordIcon: (appid, info) => backend.steamStoreRecordIcon(appid, info),
         }),
     );

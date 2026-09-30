@@ -112,7 +112,7 @@ RPC.SteamStoreSaveIcon = method("SteamStoreSaveIcon", function(data)
   local source = data.source == "steamgriddb" and "steamgriddb" or "steam-cdn"
   local ok, previous = art().icon_eligible(appid, source, data.steam_appid)
   if not ok then return { error = "not eligible" } end
-  local path, err = icon_file().save(appid, need(data, "url"))
+  local path, err = icon_file().save(appid, need(data, "url"), data.base64)
   if not path then return { error = err } end
   return { path = path, previous = previous }
 end)

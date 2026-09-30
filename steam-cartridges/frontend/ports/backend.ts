@@ -186,8 +186,8 @@ export const backend = {
         return call<{ base64?: string; ext?: string; error?: string }>("SteamStoreDownloadImage", { url });
     },
     /** Icon plan: store our copy of the icon image; `previous` is the shortcuts.vdf value it replaces. */
-    steamStoreSaveIcon(appid: number, url: string, source: "steam-cdn" | "steamgriddb", steam_appid?: number) {
-        return call<{ path?: string; previous?: string; error?: string }>("SteamStoreSaveIcon", { appid, url, source, steam_appid });
+    steamStoreSaveIcon(appid: number, url: string, source: "steam-cdn" | "steamgriddb", steam_appid?: number, base64?: string) {
+        return call<{ path?: string; previous?: string; error?: string }>("SteamStoreSaveIcon", { appid, url, source, steam_appid, base64 });
     },
     /** Icon plan: remember the icon the artwork surface set; `error` = the match changed meanwhile. */
     steamStoreRecordIcon(appid: number, info: { path: string; previous: string; source: "steam-cdn" | "steamgriddb"; steamAppid?: number }) {

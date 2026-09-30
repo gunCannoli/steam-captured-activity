@@ -15,6 +15,7 @@ function setup(over: { enabled?: boolean; saved?: any; recorded?: any; noApi?: b
     (globalThis as any).SteamClient = over.noApi
         ? { Apps: {} }
         : { Apps: { SetShortcutIcon: async (appid: number, path: string) => void set.push([appid, path]) } };
+    deps.fetchImage = undefined;
     deps.isEnabled = () => over.enabled ?? true;
     deps.saveIcon = async (...args: any[]) => (saves.push(args), 'saved' in over ? over.saved : { path: OURS, previous: EXE });
     deps.recordIcon = async (appid: number, info: any) => (records.push({ appid, ...info }), over.recorded ?? { ok: true });
@@ -60,3 +61,16 @@ test('no SetShortcutIcon in this Steam: nothing is recorded', async () => {
     await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steamgriddb');
     assert.equal(records.length, 0);
 });
+
+test('fetches the image in the frontend and hands it to the backend as base64; a failed fetch stores nothing', async () => {
+    const { set, saves } = setup();
+    deps.fetchImage = async () => ({ base64: '/9j/4AAQ', ext: 'jpg' });
+    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steam-cdn', 2277560);
+    assert.deepEqual(saves, [[SC, 'https://shared.steamstatic.com/i_full.jpg', 'steam-cdn', 2277560, '/9j/4AAQ']]);
+    assert.deepEqual(set, [[SC, OURS]]);
+    deps.fetchImage = async () => null;
+    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steam-cdn', 2277560);
+    assert.equal(saves.length, 1);
+    assert.equal(set.length, 1);
+});
+
