@@ -71,6 +71,11 @@ RPC.SteamStoreRejectSuggestion = method("SteamStoreRejectSuggestion", function(d
   return { ok = true }
 end)
 
+--- Read-only search for the manual link picker: { term } -> { candidates = { {steam_appid,name} } }.
+RPC.SteamStoreSearchCandidates = method("SteamStoreSearchCandidates", function(data)
+  return require("steam_store_search").candidates(need(data, "term"))
+end)
+
 RPC.SteamStoreRecordArtwork = method("SteamStoreRecordArtwork", function(data)
   if data.source == "steamgriddb" then
     -- M5c: SteamGridDB fills a shortcut with no Steam match; there is no mapping to check.

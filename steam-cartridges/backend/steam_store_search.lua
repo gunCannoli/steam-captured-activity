@@ -51,6 +51,31 @@ function M.classify_items(title, items)
   return out
 end
 
+local MAX_CANDIDATES = 10
+
+--- Manual link picker (Game Data editor): the store's own hits for a typed term, unclassified.
+--- Read-only: nothing is mapped, suggested or cached (unlike M.search).
+---@param term string
+---@param http_get? fun(url: string): string|nil, string|nil   injectable for tests
+---@return table  { candidates = { {steam_appid,name} } } | { error, candidates = {} }
+function M.candidates(term, http_get)
+  term = tostring(term or ""):match("^%s*(.-)%s*$")
+  if #term < 2 then return { candidates = {} } end
+  http_get = http_get or throttle.http_get
+  local body, err = http_get(M.url(term))
+  if not body then return { error = tostring(err or "request failed"), candidates = {} } end
+  local ok, data = pcall(json.decode, body)
+  if not ok or type(data) ~= "table" then return { error = "bad response", candidates = {} } end
+  local out = {}
+  for _, it in ipairs(type(data.items) == "table" and data.items or {}) do
+    if type(it) == "table" and it.id and it.name and (it.type == nil or it.type == "app") then
+      out[#out + 1] = { steam_appid = tonumber(it.id), name = it.name }
+      if #out >= MAX_CANDIDATES then break end
+    end
+  end
+  return { candidates = out }
+end
+
 --- Search the store for a shortcut title.
 ---@param title string
 ---@param http_get? fun(url: string): string|nil, string|nil   injectable for tests

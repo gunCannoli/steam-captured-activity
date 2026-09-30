@@ -172,6 +172,21 @@ check("edition-only: no exact", r.exact == nil)
 check("edition suggestion", r.suggestions[1] and r.suggestions[1].reason == "edition" and r.suggestions[1].steam_appid == 1000001)
 check("unrelated is dropped", #r.suggestions <= 2)
 
+-- manual link picker: raw hits, apps only, capped, nothing persisted
+local cand = search.candidates("Jotunnslayer", serve("storesearch-jotunnslayer.json"))
+check("candidates: apps only, in store order", #cand.candidates == 2 and cand.candidates[1].steam_appid == 2820820 and cand.candidates[2].steam_appid == 3000001)
+check("candidates: the soundtrack is offered too (the user decides)", cand.candidates[2].name:find("Soundtrack", 1, true) ~= nil)
+check("candidates: a bundle is dropped", (function() for _, c in ipairs(cand.candidates) do if c.steam_appid == 99999 then return false end end return true end)())
+check("candidates: a 1-character term makes no request", (function() local n = calls; search.candidates(" a ", serve("storesearch-jotunnslayer.json")); return calls == n end)())
+check("candidates: transport error is reported, list empty", (function() local x = search.candidates("Doom", function() return nil, "offline" end); return x.error == "offline" and #x.candidates == 0 end)())
+check("candidates: bad JSON is reported", search.candidates("Doom", function() return "<html>" end).error == "bad response")
+do
+  local many = {}
+  for i = 1, 15 do many[i] = { type = "app", id = i, name = "Doom " .. i } end
+  local big = search.candidates("Doom", function() return json.encode({ items = many }) end)
+  check("candidates: capped at 10", #big.candidates == 10)
+end
+
 -- duplicate exact names are never picked silently
 r = search.classify_items("Foo", { { type = "app", name = "Foo", id = 1 }, { type = "app", name = "FOO", id = 2 } })
 check("two exact names -> no exact", r.exact == nil and #r.suggestions == 2)

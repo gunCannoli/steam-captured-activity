@@ -174,6 +174,32 @@ function M.local_part(appid)
   return { status = "ok", data = rec, source = rec.custom_override and "custom" or "local_db", checkedAt = now_ms() }
 end
 
+local SHORTCUT_MIN = 0x80000000
+
+--- A user's manual edit (Game Data editor, features plan F1): the whole record is stored with
+--- custom_override = true, which no refresh ever replaces (K15, ensure() and fresh_policy).
+---@return table|nil part, string|nil err
+function M.save_custom(appid, meta)
+  local n = tonumber(appid)
+  if not n or n < SHORTCUT_MIN then return nil, "not a shortcut" end
+  if type(meta) ~= "table" or type(meta.title) ~= "string" or meta.title == "" then return nil, "invalid metadata" end
+  meta.appid = n
+  meta.custom_override = true
+  local saved = metadata_db.set(n, meta, true)
+  return { status = "ok", data = saved, source = "custom", checkedAt = now_ms() }
+end
+
+--- Drop a manual edit so the next ensure() resolves the game from its sources again.
+--- Only a custom_override record is removed; anything else is left alone.
+---@return boolean|nil removed, string|nil err
+function M.clear_custom(appid)
+  local n = tonumber(appid)
+  if not n or n < SHORTCUT_MIN then return nil, "not a shortcut" end
+  local rec = metadata_db.get(n)
+  if not (rec and rec.custom_override) then return false end
+  return metadata_db.delete(n)
+end
+
 --- The fallback record exactly as web_rpc.lua GetGameMetadata builds and persists it.
 local function fallback_record(appid, title)
   return {

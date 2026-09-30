@@ -173,4 +173,16 @@ function metadata_db.set(appid, new_data, force)
   return new_data
 end
 
+--- Remove the record of a game (Game Data editor "Revert to fetched data").
+---@param appid number|string
+---@return boolean removed  false when there was no record
+function metadata_db.delete(appid)
+  local d = load_db()
+  local key = tostring(appid)
+  if d[key] == nil then return false end
+  d[key] = nil
+  metadata_db.save()
+  return true
+end
+
 return metadata_db

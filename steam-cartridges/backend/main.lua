@@ -28,7 +28,6 @@ GetDiagnostics  = RPC.GetDiagnostics
 
 -- Web metadata + artwork handlers keep their raw payload_json signatures.
 GetStatus            = WEB_RPC.GetStatus
-SaveGameMetadata     = WEB_RPC.SaveGameMetadata
 GetControllerInference = WEB_RPC.GetControllerInference
 GetAutoRoutingProfiles = WEB_RPC.GetAutoRoutingProfiles
 SaveServiceCredentials = WEB_RPC.SaveServiceCredentials
@@ -39,6 +38,7 @@ SteamStoreGetMapping     = STORE_RPC.SteamStoreGetMapping
 SteamStoreSetMapping     = STORE_RPC.SteamStoreSetMapping
 SteamStoreClearMapping   = STORE_RPC.SteamStoreClearMapping
 SteamStoreRejectSuggestion = STORE_RPC.SteamStoreRejectSuggestion
+SteamStoreSearchCandidates = STORE_RPC.SteamStoreSearchCandidates
 SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
 SteamStoreSaveIcon       = STORE_RPC.SteamStoreSaveIcon
 SteamStoreRecordIcon     = STORE_RPC.SteamStoreRecordIcon
@@ -51,6 +51,8 @@ CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroSta
 -- Record facade (migration M4b; M5a adds GetAllRecords; M10 removed the uncalled GetGameRecord).
 EnsureFresh    = RECORD_RPC.EnsureFresh
 GetAllRecords  = RECORD_RPC.GetAllRecords
+SaveCustomMetadata  = RECORD_RPC.SaveCustomMetadata
+ClearCustomMetadata = RECORD_RPC.ClearCustomMetadata
 CheckUnlocks   = RECORD_RPC.CheckUnlocks
 GetNewShortcuts = RECORD_RPC.GetNewShortcuts
 MarkKnown      = RECORD_RPC.MarkKnown

@@ -118,17 +118,4 @@ function M.GetAutoRoutingProfiles()
   return json.encode({ profiles = ok and profiles or {} })
 end
 
---- Save user manual edits to library_metadata.json
----@param payload_json string JSON string with { appid = number, metadata = table }
-function M.SaveGameMetadata(payload_json)
-  local req = decode_payload(payload_json)
-  if not req or not req.appid or not req.metadata then
-    return json.encode({ error = "invalid_payload" })
-  end
-
-  req.metadata.custom_override = true
-  local saved = metadata_db.set(req.appid, req.metadata, true)
-  return json.encode({ success = true, metadata = saved })
-end
-
 return M

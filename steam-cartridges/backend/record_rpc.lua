@@ -103,6 +103,21 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
   return result
 end)
 
+--- Game Data editor (features plan F1): { appid, metadata } stores a manual edit and returns the
+--- metadata part (source "custom") for the record; no network, no refresh.
+RPC.SaveCustomMetadata = method("SaveCustomMetadata", function(data)
+  local part, err = metadata_service.save_custom(need(data, "appid"), need(data, "metadata"))
+  if not part then return { error = err } end
+  return { part = part }
+end)
+
+--- { appid }: drop the manual edit. The caller then runs EnsureFresh(["metadata"]) to get the fetched data.
+RPC.ClearCustomMetadata = method("ClearCustomMetadata", function(data)
+  local removed, err = metadata_service.clear_custom(need(data, "appid"))
+  if removed == nil then return { error = err } end
+  return { removed = removed }
+end)
+
 --- Every DB record and every saved mapping, disk only. Replaces the frontend's
 --- getAllMetadata preload in M5b.
 RPC.GetAllRecords = method("GetAllRecords", function(_)
