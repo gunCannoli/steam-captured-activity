@@ -1,9 +1,9 @@
 import React, { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { IconsModule } from '@steambrew/client';
 import { logger } from '../logger';
-import { activeTheme, type LoadedTheme } from '../theme/active-theme';
+import { activeTheme, tierFor, type LoadedTheme } from '../theme/active-theme';
 import type { AnchorPosition, IconSlot, ResolvedTier } from '../theme/theme';
-import { themedDisplayMs, tierFor, type SteamNotification } from '../steam/notifications';
+import { themedDisplayMs, type SteamNotification } from '../steam/notifications';
 import { BANNER_CSS } from './styles';
 import { bannerSize, placeBanner } from './geometry';
 import { pinToastWindow, type PinnedWindow } from './window-pin';

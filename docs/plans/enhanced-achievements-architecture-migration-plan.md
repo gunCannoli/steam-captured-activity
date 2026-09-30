@@ -53,7 +53,7 @@ conflicts with an ADR or a [plugins.md](../plugins.md) guardrail, stop and repor
 | --- | --- | --- |
 | E0a | Safety net: kill switches, error budget, safe mode, fail-open hooks; `claims()` O(1) | `Done` |
 | E0b | Test harness: architecture test (ratchet, pure files, one owner per target, RPC, drift), `npm run test:live` | `Done` |
-| E1a | Kernel (notification types and ids, event bus, `Surface` contract) and the pure tier and timing functions | `Build` |
+| E1a | Kernel (notification types and ids, event bus, `Surface` contract) and the pure tier and timing functions | `Done` |
 | E1b | Split `steam/notifications.ts`: store discovery, the one notification hook, the unlock sensor, surfaces `sound`, `duration`, `toasts` | `Build` |
 | E1c | Surfaces `banner` and `captures` (moves), surface runner complete, allowlist empty | `Build` |
 | E2 | The scheduler owns banner lifetime: nothing admitted from a render, one `whenShowing` API for sounds | `Build` |

@@ -1,7 +1,8 @@
 import { logger } from '../logger';
-import { activeTheme, audio, onThemeChange } from '../theme/active-theme';
-import { completesGame, selectTier, TIERS, type ResolvedTheme, type Tier } from '../theme/theme';
-import { bannerTiming } from '../banner/timing';
+import { activeTheme, audio, onThemeChange, tierFor } from '../theme/active-theme';
+import { completesGame, previewTierOfId, type ResolvedTheme, type Tier } from '../theme/theme';
+import { bannerTiming, themedDisplayMs as displayMsOf } from '../banner/timing';
+import { achievementIdOf, COMPLETION_ID, PREVIEW_ID_PREFIX, TEST_UNLOCK_ID, type AchievementData, type SteamNotification } from '../kernel/notification';
 import { onUnlock } from '../capture/captures';
 import { phaseOf, subscribe } from '../banner/queue';
 import { isEnabled, reportError } from '../safety/runtime';
@@ -25,45 +26,13 @@ import { isEnabled, reportError } from '../safety/runtime';
 
 const ACHIEVEMENT_CLASS = 'CClientNotificationAchievement';
 
-export interface AchievementData {
-    appid(): number;
-    name(): string;
-    description(): string;
-    image_url(): string;
-    achieved(): boolean;
-    global_achieved_pct(): number;
-    achievement_id(): string;
-}
-
-export interface SteamNotification {
-    eType: number;
-    data: AchievementData;
-    nToastDurationMS?: number;
-    /** Unix seconds; set in OnNotification on arrival (Phase 7, unlock offset calc). */
-    rtCreated?: number;
-    notificationID?: number;
-    /**
-     * When set, Steam's desktop toast loop keeps the toast showing until this
-     * returns true, instead of timing it by `nToastDurationMS` (read every frame).
-     */
-    fnNotificationResolved?: () => boolean;
-}
-
-/** Synthetic achievement ids this plugin posts. Never real Steam ids. */
-export const PREVIEW_ID_PREFIX = 'EA_PREVIEW_';
-export const COMPLETION_ID = 'EA_100_PERCENT';
-export const TEST_UNLOCK_ID = 'EA_TEST';
+// The notification shapes and synthetic ids live in the kernel (migration E1a); re-exported so importers compile unchanged.
+export type { AchievementData, SteamNotification };
+export { COMPLETION_ID, PREVIEW_ID_PREFIX, TEST_UNLOCK_ID };
 
 /** The tier a settings-panel preview was posted for, or null for any other notification. */
 export function previewTierOf(n: SteamNotification): Tier | null {
-    try {
-        const id = n.data.achievement_id?.();
-        if (typeof id !== 'string' || !id.startsWith(PREVIEW_ID_PREFIX)) return null;
-        const tier = id.slice(PREVIEW_ID_PREFIX.length) as Tier;
-        return TIERS.includes(tier) ? tier : null;
-    } catch {
-        return null;
-    }
+    return previewTierOfId(achievementIdOf(n));
 }
 
 interface NotificationStoreProto {
@@ -106,8 +75,6 @@ export function isAchievementUnlock(n: SteamNotification | undefined): n is Stea
 
 // --- tier per notification ----------------------------------------------------
 
-/** Tier memo keyed by the notification's data object: computed once, read by sound and banner. */
-const tiers = new WeakMap<object, Tier>();
 /** Unlocks whose completion check already ran: Steam calls PlayNotificationSound once per toast shown, possibly more than once. */
 const completionChecked = new WeakSet<object>();
 /** Unlocks whose sound is already waiting for their banner's turn. */
@@ -115,33 +82,6 @@ const soundDeferred = new WeakSet<object>();
 
 interface ProgressCache {
     m_achievementProgress?: { mapCache?: Map<number, { unlocked?: number; total?: number; all_unlocked?: boolean }> };
-}
-
-export function tierFor(n: SteamNotification): Tier {
-    const memo = tiers.get(n.data);
-    if (memo) return memo;
-
-    let tier: Tier = 'normal';
-    try {
-        // Previews carry their tier in their own id, so rapid clicks can never
-        // hand one preview's tier to another toast (or to a real unlock).
-        const preview = previewTierOf(n);
-        if (preview) {
-            tier = preview;
-        } else if (n.data.achievement_id?.() === COMPLETION_ID) {
-            tier = 'exceptional';
-        } else {
-            const theme = activeTheme()?.theme;
-            if (theme) {
-                // Real achievement unlocks are evaluated for their own tier (normal, magic, rare)
-                tier = selectTier(theme, { globalPct: n.data.global_achieved_pct(), completesGame: false });
-            }
-        }
-    } catch (error) {
-        logger.warn('Could not determine rarity tier; using normal.', error);
-    }
-    tiers.set(n.data, tier);
-    return tier;
 }
 
 // --- sound --------------------------------------------------------------------
@@ -297,7 +237,7 @@ function pristineDuration(config: object & { toastDurationMS?: number }): number
 
 /** How long a themed banner is fully visible: the theme's `display_time_ms`, else Steam's own duration. */
 export function themedDisplayMs(theme: ResolvedTheme): number {
-    return theme.displayTimeMs ?? (originalDurationMs || 5000); // Steam: `toastDurationMS || 5e3`
+    return displayMsOf(theme.displayTimeMs, originalDurationMs);
 }
 
 /**

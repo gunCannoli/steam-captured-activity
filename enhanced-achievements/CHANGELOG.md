@@ -17,6 +17,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   shows the state. See docs/enhanced-achievements/architecture.md.
 - `npm run test:live` runs every live check with the stored settings snapshotted and restored; `tests/architecture.test.ts` enforces one owner per Steam target, the import ratchet, pure files, RPC registration and the copies shared with steam-cartridges and enhanced-notifications (migration E0b).
 
+- Internal: the notification types, the event bus and the surface contract moved into `frontend/kernel/`; the rarity tier of a toast is now a pure, unit-tested function (migration E1a). No behaviour change; new feature id `toasts` for the later synthetic-toast switch.
+
 ### Fixed
 
 - `claims()` is O(1) again: it no longer walks the jsx wrapper chain (and could call the jsx runtime)

@@ -11,7 +11,7 @@ function memory() {
 }
 
 test('features: the ids users type never change (append only)', () => {
-    assert.deepEqual([...FEATURE_IDS], ['banner', 'sound', 'duration', 'completion', 'captures']);
+    assert.deepEqual([...FEATURE_IDS], ['banner', 'sound', 'duration', 'completion', 'captures', 'toasts']);
 });
 
 test('features: parseDisabled trims and ignores empties', () => {
@@ -103,4 +103,13 @@ test('runtime: initSafety wires the setting, safe mode and the budget', () => {
     initSafety({ readDisabled: () => '', safeMode: true });
     assert.equal(isEnabled('banner'), false);
     assert.equal(safetyDiagnostics().safeMode, true);
+});
+
+test('features: onTrip is called once when a feature trips', () => {
+    const tripped: string[] = [];
+    const f = createFeatureSwitches({ readDisabled: () => '', errorBudget: 3, onTrip: (id) => tripped.push(id) });
+    for (let i = 0; i < 6; i++) f.reportError('sound', new Error('x'));
+    f.reportError('banner', new Error('y'));
+    assert.deepEqual(tripped, ['sound']);
+    assert.equal(f.isEnabled('sound'), false);
 });

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { completesGame, mergeTier, resolveTheme, selectTier } from '../frontend/theme/theme.ts';
+import { completesGame, mergeTier, previewTierOfId, resolveTheme, selectTier, tierOfNotification } from '../frontend/theme/theme.ts';
 import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
@@ -313,4 +313,33 @@ test('pairs: a bare number or a one-element array sets both values; two elements
     assert.deepEqual(t.tiers.normal.banner.margin, [7, 7]);
     assert.deepEqual(t.tiers.normal.banner.padding, [5, 5]);
     assert.deepEqual(t.tiers.normal.banner.gap, [10, 5]);
+});
+
+test('tier: a preview id carries its own tier, whatever the thresholds', () => {
+    const t = resolveTheme(load(examplesDir, 'steam_ps_exemple.json')); // magic 25, rare 10
+    for (const tier of ['normal', 'magic', 'rare', 'exceptional'] as const) {
+        assert.equal(previewTierOfId(`EA_PREVIEW_${tier}`), tier);
+        assert.equal(tierOfNotification({ id: `EA_PREVIEW_${tier}`, globalPct: 99 }, t), tier);
+        assert.equal(tierOfNotification({ id: `EA_PREVIEW_${tier}`, globalPct: 0.1 }, null), tier);
+    }
+});
+
+test('tier: the completion id is exceptional; an unknown preview suffix falls back to rarity', () => {
+    const t = resolveTheme(load(examplesDir, 'steam_ps_exemple.json')); // magic 25, rare 10
+    const rare = t.tiers.rare.threshold!;
+    assert.equal(tierOfNotification({ id: 'EA_100_PERCENT', globalPct: 99 }, t), 'exceptional');
+    assert.equal(previewTierOfId('EA_PREVIEW_bogus'), null);
+    assert.equal(previewTierOfId(undefined), null);
+    assert.equal(tierOfNotification({ id: 'EA_PREVIEW_bogus', globalPct: rare }, t), 'rare');
+});
+
+test('tier: a real unlock uses the theme thresholds; no theme means normal', () => {
+    const t = resolveTheme(load(examplesDir, 'steam_ps_exemple.json')); // magic 25, rare 10
+    const rare = t.tiers.rare.threshold!, magic = t.tiers.magic.threshold!;
+    assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: rare }, t), 'rare');
+    assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: magic }, t), 'magic');
+    assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: 100 }, t), 'normal');
+    assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: 0 }, t), 'normal');
+    assert.equal(tierOfNotification({ id: undefined, globalPct: undefined }, t), 'normal');
+    assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: rare }, null), 'normal');
 });

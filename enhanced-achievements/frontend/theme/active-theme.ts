@@ -2,7 +2,8 @@ import { logger } from '../logger';
 import { rpc } from '../rpc';
 import { setting, onSettingChange } from '../settings/settings';
 import { parseJsonc } from './jsonc';
-import { resolveTheme, type ResolvedTheme, type Tier } from './theme';
+import { achievementIdOf, type SteamNotification } from '../kernel/notification';
+import { resolveTheme, tierOfNotification, type ResolvedTheme, type Tier } from './theme';
 
 /**
  * The active theme, fully resolved, with every asset already loaded.
@@ -29,6 +30,22 @@ const listeners = new Set<() => void>();
 
 export function activeTheme(): LoadedTheme | null {
     return loaded;
+}
+
+/** Tier memo keyed by the notification's data object: computed once, read by sound, banner and captures. */
+const tiers = new WeakMap<object, Tier>();
+
+export function tierFor(n: SteamNotification): Tier {
+    const memo = tiers.get(n.data);
+    if (memo) return memo;
+    let tier: Tier = 'normal';
+    try {
+        tier = tierOfNotification({ id: achievementIdOf(n), globalPct: n.data.global_achieved_pct() }, activeTheme()?.theme ?? null);
+    } catch (error) {
+        logger.warn('Could not determine rarity tier; using normal.', error);
+    }
+    tiers.set(n.data, tier);
+    return tier;
 }
 
 export function onThemeChange(listener: () => void): () => void {

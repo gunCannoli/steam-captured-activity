@@ -14,7 +14,7 @@
  */
 
 /** Stable ids: users type them. Never rename one; add new ones at the end. */
-export const FEATURE_IDS = ['banner', 'sound', 'duration', 'completion', 'captures'] as const;
+export const FEATURE_IDS = ['banner', 'sound', 'duration', 'completion', 'captures', 'toasts'] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Safe mode keeps nothing: every achievement toast is Steam's own. */
@@ -42,6 +42,8 @@ export interface FeatureSwitchOptions {
     /** Current value of the `disabledFeatures` setting. */
     readDisabled: () => string;
     errorBudget?: number;
+    /** Called once, when a feature exceeds its error budget (index.tsx uninstalls that feature's surface). */
+    onTrip?: (id: FeatureId) => void;
     log?: (level: 'warn' | 'error', message: string, err?: unknown) => void;
 }
 
@@ -71,6 +73,11 @@ export function createFeatureSwitches(opts: FeatureSwitchOptions): FeatureSwitch
         if (n >= budget && !tripped.has(id)) {
             tripped.add(id);
             log('error', `Feature "${id}" exceeded its error budget; off until Steam restarts.`);
+            try {
+                opts.onTrip?.(id);
+            } catch (e) {
+                log('error', `Feature "${id}" onTrip failed`, e);
+            }
         }
     };
 

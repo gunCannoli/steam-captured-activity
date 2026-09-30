@@ -58,7 +58,13 @@ export function areaOf(file: string): string {
  */
 const LAYER_RULES: [RegExp, RegExp][] = [
     [/^(index|claims)$/, /./], // composition root and the public claims() API wire everything
-    [/^(?!safety$)/, /^safety$/], // every layer may use the kill switches; safety imports nothing of ours
+    [/^(?!safety$|kernel$)/, /^safety$/], // every layer may use the kill switches; safety and kernel import nothing of ours
+    [/^(?!kernel$|safety$)/, /^kernel$/], // every layer may use the kernel contracts
+    [/^(banner|capture)$/, /^theme$/], // pure domain: types and pure functions of the theme
+    [/^theme$/, /^(rpc|settings)$/], // active-theme.ts loads through RPC and follows the theme setting
+    [/^settings$/, /^(rpc|theme|capture|steam)$/], // previews are injected as a prop (D7); steam is the read-only toasts-off flag
+    [/^sensors\//, /^(steam|theme)$/],
+    [/^surfaces\//, /^(steam|theme|banner|capture|settings)$/],
 ];
 
 export function ruleAllows(edge: string): boolean {
@@ -127,12 +133,36 @@ export const PURE = [
     'banner/queue.ts',
     'banner/timing.ts',
     'capture/plan.ts',
+    'kernel/events.ts',
+    'kernel/notification.ts',
+    'kernel/surface.ts',
     'safety/boot.ts',
     'safety/features.ts',
     'safety/runtime.ts',
     'theme/jsonc.ts',
     'theme/theme.ts',
 ];
+
+test('architecture: layer rules allow the § 4.1 edges and nothing it forbids', () => {
+    const allowed = ['index -> surfaces/banner', 'claims -> steam', 'surfaces/sound -> banner', 'sensors/unlock -> steam', 'settings -> capture', 'theme -> rpc', 'steam -> kernel'];
+    const forbidden = [
+        'surfaces/banner -> surfaces/sound',
+        'surfaces/sound -> sensors/unlock',
+        'sensors/unlock -> surfaces/sound',
+        'steam -> surfaces/banner',
+        'steam -> theme',
+        'kernel -> steam',
+        'kernel -> safety',
+        'safety -> kernel',
+        'settings -> surfaces/toasts',
+        'theme -> steam',
+        'banner -> steam',
+        'capture -> steam',
+        'sensors/unlock -> settings',
+    ];
+    assert.deepEqual(allowed.filter((e) => !ruleAllows(e)), [], 'edges the layering must allow');
+    assert.deepEqual(forbidden.filter((e) => ruleAllows(e)), [], 'edges the layering must forbid');
+});
 
 test('architecture: pure files import only other pure files at runtime', () => {
     const bad: string[] = [];

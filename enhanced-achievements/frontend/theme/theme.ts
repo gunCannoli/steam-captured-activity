@@ -8,6 +8,8 @@
  * one of four pre-resolved tiers (docs/plugins.md guardrails).
  */
 
+import { COMPLETION_ID, PREVIEW_ID_PREFIX } from '../kernel/notification.ts';
+
 export const TIERS = ['normal', 'magic', 'rare', 'exceptional'] as const;
 export type Tier = (typeof TIERS)[number];
 
@@ -469,6 +471,33 @@ export function selectTier(theme: Pick<ResolvedTheme, 'tiers'>, facts: UnlockFac
     if (rare !== null && pct <= rare) return 'rare';
     const magic = theme.tiers.magic.threshold;
     if (magic !== null && pct <= magic) return 'magic';
+    return 'normal';
+}
+
+/** The tier a settings-panel preview was posted for (`EA_PREVIEW_<tier>`), or null. */
+export function previewTierOfId(id: string | undefined): Tier | null {
+    if (typeof id !== 'string' || !id.startsWith(PREVIEW_ID_PREFIX)) return null;
+    const tier = id.slice(PREVIEW_ID_PREFIX.length) as Tier;
+    return TIERS.includes(tier) ? tier : null;
+}
+
+/**
+ * The tier of one shown toast. A preview carries its own tier in its id, so rapid clicks can never hand one
+ * preview's tier to another toast; the synthetic 100% toast is exceptional; a real unlock is chosen by rarity
+ * under `theme` ('normal' without one). Never throws.
+ */
+export function tierOfNotification(
+    facts: { id: string | undefined; globalPct: number | null | undefined },
+    theme: Pick<ResolvedTheme, 'tiers'> | null,
+): Tier {
+    try {
+        const preview = previewTierOfId(facts.id);
+        if (preview) return preview;
+        if (facts.id === COMPLETION_ID) return 'exceptional';
+        if (theme) return selectTier(theme, { globalPct: facts.globalPct, completesGame: false });
+    } catch {
+        /* fall through to normal */
+    }
     return 'normal';
 }
 

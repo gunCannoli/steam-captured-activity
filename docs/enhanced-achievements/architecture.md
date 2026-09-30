@@ -11,7 +11,7 @@ Every migration step updates this doc; the **Status** column says what is built.
 | Layer | Folder | Job | Status |
 | --- | --- | --- | --- |
 | Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode | current (E0a) |
-| Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | planned (E1a) |
+| Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | current (E1a) |
 | Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
 | Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the shared jsx-runtime hook | current; split in E1b |
 | Sensor | `frontend/sensors/` | Sees an achievement toast shown and emits `achievement.unlocked` once | planned (E1b) |
@@ -71,5 +71,6 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 ## History
 
+- 2026-09-30 E1a: kernel contracts (`kernel/notification|events|surface.ts`); the tier is a pure function (`tierOfNotification`, memo `tierFor` in `theme/active-theme.ts`); `themedDisplayMs` is pure; feature id `toasts` and `onTrip`; final layer rules, allowlist 15 → 7.
 - 2026-09-29 E0a: safety net (kill switches, error budget, safe mode); `claims()` made O(1).
 - 2026-09-29 E0b: architecture test, `npm run test:live`; `queue-stress.mjs` restores the stored settings.

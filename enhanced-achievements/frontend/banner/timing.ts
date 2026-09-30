@@ -33,6 +33,11 @@ export interface BannerTiming {
     totalMs: number;
 }
 
+/** How long a themed banner is fully visible: the theme's `display_time_ms`, else Steam's own duration, else 5 s. */
+export function themedDisplayMs(displayTimeMs: number | null | undefined, steamDurationMs: number | undefined): number {
+    return displayTimeMs ?? (steamDurationMs || 5000); // Steam: `toastDurationMS || 5e3`
+}
+
 export function bannerTiming(animation: AnimationPair, displayMs: number): BannerTiming {
     const inMs = ANIMATION_MS[animation.in][0];
     const outMs = ANIMATION_MS[animation.out][1];
