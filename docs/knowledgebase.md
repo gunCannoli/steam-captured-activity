@@ -347,7 +347,7 @@ This causes silent failure across several layers if not normalized:
 ### Where a shortcut's icon comes from, and how to change it (SetShortcutIcon)
 
 **✅ Verified live 2026-09-29** (WUCHANG: Fallen Feathers, shortcut `3135033888` → native `2277560`).
-Plan: [steam-cartridges-icon-plan.md](plans/steam-cartridges-icon-plan.md).
+(The icon plan was executed and deleted; see the CHANGELOG.)
 
 - `icon_data` is the file the shortcut's `shortcuts.vdf` `icon` field names, served **as-is** (PNG, JPG and ICO
   all work; their size is kept). When the field is `""` or names an `.exe`, Steam extracts the exe's icon: a

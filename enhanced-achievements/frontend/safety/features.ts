@@ -1,6 +1,5 @@
 /**
- * Kill switches and error budget (docs/plans/enhanced-achievements-architecture-migration-plan.md
- * § E0a). Same design as steam-cartridges/frontend/safety/features.ts; plugins may not
+ * Kill switches and error budget (docs/enhanced-achievements/architecture.md, safety net). Same design as steam-cartridges/frontend/safety/features.ts; plugins may not
  * import each other, so this is a copy with this plugin's feature ids.
  *
  * Every part of the plugin that writes into Steam has a FeatureId. A feature runs only

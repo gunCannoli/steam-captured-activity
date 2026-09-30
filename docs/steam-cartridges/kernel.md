@@ -175,7 +175,7 @@ and in-memory state (migration plan § 4.1 import rule).
 
 ## May import / must never import
 
-Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-plan.md#41-layers-and-the-dependency-rule):
+Per migration plan § 4.1:
 `kernel/` may import nothing of ours, and must never import Steam,
 `@steambrew/*`, RPC, or any other folder. Every other layer (`domain/`,
 `sensors/`, `app/`, `ports/backend/`, `surfaces/<name>/`) may import `kernel/`.

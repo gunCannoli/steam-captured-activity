@@ -120,7 +120,7 @@ never write a Steam store or DOM.
 
 ## May import / must never import
 
-Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-plan.md#41-layers-and-the-dependency-rule):
+Per migration plan § 4.1:
 `sensors/` may import `kernel/` and `steam/` (read-only resolution), and must
 never import `surfaces/`, `app/`, `ports/`, or another sensor. Sensors never import
 each other: D1 makes each sensor folder (`sensors/view`, `sensors/lifecycle`,

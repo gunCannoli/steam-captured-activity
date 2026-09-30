@@ -82,7 +82,7 @@ list and the guardrail that governs each target.
 
 ## May import / must never import
 
-Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-plan.md#41-layers-and-the-dependency-rule):
+Per migration plan § 4.1:
 `surfaces/<name>/` may import `kernel/`, `steam/`, and its own folder, and
 must never import another surface, `app/`, `ports/`, or `sensors/`. ADR-0044 (M10) adds what a surface may be
 **given**: its `SurfaceDeps`, pure reads and the `bus` for its own result event; never a function that reaches the

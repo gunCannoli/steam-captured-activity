@@ -3,7 +3,7 @@
 **This doc's job:** how `enhanced-achievements` is built today: its layers, who
 owns each Steam target, its safety net, and how to add a feature without
 breaking another. Decision: [ADR-0043](../decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net).
-Migration: [enhanced-achievements-architecture-migration-plan.md](../plans/enhanced-achievements-architecture-migration-plan.md).
+Migration: done (E0a-E3, ADR-0043); the plan was deleted, history is in the CHANGELOG.
 Every migration step updates this doc; the **Status** column says what is built.
 
 ## Layers

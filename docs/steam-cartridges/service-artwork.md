@@ -11,7 +11,7 @@ the steam-cartridges architecture (ADR-0039); index:
 - The SteamGridDB lookup: search by title, fetch portrait / hero / logo / wide, negative-cache a miss.
 - The record of what was written: `steam_store.json` `applied_artwork` (unchanged file, § 4.3),
   now also for shortcuts with no Steam match (`source = "steamgriddb"`, `slots`, `tried`).
-- The library icon (icon plan, [steam-cartridges-icon-plan.md](../plans/steam-cartridges-icon-plan.md)):
+- The library icon (icon plan, executed):
   whether a shortcut's icon may be set (`data.iconEligible`, `M.icon_eligible`) and the record of the icon
   set, `steam_store.json` `applied_icon` (`path`, `previous`, `source`, `steam_appid?`, `released?`).
 

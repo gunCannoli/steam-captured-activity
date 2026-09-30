@@ -2459,14 +2459,14 @@ regardless) and in implementation cost/performance (redirect is zero extra
 network and reuses code already proven safe for Friends; fetch adds a
 request path and a cache to maintain). **This ADR does not choose between
 them.** The next agent to implement this
-(`docs/plans/steam-cartridges-native-achievements-mirror-plan.md`, removed 2026-09-28 and carried into [migration plan M6](plans/steam-cartridges-architecture-migration-plan.md#m6--achievements-service-spec); full text: `git show 0d599cf:docs/plans/steam-cartridges-native-achievements-mirror-plan.md`)
+(`docs/plans/steam-cartridges-native-achievements-mirror-plan.md`, removed 2026-09-28 and carried into migration plan M6; full text: `git show 0d599cf:docs/plans/steam-cartridges-native-achievements-mirror-plan.md`)
 must live-investigate both against the real client (including UI performance
 impact) before picking one, and record that choice back into this ADR or a
 follow-up addendum.
 
 This is layered *underneath*, not instead of, the agnostic local-unlock
 detector in
-`docs/plans/steam-cartridges-achievements-plan.md` (removed 2026-09-28; carried into [migration plan M6](plans/steam-cartridges-architecture-migration-plan.md#m6--achievements-service-spec)):
+`docs/plans/steam-cartridges-achievements-plan.md` (removed 2026-09-28; carried into migration plan M6):
 that system is a separate, not-yet-implemented later phase that will also
 trigger the *native* Steam achievement itself (communicating with Steam so
 the unlock is real, not just displayed). Mirroring the native schema/progress
@@ -2482,8 +2482,7 @@ onto the shortcut's UI is the prerequisite piece that ships first.
 
 On 2026-09-28 the user uninstalled `steam-cartridges` because Steam's UI kept
 crashing, and most recent features had regressed a view that already worked.
-The audit in
-[plans/steam-cartridges-architecture-migration-plan.md § 1](plans/steam-cartridges-architecture-migration-plan.md#1-why-root-cause-of-the-regression-pattern)
+The audit that led to this decision (the migration plan, since deleted; see the CHANGELOG)
 found the cause is structural:
 
 - Features import each other's internals.
@@ -2571,7 +2570,7 @@ Three options were considered:
 ADR-0039 put the pipeline — identity, fetching, storage, freshness — in the
 backend, moved bucket resolution into "the Resolver," and expected routing to
 follow. Routing policy is pure TypeScript in
-[`frontend/domain/routing`](../plans/steam-cartridges-architecture-migration-plan.md#4-target-architecture),
+`frontend/domain/routing`,
 and one of its rule types has a `regex` condition matched with JavaScript
 `RegExp` semantics (`isServiceAllowed`, `conditionType: 'regex'`). Lua has no
 regex engine (only patterns, a different, less expressive language), so
@@ -2656,7 +2655,7 @@ A non-zero `viaRender` means the trigger missed a rebuild: find the missing path
 
 ## ADR-0043: enhanced-achievements has one owner per Steam target and a safety net
 
-**Status:** Accepted · 2026-09-29 · Plan: [enhanced-achievements-architecture-migration-plan.md](plans/enhanced-achievements-architecture-migration-plan.md) · Same principles as [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam), applied in a lighter form
+**Status:** Accepted · 2026-09-29 · Plan: executed and deleted (see the CHANGELOG) · Same principles as [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam), applied in a lighter form
 
 ### Context
 
@@ -2702,7 +2701,7 @@ switches a failing part off: `init()` either hooks everything or nothing.
 
 **Status:** Accepted · 2026-09-30 (the user: "keep each layer boring and dumb only with its own job, preventing the
 pollution that caused the migration in the first place"; the layers stay as they are) · Implemented by
-[the M10 gap batch](plans/steam-cartridges-m10-gap-batch-plan.md) ·
+the M10 gap batch ·
 **Amends [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)**
 (migration decisions D3 and D4, § 4.2 `GameRecord.route`, § 4.3 file layout, the § 4.1 settings row) ·
 **Keeps [ADR-0040](#adr-0040-routing-policy-stays-pure-typescript-in-the-frontend-domain-layer),
@@ -2711,7 +2710,7 @@ pollution that caused the migration in the first place"; the layers stay as they
 ### Context
 
 The migration (ADR-0039) was enforced by an import ratchet only. The
-[audit](plans/steam-cartridges-architecture-audit-plan.md) found 30+ places where a layer did another layer's job
+audit found 30+ places where a layer did another layer's job
 without an import edge: surfaces fetching and calling the backend through functions `index.tsx` injected (D3, meant
 as a migration bridge, became permanent), surfaces calling each other the same way, `index.tsx` holding ~120 lines of
 logic, the frontend keeping a retry TTL beside the backend's, triple-key appid lookups the kernel was built to end,

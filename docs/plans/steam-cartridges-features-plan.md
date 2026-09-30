@@ -4,10 +4,10 @@
 **Kind:** Umbrella feature plan. It fixes *what* each feature is, the user decisions already taken, and *which modules in
 which layer* each one touches. It does not contain literal before/after blocks; the architect adds those (see
 [the plan writing standard](README.md)).
-**Builds on:** [the migration plan](steam-cartridges-architecture-migration-plan.md) (Complete). Layer rules:
+**Builds on:** the migration plan (Complete). Layer rules:
 [steam-architecture.md § 3](../steam-architecture.md), [README of the layer docs](../steam-cartridges/README.md),
 [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
-**Replaces:** items 3–6 of the migration plan's [§ 7.10 unwired register](steam-cartridges-architecture-migration-plan.md#710-unwired-features-register-11-item-7).
+**Replaces:** items 3–6 of the migration plan's § 7.10 unwired register.
 
 ## The layers, in one paragraph (for the reader who has not read the migration)
 

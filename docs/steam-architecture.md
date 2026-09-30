@@ -20,7 +20,7 @@ and **new features are frozen** until migration step M3 is done.
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | New to the repo, any role                                                                            | [AGENTS.md](../AGENTS.md) → [TASK.md](../TASK.md) → this page                                                                                                                                                                        |
 | Executing a plan (implementer)                                                                       | The plan in [plans/](plans/) → [plugins.md § Guardrails](plugins.md#guardrails--regression-prevention-must-read-before-writing-code) → the layer doc of the module you touch (§ 3)                                                   |
-| Working on the `steam-cartridges` migration                                                          | [Migration plan](plans/steam-cartridges-architecture-migration-plan.md) (its § 0 is the execution manual) → [ADR-0039](decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) |
+| Working on the `steam-cartridges` migration                                                          | Migration plan (its § 0 is the execution manual) → [ADR-0039](decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam) |
 | Investigating a Steam feature or internals                                                           | [steam-components.md § Map](steam-components.md#map-runtime-topology) → the deep trace in the same doc                                                                                                                               |
 | Debugging the live client (CDP, a hang, a crash)                                                     | [steam-debug.md](steam-debug.md) (§ 7 cheap probes first; Trap 10 for a hung UI)                                                                                                                                                     |
 | Writing or fixing plugin code                                                                        | [plugins.md](plugins.md): reuse ladder, all guardrails, develop/deploy/test                                                                                                                                                          |
@@ -63,10 +63,9 @@ and **new features are frozen** until migration step M3 is done.
 | Doc                                                                                                            | Its one job                                                                                                                                                                     |
 | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [millennium-architecture.md](millennium-architecture.md)                                                       | The suite: core/provider split, data flow, RPC, provider contract. Its module layout is out of date until M9                                                                    |
-| [plans/steam-cartridges-architecture-migration-plan.md](plans/steam-cartridges-architecture-migration-plan.md) | The `steam-cartridges` migration: target architecture, execution manual, child steps M0a–M9                                                                                     |
+| [steam-cartridges/verification.md](steam-cartridges/verification.md) | Live verification baseline, rollback recipe and open known issues for `steam-cartridges` (the migration plans are deleted; history is in the CHANGELOG) |
 | [steam-cartridges/service-achievements.md](steam-cartridges/service-achievements.md)                           | The achievements layer doc (source order, `supports` rules, `CheckUnlocks`) plus the earlier reference for channels, stores and toasts (was `steam-cartridges-achievements.md`) |
 | `docs/steam-cartridges/` (§ 3)                                                                                 | One doc per architecture layer, created by the migration step that builds the layer                                                                                             |
-| [plans/enhanced-achievements-architecture-migration-plan.md](plans/enhanced-achievements-architecture-migration-plan.md) | The `enhanced-achievements` migration (ADR-0043): safety net, one owner per Steam target, execution manual, steps E0a–E3. Complete |
 | [enhanced-achievements/architecture.md](enhanced-achievements/architecture.md) | How `enhanced-achievements` is built: layers, the owner of each Steam target, the safety net, how to add a feature. current |
 | [plans/phase7-and-alpha-plan.md](plans/phase7-and-alpha-plan.md)                                               | `enhanced-achievements` / `enhanced-notifications` phase 7 and the user's alpha test checklist (cited by their code)                                                            |
 
@@ -87,7 +86,7 @@ Steam UI ─► sensors ─► app (thin) ─► ports/backend ─RPC─► serv
 
 Each layer gets **one doc**, written by the step that creates the layer and
 updated by every later step that changes it (template in the
-[migration plan § 0.6](plans/steam-cartridges-architecture-migration-plan.md#06-the-layer-doc-template)).
+migration plan § 0.6).
 
 | Layer                                                               | Doc (created by)                                                                                                       | Status  |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -103,9 +102,6 @@ updated by every later step that changes it (template in the
 | Achievements service, sources, observer                             | [service-achievements.md](steam-cartridges/service-achievements.md) (M6a; replaced `steam-cartridges-achievements.md`) | current |
 | Freshness and ingestion                                             | [service-freshness.md](steam-cartridges/service-freshness.md) (M7a)                                                    | current |
 | Next features (Game Data editor, Media)                             | [steam-cartridges-features-plan.md](plans/steam-cartridges-features-plan.md)                                           | plan    |
-| Shortcut library icon (mirror the Steam icon)                       | [steam-cartridges-icon-plan.md](plans/steam-cartridges-icon-plan.md)                                                   | plan    |
-| Artwork image fetch leaves the surface (image bin); item A1 of the audit batch | [steam-cartridges-artwork-fetch-plan.md](plans/steam-cartridges-artwork-fetch-plan.md) | plan (draft) |
-| Audit of the migration for layer overlaps (skeleton) | [steam-cartridges-architecture-audit-plan.md](plans/steam-cartridges-architecture-audit-plan.md) | plan (skeleton) |
 | Settings panels and the Troubleshooting panel                       | [settings.md](steam-cartridges/settings.md) (M8)                                                                       | current |
 
 When a layer doc is created, its row flips to `current` and gets a link, in the

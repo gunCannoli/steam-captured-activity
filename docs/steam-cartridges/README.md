@@ -7,7 +7,7 @@ index: [steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-
 ## What it owns
 
 The layer list (status as of M0c; see the migration plan's
-[§ 0.2 status board](../plans/steam-cartridges-architecture-migration-plan.md#02-status-board)
+§ 0.2 status board
 for the authoritative, up-to-date state):
 
 | Layer | Status |
@@ -183,5 +183,4 @@ why in its root-cause section, or it is rejected.
 - M9b (2026-09-29): the live scripts moved to `steam-cartridges/tests/live/` (`npm run test:live`), the migration's execution aids were deleted.
 - M10 (2026-09-30, ADR-0044): the layers' jobs are a test (capability ratchet, surface injection, sanctioned
   listeners, unwired RPCs, backend rules). D3 injection is over: surfaces get pure reads and a bus for their own
-  result events. `settings -> domain` allowed for types and validators; `safety/` row added. Plan:
-  [steam-cartridges-m10-gap-batch-plan.md](../plans/steam-cartridges-m10-gap-batch-plan.md).
+  result events. `settings -> domain` allowed for types and validators; `safety/` row added. Verification: [verification.md](verification.md).

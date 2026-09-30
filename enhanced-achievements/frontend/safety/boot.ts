@@ -1,5 +1,5 @@
 /**
- * Boot sentinel (docs/plans/enhanced-achievements-architecture-migration-plan.md § E0a).
+ * Boot sentinel (docs/enhanced-achievements/architecture.md, safety net).
  * Same design as steam-cartridges/frontend/safety/boot.ts, with this plugin's key.
  *
  * A hung SharedJSContext cannot run any cleanup, so the sentinel works the other way
