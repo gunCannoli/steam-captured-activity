@@ -1,8 +1,8 @@
 # Plan: M10, close the gaps of the steam-cartridges migration (one batch, 13 steps)
 
-**Status:** **Ready** (2026-09-30). Dry-run done: the 13 patches in [steam-cartridges-m10-gap-batch/](steam-cartridges-m10-gap-batch/) were
+**Status:** **Done (live-verified 2026-09-30: `npm run test:live` 10/10 PASS, probes below; five visual hand checks not run)** (was Ready, 2026-09-30). Dry-run done: the 13 patches in [steam-cartridges-m10-gap-batch/](steam-cartridges-m10-gap-batch/) were
 applied in order to a clean worktree of `f35ed31` and every expected output below was observed there; the resulting tree is
-byte-identical to the architect's build tree (§ 11). Live verification (§ 8) is not done yet.
+byte-identical to the architect's build tree (§ 11). Live verification (§ 8): `dev.ps1` deploy and restart, `test:live` 10/10 PASS, `http_calls` (no source grew), `shortcut_icon` 3135033888 (`PASS icon sharp`, 184x184), `steam_store.json` slots `[0,1,2,3]`, `exception_stack` AM2R and WUCHANG (none), `toast_live` (dispatched). Not run (need eyes): BPM Activity thumbnails (step 3), Jotunnslayer first-open description after a restart (step 4), Library grid sort log line (step 8), PlayBar ⓘ and Troubleshooting surface count of 8 (step 9).
 **Kind:** Architecture cleanup (ADR-0039 → [ADR-0044](../decisions.md#adr-0044-steam-cartridges-layers-stay-dumb-and-a-test-checks-what-each-layer-does)),
 written for the weak implementer ([the plan standard](README.md)). The literal before/after blocks are the patch files: each
 step applies one with `git apply` (a mismatch means the plan is stale: stop).

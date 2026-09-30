@@ -25,7 +25,7 @@ working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7
 
 **Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
 
-**M10 gap batch: done 2026-09-30** (live verification pending: M10 § 8); the F1 plan's patches must be regenerated on top of M10 before F1 runs.
+**M10 gap batch: done 2026-09-30** (live-verified 2026-09-30: test:live 10/10 plus probes; five visual hand checks of § 8.3 not run); the F1 plan's patches must be regenerated on top of M10 before F1 runs.
 
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
