@@ -27,7 +27,7 @@ try {
     check('reset surface installed', status.some((s) => s.id === 'reset' && s.installed && s.skipped === null), JSON.stringify(status.find((s) => s.id === 'reset')));
     check('API available', (await plugin('achievementReset.available()')) === true);
 
-    const list = JSON.parse(await plugin('achievementReset.candidates().then((c) => JSON.stringify(c))'));
+    const list = JSON.parse(await plugin('JSON.stringify(achievementReset.candidates())'));
     const names = list.map((c) => c.name);
     const sorted = [...names].sort((a, b) => a.localeCompare(b));
     check('candidates have unlocks and are sorted by name', list.length > 0 && list.every((c) => c.unlocked > 0) && JSON.stringify(names) === JSON.stringify(sorted), `${list.length} games`);

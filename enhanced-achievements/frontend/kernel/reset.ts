@@ -5,7 +5,7 @@ export interface ResetCandidate {
     name: string;
     unlocked: number;
     total: number;
-    /** `steam`: a Steam game (cleared with Steam's console); `shortcut`: a non-Steam game (steam-cartridges' local store). */
+    /** `steam`: a Steam game (cleared with Steam's console); `shortcut`: a non-Steam game (listed from Steam's progress cache like any game; cleared through steam-cartridges). */
     kind: 'steam' | 'shortcut';
 }
 
@@ -15,8 +15,8 @@ export type ResetResult = { ok: true; cleared: number; remaining: number; skippe
 export interface AchievementResetApi {
     /** false when the surface is switched off or Steam has no console command. */
     available(): boolean;
-    /** Games that have at least one unlocked achievement, sorted by name. Reads Steam's stores: call on demand, not per render. */
-    candidates(): Promise<ResetCandidate[]>;
+    /** Games that have at least one unlocked achievement in Steam's progress cache, sorted by name. Synchronous; call on demand, not per render. */
+    candidates(): ResetCandidate[];
     reset(candidate: ResetCandidate): Promise<ResetResult>;
 }
 

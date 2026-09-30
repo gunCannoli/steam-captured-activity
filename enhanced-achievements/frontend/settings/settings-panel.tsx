@@ -388,7 +388,7 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
  */
 function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     const [all, setAll] = useState<ResetCandidate[]>([]);
-    const reload = () => void api.candidates().then(setAll);
+    const reload = () => setAll(api.candidates());
     useEffect(reload, []);
     const [filter, setFilter] = useState("");
     const [selected, setSelected] = useState(0);

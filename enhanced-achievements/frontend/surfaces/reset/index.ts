@@ -61,7 +61,7 @@ const engine = createReset({
 /** Handed to the settings panel by index.tsx (D7). Fail-open: an error is counted and reported to the user, never thrown. */
 export const achievementReset: AchievementResetApi = {
     available: () => isEnabled('reset') && typeof steamConsole()?.ExecCommand === 'function',
-    async candidates() {
+    candidates() {
         try {
             // Every game from Steam's own progress cache: steam-cartridges fills it for its shortcuts at start-up, as
             // Steam does for an owned game (ADR-0045). A shortcut is offered only when steam-cartridges can reset it.
