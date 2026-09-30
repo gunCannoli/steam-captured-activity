@@ -3150,6 +3150,8 @@ printing nothing, and every row below being deleted.
 
 ### 7.10 Unwired features register (§ 11 item 7)
 
+> **Superseded 2026-09-29 by [steam-cartridges-features-plan.md](steam-cartridges-features-plan.md)**: items 3-4 become F2 (Media in the Community tab); items 5-6 become F1 (Game Data editor with manual Steam linking; the separate reject button is dropped).
+
 Backend providers that are implemented and wanted but have no caller. They are **kept** (not dead
 code, D13 does not apply) and each has the step that connects it. M4.0 verifies this list.
 
