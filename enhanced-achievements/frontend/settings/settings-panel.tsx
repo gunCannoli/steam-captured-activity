@@ -34,6 +34,9 @@ const ITEM_ROW_STYLE: React.CSSProperties = {
     padding: "0",
 };
 
+/** Steam's settings-card background (a Field's own), measured live: rgb(35, 38, 46). */
+const CARD_BACKGROUND = "rgb(35, 38, 46)";
+
 function ItemRow({ children }: { children: React.ReactNode }) {
     return (
         <PanelSectionRow>
@@ -401,13 +404,15 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     // One block: the label and description, then the filter, dropdown, button and result, all in one row (one card).
     return (
         <ItemRow>
+            {/* The card's background belongs to Steam's Field, so this wrapper paints the same colour under the controls and the two read as one card. */}
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px" }}>
             <Field
                 label="Reset Achievements"
                 description="Select a game to reset the achievements count"
                 disabled={!available}
                 bottomSeparator="none"
             />
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 16px 16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 12px 12px" }}>
                 <TextField
                     label="Games filter"
                     value={filter}
@@ -430,6 +435,7 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
                     Reset
                 </DialogButton>
                 {message && <DialogBodyText>{message}</DialogBodyText>}
+            </div>
             </div>
         </ItemRow>
     );

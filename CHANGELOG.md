@@ -11,6 +11,8 @@ This repo is private and unversioned; entries are grouped by date.
 
 - **docs: split the architecture docs by subject (2026-09-30)**: `docs/steam-architecture.md` is now about Steam's own client (topology, how it treats shortcuts, ids, pointers to `steam-components`/`steam-debug`/`knowledgebase`). New `docs/steam-cartridges.md` covers the plugin: the hexagon mapped onto the layers, links to every layer doc, and a decision order for adding a feature. The docs index (previously `steam-architecture.md`) moved to `docs/README.md`; links in the layer docs, plans, `AGENTS.md` and `millennium-architecture.md` were repointed. The stale "features frozen until M3" note was dropped.
 
+- **enhanced-achievements: Reset Achievements card fix (2026-09-30)**: the card background belongs to Steam's `Field`, so controls placed after it rendered outside the card (seen by the user). One wrapper now paints the same colour (`rgb(35, 38, 46)`, measured live) under the label, description and controls.
+
 - **History: AI co-author trailers stripped (2026-09-30)**: `git filter-branch --msg-filter` over `main` removed `Co-Authored-By: Claude` from 119 of 280 commits; tree diff against the backup was empty, 0 trailers and 0 "generated with" lines remain, commit count unchanged, force-pushed with lease. Other clones: `git fetch && git reset --hard origin/main`. Old SHAs stay resolvable on GitHub until a support ticket purges them.
 
 - **enhanced-achievements: Reset Achievements follow-up (2026-09-30)**: the section is one card; non-Steam games with unlocks are listed via new steam-cartridges export `storedAchievementSummaries()` (steam-cartridges `test:ts` 202/202). User-verified: resetting DSX cleared all its achievements and they stayed cleared after a Steam restart.
