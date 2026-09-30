@@ -21,7 +21,11 @@ M.TTL                                   -- the table below
 function M.is_stale(appid, part, info, now_ms) end   -- info: a status string or a Part { status, source, data }
 function M.touch(appid, part, now_ms, status) end    -- status "error" is back-dated so it comes due after 30 min
 function M.checked_at(appid, part) end
+function M.remember_error(appid, part, now_ms, part_value) end  -- M10: session memory, identity and artwork
+function M.recent_error(appid, part, now_ms) end   -- the error part seen less than TTL.error ago, or nil
+function M.forget_error(appid, part) end
 -- backend/registry.lua
+function M.shortcut(appid) end          -- M10: the shortcuts.vdf entry; the one lookup every service uses
 function M.new_shortcuts() end          -- [{ appid, name, exe }] not seen before; first run seeds and returns []
 function M.mark_known(appids) end
 -- backend/net.lua
@@ -61,6 +65,11 @@ Appids are compared unsigned. The backend has no timer; the frontend drives the 
 for 15 min; a success resets the count; while paused a call returns `nil, "paused"` without a request. Sources:
 `steam-store`, `igdb`, `retroachievements`, `steam-web`, `sgdb`, `screenscraper`. `steam_store_throttle` keeps its rate
 limit and offline detection and calls `net`.
+
+**Recent errors (M10, ADR-0044).** An identity or artwork lookup that failed is answered from memory by `EnsureFresh`
+for `TTL.error` (30 min), so the frontend keeps no retry timer (`app/session-memo.ts` remembers only `ok` and
+`unsupported`). A saved mapping always wins over a remembered identity error; a Steam match always asks for artwork
+again. Memory only: `freshness.json` does not change.
 
 ## Frontend (M7b)
 
@@ -136,3 +145,4 @@ be moved).
   start-up job fetches only new shortcuts (user decision 2); a page open refreshes only stale parts. `EnsureFresh` reports
   `paused` sources and `metadata_service` writes no fallback record while IGDB or ScreenScraper is paused.
 - M7 live verification (2026-09-29): see Tests. No defect found.
+- M10 (2026-09-30): `fresh_policy` remembers recent identity and artwork errors; `registry.shortcut` is the one `shortcuts.vdf` lookup.

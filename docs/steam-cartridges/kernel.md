@@ -37,6 +37,8 @@ export function isShortcutAppId(raw: unknown): boolean;
 export function toSignedKey(id: ShortcutId): number;
 export function toGameId(id: ShortcutId): string;
 export function fromGameId(gameid: string): ShortcutId | undefined;
+export function storedKeys(raw: unknown): string[];                       // M10: unsigned, then signed (persisted maps only)
+export function lookupStored<T>(map: Record<string, T> | undefined, raw: unknown): T | undefined;
 ```
 
 ```ts
@@ -45,9 +47,14 @@ export interface Events {
     "shortcut.viewed": { appid: ShortcutId; mode: "desktop" | "gamepad" };
     "shortcut.left": { appid: ShortcutId; mode: "desktop" | "gamepad" };
     "shortcut.launched": { appid: ShortcutId; name: string };
-    "shortcut.quit": { appid: ShortcutId };
+    "shortcut.quit": { appid: ShortcutId; name: string };
+    "window.opened": { mode: "desktop" | "gamepad"; document: Document | undefined };   // view sensor (M10)
+    "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
-    "achievements.unlocked": { appid: ShortcutId; ids: string[] };
+    "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };   // M10: items
+    "achievements.launch-toast": { appid: ShortcutId };                  // app/achievements -> toasts (M10)
+    "captures.published": { appid: ShortcutId; hasContent: boolean };    // captures -> sections (M10)
+    "artwork.applied": { appid; source; steamAppid?; attempted; kept; tried; written; icon? };  // artwork -> app (M10)
     "settings.changed": { key: string };
 }
 export type EventName = keyof Events;
@@ -90,20 +97,24 @@ export interface AchievementSchemaRecord {
 }
 export interface AchievementUnlockRecord { unlocked_time: number; }
 export interface ArtworkUrls { portrait?: string; hero?: string; logo?: string; wide?: string; icon?: string; }
-export type IconPlan = { url: string } | { restore: string };   // ArtworkPlan.icon (icon plan)
+export type IconPlan = { path: string; previous: string } | { restore: string };   // M10: the stored file, never bytes or a URL
+export interface Route { bucket: "steam-store" | "web-scraping" | "none"; via: string }   // M10: the one route shape
+export interface OwnedCandidate { appid: number; name: string }                           // M10
+export interface SyncProgress { isSyncing; total; current; currentGame; phase }            // M10
+export const PORTABLE_CATEGORY_IDS, STEAM_ONLY_CATEGORY_IDS, MANAGED_CATEGORY_IDS: readonly number[];  // M10 (ADR-0038)
+// GameMetadata gains badge_category_ids?: number[] (decided by app/metadata, written by game-info; M10)
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
 export type ArtworkPlan = Record<string, unknown>;
 export interface GameRecord {
     appid: ShortcutId; gameid: string; title: string; exe: string;
-    route?: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
     identity?: Part<Identity>;
     metadata?: Part<GameMetadata>;
     achievements?: Part<AchievementSet>;
     media?: Part<CommunityMedia>;
     artwork?: Part<ArtworkPlan>;
 }
-export type RecordPart = "route" | "identity" | "metadata" | "achievements" | "media" | "artwork";
+export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork";   // "route" removed (ADR-0044)
 export interface RecordStore {
     get(appid: ShortcutId): GameRecord | undefined;
     upsert(base: Pick<GameRecord, "appid" | "gameid" | "title" | "exe">): GameRecord;
@@ -154,6 +165,7 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/kernel/events.ts` | `Events` map, `EventBus`, `createEventBus` |
 | `frontend/kernel/record.ts` | `GameRecord`, `Part<T>`, `RecordStore`, `createRecordStore` |
 | `frontend/kernel/surface.ts` | `Surface` contract, `SurfaceRunner`, `createSurfaceRunner`, `assertDisjointTouches` |
+| `frontend/kernel/image-bin.ts` | M10: the slot bytes app/artwork fetched, waiting for the artwork surface (bounded to 8 shortcuts, reads do not remove; not in `GameRecord`: ~585 KB per mapped game) |
 | `tests/kernel.test.ts` | Unit tests for all four files |
 
 ## Steam targets touched
@@ -202,3 +214,7 @@ Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-pla
   `AchievementUnlockRecord` (D12) — moved from `rpc.ts`; `rpc.ts` keeps the names.
 - M3.9: `ArtworkUrls` (D12) — moved from `rpc.ts`; `rpc.ts` keeps the name.
 - Icon plan (2026-09-29): `ArtworkUrls.icon`, `IconPlan`, `ArtworkPlan.icon` (the library icon, not a slot).
+- M10 (2026-09-30, ADR-0044): `Route`, `OwnedCandidate`, `SyncProgress`, the category id tables and
+  `storedKeys`/`lookupStored` live here once; `GameRecord.route` removed; `IconPlan` carries the stored file's path;
+  events `window.opened`/`closed`, `achievements.launch-toast`, `captures.published`, `artwork.applied`;
+  `achievements.unlocked` carries its items; `image-bin.ts` added. `steam/gameid.ts` is gone (use `toGameId`).

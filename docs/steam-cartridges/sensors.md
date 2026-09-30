@@ -34,6 +34,10 @@ steam-cartridges architecture (ADR-0039); index:
   `features/steam-store/index.ts`'s artwork asset-URL lookup (M5b; moved
   verbatim from `features/steam-store/store-item.ts`, which is deleted — its
   pure mapping half moved to `domain/store-item.ts`).
+- Shortcut titles and the shortcut list: `frontend/sensors/shortcuts/` is the only code that reads
+  them (`shortcutTitle(appid)`, `listShortcuts()`; M10, was two copies in `index.tsx` and `steam/shortcut.ts`).
+- Window lifecycle: the view sensor also emits `window.opened` / `window.closed` (desktop and Big Picture) for
+  surfaces that write into a window's own document (M10: `captures`' Big Picture style; it watches no popups itself).
 - The plugin's one event bus: `frontend/app/bus.ts` wraps
   `kernel/events.createEventBus`. Sensors emit into it; `index.tsx`
   subscribes the handlers.
@@ -105,6 +109,7 @@ export function loadStoreItem(steamAppid: number, timeoutMs?: number): Promise<a
 | `frontend/sensors/collections/index.ts` | `isCollectionStoreReady`, `readUserCollections`, `collectionsSource` (moved verbatim from `features/buckets/ready.ts` in M2) |
 | `frontend/sensors/owned-apps/index.ts` | `ownedCandidates()` (moved verbatim from `features/steam-store/known-apps.ts` `readNativeGames` in M4c) |
 | `frontend/sensors/store-item/index.ts` | `loadStoreItem()` (moved verbatim from `features/steam-store/store-item.ts` in M5b) |
+| `frontend/sensors/shortcuts/index.ts` | `shortcutTitle()`, `listShortcuts()` (M10) |
 | `tests/sensors.test.ts` | Unit tests for the view tracker |
 
 ## Steam targets touched
@@ -170,3 +175,5 @@ the allowlist.
   `app/metadata.ts` directly and by `features/steam-store/index.ts` through a
   new D3 setter (`setStoreItemSource`), since `features/` may not import
   `sensors/` directly.
+- M10 (2026-09-30): `shortcuts` sensor added; the view sensor emits `window.opened`/`window.closed`; the lifecycle
+  sensor's `shortcut.quit` carries the game's name (index.tsx no longer keeps a running map).

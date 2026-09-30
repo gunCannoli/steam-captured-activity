@@ -86,6 +86,7 @@ Statuses (what the executing agent does with the row):
 | M8a–M8d | Settings split + Troubleshooting panel (a: pin defaults **done**, b: panel context **done**, c: split **done**, d: Troubleshooting **done**); live-verified 2026-09-29 | `settings.md`, `safety.md` |
 | M9a | Cleanup: code (allowlist empty, `features/` and `rpc.ts` gone, purge ledger, ADR-0041) | **Done** (live-verified 2026-09-29) | `rpc.md`, `README.md`, ADR-0041 |
 | M9b | Cleanup: docs and live scripts (`tests/live/`, docs to the real tree, migration closed) | **Done** (live-verified 2026-09-29) | all |
+| M10 | Close the gaps the audit found; capability ratchet (ADR-0044; [plan](steam-cartridges-m10-gap-batch-plan.md)) | **Done** (live verification: the M10 plan § 8) | `README.md`, `kernel.md`, `surfaces.md`, `sensors.md`, `rpc.md`, services, ADR-0044 |
 
 Order is fixed: never start a row while an earlier row is not `Done`. M0b-2 is not a
 step of its own any more: each M3.x applies its wrapper to the hooks it moves (§ 7.0 D6).
@@ -3142,7 +3143,7 @@ printing nothing, and every row below being deleted.
 | ~~`features/steam-store/known-apps.ts` and the TS title matcher in `features/steam-store/resolve.ts`~~ | — | ~~M4c~~ **done** | the backend's `normalize` is the only matcher |
 | ~~setters `setGameInfoProbe`, `setGameInfoWriter`, `setGameInfoSink`, `setGameInfoEnricher`; `features/game-info/index.ts`, `policy.ts`~~ | — | ~~M5b~~ **done** | Game Info comes from `record.metadata`; `setGameInfoSink` (an enrich/revert writer) is fully gone — the refresh-only call guardrail 11 still needs is a new, narrower setter (`setGameInfoRefresher`, not a purge item) |
 | ~~setter `setCapturesRefresher`, `features/scraper/on-update.ts`, `features/scraper/sync-manager.ts`~~ | — | ~~M7~~ **done (M7b)** | freshness and ingestion moved to the backend (`app/ingest.ts`, `app/view.ts`) |
-| setter `setContentListener` | — | **kept, by design (M9a)** | permanent composition wiring: the content flag goes captures → sections through `index.tsx` |
+| ~~setter `setContentListener`~~ | — | ~~kept, by design (M9a)~~ **deleted in M10** (ADR-0044) | the content flag is the `captures.published` event; `index.tsx` subscribes the sections handler |
 | ~~`rpc.ts` type aliases, and `rpc.ts` itself~~ | — | ~~M9~~ **done (M9a)** | importers use the kernel names (D12) and `ports/` |
 | ~~old RPC names kept as aliases for the M4–M7 facade~~ | — | ~~M9~~ **done (M9a)** (`SteamStoreGetMapping` kept: still called) | the registration test proves which are unused |
 | ~~`steam/route.ts` `isNonSteamAppId`~~ | — | ~~M9~~ **done (M9a)** | `kernel/appid.ts` everywhere |

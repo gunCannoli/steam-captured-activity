@@ -37,7 +37,6 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetDiagnostics` | `rpc.lua` | live (debug) | no frontend caller; called directly from the SharedJSContext console. Documented in [millennium-architecture.md](../millennium-architecture.md); M7 adds `http_calls` |
 | `GetStatus` | `web_rpc.lua` | live | provider status |
 | `SaveGameMetadata` | `web_rpc.lua` | unwired | § 7.10: manual Game Info editing (`custom_override`); no UI yet |
-| `GetArtworkForGame` | `web_rpc.lua` (→ `web_sgdb.lua`) | unwired | § 7.10: SteamGridDB artwork (M5c) |
 | `GetControllerInference` | `web_rpc.lua` | live | controller support badges |
 | `GetAutoRoutingProfiles` | `web_rpc.lua` | live | auto-routing bucket profiles |
 | `SaveServiceCredentials` | `web_rpc.lua` | live | settings panel service credentials |
@@ -46,9 +45,7 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `SteamStoreSetMapping` | `steam_store_rpc.lua` | live | manual mapping |
 | `SteamStoreClearMapping` | `steam_store_rpc.lua` | live | unmap / reject |
 | `SteamStoreRejectSuggestion` | `steam_store_rpc.lua` | unwired | § 7.10: reject a suggestion in the Steam Store settings list; no UI yet (Lua-tested: `test_steam_store.lua` "rejecting a suggestion removes it and remembers it") |
-| `SteamStoreGetAppDetails` | `steam_store_rpc.lua` | live | native app details for Game Info parity |
 | `SteamStoreRecordArtwork` | `steam_store_rpc.lua` | live | records which artwork slots were applied |
-| `SteamStoreDownloadImage` | `steam_store_rpc.lua` | live | artwork image fetch (allowlisted hosts) |
 | `SteamStoreSaveIcon` | `steam_store_rpc.lua` (→ `shortcut_icon.save`) | live | icon plan: store our copy of the library icon; refused unless still eligible |
 | `SteamStoreRecordIcon` | `steam_store_rpc.lua` (→ `steam_store_store.record_icon`) | live | icon plan: remember the icon the `artwork` surface set |
 | `CartridgesAchievementsUnlock` | `achievements_rpc.lua` | live | manual unlock |
@@ -58,7 +55,6 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetGameManual` | `screenscraper_media.lua` | unwired | § 7.10: ScreenScraper media (Media service after M7) |
 | `GetGameTrailers` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
 | `GetGameCommunityLinks` | `igdb_community.lua` | unwired | § 7.10: IGDB community (Media service after M7) |
-| `GetGameRecord` | `record_rpc.lua` | unwired | M4b: still no caller; M5a extends it with `metadata`. No frontend caller as of M5b either — `app/identity.ts` and `app/metadata.ts` both use `EnsureFresh`/`GetAllRecords` instead |
 | `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, wired by `app/metadata.ts`'s `ensure()` in M5b |
 | `GetNewShortcuts` | `record_rpc.lua` | live | M7a: shortcuts not seen before (first call seeds and returns none); M7b: `app/ingest.ts` calls it at start-up |
 | `MarkKnown` | `record_rpc.lua` | live | M7a: mark shortcuts handled; M7b: `app/ingest.ts` |
@@ -70,6 +66,11 @@ unwired (the record facade); M4c wires `EnsureFresh` (26 live, 6 unwired). M5a
 adds `GetAllRecords` (unwired) and extends `EnsureFresh` with `metadata`
 (26 live, 7 unwired); M5b wires `GetAllRecords` and the `metadata` part of
 `EnsureFresh` (27 live, 6 unwired). `GetGameRecord` stays unwired throughout.
+
+**M10 (2026-09-30):** `GetArtworkForGame` (superseded by `art_service` in M5c), `SteamStoreGetAppDetails` (no caller),
+`SteamStoreDownloadImage` (the backend cannot download a binary body) and `GetGameRecord` (never called) are deleted
+(D13). The classification is now a test: `tests/architecture-unwired-rpcs.json` lists every registered RPC the frontend
+does not call, with the plan that wires or deletes it.
 
 ## Record facade (M4b)
 
@@ -252,3 +253,4 @@ All stay public; other plugins and the CDP scripts reach them through `PLUGIN_LI
 | `registerSummaryProvider` (+ `SummaryContext`, `SummaryContribution`, `SummaryProvider`) | providers add lines to the Post-Game Summary |
 | `gameInfoRepairDiagnostics` | K6: how often Game Info was re-applied from Steam's overview rebuild (`viaTrigger`) or a render (`viaRender`, must stay 0) |
 | `jsxDiagnostics`, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks |
+- M10 (2026-09-30): four RPCs deleted (above); `tests/architecture-unwired-rpcs.json` replaces the manual classification of the unwired ones.

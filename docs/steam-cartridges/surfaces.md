@@ -59,9 +59,9 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/captures/index.ts` | `captures` surface: `createCapturesSurface`, re-exports (§ captures below) |
 | `frontend/surfaces/captures/{summary,activity,headline,activity-cards,publish,bpm-style,deps}.ts` | `captures`'s six parts, one file each |
 | `frontend/surfaces/game-info/index.ts` | `game-info` surface: `createGameInfoSurface`, `gameInfoWriter` (§ game-info below) |
-| `frontend/surfaces/game-info/{patch,metadata,category-policy,deps}.ts` | `game-info`'s hooks, enrich/revert, category filtering, injected deps |
-| `frontend/surfaces/playbar/index.ts` | `playbar` surface: `createPlaybarSurface` (§ playbar below) |
-| `frontend/steam/overview-proxy.ts` | `createPatchedOverview`; importable only by `surfaces/game-info` and `surfaces/playbar` (guardrail 1) |
+| `frontend/surfaces/game-info/{patch,metadata,deps}.ts` | `game-info`'s hooks, enrich/revert (the badges come from the record since M10), injected deps |
+| `frontend/surfaces/game-info/playbar.ts` | part `playbar` of `game-info` (§ playbar below; a surface of its own until M10) |
+| `frontend/steam/overview-proxy.ts` | `createPatchedOverview`; importable only by `surfaces/game-info` (guardrail 1) |
 | `frontend/surfaces/achievements/index.ts` | `achievements` surface: `createAchievementsSurface`, `achievementsStore` (§ achievements below) |
 | `frontend/surfaces/achievements/{core,store}.ts` | Hook installation, local schema/unlock reads |
 | `frontend/steam/achievement-types.ts` | Steam's own achievement shapes; importable by surfaces |
@@ -70,7 +70,7 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/native-links/index.ts` | `native-links` surface: `createNativeLinksSurface` (§ native-links below) |
 | `frontend/surfaces/native-links/core.ts` | Pure redirect logic (tested with node) |
 | `frontend/surfaces/artwork/index.ts` | `artwork` surface: `createArtworkSurface`, `artworkWriter` (§ artwork below) |
-| `frontend/surfaces/artwork/{artwork,logo,deps}.ts` | Slot writes, logo position, injected deps |
+| `frontend/surfaces/artwork/{artwork,logo,deps}.ts` | Slot writes from the image bin, logo position, injected deps (`images`, `bus`) |
 | `frontend/surfaces/artwork/icon.ts` | The library icon write and restore (`SetShortcutIcon`, icon plan) |
 | `frontend/surfaces/library-home/index.ts` | `library-home` surface: `createLibraryHomeSurface`, `ready()` (§ library-home below) |
 | `frontend/surfaces/library-home/grid.ts` | The grid patch, async registration |
@@ -84,7 +84,9 @@ list and the guardrail that governs each target.
 
 Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-plan.md#41-layers-and-the-dependency-rule):
 `surfaces/<name>/` may import `kernel/`, `steam/`, and its own folder, and
-must never import another surface, `app/`, `ports/`, or `sensors/`.
+must never import another surface, `app/`, `ports/`, or `sensors/`. ADR-0044 (M10) adds what a surface may be
+**given**: its `SurfaceDeps`, pure reads and the `bus` for its own result event; never a function that reaches the
+backend or another surface (`tests/architecture.test.ts` checks `index.tsx`'s `create*Surface` blocks).
 
 ## Tests
 
@@ -108,8 +110,8 @@ until the service steps (M4+) feed them through `render()`.
 4. `render(appid, record)` stays a no-op until the service step that
    produces the record parts it reads exists (D4) — list the parts it will
    read in `reads` regardless.
-5. Callers reach the surface's API only through a D3 setter wired in
-   `index.tsx`'s `init()`, never through a direct import.
+5. It reads the record in `render()`; a Steam-side input arrives as a kernel event whose handler `index.tsx`
+   subscribes; its result goes out as its own event on the `bus` it is given (ADR-0044). No D3 setters.
 6. Register and install it where its old start-up call was:
    `runner.register(create<Id>Surface(surfaceDeps))`, then
    `runner.installAll()` covers every registered surface in one call.
@@ -168,17 +170,17 @@ Restores the app-detail sections Steam hides from shortcuts
 | `CAppDetailsSections.GetSections` | 1 (one patch owns this prototype method) |
 | `CAppDetailsSections.m_setSectionsMemo` | 1 |
 
-**reads:** `identity`, `metadata`, `achievements` (`identity` and `metadata` are record-driven since
-M4c/M5b; `achievements` still writes through its own sink until M6 adds that part).
+**reads:** `identity`, `metadata`, `achievements` (M10: a changed `achievements` part re-renders the sections on a
+timer, after the achievements surface fed Steam's stores in the same pass; the `refreshSections` injection is gone).
 
 **Kill switch:** `sections` (`disabledFeatures`). Checked inside `patchedGetSections` on every call (D6).
 
 **Injected deps:**
 - `SurfaceDeps` (`isEnabled`, `reportError`), passed to `createSectionsSurface`.
 
-**API (reached only through these setters):**
-- `setHasContent(appid, hasContent)` — wired from `library-app`'s content listener via `setContentListener`.
-- `refreshSections()` — wired from the achievements store via `setSectionsRefresher`.
+**API:**
+- `onCapturesPublished({ appid, hasContent })` — `index.tsx` subscribes it to `captures.published` (M10; was the
+  `setContentListener` setter).
 
 **`render(appid, record)`** (M4c; M5b adds the `metadata` half):
 `setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined)`
@@ -225,10 +227,11 @@ Each part installs under its own id inside `captures`'s `install()`, so one part
 doesn't take down the others.
 
 **Injected deps:**
-- `SurfaceDeps & { activityOptions(): ActivityOptions }`, passed to `createCapturesSurface`; `activityOptions()` replaces importing `settings` directly (the two activity display settings).
+- `SurfaceDeps & { activityOptions(): ActivityOptions; bus }`, passed to `createCapturesSurface`; `activityOptions()` replaces importing `settings` directly (the two activity display settings); `bus` carries `captures.published` (M10).
 
-**API (reached only through this setter):**
-- `setCapturesRefresher(fn)` — wired from `scraper/on-update` (D3).
+**API:**
+- `onWindowOpened` / `onWindowClosed` — the Big Picture thumbnail style, subscribed to the view sensor's window events (M10).
+- `onUnlocked` — the Post-Game Summary line for each item of `achievements.unlocked` (M10).
 - `registerSummaryProvider`, the `Summary*` types, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics` — re-exported from `surfaces/captures`; `index.tsx`'s public API (D8) is unchanged.
 
 **`render(appid, record)`** (M4c): `setNativeActivitySource(appid, record?.identity?.data?.native?.appid)`
@@ -262,15 +265,15 @@ shortcut shows the same accordion drawer a native game does.
 | `AppDetailsStore.descriptionsData` | 1 |
 | `AppDetailsStore.associationData` | 1 |
 
-**reads:** `metadata` (record-driven since M5b, D4).
+**reads:** `identity`, `metadata` (M10: a new Steam match in `identity` re-renders every window, guardrail 11 — was
+`app/steam-store`'s `setGameInfoRefresher` call).
 
-**Kill switch:** `game-info`. Checked at the top of every hook (D6).
+**Kill switches:** `game-info` (checked at the top of every hook, D6) and `playbar` for its PlayBar part.
 
 **Injected deps:**
-- `SurfaceDeps & { controllerContext(appid): ControllerContext; metadataOf(appid): GameMetadata | undefined }`, passed to `createGameInfoSurface`. `metadataOf` now reads `records.get(appid)?.metadata?.data` (M5b; was `features/game-info`'s `getCachedLibraryMetadata`, deleted with that file).
-
-**API (reached only through this setter):**
-- `setGameInfoRefresher({ refresh })` (`app/steam-store.ts`) — wired to `refreshGameInfoInstances` from `index.tsx`; `steam-store`'s artwork path calls it after a Steam Store view (guardrail 11), narrowed to `refresh` only. `setGameInfoWriter`, `setGameInfoSink` and `setGameInfoEnricher` are gone (M5b): nothing outside this surface writes Game Info any more — `render(appid, record)` is the only writer.
+- `SurfaceDeps & { metadataOf(appid): GameMetadata | undefined }`, passed to `createGameInfoSurface`: a pure read of
+  `records.get(appid)?.metadata?.data`. The badge categories are `metadata.badge_category_ids`, decided by
+  `app/metadata` with `domain/category-policy` (M10: the `controllerContext` dep and the policy file left the surface).
 
 **`render(appid, record)`** (M5b): `record.metadata.status` is `"ok"` (or `"error"` with `data`) →
 `enrichGameDetails(appid, metadata.data)` (idempotent, M0a); otherwise, if the app was enriched →
@@ -287,12 +290,11 @@ through `app/metadata.ts`, which writes a new part and lets this `render()` reac
 
 ## playbar
 
-Restores the ⓘ "Show/Hide game details" button on a shortcut's desktop
-PlayBar. Split out of `game-info` because the two are on different Steam
-components and the code has no other reason to be in the same surface; the
-button opens Game Info, so it shows only while **both** `playbar` and
-`game-info` are enabled — the same behaviour as before the split, when
-`game-info` alone owned it.
+**A part of `game-info` since M10** (`surfaces/game-info/playbar.ts`, installed by `game-info`'s `install()` under
+its own kill switch `playbar`): restores the ⓘ "Show/Hide game details" button on a shortcut's desktop PlayBar. It
+uses `game-info`'s own overview hooks and instance tracking, which as a separate surface it could only get through
+injection (surface → surface, ADR-0044). The button opens Game Info, so it shows only while **both** `playbar` and
+`game-info` are enabled. `PlayBar.render` and `PlayBar.props` are in `game-info`'s `touches`.
 
 **touches:**
 
@@ -305,14 +307,11 @@ button opens Game Info, so it shows only while **both** `playbar` and
 
 **Kill switch:** `playbar`. `on()` checks `isEnabled("playbar") && isEnabled("game-info")` — both must be on.
 
-**Injected deps:**
-- `SurfaceDeps & { hookOverview(overview): void; track(inst): void }`, passed to `createPlaybarSurface`. `hookOverview` is game-info's `ensureAppOverviewHooked`; `track` is game-info's `trackInstance`, so `refreshGameInfoInstances` re-renders the PlayBar too.
-
-**API:** none — `playbar` has no callers besides its own `install()`; it patches `PlayBar` directly once resolved.
+**Deps:** `game-info`'s `deps` and, in the same folder, `ensureAppOverviewHooked` and `trackInstance`.
 
 **Hooks:** the props getter (`hookPlayBarProps`, the `requireMetadata: false` path moved verbatim from game-info's `hookComponentProps`) and `render` are both fail-open — a throw returns Steam's original props/render and counts against `playbar`.
 
-**Shared code:** `steam/overview-proxy.ts`'s `createPatchedOverview`, importable only by `surfaces/game-info` and `surfaces/playbar` (guardrail 1, enforced by an architecture test).
+**Shared code:** `steam/overview-proxy.ts`'s `createPatchedOverview`, importable only by `surfaces/game-info` (guardrail 1, enforced by an architecture test).
 
 **Record-driven in:** M5.
 
@@ -342,8 +341,9 @@ Steam's own native UI.
 
 **Kill switch:** `achievements`. All six hooks are fail-open through one shared `failOpen()` helper (handles both sync throws and rejected promises).
 
-**Injected deps:**
-- `SurfaceDeps & { refreshSections(): void }`, passed to `createAchievementsSurface`. `refreshSections` is `sections`'s setter (wired in M3.1), so an achievement update can re-trigger the sections re-render.
+**Injected deps:** `SurfaceDeps` (M10: `refreshSections` is gone; `sections` re-renders from the record).
+`install()` retries the store hook for 5 s itself (moved from `index.tsx`). Guardrail 8 (M10 fix): our achievements go
+into `appData.details.achievements` only where Steam created `details`; nothing creates it.
 
 **`render(appid, record)`** (M6b): when `record.achievements` is `ok` with data, `updateShortcutState(appid, native, schema, unlocks)`
 feeds Steam's stores (native from `record.identity`, else the schema's). `store-port.ts` is gone: nothing outside this
@@ -378,10 +378,10 @@ achievement unlock and a game launch/first-play notification.
 
 **Injected deps:** `SurfaceDeps`, passed to `createToastsSurface`.
 
-**API:** `toast-port.ts` is gone (M6b). `index.tsx` subscribes to `achievements.unlocked` and shows one toast per id, reading the name,
-description, icon and global % from `records.get(appid).achievements.data.schema`; the launch toast policy
-(setting `localAchievementsNotifyOnLaunch`, only when the record has achievements) lives in `app/achievements.ts` and calls
-`dispatchLaunchToast` through an injected `showLaunchToast`. `dispatchAchievementToast` (D8) stays a public export of `index.tsx`.
+**API:** event handlers `index.tsx` subscribes (M10): `onUnlocked` (one toast per item of `achievements.unlocked`,
+whose items `app/achievements` builds from the record) and `onLaunchToast` (`achievements.launch-toast`, emitted by the
+launch toast policy in `app/achievements.ts`); `installTestHook()` (the documented `cartridges:trigger_fake_achievement`
+CDP hook, D8). `dispatchAchievementToast` (D8) stays a public export of `index.tsx`.
 
 **K17 (fixed 2026-09-29):** on the current Steam build the achievement notification's protobuf setters
 (`set_achievement_id`, `set_global_achieved_pct`) are on an *instance's* prototype, not on `Class.prototype`, so
@@ -444,12 +444,17 @@ without) and puts that plan in `record.artwork`; this surface only executes it.
 
 **reads:** `artwork` (record-driven since M5c, D4).
 
-**Kill switch:** `artwork`. Checked at the top of every write (`applyCustomArtworkFromUrls`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`, `applyIcon`) — while off, no slot is written or cleared, the logo position is not touched and the library icon is neither set nor restored.
+**Kill switch:** `artwork`. Checked at the top of every write (`applyCustomArtwork`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`, `applyIcon`) — while off, no slot is written or cleared, the logo position is not touched and the library icon is neither set nor restored.
 
-**Injected deps:**
-- `SurfaceDeps & { downloadImage(url); recordArtwork(appid, info); saveIcon(appid, url, source, steamAppid?, base64?); recordIcon(appid, info) }`, passed to `createArtworkSurface`. The surface never fetches: `app/artwork.ts` fetches the icon bytes through `ports/image.ts` and puts them in `IconPlan.base64`; a plan without them writes nothing. `saveIcon` stores our copy of the icon image (`SteamStoreSaveIcon`) and returns its path and `previous`; `recordIcon` remembers the icon set (`SteamStoreRecordIcon`) and returns `{ error }` when the match changed meanwhile, so the surface puts `previous` back. `downloadImage` replaces the direct `rpc.steamStoreDownloadImage` call; `recordArtwork` tells the backend which slots were written (`SteamStoreRecordArtwork`, `source: "steamgriddb"` for a shortcut with no Steam match) and returns `{ error }` when the mapping vanished meanwhile, so the surface undoes the write (P4 H5).
+**Injected deps (M10):**
+- `SurfaceDeps & { images; bus }`, passed to `createArtworkSurface`: `images` is the kernel image bin (read only: the
+  slot bytes `app/artwork` fetched before the plan reached the record); `bus` carries `artwork.applied` (what was
+  written), which `app/artwork` records through the port (`SteamStoreRecordArtwork`, `SteamStoreRecordIcon`); a refused
+  record comes back as a clear plan in the record (P4 H5). The icon file is stored by `app/artwork`
+  (`SteamStoreSaveIcon`) before the plan exists, so `IconPlan` carries its `path`. The surface fetches nothing and
+  calls no backend (before M10 it took `downloadImage`, `recordArtwork`, `saveIcon`, `recordIcon`).
 
-**`render(appid, record)`** (M5c): when `record.artwork.status` is `ok`, run `record.artwork.data` (an `ArtworkPlan`): clear `clear` slots (and the logo position when slot 2 is cleared), write `write` from `urls`, record what was written, then ensure the logo position when slot 2 is ours, then the library icon when the plan has one (`icon.url`: save, `SetShortcutIcon`, record; `icon.restore`: `SetShortcutIcon(appid, restore)`, a Clear). Plans run one at a time per shortcut (a Clear followed by a write never interleaves). `setArtworkSink` is gone — `features/steam-store` no longer writes art; it asks `app/artwork.clearSlots()` and the surface clears.
+**`render(appid, record)`** (M5c; M10): when `record.artwork.status` is `ok`, run `record.artwork.data` (an `ArtworkPlan`): clear `clear` slots (and the logo position when slot 2 is cleared), write `write` from the image bin (a slot with no bytes is reported failed), ensure the logo position when slot 2 is ours, then the library icon when the plan has one (`icon.path`: `SetShortcutIcon(appid, path)`; `icon.restore`: `SetShortcutIcon(appid, restore)`, a Clear), then emit `artwork.applied` (not for a Clear). Plans run one at a time per shortcut (a Clear followed by a write never interleaves). `features/steam-store` no longer writes art; `app/steam-store` asks `app/artwork.clearSlots()` and the surface clears.
 
 **Hooks:** none — `artwork` only writes, never patches a Steam method.
 
@@ -474,7 +479,8 @@ a native game with recent playtime would.
 **Kill switch:** `library-home`. The afterPatch is fail-open: it returns Steam's own value.
 
 **Injected deps:**
-- `SurfaceDeps & { loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>> }`, passed to `createLibraryHomeSurface`. `loadLibraryStats` replaces the direct `rpc.getLibraryStats` call.
+- `SurfaceDeps & { stats }`, passed to `createLibraryHomeSurface`: O(1) reads of `app/library-stats` (M10), which loads
+  the capture stats through the port at start-up and after a game quits. The surface calls no backend.
 
 **API:**
 - `refresh` — re-exported from `surfaces/library-home`.
@@ -482,7 +488,7 @@ a native game with recent playtime would.
 
 **Hooks:** the `OnAppOverviewChange` afterPatch is fail-open.
 
-**Record-driven in:** not decided — an RPC call until M7 (D4).
+**Record-driven in:** not record-driven by design (M10): capture stats are Steam's own data (ADR-0022), read from `app/library-stats`.
 
 **M3 complete:** `library-home` is the last surface. `frontend/renderers/` no longer exists — every
 Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K14
@@ -493,3 +499,8 @@ Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K
 - 2026-09-29 (post-M6): K17 fixed (`toasts` protobuf resolver) and K19 fixed (`achievements` `GetAchievements` wrapper).
 - Icon plan (2026-09-29): `artwork` touches `SteamClient.Apps.SetShortcutIcon` (the shortcut's library icon,
   `surfaces/artwork/icon.ts`); `ArtworkPlan.icon`.
+- M10 (2026-09-30, ADR-0044): no surface fetches, calls the backend or calls another surface. `artwork` reads the
+  image bin and emits `artwork.applied`; `library-home` reads `app/library-stats`; `playbar` is a part of `game-info`;
+  `sections` follows the record and `captures.published`; `achievements` fixes guardrail 8 and retries its own hook;
+  `toasts` and `captures` take `achievements.unlocked`; `captures` styles the windows the view sensor reports;
+  `game-info` writes the record's badges and refreshes on a new Steam match. One `jsxRuntime()` in `steam/modules`.

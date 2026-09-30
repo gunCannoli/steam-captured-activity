@@ -45,7 +45,7 @@ CheckUnlocks({ appid, native?, title? })    -- -> { new_unlocks = [...] }  (alwa
 
 | Source | `supports` | Fetch |
 | --- | --- | --- |
-| `steam` | `ctx.native > 0` | `achievements_store.get_or_fetch(appid, native)` |
+| `steam` | `ctx.native > 0` | `steam_schema.get_or_fetch(appid, native)` (M10: moved out of the store) |
 | `rpcs3` | `ps3_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps3_trophies.get_or_fetch(appid)` |
 | `shadps4` | `ps4_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps4_trophies.get_or_fetch(appid)` |
 | `retroachievements` | `retroachievements.extract_rom_path(exe, launch_options)` is not nil | `retroachievements.get_or_fetch(appid, hardcore)` |
@@ -64,7 +64,8 @@ so a PC game stays silent there too.
 | `backend/record_rpc.lua` | `EnsureFresh` `achievements`, `CheckUnlocks`, local parts |
 | `backend/achievements_rpc.lua` | The old RPC names, as aliases |
 | `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels; `get_possible_folder_names` (K7 fixed) |
-| `backend/achievements_store.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
+| `backend/steam_schema.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
+| `backend/achievements_store.lua` | The store (`achievements.json`); no network since M10 |
 
 ## Frontend (M6b)
 
@@ -369,3 +370,5 @@ To support a new game engine, local emulator, or save format, follow this recipe
      - `AppDetailsStore.GetAchievements().nAchieved` increments.
      - `appAchievementProgressCache` updates.
      - Navigation cycle (Game A $	o$ Game B $	o$ Game A) maintains unlocked state.
+- M10 (2026-09-30): the keyless Steam schema fetch moved from `achievements_store.lua` to the source `steam_schema.lua`
+  (a store stores, a source fetches); `ach_service` finds the shortcut through `registry.shortcut`.

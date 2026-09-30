@@ -46,7 +46,6 @@ return M
 
 ```lua
 -- backend/record_rpc.lua (M4b; extended here with "metadata" and GetAllRecords)
-RPC.GetGameRecord  = method("GetGameRecord",  function(d) --[[ {appid} ]] end)                -- -> { appid, parts }
 RPC.EnsureFresh    = method("EnsureFresh",    function(d) --[[ {appid, parts, context} ]] end) -- -> { appid, parts }
 RPC.GetAllRecords  = method("GetAllRecords",  function(_) end)                                  -- -> { records }
 ```
@@ -101,7 +100,7 @@ which carries them, is never logged.
 | File | Role |
 | --- | --- |
 | `backend/metadata_service.lua` | Selection order above |
-| `backend/record_rpc.lua` | `GetGameRecord`, `EnsureFresh`, `GetAllRecords` — the record facade |
+| `backend/record_rpc.lua` | `EnsureFresh`, `GetAllRecords` — the record facade (`GetGameRecord` removed in M10) |
 | `backend/web_metadata_db.lua` | Persisted `library_metadata.json` (unchanged format, `custom_override` rule) |
 | `backend/steam_store_appdetails.lua` | Store appdetails fetch + `to_metadata` (mapped native apps, in-memory 7-day TTL cache) |
 | `backend/web_igdb.lua` | IGDB search + match scoring (`fetch_game_metadata`) |
@@ -172,3 +171,5 @@ decision (M5d: IGDB first when configured, ScreenScraper fills in).
   `screenscraper_to_metadata` (English synopsis, `{id,text}` credits, `noms`-list genres and families, earliest date,
   `joueurs` `{"text":"1-2"}` -> single and multiplayer). Test-harness note: the stub JSON decoder in the Lua suites has no
   `utf8`, so a raw response with `\u` escapes must be re-serialized before use; the backend uses Millennium's own JSON.
+- M10 (2026-09-30): `metadata_service` no longer requires `web_rpc` (the shortcut comes from `registry.shortcut`);
+  the frontend adds `badge_category_ids` to the part (`app/metadata`, `domain/category-policy`); `GetGameRecord` removed.

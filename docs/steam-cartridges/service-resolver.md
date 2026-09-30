@@ -41,7 +41,6 @@ return M
 
 ```lua
 -- backend/record_rpc.lua (M4b; M5a adds "metadata" and GetAllRecords)
-RPC.GetGameRecord = method("GetGameRecord", function(d) --[[ {appid} ]] end)                -- -> { appid, parts }
 RPC.EnsureFresh   = method("EnsureFresh",   function(d) --[[ {appid, parts, context} ]] end) -- -> { appid, parts }
 ```
 
@@ -67,7 +66,7 @@ RPC.EnsureFresh   = method("EnsureFresh",   function(d) --[[ {appid, parts, cont
 | File | Role |
 | --- | --- |
 | `backend/resolve_identity.lua` | Resolution order above; `launches_emulator` (shared) |
-| `backend/record_rpc.lua` | `GetGameRecord`, `EnsureFresh` — the record facade (M5a extends it) |
+| `backend/record_rpc.lua` | `EnsureFresh` — the record facade (M5a extends it; `GetGameRecord` removed in M10) |
 | `backend/steam_store_store.lua` | Persisted mapping/suggestion/rejection state (`steam_store.json`, unchanged) |
 | `backend/steam_store_search.lua` | Store search + classification (`exact` / `edition` / suggestions) |
 | `backend/steam_store_normalize.lua` | Title normalization shared with the frontend's (now retired) `matchKnownIndex` |
@@ -112,3 +111,4 @@ gated by its own `ctx` field — never inline in `M.ensure`'s existing branches.
   `SteamStoreSaveKnownMatch`/`SteamStoreSearch` RPC bodies) and
   `record_rpc.lua` (`GetGameRecord`, `EnsureFresh`), registered in `main.lua`.
   Nothing calls the new RPCs yet — the frontend adopts them in M4c.
+- M10 (2026-09-30): `GetGameRecord` removed (never called); `launches_emulator` reads the shortcut through `registry.shortcut`.

@@ -7,8 +7,12 @@
 
 - **Defaults are pinned.** `settings/defaults.ts` (type-only imports) holds `DEFAULTS`, `DEFAULT_SERVICES` and the types;
   `tests/fixtures/settings-defaults.json` is checked against it. No key is renamed, no default changed (do-not-touch 1).
-- **`settings/context.ts`** (`PanelContext`, `setPanelContext`, `usePanelContext`): `routing`, `ingest`, `records`, `controller`,
-  `steamStore`, `safety`. `index.tsx` calls `setPanelContext` at the top of `init()`; before that the context is inert.
+- **`settings/context.ts`** (`PanelContext`, `setPanelContext`, `usePanelContext`): `routing` (with `serviceAllowed`, the
+  one policy evaluation, M10), `ingest`, `records` (`achievementsOf` reads the record through `app/achievements`, M10),
+  `controller`, `steamStore`, `safety`. `index.tsx` calls `setPanelContext` at the top of `init()`; before that the
+  context is inert. Panels may import `domain/` for types and validators, never to evaluate policy (ADR-0044).
+- **Change notices** go through the settings store's own `onSettingChange` and `ingest.onProgress` (M10: the
+  `steam-cartridges:rule-updated` window event is gone).
 - **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Achievements, Notifications, Activity Feed,
   Community & Media, Routing Rules, Library Audit, Troubleshooting; then the sticky `sync-progress.tsx` bar.
   Shared rows are in `components.tsx`.

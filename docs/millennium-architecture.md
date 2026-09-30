@@ -172,7 +172,7 @@ backend/
   ps3_trophies.lua                   service (backend)  steam-cartridges - RPCS3 Local PlayStation 3 Trophy Provider (Phase 5).
   ps4_trophies.lua                   service (backend)  steam-cartridges - shadPS4 Local PlayStation 4 Trophy Provider.
   ra_hasher.js                       service (backend)  steam-cartridges/backend/ra_hasher.js
-  record_rpc.lua                     service (backend)  The record facade: GetGameRecord (disk only), EnsureFresh (resolves stale
+  record_rpc.lua                     service (backend)  The record facade: EnsureFresh (resolves stale
   registry.lua                       service (backend)  Which shortcuts has the plugin already seen? (migration plan M7a, Flow B).
   resolve_identity.lua               service (backend)  Identity resolution: is this shortcut a Steam game? (migration plan M4b).
   retroachievements.lua              service (backend)  steam-cartridges - RetroAchievements provider (Phase 5).

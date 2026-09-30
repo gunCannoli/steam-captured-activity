@@ -64,10 +64,15 @@ the `artwork` surface executes it. `Clear` (`SteamStoreClearMapping`) returns th
 (also for SteamGridDB) and resets `tried`; it also returns `icon_restore` (the icon value ours replaced)
 while the shortcut still shows our icon, and forgets `applied_icon`.
 
-The icon file: `SteamStoreSaveIcon` (`backend/shortcut_icon.lua`) stores the eligible URL's image, which `app/artwork.ts` fetched (`ports/image.ts`) and sent as `base64` (the backend's `http.get` cuts a binary body at its first NUL byte, so it cannot download one; the download below is only a fallback that a real image never reaches) (Steam CDN or
-SteamGridDB CDN only, body sniffed as PNG/JPEG/ICO) to `<data dir>/icons/<appid>.<ext>` and returns that
-path and `previous`; the surface calls `SetShortcutIcon`, then `SteamStoreRecordIcon` records it (refused,
-and undone, when the match changed meanwhile). The backend never writes Steam's `config/grid/` files.
+The icon file (M10): `app/artwork.ts` fetches the eligible icon (`ports/image.ts`) and calls `SteamStoreSaveIcon`
+(`backend/shortcut_icon.lua`) **before** the plan reaches the record; the backend stores the bytes (sent as `base64`:
+its `http.get` cuts a binary body at its first NUL byte; its own download stays only as a fallback that fails closed,
+`sniff`) (Steam CDN or SteamGridDB CDN only, body sniffed as PNG/JPEG/ICO) to `<data dir>/icons/<appid>.<ext>` and
+returns that path and `previous`, which go into `IconPlan`. The surface calls `SetShortcutIcon` and reports it in
+`artwork.applied`; `app/artwork` records it with `SteamStoreRecordIcon` (a refusal, when the match changed
+meanwhile, becomes a restore plan). The four slots work the same way: `app/artwork` fetches them into the kernel image
+bin, the surface writes them and reports, `app/artwork` records them (`SteamStoreRecordArtwork`). The backend never
+writes Steam's `config/grid/` files.
 
 ## Files
 
@@ -127,3 +132,6 @@ None (the surface owns them).
 - Icon plan (2026-09-29): the library icon. A shortcut whose icon Steam draws from its exe (32×32 BMP) gets the
   mapped native app's 184 px community icon, or SteamGridDB's icon inside a slot lookup; `applied_icon` in
   `steam_store.json`; `shortcut_icon.lua`; Clear puts the replaced icon back. An icon the user chose is never touched.
+- M10 (2026-09-30): the slots and the icon are fetched by `app/artwork` (the image bin, `ports/image` with
+  `forcePng`), the icon file is stored before the plan exists, and what the surface wrote is recorded by `app/artwork`
+  from `artwork.applied`. `SteamStoreDownloadImage` and `GetArtworkForGame` are deleted.
