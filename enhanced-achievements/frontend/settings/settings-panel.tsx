@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Children, useEffect, useState } from "react";
 import {
     DialogBodyText,
     DialogButton,
@@ -37,14 +37,34 @@ const ITEM_ROW_STYLE: React.CSSProperties = {
 /** Steam's settings-card background (a Field's own), measured live: rgb(35, 38, 46). */
 const CARD_BACKGROUND = "rgb(35, 38, 46)";
 
-/** Steam's SliderField ends with this much blank space; `joinNext` cancels it so the next block merges with it. */
-const SLIDER_GAP = 22;
+/**
+ * Spacing system. A *block* is a group of options that read as one card: its rows touch (no gap). Blocks in a section
+ * are `BLOCK_GAP` apart, set in one place (`Blocks`). Steam's SliderField and TextField each end with `STEAM_TRAILING`
+ * of blank space of their own; `ItemRow` cancels it (`trailing`) so a block's spacing never depends on its last control.
+ */
+const BLOCK_GAP = 22;
+const STEAM_TRAILING = 22;
+/** Between stacked controls inside one custom card. */
+const CONTROL_GAP = 8;
 
-function ItemRow({ children, joinNext }: { children: React.ReactNode; joinNext?: boolean }) {
+function ItemRow({ children, trailing }: { children: React.ReactNode; trailing?: boolean }) {
     return (
         <PanelSectionRow>
-            <div style={joinNext ? { ...ITEM_ROW_STYLE, marginBottom: -SLIDER_GAP } : ITEM_ROW_STYLE}>{children}</div>
+            <div style={trailing ? { ...ITEM_ROW_STYLE, marginBottom: -STEAM_TRAILING } : ITEM_ROW_STYLE}>{children}</div>
         </PanelSectionRow>
+    );
+}
+
+/** The blocks of one section, `BLOCK_GAP` apart. Pass each block as one child (a fragment of rows). Padding, not margin: margins would collapse into the slider's own trailing margin. */
+function Blocks({ children }: { children: React.ReactNode }) {
+    return (
+        <>
+            {Children.toArray(children).map((block, i) => (
+                <div key={i} style={{ paddingTop: i === 0 ? 0 : BLOCK_GAP }}>
+                    {block}
+                </div>
+            ))}
+        </>
     );
 }
 
@@ -79,19 +99,17 @@ function SliderRow({
     label,
     suffix,
     disabled,
-    joinNext,
 }: {
     k: SettingKey;
     label: string;
     suffix: string;
     disabled?: boolean;
-    joinNext?: boolean;
 }) {
     const [value, set] = useSetting(k);
     const range = RANGES[k]!;
 
     return (
-        <ItemRow joinNext={joinNext}>
+        <ItemRow trailing>
             <SliderField
                 label={label}
                 layout="below"
@@ -186,53 +204,58 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
 
     return (
         <PanelSection title="Theme">
-            {/* Three rows: label, description, then the dropdown across the full
-                row. Two Fields rather than one with childrenLayout="below", so the
-                order does not depend on where Steam's Field puts the description. */}
-            <ItemRow>
-                <Field
-                    label="Available themes"
-                    description="Select a theme to choose the notification style"
-                    disabled={disabled}
-                    bottomSeparator="none"
-                />
-            </ItemRow>
-            <ItemRow>
-                <Field disabled={disabled} childrenContainerWidth="max">
-                    <Dropdown
-                        rgOptions={options}
-                        selectedOption={theme}
-                        disabled={disabled}
-                        contextMenuPositionOptions={{ bMatchWidth: true }}
-                        onChange={(o) => setTheme(o.data as string)}
-                    />
-                </Field>
-            </ItemRow>
-            {problem && (
+            <Blocks>
+                <>
+                {/* Three rows: label, description, then the dropdown across the full
+                    row. Two Fields rather than one with childrenLayout="below", so the
+                    order does not depend on where Steam's Field puts the description. */}
                 <ItemRow>
-                    <DialogBodyText>{problem}</DialogBodyText>
+                    <Field
+                        label="Available themes"
+                        description="Select a theme to choose the notification style"
+                        disabled={disabled}
+                        bottomSeparator="none"
+                    />
                 </ItemRow>
-            )}
+                <ItemRow>
+                    <Field disabled={disabled} childrenContainerWidth="max">
+                        <Dropdown
+                            rgOptions={options}
+                            selectedOption={theme}
+                            disabled={disabled}
+                            contextMenuPositionOptions={{ bMatchWidth: true }}
+                            onChange={(o) => setTheme(o.data as string)}
+                        />
+                    </Field>
+                </ItemRow>
+                {problem && (
+                    <ItemRow>
+                        <DialogBodyText>{problem}</DialogBodyText>
+                    </ItemRow>
+                )}
+                </>
+                <>
+                <ButtonRow
+                    label="Reload themes"
+                    description="Pick up theme file edits without restarting Steam"
+                    buttonLabel="Reload"
+                    disabled={disabled}
+                    onClick={() => {
+                        void (async () => {
+                            await refresh();
+                            await reloadTheme();
+                        })();
+                    }}
+                />
 
-            <ButtonRow
-                label="Reload themes"
-                description="Pick up theme file edits without restarting Steam"
-                buttonLabel="Reload"
-                disabled={disabled}
-                onClick={() => {
-                    void (async () => {
-                        await refresh();
-                        await reloadTheme();
-                    })();
-                }}
-            />
-
-            <ButtonRow
-                label="Themes folder"
-                buttonLabel="Open"
-                disabled={disabled}
-                onClick={() => void rpc.openThemesFolder()}
-            />
+                <ButtonRow
+                    label="Themes folder"
+                    buttonLabel="Open"
+                    disabled={disabled}
+                    onClick={() => void rpc.openThemesFolder()}
+                />
+                </>
+            </Blocks>
         </PanelSection>
     );
 }
@@ -308,48 +331,53 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
 
     return (
         <PanelSection title="Screenshots & Recordings">
-            <ToggleRow
-                k="screenshot.enabled"
-                label="Screenshot on unlock"
-                description="Needs Game Recording on"
-                disabled={disabled}
-            />
+            <Blocks>
+                <>
+                <ToggleRow
+                    k="screenshot.enabled"
+                    label="Screenshot on unlock"
+                    description="Needs Game Recording on"
+                    disabled={disabled}
+                />
 
-            <SliderRow
-                k="screenshot.delay_ms"
-                label="Screenshot delay"
-                suffix=" ms"
-                disabled={disabled || !screenshotOn}
-            />
+                <SliderRow
+                    k="screenshot.delay_ms"
+                    label="Screenshot delay"
+                    suffix=" ms"
+                    disabled={disabled || !screenshotOn}
+                />
+                </>
+                <>
+                <ToggleRow
+                    k="recording.enabled"
+                    label="Record clip on unlock"
+                    description="Saves the last length seconds"
+                    disabled={disabled}
+                />
 
-            <ToggleRow
-                k="recording.enabled"
-                label="Record clip on unlock"
-                description="Saves the last length seconds"
-                disabled={disabled}
-            />
+                <SliderRow
+                    k="recording.duration_s"
+                    label="Clip length"
+                    suffix=" s"
+                    disabled={disabled || !clipOn}
+                />
 
-            <SliderRow
-                k="recording.duration_s"
-                label="Clip length"
-                suffix=" s"
-                disabled={disabled || !clipOn}
-                joinNext
-            />
-
-            <SliderRow
-                k="recording.delay_ms"
-                label="Clip delay"
-                suffix=" ms"
-                disabled={disabled || !clipOn}
-            />
-
-            <ToggleRow
-                k="recording.add_timeline_marker"
-                label="Timeline marker"
-                description="Non-Steam games only"
-                disabled={disabled}
-            />
+                <SliderRow
+                    k="recording.delay_ms"
+                    label="Clip delay"
+                    suffix=" ms"
+                    disabled={disabled || !clipOn}
+                />
+                </>
+                <>
+                <ToggleRow
+                    k="recording.add_timeline_marker"
+                    label="Timeline marker"
+                    description="Non-Steam games only"
+                    disabled={disabled}
+                />
+                </>
+            </Blocks>
         </PanelSection>
     );
 }
@@ -411,16 +439,16 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     return (
         <ItemRow>
             {/* The card's background belongs to Steam's Field, so this wrapper paints the same colour under the controls and the two read as one card. */}
-            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px", marginTop: SLIDER_GAP }}>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px" }}>
             <Field
                 label="Reset Achievements"
                 description="Select a game to reset the achievements count"
                 disabled={!available}
                 bottomSeparator="none"
             />
-            <div style={{ display: "flex", flexDirection: "column", gap: "0", padding: "0 12px 12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: CONTROL_GAP, padding: "0 12px 12px" }}>
                 {/* Steam's text field ends with 22 px of blank space: pull the dropdown up to 8 px below it. */}
-                <div style={{ marginBottom: 8 - SLIDER_GAP }}>
+                <div style={{ marginBottom: -STEAM_TRAILING }}>
                     <TextField
                         label="Games filter"
                         value={filter}
@@ -479,6 +507,7 @@ export function SettingsPanel({ onPreview, achievementReset }: { onPreview: (tie
             <CapturesSection disabled={disabled} />
 
             <PanelSection title="Reset">
+                <Blocks>
                 <ButtonRow
                     label="Reset to defaults"
                     description="Clear every changed setting"
@@ -488,6 +517,7 @@ export function SettingsPanel({ onPreview, achievementReset }: { onPreview: (tie
                 />
 
                 <ResetAchievementsRows api={achievementReset} />
+                </Blocks>
             </PanelSection>
         </>
     );

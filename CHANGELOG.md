@@ -13,6 +13,8 @@ This repo is private and unversioned; entries are grouped by date.
 
 - **docs: split the architecture docs by subject (2026-09-30)**: `docs/steam-architecture.md` is now about Steam's own client (topology, how it treats shortcuts, ids, pointers to `steam-components`/`steam-debug`/`knowledgebase`). New `docs/steam-cartridges.md` covers the plugin: the hexagon mapped onto the layers, links to every layer doc, and a decision order for adding a feature. The docs index (previously `steam-architecture.md`) moved to `docs/README.md`; links in the layer docs, plans, `AGENTS.md` and `millennium-architecture.md` were repointed. The stale "features frozen until M3" note was dropped.
 
+- **enhanced-achievements: unified settings spacing (2026-09-30)**: every section now uses `<Blocks>`: 0 px between rows of a block, 22 px between blocks, measured live in all six sections (Steam's slider/text-field trailing space is cancelled, and the gap is padding because margins collapsed). Convention in docs/enhanced-achievements/architecture.md.
+
 - **enhanced-achievements: settings spacing (2026-09-30)**: Record clip, Clip length and Clip delay are one merged block (the slider's 22 px trailing gap is cancelled on Clip length); a 22 px gap now separates Reset to defaults from Reset Achievements (same as between Clip delay and Timeline marker); the filter input sits 14 px closer to the dropdown. Measured live (`gapAbove` 0 / 22 / 0 / 0 / 22).
 
 - **enhanced-achievements: Reset Achievements card fix (2026-09-30)**: the card background belongs to Steam's `Field`, so controls placed after it rendered outside the card (seen by the user). One wrapper now paints the same colour (`rgb(35, 38, 46)`, measured live) under the label, description and controls.

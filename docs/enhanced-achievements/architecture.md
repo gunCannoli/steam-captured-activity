@@ -86,8 +86,17 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 2. Put its decisions in a pure module with a unit test.
 3. Add a row to "Steam targets and their one owner". A target already owned by another row is not yours: extend that owner.
 
+## Settings panel spacing
+
+One system in `frontend/settings/settings-panel.tsx`: a **block** is a group of options that read as one card, and its rows touch (gap 0).
+Blocks in a section are `BLOCK_GAP` (22 px) apart, set only by `<Blocks>`: pass each block as one child (a fragment of rows). Steam's
+`SliderField` and `TextField` end with 22 px of blank space of their own, which `ItemRow trailing` cancels, so a block's spacing never
+depends on its last control. The gap is padding, not margin: margins collapse into that trailing space. A new option goes inside an
+existing block or becomes a new child of `<Blocks>`; never add spacing on a row.
+
 ## History
 
+- 2026-09-30 Settings panel: one spacing system (`Blocks`, `BLOCK_GAP`); Record clip, Clip length and Clip delay are one block.
 - 2026-09-30 Reset Achievements: new surface `reset` (feature id `reset`, pure logic in `surfaces/reset/reset.ts`, shared types and `filterCandidates` in `kernel/reset.ts`); the settings panel gets it injected as `achievementReset` (D7). A Steam game is cleared with Steam's console command `achievement_clear <appid> <id>` per unlocked achievement (only ids of plain identifier characters are ever sent) and read back after 1.5 s; a non-Steam game through steam-cartridges' public `resetAchievements`, found in `PLUGIN_LIST` (a soft link: plugins never import each other, and without it non-Steam games are simply not offered). Non-Steam games with unlocks are listed from steam-cartridges' public `storedAchievementSummaries()` (one disk read per call), so `candidates()` is async. The panel is one card: a single `PanelSectionRow` holds the label, description and controls. New exports `achievementReset` and `SettingsPanelView` (live tests). `tests/reset.mjs` is non-destructive.
 - 2026-09-30 E2: `admit` moved from the render to the mount effect; `queue.peek` and `queue.whenShowing`; the sound surface uses them instead of `phaseOf` + `subscribe`. Fixes EA-K2 and EA-K9.
 - 2026-09-30 E1c: `banner` and `captures` are surfaces (`git mv` of toast-patch, themed-toast, window-pin, captures, recording; both install and uninstall through `Surface`); `surfaceStatus()` export; the allowlist is empty; test `no two surfaces declare the same Steam target`.
