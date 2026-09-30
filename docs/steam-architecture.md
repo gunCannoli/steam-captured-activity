@@ -104,6 +104,7 @@ updated by every later step that changes it (template in the
 | Freshness and ingestion                                             | [service-freshness.md](steam-cartridges/service-freshness.md) (M7a)                                                    | current |
 | Next features (Game Data editor, Media)                             | [steam-cartridges-features-plan.md](plans/steam-cartridges-features-plan.md)                                           | plan    |
 | Shortcut library icon (mirror the Steam icon)                       | [steam-cartridges-icon-plan.md](plans/steam-cartridges-icon-plan.md)                                                   | plan    |
+| Artwork image fetch leaves the surface (image bin) | [steam-cartridges-artwork-fetch-plan.md](plans/steam-cartridges-artwork-fetch-plan.md) | plan (draft) |
 | Settings panels and the Troubleshooting panel                       | [settings.md](steam-cartridges/settings.md) (M8)                                                                       | current |
 
 When a layer doc is created, its row flips to `current` and gets a link, in the
