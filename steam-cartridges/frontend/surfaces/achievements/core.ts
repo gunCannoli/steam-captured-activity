@@ -1,4 +1,5 @@
-import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../kernel/record";
+import { asList } from "../../kernel/lists.ts";
+import type { AchievementSchemaRecord, AchievementSchemaItem, AchievementUnlockRecord } from "../../kernel/record";
 import type { SteamAchievementItem, SteamAppAchievements, AchievementProgress } from "../../steam/achievement-types";
 
 /**
@@ -8,14 +9,16 @@ export function buildSteamAchievements(
     schema: AchievementSchemaRecord | undefined,
     unlocks: Record<string, AchievementUnlockRecord> = {},
 ): SteamAppAchievements | null {
-    if (!schema || !schema.achievements || schema.achievements.length === 0) {
+    // asList: an empty list crosses the backend as `{}` (K1), which is not iterable.
+    const items = schema ? asList<AchievementSchemaItem>(schema.achievements) : [];
+    if (!schema || items.length === 0) {
         return null;
     }
 
     const achieved: SteamAchievementItem[] = [];
     const unachieved: SteamAchievementItem[] = [];
 
-    for (const item of schema.achievements) {
+    for (const item of items) {
         const unlock = unlocks[item.id];
         const isUnlocked = !!unlock;
         const entry: SteamAchievementItem = {
@@ -45,7 +48,7 @@ export function buildSteamAchievements(
     const vecHighlight = achieved.slice(0, 5);
 
     return {
-        nTotal: schema.total || schema.achievements.length,
+        nTotal: schema.total || items.length,
         nAchieved: achieved.length,
         vecHighlight,
         vecAchieved: achieved,

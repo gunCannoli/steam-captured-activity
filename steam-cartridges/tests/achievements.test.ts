@@ -135,3 +135,10 @@ test('GetAchievements: a shortcut with nothing (details null) is answered withou
 test('GetAchievements: a shortcut whose details Steam did set is left to Steam', () => {
     assert.equal(getAchievementsAction({ isShortcut: true, hasLocal: false, hasDetails: true }), 'original');
 });
+
+test('buildSteamAchievements: an empty achievements list that arrives as {} (K1) gives null, not a throw', () => {
+    const empty = { ...mockSchema, total: 0, achievements: {} } as unknown as AchievementSchemaRecord;
+    assert.equal(buildSteamAchievements(empty, {}), null);
+    const asObject = { ...mockSchema, achievements: { 0: mockSchema.achievements[0] } } as unknown as AchievementSchemaRecord;
+    assert.equal(buildSteamAchievements(asObject, {})?.nTotal, mockSchema.total || 1);
+});
