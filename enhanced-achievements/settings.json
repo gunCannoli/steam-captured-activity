@@ -12,5 +12,6 @@
         "duration_s": 15,
         "delay_ms": 0,
         "add_timeline_marker": false
-    }
+    },
+    "disabledFeatures": ""
 }

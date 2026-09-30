@@ -7,6 +7,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- **Kill switches, error budget and safe mode** (migration E0a, ADR-0043). Each part that writes into
+  Steam (`banner`, `sound`, `duration`, `completion`, `captures`) can be switched off with the
+  `disabledFeatures` setting and switches itself off after 5 errors in a session; Steam's own toast,
+  chime or duration returns for it, and `claims()` hands it to enhanced-notifications. Two starts in a
+  row that do not end cleanly start the next one in safe mode (nothing hooked). `safetyDiagnostics()`
+  shows the state. See docs/enhanced-achievements/architecture.md.
+
+### Fixed
+
+- `claims()` is O(1) again: it no longer walks the jsx wrapper chain (and could call the jsx runtime)
+  on every call, which enhanced-notifications makes on every toast.
+
 ## [1.0.0] - 2026-09-25
 
 ### Added

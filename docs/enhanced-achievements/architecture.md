@@ -1,0 +1,72 @@
+# enhanced-achievements architecture
+
+**This doc's job:** how `enhanced-achievements` is built today: its layers, who
+owns each Steam target, its safety net, and how to add a feature without
+breaking another. Decision: [ADR-0043](../decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net).
+Migration: [enhanced-achievements-architecture-migration-plan.md](../plans/enhanced-achievements-architecture-migration-plan.md).
+Every migration step updates this doc; the **Status** column says what is built.
+
+## Layers
+
+| Layer | Folder | Job | Status |
+| --- | --- | --- | --- |
+| Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode | current (E0a) |
+| Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | planned (E1a) |
+| Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
+| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the shared jsx-runtime hook | current; split in E1b |
+| Sensor | `frontend/sensors/` | Sees an achievement toast shown and emits `achievement.unlocked` once | planned (E1b) |
+| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `banner`, `sound`, `duration`, `toasts`, `captures` | planned (E1b, E1c) |
+| Composition root | `frontend/index.tsx`, `frontend/claims.ts` | Start-up order, wiring, the public exports and `claims()` | current |
+
+## Safety net (E0a)
+
+Every part that writes into Steam has a **feature id** (`safety/features.ts`):
+
+| Id | What it switches | Off means |
+| --- | --- | --- |
+| `banner` | The themed banner (jsx replacement of Steam's toast dispatcher) | Steam's own toast; `claims('banner')` handed back |
+| `sound` | The themed sound per tier and its queue timing | Steam's chime on arrival; `claims('sound')` handed back |
+| `duration` | Writing the achievement toast duration | Nothing written (a value already written stays until restart); `claims('duration')` handed back |
+| `completion` | The synthetic 100% toast after a game-completing unlock | No 100% toast |
+| `captures` | Screenshot, clip and marker on unlock | No captures |
+
+- **User switch:** `disabledFeatures` setting, comma-separated ids, no panel control. From the SharedJSContext console:
+  `PLUGIN_LIST['enhanced-achievements-dev'].setSetting('disabledFeatures', 'banner,sound')`. Read live; `duration` takes effect at the next theme change or restart.
+- **Error budget:** 5 errors in one session switch a feature off until Steam restarts. Errors are counted by the fail-open
+  catch blocks (the jsx handler, the banner's error boundary, the sound hook, the completion check, `onUnlock`, `applyDuration`).
+- **Safe mode:** the boot sentinel (`enhanced-achievements.boot` in SharedJSContext `localStorage`) counts starts that did not
+  end cleanly (no `pagehide`, or errors in the first 60 s). Two in a row: the next start hooks nothing (Steam's own toasts), and
+  60 error-free seconds clear it.
+- **Diagnostics:** `PLUGIN_LIST['enhanced-achievements-dev'].safetyDiagnostics()` → `{ safeMode, disabled, tripped, errors }`.
+- `claims()` stays O(1): enhanced-notifications calls it on every toast.
+
+## Steam targets and their one owner
+
+| Steam target | Owner (file) | Guardrail |
+| --- | --- | --- |
+| `NotificationStore.prototype.PlayNotificationSound` (wrapper) | `steam/notifications.ts` | [2](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components) |
+| `NotificationStore` instance `ChooseSound` (for one call) | `steam/notifications.ts` | 2 |
+| `NotificationStore.OnNotification` (synthetic toasts) | `steam/notifications.ts` | — |
+| Achievement type config `toastDurationMS` | `steam/notifications.ts` | — |
+| `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `steam/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](../plugins.md#sharing-the-jsx-runtime-between-plugins) |
+| Notification `fnNotificationResolved` (popup hold) | `banner/themed-toast.tsx` | 17 |
+| Toast popup `SteamClient.Window.MoveTo` (pin) | `banner/window-pin.ts` | — |
+| Game Recording RPCs | `steam/recording.ts` | — |
+
+## Tests
+
+| Command | What it proves |
+| --- | --- |
+| `npm test` | Pure modules: themes, tiers, queue, geometry, capture plan, safety (`tests/safety.test.ts`) |
+| `node tests/safety.mjs` (live) | A clean start is not in safe mode; `disabledFeatures` hands the banner back and restores it |
+
+## How to add a feature
+
+1. If it writes into Steam, give it a feature id (append to `FEATURE_IDS`; never rename one) and check `isEnabled(id)` before
+   every write and `reportError(id, err)` in its catch.
+2. Put its decisions in a pure module with a unit test.
+3. Add a row to "Steam targets and their one owner". A target already owned by another row is not yours: extend that owner.
+
+## History
+
+- 2026-09-29 E0a: safety net (kill switches, error budget, safe mode); `claims()` made O(1).

@@ -10,6 +10,7 @@ import { pinToastWindow, type PinnedWindow } from './window-pin';
 import { setting } from '../settings/settings';
 import { admit, finish, forget, MAX_QUEUE, phaseOf, subscribe, type Phase } from './queue';
 import { bannerTiming } from './timing';
+import { reportError } from '../safety/runtime';
 
 /**
  * The themed achievement banner, rendered in place of Steam's toast
@@ -49,6 +50,7 @@ class Fallback extends Component<{ toast: ToastProps; children: ReactNode }, { f
 
     override componentDidCatch(error: Error, info: ErrorInfo): void {
         logger.error('Themed banner failed; showing Steam toast.', error, info.componentStack);
+        reportError('banner', error); // past the budget, later toasts are Steam's own
     }
 
     override render(): ReactNode {

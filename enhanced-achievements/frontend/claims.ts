@@ -1,6 +1,7 @@
 import { achievementEType } from './steam/notifications';
 import { toastPatchInstalled } from './steam/toast-patch';
 import { activeTheme } from './theme/active-theme';
+import { isEnabled } from './safety/runtime';
 
 /**
  * What this plugin currently handles for achievement unlocks, published on
@@ -15,8 +16,9 @@ import { activeTheme } from './theme/active-theme';
  * style it". Before this rule, "Steam default" returned false for everything
  * and enhanced-notifications painted its own border and glow on the toast.
  *
- * The one case handed back is the banner when a theme is loaded but our
- * toast patch is not live: we could not draw it, so the other plugin may.
+ * Handed back: the banner when a theme is loaded but our toast patch is not
+ * live, and any feature whose kill switch is off (user setting, error budget;
+ * safety/features.ts): we are not doing it, so the other plugin may.
  *
  * O(1): reads in-memory state only.
  */
@@ -24,10 +26,10 @@ export function claims(feature: 'banner' | 'sound' | 'duration'): boolean {
     if (achievementEType() === null) return false; // our hooks are not installed
     switch (feature) {
         case 'banner':
-            return activeTheme() === null || toastPatchInstalled();
+            return activeTheme() === null || (toastPatchInstalled() && isEnabled('banner'));
         case 'sound':
         case 'duration':
-            return true;
+            return isEnabled(feature);
         default:
             return false;
     }

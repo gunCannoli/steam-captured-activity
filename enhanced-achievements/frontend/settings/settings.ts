@@ -35,6 +35,8 @@ export interface Settings {
     'recording.duration_s': number;
     'recording.delay_ms': number;
     'recording.add_timeline_marker': boolean;
+    /** Comma-separated FeatureIds switched off (safety/features.ts); no panel control. */
+    disabledFeatures: string;
 }
 
 export type SettingKey = keyof Settings;
@@ -49,6 +51,7 @@ export const DEFAULTS: Settings = {
     'recording.duration_s': defaults.recording.duration_s,
     'recording.delay_ms': defaults.recording.delay_ms,
     'recording.add_timeline_marker': defaults.recording.add_timeline_marker,
+    disabledFeatures: defaults.disabledFeatures,
 };
 
 /** Numeric ranges; also used by the settings panel's sliders. Single source: capture/plan.ts. */

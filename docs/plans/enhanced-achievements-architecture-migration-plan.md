@@ -51,7 +51,7 @@ conflicts with an ADR or a [plugins.md](../plugins.md) guardrail, stop and repor
 
 | Step | What | Status |
 | --- | --- | --- |
-| E0a | Safety net: kill switches, error budget, safe mode, fail-open hooks; `claims()` O(1) | `Ready` |
+| E0a | Safety net: kill switches, error budget, safe mode, fail-open hooks; `claims()` O(1) | `Done (live pending)` |
 | E0b | Test harness: architecture test (ratchet, pure files, one owner per target, RPC, drift), `npm run test:live` | `Ready` |
 | E1a | Kernel (notification types and ids, event bus, `Surface` contract) and the pure tier and timing functions | `Build` |
 | E1b | Split `steam/notifications.ts`: store discovery, the one notification hook, the unlock sensor, surfaces `sound`, `duration`, `toasts` | `Build` |

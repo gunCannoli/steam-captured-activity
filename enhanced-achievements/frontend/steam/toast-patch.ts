@@ -5,6 +5,7 @@ import { ThemedToast, setSteamToast } from '../banner/themed-toast';
 import { isAchievementUnlock, type SteamNotification } from './notifications';
 import { findExports } from './webpack';
 import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
+import { isEnabled, reportError } from '../safety/runtime';
 
 /**
  * Swaps Steam's notification-toast dispatcher for our themed toast, for
@@ -64,9 +65,15 @@ function shouldTheme(props: ToastProps | undefined): boolean {
     return isAchievementUnlock(n) && activeTheme() !== null;
 }
 
-/** True once the banner patch is live (used by claims() for enhanced-notifications). */
+/**
+ * True once the banner patch is installed (used by claims() for
+ * enhanced-notifications, which asks on every toast). O(1): the patch heals
+ * itself within a microtask of being dropped (steam/jsx-hook.ts), so
+ * "installed" means "kept installed". Walking the chain here, as before,
+ * could also call the jsx runtime with a sentinel on every claims() call.
+ */
 export function toastPatchInstalled(): boolean {
-    return !!hook && hook.diagnostics().every((d) => d.live);
+    return hook !== null;
 }
 
 /** Chain health, for tests (window.PLUGIN_LIST[...].jsxDiagnostics()). */
@@ -86,7 +93,16 @@ export function initToastPatch(): boolean {
     // it re-installs only when it is no longer anywhere in the chain.
     hook = keepJsxPatched(runtime, {
         label: 'enhanced-achievements',
-        replaceType: (type, props) => (type === dispatcher && shouldTheme(props as ToastProps) ? ThemedToast : undefined),
+        replaceType: (type, props) => {
+            if (type !== dispatcher) return undefined; // every other element: one compare
+            // Fail-open (migration plan § E0a): any error leaves Steam's own toast.
+            try {
+                return isEnabled('banner') && shouldTheme(props as ToastProps) ? ThemedToast : undefined;
+            } catch (error) {
+                reportError('banner', error);
+                return undefined;
+            }
+        },
     });
     logger.info('Achievement toast patch installed.');
     return true;

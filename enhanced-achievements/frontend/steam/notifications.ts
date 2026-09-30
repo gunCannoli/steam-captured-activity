@@ -4,6 +4,7 @@ import { completesGame, selectTier, TIERS, type ResolvedTheme, type Tier } from 
 import { bannerTiming } from '../banner/timing';
 import { onUnlock } from '../capture/captures';
 import { phaseOf, subscribe } from '../banner/queue';
+import { isEnabled, reportError } from '../safety/runtime';
 
 /**
  * Hooks into Steam's NotificationStore: the achievement sound, the toast
@@ -170,13 +171,13 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
                 // Previews never capture (A2.4), and the synthetic 100% toast does not
                 // capture again: the unlock that triggered it already did. Decided by
                 // id, so a real unlock right after either still captures.
-                if (!previewTierOf(n) && n.data.achievement_id?.() !== COMPLETION_ID) onUnlock(n, tier);
+                if (!previewTierOf(n) && n.data.achievement_id?.() !== COMPLETION_ID && isEnabled('captures')) onUnlock(n, tier);
 
                 // An unlock that completes the game schedules the synthetic 100%
                 // completion toast right after, once. Previews and that toast itself
                 // never do (EA_TEST does: it stands in for a real unlock).
                 const synthetic = previewTierOf(n) !== null || n.data.achievement_id?.() === COMPLETION_ID;
-                if (!synthetic && !completionChecked.has(n.data)) {
+                if (!synthetic && isEnabled('completion') && !completionChecked.has(n.data)) {
                     completionChecked.add(n.data);
                     const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
                     const progress = cache?.m_achievementProgress?.mapCache?.get(n.data.appid());
@@ -189,11 +190,11 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
                 }
             }
         } catch (error) {
-            logger.warn('Capture scheduling failed; continuing.', error);
+            reportError('completion', error); // captures report their own errors (onUnlock)
         }
         // Queued banner: its sound waits for its turn, so a burst of unlocks
         // is heard one at a time with the banners, not all at once on arrival.
-        if (isAchievementUnlock(n) && phaseOf(n.data) === 'waiting') {
+        if (isAchievementUnlock(n) && isEnabled('sound') && phaseOf(n.data) === 'waiting') {
             if (!soundDeferred.has(n.data)) {
                 soundDeferred.add(n.data);
                 const self = this;
@@ -211,7 +212,7 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
 
     function playSound(self: { ChooseSound?: unknown }, n: SteamNotification): void {
         try {
-            if (isAchievementUnlock(n)) {
+            if (isAchievementUnlock(n) && isEnabled('sound')) {
                 const clip = activeTheme()?.sounds.get(tierFor(n));
                 const ctx = clip ? audio() : null;
                 if (clip && ctx?.state === 'running') {
@@ -234,7 +235,7 @@ function installSoundHook(p: NotificationStoreProto, owner: object): void {
                 if (ctx && ctx.state === 'suspended') void ctx.resume();
             }
         } catch (error) {
-            logger.warn('Achievement sound hook failed; using Steam chime.', error);
+            reportError('sound', error); // this toast gets Steam's chime
         }
         original.call(self, n);
     }
@@ -304,11 +305,19 @@ export function themedDisplayMs(theme: ResolvedTheme): number {
  * display + exit), so where Steam times the toast itself (Big Picture) the
  * exit animation is never cut short; on desktop the banner holds its popup
  * anyway. Without a theme: Steam's own duration.
+ *
+ * Switched off (safety/features.ts `duration`): writes nothing, so Steam's
+ * (or enhanced-notifications') value stays; a value already written stays
+ * until Steam restarts.
  */
 function applyDuration(): void {
-    if (!achievementConfig) return;
-    const theme = activeTheme()?.theme;
-    achievementConfig.toastDurationMS = theme ? bannerTiming(theme.animation, themedDisplayMs(theme)).totalMs : originalDurationMs;
+    if (!achievementConfig || !isEnabled('duration')) return;
+    try {
+        const theme = activeTheme()?.theme;
+        achievementConfig.toastDurationMS = theme ? bannerTiming(theme.animation, themedDisplayMs(theme)).totalMs : originalDurationMs;
+    } catch (error) {
+        reportError('duration', error);
+    }
 }
 
 // --- synthetic toasts -------------------------------------------------------------

@@ -4,6 +4,7 @@ import type { Tier } from '../theme/theme';
 import { addTimelineEntry, runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from '../steam/recording';
 import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from './plan';
 import type { SteamNotification } from '../steam/notifications';
+import { reportError } from '../safety/runtime';
 
 /**
  * Schedules Phase 7 auto-captures (screenshot / clip / timeline marker) on
@@ -181,7 +182,7 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
             }
         }
     } catch (error) {
-        logger.warn('onUnlock failed; no captures scheduled for this unlock.', error);
+        reportError('captures', error); // no captures for this unlock
     }
 }
 
