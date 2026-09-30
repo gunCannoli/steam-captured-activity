@@ -1,7 +1,8 @@
 // Surface `library-home` (migration plan M3.10, ADR-0039): fills in the library grid's
 // "last played" fields of shortcuts from capture timestamps, through
-// collectionStore.OnAppOverviewChange. Registration is async (it waits for the stats and
-// the store); install() starts it and ready() lets index.tsx keep its start-up order.
+// collectionStore.OnAppOverviewChange. The stats come from app/library-stats (M10: this surface calls
+// no backend). Registration is async (it waits for the store); install() starts it and ready() lets
+// index.tsx keep its start-up order.
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { deps, register } from "./grid";
 
@@ -17,14 +18,10 @@ export function ready(): Promise<void> {
     );
 }
 
-export function createLibraryHomeSurface(
-    d: SurfaceDeps & {
-        loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>>;
-    },
-): Surface {
+export function createLibraryHomeSurface(d: SurfaceDeps & Pick<typeof deps, "stats">): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
-    deps.loadLibraryStats = d.loadLibraryStats;
+    deps.stats = d.stats;
     return {
         id: "library-home",
         touches: [
@@ -37,7 +34,7 @@ export function createLibraryHomeSurface(
             registration = register().catch((err) => deps.reportError("library-home", err));
         },
         render() {
-            /* stats stay an RPC until M7 decides (plan § 7.0 D4) */
+            /* not record-driven: capture stats are Steam's own data (ADR-0022), read from app/library-stats (M10) */
         },
         clear() {},
         uninstall() {

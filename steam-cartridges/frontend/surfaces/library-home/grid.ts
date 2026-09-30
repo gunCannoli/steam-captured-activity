@@ -7,9 +7,9 @@ import { isShortcutAppId } from '../../kernel/appid';
 
 /** Set by createLibraryHomeSurface (plan § 7.0 D3/D6); open defaults until then. */
 export const deps: SurfaceDeps & {
-  /** Capture stats per non-Steam appid (rpc.getLibraryStats). */
-  loadLibraryStats(): Promise<Record<string, { newest?: number; screenshots?: number }>>;
-} = { isEnabled: () => true, reportError: () => {}, loadLibraryStats: async () => ({}) };
+  /** Capture stats per shortcut (app/library-stats, loaded before install and after a quit); O(1) reads. */
+  stats: { get(appid: number): { newest: number; screenshots: number } | undefined; size(): number };
+} = { isEnabled: () => true, reportError: () => {}, stats: { get: () => undefined, size: () => 0 } };
 
 /**
  * Fills in recent-activity timestamps for non-Steam games from their captures.
@@ -60,41 +60,13 @@ function collectionStore(): Record<PropertyKey, unknown> | undefined {
     | undefined;
 }
 
-interface CaptureStats {
-  /** Unix seconds of the newest screenshot or recording. */
-  newest: number;
-  screenshots: number;
-}
-
-let stats = new Map<number, CaptureStats>();
-
-/** Fetch capture stats for every non-Steam app that has any. */
-async function loadStats(): Promise<void> {
-  try {
-    const raw = await deps.loadLibraryStats();
-    const next = new Map<number, CaptureStats>();
-
-    for (const [appid, value] of Object.entries(raw)) {
-      const id = Number(appid);
-      if (!Number.isFinite(id)) continue;
-      next.set(id, { newest: value.newest ?? 0, screenshots: value.screenshots ?? 0 });
-    }
-
-    stats = next;
-    logger.info(`Library stats loaded for ${stats.size} non-Steam game(s).`);
-  } catch (error) {
-    // The grid is an enhancement; failing to load stats must not break it.
-    logger.error('Could not load library stats:', error);
-  }
-}
-
 /**
  * Apply our data to one app overview, if we can improve on what Steam has.
  *
  * @returns true when a value was actually changed.
  */
 function enrich(overview: Steam.AppOverview): boolean {
-  const entry = stats.get(overview.appid);
+  const entry = deps.stats.get(overview.appid);
   if (!entry || entry.newest <= 0) return false;
 
   let changed = false;
@@ -123,11 +95,9 @@ function enrich(overview: Steam.AppOverview): boolean {
  * written last and survive into the render.
  */
 export async function register(): Promise<VoidFunction | undefined> {
-  await loadStats();
-
   // Nothing to contribute: skip the patch entirely rather than adding a
   // no-op to a hot path.
-  if (stats.size === 0) {
+  if (deps.stats.size() === 0) {
     logger.info('No non-Steam captures found; skipping the library grid patch.');
     return undefined;
   }
@@ -203,14 +173,13 @@ async function enrichLoadedApps(): Promise<void> {
       if (app?.appid && isShortcutAppId(app.appid) && enrich(app)) updated++;
     }
 
-    logger.info(`Filled in last-played for ${updated} of ${stats.size} game(s) with captures.`);
+    logger.info(`Filled in last-played for ${updated} of ${deps.stats.size()} game(s) with captures.`);
   } catch (error) {
     logger.warn('Could not enrich already-loaded apps:', error);
   }
 }
 
-/** Re-read stats after a game quits, so new captures reach the grid. */
+/** Apply the stats again (app/library-stats re-read them after a game quit), so new captures reach the grid. */
 export async function refresh(): Promise<void> {
-  await loadStats();
   await enrichLoadedApps();
 }

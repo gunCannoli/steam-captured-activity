@@ -33,6 +33,7 @@ import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
+import { createLibraryStats } from "./app/library-stats";
 import { fetchImage } from "./ports/image";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
@@ -184,6 +185,9 @@ const steamStore = createSteamStore({ backend, identity, metadata, artwork });
 
 /** Controller support inferred from each shortcut's emulator (app/controller.ts). */
 const controller = createController({ backend });
+
+/** Capture stats for the library grid (app/library-stats.ts): loaded at start-up and after a game quits. */
+const libraryStats = createLibraryStats({ backend });
 
 /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
 const ingest = createIngest({
@@ -408,7 +412,8 @@ async function init() {
 
     // ===== Library grid =====
     // Fills in last-played dates Steam does not have, from capture timestamps.
-    runner.register(createLibraryHomeSurface({ ...surfaceDeps, loadLibraryStats: () => backend.getLibraryStats() }));
+    if (features.isEnabled("library-home")) await libraryStats.load();
+    runner.register(createLibraryHomeSurface({ ...surfaceDeps, stats: libraryStats }));
     runner.installAll();
     await libraryHomeReady();
 
@@ -438,7 +443,7 @@ async function init() {
     bus.on("shortcut.quit", ({ appid, name }) => {
         logger.info(`${name} closed; refreshing its activity.`);
         void refreshLibraryApp(appid);
-        void refreshLibraryHome();
+        void libraryStats.load().then(refreshLibraryHome);
     });
 
     // ===== Sensors (migration plan M2) =====
