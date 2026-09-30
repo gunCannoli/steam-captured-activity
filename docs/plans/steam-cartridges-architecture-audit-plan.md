@@ -1,6 +1,6 @@
 # Plan: audit the steam-cartridges migration for layer overlaps (skeleton)
 
-**Status:** Skeleton (2026-09-29). Not executable yet: § 3 to § 8 are outlines to be filled in (commands, expected output, dry-run) before handing to an implementer.
+**Status:** Skeleton (2026-09-29); Part 2 (§ 4b) absorbs the artwork fetch plan as item A1. Not executable yet: § 3 to § 8 are outlines to be filled in (commands, expected output, dry-run) before handing to an implementer.
 **Kind:** Read-only audit that ends in findings and child plans. It changes no product code.
 **Why:** the [migration plan](steam-cartridges-architecture-migration-plan.md) split the plugin into layers and only the *import ratchet*
 (`tests/architecture.test.ts`) enforces it. The ratchet checks **who imports whom**, not **what each layer does**. That is how
@@ -51,6 +51,23 @@ From [README § May import / must never import](../steam-cartridges/README.md) a
 - **The ratchet, extended** (the real prevention, its own child plan): `tests/architecture.test.ts` gains a second check, *forbidden identifiers per area*,
   fed by the § 1 table, with the currently accepted offenders in an allowlist that can only shrink (the same idea as `architecture-allowlist.json`).
   The artwork surface's `fetch` would have failed it on day one.
+
+## 4b. Part 2: return to the migration, fix the gaps in one cohesive batch
+
+The audit is Part 1 (find). Part 2 finishes what [the migration plan](steam-cartridges-architecture-migration-plan.md) set out to do: every gap the audit finds is a
+**gap in that plan's execution**, so it is fixed as a step of the migration ("M10: close the gaps"), not as a stray feature plan. Decision (the user, 2026-09-29): one cohesive batch, not one plan per offender.
+
+| Id | Gap (audit finding) | Detail plan | Status |
+| --- | --- | --- | --- |
+| A1 | `surfaces/artwork` fetches images itself; backend download fallback writes a 4-byte image | [steam-cartridges-artwork-fetch-plan.md](steam-cartridges-artwork-fetch-plan.md) (kept as the detail plan of A1: kernel image bin, `ports/image`, `app/artwork`, remove `SteamStoreDownloadImage`; the user's decisions are in its § 0) | found, planned (draft, not dry-run) |
+| A2.. | (the audit fills these in) | | |
+
+Batch rules (to be expanded):
+1. Order: A-items sorted by layer, kernel and ports first, then app, then surfaces, then backend, then the ratchet extension (§ 4) **last**, seeded with whatever the batch could not fix.
+2. One shared preconditions block and one shared live verification (`npm run test:live` plus the affected probes) for the whole batch, run once after the last item; each item keeps its own unit-test expectations.
+3. Each item stays one commit (steps that leave `tsc` red, like A1 steps 3-5, are one commit); the batch is pushed after the live run passes.
+4. Plans that touch the same files (F1 game data editor) are updated first, so nothing is applied on a stale before-block (A1 § 0 decision 2).
+5. The migration plan gets a closing entry (its status board) and the CHANGELOG one bullet per item when the batch is live-verified.
 
 ## 5. Do-not-touch, banned actions, failure rule
 

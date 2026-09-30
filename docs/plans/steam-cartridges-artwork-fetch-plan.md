@@ -1,6 +1,6 @@
 # Plan: artwork image fetch leaves the surface (one job per layer, for the four art slots and the icon)
 
-**Status:** Draft (2026-09-29). **Not dry-run yet** (§ 9); decisions recorded in § 0: the before blocks were copied from `98397df`, the after blocks and the
+**Status:** Draft (2026-09-29), item A1 of the [audit plan § 4b](steam-cartridges-architecture-audit-plan.md) (executed inside that batch, not on its own). **Not dry-run yet** (§ 9); decisions recorded in § 0: the before blocks were copied from `98397df`, the after blocks and the
 expected test counts are derived, not observed. A dry-run in a scratch worktree (as the icon plan's § 9) is the first task of
 whoever executes this. Do not hand it to a weak implementer before that.
 **Kind:** Architecture cleanup (ADR-0039), no user-visible change.

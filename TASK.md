@@ -25,7 +25,7 @@ working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7
 
 **Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
 
-**Migration audit (skeleton 2026-09-29).** The import ratchet checks who imports whom, not what a layer does; [steam-cartridges-architecture-audit-plan.md](docs/plans/steam-cartridges-architecture-audit-plan.md) outlines the scans that find the next overlap and the ratchet extension that prevents it. Fill it in before executing.
+**Migration audit and gap-fix batch (skeleton 2026-09-29).** Part 1 finds layer overlaps, Part 2 fixes them together; the artwork fetch plan is item A1. The import ratchet checks who imports whom, not what a layer does; [steam-cartridges-architecture-audit-plan.md](docs/plans/steam-cartridges-architecture-audit-plan.md) outlines the scans that find the next overlap and the ratchet extension that prevents it. Fill it in before executing.
 
 **Artwork fetch cleanup (draft plan 2026-09-29).** The four art slots still fetch inside `surfaces/artwork`; plan to move it to `ports/image` + `app/artwork` + a kernel image bin, and to remove the backend download RPC (it returns a 4-byte body): [steam-cartridges-artwork-fetch-plan.md](docs/plans/steam-cartridges-artwork-fetch-plan.md). Needs a dry-run first (plan § 9).
 
