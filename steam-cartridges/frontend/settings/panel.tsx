@@ -1,6 +1,7 @@
 // Settings panel shell (migration plan M8c): the sections in their fixed order.
 import { useEffect, useState } from "react";
 import { MetadataSection } from "./panels/metadata";
+import { GameDataSection } from "./panels/game-data";
 import { AchievementsSection } from "./panels/achievements";
 import { NotificationsSection } from "./panels/notifications";
 import { ActivitySection } from "./panels/activity";
@@ -22,6 +23,7 @@ export function SettingsPanel() {
     return (
         <div style={{ paddingBottom: "70px", position: "relative" }}>
             <MetadataSection />
+            <GameDataSection />
             <AchievementsSection />
             <NotificationsSection />
             <ActivitySection />

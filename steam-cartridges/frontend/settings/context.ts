@@ -2,7 +2,20 @@
 // setPanelContext() at the top of init(); panels read it with usePanelContext(). Structural types only,
 // never an import of app/, surfaces/ or features/. Backend calls go through ports/backend.ts.
 import type { AutoRoutingProfile, ServiceTarget } from '../domain/routing/policy';
-import type { SyncProgress } from '../kernel/record';
+import type { MetadataDraft } from '../domain/metadata-edit';
+import type { GameMetadata, SyncProgress } from '../kernel/record';
+import type { StoreCandidate, StoreMapping } from '../ports/backend';
+
+/** Structural copy of app/game-editor.ts EditorSnapshot (settings never import app/; index.tsx checks the match). */
+export interface EditorSnapshot {
+    appid: number;
+    title: string;
+    metadata: GameMetadata;
+    hasMetadata: boolean;
+    custom: boolean;
+    link: StoreMapping | null;
+    rejected: number[];
+}
 
 export interface PanelContext {
     routing: {
@@ -27,6 +40,14 @@ export interface PanelContext {
     };
     controller: { load(): Promise<void>; inferredFor(appid: number): boolean | undefined };
     steamStore: { setMapping(appid: number, steamAppid: number, name?: string): Promise<{ mapping?: unknown; error?: string }> };
+    editor: {
+        load(appid: number): Promise<EditorSnapshot>;
+        save(appid: number, draft: MetadataDraft): Promise<void>;
+        revert(appid: number): Promise<void>;
+        search(term: string): Promise<{ candidates: StoreCandidate[]; error?: string }>;
+        link(appid: number, steamAppid: number, name?: string): Promise<{ error?: string }>;
+        unlink(appid: number, reject: boolean): Promise<{ error?: string }>;
+    };
     safety: {
         featureIds: readonly string[];
         diagnostics(): { safeMode: boolean; disabled: string[]; tripped: string[]; errors: Record<string, number> };
@@ -51,6 +72,14 @@ const INERT: PanelContext = {
     records: { achievementsOf: () => undefined },
     controller: { load: async () => {}, inferredFor: () => undefined },
     steamStore: { setMapping: async () => ({ error: 'not ready' }) },
+    editor: {
+        load: async (appid) => ({ appid, title: String(appid), metadata: { appid, title: String(appid) }, hasMetadata: false, custom: false, link: null, rejected: [] }),
+        save: async () => {},
+        revert: async () => {},
+        search: async () => ({ candidates: [] }),
+        link: async () => ({ error: 'not ready' }),
+        unlink: async () => ({ error: 'not ready' }),
+    },
     safety: { featureIds: [], diagnostics: () => ({ safeMode: false, disabled: [], tripped: [], errors: {} }), surfaces: () => [] },
 };
 

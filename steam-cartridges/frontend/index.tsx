@@ -57,6 +57,7 @@ import {
 } from "./surfaces/game-info";
 import { createController } from "./app/controller";
 import { setPanelContext } from "./settings/context";
+import { createGameEditor } from "./app/game-editor";
 import { createSteamStore } from "./app/steam-store";
 import {
     createAchievementsSurface,
@@ -182,6 +183,17 @@ const view = createView({ routing, identity, metadata, artwork, achievements });
 /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
 const steamStore = createSteamStore({ backend, identity, metadata, artwork });
 
+/** Game Data editor (app/game-editor.ts, features plan F1): the settings popup's use cases. */
+const gameEditor = createGameEditor({
+    backend,
+    records: records.store,
+    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+    titleOf: (appid) => shortcutTitle(appid),
+    routeOf: (appid) => routing.getBucket(appid),
+    metadata,
+    steamStore,
+});
+
 /** Capture stats for the library grid (app/library-stats.ts): loaded at start-up and after a game quits. */
 const libraryStats = createLibraryStats({ backend });
 
@@ -214,6 +226,8 @@ export const setSteamStoreMapping = (appid: number, steamAppid: number, name?: s
 export const steamStoreState = () => steamStore.state();
 
 export { getLocalAchievements, getLocalSchema, dispatchAchievementToast };
+/** The Game Data editor (features plan F1), for CDP: tests/live/probes/game_editor.mjs calls it without clicking. */
+export const gameData = gameEditor;
 
 /** Public API (D8): the fake-achievement test hook and one store hook attempt (the surface retries on install). */
 export function initAchievements(): void {
@@ -281,6 +295,7 @@ async function init() {
         records: { achievementsOf: (appid) => achievements.summary(appid) },
         controller: { load: controller.load, inferredFor: controller.inferredFor },
         steamStore: { setMapping: steamStore.setMapping },
+        editor: gameEditor,
         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
     });
 
