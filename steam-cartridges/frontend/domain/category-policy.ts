@@ -54,7 +54,8 @@ export function inferredControllerIds(ctx: ControllerContext = {}): number[] {
  * mapped. `achievements` and `remote_play_together` are Steam services and are
  * never mapped (ADR-0038).
  *
- * Controller precedence (ADR-0038 addendum): Steam Store data > emulator
+ * Controller precedence (ADR-0038 addendum): the user's override for the game (Game Data editor, Library Audit)
+ * > Steam Store data > emulator
  * inference > the default setting > no badge. Steam Store data is
  * `store_category_ids` or the explicit flags of a `source: 'steam-store'`
  * record. Local and IGDB records carry no controller data (web_igdb.lua and
@@ -64,6 +65,20 @@ export function inferredControllerIds(ctx: ControllerContext = {}): number[] {
 export function badgeCategoryIds(
     meta: { categories?: GameCategories; store_category_ids?: unknown; source?: string },
     controller: ControllerContext = {},
+): number[] {
+    return withControllerOverride(badgeIdsWithoutOverride(meta, controller), controller.override);
+}
+
+/** A manual choice replaces whatever controller badge the sources gave, Steam Store data included; 'auto' and unset leave it. */
+function withControllerOverride(ids: number[], override: ControllerContext['override']): number[] {
+    if (override !== 'full' && override !== 'partial' && override !== 'none') return ids;
+    const rest = ids.filter((id) => id !== 28 && id !== 18);
+    return portableCategoryIds(override === 'full' ? [...rest, 28] : override === 'partial' ? [...rest, 18] : rest);
+}
+
+function badgeIdsWithoutOverride(
+    meta: { categories?: GameCategories; store_category_ids?: unknown; source?: string },
+    controller: ControllerContext,
 ): number[] {
     if (Array.isArray(meta.store_category_ids)) return portableCategoryIds(meta.store_category_ids);
     const c = meta.categories ?? {};

@@ -1,7 +1,8 @@
 // Game Data editor: the text filter and the dropdown of every non-Steam shortcut (features plan F1).
-import { Dropdown } from "@steambrew/client";
+// One card, like Reset Achievements in enhanced-achievements: the controls stack, each across the full row.
+import { Dropdown, TextField } from "@steambrew/client";
 import { usePanelContext } from "../context";
-import { INPUT_STYLE, LABEL_STYLE } from "./styles";
+import { CONTROL_GAP, STEAM_TRAILING } from "../components";
 
 export function GamePicker({ filter, onFilter, appid, onPick }: { filter: string; onFilter: (text: string) => void; appid: number | undefined; onPick: (appid: number) => void }) {
     const shortcuts = usePanelContext().routing.listShortcuts();
@@ -12,9 +13,11 @@ export function GamePicker({ filter, onFilter, appid, onPick }: { filter: string
     const options = (chosen && !shown.includes(chosen) ? [chosen, ...shown] : shown).map((s) => ({ data: s.appid, label: s.name }));
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <span style={LABEL_STYLE}>Game ({shown.length} of {shortcuts.length})</span>
-            <input type="text" placeholder="Type to filter…" value={filter} onChange={(e) => onFilter(e.target.value)} style={INPUT_STYLE} />
+        <div style={{ display: "flex", flexDirection: "column", gap: CONTROL_GAP }}>
+            {/* Steam's text field ends with blank space of its own: pull the dropdown up to CONTROL_GAP below it. */}
+            <div style={{ marginBottom: -STEAM_TRAILING }}>
+                <TextField label={`Games filter (${shown.length} of ${shortcuts.length})`} value={filter} onChange={(e) => onFilter(e.target.value)} />
+            </div>
             <Dropdown
                 rgOptions={options}
                 selectedOption={appid}

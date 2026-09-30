@@ -39,9 +39,9 @@ import { fetchImage, objectUrl, releaseObjectUrl } from "./ports/image";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
-import { createFeatureSwitches, FEATURE_IDS, type FeatureId } from "./safety/features";
+import { createFeatureSwitches, type FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
-import type { ShortcutId } from "./kernel/appid";
+import { lookupStored, toShortcutId, type ShortcutId } from "./kernel/appid";
 import { createImageBin } from "./kernel/image-bin";
 import { createMediaBin } from "./kernel/media-bin";
 import { bus } from "./app/bus";
@@ -145,7 +145,11 @@ const metadata = createMetadata({
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
     allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
-    controller: (appid) => ({ inferred: controller.inferredFor(appid), defaultFull: setting("defaultFullController") }),
+    controller: (appid) => ({
+        inferred: controller.inferredFor(appid),
+        defaultFull: setting("defaultFullController"),
+        override: lookupStored(setting("controllerOverrides"), appid),
+    }),
 });
 
 /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
@@ -313,10 +317,16 @@ async function init() {
             start: ingest.startSync,
         },
         records: { achievementsOf: (appid) => achievements.summary(appid) },
-        controller: { load: controller.load, inferredFor: controller.inferredFor },
+        controller: {
+            load: controller.load,
+            inferredFor: controller.inferredFor,
+            refresh: (appid) => {
+                const id = toShortcutId(appid);
+                if (id !== undefined) metadata.rebadge(id);
+            },
+        },
         steamStore: { setMapping: steamStore.setMapping },
         editor: gameEditor,
-        safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
     });
 
     // The sections surface drops Steam's placeholder once captures has published content (captures.published).

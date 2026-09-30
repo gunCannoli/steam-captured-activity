@@ -660,6 +660,45 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      and `node steam-cartridges/tests/live/test_props.mjs <appid> --page` (must print `OK`)
      for any change to Game Info, sections or store feeding.
 
+### 18. Settings panel layout (reference: `enhanced-achievements`)
+
+- **The Trap:** a settings panel built from bare `PanelSectionRow`s, loose buttons and
+  hand-written `fontSize: "12px"` notes looks thin and uneven: rows cramped against each
+  other, a lone button floating under a list, a checkbox strip or a dropdown squeezed
+  into the right half of a row, notes that do not line up with Steam's own labels.
+  `enhanced-achievements/frontend/settings/settings-panel.tsx` has the setup to copy
+  (steam-cartridges' copy is `frontend/settings/components.tsx`).
+- **The Mandatory Guardrails:**
+  1. **Use Steam's components.** `PanelSection`, `Field` (label + description, optional
+     control), `Toggle`, `DialogButton`, `Dropdown`, `TextField`, `SliderField`. No
+     hand-made rows, notes or checkboxes. Text that explains a control is that
+     control's `Field` description, not a loose `<div>`.
+  2. **A row has two columns at most**, and two only for a simple control: label and
+     description on the left, one toggle or one (or two small) button(s) on the right.
+  3. **A control that needs room gets the full row.** Anything with a dropdown, a text
+     field, a textarea or a long button is three rows: the label, the description, then
+     the control across the full width (`FullWidthRows`: two `Field`s, the second with
+     `childrenContainerWidth="max"`). Never put a dropdown in a right-hand column, and
+     never put several controls side by side in one row.
+  4. **Spacing is a system, not per-row margins.** A *block* is a group of rows that read
+     as one card; its rows touch (no gap). Blocks of a section are `BLOCK_GAP` (22 px)
+     apart, set in one place: `<Blocks>` takes each block as one child (a fragment of
+     rows) and adds `padding-top` (padding, because margins collapse into Steam's own
+     trailing margin). Steam's `SliderField` and `TextField` end with 22 px of blank
+     space of their own: `ItemRow trailing` cancels it, so a block's spacing never
+     depends on its last control. Controls stacked inside one custom card are
+     `CONTROL_GAP` (8 px) apart on the card's colour (`CARD_BACKGROUND`, measured live).
+  5. **Group by meaning.** Options that belong together (an on/off toggle and the
+     sliders it enables) are one block; unrelated options, and every button that opens
+     a popup, are their own block. An "Add ..." button is a `ButtonRow` (label,
+     description, button), not a bare button under a list.
+  6. **Popups follow the same rules** (they are panels too): `Field`s and the shared rows
+     inside a `PanelSection` and `Blocks`, player tags and other flags as toggle rows
+     (not a checkbox strip), results as one two-column row each.
+  7. **No diagnostics in a settings panel.** Kill switches, safe mode and error counters
+     are not shown to the user (removed from steam-cartridges 2026-09-30); the log and
+     `disabledFeatures` stay the tools for that.
+
 ---
 
 ## 4. Develop

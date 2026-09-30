@@ -27,23 +27,19 @@ const body = mode === "list"
   ? `out.buttons = [...div.querySelectorAll('button,[role=button]')].map(e => e.textContent.slice(0,50));`
   : `
   const click = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  const checkboxFor = (label) => {
-    const el = [...div.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent.trim() === label);
-    let e = el; while (e && e !== div) { const c = e.querySelector && e.querySelector('[role=checkbox]'); if (c) return c; e = e.parentElement; }
-  };
-  const stateOf = (id) => (div.textContent.match(new RegExp(id + ': (on|off|tripped)')) || [])[1];
-  // 1. Troubleshooting toggle writes disabledFeatures and the state line follows; then revert.
-  const cb = checkboxFor('toasts');
-  step('toasts toggle found', !!cb);
-  if (cb) {
-    const before = stateOf('toasts'); click(cb); await wait(1200);
-    const mid = stateOf('toasts'); click(checkboxFor('toasts')); await wait(3000);
-    const after = stateOf('toasts');
-    step('toasts on -> off -> on', before === 'on' && mid === 'off' && after === 'on', [before, mid, after].join(','));
+  // 1. Library Audit > Game Data > Manual Edit opens the editor popup (its game filter is there); Escape closes it.
+  const pressed = (t) => [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === t);
+  const manual = pressed('Manual Edit');
+  step('Manual Edit button', !!manual);
+  if (manual) {
+    click(manual); await wait(800);
+    step('Manual Edit opens the Game Data popup', document.body.textContent.includes('Games filter'));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await wait(300);
+    step('Escape closes the popup', !document.body.textContent.includes('Games filter'));
   }
   // 2. Rules: "+ Add Rule" opens a modal; close it without saving.
   const btn = (t) => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === t);
-  const add = btn('+ Add Rule'); step('Add Rule button', !!add);
+  const add = btn('Add Rule'); step('Add Rule button', !!add);
   if (add) { click(add); await wait(800); const cancel = btn('Cancel'); step('Add Rule modal opens (Cancel present)', !!cancel); if (cancel) { click(cancel); await wait(300); } }
   // 3. Audit: "Review" opens the audit modal; look for per-game Scan buttons.
   const rev = btn('Review'); step('Review button', !!rev);

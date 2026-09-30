@@ -56,3 +56,15 @@ test('controller precedence: Steam Store data > emulator inference > default set
     assert.deepEqual(badgeCategoryIds(local), [2]);
     assert.deepEqual(inferredControllerIds(), []);
 });
+
+test('a manual controller override beats every source, Steam Store data included, and leaves the other badges alone', () => {
+    const mapped = { source: 'steam-store', store_category_ids: [2, 28] };
+    assert.deepEqual(badgeCategoryIds(mapped, { override: 'none' }), [2]);
+    assert.deepEqual(badgeCategoryIds(mapped, { override: 'partial' }), [2, 18]);
+    assert.deepEqual(badgeCategoryIds({ store_category_ids: [1, 2, 9] }, { override: 'full', inferred: false }), [1, 2, 9, 28]);
+    assert.deepEqual(badgeCategoryIds({ categories: { single_player: true } }, { override: 'full' }), [2, 28]);
+    assert.deepEqual(badgeCategoryIds({ categories: { single_player: true } }, { override: 'none', inferred: true }), [2]);
+    // auto and unset fall back to the usual order.
+    assert.deepEqual(badgeCategoryIds(mapped, { override: 'auto' }), [2, 28]);
+    assert.deepEqual(badgeCategoryIds({ categories: { single_player: true } }, { override: 'auto', inferred: true }), [2, 28]);
+});

@@ -26,6 +26,8 @@ export interface MetadataResolver {
     ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
     /** Preload every record from the backend's disk-only bulk read (replaces initGameInfo's preload). */
     preload(): Promise<void>;
+    /** Re-derives the badges of the stored record (the controller override changed); no network. */
+    rebadge(appid: ShortcutId): void;
 }
 
 export function createMetadata(deps: MetadataDeps): MetadataResolver {
@@ -66,6 +68,10 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
 
     return {
         ensure,
+        rebadge(appid) {
+            const part = deps.records.get(appid)?.metadata;
+            if (part?.data) deps.records.update(appid, { metadata: withBadges(appid, part) });
+        },
         async preload() {
             const res = await deps.backend.getAllRecords();
             for (const [key, parts] of Object.entries(res.records ?? {})) {

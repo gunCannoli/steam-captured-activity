@@ -38,7 +38,12 @@ export interface PanelContext {
     records: {
         achievementsOf(appid: number): { nAchieved: number; nTotal: number } | undefined;
     };
-    controller: { load(): Promise<void>; inferredFor(appid: number): boolean | undefined };
+    controller: {
+        load(): Promise<void>;
+        inferredFor(appid: number): boolean | undefined;
+        /** Re-derive a game's badges after its controller override changed. */
+        refresh(appid: number): void;
+    };
     steamStore: { setMapping(appid: number, steamAppid: number, name?: string): Promise<{ mapping?: unknown; error?: string }> };
     editor: {
         load(appid: number): Promise<EditorSnapshot>;
@@ -47,11 +52,6 @@ export interface PanelContext {
         search(term: string): Promise<{ candidates: StoreCandidate[]; error?: string }>;
         link(appid: number, steamAppid: number, name?: string): Promise<{ error?: string }>;
         unlink(appid: number, reject: boolean): Promise<{ error?: string }>;
-    };
-    safety: {
-        featureIds: readonly string[];
-        diagnostics(): { safeMode: boolean; disabled: string[]; tripped: string[]; errors: Record<string, number> };
-        surfaces(): { id: string; installed: boolean; disabled: boolean; errors: number; lastError?: string }[];
     };
 }
 
@@ -70,7 +70,7 @@ const INERT: PanelContext = {
     },
     ingest: { progress: () => EMPTY_PROGRESS, onProgress: () => () => {}, trigger: () => {}, start: async () => {} },
     records: { achievementsOf: () => undefined },
-    controller: { load: async () => {}, inferredFor: () => undefined },
+    controller: { load: async () => {}, inferredFor: () => undefined, refresh: () => {} },
     steamStore: { setMapping: async () => ({ error: 'not ready' }) },
     editor: {
         load: async (appid) => ({ appid, title: String(appid), metadata: { appid, title: String(appid) }, hasMetadata: false, custom: false, link: null, rejected: [] }),
@@ -80,7 +80,6 @@ const INERT: PanelContext = {
         link: async () => ({ error: 'not ready' }),
         unlink: async () => ({ error: 'not ready' }),
     },
-    safety: { featureIds: [], diagnostics: () => ({ safeMode: false, disabled: [], tripped: [], errors: {} }), surfaces: () => [] },
 };
 
 let context: PanelContext = INERT;

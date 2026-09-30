@@ -4,7 +4,7 @@ import { pick, session } from "./cdp.mjs";
 const t = await pick("SharedJSContext");
 const s = session(t.webSocketDebuggerUrl);
 await s.ready;
-const titles = ["Metadata", "Game Data", "Achievements", "Notifications", "Activity Feed", "Community & Media", "Routing Rules", "Library Audit", "Troubleshooting"];
+const titles = ["Metadata", "Game Data", "Achievements", "Notifications", "Activity Feed", "Community & Media", "Routing Rules", "Library Audit", "Manual Edit"];
 const expression = `(async () => {
   const P = (window.PLUGIN_LIST || {})['steam-cartridges-dev'] || (window.PLUGIN_LIST || {})['steam-cartridges'];
   if (!P || !P.SettingsPanel) return JSON.stringify({ error: 'SettingsPanel not exported' });

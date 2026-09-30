@@ -1,10 +1,10 @@
 // Settings: Routing Rules (migration plan M8c, moved verbatim).
 import { useState } from "react";
-import { DialogButton, Dropdown, PanelSection, TextField } from "@steambrew/client";
+import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambrew/client";
 import { useSetting } from "../settings";
 import { type RoutingRule, type ServiceTarget, type RuleAction, type ConditionType } from "../../domain/routing/policy";
 import { usePanelContext } from "../context";
-import { ItemRow, ToggleRow, SettingsModal } from "../components";
+import { Blocks, ButtonRow, ItemRow, ToggleRow, SettingsModal } from "../components";
 
 // ===========================================================================
 // 4. {Rules} Routing Engine Section
@@ -182,116 +182,47 @@ export function RulesSection() {
 
     return (
         <PanelSection title="Routing Rules">
-            <ToggleRow
-                label="Auto Mode"
-                description="Auto fetches metadata and achievements of the enabled services"
-                value={autoMode}
-                onChange={(val) => {
-                    setAutoMode(val);
-                    if (val) {
-                        ctx.ingest.trigger(100);
-                    }
-                }}
-            />
-
-            {rules.length === 0 && (
-                <ItemRow>
-                    <div
-                        style={{
-                            opacity: 0.6,
-                            fontSize: "12px",
-                            padding: "4px 0",
-                            fontStyle: "italic",
-                        }}
-                    >
-                        No custom routing rules defined.
-                    </div>
-                </ItemRow>
-            )}
-
-            {/* Compact Rule Rows: Col 1 Name, Col 2 [ ✏️ ] [ 🗑️ ] */}
-            {rules.map((rule, idx) => (
-                <ItemRow key={rule.id}>
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "6px 10px",
-                            background: "rgba(255, 255, 255, 0.03)",
-                            border: "1px solid rgba(255, 255, 255, 0.06)",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                        }}
-                    >
-                        <span
-                            style={{
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                marginRight: "8px",
-                                fontWeight: 500,
-                                color: "#e1e7ee",
-                            }}
-                            title={rule.name}
-                        >
-                            {rule.name}
-                        </span>
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: "6px",
-                                flexShrink: 0,
-                            }}
-                        >
-                            <DialogButton
-                                onClick={() => handleOpenEdit(idx)}
-                                style={{
-                                    padding: "0 8px",
-                                    minWidth: 0,
-                                    width: "auto",
-                                    fontSize: "12px",
-                                }}
-                            >
-                                ✏️
-                            </DialogButton>
-                            <DialogButton
-                                onClick={() => handleDelete(idx)}
-                                style={{
-                                    padding: "0 8px",
-                                    minWidth: 0,
-                                    width: "auto",
-                                    fontSize: "12px",
-                                }}
-                            >
-                                🗑️
-                            </DialogButton>
-                        </div>
-                    </div>
-                </ItemRow>
-            ))}
-
-            <ItemRow>
-                <div
-                    style={{
-                        marginTop: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
+            <Blocks>
+                <ToggleRow
+                    label="Auto Mode"
+                    description="Auto fetches metadata and achievements of the enabled services"
+                    value={autoMode}
+                    onChange={(val) => {
+                        setAutoMode(val);
+                        if (val) {
+                            ctx.ingest.trigger(100);
+                        }
                     }}
-                >
-                    <DialogButton
-                        onClick={handleOpenAdd}
-                        style={{
-                            padding: "0 14px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        + Add Rule
-                    </DialogButton>
-                </div>
-            </ItemRow>
+                />
+                <>
+                    {rules.length === 0 && (
+                        <ItemRow>
+                            <Field label="No custom routing rules" description="Add a rule to include or exclude games from a service" bottomSeparator="none" />
+                        </ItemRow>
+                    )}
+                    {/* One row per rule: its name, then the edit and delete buttons. */}
+                    {rules.map((rule, idx) => (
+                        <ItemRow key={rule.id}>
+                            <Field label={rule.name}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <DialogButton onClick={() => handleOpenEdit(idx)} style={{ padding: "0 8px", minWidth: 0, width: "auto" }}>
+                                        ✏️
+                                    </DialogButton>
+                                    <DialogButton onClick={() => handleDelete(idx)} style={{ padding: "0 8px", minWidth: 0, width: "auto" }}>
+                                        🗑️
+                                    </DialogButton>
+                                </div>
+                            </Field>
+                        </ItemRow>
+                    ))}
+                </>
+                <ButtonRow
+                    label="Add rule"
+                    description="Include or exclude games from a service by name, collection or emulator"
+                    buttonLabel="Add Rule"
+                    onClick={handleOpenAdd}
+                />
+            </Blocks>
 
             {/* Add / Edit Rule Modal */}
             <SettingsModal

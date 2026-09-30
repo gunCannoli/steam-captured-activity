@@ -22,10 +22,12 @@ theme Steam's toasts and sounds.
 Routines 1 and 2 (desktop and Big Picture), § 9.3 the card interaction audit (it decides whether Steam's native cards stay).
 F1's live check (below) is still owed.
 
-**F1 Game Data editor: code committed on top of M10 (2026-09-30), waiting for live verification.** Deploy with `dev.ps1`, then
-follow [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`check_settings_panel.mjs` 9 titles,
-`probes/game_editor.mjs`, `npm run test:live`, the by-hand check on desktop and Big Picture). Then mark F1 done in the
-[features plan](docs/plans/steam-cartridges-features-plan.md).
+**F1 Game Data editor: the user did a live check (2026-09-30); follow-ups are coded, waiting for a second live check.** Settings now use
+enhanced-achievements' spacing ([plugins.md guardrail 18](docs/plugins.md#18-settings-panel-layout-reference-enhanced-achievements)),
+Troubleshooting is gone, Game Data is the **Manual Edit** block in Library Audit, and the popup has a Controller support dropdown (the
+`controllerOverrides` setting now reaches Game Info). Deploy with `dev.ps1`, then look at every section and the popup (desktop and Big Picture),
+set Multi-player, Co-op and a controller option on a game whose data is wrong and check its Game Info, then run `check_settings_panel.mjs`,
+`click_settings_panel.mjs` and `npm run test:live`. Then mark F1 done in the [features plan](docs/plans/steam-cartridges-features-plan.md).
 
 **Not pushed yet (2026-09-30).** The local commits `a6c7676` (Reset Achievements cleanup), the TASK handoff commit (`ae46043`) and the
 seven F2 commits are ahead of `origin/main`. Push with `git push origin main` (AGENTS.md Routine 5) after the user's F2 live

@@ -16,7 +16,7 @@ const checks = [
     { name: "Properties (Jotunnslayer)", file: "test_props.mjs", args: ["2315502503", "--page"], must: /page=true: OK/ },
     { name: "navigation cycle", file: "test_nav_cycle.js", args: [], must: /^PASS/m },
     { name: "tabs", file: "check_all_tabs.js", args: [], must: /^PASS/m, retry: true },
-    { name: "settings panel renders", file: "check_settings_panel.mjs", args: [], must: /^PASS Troubleshooting/m },
+    { name: "settings panel renders", file: "check_settings_panel.mjs", args: [], must: /^PASS Manual Edit/m },
     { name: "F1: Game Data editor (save, revert, search)", file: "probes/game_editor.mjs", args: [], must: /^PASS F1 revert/m },
     { name: "F2: community media in Steam's Community section (AM2R)", file: "probes/community_media.mjs", args: ["4263274102"], must: /^PASS F2 cards/m },
     { name: "audit: no missing metadata", file: "audit_missing_metadata.mjs", args: [], must: /./ },

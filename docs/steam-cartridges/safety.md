@@ -160,4 +160,4 @@ else may import `frontend/safety/` except `index.tsx`.
   and `features/steam-store/logo.ts`).
 - F2: `community` appended to `FEATURE_IDS` (new surface: the Community Content loader, features plan F2).
 - M5c: provider credentials section added (SteamGridDB key entered in the settings panel, stored in `.env`).
-- M8d: Troubleshooting panel in the settings panel (`settings.md`): a toggle per feature id, written to `disabledFeatures` by `toggleFeature`.
+- M8d: Troubleshooting panel in the settings panel: a toggle per feature id, written to `disabledFeatures` by `toggleFeature`. Removed 2026-09-30 (the panel showed diagnostics to users); `disabledFeatures` still works from the config.

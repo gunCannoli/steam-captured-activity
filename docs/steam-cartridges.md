@@ -87,7 +87,7 @@ One doc per layer, updated by every change that touches the layer.
 | Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) |
 | Achievements service, sources, observer | [service-achievements.md](steam-cartridges/service-achievements.md) |
 | Freshness and ingestion | [service-freshness.md](steam-cartridges/service-freshness.md) |
-| Settings panels and the Troubleshooting panel | [settings.md](steam-cartridges/settings.md) |
+| Settings panels and the Game Data editor | [settings.md](steam-cartridges/settings.md) |
 | Live verification baseline, rollback, open known issues | [verification.md](steam-cartridges/verification.md) |
 | Next features (Game Data editor, Media) | [plans/steam-cartridges-features-plan.md](plans/steam-cartridges-features-plan.md) |
 

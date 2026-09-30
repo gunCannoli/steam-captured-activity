@@ -1,13 +1,14 @@
 // Settings: Library Audit (migration plan M8c; reads the app through the panel context and the backend port).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DialogButton, Dropdown, Field, PanelSection } from "@steambrew/client";
-import { onSettingChange, useSetting, type ControllerOverride } from "../settings";
+import { onSettingChange, setSetting, useSetting, type ControllerOverride } from "../settings";
 import { backend } from "../../ports/backend";
 import type { AutoRoutingProfile } from "../../domain/routing/policy";
 import { type GameMetadata } from "../../kernel/record";
 import { lookupStored } from "../../kernel/appid";
 import { usePanelContext } from "../context";
-import { ItemRow, SettingsModal } from "../components";
+import { Blocks, ButtonRow, FullWidthRows, ItemRow, SettingsModal } from "../components";
+import { GameDataEditor } from "../game-editor/modal";
 import { useSyncProgress } from "../sync-progress";
 
 // ===========================================================================
@@ -36,9 +37,7 @@ let cachedControllerInference: Record<string, boolean> | null = null;
 
 export function RevisionSection() {
     const ctx = usePanelContext();
-    const [controllerOverrides, setControllerOverrides] = useSetting(
-        "controllerOverrides",
-    );
+    const [controllerOverrides] = useSetting("controllerOverrides");
     // Re-render when the rules or Auto Mode change (ctx.routing.serviceAllowed reads them).
     useSetting("routingRules");
     useSetting("autoRoutingMode");
@@ -52,6 +51,7 @@ export function RevisionSection() {
         Record<string, boolean>
     >(() => cachedControllerInference || {});
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+    const [isGameDataOpen, setIsGameDataOpen] = useState(false);
     const [filter, setFilter] = useState<
         "all" | "controller" | "achievements" | "not_scraped"
     >("all");
@@ -180,10 +180,8 @@ export function RevisionSection() {
     });
 
     const handleSetController = (appid: number, val: ControllerOverride) => {
-        setControllerOverrides({
-            ...controllerOverrides,
-            [String(appid)]: val,
-        });
+        // The setting is written before Game Info re-derives the badges, so a change made here shows at once.
+        void setSetting("controllerOverrides", { ...controllerOverrides, [String(appid)]: val }).then(() => ctx.controller.refresh(appid));
         setFixMsg(`Updated controller support for ${shortcutName(appid)}`);
         setTimeout(() => setFixMsg(""), 2500);
     };
@@ -220,69 +218,53 @@ export function RevisionSection() {
             }}
         >
             <PanelSection title="Library Audit">
-                {/* 3-Row Layout matching theme */}
-                <ItemRow>
-                    <Field
-                        label="Not scraped:"
-                        description="Games awaiting initial metadata & achievement fetch"
-                        bottomSeparator="none"
-                    >
-                        <span
-                            style={{
-                                color:
-                                    notScraped.length > 0 ? "#66c0f4" : "#8ba5b7",
-                                fontWeight: 700,
-                                fontSize: "14px",
-                            }}
-                        >
-                            {notScraped.length}
-                        </span>
-                    </Field>
-                </ItemRow>
-                <ItemRow>
-                    <Field
-                        label="Issues detected:"
-                        description="Number of games that require complete information"
-                        bottomSeparator="none"
-                    >
-                        <span
-                            style={{
-                                color: flagged.length > 0 ? "#e5a00d" : "#a4d007",
-                                fontWeight: 700,
-                                fontSize: "14px",
-                            }}
-                        >
-                            {flagged.length}
-                        </span>
-                    </Field>
-                </ItemRow>
-                <ItemRow>
-                    <div style={{ marginTop: "4px" }}>
-                        <DialogButton
+                <Blocks>
+                    <>
+                        <ItemRow>
+                            <Field
+                                label="Not scraped"
+                                description="Games awaiting initial metadata & achievement fetch"
+                                bottomSeparator="none"
+                            >
+                                <span style={{ color: notScraped.length > 0 ? "#66c0f4" : "#8ba5b7", fontWeight: 700, fontSize: "14px" }}>
+                                    {notScraped.length}
+                                </span>
+                            </Field>
+                        </ItemRow>
+                        <ItemRow>
+                            <Field
+                                label="Issues detected"
+                                description="Number of games that require complete information"
+                                bottomSeparator="none"
+                            >
+                                <span style={{ color: flagged.length > 0 ? "#e5a00d" : "#a4d007", fontWeight: 700, fontSize: "14px" }}>
+                                    {flagged.length}
+                                </span>
+                            </Field>
+                        </ItemRow>
+                        <ButtonRow
+                            label="Review"
+                            description="Fix controller support and Steam links game by game"
+                            buttonLabel="Review"
                             onClick={() => setIsAuditModalOpen(true)}
-                            style={{
-                                padding: "0 14px",
-                                minWidth: 0,
-                                width: "auto",
-                            }}
-                        >
-                            Review
+                        />
+                    </>
+                    {/* Three rows: label, description, then the button across the full row. */}
+                    <FullWidthRows
+                        label="Game Data"
+                        description="Correct a game's Game Info by hand (description, credits, player tags, controller support) or link it to a Steam game."
+                    >
+                        <DialogButton onClick={() => setIsGameDataOpen(true)} style={{ padding: "0 16px", minWidth: 0, width: "100%" }}>
+                            Manual Edit
                         </DialogButton>
-                    </div>
-                </ItemRow>
-                {fixMsg && !isAuditModalOpen && (
-                    <ItemRow>
-                        <div
-                            style={{
-                                color: "#66c0f4",
-                                fontSize: "12px",
-                                padding: "2px 0",
-                            }}
-                        >
-                            {fixMsg}
-                        </div>
-                    </ItemRow>
-                )}
+                    </FullWidthRows>
+                    {fixMsg && !isAuditModalOpen && (
+                        <ItemRow>
+                            <div style={{ color: "#66c0f4", fontSize: "12px" }}>{fixMsg}</div>
+                        </ItemRow>
+                    )}
+                </Blocks>
+                <GameDataEditor isOpen={isGameDataOpen} onClose={() => setIsGameDataOpen(false)} />
 
                 {/* Audit & Fix Modal */}
                 <SettingsModal

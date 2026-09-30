@@ -15,7 +15,7 @@ applies one and checks it.
 
 ## 1. What ships, and what the research found
 
-Settings gets a **Game Data** section with **Edit game data…**. It opens a popup: filter box + dropdown of every non-Steam
+Settings gets a **Game Data** block in the Library Audit section (three rows: label, description, **Manual Edit**; it was a section of its own until 2026-09-30). It opens a popup: filter box + dropdown of every non-Steam
 shortcut; for the chosen game a form of every field Steam's Game Info shows, **Save** and **Revert to fetched data**; a
 **Steam link** block with the current link, **Unlink** / **Unlink and never suggest it again**, and a search box over Steam's
 games with **Link** buttons. No new surface and no new Steam write: the `game-info` surface (already there) re-renders from
@@ -286,5 +286,5 @@ The five patches were generated from a scratch copy of `HEAD` (`c20c654`) in whi
 ## 10. Not in this plan (follow-ups)
 
 - Deleting `SteamStoreRejectSuggestion` + `store.reject` (no feature is left behind them, dead-code rule D13): a small cleanup step after § 7 passes.
-- Editing the controller badge per game (lives in Settings → Metadata and the Library Audit).
+- Editing the controller badge per game: done 2026-09-30 after the live check (the popup has a Controller support dropdown, the `controllerOverrides` setting; the override now reaches Game Info, which it did not before).
 - Hiding shortcuts already mapped from the picker, or bulk edit.

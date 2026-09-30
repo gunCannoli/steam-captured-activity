@@ -1,7 +1,9 @@
 // Game Data editor popup (features plan F1): pick a shortcut, edit its metadata, manage its Steam link.
 // Reads the app only through usePanelContext().editor; nothing here writes to Steam.
 import { useRef, useState } from "react";
-import { SettingsModal } from "../components";
+import { PanelSection } from "@steambrew/client";
+import { Blocks, SettingsModal } from "../components";
+import { ERROR_STYLE, NOTE_STYLE } from "./styles";
 import { usePanelContext, type EditorSnapshot } from "../context";
 import { diff, draftOf, validate, type MetadataDraft } from "../../domain/metadata-edit";
 import { GamePicker } from "./game-picker";
@@ -54,24 +56,30 @@ export function GameDataEditor({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
     return (
         <SettingsModal title="Game Data" isOpen={isOpen} onClose={onClose} width="640px">
-            <GamePicker filter={filter} onFilter={setFilter} appid={appid} onPick={pick} />
-            {message && <span style={{ fontSize: "12px", color: message.error ? "#e57373" : "#66c0f4" }}>{message.text}</span>}
-            {snapshot && draft && (
-                <>
-                    <MetadataForm
-                        draft={draft}
-                        onChange={setDraft}
-                        errors={errors}
-                        dirty={dirty}
-                        custom={snapshot.custom}
-                        hasMetadata={snapshot.hasMetadata}
-                        busy={busy}
-                        onSave={() => run(() => editor.save(snapshot.appid, draft), "Saved.")}
-                        onRevert={() => run(() => editor.revert(snapshot.appid), "Reverted to fetched data.")}
-                    />
-                    <SteamLink snapshot={snapshot} busy={busy} run={run} />
-                </>
-            )}
+            <PanelSection>
+                <Blocks>
+                    <>
+                        <GamePicker filter={filter} onFilter={setFilter} appid={appid} onPick={pick} />
+                        {message && <div style={message.error ? ERROR_STYLE : { ...NOTE_STYLE, color: "#66c0f4", opacity: 1 }}>{message.text}</div>}
+                    </>
+                    {snapshot && draft && (
+                        <MetadataForm
+                            appid={snapshot.appid}
+                            draft={draft}
+                            onChange={setDraft}
+                            errors={errors}
+                            dirty={dirty}
+                            custom={snapshot.custom}
+                            hasMetadata={snapshot.hasMetadata}
+                            busy={busy}
+                            onSave={() => run(() => editor.save(snapshot.appid, draft), "Saved.")}
+                            onRevert={() => run(() => editor.revert(snapshot.appid), "Reverted to fetched data.")}
+                            onNotice={(text) => setMessage({ text, error: false })}
+                        />
+                    )}
+                    {snapshot && draft && <SteamLink snapshot={snapshot} busy={busy} run={run} />}
+                </Blocks>
+            </PanelSection>
         </SettingsModal>
     );
 }

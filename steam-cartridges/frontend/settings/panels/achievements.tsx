@@ -4,7 +4,7 @@ import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambr
 import { useSetting } from "../settings";
 import { backend, type RetroStatusResponse } from "../../ports/backend";
 import { usePanelContext } from "../context";
-import { ItemRow, SettingsModal } from "../components";
+import { Blocks, ButtonRow, ItemRow, SettingsModal } from "../components";
 
 // ===========================================================================
 // 2. {Achievements} Sources Section
@@ -167,6 +167,8 @@ export function AchievementsSection() {
 
     return (
         <PanelSection title="Achievements">
+            <Blocks>
+                <>
             {activeSources.length === 0 && (
                 <ItemRow>
                     <div
@@ -224,23 +226,19 @@ export function AchievementsSection() {
                 </ItemRow>
             ))}
 
-            {/* Only show Add Source button if unadded sources remain */}
+                </>
+                <>
             {availableToAdd.length > 0 && (
-                <ItemRow>
-                    <div style={{ marginTop: "4px" }}>
-                        <DialogButton
-                            onClick={handleOpenAddModal}
-                            style={{
-                                padding: "0 14px",
-                                minWidth: 0,
-                                width: "auto",
-                            }}
-                        >
-                            + Add Source
-                        </DialogButton>
-                    </div>
-                </ItemRow>
+                <ButtonRow
+                    label="Add source"
+                    description="Connect another source of achievements"
+                    buttonLabel="Add"
+                    onClick={handleOpenAddModal}
+                />
             )}
+
+                </>
+            </Blocks>
 
             {/* Add Source Modal */}
             <SettingsModal

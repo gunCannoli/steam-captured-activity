@@ -4,7 +4,7 @@ import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambr
 import { useSetting } from "../settings";
 import { backend, type ProviderStatus } from "../../ports/backend";
 import { usePanelContext } from "../context";
-import { ItemRow, SettingsModal } from "../components";
+import { Blocks, ButtonRow, ItemRow, SettingsModal } from "../components";
 
 // ===========================================================================
 // 1. {Metadata} Services Section
@@ -203,6 +203,8 @@ export function MetadataSection() {
 
     return (
         <PanelSection title="Metadata">
+            <Blocks>
+                <>
             {activeServices.length === 0 && (
                 <ItemRow>
                     <div
@@ -237,23 +239,19 @@ export function MetadataSection() {
                 </ItemRow>
             ))}
 
-            {/* Only show Add Service button if unadded services remain */}
+                </>
+                <>
             {availableToAdd.length > 0 && (
-                <ItemRow>
-                    <div style={{ marginTop: "4px" }}>
-                        <DialogButton
-                            onClick={handleOpenAddModal}
-                            style={{
-                                padding: "0 14px",
-                                minWidth: 0,
-                                width: "auto",
-                            }}
-                        >
-                            + Add Service
-                        </DialogButton>
-                    </div>
-                </ItemRow>
+                <ButtonRow
+                    label="Add service"
+                    description="Connect another source of game info and artwork"
+                    buttonLabel="Add"
+                    onClick={handleOpenAddModal}
+                />
             )}
+
+                </>
+            </Blocks>
 
             {/* Add Service Modal */}
             <SettingsModal

@@ -270,12 +270,10 @@ frontend/settings/panels/
   metadata.tsx                       settings           Settings: Metadata services (migration plan M8c, moved verbatim).
   notifications.tsx                  settings           Settings: Notifications (migration plan M8c, moved verbatim).
   rules.tsx                          settings           Settings: Routing Rules (migration plan M8c, moved verbatim).
-  troubleshooting.tsx                settings           Settings: Troubleshooting (migration plan M8d): the kill switches and safety diagnostics.
 
 frontend/settings/
   settings.ts                        settings           
   sync-progress.tsx                  settings           Settings: the sticky sync progress bar and its hook (migration plan M8c).
-  troubleshooting-core.ts            settings           Pure helper of the Troubleshooting panel (migration plan M8d): edit the `disabledFeatures`
 
 frontend/steam/
   achievement-types.ts               steam binding      Steam's own achievement shapes (AppDetailsStore, AchievementsFullStore, NotificationStore)
