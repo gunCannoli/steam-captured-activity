@@ -135,6 +135,7 @@ export const PURE = [
     'capture/plan.ts',
     'kernel/events.ts',
     'kernel/notification.ts',
+    'kernel/reset.ts',
     'kernel/surface.ts',
     'safety/boot.ts',
     'safety/features.ts',
@@ -143,6 +144,7 @@ export const PURE = [
     'steam/notification-hook.ts',
     'banner/styles.ts',
     'surfaces/duration/duration.ts',
+    'surfaces/reset/reset.ts',
     'surfaces/sound/sound.ts',
     'surfaces/toasts/completion.ts',
     'theme/jsonc.ts',
@@ -191,6 +193,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['notification fnNotificationResolved (popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'surfaces/banner/themed-toast.tsx'],
     ['toast popup SteamClient.Window.MoveTo (pin)', /\.MoveTo\s*=(?!=)/, 'surfaces/banner/window-pin.ts'],
     ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'surfaces/banner/toast-patch.ts'],
+    ['Steam console commands (reset achievements)', /\.ExecCommand\s*\(/, 'surfaces/reset/index.ts'],
     ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip|UserAddTimelineEntry)\s*\(/, 'surfaces/captures/recording.ts'],
 ];
 
@@ -219,7 +222,7 @@ test('architecture: no two surfaces declare the same Steam target', () => {
             }
         }
     }
-    assert.equal(dirs.length, 5, 'expected the five surfaces');
+    assert.equal(dirs.length, 6, 'expected the six surfaces');
     assert.ok(owner.size >= 9, `expected to read the surfaces' touches, found ${owner.size}`);
     assert.deepEqual(clashes, []);
 });

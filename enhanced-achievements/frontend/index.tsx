@@ -16,6 +16,7 @@ export { captureLog, setCaptureDryRun } from './surfaces/captures/captures';
 export { recordingDiagnostics, runningGameAppid } from './surfaces/captures/recording';
 export { toastsEnabled } from './steam/notification-settings';
 export { safetyDiagnostics } from './safety/runtime';
+export { achievementReset } from './surfaces/reset';
 import { SettingsPanel } from './settings/settings-panel';
 import { resolveNotificationStore } from './steam/notification-store';
 import { installNotificationHook } from './steam/notification-hook';
@@ -28,6 +29,7 @@ import { createDurationSurface } from './surfaces/duration';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
 import { previewTier } from './surfaces/toasts/post';
 import { createBannerSurface } from './surfaces/banner';
+import { achievementReset, createResetSurface } from './surfaces/reset';
 import { capturesHandler, createCapturesSurface } from './surfaces/captures';
 import { initNotificationSettingsDetection } from './steam/notification-settings';
 
@@ -81,7 +83,7 @@ async function init(): Promise<void> {
     initNotificationSettingsDetection(); // its failure only disables the settings-panel warning
     await initActiveTheme();
 
-    const surfaces = [createSoundSurface(hook), createDurationSurface(handle), createToastsSurface(handle), createBannerSurface(), createCapturesSurface()];
+    const surfaces = [createSoundSurface(hook), createDurationSurface(handle), createToastsSurface(handle), createBannerSurface(), createCapturesSurface(), createResetSurface()];
     for (const s of surfaces) uninstallers[s.id as FeatureId] = () => s.uninstall();
     surfaceReport = installSurfaces(surfaces, {
         isEnabled: (id) => isEnabled(id as FeatureId),
@@ -97,11 +99,14 @@ async function init(): Promise<void> {
     bus.on('achievement.unlocked', capturesHandler);
 }
 
+/** The settings panel as a component, so live tests can mount it without opening Steam's settings window. */
+export const SettingsPanelView = () => <SettingsPanel onPreview={previewTier} achievementReset={achievementReset} />;
+
 export default definePlugin(() => {
     init().catch((error) => logger.error('Initialisation failed; Steam is left stock.', error));
     return {
         title: 'Enhanced Achievements',
         icon: <IconsModule.Settings />,
-        content: <SettingsPanel onPreview={previewTier} />,
+        content: <SettingsPanel onPreview={previewTier} achievementReset={achievementReset} />,
     };
 });

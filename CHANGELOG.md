@@ -7,6 +7,10 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **docs: split the architecture docs by subject (2026-09-30)**: `docs/steam-architecture.md` is now about Steam's own client (topology, how it treats shortcuts, ids, pointers to `steam-components`/`steam-debug`/`knowledgebase`). New `docs/steam-cartridges.md` covers the plugin: the hexagon mapped onto the layers, links to every layer doc, and a decision order for adding a feature. The docs index (previously `steam-architecture.md`) moved to `docs/README.md`; links in the layer docs, plans, `AGENTS.md` and `millennium-architecture.md` were repointed. The stale "features frozen until M3" note was dropped.
+
+- **enhanced-achievements: Reset Achievements setting (2026-09-30)**: new `reset` surface and settings rows (filter, dropdown, Reset with a warning). Steam games via Steam's `achievement_clear` console command, non-Steam games via steam-cartridges' public `resetAchievements`. `npm test` 116/116, new non-destructive live script `tests/reset.mjs`.
+
 - **enhanced-achievements: EA-K6 and EA-K7 closed (2026-09-30)**: `settings-sound.mjs` snapshots and restores stored settings (verified standalone with a marker setting); dead `toastWarning()` deleted. Full live pass repeated: `test:live` all PASS, Big Picture 2/2, banner screenshot checked.
 
 - **enhanced-achievements: architecture migration complete (E3, 2026-09-30)**: docs closed (architecture doc, `plugins.md` pointer, plugin README Troubleshooting, plan § 11 triaged). Final state: safety net, one notification hook, one unlock sensor, five surfaces, empty import allowlist, `npm test` 111/111.

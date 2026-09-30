@@ -23,6 +23,7 @@ const checks = [
     { file: 'queue-stress.mjs', must: /^PASS {2}queue off: never Steam fallback toast/m },
     { file: 'captures.mjs', must: /^PASS {2}settings restored/m },
     { file: 'settings-sound.mjs', must: /^(PASS|SKIP) /m },
+    { file: 'reset.mjs', must: /^PASS {2}switched off: unavailable/m },
     { file: 'bigpicture.mjs', theme: true, must: /^PASS {2}themed banner in Big Picture/m, skipWhen: /is Big Picture open\?/ },
 ];
 

@@ -13,7 +13,7 @@
  */
 
 /** Stable ids: users type them. Never rename one; add new ones at the end. */
-export const FEATURE_IDS = ['banner', 'sound', 'duration', 'completion', 'captures', 'toasts'] as const;
+export const FEATURE_IDS = ['banner', 'sound', 'duration', 'completion', 'captures', 'toasts', 'reset'] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Safe mode keeps nothing: every achievement toast is Steam's own. */

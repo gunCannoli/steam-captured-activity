@@ -50,6 +50,7 @@ Open Millennium's sidebar and select **Enhanced Achievements**:
 | Save clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
 | Timeline marker | Adds an achievement marker on non-Steam games' timelines |
 | Reset to defaults | Clears every changed setting |
+| Reset Achievements | Pick a game (type to filter the list) and press **Reset** to clear its achievements, after a warning. Steam games are cleared on your Steam account through Steam's own console command; non-Steam games need steam-cartridges. Only games with at least one unlocked achievement are listed |
 
 Captures are **off by default** — they write files into your library. Both
 screenshot and clip need Steam's Game Recording turned on (background or

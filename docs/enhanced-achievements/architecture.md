@@ -29,6 +29,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | `duration` | Writing the achievement toast duration | Nothing written (a value already written stays until restart); `claims('duration')` handed back |
 | `completion` | The synthetic 100% toast after a game-completing unlock | No 100% toast |
 | `captures` | Screenshot, clip and marker on unlock | No captures |
+| `reset` | The settings panel's Reset Achievements (clears a game's achievements) | The section is disabled and `reset()` refuses |
 
 - **User switch:** `disabledFeatures` setting, comma-separated ids, no panel control. From the SharedJSContext console:
   `PLUGIN_LIST['enhanced-achievements-dev'].setSetting('disabledFeatures', 'banner,sound')`. Read live; `duration` takes effect at the next theme change or restart.
@@ -67,6 +68,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | Notification `fnNotificationResolved` (popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
 | Toast popup `SteamClient.Window.MoveTo` (pin) | `surfaces/banner/window-pin.ts` | — |
 | Game Recording RPCs | `surfaces/captures/recording.ts` | — |
+| `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` | `surfaces/reset/index.ts` | — |
 
 ## Tests
 
@@ -86,6 +88,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 ## History
 
+- 2026-09-30 Reset Achievements: new surface `reset` (feature id `reset`, pure logic in `surfaces/reset/reset.ts`, shared types and `filterCandidates` in `kernel/reset.ts`); the settings panel gets it injected as `achievementReset` (D7). A Steam game is cleared with Steam's console command `achievement_clear <appid> <id>` per unlocked achievement (only ids of plain identifier characters are ever sent) and read back after 1.5 s; a non-Steam game through steam-cartridges' public `resetAchievements`, found in `PLUGIN_LIST` (a soft link: plugins never import each other, and without it non-Steam games are simply not offered). New exports `achievementReset` and `SettingsPanelView` (live tests). `tests/reset.mjs` is non-destructive.
 - 2026-09-30 E2: `admit` moved from the render to the mount effect; `queue.peek` and `queue.whenShowing`; the sound surface uses them instead of `phaseOf` + `subscribe`. Fixes EA-K2 and EA-K9.
 - 2026-09-30 E1c: `banner` and `captures` are surfaces (`git mv` of toast-patch, themed-toast, window-pin, captures, recording; both install and uninstall through `Surface`); `surfaceStatus()` export; the allowlist is empty; test `no two surfaces declare the same Steam target`.
 - 2026-09-30 E1b: `steam/notifications.ts` split into `steam/notification-store.ts` (discovery), `steam/notification-hook.ts` (the one wrapper), `sensors/unlock` and surfaces `sound`, `duration`, `toasts`; captures and the 100% toast run from `achievement.unlocked` one macrotask after the toast; a tripped feature has its surface uninstalled; allowlist 7 → 6.

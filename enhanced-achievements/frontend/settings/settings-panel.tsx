@@ -2,18 +2,22 @@ import { useEffect, useState } from "react";
 import {
     DialogBodyText,
     DialogButton,
+    ConfirmModal,
     Dropdown,
     Field,
     PanelSection,
     PanelSectionRow,
     SliderField,
+    TextField,
     Toggle as SteamToggle,
+    showModal,
 } from "@steambrew/client";
 import { logger } from "../logger";
 import { rpc, type ThemeEntry } from "../rpc";
 import { toastsEnabled } from "../steam/notification-settings";
 import { activeTheme, onThemeChange, reloadTheme } from "../theme/active-theme";
 import { TIERS, type Tier } from "../theme/theme";
+import { filterCandidates, type AchievementResetApi, type ResetCandidate } from "../kernel/reset";
 import {
     DEFAULTS,
     RANGES,
@@ -341,8 +345,99 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
     );
 }
 
-/** `onPreview` is injected by index.tsx: this panel must not import a surface (migration D7). */
-export function SettingsPanel({ onPreview }: { onPreview: (tier: Tier) => void }) {
+/**
+ * Five rows (label, description, then the three controls), the same convention as the theme picker.
+ * Reset is never disabled by Steam's toasts being off: it does not use them. `api` is injected (D7).
+ */
+function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
+    const [all, setAll] = useState<ResetCandidate[]>(() => api.candidates());
+    const [filter, setFilter] = useState("");
+    const [selected, setSelected] = useState(0);
+    const [busy, setBusy] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
+
+    const visible = filterCandidates(all, filter);
+    const chosen = visible.find((c) => c.appid === selected);
+    const options = [
+        { data: 0, label: "All games" },
+        ...visible.map((c) => ({ data: c.appid, label: `${c.name} (${c.unlocked}/${c.total})` })),
+    ];
+    const available = api.available();
+
+    const run = async (c: ResetCandidate) => {
+        setBusy(true);
+        setMessage(null);
+        const result = await api.reset(c);
+        setBusy(false);
+        setMessage(
+            !result.ok
+                ? result.reason
+                : result.remaining > 0 || result.skipped > 0
+                  ? `Cleared ${result.cleared} in ${c.name}; ${result.remaining} still show as unlocked (Steam may need a moment, or a restart).`
+                  : `Cleared all achievements in ${c.name}.`,
+        );
+        setSelected(0);
+        setAll(api.candidates());
+    };
+
+    const confirm = () => {
+        if (!chosen) return;
+        showModal(
+            <ConfirmModal
+                strTitle="Reset achievements"
+                strDescription={`${chosen.name} will lose all its achievements (${chosen.unlocked} unlocked). ${
+                    chosen.kind === "steam" ? "They are cleared on your Steam account. " : ""
+                }This cannot be undone.`}
+                strOKButtonText="Reset"
+                bDestructiveWarning
+                onOK={() => void run(chosen)}
+            />,
+            window,
+        );
+    };
+
+    return (
+        <>
+            <ItemRow>
+                <Field
+                    label="Reset Achievements"
+                    description="Select a game to reset the achievements count"
+                    disabled={!available}
+                    bottomSeparator="none"
+                />
+            </ItemRow>
+            <ItemRow>
+                <TextField
+                    label="Games filter"
+                    value={filter}
+                    disabled={!available}
+                    onFocus={() => setAll(api.candidates())}
+                    onChange={(e) => setFilter(e.target.value)}
+                />
+            </ItemRow>
+            <ItemRow>
+                <Field disabled={!available} childrenContainerWidth="max">
+                    <Dropdown
+                        rgOptions={options}
+                        selectedOption={chosen ? chosen.appid : 0}
+                        disabled={!available}
+                        contextMenuPositionOptions={{ bMatchWidth: true }}
+                        onChange={(o) => setSelected(o.data as number)}
+                    />
+                </Field>
+            </ItemRow>
+            <ButtonRow label="" buttonLabel="Reset" disabled={!available || busy || !chosen} onClick={confirm} />
+            {message && (
+                <ItemRow>
+                    <DialogBodyText>{message}</DialogBodyText>
+                </ItemRow>
+            )}
+        </>
+    );
+}
+
+/** `onPreview` and `achievementReset` are injected by index.tsx: this panel must not import a surface (migration D7). */
+export function SettingsPanel({ onPreview, achievementReset }: { onPreview: (tier: Tier) => void; achievementReset: AchievementResetApi }) {
     const disabled = usePanelDisabled();
 
     return (
@@ -377,6 +472,8 @@ export function SettingsPanel({ onPreview }: { onPreview: (tier: Tier) => void }
                     disabled={disabled}
                     onClick={() => void resetSettings()}
                 />
+
+                <ResetAchievementsRows api={achievementReset} />
             </PanelSection>
         </>
     );
