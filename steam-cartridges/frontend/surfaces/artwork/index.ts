@@ -6,6 +6,7 @@ import type { ArtworkPlan } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { applyCustomArtworkFromUrls } from "./artwork";
 import { deps, type RecordArtworkInfo } from "./deps";
+import { applyIcon } from "./icon";
 import { clearLogoPosition, ensureLogoPosition } from "./logo";
 
 /** Clear one slot this plugin wrote. Called on the object: never extract the method. */
@@ -51,16 +52,22 @@ async function execute(appid: number, plan: ArtworkPlan): Promise<void> {
     }
     // Parity E: our logo needs a position or Steam never draws it.
     if (union(plan.kept, written).includes(2)) await ensureLogoPosition(appid);
+    // Icon plan: the library icon (a write, or a Clear's restore) comes after the slots.
+    if (plan.icon) await applyIcon(appid, plan.icon, plan.source === "steamgriddb" ? "steamgriddb" : "steam-cdn", plan.steamAppid);
 }
 
 /** One plan at a time per shortcut (a Clear followed by a write must not interleave). */
 const queues = new Map<number, Promise<void>>();
 
-export function createArtworkSurface(d: SurfaceDeps & Pick<typeof deps, "downloadImage" | "recordArtwork">): Surface {
+export function createArtworkSurface(
+    d: SurfaceDeps & Pick<typeof deps, "downloadImage" | "recordArtwork" | "saveIcon" | "recordIcon">,
+): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
     deps.downloadImage = d.downloadImage;
     deps.recordArtwork = d.recordArtwork;
+    deps.saveIcon = d.saveIcon;
+    deps.recordIcon = d.recordIcon;
     return {
         id: "artwork",
         touches: [
@@ -68,6 +75,7 @@ export function createArtworkSurface(d: SurfaceDeps & Pick<typeof deps, "downloa
             "SteamClient.Apps.ClearCustomArtworkForApp",
             "AppDetailsStore.SaveCustomLogoPosition",
             "AppDetailsStore.ClearCustomLogoPosition",
+            "SteamClient.Apps.SetShortcutIcon",
         ],
         reads: ["artwork"],
         install() {},

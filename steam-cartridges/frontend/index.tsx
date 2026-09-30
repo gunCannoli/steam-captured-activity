@@ -433,6 +433,8 @@ async function init() {
                     info.failed,
                     info.source === "steamgriddb" ? { source: "steamgriddb", tried: info.tried } : undefined,
                 ),
+            saveIcon: (appid, url, source, steamAppid) => backend.steamStoreSaveIcon(appid, url, source, steamAppid),
+            recordIcon: (appid, info) => backend.steamStoreRecordIcon(appid, info),
         }),
     );
     runner.installAll();
