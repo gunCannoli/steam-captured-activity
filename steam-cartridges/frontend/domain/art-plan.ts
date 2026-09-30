@@ -10,7 +10,7 @@
  * A slot the user removed in Steam is pruned from `slots` by the backend and is
  * not in `failed`, so it is never written again (the user wins).
  */
-import type { ArtworkUrls, StoreApplied } from '../kernel/record';
+import type { ArtworkUrls, IconPlan, StoreApplied } from '../kernel/record';
 
 export const ALL_SLOTS: readonly number[] = [0, 1, 2, 3];
 
@@ -66,4 +66,18 @@ export function mergeArtResult(
 export function sgdbPlan(urls: ArtworkUrls, emptySlots: unknown): ArtPlan {
     const empty = slotList(emptySlots);
     return { clear: [], write: ALL_SLOTS.filter((s) => empty.includes(s) && !!urls[SLOT_KEY[s]!]) };
+}
+
+/**
+ * The library icon (icon plan): written only when the backend called it eligible (Steam draws it
+ * from the exe, or it is still ours) and there is a url. Anything but `true` is not eligible.
+ */
+export function iconPlan(urls: ArtworkUrls, eligible: unknown): IconPlan | undefined {
+    return eligible === true && typeof urls.icon === 'string' && urls.icon !== '' ? { url: urls.icon } : undefined;
+}
+
+/** Clear's `icon_restore` (backend/steam_store_rpc.lua): the icon path to put back; anything but a string = none. */
+export function iconRestoreOf(res: unknown): string | undefined {
+    const v = res && typeof res === 'object' ? (res as { icon_restore?: unknown }).icon_restore : undefined;
+    return typeof v === 'string' ? v : undefined;
 }

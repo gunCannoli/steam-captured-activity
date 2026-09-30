@@ -92,6 +92,8 @@ export interface ArtworkUrls {
     hero?: string;
     logo?: string;
     wide?: string;
+    /** The library icon: not a SetCustomArtworkForApp slot, written with SetShortcutIcon (icon plan). */
+    icon?: string;
 }
 
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
@@ -130,7 +132,15 @@ export interface ArtworkPlan {
     kept: number[];
     /** Distinguishes two otherwise identical plans (a repeated Clear must re-render). */
     at: number;
+    /** The shortcut's library icon, when it changes (icon plan). */
+    icon?: IconPlan;
 }
+
+/**
+ * The shortcut's library icon (not an artwork slot): `url` = store that image and point the
+ * shortcut at it; `restore` = put back the shortcuts.vdf icon value ours replaced ("" = the exe).
+ */
+export type IconPlan = { url: string } | { restore: string };
 
 export interface GameRecord {
     appid: ShortcutId;

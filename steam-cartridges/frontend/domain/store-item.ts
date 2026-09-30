@@ -130,6 +130,8 @@ export function assetUrlsFromItem(item: any): ArtworkUrls {
         out.portrait = call('GetLibraryCapsuleURL_2x') ?? call('GetLibraryCapsuleURL');
         out.hero = call('GetLibraryHeroURL');
         out.wide = call('GetHeaderURL');
+        // The 184 px community icon; Steam's own sidebar uses the 32 px GetCommunityIconURL (icon plan).
+        out.icon = call('GetCommunityIconURL_Full');
     } catch {
         /* fall back to CDN paths */
     }

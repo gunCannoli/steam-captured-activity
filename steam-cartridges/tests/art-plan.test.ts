@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { artworkPlan, mergeArtResult, pickUrls, sgdbPlan, slotList } from '../frontend/domain/art-plan.ts';
+import { artworkPlan, iconPlan, iconRestoreOf, mergeArtResult, pickUrls, sgdbPlan, slotList } from '../frontend/domain/art-plan.ts';
 
 test('nothing recorded: write all four', () => {
     assert.deepEqual(artworkPlan(null, 2820820, false), { clear: [], write: [0, 1, 2, 3] });
@@ -45,4 +45,25 @@ test('steamgriddb: only empty slots that have a url are written, nothing is clea
 test('steamgriddb: Lua empty tables ({}) and junk mean no empty slot', () => {
     assert.deepEqual(sgdbPlan({ portrait: 'p' }, {}), { clear: [], write: [] });
     assert.deepEqual(sgdbPlan({ portrait: 'p' }, [0, 9, 'x']), { clear: [], write: [0] });
+});
+
+test('icon: written only when eligible is exactly true and there is a url', () => {
+    assert.deepEqual(iconPlan({ icon: 'https://i/full.jpg' }, true), { url: 'https://i/full.jpg' });
+    assert.equal(iconPlan({ icon: 'https://i/full.jpg' }, false), undefined);
+    assert.equal(iconPlan({ icon: 'https://i/full.jpg' }, 'true'), undefined);
+    assert.equal(iconPlan({ icon: 'https://i/full.jpg' }, undefined), undefined);
+    assert.equal(iconPlan({ icon: '' }, true), undefined);
+    assert.equal(iconPlan({ portrait: 'p' }, true), undefined);
+});
+
+test('icon: pickUrls never carries the icon (it is not a slot)', () => {
+    assert.deepEqual(pickUrls({ portrait: 'p', icon: 'i' }, [0, 1, 2, 3]), { portrait: 'p' });
+});
+
+test('icon: Clear restore value is read defensively ("" = the exe is a real value)', () => {
+    assert.equal(iconRestoreOf({ slots: [], icon_restore: 'D:\Game\game.exe' }), 'D:\Game\game.exe');
+    assert.equal(iconRestoreOf({ slots: [], icon_restore: '' }), '');
+    assert.equal(iconRestoreOf({ slots: [] }), undefined);
+    assert.equal(iconRestoreOf({ icon_restore: 5 }), undefined);
+    assert.equal(iconRestoreOf(null), undefined);
 });
