@@ -1,13 +1,8 @@
-import { findModuleByExport } from '@steambrew/client';
+import { jsxRuntime } from '../../steam/modules';
 import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
 import { logger } from '../../logger';
 import { isShortcutAppId } from '../../kernel/appid';
 import { deps } from './deps';
-
-interface JsxRuntimeModule {
-  jsx(type: unknown, props: unknown, key?: unknown): unknown;
-  jsxs(type: unknown, props: unknown, key?: unknown): unknown;
-}
 
 interface EventHeadlineProps {
   id?: string;
@@ -20,16 +15,6 @@ interface EventHeadlineProps {
     eEventType?: number;
   };
   children?: unknown;
-}
-
-function findJsxRuntime(): JsxRuntimeModule | undefined {
-  const found = findModuleByExport(
-    (moduleExport: unknown, exportName?: unknown) =>
-      (exportName === 'jsx' || exportName === 'jsxs') && typeof moduleExport === 'function',
-  ) as JsxRuntimeModule | undefined;
-
-  if (!found || typeof found.jsx !== 'function' || typeof found.jsxs !== 'function') return undefined;
-  return found;
 }
 
 function handleHeadlineIntercept(_type: unknown, props: unknown): void {
@@ -62,7 +47,7 @@ let hook: ReturnType<typeof keepJsxPatched> | undefined;
 export function installHeadlinePatch(): void {
   if (hook) return;
 
-  const runtime = findJsxRuntime();
+  const runtime = jsxRuntime();
   if (!runtime) {
     logger.warn('Could not find react/jsx-runtime; activity headline patch skipped.');
     return;

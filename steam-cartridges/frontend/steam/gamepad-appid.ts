@@ -1,4 +1,4 @@
-import { findModuleByExport } from '@steambrew/client';
+import { jsxRuntime } from './modules';
 import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
 import { logger } from '../logger';
 
@@ -49,11 +49,6 @@ import { logger } from '../logger';
  * See CHANGELOG.md.
  */
 
-interface JsxRuntimeModule {
-  jsx(type: unknown, props: unknown, key?: unknown): unknown;
-  jsxs(type: unknown, props: unknown, key?: unknown): unknown;
-}
-
 interface AppDetailsProps {
   appid: number;
   rgSections: unknown[];
@@ -63,16 +58,6 @@ function isAppDetailsProps(props: unknown): props is AppDetailsProps {
   if (!props || typeof props !== 'object') return false;
   const p = props as Record<string, unknown>;
   return typeof p.appid === 'number' && Array.isArray(p.rgSections);
-}
-
-function findJsxRuntime(): JsxRuntimeModule | undefined {
-  const found = findModuleByExport(
-    (moduleExport: unknown, exportName?: unknown) =>
-      (exportName === 'jsx' || exportName === 'jsxs') && typeof moduleExport === 'function',
-  ) as JsxRuntimeModule | undefined;
-
-  if (!found || typeof found.jsx !== 'function' || typeof found.jsxs !== 'function') return undefined;
-  return found;
 }
 
 const listeners = new Set<(appid: number) => void>();
@@ -104,7 +89,7 @@ let hook: ReturnType<typeof keepJsxPatched> | undefined;
  */
 function ensurePatched(): void {
   if (hook) return;
-  const runtime = findJsxRuntime();
+  const runtime = jsxRuntime();
   if (!runtime) {
     logger.warn('Could not find react/jsx-runtime; Big Picture appid detection is unavailable.');
     return;

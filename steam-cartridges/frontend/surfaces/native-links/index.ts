@@ -1,10 +1,10 @@
 // Surface `native-links` (migration plan M3.7, ADR-0039). Moved from
 // features/steam-store/native-sections.ts; pure logic in core.ts (ex native-sections-core.ts).
-import { afterPatch, beforePatch, findModuleByExport } from "@steambrew/client";
+import { afterPatch, beforePatch } from "@steambrew/client";
 import { logger } from "../../logger";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
-import { steamRequire } from "../../steam/modules";
+import { jsxRuntime, steamRequire } from "../../steam/modules";
 import { cleanLinksProps, MARK_PRIVATE_SOURCE, navigationTarget, redirectProps, shortcutSafeApps, type RedirectKind } from "./core";
 
 /** Set by createNativeLinksSurface (plan § 7.0 D6); open defaults until then. */
@@ -222,14 +222,6 @@ function resolveTypes(): void {
     }
 }
 
-function findJsxRuntime(): Record<"jsx" | "jsxs", (type: unknown, props: unknown, key?: unknown) => unknown> | undefined {
-    const found = findModuleByExport(
-        (moduleExport: unknown, exportName?: unknown) =>
-            (exportName === "jsx" || exportName === "jsxs") && typeof moduleExport === "function",
-    ) as any;
-    return found && typeof found.jsx === "function" && typeof found.jsxs === "function" ? found : undefined;
-}
-
 let hook: ReturnType<typeof keepJsxPatched> | undefined;
 
 /** Resolve the components and install the jsx handler. Idempotent; a failure leaves Steam stock. */
@@ -238,7 +230,7 @@ export function installNativeSections(): void {
     try {
         resolveTypes();
         if (TYPES.size === 0) return;
-        const runtime = findJsxRuntime();
+        const runtime = jsxRuntime();
         if (!runtime) {
             logger.warn("Could not find react/jsx-runtime; native sections stay stock.");
             return;
