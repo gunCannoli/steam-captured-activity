@@ -122,6 +122,34 @@ function holdPopup(n: SteamNotification, key: object, capMs: number): void {
     n.fnNotificationResolved = () => phaseOf(key) === 'done' || Date.now() > until;
 }
 
+/**
+ * Big Picture's toast window is created hidden and its document timeline does
+ * not tick until the window first paints, so it reads 0 while the banner mounts.
+ * CSS animations created then start at time 0; on the first frame the timeline
+ * jumps to the window's age and the entrance AND exit (delayed by the display
+ * time) both land on their end state: opacity 0, an invisible banner (found live
+ * 2026-09-30, docs/steam-debug.md). Once the window is really painting (two
+ * frames), restart any banner animation that started on that frozen clock.
+ * Returns a cancel function.
+ */
+function restartFrozenAnimations(el: HTMLElement): () => void {
+    const win = el.ownerDocument.defaultView;
+    if (!win) return () => {};
+    let outer = 0;
+    let inner = 0;
+    outer = win.requestAnimationFrame(() => {
+        inner = win.requestAnimationFrame(() => {
+            for (const a of el.getAnimations()) {
+                if (a.startTime === 0 && /^ea-(in|out)/.test((a as CSSAnimation).animationName ?? '')) a.currentTime = 0;
+            }
+        });
+    });
+    return () => {
+        win.cancelAnimationFrame(outer);
+        win.cancelAnimationFrame(inner);
+    };
+}
+
 /** Snapshots the theme at mount: a toast keeps the theme it arrived with, even across a reload. */
 function Banner({ toast }: { toast: ToastProps }) {
     const [loaded] = useState(activeTheme);
@@ -182,6 +210,9 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedTheme; n: SteamN
         // Once per toast: its theme and size are fixed at mount.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Every time the banner starts showing (its CSS animations are created then), not only at mount.
+    useEffect(() => (phase === 'showing' && rootRef.current ? restartFrozenAnimations(rootRef.current) : undefined), [phase]);
 
     useLayoutEffect(() => {
         const pin = pinRef.current;

@@ -285,6 +285,25 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
   Each hung repro costs a Steam restart (~1 min), so form a hypothesis from the
   first stack sample before running another.
 
+### Trap 11: A DOM probe passes on a banner nobody can see (first toast in Big Picture)
+
+- **Symptom:** the live check says the themed banner rendered, the user sees no banner. Only
+  the **first** toast after Big Picture opens is affected; the second and later ones show.
+- **Reality:** Big Picture's toast window is created hidden, and its **document timeline stays at 0
+  until the window first paints**. CSS animations created while it reads 0 get `startTime = 0`; on
+  the first frame the timeline jumps to the window's age (~14 s), so the entrance **and** the delayed
+  exit are already `finished` and the element sits at the exit's end state (`opacity: 0`). The
+  window itself paints fine (`requestAnimationFrame` runs at 60 fps, `visibilityState: visible`), and
+  `getBoundingClientRect` reports a normal box, so presence checks all pass.
+- **Rule:** check what the eye sees, not that the element exists: sample `getComputedStyle(el).opacity`
+  and the transform over the toast's life and require the **maximum** to reach ~1. To find this kind of
+  bug read `document.getAnimations()` (`playState`, `startTime`, `currentTime`) next to
+  `document.timeline.currentTime` and `performance.now()`; `startTime: 0` with `timeline ≫ 0` is the
+  signature. Reproduce with a **fresh** Big Picture session (exit and re-enter), since only the first
+  toast fails. `enhanced-achievements/tests/bigpicture.mjs` asserts the maximum opacity for this reason.
+  Fix pattern: restart animations that started on the frozen clock after two real frames
+  (`restartFrozenAnimations` in `banner/themed-toast.tsx`).
+
 ---
 
 ## 5. Automated CDP Inspection via PowerShell / Node.js

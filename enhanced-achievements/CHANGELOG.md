@@ -21,6 +21,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- The first achievement banner after opening Big Picture was invisible (its toast window's animation clock had not started, so the entrance and exit both finished at once); banner animations that start on that frozen clock are now restarted once the window paints. `tests/bigpicture.mjs` now requires the banner to reach full opacity, and `tests/captures.mjs` no longer fails once the capture log is full.
 - `claims()` is O(1) again: it no longer walks the jsx wrapper chain (and could call the jsx runtime)
   on every call, which enhanced-notifications makes on every toast.
 - `tests/queue-stress.mjs` no longer resets your theme to "Steam default" when it ends.

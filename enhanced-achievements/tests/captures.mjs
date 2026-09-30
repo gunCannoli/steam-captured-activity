@@ -38,7 +38,8 @@ try {
     // 4. Assert the newest log entry: no running timeline, no RPC (eresult) sent.
     const after = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
     const entry = after[after.length - 1];
-    const isNew = after.length > before.length;
+    // The log is a ring buffer (20 entries): once full its length no longer grows, so a newer timestamp also counts.
+    const isNew = after.length > before.length || (entry?.at ?? 0) > (before[before.length - 1]?.at ?? 0);
     check('captureLog(): new entry recorded', isNew, JSON.stringify(entry));
     if (isNew) {
         check('captureLog(): appid 480', entry.appid === 480, JSON.stringify(entry));
