@@ -1,0 +1,218 @@
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index 8ccf339..88cfb3d 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -433,6 +433,8 @@ async function init() {
+                     info.failed,
+                     info.source === "steamgriddb" ? { source: "steamgriddb", tried: info.tried } : undefined,
+                 ),
++            saveIcon: (appid, url, source, steamAppid) => backend.steamStoreSaveIcon(appid, url, source, steamAppid),
++            recordIcon: (appid, info) => backend.steamStoreRecordIcon(appid, info),
+         }),
+     );
+     runner.installAll();
+diff --git a/steam-cartridges/frontend/surfaces/artwork/deps.ts b/steam-cartridges/frontend/surfaces/artwork/deps.ts
+index 4379a8b..a6b2efd 100644
+--- a/steam-cartridges/frontend/surfaces/artwork/deps.ts
++++ b/steam-cartridges/frontend/surfaces/artwork/deps.ts
+@@ -10,14 +10,34 @@ export interface RecordArtworkInfo {
+     tried: number[];
+ }
+ 
++/** The library icon the surface set, for the backend to remember (steam_store.json applied_icon). */
++export interface RecordIconInfo {
++    path: string;
++    /** The shortcuts.vdf icon value ours replaced ("" = the exe), put back on Clear. */
++    previous: string;
++    source: "steam-cdn" | "steamgriddb";
++    steamAppid?: number;
++}
++
+ export const deps: SurfaceDeps & {
+     /** The backend image fetch for Steam CDN URLs (rpc.steamStoreDownloadImage). */
+     downloadImage(url: string): Promise<{ base64?: string; ext?: string } | null | undefined>;
+     /** Remember the slots written; `{ error }` = the mapping vanished meanwhile (undo the write). */
+     recordArtwork(appid: number, info: RecordArtworkInfo): Promise<{ error?: string } | null | undefined>;
++    /** Store our copy of the icon image (rpc.steamStoreSaveIcon): its path and the value it replaces. */
++    saveIcon(
++        appid: number,
++        url: string,
++        source: RecordIconInfo["source"],
++        steamAppid?: number,
++    ): Promise<{ path?: string; previous?: string; error?: string } | null | undefined>;
++    /** Remember the icon set; `{ error }` = the match changed meanwhile (undo the write). */
++    recordIcon(appid: number, info: RecordIconInfo): Promise<{ error?: string } | null | undefined>;
+ } = {
+     isEnabled: () => true,
+     reportError: () => {},
+     downloadImage: async () => undefined,
+     recordArtwork: async () => undefined,
++    saveIcon: async () => undefined,
++    recordIcon: async () => undefined,
+ };
+diff --git a/steam-cartridges/frontend/surfaces/artwork/icon.ts b/steam-cartridges/frontend/surfaces/artwork/icon.ts
+new file mode 100644
+index 0000000..d4ca9ff
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/artwork/icon.ts
+@@ -0,0 +1,48 @@
++// Surface `artwork`: the shortcut's library icon (icon plan). Not a SetCustomArtworkForApp slot:
++// Steam draws a shortcut's icon from the file its shortcuts.vdf `icon` field names, or from the
++// exe when that is empty (32 px, pixelated when scaled up). The backend stores our copy of the
++// image; this points the shortcut at it with SteamClient.Apps.SetShortcutIcon, which rewrites
++// shortcuts.vdf and swaps the overview's icon_data at once. Runtime imports carry `.ts` so Node
++// can run tests/artwork-icon.test.ts.
++import { logger } from "../../logger.ts";
++import type { IconPlan } from "../../kernel/record";
++import { deps, type RecordIconInfo } from "./deps.ts";
++
++/** Called on the object: never extract the method. False when Steam has no such call. */
++async function setShortcutIcon(appid: number, path: string): Promise<boolean> {
++    const apps = (globalThis as any).SteamClient?.Apps;
++    if (typeof apps?.SetShortcutIcon !== "function") {
++        logger.warn("SteamClient.Apps.SetShortcutIcon is not available.");
++        return false;
++    }
++    await apps.SetShortcutIcon(appid, path);
++    return true;
++}
++
++/** Write the icon (`url`) or put back the one ours replaced (`restore`). Kill switch: `artwork`. */
++export async function applyIcon(
++    appid: number,
++    plan: IconPlan,
++    source: RecordIconInfo["source"],
++    steamAppid?: number,
++): Promise<void> {
++    if (!deps.isEnabled("artwork")) return;
++    if ("restore" in plan) {
++        if (await setShortcutIcon(appid, plan.restore)) logger.info(`Restored the library icon for appid ${appid}`);
++        return;
++    }
++    const saved = await deps.saveIcon(appid, plan.url, source, steamAppid);
++    if (!saved?.path || saved.error) {
++        logger.warn(`Library icon for appid ${appid} not stored: ${saved?.error ?? "no response"}`);
++        return;
++    }
++    const previous = saved.previous ?? "";
++    if (!(await setShortcutIcon(appid, saved.path))) return;
++    const res = await deps.recordIcon(appid, { path: saved.path, previous, source, steamAppid });
++    if (res?.error) {
++        // The match changed while we were writing: put the replaced icon back (as the slots, P4 H5).
++        await setShortcutIcon(appid, previous);
++        return;
++    }
++    logger.info(`Set the library icon for appid ${appid}`);
++}
+diff --git a/steam-cartridges/frontend/surfaces/artwork/index.ts b/steam-cartridges/frontend/surfaces/artwork/index.ts
+index a297d99..f525225 100644
+--- a/steam-cartridges/frontend/surfaces/artwork/index.ts
++++ b/steam-cartridges/frontend/surfaces/artwork/index.ts
+@@ -6,6 +6,7 @@ import type { ArtworkPlan } from "../../kernel/record";
+ import type { Surface, SurfaceDeps } from "../../kernel/surface";
+ import { applyCustomArtworkFromUrls } from "./artwork";
+ import { deps, type RecordArtworkInfo } from "./deps";
++import { applyIcon } from "./icon";
+ import { clearLogoPosition, ensureLogoPosition } from "./logo";
+ 
+ /** Clear one slot this plugin wrote. Called on the object: never extract the method. */
+@@ -51,16 +52,22 @@ async function execute(appid: number, plan: ArtworkPlan): Promise<void> {
+     }
+     // Parity E: our logo needs a position or Steam never draws it.
+     if (union(plan.kept, written).includes(2)) await ensureLogoPosition(appid);
++    // Icon plan: the library icon (a write, or a Clear's restore) comes after the slots.
++    if (plan.icon) await applyIcon(appid, plan.icon, plan.source === "steamgriddb" ? "steamgriddb" : "steam-cdn", plan.steamAppid);
+ }
+ 
+ /** One plan at a time per shortcut (a Clear followed by a write must not interleave). */
+ const queues = new Map<number, Promise<void>>();
+ 
+-export function createArtworkSurface(d: SurfaceDeps & Pick<typeof deps, "downloadImage" | "recordArtwork">): Surface {
++export function createArtworkSurface(
++    d: SurfaceDeps & Pick<typeof deps, "downloadImage" | "recordArtwork" | "saveIcon" | "recordIcon">,
++): Surface {
+     deps.isEnabled = d.isEnabled;
+     deps.reportError = d.reportError;
+     deps.downloadImage = d.downloadImage;
+     deps.recordArtwork = d.recordArtwork;
++    deps.saveIcon = d.saveIcon;
++    deps.recordIcon = d.recordIcon;
+     return {
+         id: "artwork",
+         touches: [
+@@ -68,6 +75,7 @@ export function createArtworkSurface(d: SurfaceDeps & Pick<typeof deps, "downloa
+             "SteamClient.Apps.ClearCustomArtworkForApp",
+             "AppDetailsStore.SaveCustomLogoPosition",
+             "AppDetailsStore.ClearCustomLogoPosition",
++            "SteamClient.Apps.SetShortcutIcon",
+         ],
+         reads: ["artwork"],
+         install() {},
+diff --git a/steam-cartridges/tests/artwork-icon.test.ts b/steam-cartridges/tests/artwork-icon.test.ts
+new file mode 100644
+index 0000000..8793015
+--- /dev/null
++++ b/steam-cartridges/tests/artwork-icon.test.ts
+@@ -0,0 +1,62 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { applyIcon } from '../frontend/surfaces/artwork/icon.ts';
++import { deps } from '../frontend/surfaces/artwork/deps.ts';
++
++const SC = 3135033888;
++const OURS = 'C:\\game\\steam\\millennium\\config\\steam-cartridges\\icons\\3135033888.jpg';
++const EXE = 'D:\\Games\\Local\\Wuchang - Fallen Feathers\\Project_Plague.exe';
++
++/** Fresh deps and a SteamClient stub that records every SetShortcutIcon call. */
++function setup(over: { enabled?: boolean; saved?: any; recorded?: any; noApi?: boolean } = {}) {
++    const set: [number, string][] = [];
++    const saves: any[] = [];
++    const records: any[] = [];
++    (globalThis as any).SteamClient = over.noApi
++        ? { Apps: {} }
++        : { Apps: { SetShortcutIcon: async (appid: number, path: string) => void set.push([appid, path]) } };
++    deps.isEnabled = () => over.enabled ?? true;
++    deps.saveIcon = async (...args: any[]) => (saves.push(args), 'saved' in over ? over.saved : { path: OURS, previous: EXE });
++    deps.recordIcon = async (appid: number, info: any) => (records.push({ appid, ...info }), over.recorded ?? { ok: true });
++    return { set, saves, records };
++}
++
++test('write: store the image, point the shortcut at it, record path and previous', async () => {
++    const { set, saves, records } = setup();
++    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steam-cdn', 2277560);
++    assert.deepEqual(saves, [[SC, 'https://shared.steamstatic.com/i_full.jpg', 'steam-cdn', 2277560]]);
++    assert.deepEqual(set, [[SC, OURS]]);
++    assert.deepEqual(records, [{ appid: SC, path: OURS, previous: EXE, source: 'steam-cdn', steamAppid: 2277560 }]);
++});
++
++test('restore: put the replaced value back, no backend call', async () => {
++    const { set, saves, records } = setup();
++    await applyIcon(SC, { restore: '' }, 'steam-cdn');
++    assert.deepEqual(set, [[SC, '']]);
++    assert.equal(saves.length + records.length, 0);
++});
++
++test('kill switch off: nothing at all', async () => {
++    const { set, saves } = setup({ enabled: false });
++    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steam-cdn', 2277560);
++    await applyIcon(SC, { restore: EXE }, 'steam-cdn');
++    assert.equal(set.length + saves.length, 0);
++});
++
++test('the backend refused (not eligible, download failed): Steam is not touched', async () => {
++    const { set, records } = setup({ saved: { error: 'not eligible' } });
++    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steam-cdn', 2277560);
++    assert.equal(set.length + records.length, 0);
++});
++
++test('the match changed meanwhile: the write is undone with the previous value', async () => {
++    const { set } = setup({ recorded: { error: 'no mapping' } });
++    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steam-cdn', 2277560);
++    assert.deepEqual(set, [[SC, OURS], [SC, EXE]]);
++});
++
++test('no SetShortcutIcon in this Steam: nothing is recorded', async () => {
++    const { records } = setup({ noApi: true });
++    await applyIcon(SC, { url: 'https://shared.steamstatic.com/i_full.jpg' }, 'steamgriddb');
++    assert.equal(records.length, 0);
++});

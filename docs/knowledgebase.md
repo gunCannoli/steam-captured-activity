@@ -344,6 +344,31 @@ This causes silent failure across several layers if not normalized:
 5. Subsequent calls to `GetIconURLForApp(e)` return `data:image/${e.icon_data_format};base64,${e.icon_data}`.
 6. **Critical Failure Mode:** If `AppOverview.prototype.BIsModOrShortcut` is hooked to return `false`, Steam treats the shortcut as a regular Steam game and searches for CDN asset `icon_hash`. Since shortcuts have no CDN hash, Steam returns `null` and displays the generic grey fallback icon for all non-Steam games across the library!
 
+### Where a shortcut's icon comes from, and how to change it (SetShortcutIcon)
+
+**✅ Verified live 2026-09-29** (WUCHANG: Fallen Feathers, shortcut `3135033888` → native `2277560`).
+Plan: [steam-cartridges-icon-plan.md](plans/steam-cartridges-icon-plan.md).
+
+- `icon_data` is the file the shortcut's `shortcuts.vdf` `icon` field names, served **as-is** (PNG, JPG and ICO
+  all work; their size is kept). When the field is `""` or names an `.exe`, Steam extracts the exe's icon: a
+  **32×32 BMP** (`icon_data_format: "bmp"`), which looks pixelated wherever Steam scales it up.
+- The frontend cannot read the field: `appDetailsStore.GetAppDetails(appid)` exposes `strShortcutExe`,
+  `strShortcutStartDir`, `strShortcutLaunchOptions`, `bShortcutIsVR`, but no icon. The backend reads it
+  from `shortcuts.vdf` (`backend/shortcuts.lua` keeps `icon`).
+- `SteamClient.Apps.SetShortcutIcon(appid, path)` (Properties → the icon → "Choose icon" calls it, module
+  `73291`; its file filter offers `*.tga`/`*.png`, and `*.exe` on Windows) takes a **local file path**.
+  It returns `undefined`, rewrites `shortcuts.vdf` at once, and within 500 ms replaces the shortcut's
+  `AppOverview` with a new object whose `icon_data` is the new file. `SetShortcutIcon(appid, "")` goes
+  back to the exe icon. Setting the original value back leaves `shortcuts.vdf` byte-identical.
+- A native app's icon in `StoreItemCache.GetApp(id).GetAssets()`: `GetCommunityIconURL()` is the
+  **32×32** JPG Steam's own sidebar shows for an owned native game (the same URL as
+  `appStore.GetIconURLForApp` for it), `GetCommunityIconURL_Full()` the same art at **184×184**
+  (`…/community_assets/images/apps/<id>/<hash>_full.jpg`). No unhashed CDN path exists for either.
+- The `.ico` "clienticon" (`<Steam>/steam/games/<hash>.ico`) needs the app's PICS appinfo, which the
+  client only has for apps it has loaded (not in `appcache/appinfo.vdf` for an unowned app).
+- Steam ROM Manager's convention is `<user>/config/grid/<appid>_icon.<png|jpg|ico>`; on this machine
+  most emulator shortcuts use it. Steam itself never reads that name: only the `icon` field counts.
+
 ### Steam's own capture store
 
 **✅ Verified.**

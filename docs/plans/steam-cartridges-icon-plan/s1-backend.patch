@@ -1,0 +1,599 @@
+diff --git a/steam-cartridges/backend/art_service.lua b/steam-cartridges/backend/art_service.lua
+index 3274444..f4d7052 100644
+--- a/steam-cartridges/backend/art_service.lua
++++ b/steam-cartridges/backend/art_service.lua
+@@ -9,6 +9,11 @@
+ --- a grid file in <user>/config/grid, or one this plugin already attempted, is left
+ --- alone, so a slot the user set (or cleared) is never touched.
+ ---
++--- The library icon (icon plan) is not a slot: Steam draws a shortcut's icon from the file
++--- its shortcuts.vdf `icon` field names, or from the exe when that is empty. It is offered
++--- (data.iconEligible) only while Steam draws it from the exe, or while it is still the icon
++--- this plugin wrote; an icon the user chose is never touched (icon_eligible below).
++---
+ --- ADR-0035: route bucket "none" makes no network call. ADR-0014: a missing key or a
+ --- failed lookup is silent to the user (needs-setup / empty urls), never an error toast.
+ --- The API key is read here and passed only to web_sgdb; it is never logged.
+@@ -20,6 +25,7 @@ local sgdb        = require("web_sgdb")
+ local normalize   = require("steam_store_normalize")
+ local store       = require("steam_store_store")
+ local resolve_identity = require("resolve_identity")
++local shortcuts   = require("shortcuts")
+ 
+ local M = {}
+ 
+@@ -29,6 +35,7 @@ M.deps = {
+   search = nil,      -- nil = web_sgdb.search_game(title, key)
+   fetch = nil,       -- nil = web_sgdb.fetch_artwork_urls(game_id, key)
+   grid_exists = nil, -- nil = files in <user>/config/grid
++  shortcut_icon = nil, -- nil = the shortcut's `icon` field in shortcuts.vdf (M.current_icon)
+   now = function() return os.time() end,
+ }
+ 
+@@ -82,7 +89,61 @@ end
+ 
+ local function has_urls(urls)
+   for _, slot in ipairs(SLOTS) do if urls[SLOT_KEY[slot]] then return true end end
+-  return false
++  return urls.icon ~= nil
++end
++
++-- ---------- library icon (icon plan) ----------
++
++--- A shortcuts.vdf path as compared here: no surrounding quotes, forward slashes, lower case.
++local function norm_path(p)
++  local s = tostring(p or ""):gsub('^%s*"', ""):gsub('"%s*$', "")
++  return (s:gsub("\\", "/"):lower())
++end
++
++function M.same_path(a, b) return norm_path(a) == norm_path(b) end
++
++--- Steam draws the icon from the exe: the field is empty or names an .exe.
++function M.is_exe_icon(p)
++  local n = norm_path(p)
++  return n == "" or n:sub(-4) == ".exe"
++end
++
++--- The shortcut's shortcuts.vdf `icon` value ("" when unset), or nil when unknown (no readable
++--- shortcuts.vdf, or no such shortcut): then nothing is ever overwritten blindly.
++function M.current_icon(appid)
++  if M.deps.shortcut_icon then return M.deps.shortcut_icon(appid) end
++  local ok, paths = pcall(steam_paths.resolve)
++  if not ok or not paths or not paths.shortcuts then return nil end
++  local okp, entries = pcall(shortcuts.parse, paths.shortcuts)
++  if not okp or type(entries) ~= "table" then return nil end
++  local entry = shortcuts.by_appid(entries)[tonumber(appid)]
++  if not entry then return nil end
++  return entry.icon or ""
++end
++
++--- May this plugin point the shortcut at a new icon from `source` (and native `steam_appid`)?
++--- Returns eligible, previous (the vdf value Clear puts back).
++---   no entry of ours       -> only while Steam draws the icon from the exe (empty or .exe)
++---   ours, still in the vdf -> only for another source or native app (a Steam match replaces SteamGridDB)
++---   vdf back at `previous` -> our write never landed: as if there were no entry
++---   anything else          -> the user chose an icon: released, never touched again
++function M.icon_eligible(appid, source, steam_appid)
++  local current = M.current_icon(appid)
++  if current == nil then return false end
++  local ours = store.get(appid).icon
++  if ours and ours.released then return false end
++  if ours then
++    if M.same_path(current, ours.path) then
++      local changed = ours.source ~= source or tonumber(ours.steam_appid) ~= tonumber(steam_appid)
++      return changed, ours.previous or ""
++    end
++    if not M.same_path(current, ours.previous) then
++      store.release_icon(appid)
++      return false
++    end
++  end
++  if not M.is_exe_icon(current) then return false end
++  return true, current
+ end
+ 
+ --- Full resolution. Returns a Part (table).
+@@ -110,10 +171,11 @@ function M.ensure(appid, ctx)
+     for k, v in pairs(ctx.artUrls or {}) do
+       if type(v) == "string" and v ~= "" then urls[k] = v end
+     end
++    local icon_ok = M.icon_eligible(appid, "steam-cdn", native.appid)
+     return {
+       status = "ok",
+       source = "steam-cdn",
+-      data = { urls = urls, source = "steam-cdn", steamAppid = native.appid, applied = applied, emptySlots = empty_slots(appid, exists) },
++      data = { urls = urls, source = "steam-cdn", steamAppid = native.appid, applied = applied, emptySlots = empty_slots(appid, exists), iconEligible = icon_ok },
+       checkedAt = now_ms(),
+     }
+   end
+@@ -123,10 +185,12 @@ function M.ensure(appid, ctx)
+     return { status = "pending", checkedAt = now_ms() }
+   end
+ 
+-  -- No Steam match: SteamGridDB, empty slots only.
++  -- No Steam match: SteamGridDB, empty slots only. The icon rides along with a slot lookup; it
++  -- never triggers a SteamGridDB request on its own (a library whose slots are all set makes none).
+   local tried = applied and applied.source == "steamgriddb" and applied.tried or {}
+   local eligible = without(empty_slots(appid, exists), tried)
+-  local base = { urls = {}, source = "steamgriddb", emptySlots = eligible }
++  local icon_ok = M.icon_eligible(appid, "steamgriddb", nil)
++  local base = { urls = {}, source = "steamgriddb", emptySlots = eligible, iconEligible = icon_ok }
+ 
+   if ctx.allowSgdb == false or ctx.noNetwork or #eligible == 0 then
+     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
+@@ -154,7 +218,7 @@ function M.ensure(appid, ctx)
+     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
+   end
+ 
+-  local okf, urls = pcall(fetch, game.id, key)
++  local okf, urls = pcall(fetch, game.id, key, icon_ok)
+   if not okf or type(urls) ~= "table" then
+     return { status = "error", message = "SteamGridDB fetch failed", checkedAt = now_ms() }
+   end
+diff --git a/steam-cartridges/backend/main.lua b/steam-cartridges/backend/main.lua
+index 485f0e7..147bc3a 100644
+--- a/steam-cartridges/backend/main.lua
++++ b/steam-cartridges/backend/main.lua
+@@ -43,6 +43,8 @@ SteamStoreRejectSuggestion = STORE_RPC.SteamStoreRejectSuggestion
+ SteamStoreGetAppDetails  = STORE_RPC.SteamStoreGetAppDetails
+ SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
+ SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
++SteamStoreSaveIcon       = STORE_RPC.SteamStoreSaveIcon
++SteamStoreRecordIcon     = STORE_RPC.SteamStoreRecordIcon
+ 
+ -- Native Achievements subsystem (P5).
+ CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock
+diff --git a/steam-cartridges/backend/shortcut_icon.lua b/steam-cartridges/backend/shortcut_icon.lua
+new file mode 100644
+index 0000000..7cbd687
+--- /dev/null
++++ b/steam-cartridges/backend/shortcut_icon.lua
+@@ -0,0 +1,81 @@
++--- The shortcut library icon file (icon plan): our own copy of the chosen image, kept in the
++--- plugin's data folder as <data dir>/icons/<appid>.<png|jpg|ico>, for the artwork surface to
++--- hand to SteamClient.Apps.SetShortcutIcon (the only Steam write, ADR-0039). Steam's
++--- <user>/config/grid/<appid>_icon.* files are left to the user and Steam ROM Manager.
++---
++--- Allowed hosts only (Steam CDN, SteamGridDB CDN), and the body is sniffed: a truncated or
++--- non-image response is never written.
++
++local fs       = require("fs")
++local data_dir = require("data_dir")
++local throttle = require("steam_store_throttle")
++
++local M = {}
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  download = nil, -- nil = Steam CDN through net (throttled), SteamGridDB through web_sgdb.download_image
++  dir = nil,      -- nil = <data dir>/icons
++}
++
++local SHORTCUT_MIN = 0x80000000
++
++--- "steam" | "sgdb" | nil (not allowed)
++function M.host_kind(url)
++  url = tostring(url or "")
++  if url:match("^https://[%w%.%-]*steamstatic%.com/") then return "steam" end
++  if url:match("^https://[%w%.%-]*steamgriddb%.com/") then return "sgdb" end
++  return nil
++end
++
++--- The image type from its first bytes, or nil for anything else (a truncated body, an error page).
++function M.sniff(body)
++  if type(body) ~= "string" or #body < 100 then return nil end
++  if body:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
++  if body:sub(1, 3) == "\255\216\255" then return "jpg" end
++  if body:sub(1, 4) == "\0\0\1\0" then return "ico" end
++  return nil
++end
++
++local function download(url, kind)
++  if M.deps.download then return M.deps.download(url, kind) end
++  if kind == "sgdb" then
++    local res = require("web_sgdb").download_image(url)
++    return res and res.body or nil
++  end
++  if throttle.is_offline() then return nil end
++  throttle.acquire()
++  local res = require("net").get(url, { source = "steam-store", headers = { ["User-Agent"] = throttle.USER_AGENT }, timeout = throttle.TIMEOUT })
++  if not res or res.status ~= 200 then return nil end
++  return res.body
++end
++
++local function icons_dir()
++  if M.deps.dir then return M.deps.dir end
++  local dir = data_dir.path() .. "/icons"
++  pcall(function()
++    if not fs.is_directory(dir) then fs.create_directories(dir) end
++  end)
++  return dir
++end
++
++--- Download `url` and store it as this shortcut's icon file. Returns the absolute path in the
++--- form Steam's own "Choose icon" dialog passes (backslashes on Windows), or nil, error.
++function M.save(appid, url)
++  local n = tonumber(appid)
++  if not n or n < SHORTCUT_MIN then return nil, "not a shortcut" end
++  local kind = M.host_kind(url)
++  if not kind then return nil, "url not allowed" end
++  local body = download(url, kind)
++  local ext = M.sniff(body)
++  if not ext then return nil, "download failed" end
++  local file = icons_dir() .. "/" .. tostring(math.floor(n)) .. "." .. ext
++  local f = io.open(file, "wb")
++  if not f then return nil, "could not write icon" end
++  f:write(body)
++  f:close()
++  if file:match("^%a:") then file = file:gsub("/", "\\") end
++  return file
++end
++
++return M
+diff --git a/steam-cartridges/backend/steam_store_rpc.lua b/steam-cartridges/backend/steam_store_rpc.lua
+index c0be32a..cc968d8 100644
+--- a/steam-cartridges/backend/steam_store_rpc.lua
++++ b/steam-cartridges/backend/steam_store_rpc.lua
+@@ -14,6 +14,11 @@ local throttle    = require("steam_store_throttle")
+ 
+ local method = core.method
+ 
++-- Loaded on first use (icon plan): the artwork resolver and the icon file store pull in modules
++-- the other Steam Store handlers (and their test suite) do not need.
++local function art() return require("art_service") end
++local function icon_file() return require("shortcut_icon") end
++
+ local RPC = {}
+ 
+ local function need(data, field)
+@@ -48,9 +53,19 @@ RPC.SteamStoreSetMapping = method("SteamStoreSetMapping", function(data)
+ end)
+ 
+ --- reject=true remembers the appid so it is never auto-applied again. Returns
+---- the slots the frontend must clear (only those this plugin wrote).
++--- the slots the frontend must clear (only those this plugin wrote), and
++--- `icon_restore`: the icon path to put back, only while the shortcut still shows
++--- the icon this plugin set (icon plan; an icon the user chose is left alone).
+ RPC.SteamStoreClearMapping = method("SteamStoreClearMapping", function(data)
+-  return store.clear(need(data, "appid"), data.reject and true or false)
++  local appid = need(data, "appid")
++  local out = store.clear(appid, data.reject and true or false)
++  local icon = out.icon
++  out.icon = nil
++  if icon and not icon.released then
++    local current = art().current_icon(appid)
++    if current ~= nil and art().same_path(current, icon.path) then out.icon_restore = icon.previous or "" end
++  end
++  return out
+ end)
+ 
+ RPC.SteamStoreRejectSuggestion = method("SteamStoreRejectSuggestion", function(data)
+@@ -89,4 +104,27 @@ RPC.SteamStoreDownloadImage = method("SteamStoreDownloadImage", function(data)
+   return { base64 = utils.base64_encode(res.body), ext = ext:lower() == "png" and "png" or "jpg" }
+ end)
+ 
++--- Icon plan: store our copy of the chosen icon ({ appid, url, source, steam_appid? }) and
++--- return its path and `previous`, the shortcuts.vdf value it replaces (put back on Clear).
++--- Refused unless the icon is still eligible, so a late view never overrides the user's choice.
++RPC.SteamStoreSaveIcon = method("SteamStoreSaveIcon", function(data)
++  local appid = need(data, "appid")
++  local source = data.source == "steamgriddb" and "steamgriddb" or "steam-cdn"
++  local ok, previous = art().icon_eligible(appid, source, data.steam_appid)
++  if not ok then return { error = "not eligible" } end
++  local path, err = icon_file().save(appid, need(data, "url"))
++  if not path then return { error = err } end
++  return { path = path, previous = previous }
++end)
++
++--- Icon plan: remember the icon the artwork surface just set (steam_store.json applied_icon).
++--- `{ error = "no mapping" | "mapped" }` = the shortcut's match changed meanwhile (undo the write).
++RPC.SteamStoreRecordIcon = method("SteamStoreRecordIcon", function(data)
++  local ok, err = store.record_icon(need(data, "appid"), {
++    path = need(data, "path"), previous = data.previous, source = data.source, steam_appid = data.steam_appid,
++  })
++  if not ok then return { error = err } end
++  return { ok = true }
++end)
++
+ return RPC
+diff --git a/steam-cartridges/backend/steam_store_store.lua b/steam-cartridges/backend/steam_store_store.lua
+index 3306908..7f6b8b0 100644
+--- a/steam-cartridges/backend/steam_store_store.lua
++++ b/steam-cartridges/backend/steam_store_store.lua
+@@ -1,7 +1,7 @@
+ --- Persistent Steam Store state: <data dir>/steam_store.json (ADR-0032).
+ ---
+ --- User state; never auto-deleted. Holds ONLY facts about the user's non-Steam
+---- shortcuts (mapping, suggestions, rejections, which art slots we wrote).
++--- shortcuts (mapping, suggestions, rejections, which art slots and library icon we wrote).
+ --- Native Steam data is never persisted: every keyed appid must be a shortcut.
+ 
+ local json     = require("json")
+@@ -20,7 +20,7 @@ M._path = nil -- test override
+ local function path() return M._path or data_dir.file(FILE) end
+ 
+ local function blank()
+-  return { version = 1, mappings = {}, suggestions = {}, rejected = {}, applied_artwork = {}, negative = {} }
++  return { version = 1, mappings = {}, suggestions = {}, rejected = {}, applied_artwork = {}, applied_icon = {}, negative = {} }
+ end
+ 
+ local function load()
+@@ -82,6 +82,7 @@ function M.get(appid)
+     suggestions = s.suggestions[k] or {},
+     rejected = s.rejected[k] or {},
+     applied = s.applied_artwork[k],
++    icon = s.applied_icon[k],
+   }
+ end
+ 
+@@ -114,18 +115,19 @@ function M.set_mapping(appid, steam_appid, name, source, now)
+   return s.mappings[k]
+ end
+ 
+---- Remove the mapping. Returns { steam_appid, slots }: the art slots this
+---- plugin wrote (the only ones the frontend may clear).
++--- Remove the mapping. Returns { steam_appid, slots, icon? }: the art slots this
++--- plugin wrote (the only ones the frontend may clear) and the library icon entry
++--- it wrote (icon plan; the caller decides whether to put `previous` back).
+ function M.clear(appid, reject)
+   local s, k = load(), key(appid)
+   local mapping, applied = s.mappings[k], s.applied_artwork[k]
+-  local out = { steam_appid = mapping and mapping.steam_appid or (applied and applied.steam_appid), slots = {} }
++  local out = { steam_appid = mapping and mapping.steam_appid or (applied and applied.steam_appid), slots = {}, icon = s.applied_icon[k] }
+   for _, slot in ipairs(applied and applied.slots or {}) do out.slots[#out.slots + 1] = slot end
+   if reject and out.steam_appid and not M.is_rejected(appid, out.steam_appid) then
+     s.rejected[k] = s.rejected[k] or {}
+     table.insert(s.rejected[k], out.steam_appid)
+   end
+-  s.mappings[k], s.applied_artwork[k] = nil, nil
++  s.mappings[k], s.applied_artwork[k], s.applied_icon[k] = nil, nil, nil
+   save()
+   return out
+ end
+@@ -208,6 +210,41 @@ function M.record_sgdb_artwork(appid, slots, tried, now)
+   return true
+ end
+ 
++--- Record the library icon this plugin pointed the shortcut at (icon plan): `path` is our
++--- file, `previous` the shortcuts.vdf icon value it replaced (put back on Clear). Same
++--- ownership rules as the slots: a Steam CDN icon needs the shortcut still mapped to that
++--- native app ("no mapping"); a SteamGridDB icon is refused once the shortcut is mapped.
++function M.record_icon(appid, entry, now)
++  local s, k = load(), key(appid)
++  if type(entry) ~= "table" or type(entry.path) ~= "string" or entry.path == "" then return false, "invalid icon" end
++  local mapping = s.mappings[k]
++  if entry.source == "steamgriddb" then
++    if mapping then return false, "mapped" end
++  elseif not mapping or tonumber(mapping.steam_appid) ~= tonumber(entry.steam_appid) then
++    return false, "no mapping"
++  end
++  s.applied_icon[k] = {
++    path = entry.path,
++    previous = type(entry.previous) == "string" and entry.previous or "",
++    source = entry.source == "steamgriddb" and "steamgriddb" or "steam-cdn",
++    steam_appid = entry.source ~= "steamgriddb" and tonumber(entry.steam_appid) or nil,
++    at = now or os.time(),
++  }
++  save()
++  return true
++end
++
++--- The user pointed the shortcut at another icon: the user wins, and this plugin never
++--- sets or restores its icon again (until Clear forgets the entry).
++function M.release_icon(appid)
++  local s, k = load(), key(appid)
++  local entry = s.applied_icon[k]
++  if not entry or entry.released then return entry end
++  entry.released = true
++  save()
++  return entry
++end
++
+ --- Grid file names Steam writes for a custom art slot (SetCustomArtworkForApp).
+ local SLOT_SUFFIX = { [0] = "p", [1] = "_hero", [2] = "_logo", [3] = "" }
+ 
+diff --git a/steam-cartridges/backend/web_sgdb.lua b/steam-cartridges/backend/web_sgdb.lua
+index c33ea5b..8d80b65 100644
+--- a/steam-cartridges/backend/web_sgdb.lua
++++ b/steam-cartridges/backend/web_sgdb.lua
+@@ -1,6 +1,5 @@
+ local net = require("net")
+ local json = require("json")
+-local utils = require("utils")
+ local logger = require("logger")
+ 
+ local sgdb = {}
+@@ -90,10 +89,11 @@ function sgdb.get_by_steam_appid(steam_appid, key)
+   return nil
+ end
+ 
+---- Download binary image and convert to base64
++--- Download a SteamGridDB image (the library icon, icon plan). Replaces the uncalled
++--- download_image_base64: the caller writes the raw bytes to a file.
+ ---@param url string
+----@return table|nil { base64: string, ext: string }
+-function sgdb.download_image_base64(url)
++---@return table|nil { body: string, ext: string }
++function sgdb.download_image(url)
+   if not url or url == "" then return nil end
+ 
+   local res = net.get(url, { source = "sgdb", headers = { ["Accept"] = "*/*", ["User-Agent"] = "Mozilla/5.0" }, timeout = 25 })
+@@ -122,23 +122,25 @@ function sgdb.download_image_base64(url)
+     ext = "jpg"
+   end
+ 
+-  local b64 = utils.base64_encode(res.body)
+   return {
+-    base64 = b64,
++    body = res.body,
+     ext = ext,
+   }
+ end
+ 
+---- Fetch artwork bundle (portrait, hero, logo, wide capsule) for a game id
++--- Fetch artwork bundle (portrait, hero, logo, wide capsule, and the library icon when
++--- `want_icon`) for a game id
+ ---@param game_id number
+ ---@param key string
++---@param want_icon boolean|nil
+ ---@return table bundle
+-function sgdb.fetch_artwork_urls(game_id, key)
++function sgdb.fetch_artwork_urls(game_id, key, want_icon)
+   local out = {
+     portrait = nil,
+     hero = nil,
+     logo = nil,
+     wide = nil,
++    icon = nil,
+   }
+ 
+   -- 1. Portrait capsule (600x900)
+@@ -165,6 +167,14 @@ function sgdb.fetch_artwork_urls(game_id, key)
+     out.wide = wide[1].url
+   end
+ 
++  -- 5. Library icon (PNG or ICO; Steam draws both for a shortcut)
++  if want_icon then
++    local icons = api_get("https://www.steamgriddb.com/api/v2/icons/game/" .. tostring(game_id) .. "?types=static&nsfw=false&mimes=image/png,image/vnd.microsoft.icon", key)
++    if type(icons) == "table" and icons[1] and icons[1].url then
++      out.icon = icons[1].url
++    end
++  end
++
+   return out
+ end
+ 
+diff --git a/steam-cartridges/tests/test_art_service.lua b/steam-cartridges/tests/test_art_service.lua
+index 6289158..7c11c6c 100644
+--- a/steam-cartridges/tests/test_art_service.lua
++++ b/steam-cartridges/tests/test_art_service.lua
+@@ -253,6 +253,120 @@ r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
+ check("a thrown search is status error, not a crash", r.status == "error")
+ art.deps.search = nil
+ 
++-- ---------- library icon (icon plan) ----------
++print("icon")
++local EXE = [[D:\Games\Local\Wuchang - Fallen Feathers\Project_Plague.exe]]
++local USER_PNG = [[C:\emu\art\my-icon.png]]
++local function vdf_icon(v)
++  local list = v == nil and {} or { { appid = SC, icon = v } }
++  for i = #SHORTCUTS, 1, -1 do SHORTCUTS[i] = nil end
++  for i, e in ipairs(list) do SHORTCUTS[i] = e end
++end
++art.deps.search = function() return { id = 77 } end
++art.deps.fetch = function(id, key, want_icon) requests = requests + 1; return { portrait = URLS.portrait, icon = want_icon and "https://cdn2.steamgriddb.com/i.png" or nil } end
++
++vdf_icon(nil)
++check("unknown shortcut (no vdf entry): not eligible", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
++vdf_icon(EXE)
++local ok_, prev_ = art.icon_eligible(SC, "steam-cdn", 2277560)
++check("exe icon: eligible, previous is the exe path", ok_ == true and prev_ == EXE)
++vdf_icon("")
++ok_, prev_ = art.icon_eligible(SC, "steam-cdn", 2277560)
++check("empty icon field: eligible, previous is empty", ok_ == true and prev_ == "")
++vdf_icon([["D:\Game\GAME.EXE"]])
++check("a quoted upper-case .EXE counts as the exe", art.icon_eligible(SC, "steam-cdn", 2277560) == true)
++vdf_icon(USER_PNG)
++check("an icon the user chose is never eligible", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
++
++store.set_mapping(SC, 2277560, "WUCHANG", "manual")
++vdf_icon(EXE)
++r = art.ensure(SC, { title = "WUCHANG", route = ROUTE_STORE, allowSgdb = true, artUrls = { icon = "https://shared.steamstatic.com/i_full.jpg" } })
++check("mapped game: iconEligible and the StoreItemCache icon url", r.data.iconEligible == true and r.data.urls.icon == "https://shared.steamstatic.com/i_full.jpg")
++check("record_icon refuses another native app", store.record_icon(SC, { path = "C:/ours.jpg", previous = EXE, source = "steam-cdn", steam_appid = 1 }) == false)
++check("record_icon refuses a SteamGridDB icon on a mapped shortcut", store.record_icon(SC, { path = "C:/ours.jpg", previous = EXE, source = "steamgriddb" }) == false)
++check("record_icon stores ours for the mapped native app", store.record_icon(SC, { path = [[C:\ours.jpg]], previous = EXE, source = "steam-cdn", steam_appid = 2277560 }) == true)
++vdf_icon("c:/OURS.jpg")
++check("ours still in the vdf (any slash or case): not offered again", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
++ok_, prev_ = art.icon_eligible(SC, "steam-cdn", 999)
++check("ours, re-mapped to another native app: offered, previous stays the original", ok_ == true and prev_ == EXE)
++vdf_icon(EXE)
++check("vdf back at previous (our write never landed): offered again", art.icon_eligible(SC, "steam-cdn", 2277560) == true)
++
++local RPC = require("steam_store_rpc")
++vdf_icon([[C:\ours.jpg]])
++local cl = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = SC })))
++check("Clear while ours is shown: icon_restore is the previous value", cl.icon_restore == EXE and cl.icon == nil)
++check("Clear forgets the icon entry", store.get(SC).icon == nil)
++
++store.set_mapping(SC, 2277560, "WUCHANG", "manual")
++store.record_icon(SC, { path = [[C:\ours.jpg]], previous = "", source = "steam-cdn", steam_appid = 2277560 })
++vdf_icon(USER_PNG)
++check("the user picked another icon: not eligible", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
++check("... and the entry is released", store.get(SC).icon.released == true)
++vdf_icon("")
++check("released: never eligible again, even back on the exe", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
++cl = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = SC })))
++check("Clear after the user chose: no icon_restore", cl.icon_restore == nil)
++wipe()
++
++print("icon rpc")
++local icon_file = require("shortcut_icon")
++local PNG = "\137PNG\r\n\26\n" .. string.rep("x", 200)
++local downloads = 0
++icon_file.deps.download = function(url, kind)
++  downloads = downloads + 1
++  if url:find("junk", 1, true) then return "<html>" .. string.rep(" ", 200) end
++  return PNG
++end
++icon_file.deps.dir = TMP
++check("sniff: png, jpg, ico; junk and short bodies are nil", icon_file.sniff(PNG) == "png" and icon_file.sniff("\255\216\255" .. string.rep("x", 200)) == "jpg"
++  and icon_file.sniff("\0\0\1\0" .. string.rep("x", 200)) == "ico" and icon_file.sniff("<html>" .. string.rep(" ", 200)) == nil and icon_file.sniff("\137PNG") == nil)
++check("hosts: Steam CDN and SteamGridDB only", icon_file.host_kind("https://shared.steamstatic.com/a.jpg") == "steam"
++  and icon_file.host_kind("https://cdn2.steamgriddb.com/i.png") == "sgdb" and icon_file.host_kind("https://evil.example/steamstatic.com/a.jpg") == nil
++  and icon_file.host_kind("http://shared.steamstatic.com/a.jpg") == nil)
++vdf_icon(USER_PNG)
++local sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://cdn2.steamgriddb.com/i.png", source = "steamgriddb" })))
++check("SaveIcon refuses a shortcut whose icon the user chose, without a download", sv.error == "not eligible" and downloads == 0)
++vdf_icon("")
++sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://evil.example/i.png", source = "steamgriddb" })))
++check("SaveIcon refuses a host that is not allowed", sv.error == "url not allowed" and downloads == 0)
++sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://cdn2.steamgriddb.com/junk.png", source = "steamgriddb" })))
++check("SaveIcon never writes a body that is not an image", sv.error == "download failed")
++sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://cdn2.steamgriddb.com/i.png", source = "steamgriddb" })))
++local saved_file = sv.path and sv.path:gsub("\\", "/")
++check("SaveIcon writes <dir>/<appid>.png and returns previous", saved_file == TMP .. "/" .. SC .. ".png" and sv.previous == "")
++check("the stored file holds the downloaded bytes", (function()
++  local f = io.open(saved_file, "rb")
++  if not f then return false end
++  local c = f:read("*a")
++  f:close()
++  return c == PNG
++end)())
++check("a Windows path is returned with backslashes (as Steam's own dialog)", not sv.path:match("^%a:") or not sv.path:find("/", 1, true))
++local rec = json.decode(RPC.SteamStoreRecordIcon(json.encode({ appid = SC, path = sv.path, previous = "", source = "steamgriddb" })))
++check("RecordIcon stores a SteamGridDB icon for an unmapped shortcut", rec.ok == true and store.get(SC).icon.source == "steamgriddb")
++os.remove(saved_file)
++wipe()
++
++print("icon sgdb")
++art.deps.grid_exists = function() return false end
++vdf_icon(EXE)
++requests = 0
++r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
++check("steamgriddb: the icon rides along with the slot lookup", r.data.iconEligible == true and r.data.urls.icon == "https://cdn2.steamgriddb.com/i.png")
++vdf_icon(USER_PNG)
++r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
++check("steamgriddb: no icon asked for when the user chose one", r.data.iconEligible == false and r.data.urls.icon == nil)
++art.deps.grid_exists = function() return true end
++vdf_icon(EXE)
++requests = 0
++r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
++check("steamgriddb: an eligible icon alone never makes a request", requests == 0 and r.data.iconEligible == true and next(r.data.urls) == nil)
++art.deps.grid_exists = function() return false end
++vdf_icon(nil)
++art.deps.fetch = function(id, key) requests = requests + 1; return URLS end
++wipe()
++
+ -- ---------- record_rpc ----------
+ print("record_rpc")
+ art.deps.search = function() return { id = 1 } end
+@@ -264,7 +378,7 @@ wipe()
+ print("credentials")
+ local function read_all(p) local f = io.open(p, "rb"); local c = f:read("*a"); f:close(); return c end
+ local leak = false
+-for _, file in ipairs({ "art_service.lua", "web_sgdb.lua" }) do
++for _, file in ipairs({ "art_service.lua", "web_sgdb.lua", "shortcut_icon.lua" }) do
+   for line in read_all(here .. "/../backend/" .. file):gmatch("[^\n]+") do
+     if line:find("logger[:.]") and (line:find("%f[%w_]key%f[^%w_]") or line:find("Bearer")) then leak = true; print("    leak in " .. file .. ": " .. line) end
+   end
