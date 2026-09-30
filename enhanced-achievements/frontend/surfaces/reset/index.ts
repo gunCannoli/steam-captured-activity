@@ -18,7 +18,6 @@ interface AppOverviewLike {
 }
 interface Cartridges {
     resetAchievements(appid: number): Promise<boolean>;
-    storedAchievementSummaries(): Promise<Record<string, { nAchieved: number; nTotal: number }>>;
 }
 
 const steamConsole = (): SteamConsole | undefined => Reflect.get(globalThis, 'SteamClient')?.Console;
@@ -31,7 +30,7 @@ function cartridges(): Cartridges | null {
     const list = Reflect.get(globalThis, 'PLUGIN_LIST') as Record<string, Partial<Cartridges> | undefined> | undefined;
     for (const name of ['steam-cartridges-dev', 'steam-cartridges']) {
         const p = list?.[name];
-        if (typeof p?.resetAchievements === 'function' && typeof p.storedAchievementSummaries === 'function') return p as Cartridges;
+        if (typeof p?.resetAchievements === 'function') return p as Cartridges;
     }
     return null;
 }
@@ -64,15 +63,13 @@ export const achievementReset: AchievementResetApi = {
     available: () => isEnabled('reset') && typeof steamConsole()?.ExecCommand === 'function',
     async candidates() {
         try {
-            // Non-Steam games: steam-cartridges' stored unlocks, read from disk once per call.
-            const stored = (await cartridges()?.storedAchievementSummaries().catch(() => undefined)) ?? {};
+            // Every game from Steam's own progress cache: steam-cartridges fills it for its shortcuts at start-up, as
+            // Steam does for an owned game (ADR-0045). A shortcut is offered only when steam-cartridges can reset it.
+            const shortcutsResettable = cartridges() !== null;
             return buildCandidates(libraryApps(), (app) => {
-                if (!app.isShortcut) {
-                    const p = progressFor(app.appid);
-                    return typeof p?.unlocked === 'number' ? { unlocked: p.unlocked, total: Number(p.total) || 0 } : undefined;
-                }
-                const local = stored[String(app.appid >>> 0)];
-                return local ? { unlocked: local.nAchieved, total: local.nTotal } : undefined;
+                if (app.isShortcut && !shortcutsResettable) return undefined;
+                const p = progressFor(app.appid);
+                return typeof p?.unlocked === 'number' ? { unlocked: p.unlocked, total: Number(p.total) || 0 } : undefined;
             });
         } catch (error) {
             reportError('reset', error);

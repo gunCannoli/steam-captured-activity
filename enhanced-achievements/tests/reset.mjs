@@ -31,8 +31,8 @@ try {
     const names = list.map((c) => c.name);
     const sorted = [...names].sort((a, b) => a.localeCompare(b));
     check('candidates have unlocks and are sorted by name', list.length > 0 && list.every((c) => c.unlocked > 0) && JSON.stringify(names) === JSON.stringify(sorted), `${list.length} games`);
-    // With steam-cartridges loaded, its stored unlocks list its games too (non-Steam games have the `shortcut` kind).
-    const cartridges = await plugin("Object.keys(window.PLUGIN_LIST).some((n) => n.startsWith('steam-cartridges') && typeof window.PLUGIN_LIST[n].storedAchievementSummaries === 'function')");
+    // With steam-cartridges loaded, Steam's progress cache lists its games too (ADR-0045; non-Steam games have the `shortcut` kind).
+    const cartridges = await plugin("Object.keys(window.PLUGIN_LIST).some((n) => n.startsWith('steam-cartridges') && typeof window.PLUGIN_LIST[n].resetAchievements === 'function')");
     check('non-Steam games with unlocks are listed when steam-cartridges is loaded', !cartridges || list.some((c) => c.kind === 'shortcut'), `${list.filter((c) => c.kind === 'shortcut').length} shortcuts`);
 
     const wrapped = await cdp.evaluate(`(() => { window.__eaConsole = []; const c = SteamClient.Console; window.__eaExec = c.ExecCommand; c.ExecCommand = (x) => { window.__eaConsole.push(x); return window.__eaExec.call(c, x); }; return true; })()`);
