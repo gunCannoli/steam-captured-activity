@@ -10,6 +10,14 @@ await s.ready;
 const run = async (expression) =>
     (await s.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true })).result?.result?.value;
 
+// Steam loads the Community section only when its window is visible and in desktop mode (its on-screen signal never
+// arrives in a hidden window), so make sure of both first (steam-debug.md Trap 6/7; BringToFront is Steam's own call).
+if ((await run(`SteamClient.UI.GetUIMode()`)) !== 7) {
+    await run(`SteamClient.UI.SetUIMode(7), 1`);
+    await new Promise((r) => setTimeout(r, 8000));
+}
+await run(`(SteamUIStore.WindowStore.SteamUIWindows.find(w=>w.Navigator?.AppProperties)?.BrowserWindow?.SteamClient?.Window?.BringToFront?.(), 1)`);
+await new Promise((r) => setTimeout(r, 1000));
 await run(`SteamUIStore.WindowStore.SteamUIWindows.find(w=>w.Navigator?.AppProperties)?.Navigator.App(${appid}),1`);
 await new Promise((r) => setTimeout(r, settle));
 

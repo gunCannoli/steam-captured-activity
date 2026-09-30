@@ -2837,3 +2837,6 @@ fetch them (no CORS), and Millennium's Lua `http.get` cuts binary bodies.
   grid from Steam's exported parts (`kB` YouTube player, the viewer module, the section CSS), which needs a new ADR.
 - A Steam update that renames the loader method or its class's prototype methods leaves the section stock (the
   learn fails, reported to the `community` switch), never a crash.
+- Steam's own first-page trigger can miss (its on-screen signal may arrive after its 1 s timer), so for a shortcut with a
+  feed the surface also loads the first page when the loader is bound or resized (found live 2026-09-30). The probe
+  `community_media.mjs` switches to desktop mode and brings Steam's window forward first: a hidden window never loads it.

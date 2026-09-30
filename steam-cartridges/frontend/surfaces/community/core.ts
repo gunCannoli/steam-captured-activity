@@ -26,6 +26,19 @@ export function feedId(appid: number, index: number): string {
 
 export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper" };
 
+/** A card's author icon: a small inline SVG per source, so Steam shows a logo instead of its "?" avatar (no request, no file). */
+function sourceIcon(label: string, fill: string, size: number): string {
+    const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="${fill}"/>` +
+        `<text x="32" y="32" dy=".35em" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="${size}" fill="#fff">${label}</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export const CREATOR_AVATARS: Record<MediaItem["source"], string> = {
+    igdb: sourceIcon("IGDB", "#6d3fc0", 20),
+    screenscraper: sourceIcon("SS", "#d9622b", 28),
+};
+
 /** One item of Steam's community feed, as its card components read it. */
 export interface FeedItem {
     published_file_id: string;
@@ -108,7 +121,7 @@ export function toFeedItems(appid: number, items: readonly MediaItem[], imageOf:
             rating_stars: 0,
             maybe_inappropriate_sex: 0,
             maybe_inappropriate_violence: 0,
-            creator: { name: CREATOR_NAMES[item.source] ?? "", steamid: "0", avatar: "", online_state: 0 },
+            creator: { name: CREATOR_NAMES[item.source] ?? "", steamid: "0", avatar: CREATOR_AVATARS[item.source] ?? "", online_state: 0 },
             reactions: [],
         });
     });
@@ -144,4 +157,21 @@ export function isContentSection(type: unknown, props: unknown): boolean {
     if (!p || typeof p.appid !== "number" || !("labelId" in p)) return false;
     const proto = (type as { prototype?: object }).prototype;
     return !!proto && "BindInnerContainer" in proto && "AutoLoadAdditionalContent" in proto && "CheckAndLoadInitialContent" in proto;
+}
+
+/**
+ * Should the section's loader fetch its first page now? Steam loads it from two signals: a 1 s timer that needs
+ * `m_bOnScreen` already true, or an IntersectionObserver change from false to true. When the observer's first callback
+ * comes after the timer (a busy page open), neither fires and the section stays empty until it is remounted (seen live,
+ * 2026-09-30). For a shortcut with a feed, loading needs no network, so we load it as soon as the loader is bound or
+ * resized. Only while nothing has been requested yet (`m_nNextPage` 1) and Steam has built its placeholder rows (they
+ * are not built when the user disabled community content), so Steam's own paging and setting still apply.
+ */
+export function shouldLoadFirstPage(
+    loader: { m_nNextPage?: unknown; m_bHasEmptyRows?: unknown; m_unAppID?: unknown } | null | undefined,
+    hasFeed: (appid: number) => boolean,
+): boolean {
+    if (!loader || loader.m_nNextPage !== 1 || loader.m_bHasEmptyRows !== true) return false;
+    const appid = toShortcutId(loader.m_unAppID);
+    return appid !== undefined && hasFeed(appid);
 }

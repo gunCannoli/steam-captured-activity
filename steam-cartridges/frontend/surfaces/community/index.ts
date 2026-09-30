@@ -9,7 +9,7 @@
 // section (constructor only: no mount, no request) to read its loader's prototype, patches it and disposes the hook.
 // Verified live 2026-09-30 (435150): the element type is the class, a throwaway's loader shares the mounted one's
 // prototype. The first page loads >= 1 s after the section mounts, so the patch is in place before it.
-import { callOriginal, replacePatch } from "@steambrew/client";
+import { afterPatch, callOriginal, replacePatch } from "@steambrew/client";
 import { logger } from "../../logger";
 import type { ShortcutId } from "../../kernel/appid";
 import type { MediaImage } from "../../kernel/media-bin";
@@ -17,7 +17,7 @@ import type { MediaItem } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
 import { jsxRuntime } from "../../steam/modules";
-import { isContentSection, loaderAnswer, toFeedItems, type FeedItem } from "./core";
+import { isContentSection, loaderAnswer, shouldLoadFirstPage, toFeedItems, type FeedItem } from "./core";
 
 export interface CommunityDeps extends SurfaceDeps {
     /** The object URL app/media put in the media bin for a ScreenScraper item (a pure read). */
@@ -33,6 +33,7 @@ let hook: ReturnType<typeof keepJsxPatched> | undefined;
 let lastJsx: JsxHookDiagnostics[] = [];
 let learnScheduled = false;
 let unpatchLoader: (() => void) | undefined;
+let firstPageLoads = 0;
 let served = 0;
 
 function patchLoader(section: new (props: unknown) => { m_loader?: object }): void {
@@ -54,7 +55,25 @@ function patchLoader(section: new (props: unknown) => { m_loader?: object }): vo
             return callOriginal;
         }
     });
-    unpatchLoader = () => patch.unpatch();
+    // Load the first page when Steam binds or resizes the loader (see core.shouldLoadFirstPage): Steam's own triggers miss
+    // when the observer's first callback comes after its 1 s timer. LoadAdditionalContent is guarded by Steam's state.
+    const loadFirstPage = function (this: unknown, _args: unknown[], ret: unknown): unknown {
+        try {
+            const loader = this as { LoadAdditionalContent?: () => void; m_nNextPage?: unknown; m_bHasEmptyRows?: unknown; m_unAppID?: unknown };
+            if (deps.isEnabled("community") && typeof loader.LoadAdditionalContent === "function" && shouldLoadFirstPage(loader, (appid) => feeds.has(appid))) {
+                firstPageLoads++;
+                loader.LoadAdditionalContent();
+            }
+        } catch (err) {
+            deps.reportError("community", err); // fail-open: Steam's own triggers still run
+        }
+        return ret;
+    };
+    const bindPatch = typeof proto.OnBind === "function" ? afterPatch(proto, "OnBind", loadFirstPage) : undefined;
+    const resizePatch = typeof proto.OnResize === "function" ? afterPatch(proto, "OnResize", loadFirstPage) : undefined;
+    unpatchLoader = () => {
+        for (const p of [resizePatch, bindPatch, patch]) p?.unpatch();
+    };
     lastJsx = hook?.diagnostics() ?? [];
     hook?.dispose(); // learned: the jsx observer is not needed any more
     hook = undefined;
@@ -90,10 +109,10 @@ export function installCommunity(): void {
 }
 
 /** For CDP checks (PLUGIN_LIST[...].communityDiagnostics()). */
-export function communityDiagnostics(): { patched: boolean; feeds: Record<number, number>; served: number; jsx: JsxHookDiagnostics[] } {
+export function communityDiagnostics(): { patched: boolean; feeds: Record<number, number>; served: number; firstPageLoads: number; jsx: JsxHookDiagnostics[] } {
     const counts: Record<number, number> = {};
     feeds.forEach((feed, appid) => (counts[appid] = feed.length));
-    return { patched: !!unpatchLoader, feeds: counts, served, jsx: hook?.diagnostics() ?? lastJsx };
+    return { patched: !!unpatchLoader, feeds: counts, served, firstPageLoads, jsx: hook?.diagnostics() ?? lastJsx };
 }
 
 export function createCommunitySurface(d: CommunityDeps): Surface {

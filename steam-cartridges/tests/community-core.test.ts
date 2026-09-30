@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, loaderAnswer, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { CREATOR_AVATARS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, loaderAnswer, shouldLoadFirstPage, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -42,7 +42,7 @@ test('community core: every card has the fields Steam\'s card code reads, with c
     assert.equal(item!.votes_for, null);
     assert.deepEqual(item!.reactions, []);
     assert.equal(item!.spoiler_tag, false);
-    assert.deepEqual(item!.creator, { name: 'IGDB', steamid: '0', avatar: '', online_state: 0 });
+    assert.deepEqual(item!.creator, { name: 'IGDB', steamid: '0', avatar: CREATOR_AVATARS.igdb, online_state: 0 });
 });
 
 test('community core: a ScreenScraper image shows only with its object URL, at the bin\'s size', () => {
@@ -83,4 +83,25 @@ test('community core: the section class is recognised by its props and prototype
     assert.ok(!isContentSection(class Other {}, { appid: SC, labelId: 'x' }));
     assert.ok(!isContentSection('div', { appid: SC, labelId: 'x' }));
     assert.ok(!isContentSection(Section, null));
+});
+
+test('community core: each source has its own inline icon (no "?" avatar, no request)', () => {
+    assert.match(CREATOR_AVATARS.igdb, /^data:image\/svg\+xml;utf8,/);
+    assert.notEqual(CREATOR_AVATARS.igdb, CREATOR_AVATARS.screenscraper);
+    const [a] = toFeedItems(SC, [{ kind: 'video', source: 'igdb', youtube: 'abcDEF12345' }], none);
+    assert.equal(a!.creator.avatar, CREATOR_AVATARS.igdb);
+    const [b] = toFeedItems(SC, [{ kind: 'screenshot', source: 'screenscraper', key: 'k', width: 10, height: 10 }], () => ({ url: 'blob:x', width: 10, height: 10 }));
+    assert.equal(b!.creator.avatar, CREATOR_AVATARS.screenscraper);
+});
+
+test('community core: the first page loads early only for a shortcut with a feed, before anything was requested', () => {
+    const has = (appid: number) => appid === SC;
+    const fresh = { m_nNextPage: 1, m_bHasEmptyRows: true, m_unAppID: SC };
+    assert.equal(shouldLoadFirstPage(fresh, has), true);
+    assert.equal(shouldLoadFirstPage({ ...fresh, m_nNextPage: 2 }, has), false, 'a page was already requested');
+    assert.equal(shouldLoadFirstPage({ ...fresh, m_bHasEmptyRows: false }, has), false, 'no placeholder rows: community content is disabled');
+    assert.equal(shouldLoadFirstPage({ ...fresh, m_unAppID: 435150 }, has), false, 'a native app keeps Steam own timing');
+    assert.equal(shouldLoadFirstPage({ ...fresh, m_unAppID: SC + 1 }, has), false, 'a shortcut with no feed');
+    assert.equal(shouldLoadFirstPage({}, has), false);
+    assert.equal(shouldLoadFirstPage(undefined, has), false);
 });

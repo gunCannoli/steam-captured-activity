@@ -443,6 +443,7 @@ shortcut's community media: IGDB trailers (Steam's YouTube card), IGDB and Scree
 | Target | Guardrail |
 | --- | --- |
 | `CommunityContentLoader.LoadCommunityContentAndVotes` (the loader class's prototype) | 2 (one Map lookup per page), 12 (one class for every window) |
+| `CommunityContentLoader.OnBind`, `OnResize` (after-patches, same prototype) | 2 (two property checks, then a guarded `LoadAdditionalContent` once), 12 |
 | `jsx:community-section` | 2, 17 (learn-once: property checks until the section class is seen, then disposed; the patch runs on a timer, never in the render) |
 
 **reads:** `media`. **Injected deps:** `SurfaceDeps` + `imageOf(appid, key)` (the media bin, a pure read).
@@ -451,7 +452,16 @@ shortcut's community media: IGDB trailers (Steam's YouTube card), IGDB and Scree
 Fail-open: a throw in the patch returns Steam's own loader and counts against `community`; a failed learn leaves the
 section stock.
 
-**API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `jsx`), exported by `index.tsx` for the live probe.
+**First page loads early (2026-09-30).** Steam loads the first page from a 1 s timer that needs `m_bOnScreen` already true,
+or from an IntersectionObserver change `false` to `true`. When the observer's first callback arrives after the timer (a busy
+page open) neither fires and the section stays empty until remounted, which users hit as "switch tab/page and come back".
+For a shortcut with a feed the load needs no network, so the `OnBind`/`OnResize` after-patches call the loader's
+`LoadAdditionalContent()` once (`core.shouldLoadFirstPage`: nothing requested yet, `m_nNextPage` 1, placeholder rows built
+so the user's "disable community content" setting still applies). `LoadAdditionalContent` is guarded by Steam's own state.
+Native apps keep Steam's timing. Each card's author icon is an inline SVG data URI per source (`CREATOR_AVATARS`), not
+Steam's "?" avatar.
+
+**API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `firstPageLoads`, `jsx`), exported by `index.tsx` for the live probe.
 
 **Record-driven in:** F2.
 
