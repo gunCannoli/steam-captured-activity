@@ -95,8 +95,11 @@ collections, shortcuts, or files under `C:\game\steam`; no `npm install` or upgr
 nag); no `git push --force`; no `--no-verify`; no `git add -A`; no `Co-Authored-By` or "Generated with" line in any
 commit (AGENTS.md Routine 6); do not rewrite existing history.
 
-**Line endings:** every file in steps 1–10 is LF, except `enhanced-achievements/tests/reset.mjs`, which is CRLF in the
-working tree. Step 10 edits two **single** lines there; do not make multi-line edits to that file.
+**Line endings:** every file this plan edits is LF in the working tree except three, which are CRLF:
+`enhanced-achievements/tests/reset.mjs` (step 10), `TASK.md` (step 12f) and `docs/enhanced-achievements/architecture.md`
+(step 12b). Step 10 edits two **single** lines. For 12b and 12f, if a multi-line Edit reports no match, do the same edit
+one line at a time (each before block's lines are unique in the file). Never convert a file's line endings; after
+the edit `git diff --stat` must show only the lines the step changes.
 
 ## 6. How to apply a step
 
@@ -947,8 +950,16 @@ Steam fills that cache at start-up for every owned game, from its own file.
 
 ```
 
-12f. `TASK.md`, section `## Now`: replace the paragraph that starts `**Achievements preload (ADR-0045): plan ready**`
-(added by the architect) with:
+12f. `TASK.md`, section `## Now`. Before (added by the architect in `8cf7416`):
+
+```md
+**Achievements preload (ADR-0045): plan ready, dry-run on `c4f0978`.** Execute
+[the achievements preload plan](docs/plans/steam-cartridges-achievements-preload-plan.md) (option B: steam-cartridges fills
+Steam's achievement progress cache at start-up; enhanced-achievements reads Steam's cache for every game and
+`storedAchievementSummaries()` goes). Option C (reset a shortcut through Steam's own `achievement_clear`) is a later decision.
+```
+
+After:
 
 ```md
 **Achievements preload (ADR-0045): code committed 2026-09-30, waiting for live verification.** Deploy both plugins, then
