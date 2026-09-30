@@ -17,6 +17,11 @@ theme Steam's toasts and sounds.
 
 ## Now
 
+**Achievements preload (ADR-0045): plan ready, dry-run on `c4f0978`.** Execute
+[the achievements preload plan](docs/plans/steam-cartridges-achievements-preload-plan.md) (option B: steam-cartridges fills
+Steam's achievement progress cache at start-up; enhanced-achievements reads Steam's cache for every game and
+`storedAchievementSummaries()` goes). Option C (reset a shortcut through Steam's own `achievement_clear`) is a later decision.
+
 **F1 Game Data editor: code committed on top of M10 (2026-09-30), waiting for live verification.** Deploy with `dev.ps1`, then
 follow [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`check_settings_panel.mjs` 9 titles,
 `probes/game_editor.mjs`, `npm run test:live`, the by-hand check on desktop and Big Picture). Then mark F1 done in the
