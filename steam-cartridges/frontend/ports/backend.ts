@@ -60,6 +60,11 @@ export interface StoreState {
     applied_artwork: Record<string, StoreApplied>;
 }
 
+export interface StoreCandidate {
+    steam_appid: number;
+    name: string;
+}
+
 export interface FreshContext {
     /** The shortcut's display name (""  when unknown). */
     title: string;
@@ -125,6 +130,14 @@ export const backend = {
     markKnown(appids: number[]): Promise<{ ok?: boolean; error?: string }> {
         return call<{ ok?: boolean; error?: string }>("MarkKnown", { appids });
     },
+    /** Game Data editor: stores a manual edit (custom_override) and returns the metadata part to put in the record. */
+    saveCustomMetadata(appid: number, metadata: GameMetadata) {
+        return call<{ part?: Part<GameMetadata>; error?: string }>("SaveCustomMetadata", { appid, metadata });
+    },
+    /** Game Data editor: drops the manual edit; follow with ensureFresh(["metadata"]) for the fetched data. */
+    clearCustomMetadata(appid: number) {
+        return call<{ removed?: boolean; error?: string }>("ClearCustomMetadata", { appid });
+    },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
         return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {});
@@ -163,6 +176,10 @@ export const backend = {
     },
     steamStoreClearMapping(appid: number, reject: boolean) {
         return call<{ steam_appid?: number; slots: number[]; error?: string }>("SteamStoreClearMapping", { appid, reject });
+    },
+    /** Read-only store search for the manual link picker: nothing is mapped or cached. */
+    steamStoreSearchCandidates(term: string) {
+        return call<{ candidates: StoreCandidate[]; error?: string }>("SteamStoreSearchCandidates", { term });
     },
     steamStoreRecordArtwork(
         appid: number,
