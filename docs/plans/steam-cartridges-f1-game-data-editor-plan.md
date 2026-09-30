@@ -1,5 +1,9 @@
 # Plan: F1 Game Data editor (manual Game Info and manual Steam link)
 
+**Stale after M10 (2026-09-30):** [the M10 plan](steam-cartridges-m10-gap-batch-plan.md) runs first (ADR-0044 Q6) and edits
+`backend/main.lua`, `web_rpc.lua`, `steam_store_rpc.lua`, `frontend/ports/backend.ts`, `app/steam-store.ts`, `settings/panels/*` and
+`tests/test_steam_store.lua`. An architect regenerates these patches on top of M10 before F1 is executed; the RPCs F1 wires or
+deletes are listed in `steam-cartridges/tests/architecture-unwired-rpcs.json` (remove them from it in the same step).
 **Status:** Ready to execute (2026-09-29). Dry-run done: every patch applies in order to `HEAD` (`c20c654`), and the resulting tree
 passes `tsc`, `test:ts` (164/164), the Lua suites and `npm run build` (§ 9).
 **Kind:** Feature plan, written for the weak implementer ([the plan writing standard](README.md)). The literal before/after

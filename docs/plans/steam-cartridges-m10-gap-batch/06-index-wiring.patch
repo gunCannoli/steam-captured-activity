@@ -1,0 +1,819 @@
+diff --git a/steam-cartridges/frontend/app/achievements.ts b/steam-cartridges/frontend/app/achievements.ts
+index bde192f9f18ab7986b88ee0b4620b1390a74f0c4..15e52032c9f39b684ee4cedb3e2165c1e456d72d 100644
+--- a/steam-cartridges/frontend/app/achievements.ts
++++ b/steam-cartridges/frontend/app/achievements.ts
+@@ -1,11 +1,11 @@
+ // app/achievements: a shortcut's achievements in its record, and Flow C (launch -> observe ->
+ // unlock) (migration plan M6b). The backend picks the source (ach_service.lua); this loads the
+-// part, runs the launch toast policy and the in-game unlock polling, and announces unlocks on the
+-// bus. The surfaces (achievements, toasts, captures) only render what the record and the
+-// `achievements.unlocked` event say.
++// part, runs the launch toast policy and the in-game unlock polling, and announces unlocks and the
++// launch toast on the bus. The surfaces (achievements, toasts, captures) only render what the record
++// and the `achievements.unlocked` / `achievements.launch-toast` events say (M10: no surface callbacks).
+ import { logger } from "../logger.ts";
+ import type { ShortcutId } from "../kernel/appid";
+-import type { EventBus } from "../kernel/events";
++import type { EventBus, UnlockedAchievement } from "../kernel/events";
+ import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
+ import type { backend as Backend } from "../ports/backend";
+ 
+@@ -15,21 +15,17 @@ export type LaunchPolicy = "off" | "first_run" | "all_runs";
+ const POLL_MS = 2000;
+ 
+ export interface AchievementsDeps {
+-    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements">;
++    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "steamStoreGetMapping">;
+     records: RecordStore;
+     bus: EventBus;
+     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
+     ensureBase(appid: ShortcutId): void;
+     titleOf(appid: number): string | undefined;
+     routeOf(appid: ShortcutId): Route;
+-    /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
+-    resolveNative(appid: ShortcutId): Promise<number>;
+     /** Setting raHardcoreMode. */
+     hardcore(): boolean;
+     /** Setting localAchievementsNotifyOnLaunch. */
+     launchPolicy(): LaunchPolicy;
+-    /** The toasts surface's launch toast (wired in index.tsx). */
+-    showLaunchToast(): void;
+     /** Kill switch `achievements-observer`: gates the launch toast and the polling session. */
+     observerEnabled(): boolean;
+     timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(handle: unknown): void };
+@@ -48,6 +44,8 @@ export interface AchievementsService {
+     /** Unlock one achievement (the given id, else the next locked one). */
+     trigger(appid: ShortcutId, achievementId?: string): Promise<boolean>;
+     reset(appid: ShortcutId): Promise<boolean>;
++    /** Unlocked and total count from the record, for the settings panel's audit. */
++    summary(appid: ShortcutId): { nAchieved: number; nTotal: number } | undefined;
+ }
+ 
+ /** K1: Millennium's cjson encodes an empty Lua table as `{}`; accept an array or an object of items. */
+@@ -75,6 +73,27 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+ 
+     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
+ 
++    /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
++    async function resolveNative(appid: ShortcutId): Promise<number> {
++        const known = deps.records.get(appid)?.identity?.data?.native?.appid;
++        if (known) return known;
++        const res = await deps.backend.steamStoreGetMapping(appid).catch(() => null);
++        return res?.mapping?.steam_appid || 0;
++    }
++
++    /** Announce new unlocks with what the surfaces show (from the record's schema). */
++    function announce(appid: ShortcutId, ids: string[]): void {
++        const set = current(appid)?.data;
++        const items: UnlockedAchievement[] = [];
++        for (const id of ids) {
++            const a = set?.schema.achievements.find((x) => x.id === id);
++            if (!a) continue;
++            const at = set!.unlocks[id]?.unlocked_time ?? Math.floor(deps.now() / 1000);
++            items.push({ id: a.id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: at });
++        }
++        deps.bus.emit("achievements.unlocked", { appid, ids, items });
++    }
++
+     async function load(appid: ShortcutId, route: Route, native?: number): Promise<Part<AchievementSet>> {
+         deps.ensureBase(appid);
+         const known = deps.records.get(appid)?.identity;
+@@ -114,7 +133,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+ 
+     async function checkNow(appid: ShortcutId, opts: { native?: number; title?: string } = {}): Promise<number> {
+         try {
+-            const native = opts.native ?? (await deps.resolveNative(appid));
++            const native = opts.native ?? (await resolveNative(appid));
+             const res = await deps.backend.checkUnlocks(appid, native, opts.title ?? deps.titleOf(appid));
+             const fresh = asList<NewUnlock>(res?.new_unlocks).filter((u) => u && typeof u.id === "string");
+             if (fresh.length === 0) return 0;
+@@ -130,7 +149,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+             }
+             const ids = fresh.map((u) => u.id);
+             logger.info(`Observer detected ${ids.length} new unlock(s) for shortcut ${appid}: ${ids.join(", ")}`);
+-            deps.bus.emit("achievements.unlocked", { appid, ids });
++            announce(appid, ids);
+             return ids.length;
+         } catch (e) {
+             logger.error(`Error checking unlocks for ${appid}:`, e);
+@@ -161,7 +180,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+             if (notified.has(appid)) return;
+             notified.add(appid);
+         }
+-        deps.showLaunchToast();
++        deps.bus.emit("achievements.launch-toast", { appid });
+     }
+ 
+     return {
+@@ -170,7 +189,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+                 if (!deps.observerEnabled()) return;
+                 running.add(appid);
+                 launchToast(appid);
+-                void deps.resolveNative(appid).then((n) => {
++                void resolveNative(appid).then((n) => {
+                     if (!running.has(appid)) return; // the game quit while the mapping loaded
+                     startSession(appid, { native: n, title: name });
+                 });
+@@ -204,7 +223,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+                 }
+                 const unlocks = { ...(res.unlocks && typeof res.unlocks === "object" ? res.unlocks : {}) };
+                 deps.records.update(appid, { achievements: { ...current(appid)!, data: { ...set, unlocks } } });
+-                deps.bus.emit("achievements.unlocked", { appid, ids: [item.id] });
++                announce(appid, [item.id]);
+                 return true;
+             } catch (e) {
+                 logger.error(`Error triggering achievement ${item.id}:`, e);
+@@ -227,5 +246,10 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+                 return false;
+             }
+         },
++        summary(appid) {
++            const set = current(appid)?.data;
++            if (!set) return undefined;
++            return { nAchieved: Object.keys(set.unlocks ?? {}).length, nTotal: set.schema.total ?? 0 };
++        },
+     };
+ }
+diff --git a/steam-cartridges/frontend/app/ingest.ts b/steam-cartridges/frontend/app/ingest.ts
+index 300b9df71ff51c3a0b34f1af4733d9d8ed302d02..154243ebc11d7c1262595cd99e278279358c0d61 100644
+--- a/steam-cartridges/frontend/app/ingest.ts
++++ b/steam-cartridges/frontend/app/ingest.ts
+@@ -27,8 +27,6 @@ export interface IngestDeps {
+     hardcore(): boolean;
+     /** Polite pause between shortcuts (300 ms). */
+     sleep(ms: number): Promise<void>;
+-    /** Tell the settings panel its audit counts changed. */
+-    onRulesUpdated?(): void;
+     /** Re-run a start-up sync that was requested while one was running (tests pass a no-op). */
+     schedule?(fn: () => void, ms: number): void;
+ }
+@@ -169,12 +167,10 @@ export function createIngest(deps: IngestDeps): Ingest {
+                 }
+                 if (outcome.done) await deps.backend.markKnown([item.appid]).catch(() => undefined);
+ 
+-                if ((i + 1) % 4 === 0 || i + 1 === items.length) deps.onRulesUpdated?.();
+                 await deps.sleep(PAUSE_MS);
+             }
+ 
+             setProgress({ isSyncing: false, phase: "complete" });
+-            deps.onRulesUpdated?.();
+             // Back to idle after a few seconds.
+             const idle = setTimeout(() => {
+                 if (!running) setProgress({ phase: "idle" });
+diff --git a/steam-cartridges/frontend/app/routing.ts b/steam-cartridges/frontend/app/routing.ts
+index 9f8e2f32468f503d21f2f1e2adb00b539eedf82e..a31809422147e0f1429739c16684c0ad7d5681f0 100644
+--- a/steam-cartridges/frontend/app/routing.ts
++++ b/steam-cartridges/frontend/app/routing.ts
+@@ -1,10 +1,13 @@
+ import {
+     findConflicts,
+     resolveBucket,
++    isServiceAllowed,
+     type AutoRoutingProfile,
+     type Bucket,
+     type BucketsConfig,
+     type Resolution,
++    type RoutingRule,
++    type ServiceTarget,
+ } from '../domain/routing/policy.ts';
+ import { pendingOr } from '../domain/routing/pending.ts';
+ import { NON_STEAM_APPID_MIN } from '../kernel/appid.ts';
+@@ -28,6 +31,8 @@ export interface BucketReport {
+ export interface RoutingInputs {
+     buckets(): BucketsConfig;
+     autoMode(): boolean;
++    /** Setting routingRules (service rules, ADR-0040). */
++    rules(): RoutingRule[];
+     collections: { ready(): boolean; list(): any[] | undefined };
+     titleOf(appid: number): string | undefined;
+     shortcuts(): { appid: number; name: string }[];
+@@ -175,8 +180,25 @@ export function createRouting(inputs: RoutingInputs) {
+         };
+     }
+ 
++    /** Do the routing rules and Auto Mode allow `service` for this shortcut? (was index.tsx and the audit panel) */
++    function serviceAllowed(service: ServiceTarget, appid: number): boolean {
++        const collNames = listCollections()
++            .filter((c) => membersOf(c.id)?.has(appid))
++            .map((c) => c.name);
++        return isServiceAllowed(
++            service,
++            appid,
++            inputs.titleOf(appid) ?? "",
++            collNames,
++            inputs.rules(),
++            inputs.autoMode(),
++            getAutoRoutingProfile(appid),
++        );
++    }
++
+     return {
+         getBucket,
++        serviceAllowed,
+         onBucketsChanged,
+         bucketReport,
+         listCollections,
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index dedb6350539ba070da4252647fa4eae6a8069742..8b6e856a568a4904d8ef3dad4a36b1e6f5ca35d5 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -4,7 +4,7 @@ import {
+     createCapturesSurface,
+     patch as patchLibraryApp,
+     refresh as refreshLibraryApp,
+-    addSessionAchievement,
++    onUnlocked as capturesOnUnlocked,
+     onWindowClosed as capturesWindowClosed,
+     onWindowOpened as capturesWindowOpened,
+     setContentListener,
+@@ -28,7 +28,6 @@ import {
+ } from "./settings/settings";
+ import { SettingsPanel } from "./settings/panel";
+ import { createRouting } from "./app/routing";
+-import { isServiceAllowed, type ServiceTarget } from "./domain/routing/policy";
+ import { createRecords } from "./app/records";
+ import { createRenderQueue } from "./app/render-queue";
+ import { createIdentity } from "./app/identity";
+@@ -68,7 +67,13 @@ import {
+     getLocalAchievements,
+     getLocalSchema,
+ } from "./surfaces/achievements";
+-import { createToastsSurface, dispatchAchievementToast, dispatchLaunchToast } from "./surfaces/toasts";
++import {
++    createToastsSurface,
++    dispatchAchievementToast,
++    installTestHook as installToastTestHook,
++    onLaunchToast as toastsOnLaunch,
++    onUnlocked as toastsOnUnlocked,
++} from "./surfaces/toasts";
+ 
+ /** The plugin's one FeatureSwitches instance: the kill switches come from the `disabledFeatures` setting (M0b, M9a). */
+ const features = createFeatureSwitches({
+@@ -97,22 +102,6 @@ const runner = createSurfaceRunner({
+     },
+ });
+ 
+-/** Is a routing service (rules and Auto Mode) allowed for this shortcut? */
+-function serviceAllowed(service: ServiceTarget, appid: number): boolean {
+-    const collNames = routing.listCollections()
+-        .filter((c) => routing.membersOf(c.id)?.has(appid))
+-        .map((c) => c.name);
+-    return isServiceAllowed(
+-        service,
+-        appid,
+-        shortcutTitle(appid) ?? "",
+-        collNames,
+-        setting("routingRules"),
+-        setting("autoRoutingMode"),
+-        routing.getAutoRoutingProfile(appid),
+-    );
+-}
+-
+ /** Records (app/records.ts, plan M4c): the one read model every record-driven surface reads. */
+ const records = createRecords(bus);
+ 
+@@ -120,6 +109,7 @@ const records = createRecords(bus);
+ const routing = createRouting({
+     buckets: () => setting("buckets"),
+     autoMode: () => setting("autoRoutingMode"),
++    rules: () => setting("routingRules"),
+     collections: collectionsSource,
+     titleOf: shortcutTitle,
+     shortcuts: listShortcuts,
+@@ -148,8 +138,8 @@ const metadata = createMetadata({
+     titleOf: (appid) => shortcutTitle(appid),
+     ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+-    allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
+-    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
++    allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
++    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
+ });
+ 
+ /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
+@@ -161,15 +151,8 @@ const achievements = createAchievements({
+     ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+     titleOf: (appid) => shortcutTitle(appid),
+     routeOf: (appid) => routing.getBucket(appid),
+-    resolveNative: async (appid) => {
+-        const known = records.store.get(appid)?.identity?.data?.native?.appid;
+-        if (known) return known;
+-        const res = await backend.steamStoreGetMapping(appid).catch(() => null);
+-        return res?.mapping?.steam_appid || 0;
+-    },
+     hardcore: () => setting("raHardcoreMode"),
+     launchPolicy: () => setting("localAchievementsNotifyOnLaunch"),
+-    showLaunchToast: () => void dispatchLaunchToast("Achievements Enabled", "Enjoy your game!"),
+     observerEnabled: () => features.isEnabled("achievements-observer"),
+     now: () => Date.now(),
+ });
+@@ -183,7 +166,7 @@ const artwork = createArtwork({
+     titleOf: (appid) => shortcutTitle(appid),
+     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+     fetchImage,
+-    allowSgdb: (appid) => setting("services").steamgriddbEnabled !== false && serviceAllowed("steamgriddb", appid),
++    allowSgdb: (appid) => setting("services").steamgriddbEnabled !== false && routing.serviceAllowed("steamgriddb", appid),
+     now: () => Date.now(),
+ });
+ 
+@@ -205,13 +188,12 @@ const ingest = createIngest({
+         await routing.waitForCollections();
+     },
+     routeOf: (appid) => routing.getBucket(appid),
+-    isAllowed: (appid) => serviceAllowed("all", appid),
++    isAllowed: (appid) => routing.serviceAllowed("all", appid),
+     owned: ownedCandidates,
+-    allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
+-    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
++    allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
++    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
+     hardcore: () => setting("raHardcoreMode"),
+     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+-    onRulesUpdated: () => window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated")),
+ });
+ 
+ export { setSetting, resetSettings, SettingsPanel };
+@@ -227,33 +209,10 @@ export const steamStoreState = () => steamStore.state();
+ 
+ export { getLocalAchievements, getLocalSchema, dispatchAchievementToast };
+ 
+-/** The `cartridges:trigger_fake_achievement` window event is a documented test hook. */
+-let fakeListenerRegistered = false;
+-
+-/** Initializes the native achievements subsystem on plugin load (M6b: hooks the stores, keeps the test hook). */
++/** Public API (D8): the fake-achievement test hook and one store hook attempt (the surface retries on install). */
+ export function initAchievements(): void {
+-    if (!fakeListenerRegistered && typeof window !== "undefined") {
+-        fakeListenerRegistered = true;
+-        window.addEventListener("cartridges:trigger_fake_achievement", (e: Event) => {
+-            const detail = (e as CustomEvent)?.detail;
+-            const targetAppId = detail?.shortcutAppId || detail?.appid;
+-            const achievement = detail?.achievement || {
+-                id: "fake_achievement_" + Date.now(),
+-                name: "Retro Champion",
+-                description: "Unlocked an achievement via RetroAchievements emulator!",
+-                icon: "https://media.retroachievements.org/Badge/00001.png",
+-                global_pct: 100,
+-            };
+-            if (targetAppId) dispatchAchievementToast(targetAppId, achievement);
+-        });
+-    }
+-    // Steam may not have created the stores yet: retry for a few seconds.
+-    if (ensureAchievementsStoreHooked()) return;
+-    let attempts = 0;
+-    const interval = setInterval(() => {
+-        attempts++;
+-        if (ensureAchievementsStoreHooked() || attempts >= 10) clearInterval(interval);
+-    }, 500);
++    installToastTestHook();
++    ensureAchievementsStoreHooked();
+ }
+ 
+ /** Loads a shortcut's achievements into its record (`nativeAppId` overrides the identity when given). */
+@@ -304,6 +263,7 @@ async function init() {
+             membersOf: (id) => routing.membersOf(id),
+             shortcutName: (appid) => routing.listShortcuts().find((s) => s.appid === appid)?.name ?? String(appid),
+             getAutoRoutingProfile: (appid) => routing.getAutoRoutingProfile(appid),
++            serviceAllowed: (service, appid) => routing.serviceAllowed(service, appid),
+             reloadProfiles: () => routing.loadAutoRoutingProfiles(),
+         },
+         ingest: {
+@@ -312,7 +272,7 @@ async function init() {
+             trigger: ingest.triggerSync,
+             start: ingest.startSync,
+         },
+-        records: { achievementsOf: (appid) => getLocalAchievements(appid) },
++        records: { achievementsOf: (appid) => achievements.summary(appid as ShortcutId) },
+         controller: { load: controller.load, inferredFor: controller.inferredFor },
+         steamStore: { setMapping: steamStore.setMapping },
+         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
+@@ -422,25 +382,10 @@ async function init() {
+     features.run("achievements", () => initAchievements());
+     // Flow C (launch toast, unlock polling, quit reload) and the unlock announcements.
+     achievements.install();
+-    /** The toast and the Post-Game Summary line for each new unlock (name, description and icon come from the record). */
+-    const unlocked = (appid: ShortcutId, ids: string[], show: (a: { id: string; name: string; description: string; icon: string; global_pct: number }, at: number) => void) => {
+-        const set = records.store.get(appid)?.achievements?.data;
+-        if (!set) return;
+-        for (const id of ids) {
+-            const a = set.schema.achievements.find((x) => x.id === id);
+-            if (a) show(a, set.unlocks[id]?.unlocked_time ?? Math.floor(Date.now() / 1000));
+-        }
+-    };
+-    bus.on("achievements.unlocked", ({ appid, ids }) =>
+-        unlocked(appid, ids, (a, at) =>
+-            dispatchAchievementToast(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, rtime_unlocked: at }),
+-        ),
+-    );
+-    bus.on("achievements.unlocked", ({ appid, ids }) =>
+-        unlocked(appid, ids, (a, at) =>
+-            addSessionAchievement(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, unlockedAt: at }),
+-        ),
+-    );
++    // Each new unlock: a toast and a Post-Game Summary line; a launch with achievements: the launch toast.
++    bus.on("achievements.unlocked", toastsOnUnlocked);
++    bus.on("achievements.unlocked", capturesOnUnlocked);
++    bus.on("achievements.launch-toast", toastsOnLaunch);
+ 
+     // ===== Game Info (surfaces/game-info, plan M3.3; record-driven from M5b) =====
+     // Steam's Game Info components and AppOverview hooks; app/metadata (below) fills the record.
+@@ -496,13 +441,8 @@ async function init() {
+     // lifecycle sensor (sensors/lifecycle, migration plan M2).
+ 
+     // Achievements (launch toast, unlock polling, reload on quit) run in app/achievements.ts.
+-    const running = new Map<ShortcutId, string>();
+-    bus.on("shortcut.launched", ({ appid, name }) => void running.set(appid, name));
+-
+-    bus.on("shortcut.quit", ({ appid }) => {
+-        const name = running.get(appid);
+-        running.delete(appid);
+-        logger.info(`${name ?? appid} closed; refreshing its activity.`);
++    bus.on("shortcut.quit", ({ appid, name }) => {
++        logger.info(`${name} closed; refreshing its activity.`);
+         void refreshLibraryApp(appid);
+         void refreshLibraryHome();
+     });
+diff --git a/steam-cartridges/frontend/kernel/events.ts b/steam-cartridges/frontend/kernel/events.ts
+index 6b2239a112b194ff7ff77bad915136f40db78da5..bef15482869a415db42fdbdafb593d5cbc6be2e7 100644
+--- a/steam-cartridges/frontend/kernel/events.ts
++++ b/steam-cartridges/frontend/kernel/events.ts
+@@ -16,10 +16,24 @@ export interface Events {
+     "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
+     /** Parts of a GameRecord changed; surfaces re-render only if they read one of `parts`. */
+     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
+-    "achievements.unlocked": { appid: ShortcutId; ids: string[] };
++    /** New unlocks (app/achievements), with what the toast and the Post-Game Summary show. */
++    "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };
++    /** The launch toast policy (app/achievements) decided a launch gets the "Achievements Enabled" toast. */
++    "achievements.launch-toast": { appid: ShortcutId };
+     "settings.changed": { key: string };
+ }
+ 
++/** One new unlock, as the surfaces show it (name, description and icon from the record's schema). */
++export interface UnlockedAchievement {
++    id: string;
++    name: string;
++    description: string;
++    icon: string;
++    global_pct: number;
++    /** Unix seconds. */
++    unlockedAt: number;
++}
++
+ export type EventName = keyof Events;
+ type Handler<K extends EventName> = (payload: Events[K]) => void;
+ type ErrorSink = (event: EventName, err: unknown) => void;
+diff --git a/steam-cartridges/frontend/settings/context.ts b/steam-cartridges/frontend/settings/context.ts
+index 2081a183ab4ae511fc404fad8c604e5715d9f43c..40cd18b0aa6efde9ae1bdb52056b5dbb0ae5ff16 100644
+--- a/steam-cartridges/frontend/settings/context.ts
++++ b/steam-cartridges/frontend/settings/context.ts
+@@ -1,7 +1,7 @@
+ // The only way settings panels reach the app (migration plan M8b, § 7.0 D3): `index.tsx` calls
+ // setPanelContext() at the top of init(); panels read it with usePanelContext(). Structural types only,
+ // never an import of app/, surfaces/ or features/. Backend calls go through ports/backend.ts.
+-import type { AutoRoutingProfile } from '../domain/routing/policy';
++import type { AutoRoutingProfile, ServiceTarget } from '../domain/routing/policy';
+ import type { SyncProgress } from '../kernel/record';
+ 
+ export interface PanelContext {
+@@ -11,6 +11,8 @@ export interface PanelContext {
+         membersOf(id: string): ReadonlySet<number> | undefined;
+         shortcutName(appid: number): string;
+         getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined;
++        /** Do the routing rules and Auto Mode allow `service` for this shortcut? (app/routing) */
++        serviceAllowed(service: ServiceTarget, appid: number): boolean;
+         /** Re-read the auto-routing profiles from the backend (the audit does this before each render). */
+         reloadProfiles(): Promise<void>;
+     };
+@@ -42,6 +44,7 @@ const INERT: PanelContext = {
+         membersOf: () => undefined,
+         shortcutName: (appid) => String(appid),
+         getAutoRoutingProfile: () => undefined,
++        serviceAllowed: () => true,
+         reloadProfiles: async () => {},
+     },
+     ingest: { progress: () => EMPTY_PROGRESS, onProgress: () => () => {}, trigger: () => {}, start: async () => {} },
+diff --git a/steam-cartridges/frontend/settings/panels/audit.tsx b/steam-cartridges/frontend/settings/panels/audit.tsx
+index dc42249d49453a30982552225f09167733231b48..40de4bfa2986799e7f2a788be97ecfe07889b52a 100644
+--- a/steam-cartridges/frontend/settings/panels/audit.tsx
++++ b/steam-cartridges/frontend/settings/panels/audit.tsx
+@@ -1,9 +1,9 @@
+ // Settings: Library Audit (migration plan M8c; reads the app through the panel context and the backend port).
+ import { useCallback, useEffect, useRef, useState } from "react";
+ import { DialogButton, Dropdown, Field, PanelSection } from "@steambrew/client";
+-import { useSetting, type ControllerOverride } from "../settings";
++import { onSettingChange, useSetting, type ControllerOverride } from "../settings";
+ import { backend } from "../../ports/backend";
+-import { type AutoRoutingProfile, isServiceAllowed } from "../../domain/routing/policy";
++import type { AutoRoutingProfile } from "../../domain/routing/policy";
+ import { type GameMetadata } from "../../kernel/record";
+ import { usePanelContext } from "../context";
+ import { ItemRow, SettingsModal } from "../components";
+@@ -38,8 +38,9 @@ export function RevisionSection() {
+     const [controllerOverrides, setControllerOverrides] = useSetting(
+         "controllerOverrides",
+     );
+-    const [rules] = useSetting("routingRules");
+-    const [autoModeEnabled] = useSetting("autoRoutingMode");
++    // Re-render when the rules or Auto Mode change (ctx.routing.serviceAllowed reads them).
++    useSetting("routingRules");
++    useSetting("autoRoutingMode");
+     const [autoProfiles, setAutoProfiles] = useState<
+         Record<string, AutoRoutingProfile>
+     >(() => cachedAutoProfiles || {});
+@@ -97,14 +98,18 @@ export function RevisionSection() {
+ 
+     useEffect(() => {
+         refreshAuditData();
+-        const onRuleUpdated = () => refreshAuditData();
+-        window.addEventListener("steam-cartridges:rule-updated", onRuleUpdated);
+-        return () =>
+-            window.removeEventListener(
+-                "steam-cartridges:rule-updated",
+-                onRuleUpdated,
+-            );
+-    }, [refreshAuditData]);
++        // Rules or Auto Mode changed (the settings store's own events), or a sync made progress (every 4 games).
++        const offSettings = onSettingChange((key) => {
++            if (key === "routingRules" || key === "autoRoutingMode") void refreshAuditData();
++        });
++        const offProgress = ctx.ingest.onProgress((p) => {
++            if (p.isSyncing && p.current > 0 && p.current % 4 === 0) void refreshAuditData();
++        });
++        return () => {
++            offSettings();
++            offProgress();
++        };
++    }, [refreshAuditData, ctx]);
+ 
+     useEffect(() => {
+         if (prevSyncingRef.current && !syncProgress.isSyncing) {
+@@ -113,18 +118,6 @@ export function RevisionSection() {
+         prevSyncingRef.current = syncProgress.isSyncing;
+     }, [syncProgress.isSyncing, refreshAuditData]);
+ 
+-    const collections = ctx.routing.listCollections();
+-    const collMap: Record<number, string[]> = {};
+-    for (const c of collections) {
+-        const members = ctx.routing.membersOf(c.id);
+-        if (members) {
+-            for (const appid of members) {
+-                if (!collMap[appid]) collMap[appid] = [];
+-                collMap[appid].push(c.name);
+-            }
+-        }
+-    }
+-
+     const flagged: FlaggedShortcut[] = [];
+     const notScraped: {
+         appid: number;
+@@ -133,22 +126,13 @@ export function RevisionSection() {
+     }[] = [];
+ 
+     for (const sc of shortcuts) {
+-        const collNames = collMap[sc.appid] || [];
+         const profile =
+             autoProfiles[String(sc.appid)] ||
+             autoProfiles[String(sc.appid >>> 0)] ||
+             autoProfiles[String(sc.appid | 0)];
+ 
+-        // Check if excluded by routing rules or auto mode
+-        const isAllowed = isServiceAllowed(
+-            "all",
+-            sc.appid,
+-            sc.name,
+-            collNames,
+-            rules,
+-            autoModeEnabled,
+-            profile,
+-        );
++        // Excluded by routing rules or auto mode (app/routing, the one evaluation)
++        const isAllowed = ctx.routing.serviceAllowed("all", sc.appid);
+         if (!isAllowed) {
+             continue; // Excluded by rule / auto mode: do not count in issues or not-scraped
+         }
+diff --git a/steam-cartridges/frontend/settings/panels/rules.tsx b/steam-cartridges/frontend/settings/panels/rules.tsx
+index 18de674c80b07d8518c5dce941c0c78e232cf9ec..a9506f75e9b81414f540f8757a85c2dde8b3e8e0 100644
+--- a/steam-cartridges/frontend/settings/panels/rules.tsx
++++ b/steam-cartridges/frontend/settings/panels/rules.tsx
+@@ -170,8 +170,6 @@ export function RulesSection() {
+         }
+         setRules(copy);
+         setShowAddModal(false);
+-
+-        window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated"));
+         ctx.ingest.trigger(100);
+     };
+ 
+@@ -179,7 +177,6 @@ export function RulesSection() {
+         const copy = [...rules];
+         copy.splice(index, 1);
+         setRules(copy);
+-        window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated"));
+         ctx.ingest.trigger(100);
+     };
+ 
+@@ -191,9 +188,6 @@ export function RulesSection() {
+                 value={autoMode}
+                 onChange={(val) => {
+                     setAutoMode(val);
+-                    window.dispatchEvent(
+-                        new CustomEvent("steam-cartridges:rule-updated"),
+-                    );
+                     if (val) {
+                         ctx.ingest.trigger(100);
+                     }
+diff --git a/steam-cartridges/frontend/surfaces/achievements/index.ts b/steam-cartridges/frontend/surfaces/achievements/index.ts
+index 5a39faae7919eb6be917d1397ba95f6a6207260b..4ecbfadd4369455f10e1f0d09fc1a592211b0cc6 100644
+--- a/steam-cartridges/frontend/surfaces/achievements/index.ts
++++ b/steam-cartridges/frontend/surfaces/achievements/index.ts
+@@ -33,8 +33,13 @@ export function createAchievementsSurface(d: SurfaceDeps & { refreshSections():
+         ],
+         reads: ["achievements"],
+         install() {
+-            // Steam may not have created the stores yet; index.tsx retries (initAchievements).
+-            ensureAchievementsStoreHooked();
++            // Steam may not have created the stores yet: retry for a few seconds (moved from index.tsx, M10).
++            if (ensureAchievementsStoreHooked()) return;
++            let attempts = 0;
++            const interval = setInterval(() => {
++                attempts++;
++                if (ensureAchievementsStoreHooked() || attempts >= 10) clearInterval(interval);
++            }, 500);
+         },
+         render(appid, record) {
+             const part = record?.achievements;
+diff --git a/steam-cartridges/frontend/surfaces/captures/index.ts b/steam-cartridges/frontend/surfaces/captures/index.ts
+index e84448995ea441298e143178177cfe282558176e..90475112e3714ce8d031a43f55457c4401401e0e 100644
+--- a/steam-cartridges/frontend/surfaces/captures/index.ts
++++ b/steam-cartridges/frontend/surfaces/captures/index.ts
+@@ -11,7 +11,7 @@ import { patch, unpatch } from "./publish";
+ 
+ export { patch, refresh, setContentListener, unpatch } from "./publish";
+ export { setNativeActivitySource } from "./activity";
+-export { addSessionAchievement } from "./session";
++export { addSessionAchievement, onUnlocked } from "./session";
+ export { onWindowClosed, onWindowOpened } from "./bpm-style";
+ export { registerSummaryProvider } from "./summary";
+ export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
+diff --git a/steam-cartridges/frontend/surfaces/captures/session.ts b/steam-cartridges/frontend/surfaces/captures/session.ts
+index 96d4360cf8978d03e6afc816b2c2475305413e3f..b7c55cb2ad655eb95948963e2a3a0e6cdeadcc0c 100644
+--- a/steam-cartridges/frontend/surfaces/captures/session.ts
++++ b/steam-cartridges/frontend/surfaces/captures/session.ts
+@@ -1,6 +1,7 @@
+ // Surface `captures`: the Post-Game Summary session write (migration plan M6b, K14). Moved from
+ // features/achievements/observer-session.ts, the last Steam write outside surfaces/.
+ import { logger } from "../../logger";
++import type { Events } from "../../kernel/events";
+ import { deps } from "./deps";
+ 
+ export interface SessionAchievement {
+@@ -38,3 +39,10 @@ export function addSessionAchievement(appid: number, item: SessionAchievement):
+         logger.warn("Could not push achievement to spotlight store session:", err);
+     }
+ }
++
++/** Each new unlock also goes into the Post-Game Summary session (achievements.unlocked, M10). */
++export function onUnlocked({ appid, items }: Events["achievements.unlocked"]): void {
++    for (const a of items) {
++        addSessionAchievement(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, unlockedAt: a.unlockedAt });
++    }
++}
+diff --git a/steam-cartridges/frontend/surfaces/toasts/index.ts b/steam-cartridges/frontend/surfaces/toasts/index.ts
+index d7370f489f9734ee783ffea2bd593a4d72e1255e..bfd5416d428e26076ed29951ddd5ae456e5ef3e1 100644
+--- a/steam-cartridges/frontend/surfaces/toasts/index.ts
++++ b/steam-cartridges/frontend/surfaces/toasts/index.ts
+@@ -1,7 +1,8 @@
+ // Surface `toasts` (migration plan M3.6, ADR-0039): the only code that shows Steam
+-// notifications. No hooks: two writes into NotificationStore. index.tsx shows one toast per id of
+-// `achievements.unlocked` (reading the name, description and icon from the record's schema) and
+-// the launch toast policy in app/achievements.ts calls dispatchLaunchToast (plan M6b).
++// notifications. No hooks: two writes into NotificationStore. Event-driven (M10): one toast per item
++// of `achievements.unlocked`, and the launch toast on `achievements.launch-toast` (app/achievements
++// decides both); index.tsx only subscribes these handlers.
++import type { Events } from "../../kernel/events";
+ import type { Surface, SurfaceDeps } from "../../kernel/surface";
+ import { dispatchAchievementToast } from "./achievement";
+ import { deps } from "./deps";
+@@ -10,6 +11,38 @@ import { dispatchLaunchToast } from "./launch";
+ export { dispatchAchievementToast, dispatchLaunchToast };
+ export type { ToastAchievementPayload } from "./achievement";
+ 
++/** One native toast per new unlock. */
++export function onUnlocked({ appid, items }: Events["achievements.unlocked"]): void {
++    for (const a of items) {
++        dispatchAchievementToast(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, rtime_unlocked: a.unlockedAt });
++    }
++}
++
++/** The "Achievements Enabled" toast on launch. */
++export function onLaunchToast(): void {
++    dispatchLaunchToast("Achievements Enabled", "Enjoy your game!");
++}
++
++let testHook = false;
++
++/** The documented CDP test hook: a `cartridges:trigger_fake_achievement` window event shows a toast (D8). */
++export function installTestHook(): void {
++    if (testHook || typeof window === "undefined") return;
++    testHook = true;
++    window.addEventListener("cartridges:trigger_fake_achievement", (e: Event) => {
++        const detail = (e as CustomEvent)?.detail;
++        const targetAppId = detail?.shortcutAppId || detail?.appid;
++        const achievement = detail?.achievement || {
++            id: "fake_achievement_" + Date.now(),
++            name: "Retro Champion",
++            description: "Unlocked an achievement via RetroAchievements emulator!",
++            icon: "https://media.retroachievements.org/Badge/00001.png",
++            global_pct: 100,
++        };
++        if (targetAppId) dispatchAchievementToast(targetAppId, achievement);
++    });
++}
++
+ export function createToastsSurface(d: SurfaceDeps): Surface {
+     deps.isEnabled = d.isEnabled;
+     deps.reportError = d.reportError;
+@@ -23,7 +56,7 @@ export function createToastsSurface(d: SurfaceDeps): Surface {
+         reads: ["achievements"],
+         install() {},
+         render() {
+-            /* event-driven: achievements.unlocked, wired in index.tsx (plan M6b) */
++            /* event-driven: achievements.unlocked and achievements.launch-toast, subscribed in index.tsx (M10) */
+         },
+         clear() {},
+         uninstall() {},
+diff --git a/steam-cartridges/tests/app-achievements.test.ts b/steam-cartridges/tests/app-achievements.test.ts
+index 5feee5dc53b9553e91f99ffa0d87f116cf7d87ce..e8aa5094ad265abe41012215ff581d21849d85b3 100644
+--- a/steam-cartridges/tests/app-achievements.test.ts
++++ b/steam-cartridges/tests/app-achievements.test.ts
+@@ -23,6 +23,7 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
+     const timers: { fn: () => void; ms: number; cleared: boolean }[] = [];
+     const emitted: any[] = [];
+     bus.on('achievements.unlocked', (e) => emitted.push(e));
++    bus.on('achievements.launch-toast', () => { calls.toast++; });
+     const ach = createAchievements({
+         backend: {
+             async ensureFresh() {
+@@ -35,16 +36,15 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
+             },
+             async unlockAchievement() { return { ok: true, unlocks: { A: { unlocked_time: 9 } } }; },
+             async resetAchievements() { return { ok: true, unlocks: {} }; },
++            async steamStoreGetMapping() { return { mapping: { steam_appid: 77 } }; },
+         } as any,
+         records,
+         bus,
+         ensureBase: () => {},
+         titleOf: () => 'Game',
+         routeOf: () => ({ bucket: (over.bucket ?? 'web-scraping') as any, via: 'default' }),
+-        resolveNative: async () => 77,
+         hardcore: () => true,
+         launchPolicy: () => over.policy ?? 'all_runs',
+-        showLaunchToast: () => { calls.toast++; },
+         observerEnabled: () => over.observer !== false,
+         timers: {
+             setInterval: (fn: () => void, ms: number) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
+@@ -97,7 +97,7 @@ test('launch toast all_runs: every launch, only when the record has achievements
+ test('unlock emits achievements.unlocked with the new ids and merges them into the record', async () => {
+     const { ach, records, emitted } = setup({ checkUnlocks: () => ({ new_unlocks: [{ id: 'B', rtime_unlocked: 42 }] }) });
+     assert.equal(await ach.checkNow(SC, { native: 77 }), 1);
+-    assert.deepEqual(emitted, [{ appid: SC, ids: ['B'] }]);
++    assert.deepEqual(emitted, [{ appid: SC, ids: ['B'], items: [{ id: 'B', name: 'Beta', description: 'db', icon: 'ib', global_pct: 20, unlockedAt: 42 }] }]);
+     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, { B: { unlocked_time: 42 } });
+ });
+ 
+@@ -139,8 +139,21 @@ test('ensure asks the backend once while a call is in flight', async () => {
+ test('trigger unlocks the next locked achievement and emits it; reset clears the unlocks', async () => {
+     const { ach, records, emitted } = setup();
+     assert.equal(await ach.trigger(SC), true);
+-    assert.deepEqual(emitted[0], { appid: SC, ids: ['A'] });
++    assert.deepEqual(emitted[0], { appid: SC, ids: ['A'], items: [{ id: 'A', name: 'Alpha', description: 'da', icon: 'ia', global_pct: 10, unlockedAt: 9 }] });
+     assert.deepEqual(Object.keys(records.get(SC)?.achievements?.data?.unlocks ?? {}), ['A']);
+     assert.equal(await ach.reset(SC), true);
+     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, {});
+ });
++
++test('the native app comes from the record, else from the saved mapping', async () => {
++    const { ach, calls } = setup();
++    await ach.checkNow(SC);
++    assert.equal(calls.check[0].native, 77);
++});
++
++test('summary counts the unlocked and total achievements of the record', async () => {
++    const { ach } = setup();
++    assert.deepEqual(ach.summary(SC), { nAchieved: 0, nTotal: 2 });
++    await ach.trigger(SC);
++    assert.deepEqual(ach.summary(SC), { nAchieved: 1, nTotal: 2 });
++});
+diff --git a/steam-cartridges/tests/app-ingest.test.ts b/steam-cartridges/tests/app-ingest.test.ts
+index 5cac3a31302a671c7875605d04d37b9fe99be3d2..04ae061966325edc42a813f2c160ad854a19dda5 100644
+--- a/steam-cartridges/tests/app-ingest.test.ts
++++ b/steam-cartridges/tests/app-ingest.test.ts
+@@ -35,7 +35,6 @@ function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<numbe
+         allowScreenscraper: () => true,
+         hardcore: () => true,
+         sleep: async (ms: number) => { sleeps.push(ms); },
+-        onRulesUpdated: () => {},
+         schedule: over.schedule ?? (() => {}),
+     });
+     return { ingest, calls, known, sleeps, get maxActive() { return maxActive; }, get newCalls() { return newCalls; } };

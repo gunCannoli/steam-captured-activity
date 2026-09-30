@@ -1,0 +1,638 @@
+diff --git a/steam-cartridges/frontend/app/achievements.ts b/steam-cartridges/frontend/app/achievements.ts
+index bc438451e8d54a1f30ac8e4ad3d42788c2ed34c4..bde192f9f18ab7986b88ee0b4620b1390a74f0c4 100644
+--- a/steam-cartridges/frontend/app/achievements.ts
++++ b/steam-cartridges/frontend/app/achievements.ts
+@@ -6,14 +6,9 @@
+ import { logger } from "../logger.ts";
+ import type { ShortcutId } from "../kernel/appid";
+ import type { EventBus } from "../kernel/events";
+-import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore } from "../kernel/record";
++import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
+ import type { backend as Backend } from "../ports/backend";
+ 
+-export interface AchievementsRoute {
+-    bucket: "steam-store" | "web-scraping" | "none";
+-    via: string;
+-}
+-
+ export type LaunchPolicy = "off" | "first_run" | "all_runs";
+ 
+ /** In-game unlock polling interval (today's value). */
+@@ -26,7 +21,7 @@ export interface AchievementsDeps {
+     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
+     ensureBase(appid: ShortcutId): void;
+     titleOf(appid: number): string | undefined;
+-    routeOf(appid: ShortcutId): AchievementsRoute;
++    routeOf(appid: ShortcutId): Route;
+     /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
+     resolveNative(appid: ShortcutId): Promise<number>;
+     /** Setting raHardcoreMode. */
+@@ -45,7 +40,7 @@ export interface AchievementsService {
+     /** Subscribe to shortcut.launched / shortcut.quit (Flow C). */
+     install(): void;
+     /** Load the achievements part into the record (one backend call at a time per shortcut). */
+-    ensure(appid: ShortcutId, route: AchievementsRoute, opts?: { native?: number }): Promise<Part<AchievementSet>>;
++    ensure(appid: ShortcutId, route: Route, opts?: { native?: number }): Promise<Part<AchievementSet>>;
+     /** One CheckUnlocks; returns how many new unlocks it found. */
+     checkNow(appid: ShortcutId, opts?: { native?: number; title?: string }): Promise<number>;
+     /** Poll while a game runs; the returned function stops it (with one final check). */
+@@ -80,7 +75,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+ 
+     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
+ 
+-    async function load(appid: ShortcutId, route: AchievementsRoute, native?: number): Promise<Part<AchievementSet>> {
++    async function load(appid: ShortcutId, route: Route, native?: number): Promise<Part<AchievementSet>> {
+         deps.ensureBase(appid);
+         const known = deps.records.get(appid)?.identity;
+         const identity = native && !known?.data?.native
+@@ -103,7 +98,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+         return part;
+     }
+ 
+-    async function ensure(appid: ShortcutId, route: AchievementsRoute, opts: { native?: number } = {}) {
++    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number } = {}) {
+         if (route.bucket === "none") {
+             const part: Part<AchievementSet> = { status: "unsupported" };
+             deps.ensureBase(appid);
+diff --git a/steam-cartridges/frontend/app/artwork.ts b/steam-cartridges/frontend/app/artwork.ts
+index 8417c16a6b1cf72b13d6db654d2f423d6a0ad96d..9c7ae96d715caf2ad7bc0fb67a38557f84c3a596 100644
+--- a/steam-cartridges/frontend/app/artwork.ts
++++ b/steam-cartridges/frontend/app/artwork.ts
+@@ -3,16 +3,11 @@
+ // per shortcut per session; the pure plan comes from domain/art-plan.
+ import { logger } from "../logger.ts";
+ import type { ShortcutId } from "../kernel/appid";
+-import type { ArtworkPlan, ArtworkUrls, Identity, Part, RecordStore, StoreApplied } from "../kernel/record";
++import type { ArtworkPlan, ArtworkUrls, Identity, Part, RecordStore, Route, StoreApplied } from "../kernel/record";
+ import type { backend as Backend } from "../ports/backend";
+ import { assetUrlsFromItem } from "../domain/store-item.ts";
+ import { artworkPlan, iconPlan, pickUrls, sgdbPlan, slotList } from "../domain/art-plan.ts";
+ 
+-export interface ArtworkRoute {
+-    bucket: "steam-store" | "web-scraping" | "none";
+-    via: string;
+-}
+-
+ /** A failed lookup is retried on a view after this long (as identity). */
+ const RETRY_MS = 5 * 60_000;
+ 
+@@ -32,7 +27,7 @@ export interface ArtworkDeps {
+ }
+ 
+ export interface ArtworkResolver {
+-    ensure(appid: ShortcutId, route: ArtworkRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>>;
++    ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>>;
+     /** Drop this session's memory so the next ensure asks the backend again. */
+     invalidate(appid: ShortcutId): void;
+     /**
+@@ -82,7 +77,7 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
+     const inflight = new Map<ShortcutId, Promise<Part<ArtworkPlan>>>();
+     const retryAt = new Map<ShortcutId, number>();
+ 
+-    async function resolve(appid: ShortcutId, route: ArtworkRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> {
++    async function resolve(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> {
+         if (route.bucket === "none") {
+             const part: Part<ArtworkPlan> = { status: "unsupported" };
+             resolved.add(appid);
+diff --git a/steam-cartridges/frontend/app/identity.ts b/steam-cartridges/frontend/app/identity.ts
+index 66c9c062c07b4e66df2a8084c68cdca5655e2d77..1038c59d88d5b96e496f31cec40738cb8dd12cdc 100644
+--- a/steam-cartridges/frontend/app/identity.ts
++++ b/steam-cartridges/frontend/app/identity.ts
+@@ -2,13 +2,8 @@
+ // one EnsureFresh call instead of up to three round trips (migration plan M4c).
+ import { logger } from "../logger.ts";
+ import type { ShortcutId } from "../kernel/appid";
+-import type { Identity, Part, RecordStore } from "../kernel/record";
+-import type { backend as Backend, OwnedCandidate } from "../ports/backend";
+-
+-export interface IdentityRoute {
+-    bucket: "steam-store" | "web-scraping" | "none";
+-    via: string;
+-}
++import type { Identity, OwnedCandidate, Part, RecordStore, Route } from "../kernel/record";
++import type { backend as Backend } from "../ports/backend";
+ 
+ /** A resolution failure (status "error") is retried on a view after this long. */
+ const RETRY_MS = 5 * 60_000;
+@@ -22,7 +17,7 @@ export interface IdentityDeps {
+ }
+ 
+ export interface IdentityResolver {
+-    ensure(appid: ShortcutId, route: IdentityRoute): Promise<Part<Identity>>;
++    ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>>;
+     invalidate(appid: ShortcutId): void;
+ }
+ 
+@@ -34,7 +29,7 @@ export function createIdentity(deps: IdentityDeps): IdentityResolver {
+     /** appid -> ms after which an "error" result may be retried. */
+     const retryAt = new Map<ShortcutId, number>();
+ 
+-    async function resolve(appid: ShortcutId, route: IdentityRoute): Promise<Part<Identity>> {
++    async function resolve(appid: ShortcutId, route: Route): Promise<Part<Identity>> {
+         if (route.bucket !== "steam-store") {
+             const part: Part<Identity> = { status: "unsupported" };
+             deps.records.update(appid, { identity: part });
+diff --git a/steam-cartridges/frontend/app/ingest.ts b/steam-cartridges/frontend/app/ingest.ts
+index fa7352db3b80805121dd4345612e9325ce387806..300b9df71ff51c3a0b34f1af4733d9d8ed302d02 100644
+--- a/steam-cartridges/frontend/app/ingest.ts
++++ b/steam-cartridges/frontend/app/ingest.ts
+@@ -9,21 +9,8 @@
+ // render for all of them at once; see knowledgebase Part 7.)
+ import { logger } from "../logger.ts";
+ import type { ShortcutId } from "../kernel/appid";
+-import type { Identity, Part } from "../kernel/record";
+-import type { backend as Backend, OwnedCandidate } from "../ports/backend";
+-
+-export interface SyncProgress {
+-    isSyncing: boolean;
+-    total: number;
+-    current: number;
+-    currentGame: string;
+-    phase: "idle" | "scraping" | "complete";
+-}
+-
+-export interface IngestRoute {
+-    bucket: "steam-store" | "web-scraping" | "none";
+-    via: string;
+-}
++import type { Identity, OwnedCandidate, Part, Route, SyncProgress } from "../kernel/record";
++import type { backend as Backend } from "../ports/backend";
+ 
+ export interface IngestDeps {
+     backend: Pick<typeof Backend, "getNewShortcuts" | "markKnown" | "ensureFresh">;
+@@ -31,7 +18,7 @@ export interface IngestDeps {
+     shortcuts(): { appid: number; name: string }[];
+     /** Routing inputs are loaded (auto-routing profiles, collections). */
+     ready(): Promise<void>;
+-    routeOf(appid: ShortcutId): IngestRoute;
++    routeOf(appid: ShortcutId): Route;
+     /** Routing rules and Auto Mode allow the plugin to touch this shortcut at all. */
+     isAllowed(appid: ShortcutId): boolean;
+     owned(): OwnedCandidate[];
+diff --git a/steam-cartridges/frontend/app/metadata.ts b/steam-cartridges/frontend/app/metadata.ts
+index 4e3e52eb3d202611b4776c1b1079de556bc3f71e..9b79c4b687cb87d5ae0429b41f44025648dc468b 100644
+--- a/steam-cartridges/frontend/app/metadata.ts
++++ b/steam-cartridges/frontend/app/metadata.ts
+@@ -1,15 +1,10 @@
+ // app/metadata: selects Game Info for a shortcut through one EnsureFresh call
+ // instead of the old scattered local/store/IGDB pipeline (migration plan M5b).
+ import type { ShortcutId } from "../kernel/appid";
+-import type { GameMetadata, Identity, Part, RecordStore } from "../kernel/record";
++import type { GameMetadata, Identity, Part, RecordStore, Route } from "../kernel/record";
+ import type { backend as Backend } from "../ports/backend";
+ import { metadataFromStoreItem } from "../domain/store-item";
+ 
+-export interface MetadataRoute {
+-    bucket: "steam-store" | "web-scraping" | "none";
+-    via: string;
+-}
+-
+ export interface MetadataDeps {
+     backend: Pick<typeof Backend, "ensureFresh" | "getAllRecords">;
+     records: RecordStore;
+@@ -25,7 +20,7 @@ export interface MetadataDeps {
+ }
+ 
+ export interface MetadataResolver {
+-    ensure(appid: ShortcutId, route: MetadataRoute, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
++    ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
+     /** Preload every record from the backend's disk-only bulk read (replaces initGameInfo's preload). */
+     preload(): Promise<void>;
+ }
+@@ -33,7 +28,7 @@ export interface MetadataResolver {
+ export function createMetadata(deps: MetadataDeps): MetadataResolver {
+     async function ensure(
+         appid: ShortcutId,
+-        route: MetadataRoute,
++        route: Route,
+         identity: Part<Identity> | undefined,
+         opts: { noNetwork?: boolean } = {},
+     ): Promise<Part<GameMetadata>> {
+diff --git a/steam-cartridges/frontend/app/routing.ts b/steam-cartridges/frontend/app/routing.ts
+index 1d5f5e1f32a12f81687f8021849c7c5aef177432..9f8e2f32468f503d21f2f1e2adb00b539eedf82e 100644
+--- a/steam-cartridges/frontend/app/routing.ts
++++ b/steam-cartridges/frontend/app/routing.ts
+@@ -1,13 +1,13 @@
+ import {
+     findConflicts,
+     resolveBucket,
+-    SHORTCUT_MIN,
+     type AutoRoutingProfile,
+     type Bucket,
+     type BucketsConfig,
+     type Resolution,
+ } from '../domain/routing/policy.ts';
+ import { pendingOr } from '../domain/routing/pending.ts';
++import { NON_STEAM_APPID_MIN } from '../kernel/appid.ts';
+ 
+ export interface CollectionInfo {
+     id: string;
+@@ -61,7 +61,7 @@ export function createRouting(inputs: RoutingInputs) {
+         const keys: Iterable<unknown> = apps instanceof Map ? apps.keys() : Array.isArray(apps) ? apps.map((a: any) => a?.appid ?? a) : [];
+         for (const k of keys) {
+             const n = Number(k);
+-            if (Number.isFinite(n) && n >= SHORTCUT_MIN) out.add(n);
++            if (Number.isFinite(n) && n >= NON_STEAM_APPID_MIN) out.add(n);
+         }
+         membershipCache.set(id, { at: now, set: out });
+         return out;
+@@ -120,7 +120,7 @@ export function createRouting(inputs: RoutingInputs) {
+         const autoMode = inputs.autoMode();
+         const autoProf = autoMode ? getAutoRoutingProfile(appid) : undefined;
+         const r =
+-            appid >= SHORTCUT_MIN && cfg.overrides[String(appid)]
++            appid >= NON_STEAM_APPID_MIN && cfg.overrides[String(appid)]
+                 ? resolveBucket(appid, cfg, membersOf, inputs.titleOf, autoProf)
+                 : (pendingOr<Resolution>(cfg.rules.length > 0, inputs.collections.ready(), () =>
+                       resolveBucket(appid, cfg, membersOf, inputs.titleOf, autoProf),
+diff --git a/steam-cartridges/frontend/app/steam-store.ts b/steam-cartridges/frontend/app/steam-store.ts
+index dc1bf20c40e5079a7618e55a9e3d9ae9546449fa..3b85e5473f3cfb6b911904620091cbd94958471e 100644
+--- a/steam-cartridges/frontend/app/steam-store.ts
++++ b/steam-cartridges/frontend/app/steam-store.ts
+@@ -1,11 +1,9 @@
+ import { logger } from "../logger";
+ import { backend, type StoreState } from "../ports/backend";
+-import type { GameMetadata, Identity, Part } from "../kernel/record";
++import type { GameMetadata, Identity, Part, Route } from "../kernel/record";
+ import { NON_STEAM_APPID_MIN } from "../kernel/appid";
+ import { iconRestoreOf, slotList } from "../domain/art-plan";
+ 
+-type Route = { bucket: "steam-store" | "web-scraping" | "none"; via: string };
+-
+ /** app/identity, for invalidation after a manual mapping write (plan § 7.0 D3, D8: public API). */
+ let identitySource: { invalidate(appid: number): void; ensure(appid: number, route: Route): Promise<Part<Identity>> } = {
+     invalidate: () => {},
+diff --git a/steam-cartridges/frontend/app/view.ts b/steam-cartridges/frontend/app/view.ts
+index b6d4fd12f1519228df60502d6449dc9d1329d593..1ec34cf48b953bf6fe2a7d42d705efe0b0290ed2 100644
+--- a/steam-cartridges/frontend/app/view.ts
++++ b/steam-cartridges/frontend/app/view.ts
+@@ -4,22 +4,17 @@
+ // backend's TTLs (fresh_policy.lua) decide whether anything is fetched, so a fresh page costs no
+ // network. A Steam render never starts a view (M0a): views come from sensors/view.
+ import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
+-import type { ArtworkPlan, GameMetadata, Identity, Part } from "../kernel/record";
+-
+-export interface ViewRoute {
+-    bucket: "steam-store" | "web-scraping" | "none";
+-    via: string;
+-}
++import type { ArtworkPlan, GameMetadata, Identity, Part, Route } from "../kernel/record";
+ 
+ export interface ViewDeps {
+     routing: {
+-        getBucket(appid: number): ViewRoute;
++        getBucket(appid: number): Route;
+         waitForCollections(timeoutMs?: number): Promise<boolean>;
+     };
+-    identity: { ensure(appid: ShortcutId, route: ViewRoute): Promise<Part<Identity>> };
+-    metadata: { ensure(appid: ShortcutId, route: ViewRoute, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
+-    artwork: { ensure(appid: ShortcutId, route: ViewRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
+-    achievements: { ensure(appid: ShortcutId, route: ViewRoute): Promise<unknown> };
++    identity: { ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>> };
++    metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
++    artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
++    achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
+     /** The Steam Store bucket's side effects (features/steam-store): true = a Steam match, false = none. */
+     steamStore: {
+         onView(appid: ShortcutId, identity: Part<Identity>): Promise<boolean | undefined>;
+@@ -54,7 +49,7 @@ export function createView(deps: ViewDeps): View {
+         inflight.add(id);
+         try {
+             const { bucket, via } = deps.routing.getBucket(id);
+-            const route: ViewRoute = { bucket, via };
++            const route: Route = { bucket, via };
+             if (via === "pending") {
+                 // Local Game Info only until collections load (ADR-0035); replayed then.
+                 deferred.add(id);
+diff --git a/steam-cartridges/frontend/domain/routing/policy.ts b/steam-cartridges/frontend/domain/routing/policy.ts
+index f5d7919f1947f5456ced422e21553432be1361bb..63639e7cdcb94109b57e7e8d2bd668bc67643bf1 100644
+--- a/steam-cartridges/frontend/domain/routing/policy.ts
++++ b/steam-cartridges/frontend/domain/routing/policy.ts
+@@ -1,12 +1,14 @@
+ /**
+- * Pure bucket resolution (ADR-0033, amended by ADR-0036). No runtime imports,
+- * so Node can run the unit tests with type stripping.
++ * Pure bucket resolution (ADR-0033, amended by ADR-0036). Its one runtime import (the kernel)
++ * carries `.ts`, so Node can run the unit tests with type stripping.
+  *
+  * ADR-0036: a shortcut that no rule claims gets the fixed default bucket
+  * `steam-store`. A steam-store game with no Steam match falls back to web
+  * scraping at view time (app/view.ts), not here. Each collection
+  * rule may narrow itself with title patterns (include / exclude).
+  */
++import { NON_STEAM_APPID_MIN } from '../../kernel/appid.ts';
++
+ export type Bucket = 'steam-store' | 'web-scraping' | 'none';
+ 
+ export interface CollectionRule {
+@@ -42,7 +44,6 @@ export interface Resolution {
+ export type MembersOf = (collectionId: string) => ReadonlySet<number> | undefined;
+ export type TitleOf = (appid: number) => string | undefined;
+ 
+-export const SHORTCUT_MIN = 0x8000_0000;
+ export const MAX_PATTERNS = 32;
+ export const MAX_PATTERN_LENGTH = 100;
+ 
+@@ -131,7 +132,7 @@ export function validateConfig(raw: unknown): BucketsConfig {
+ 
+     if (r.overrides && typeof r.overrides === 'object' && !Array.isArray(r.overrides)) {
+         for (const [key, bucket] of Object.entries(r.overrides)) {
+-            if (!/^\d+$/.test(key) || Number(key) < SHORTCUT_MIN || !isBucket(bucket)) continue;
++            if (!/^\d+$/.test(key) || Number(key) < NON_STEAM_APPID_MIN || !isBucket(bucket)) continue;
+             out.overrides[key] = bucket;
+         }
+     }
+@@ -145,7 +146,7 @@ export function resolveBucket(
+     titleOf: TitleOf = () => undefined,
+     autoProfile?: AutoRoutingProfile,
+ ): Resolution {
+-    if (!(appid >= SHORTCUT_MIN)) return { bucket: 'none', via: 'not-a-shortcut' };
++    if (!(appid >= NON_STEAM_APPID_MIN)) return { bucket: 'none', via: 'not-a-shortcut' };
+ 
+     const override = cfg.overrides[String(appid)];
+     if (override) return { bucket: override, via: 'override' };
+diff --git a/steam-cartridges/frontend/kernel/record.ts b/steam-cartridges/frontend/kernel/record.ts
+index 15cd90343559f8bf27eb6c6bb0c37cfe691ad3d7..382c73abc0a8063639874579e620e41e702537f5 100644
+--- a/steam-cartridges/frontend/kernel/record.ts
++++ b/steam-cartridges/frontend/kernel/record.ts
+@@ -142,12 +142,35 @@ export interface ArtworkPlan {
+  */
+ export type IconPlan = { url: string; base64?: string } | { restore: string };
+ 
++/**
++ * The routing policy's answer for one shortcut (domain/routing, ADR-0040): which bucket, and why.
++ * Passed to every app/ resolver and to the backend as context; not stored in the record (ADR-0044).
++ */
++export interface Route {
++    bucket: "steam-store" | "web-scraping" | "none";
++    via: string;
++}
++
++/** A native game Steam already knows (sensors/owned-apps), sent to the resolver as context. */
++export interface OwnedCandidate {
++    appid: number;
++    name: string;
++}
++
++/** Progress of the background ingestion (app/ingest), shown by the settings panel. */
++export interface SyncProgress {
++    isSyncing: boolean;
++    total: number;
++    current: number;
++    currentGame: string;
++    phase: "idle" | "scraping" | "complete";
++}
++
+ export interface GameRecord {
+     appid: ShortcutId;
+     gameid: string;
+     title: string;
+     exe: string;
+-    route?: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
+     identity?: Part<Identity>;
+     metadata?: Part<GameMetadata>;
+     achievements?: Part<AchievementSet>;
+@@ -155,7 +178,7 @@ export interface GameRecord {
+     artwork?: Part<ArtworkPlan>;
+ }
+ 
+-export type RecordPart = "route" | "identity" | "metadata" | "achievements" | "media" | "artwork";
++export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork";
+ 
+ export interface RecordStore {
+     get(appid: ShortcutId): GameRecord | undefined;
+diff --git a/steam-cartridges/frontend/ports/backend.ts b/steam-cartridges/frontend/ports/backend.ts
+index 22be9d93bab40b57f74aeee19bb270709bb3d9f6..0fccd5e97932ef407e19a15db7ec4aa3965296c9 100644
+--- a/steam-cartridges/frontend/ports/backend.ts
++++ b/steam-cartridges/frontend/ports/backend.ts
+@@ -1,7 +1,7 @@
+ // The record facade RPC client (migration plan M4b/M4c; M5a extends it with
+ // metadata and GetAllRecords). Imports kernel types only; transport from
+ // ports/transport.ts.
+-import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, Part, RecordPart, StoreApplied } from "../kernel/record";
++import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, OwnedCandidate, Part, RecordPart, Route, StoreApplied } from "../kernel/record";
+ import { call } from "./transport";
+ 
+ export interface ProviderStatus {
+@@ -60,16 +60,11 @@ export interface StoreState {
+     applied_artwork: Record<string, StoreApplied>;
+ }
+ 
+-export interface OwnedCandidate {
+-    appid: number;
+-    name: string;
+-}
+-
+ export interface FreshContext {
+     /** The shortcut's display name (""  when unknown). */
+     title: string;
+     /** The frontend's evaluated routing policy (ADR-0040). */
+-    route: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
++    route: Route;
+     /** Identity only: natives Steam already knows (sensors/owned-apps). */
+     owned?: OwnedCandidate[];
+     /** Metadata only (M5): StoreItemCache data for identity.native. */
+diff --git a/steam-cartridges/frontend/sensors/owned-apps/index.ts b/steam-cartridges/frontend/sensors/owned-apps/index.ts
+index d37af0274580f663934f8792fccc2536950ca709..a8710e94821172783fb5d1799a778facdabd38d8 100644
+--- a/steam-cartridges/frontend/sensors/owned-apps/index.ts
++++ b/steam-cartridges/frontend/sensors/owned-apps/index.ts
+@@ -2,11 +2,8 @@
+ // already knows, for the resolver's context. Moved verbatim from
+ // features/steam-store/known-apps.ts `readNativeGames`.
+ 
+-/** Structural match of ports/backend's OwnedCandidate (no import: ADR-0039 layers). */
+-export interface OwnedCandidate {
+-    appid: number;
+-    name: string;
+-}
++import { NON_STEAM_APPID_MIN } from "../../kernel/appid";
++import type { OwnedCandidate } from "../../kernel/record";
+ 
+ /** Steam's app_type for a game (P0 T3: 309 of 470 native entries here). */
+ const APP_TYPE_GAME = 1;
+@@ -15,6 +12,6 @@ const APP_TYPE_GAME = 1;
+ export function ownedCandidates(): OwnedCandidate[] {
+     const all: any[] = (window as any).appStore?.allApps ?? [];
+     return all
+-        .filter((a) => a && a.appid > 0 && a.appid < 0x8000_0000 && a.app_type === APP_TYPE_GAME && a.display_name)
++        .filter((a) => a && a.appid > 0 && a.appid < NON_STEAM_APPID_MIN && a.app_type === APP_TYPE_GAME && a.display_name)
+         .map((a) => ({ appid: a.appid as number, name: String(a.display_name) }));
+ }
+diff --git a/steam-cartridges/frontend/settings/context.ts b/steam-cartridges/frontend/settings/context.ts
+index 8ea99e394d717957ccc16c49cff142f8451c0d70..2081a183ab4ae511fc404fad8c604e5715d9f43c 100644
+--- a/steam-cartridges/frontend/settings/context.ts
++++ b/steam-cartridges/frontend/settings/context.ts
+@@ -2,7 +2,7 @@
+ // setPanelContext() at the top of init(); panels read it with usePanelContext(). Structural types only,
+ // never an import of app/, surfaces/ or features/. Backend calls go through ports/backend.ts.
+ import type { AutoRoutingProfile } from '../domain/routing/policy';
+-import type { SyncProgress } from './settings';
++import type { SyncProgress } from '../kernel/record';
+ 
+ export interface PanelContext {
+     routing: {
+diff --git a/steam-cartridges/frontend/settings/settings.ts b/steam-cartridges/frontend/settings/settings.ts
+index e7a913bc24c20f5aea2d1370a803867004f51d09..f0946b8e5f2269b482f571b6f661c39a59222118 100644
+--- a/steam-cartridges/frontend/settings/settings.ts
++++ b/steam-cartridges/frontend/settings/settings.ts
+@@ -8,14 +8,6 @@ export { DEFAULTS, DEFAULT_SERVICES };
+ export type { ControllerOverride, LaunchNotifyOption, ServicesConfig, SettingKey, Settings } from './defaults';
+ 
+ /** Progress of the background sync (app/ingest.ts), for the panel (plan § 7.0 D3: never an import of app/). */
+-export interface SyncProgress {
+-    isSyncing: boolean;
+-    total: number;
+-    current: number;
+-    currentGame: string;
+-    phase: 'idle' | 'scraping' | 'complete';
+-}
+-
+ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
+     buckets: validateConfig,
+     defaultFullController: (raw) => raw === true,
+diff --git a/steam-cartridges/frontend/settings/sync-progress.tsx b/steam-cartridges/frontend/settings/sync-progress.tsx
+index f277f132db9878b7ad4c24a8b656974d5701d7b4..68ff3b210f775c8c26094b21988432f219a86a25 100644
+--- a/steam-cartridges/frontend/settings/sync-progress.tsx
++++ b/steam-cartridges/frontend/settings/sync-progress.tsx
+@@ -1,7 +1,7 @@
+ // Settings: the sticky sync progress bar and its hook (migration plan M8c).
+ import { useEffect, useState } from "react";
+ import { usePanelContext } from "./context";
+-import type { SyncProgress } from "./settings";
++import type { SyncProgress } from "../kernel/record";
+ 
+ export function useSyncProgress(): SyncProgress {
+     const ctx = usePanelContext();
+diff --git a/steam-cartridges/frontend/steam/gameid.ts b/steam-cartridges/frontend/steam/gameid.ts
+deleted file mode 100644
+index 62eaaf7d589c0b0ed9b9d3742a548a8baca8e728..0000000000000000000000000000000000000000
+--- a/steam-cartridges/frontend/steam/gameid.ts
++++ /dev/null
+@@ -1,28 +0,0 @@
+-/**
+- * Steam's two ids for a non-Steam game.
+- *
+- *   appid  - 32-bit, in shortcuts.vdf and library URLs (/library/app/<appid>)
+- *   gameid - 64-bit, for screenshot folders and recordings
+- *
+- *   gameid = (appid << 32) | 0x02000000
+- *   appid  = gameid >> 32
+- *
+- * `0x02000000` is the constant low word marking a shortcut. Verified against
+- * all 9 non-Steam screenshot folders on the dev machine.
+- *
+- * The backend does this with hand-rolled base-10^7 limb arithmetic because Lua
+- * numbers are doubles. TypeScript has BigInt, so here it is just the shift.
+- *
+- * This conversion is the reason non-Steam clips never appear natively: Steam's
+- * own helper truncates the result to 32 bits, so it asks the recording service
+- * for the wrong game. Asking with the correct 64-bit value returns the clips
+- * (verified live: 3 for AM2R). See docs/steam-components.md.
+- */
+-
+-const SHORTCUT_LOW_WORD = 0x0200_0000n;
+-
+-/** Compose the 64-bit gameid for a shortcut, as a decimal string. */
+-export function gameIdFromAppId(appid: number): string {
+-  return ((BigInt(appid) << 32n) | SHORTCUT_LOW_WORD).toString();
+-}
+-
+diff --git a/steam-cartridges/frontend/surfaces/captures/publish.ts b/steam-cartridges/frontend/surfaces/captures/publish.ts
+index ae8267df872786ff35e9e21d96162ef18476332b..11dbf8cc1b55bbf3f7131c9fd7daf70dccbc5554 100644
+--- a/steam-cartridges/frontend/surfaces/captures/publish.ts
++++ b/steam-cartridges/frontend/surfaces/captures/publish.ts
+@@ -1,6 +1,6 @@
+ import { logger } from "../../logger";
+ import { clearActivity, publishActivity } from "./activity";
+-import { gameIdFromAppId } from "../../steam/gameid";
++import { toGameId, type ShortcutId } from "../../kernel/appid";
+ import { clearSummary, publishSummary } from "./summary";
+ 
+ /**
+@@ -38,7 +38,7 @@ export function setContentListener(fn: (appid: number, hasContent: boolean) => v
+  * it also decides when to clear.
+  */
+ export async function patch(appid: number): Promise<void> {
+-    const gameid = gameIdFromAppId(appid);
++    const gameid = toGameId(appid as ShortcutId);
+ 
+     try {
+         const [summaryCount, activityCount] = await Promise.all([
+diff --git a/steam-cartridges/frontend/surfaces/native-links/core.ts b/steam-cartridges/frontend/surfaces/native-links/core.ts
+index dda7fd2e8b3ba6453517498ad909a9925f9bc9a3..53187c0b3befd2b0264d0633219874f98c65747c 100644
+--- a/steam-cartridges/frontend/surfaces/native-links/core.ts
++++ b/steam-cartridges/frontend/surfaces/native-links/core.ts
+@@ -1,6 +1,6 @@
+ /**
+- * Pure part of the section appid redirection (parity plan C). No imports, so
+- * Node can run the unit tests with type stripping.
++ * Pure part of the section appid redirection (parity plan C). Its one import (the kernel)
++ * carries `.ts`, so Node can run the unit tests with type stripping.
+  *
+  * Steam's own Links, Friends and Community sections load their data by appid
+  * (`overview.appid`, `details.unAppID`, `appid`). For a shortcut with a Steam
+@@ -9,9 +9,10 @@
+  * ADR-0009). A shortcut without a match gets Steam's stock behaviour: no links
+  * (a shortcut's own appid has no store page).
+  */
++import { NON_STEAM_APPID_MIN } from '../../kernel/appid.ts';
++
+ export type RedirectKind = 'links' | 'friends' | 'community' | 'event';
+ 
+-export const SHORTCUT_MIN = 0x8000_0000;
+ 
+ const proxies = new WeakMap<object, Map<number, object>>();
+ 
+@@ -74,14 +75,14 @@ export function redirectProps(
+     if (!props) return undefined;
+     if (kind === 'links') {
+         const ov = props.overview;
+-        if (!ov || typeof ov !== 'object' || !(ov.appid >= SHORTCUT_MIN)) return undefined;
++        if (!ov || typeof ov !== 'object' || !(ov.appid >= NON_STEAM_APPID_MIN)) return undefined;
+         const native = nativeOf(ov.appid);
+         props.overview = linksOverview(ov, native);
+         return native ?? 0;
+     }
+     if (kind === 'friends') {
+         const d = props.details;
+-        if (!d || typeof d !== 'object' || !(d.unAppID >= SHORTCUT_MIN)) return undefined;
++        if (!d || typeof d !== 'object' || !(d.unAppID >= NON_STEAM_APPID_MIN)) return undefined;
+         const native = nativeOf(d.unAppID);
+         if (native === undefined) return undefined;
+         props.details = nativeDetails(d, native);
+@@ -90,7 +91,7 @@ export function redirectProps(
+     // community (Community Content `{appid}`) and event (partner event overlay
+     // `{appid, initialEventID}`, which renders only when appid is the event's app).
+     const appid = props.appid;
+-    if (!(appid >= SHORTCUT_MIN)) return undefined;
++    if (!(appid >= NON_STEAM_APPID_MIN)) return undefined;
+     const native = nativeOf(appid);
+     if (native === undefined) return undefined;
+     props.appid = native;
+@@ -109,7 +110,7 @@ export function navigationTarget(
+     isKnown: (appid: number) => boolean,
+     shortcutOf: (nativeAppid: number) => number | undefined,
+ ): number | undefined {
+-    if (typeof appid !== 'number' || appid >= SHORTCUT_MIN) return undefined;
++    if (typeof appid !== 'number' || appid >= NON_STEAM_APPID_MIN) return undefined;
+     const shortcut = shortcutOf(appid);
+     if (shortcut === undefined || isKnown(appid)) return undefined;
+     return shortcut;
+@@ -132,7 +133,7 @@ export function cleanLinksProps(
+     if (!hasSupport) return false;
+ 
+     const targetAppid = props.overview?.appid ?? links.find((l) => typeof l.appid === 'number')?.appid;
+-    if (typeof targetAppid === 'number' && (targetAppid >= SHORTCUT_MIN || isShortcutOrMapped(targetAppid))) {
++    if (typeof targetAppid === 'number' && (targetAppid >= NON_STEAM_APPID_MIN || isShortcutOrMapped(targetAppid))) {
+         props.links = links.filter(
+             (l) => l?.link !== 'HelpAppPage' && !String(l?.url || '').includes('HelpWithGame') && !String(l?.url || '').includes('help.steampowered.com')
+         );
+@@ -151,7 +152,7 @@ const shortcutMenuApps = new WeakMap<object, object>();
+ 
+ export function shortcutSafeApps<T extends { appid?: number }>(rgApps: readonly T[]): T[] {
+     return rgApps.map((app) => {
+-        if (!app || typeof app.appid !== 'number' || (app.appid >>> 0) < SHORTCUT_MIN) return app;
++        if (!app || typeof app.appid !== 'number' || (app.appid >>> 0) < NON_STEAM_APPID_MIN) return app;
+         let p = shortcutMenuApps.get(app);
+         if (!p) {
+             p = new Proxy(app, {

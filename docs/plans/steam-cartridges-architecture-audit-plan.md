@@ -1,8 +1,11 @@
 # Plan: audit the steam-cartridges migration, then close its gaps (M10)
 
-**Status:** Part 1 **Ready** (2026-09-30): an executor can run it now. It was dry-run on `08b2960`: the scan script, its expected output, every
-seeded finding's evidence and the baseline counts are observed, not derived (§ 12). Part 2 (§ 7) is a **design** that an architect turns into
-the M10 child plan once Part 1 and the user's decisions (§ 5 S7) are in.
+**Status:** **Superseded for execution (2026-09-30).** The user asked for Part 2 to be detailed right away with every decision taken:
+it is [steam-cartridges-m10-gap-batch-plan.md](steam-cartridges-m10-gap-batch-plan.md) (Ready, 13 patch steps, dry-run replayed), and the
+decisions Q1–Q8 are answered there (§ 0) and in [ADR-0044](../decisions.md#adr-0044-steam-cartridges-layers-stay-dumb-and-a-test-checks-what-each-layer-does).
+The architect verified the seeded findings while building the batch (M10 § 1 names what each step closes; F03 and F15 resolved as
+exceptions, F22 kept with its reason, K20 found). **Do not execute Part 1.** This document stays as the evidence record: the findings
+(§ 3), the decision register (§ 4) and the pre-M10 scan output (`steam-cartridges-architecture-audit/`, which drifts after M10 by design).
 **Kind:** Part 1 is a read-only audit: it changes no product code, deploys nothing, runs nothing live. It ends in a findings doc, a
 reviewed decision register and the user's answers. Part 2 is the fix batch ("M10: close the gaps"), one commit per item, each revertible.
 **Written for:** Part 1, an executor who follows steps literally; Part 2, the architect who writes M10.

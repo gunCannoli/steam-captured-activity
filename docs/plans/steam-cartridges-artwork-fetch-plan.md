@@ -1,8 +1,10 @@
 # Plan: artwork image fetch leaves the surface (one job per layer, for the four art slots and the icon)
 
-**Status:** Draft (2026-09-29), item A1 of the [audit plan § 4b](steam-cartridges-architecture-audit-plan.md) (executed inside that batch, not on its own). **Not dry-run yet** (§ 9); decisions recorded in § 0: the before blocks were copied from `98397df`, the after blocks and the
-expected test counts are derived, not observed. A dry-run in a scratch worktree (as the icon plan's § 9) is the first task of
-whoever executes this. Do not hand it to a weak implementer before that.
+**Status:** **Superseded (2026-09-30): executed as step 7 of [the M10 plan](steam-cartridges-m10-gap-batch-plan.md)** (`07-artwork.patch`, dry-run
+replayed). Do not execute this plan. Two design changes there (ADR-0044, Q1): the image bin holds the four slots only, and the icon
+file is stored by `app/artwork` through `SteamStoreSaveIcon` before the plan reaches the record (`IconPlan` = `{ path, previous }`);
+the surface emits `artwork.applied` and `app/artwork` records it, so no surface calls the backend. This document keeps the root cause
+(§ 1) and the live checks (§ 7) the M10 plan refers to.
 **Kind:** Architecture cleanup (ADR-0039), no user-visible change.
 **Asked for by:** the user, 2026-09-29, after the icon refactor: "keep the architecture clean regarding
 `surfaces/artwork/artwork.ts` still has its own `fetchImageAsBase64`, with the same concept" (port fetches, app hands the bytes over,

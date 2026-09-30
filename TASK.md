@@ -25,9 +25,7 @@ working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7
 
 **Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
 
-**Migration audit and gap-fix batch (Part 1 Ready, 2026-09-30).** [steam-cartridges-architecture-audit-plan.md](docs/plans/steam-cartridges-architecture-audit-plan.md): Part 1 (read-only, dry-run on `08b2960`) verifies 32 seeded findings (2 bugs: artwork fetch A1, guardrail 8 `appData.details = {}` in `surfaces/achievements`) and a 22-row decision register, then asks the user Q1-Q8; Part 2 (M10, one revertible commit per item, capability ratchet last) is written by an architect afterwards. Next: execute Part 1.
-
-**Artwork fetch cleanup (draft plan 2026-09-29).** The four art slots still fetch inside `surfaces/artwork`; plan to move it to `ports/image` + `app/artwork` + a kernel image bin, and to remove the backend download RPC (it returns a 4-byte body): [steam-cartridges-artwork-fetch-plan.md](docs/plans/steam-cartridges-artwork-fetch-plan.md). Needs a dry-run first (plan § 9).
+**M10 gap batch (Ready, 2026-09-30).** [steam-cartridges-m10-gap-batch-plan.md](docs/plans/steam-cartridges-m10-gap-batch-plan.md): 13 patch steps (dry-run replayed, byte-identical) that close the migration audit's gaps and add the capability ratchet; decisions in [ADR-0044](docs/decisions.md#adr-0044-steam-cartridges-layers-stay-dumb-and-a-test-checks-what-each-layer-does). Next: execute it (live verification § 8 needs a Steam restart). Runs before F1, whose patches must then be regenerated. Found: K20 (controller inference is never loaded at start-up), plan § 12.
 
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:

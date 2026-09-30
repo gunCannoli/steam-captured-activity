@@ -2695,3 +2695,67 @@ switches a failing part off: `init()` either hooks everything or nothing.
   a reason in its plan.
 - Not adopted from ADR-0039: the `GameRecord` read model, backend services and per-layer docs. One doc,
   `docs/enhanced-achievements/architecture.md`, covers the plugin.
+
+---
+
+## ADR-0044: steam-cartridges layers stay dumb, and a test checks what each layer does
+
+**Status:** Accepted · 2026-09-30 (the user: "keep each layer boring and dumb only with its own job, preventing the
+pollution that caused the migration in the first place"; the layers stay as they are) · Implemented by
+[the M10 gap batch](plans/steam-cartridges-m10-gap-batch-plan.md) ·
+**Amends [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)**
+(migration decisions D3 and D4, § 4.2 `GameRecord.route`, § 4.3 file layout, the § 4.1 settings row) ·
+**Keeps [ADR-0040](#adr-0040-routing-policy-stays-pure-typescript-in-the-frontend-domain-layer),
+[ADR-0041](#adr-0041-jsx-runtime-hooks-stay-one-per-concern), [ADR-0042](#adr-0042-game-info-is-re-applied-from-steams-overview-rebuild-the-render-time-check-is-only-a-fallback)**
+
+### Context
+
+The migration (ADR-0039) was enforced by an import ratchet only. The
+[audit](plans/steam-cartridges-architecture-audit-plan.md) found 30+ places where a layer did another layer's job
+without an import edge: surfaces fetching and calling the backend through functions `index.tsx` injected (D3, meant
+as a migration bridge, became permanent), surfaces calling each other the same way, `index.tsx` holding ~120 lines of
+logic, the frontend keeping a retry TTL beside the backend's, triple-key appid lookups the kernel was built to end,
+and one guardrail-8 write (`appData.details = {}`).
+
+### Decision
+
+1. **One job per layer, no new layers.** kernel: shapes, events, the record, pure containers. domain: pure policy.
+   sensors: detect what the user does and what Steam knows. app: decide and orchestrate, with injected deps.
+   ports: the only door to the network and the backend. surfaces: write to Steam what the record or an event says.
+   steam: the one webpack scanner and jsx dispatcher. settings: the settings store and its panels.
+   `index.tsx`: create and wire, nothing else (plus the safety bootstrap, the legacy-plugin guard and the
+   guardrail-16 alias block). Backend: a service owns its data; a store stores, a source fetches; an RPC module is a
+   facade nobody `require`s; `registry.shortcut` is the one `shortcuts.vdf` lookup.
+2. **What a surface may be given (supersedes D3 after the migration):** its `SurfaceDeps`, pure reads (the record,
+   a setting, the kernel image bin, app-loaded stats) and the `bus` to emit **its own result event**
+   (`artwork.applied`, `captures.published`). Never a function that reaches the backend or another surface. A
+   Steam-side input a surface needs arrives as a kernel event that `index.tsx` subscribes the surface's handler to
+   (`window.opened`/`window.closed`, `achievements.unlocked`, `achievements.launch-toast`, `captures.published`).
+   (Q1: the artwork write-back goes out as `artwork.applied` and `app/artwork` records it; the icon file is stored by
+   `app/artwork` before the plan reaches the record.)
+3. **app/ modules are `create*` factories** with their collaborators passed in: no module state, no setters, no
+   value import of the backend port.
+4. **Freshness belongs to the backend** (Q5). The frontend memo remembers only final answers (`ok`, `unsupported`)
+   for the session; the backend's `fresh_policy` answers a repeat failure of identity or artwork from memory for its
+   30-minute error TTL (no file format change).
+5. **`GameRecord.route` is removed** (Q2; § 4.2 says removing a field needs an ADR: this one). The route is policy
+   evaluated per view and passed as context; its one shape is the kernel's `Route`.
+6. **Backend layout as built** (Q3): the § 4.3 `src_*` file names are not adopted; the `{ id, supports, fetch }`
+   source contract binds every new source.
+7. **settings may import domain** for types and validators (Q4); evaluating policy goes through `PanelContext` to
+   `app/routing`. Settings changes travel on the settings store's own change events, not `window` events.
+8. **Detection is the sensors'** (Q7): the view sensor reports window lifecycle; `captures` styles the window it is
+   handed.
+9. **index.tsx's public exports keep their names and behaviour** (Q8, D8); their bodies delegate to app/.
+10. **A test checks what each layer does:** `tests/architecture.test.ts` gains a capability ratchet (forbidden
+    identifiers per area, frozen exceptions each with its reason, only shrinking), a check that no surface is
+    injected a backend call or another surface, the sanctioned second-listener list (ADR-0042), the unwired-RPC list
+    (D13) and two backend rules (no RPC module as a library, no store that fetches).
+11. **Order** (Q6): M10 runs before the F1 Game Data editor plan, whose patches are regenerated afterwards.
+
+### Consequences
+
+- A new feature finds its place by the table in `docs/steam-cartridges/README.md`; a diff that makes a layer do
+  another's job fails `npm run test:ts` with the rule's reason, not in review.
+- A Steam boundary still converts appids (Steam keys shortcuts signed or unsigned); those files are named exceptions.
+- Cost: one batch of 13 commits touching most frontend files; each is revertible on its own (the M10 plan § 5).

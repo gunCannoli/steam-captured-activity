@@ -1,0 +1,371 @@
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index b3d88fb4e65abb0b74ed428316d37c1cd74f52b6..a9fff2ba02b8e8df0380d1c00fd663ce14198e65 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -5,6 +5,8 @@ import {
+     patch as patchLibraryApp,
+     refresh as refreshLibraryApp,
+     addSessionAchievement,
++    onWindowClosed as capturesWindowClosed,
++    onWindowOpened as capturesWindowOpened,
+     setContentListener,
+     unpatch as unpatchLibraryApp,
+ } from "./surfaces/captures";
+@@ -43,7 +45,7 @@ import { bus } from "./app/bus";
+ import { installViewSensor } from "./sensors/view";
+ import { installLifecycleSensor } from "./sensors/lifecycle";
+ import { collectionsSource } from "./sensors/collections";
+-import { resolveShortcutTitle } from "./steam/shortcut";
++import { listShortcuts, shortcutTitle } from "./sensors/shortcuts";
+ import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
+ import { backend } from "./ports/backend";
+ import {
+@@ -104,7 +106,7 @@ function serviceAllowed(service: ServiceTarget, appid: number): boolean {
+     return isServiceAllowed(
+         service,
+         appid,
+-        resolveShortcutTitle(appid) ?? "",
++        shortcutTitle(appid) ?? "",
+         collNames,
+         setting("routingRules"),
+         setting("autoRoutingMode"),
+@@ -120,20 +122,8 @@ const routing = createRouting({
+     buckets: () => setting("buckets"),
+     autoMode: () => setting("autoRoutingMode"),
+     collections: collectionsSource,
+-    titleOf: (appid) => {
+-        try {
+-            const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
+-            return typeof name === "string" ? name : undefined;
+-        } catch {
+-            return undefined;
+-        }
+-    },
+-    shortcuts: () => {
+-        const all: any[] = (window as any).appStore?.allApps ?? [];
+-        return all
+-            .filter((a) => a?.appid >= 0x8000_0000)
+-            .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
+-    },
++    titleOf: shortcutTitle,
++    shortcuts: listShortcuts,
+     loadProfiles: async () => (await backend.getAutoRoutingProfiles())?.profiles ?? {},
+     metadataAppids: () => records.store.all().filter((r) => r.metadata).map((r) => r.appid),
+ });
+@@ -148,14 +138,7 @@ const identity = createIdentity({
+     backend,
+     records: records.store,
+     owned: ownedCandidates,
+-    titleOf: (appid) => {
+-        try {
+-            const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
+-            return typeof name === "string" ? name : undefined;
+-        } catch {
+-            return undefined;
+-        }
+-    },
++    titleOf: shortcutTitle,
+     now: () => Date.now(),
+ });
+ 
+@@ -164,8 +147,8 @@ const identity = createIdentity({
+ const metadata = createMetadata({
+     backend,
+     records: records.store,
+-    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
+-    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
++    titleOf: (appid) => shortcutTitle(appid),
++    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+     allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
+     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
+@@ -177,8 +160,8 @@ const achievements = createAchievements({
+     backend,
+     records: records.store,
+     bus,
+-    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
+-    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
++    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
++    titleOf: (appid) => shortcutTitle(appid),
+     routeOf: (appid) => routing.getBucket(appid),
+     resolveNative: async (appid) => {
+         const known = records.store.get(appid)?.identity?.data?.native?.appid;
+@@ -198,8 +181,8 @@ const achievements = createAchievements({
+ const artwork = createArtwork({
+     backend,
+     records: records.store,
+-    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
+-    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
++    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
++    titleOf: (appid) => shortcutTitle(appid),
+     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+     fetchImage,
+     allowSgdb: (appid) => setting("services").steamgriddbEnabled !== false && serviceAllowed("steamgriddb", appid),
+@@ -354,7 +337,7 @@ async function init() {
+     bus.on("record.updated", ({ appid, parts }) => renderQueue.push(appid, parts));
+     // The record must exist before anything writes a part to it (kernel/record.ts update()
+     // is a no-op for an unknown appid); every view ensures its base record first.
+-    bus.on("shortcut.viewed", ({ appid }) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""));
++    bus.on("shortcut.viewed", ({ appid }) => records.ensureBase(appid, shortcutTitle(appid) ?? ""));
+ 
+     // Settings first: the Game Info gate reads them (ADR-0033).
+     await initSettings();
+@@ -514,6 +497,9 @@ async function init() {
+     bus.on("shortcut.left", ({ appid }) => {
+         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
+     });
++    // Big Picture thumbnail styling goes into each gamepad window the view sensor reports.
++    bus.on("window.opened", capturesWindowOpened);
++    bus.on("window.closed", capturesWindowClosed);
+ 
+     // ===== Refresh after play =====
+     // Quitting a game is exactly when new screenshots and clips exist, so
+diff --git a/steam-cartridges/frontend/kernel/events.ts b/steam-cartridges/frontend/kernel/events.ts
+index 9e1b8c7e50f6cc387402072c7c6f39aeba42d1f0..6b2239a112b194ff7ff77bad915136f40db78da5 100644
+--- a/steam-cartridges/frontend/kernel/events.ts
++++ b/steam-cartridges/frontend/kernel/events.ts
+@@ -10,7 +10,10 @@ export interface Events {
+     /** The user left a shortcut's page. */
+     "shortcut.left": { appid: ShortcutId; mode: "desktop" | "gamepad" };
+     "shortcut.launched": { appid: ShortcutId; name: string };
+-    "shortcut.quit": { appid: ShortcutId };
++    "shortcut.quit": { appid: ShortcutId; name: string };
++    /** A Steam window opened or closed (view sensor); `document` is the window's own DOM document. */
++    "window.opened": { mode: "desktop" | "gamepad"; document: Document | undefined };
++    "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
+     /** Parts of a GameRecord changed; surfaces re-render only if they read one of `parts`. */
+     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
+     "achievements.unlocked": { appid: ShortcutId; ids: string[] };
+diff --git a/steam-cartridges/frontend/sensors/lifecycle/index.ts b/steam-cartridges/frontend/sensors/lifecycle/index.ts
+index 44a07110943ba53d85693ec193a906d2a06acd86..e0c54582686963c5d919e0bebbf9c2db15682b0f 100644
+--- a/steam-cartridges/frontend/sensors/lifecycle/index.ts
++++ b/steam-cartridges/frontend/sensors/lifecycle/index.ts
+@@ -13,7 +13,8 @@ export function installLifecycleSensor(bus: EventBus): void {
+     onAppLaunch((app, { onQuit }) => {
+         const appid = toShortcutId(app.appid);
+         if (appid === undefined) return;
+-        bus.emit("shortcut.launched", { appid, name: String(app.display_name ?? appid) });
+-        onQuit(() => bus.emit("shortcut.quit", { appid }));
++        const name = String(app.display_name ?? appid);
++        bus.emit("shortcut.launched", { appid, name });
++        onQuit(() => bus.emit("shortcut.quit", { appid, name }));
+     });
+ }
+diff --git a/steam-cartridges/frontend/sensors/shortcuts/index.ts b/steam-cartridges/frontend/sensors/shortcuts/index.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..adc00234ea593cf21fb7b304fe23eacafb789642
+--- /dev/null
++++ b/steam-cartridges/frontend/sensors/shortcuts/index.ts
+@@ -0,0 +1,27 @@
++// Sensor `shortcuts` (M10, ADR-0044): what Steam knows about the user's shortcuts, read on demand.
++// The only code that reads a shortcut's title or the shortcut list (was: two copies in index.tsx and
++// steam/shortcut.ts). Read-only, zero network.
++import { logger } from "../../logger";
++import { isShortcutAppId } from "../../kernel/appid";
++
++/** A shortcut's display name: its overview, else its shortcuts.vdf entry; undefined when Steam has neither yet. */
++export function shortcutTitle(appid: number): string | undefined {
++    try {
++        const overview = (window as any).appStore?.GetAppOverviewByAppID?.(appid);
++        if (overview?.display_name) return overview.display_name;
++
++        const shortcut = (window as any).SteamClient?.Apps?.GetShortcutData?.(appid);
++        if (shortcut?.strAppName) return shortcut.strAppName;
++    } catch (err) {
++        logger.warn(`Could not read shortcut title for ${appid}:`, err);
++    }
++    return undefined;
++}
++
++/** Every shortcut in the library, with its display name. */
++export function listShortcuts(): { appid: number; name: string }[] {
++    const all: any[] = (window as any).appStore?.allApps ?? [];
++    return all
++        .filter((a) => isShortcutAppId(a?.appid))
++        .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
++}
+diff --git a/steam-cartridges/frontend/sensors/view/index.ts b/steam-cartridges/frontend/sensors/view/index.ts
+index 6237f0a0ac0ccd8d2a8d284444c8cfc74eec8485..5eeb26acb3a882a68ef187b11f9641a34e9e9177 100644
+--- a/steam-cartridges/frontend/sensors/view/index.ts
++++ b/steam-cartridges/frontend/sensors/view/index.ts
+@@ -1,7 +1,8 @@
+ // View sensor (migration plan M2, ADR-0039): the only code that detects which shortcut
+ // page the user is looking at. Desktop: the main window's route. Big Picture: the
+ // app-details element seen through the shared jsx runtime (ADR-0027), counted only while
+-// a Big Picture window is open. Emits shortcut.viewed / shortcut.left on the bus.
++// a Big Picture window is open. Emits shortcut.viewed / shortcut.left, and window.opened /
++// window.closed for the desktop and Big Picture windows, on the bus.
+ import { Steam } from "steambrew-utils";
+ import { onLocationChange, onPopupCreate, PopupType } from "steambrew-utils/watchers";
+ import { logger } from "../../logger";
+@@ -44,22 +45,31 @@ export function installViewSensor(bus: EventBus): void {
+         if (gamepadWindows > 0) tracker.sighting(appid);
+     });
+ 
+-    onPopupCreate((_popup, type) => {
++    // Window lifecycle for surfaces that write into a window's own document (captures' Big Picture style).
++    const windowEvent = (event: "window.opened" | "window.closed", mode: "desktop" | "gamepad", document: Document | undefined) =>
++        setTimeout(() => bus.emit(event, { mode, document }), 0);
++
++    onPopupCreate((popup, type) => {
++        const document: Document | undefined = (popup as any)?.window?.document;
+         if (type === PopupType.Desktop) {
+             const stop = onLocationChange(
+                 () => Steam.MainWindowBrowserManager?.m_lastLocation,
+                 ({ pathname }) => tracker.route(appIdFromPath(pathname)),
+             );
++            windowEvent("window.opened", "desktop", document);
+             return () => {
+                 stop();
+                 tracker.close("desktop");
++                windowEvent("window.closed", "desktop", document);
+             };
+         }
+         if (type === PopupType.Gamepad) {
+             gamepadWindows++;
++            windowEvent("window.opened", "gamepad", document);
+             return () => {
+                 gamepadWindows--;
+                 if (gamepadWindows === 0) tracker.close("gamepad");
++                windowEvent("window.closed", "gamepad", document);
+             };
+         }
+         return undefined;
+diff --git a/steam-cartridges/frontend/steam/shortcut.ts b/steam-cartridges/frontend/steam/shortcut.ts
+deleted file mode 100644
+index fdcc2f703a5e959afd317e0f333ecaca336ed213..0000000000000000000000000000000000000000
+--- a/steam-cartridges/frontend/steam/shortcut.ts
++++ /dev/null
+@@ -1,19 +0,0 @@
+-import { logger } from "../logger";
+-
+-/** The shortcut's display title, from appStore or Steam's shortcut data. */
+-export function resolveShortcutTitle(appid: number): string | undefined {
+-    try {
+-        const overview = (window as any).appStore?.GetAppOverviewByAppID?.(
+-            appid,
+-        );
+-        if (overview?.display_name) return overview.display_name;
+-
+-        const shortcut = (window as any).SteamClient?.Apps?.GetShortcutData?.(
+-            appid,
+-        );
+-        if (shortcut?.strAppName) return shortcut.strAppName;
+-    } catch (err) {
+-        logger.warn(`Could not read shortcut title for ${appid}:`, err);
+-    }
+-    return undefined;
+-}
+diff --git a/steam-cartridges/frontend/surfaces/captures/bpm-style.ts b/steam-cartridges/frontend/surfaces/captures/bpm-style.ts
+index 27a4e2ef3fc7ed7b40cc2ca02c8f9e3e3b592241..43cebe8dd76fd788470852a41461104297a9fa4f 100644
+--- a/steam-cartridges/frontend/surfaces/captures/bpm-style.ts
++++ b/steam-cartridges/frontend/surfaces/captures/bpm-style.ts
+@@ -1,33 +1,11 @@
+-// Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2).
+-// Moved verbatim from index.tsx; a <style> element in the gamepad popup is a Steam write.
+-import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
++// Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2; M10: driven by the
++// view sensor's window.opened / window.closed, it watches no popups itself). A <style> element in the
++// gamepad window's document is a Steam write.
+ import { deps } from "./deps";
+ 
+-let installed = false;
++const STYLE_ID = "nsga-bpm-activity-thumbs";
+ 
+-export function installBpmStyle(): void {
+-    if (installed) return;
+-    installed = true;
+-    onPopupCreate((popup, type) => {
+-        if (!deps.isEnabled("captures")) return undefined;
+-        if (type === PopupType.Gamepad) {
+-            // Big Picture renders through a React portal from SharedJSContext
+-            // into the gamepad popup window (ADR-0029). Both UI modes share the
+-            // same store singletons, webpack chunks, and CAppDetailsSections registry.
+-            //
+-            // Because Ge.T (module 53074) is already built into Big Picture's
+-            // "ACTIVITY" tab, feeding appSpotlightStore via patchLibraryApp(appid)
+-            // makes Steam render its genuine native GamePlaySummaryContainer with
+-            // controller focus rings and carousel scrolling automatically.
+-
+-            // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
+-            const doc = popup.window?.document;
+-            let styleEl: HTMLStyleElement | null = doc
+-                ? doc.createElement("style")
+-                : null;
+-            if (styleEl && doc) {
+-                styleEl.id = "nsga-bpm-activity-thumbs";
+-                styleEl.textContent = `
++const STYLE = `
+           [class*="CarouselThumbs"] {
+             display: flex !important;
+             flex-direction: row !important;
+@@ -58,17 +36,30 @@ export function installBpmStyle(): void {
+             display: block !important;
+           }
+         `;
+-                doc.head?.appendChild(styleEl);
+-            }
+ 
+-            return () => {
+-                if (styleEl && styleEl.parentNode) {
+-                    styleEl.parentNode.removeChild(styleEl);
+-                }
+-            };
+-        }
++const styles = new Map<Document, HTMLStyleElement>();
++
++/**
++ * Big Picture renders through a React portal from SharedJSContext into the gamepad window (ADR-0029);
++ * Steam's own GamePlaySummaryContainer draws the activity thumbnails there, and this styles them.
++ * Desktop windows need nothing.
++ */
++export function onWindowOpened({ mode, document }: { mode: "desktop" | "gamepad"; document: Document | undefined }): void {
++    if (mode !== "gamepad" || !document || styles.has(document)) return;
++    if (!deps.isEnabled("captures")) return;
++    try {
++        const el = document.createElement("style");
++        el.id = STYLE_ID;
++        el.textContent = STYLE;
++        document.head?.appendChild(el);
++        styles.set(document, el);
++    } catch (err) {
++        deps.reportError("captures", err);
++    }
++}
+ 
+-        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
+-        return undefined;
+-    });
++export function onWindowClosed({ document }: { document: Document | undefined }): void {
++    if (!document) return;
++    styles.get(document)?.remove();
++    styles.delete(document);
+ }
+diff --git a/steam-cartridges/frontend/surfaces/captures/index.ts b/steam-cartridges/frontend/surfaces/captures/index.ts
+index 0fba37e822421bf56a8649204bff0b8c949fd9f4..e84448995ea441298e143178177cfe282558176e 100644
+--- a/steam-cartridges/frontend/surfaces/captures/index.ts
++++ b/steam-cartridges/frontend/surfaces/captures/index.ts
+@@ -5,7 +5,6 @@
+ import type { Surface, SurfaceDeps } from "../../kernel/surface";
+ import { ensureStoreCacheHooked, setNativeActivitySource } from "./activity";
+ import { installActivityCardsPatch } from "./activity-cards";
+-import { installBpmStyle } from "./bpm-style";
+ import { deps, type ActivityOptions } from "./deps";
+ import { installHeadlinePatch } from "./headline";
+ import { patch, unpatch } from "./publish";
+@@ -13,6 +12,7 @@ import { patch, unpatch } from "./publish";
+ export { patch, refresh, setContentListener, unpatch } from "./publish";
+ export { setNativeActivitySource } from "./activity";
+ export { addSessionAchievement } from "./session";
++export { onWindowClosed, onWindowOpened } from "./bpm-style";
+ export { registerSummaryProvider } from "./summary";
+ export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
+ export { headlineJsxDiagnostics } from "./headline";
+@@ -51,7 +51,6 @@ export function createCapturesSurface(d: SurfaceDeps & { activityOptions(): Acti
+             part("store-cache", ensureStoreCacheHooked);
+             part("headline", installHeadlinePatch);
+             part("activity-cards", installActivityCardsPatch);
+-            installBpmStyle();
+         },
+         render(appid, record) {
+             // Captures are Steam's own data, read live (ADR-0022); only the native
