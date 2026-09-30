@@ -17,6 +17,7 @@ const checks = [
     { name: "navigation cycle", file: "test_nav_cycle.js", args: [], must: /^PASS/m },
     { name: "tabs", file: "check_all_tabs.js", args: [], must: /^PASS/m, retry: true },
     { name: "settings panel renders", file: "check_settings_panel.mjs", args: [], must: /^PASS Troubleshooting/m },
+    { name: "F1: Game Data editor (save, revert, search)", file: "probes/game_editor.mjs", args: [], must: /^PASS F1 revert/m },
     { name: "audit: no missing metadata", file: "audit_missing_metadata.mjs", args: [], must: /./ },
 ];
 
