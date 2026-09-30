@@ -22,6 +22,7 @@ export const FEATURE_IDS = [
     "playbar",
     "toasts",
     "artwork",
+    "community",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

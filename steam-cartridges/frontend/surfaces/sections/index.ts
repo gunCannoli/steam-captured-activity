@@ -2,11 +2,22 @@
 // app detail section registry. Moved from steam/sections.ts.
 import { logger } from "../../logger";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
+import type { GameRecord } from "../../kernel/record";
 import { appDetailsSections } from "../../steam/stores";
 import { isShortcutAppId } from "../../kernel/appid";
 
 /** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
 const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
+
+/** Steam's own Community Content section for a shortcut with no Steam match that has community media (features plan F2;
+ *  the community surface feeds its loader). */
+const COMMUNITY_SECTIONS = ["community"] as const;
+
+/** Does the record carry community media cards (app/media keeps only showable items)? */
+function hasCommunityMedia(record: GameRecord | undefined): boolean {
+    const media = record?.media;
+    return media?.status === "ok" && Array.isArray(media.data?.items) && media.data!.items.length > 0;
+}
 
 /** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
 let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
@@ -299,12 +310,19 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
     return {
         id: "sections",
         touches: ["CAppDetailsSections.GetSections", "CAppDetailsSections.m_setSectionsMemo"],
-        reads: ["identity", "metadata", "achievements"],
+        reads: ["identity", "metadata", "achievements", "media"],
         install() {
             if (!patchSections()) throw new Error("CAppDetailsSections not found; sections stay stock.");
         },
         render(appid, record) {
-            setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined);
+            setExtraSections(
+                appid,
+                record?.identity?.data?.native
+                    ? NATIVE_SECTIONS
+                    : deps.isEnabled("community") && hasCommunityMedia(record)
+                      ? COMMUNITY_SECTIONS
+                      : undefined,
+            );
             // New achievements: re-render after the achievements surface fed Steam's stores in this same
             // render pass (was that surface's refreshSections call through index.tsx before M10).
             if (record?.achievements !== achievementsByAppid.get(appid)) {
