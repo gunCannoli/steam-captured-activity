@@ -10,6 +10,8 @@
 *.md    text eol=lf
 # Plan patches are applied with `git apply`: they must keep LF on Windows checkouts.
 *.patch text eol=lf
+# The audit plan's scan script and its expected output are compared with `diff`: LF on every checkout.
+docs/plans/steam-cartridges-architecture-audit/* text eol=lf
 
 # PowerShell prefers CRLF on Windows.
 *.ps1   text eol=crlf
