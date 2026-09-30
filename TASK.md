@@ -70,6 +70,10 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
+- **enhanced-notifications architecture port (ADR-0047): planned and dry-run (2026-09-30), ready for an implementer.** Hand over
+  [the plan](docs/plans/enhanced-notifications-architecture-port-plan.md): four patches on `f6eb8d8` (safety net, the notification hook shared
+  with enhanced-achievements, one surface per Steam write, architecture test, docs); EN `npm test` 10 → 41, EA 116 → 118. The live
+  check (plan § 9) is the user's.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.
