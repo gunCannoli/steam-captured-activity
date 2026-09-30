@@ -206,7 +206,7 @@ M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.t
 
 ## Active failures & blockers
 
-(none open)
+- **enhanced-achievements E0a/E0b live verification, 2026-09-30 00:52**: `npm run test:live` FAILED (exit 1); `safetyDiagnostics()` clean, `smoke`, `tiers`, `safety`, `captures` PASS. (1) `settings-sound.mjs`: `display_time_ms applied to Steam achievement toast config (toastDurationMS=4800)`: the test expects 4000, the code has written display time + animation (`bannerTiming(...).totalMs`) since before E0a (present at 08b2960), so the check is stale, not a regression. (2) `queue-stress.mjs`: run 1 failed `queue on: tiers in firing order (magic,normal,rare,exceptional,magic)`; run 2 (alone) passed that but failed `one sound per toast (10 sounds)` and `sounds follow the banners` (gaps NaN). Flaky: the burst fires with `Promise.all` and run 2 probably counted sounds of leftover toasts from run 1. Not fixed (plan § 0.7/§ 0.8: no editing checks); E0a and E0b stay `Done (live pending)`. Needs a decision on whether to fix the two tests.
 
 ---
 
