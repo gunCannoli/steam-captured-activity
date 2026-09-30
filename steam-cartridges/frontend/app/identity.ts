@@ -2,13 +2,8 @@
 // one EnsureFresh call instead of up to three round trips (migration plan M4c).
 import { logger } from "../logger.ts";
 import type { ShortcutId } from "../kernel/appid";
-import type { Identity, Part, RecordStore } from "../kernel/record";
-import type { backend as Backend, OwnedCandidate } from "../ports/backend";
-
-export interface IdentityRoute {
-    bucket: "steam-store" | "web-scraping" | "none";
-    via: string;
-}
+import type { Identity, OwnedCandidate, Part, RecordStore, Route } from "../kernel/record";
+import type { backend as Backend } from "../ports/backend";
 
 /** A resolution failure (status "error") is retried on a view after this long. */
 const RETRY_MS = 5 * 60_000;
@@ -22,7 +17,7 @@ export interface IdentityDeps {
 }
 
 export interface IdentityResolver {
-    ensure(appid: ShortcutId, route: IdentityRoute): Promise<Part<Identity>>;
+    ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>>;
     invalidate(appid: ShortcutId): void;
 }
 
@@ -34,7 +29,7 @@ export function createIdentity(deps: IdentityDeps): IdentityResolver {
     /** appid -> ms after which an "error" result may be retried. */
     const retryAt = new Map<ShortcutId, number>();
 
-    async function resolve(appid: ShortcutId, route: IdentityRoute): Promise<Part<Identity>> {
+    async function resolve(appid: ShortcutId, route: Route): Promise<Part<Identity>> {
         if (route.bucket !== "steam-store") {
             const part: Part<Identity> = { status: "unsupported" };
             deps.records.update(appid, { identity: part });

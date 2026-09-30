@@ -1,7 +1,7 @@
 // The record facade RPC client (migration plan M4b/M4c; M5a extends it with
 // metadata and GetAllRecords). Imports kernel types only; transport from
 // ports/transport.ts.
-import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, Part, RecordPart, StoreApplied } from "../kernel/record";
+import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, OwnedCandidate, Part, RecordPart, Route, StoreApplied } from "../kernel/record";
 import { call } from "./transport";
 
 export interface ProviderStatus {
@@ -60,16 +60,11 @@ export interface StoreState {
     applied_artwork: Record<string, StoreApplied>;
 }
 
-export interface OwnedCandidate {
-    appid: number;
-    name: string;
-}
-
 export interface FreshContext {
     /** The shortcut's display name (""  when unknown). */
     title: string;
     /** The frontend's evaluated routing policy (ADR-0040). */
-    route: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
+    route: Route;
     /** Identity only: natives Steam already knows (sensors/owned-apps). */
     owned?: OwnedCandidate[];
     /** Metadata only (M5): StoreItemCache data for identity.native. */

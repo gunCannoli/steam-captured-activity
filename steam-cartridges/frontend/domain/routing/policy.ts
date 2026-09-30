@@ -1,12 +1,14 @@
 /**
- * Pure bucket resolution (ADR-0033, amended by ADR-0036). No runtime imports,
- * so Node can run the unit tests with type stripping.
+ * Pure bucket resolution (ADR-0033, amended by ADR-0036). Its one runtime import (the kernel)
+ * carries `.ts`, so Node can run the unit tests with type stripping.
  *
  * ADR-0036: a shortcut that no rule claims gets the fixed default bucket
  * `steam-store`. A steam-store game with no Steam match falls back to web
  * scraping at view time (app/view.ts), not here. Each collection
  * rule may narrow itself with title patterns (include / exclude).
  */
+import { NON_STEAM_APPID_MIN } from '../../kernel/appid.ts';
+
 export type Bucket = 'steam-store' | 'web-scraping' | 'none';
 
 export interface CollectionRule {
@@ -42,7 +44,6 @@ export interface Resolution {
 export type MembersOf = (collectionId: string) => ReadonlySet<number> | undefined;
 export type TitleOf = (appid: number) => string | undefined;
 
-export const SHORTCUT_MIN = 0x8000_0000;
 export const MAX_PATTERNS = 32;
 export const MAX_PATTERN_LENGTH = 100;
 
@@ -131,7 +132,7 @@ export function validateConfig(raw: unknown): BucketsConfig {
 
     if (r.overrides && typeof r.overrides === 'object' && !Array.isArray(r.overrides)) {
         for (const [key, bucket] of Object.entries(r.overrides)) {
-            if (!/^\d+$/.test(key) || Number(key) < SHORTCUT_MIN || !isBucket(bucket)) continue;
+            if (!/^\d+$/.test(key) || Number(key) < NON_STEAM_APPID_MIN || !isBucket(bucket)) continue;
             out.overrides[key] = bucket;
         }
     }
@@ -145,7 +146,7 @@ export function resolveBucket(
     titleOf: TitleOf = () => undefined,
     autoProfile?: AutoRoutingProfile,
 ): Resolution {
-    if (!(appid >= SHORTCUT_MIN)) return { bucket: 'none', via: 'not-a-shortcut' };
+    if (!(appid >= NON_STEAM_APPID_MIN)) return { bucket: 'none', via: 'not-a-shortcut' };
 
     const override = cfg.overrides[String(appid)];
     if (override) return { bucket: override, via: 'override' };

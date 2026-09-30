@@ -142,12 +142,35 @@ export interface ArtworkPlan {
  */
 export type IconPlan = { url: string; base64?: string } | { restore: string };
 
+/**
+ * The routing policy's answer for one shortcut (domain/routing, ADR-0040): which bucket, and why.
+ * Passed to every app/ resolver and to the backend as context; not stored in the record (ADR-0044).
+ */
+export interface Route {
+    bucket: "steam-store" | "web-scraping" | "none";
+    via: string;
+}
+
+/** A native game Steam already knows (sensors/owned-apps), sent to the resolver as context. */
+export interface OwnedCandidate {
+    appid: number;
+    name: string;
+}
+
+/** Progress of the background ingestion (app/ingest), shown by the settings panel. */
+export interface SyncProgress {
+    isSyncing: boolean;
+    total: number;
+    current: number;
+    currentGame: string;
+    phase: "idle" | "scraping" | "complete";
+}
+
 export interface GameRecord {
     appid: ShortcutId;
     gameid: string;
     title: string;
     exe: string;
-    route?: { bucket: "steam-store" | "web-scraping" | "none"; via: string };
     identity?: Part<Identity>;
     metadata?: Part<GameMetadata>;
     achievements?: Part<AchievementSet>;
@@ -155,7 +178,7 @@ export interface GameRecord {
     artwork?: Part<ArtworkPlan>;
 }
 
-export type RecordPart = "route" | "identity" | "metadata" | "achievements" | "media" | "artwork";
+export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork";
 
 export interface RecordStore {
     get(appid: ShortcutId): GameRecord | undefined;

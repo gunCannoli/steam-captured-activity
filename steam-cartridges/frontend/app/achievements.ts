@@ -6,13 +6,8 @@
 import { logger } from "../logger.ts";
 import type { ShortcutId } from "../kernel/appid";
 import type { EventBus } from "../kernel/events";
-import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore } from "../kernel/record";
+import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
-
-export interface AchievementsRoute {
-    bucket: "steam-store" | "web-scraping" | "none";
-    via: string;
-}
 
 export type LaunchPolicy = "off" | "first_run" | "all_runs";
 
@@ -26,7 +21,7 @@ export interface AchievementsDeps {
     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
     ensureBase(appid: ShortcutId): void;
     titleOf(appid: number): string | undefined;
-    routeOf(appid: ShortcutId): AchievementsRoute;
+    routeOf(appid: ShortcutId): Route;
     /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
     resolveNative(appid: ShortcutId): Promise<number>;
     /** Setting raHardcoreMode. */
@@ -45,7 +40,7 @@ export interface AchievementsService {
     /** Subscribe to shortcut.launched / shortcut.quit (Flow C). */
     install(): void;
     /** Load the achievements part into the record (one backend call at a time per shortcut). */
-    ensure(appid: ShortcutId, route: AchievementsRoute, opts?: { native?: number }): Promise<Part<AchievementSet>>;
+    ensure(appid: ShortcutId, route: Route, opts?: { native?: number }): Promise<Part<AchievementSet>>;
     /** One CheckUnlocks; returns how many new unlocks it found. */
     checkNow(appid: ShortcutId, opts?: { native?: number; title?: string }): Promise<number>;
     /** Poll while a game runs; the returned function stops it (with one final check). */
@@ -80,7 +75,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
 
     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
 
-    async function load(appid: ShortcutId, route: AchievementsRoute, native?: number): Promise<Part<AchievementSet>> {
+    async function load(appid: ShortcutId, route: Route, native?: number): Promise<Part<AchievementSet>> {
         deps.ensureBase(appid);
         const known = deps.records.get(appid)?.identity;
         const identity = native && !known?.data?.native
@@ -103,7 +98,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         return part;
     }
 
-    async function ensure(appid: ShortcutId, route: AchievementsRoute, opts: { native?: number } = {}) {
+    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number } = {}) {
         if (route.bucket === "none") {
             const part: Part<AchievementSet> = { status: "unsupported" };
             deps.ensureBase(appid);

@@ -2,7 +2,7 @@
 // setPanelContext() at the top of init(); panels read it with usePanelContext(). Structural types only,
 // never an import of app/, surfaces/ or features/. Backend calls go through ports/backend.ts.
 import type { AutoRoutingProfile } from '../domain/routing/policy';
-import type { SyncProgress } from './settings';
+import type { SyncProgress } from '../kernel/record';
 
 export interface PanelContext {
     routing: {

@@ -1,7 +1,7 @@
 // Settings: the sticky sync progress bar and its hook (migration plan M8c).
 import { useEffect, useState } from "react";
 import { usePanelContext } from "./context";
-import type { SyncProgress } from "./settings";
+import type { SyncProgress } from "../kernel/record";
 
 export function useSyncProgress(): SyncProgress {
     const ctx = usePanelContext();

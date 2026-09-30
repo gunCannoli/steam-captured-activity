@@ -1,6 +1,6 @@
 import { logger } from "../../logger";
 import { clearActivity, publishActivity } from "./activity";
-import { gameIdFromAppId } from "../../steam/gameid";
+import { toGameId, type ShortcutId } from "../../kernel/appid";
 import { clearSummary, publishSummary } from "./summary";
 
 /**
@@ -38,7 +38,7 @@ export function setContentListener(fn: (appid: number, hasContent: boolean) => v
  * it also decides when to clear.
  */
 export async function patch(appid: number): Promise<void> {
-    const gameid = gameIdFromAppId(appid);
+    const gameid = toGameId(appid as ShortcutId);
 
     try {
         const [summaryCount, activityCount] = await Promise.all([

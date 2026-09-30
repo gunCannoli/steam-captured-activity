@@ -3,15 +3,10 @@
 // per shortcut per session; the pure plan comes from domain/art-plan.
 import { logger } from "../logger.ts";
 import type { ShortcutId } from "../kernel/appid";
-import type { ArtworkPlan, ArtworkUrls, Identity, Part, RecordStore, StoreApplied } from "../kernel/record";
+import type { ArtworkPlan, ArtworkUrls, Identity, Part, RecordStore, Route, StoreApplied } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
 import { assetUrlsFromItem } from "../domain/store-item.ts";
 import { artworkPlan, iconPlan, pickUrls, sgdbPlan, slotList } from "../domain/art-plan.ts";
-
-export interface ArtworkRoute {
-    bucket: "steam-store" | "web-scraping" | "none";
-    via: string;
-}
 
 /** A failed lookup is retried on a view after this long (as identity). */
 const RETRY_MS = 5 * 60_000;
@@ -32,7 +27,7 @@ export interface ArtworkDeps {
 }
 
 export interface ArtworkResolver {
-    ensure(appid: ShortcutId, route: ArtworkRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>>;
+    ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>>;
     /** Drop this session's memory so the next ensure asks the backend again. */
     invalidate(appid: ShortcutId): void;
     /**
@@ -82,7 +77,7 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
     const inflight = new Map<ShortcutId, Promise<Part<ArtworkPlan>>>();
     const retryAt = new Map<ShortcutId, number>();
 
-    async function resolve(appid: ShortcutId, route: ArtworkRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> {
+    async function resolve(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> {
         if (route.bucket === "none") {
             const part: Part<ArtworkPlan> = { status: "unsupported" };
             resolved.add(appid);

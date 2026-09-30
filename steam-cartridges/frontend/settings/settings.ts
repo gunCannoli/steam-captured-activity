@@ -8,14 +8,6 @@ export { DEFAULTS, DEFAULT_SERVICES };
 export type { ControllerOverride, LaunchNotifyOption, ServicesConfig, SettingKey, Settings } from './defaults';
 
 /** Progress of the background sync (app/ingest.ts), for the panel (plan § 7.0 D3: never an import of app/). */
-export interface SyncProgress {
-    isSyncing: boolean;
-    total: number;
-    current: number;
-    currentGame: string;
-    phase: 'idle' | 'scraping' | 'complete';
-}
-
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     buckets: validateConfig,
     defaultFullController: (raw) => raw === true,

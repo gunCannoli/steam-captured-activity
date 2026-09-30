@@ -4,22 +4,17 @@
 // backend's TTLs (fresh_policy.lua) decide whether anything is fetched, so a fresh page costs no
 // network. A Steam render never starts a view (M0a): views come from sensors/view.
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
-import type { ArtworkPlan, GameMetadata, Identity, Part } from "../kernel/record";
-
-export interface ViewRoute {
-    bucket: "steam-store" | "web-scraping" | "none";
-    via: string;
-}
+import type { ArtworkPlan, GameMetadata, Identity, Part, Route } from "../kernel/record";
 
 export interface ViewDeps {
     routing: {
-        getBucket(appid: number): ViewRoute;
+        getBucket(appid: number): Route;
         waitForCollections(timeoutMs?: number): Promise<boolean>;
     };
-    identity: { ensure(appid: ShortcutId, route: ViewRoute): Promise<Part<Identity>> };
-    metadata: { ensure(appid: ShortcutId, route: ViewRoute, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
-    artwork: { ensure(appid: ShortcutId, route: ViewRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
-    achievements: { ensure(appid: ShortcutId, route: ViewRoute): Promise<unknown> };
+    identity: { ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>> };
+    metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
+    artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
+    achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
     /** The Steam Store bucket's side effects (features/steam-store): true = a Steam match, false = none. */
     steamStore: {
         onView(appid: ShortcutId, identity: Part<Identity>): Promise<boolean | undefined>;
@@ -54,7 +49,7 @@ export function createView(deps: ViewDeps): View {
         inflight.add(id);
         try {
             const { bucket, via } = deps.routing.getBucket(id);
-            const route: ViewRoute = { bucket, via };
+            const route: Route = { bucket, via };
             if (via === "pending") {
                 // Local Game Info only until collections load (ADR-0035); replayed then.
                 deferred.add(id);

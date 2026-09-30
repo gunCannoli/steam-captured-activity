@@ -1,10 +1,8 @@
 import { logger } from "../logger";
 import { backend, type StoreState } from "../ports/backend";
-import type { GameMetadata, Identity, Part } from "../kernel/record";
+import type { GameMetadata, Identity, Part, Route } from "../kernel/record";
 import { NON_STEAM_APPID_MIN } from "../kernel/appid";
 import { iconRestoreOf, slotList } from "../domain/art-plan";
-
-type Route = { bucket: "steam-store" | "web-scraping" | "none"; via: string };
 
 /** app/identity, for invalidation after a manual mapping write (plan § 7.0 D3, D8: public API). */
 let identitySource: { invalidate(appid: number): void; ensure(appid: number, route: Route): Promise<Part<Identity>> } = {

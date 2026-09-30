@@ -1,14 +1,9 @@
 // app/metadata: selects Game Info for a shortcut through one EnsureFresh call
 // instead of the old scattered local/store/IGDB pipeline (migration plan M5b).
 import type { ShortcutId } from "../kernel/appid";
-import type { GameMetadata, Identity, Part, RecordStore } from "../kernel/record";
+import type { GameMetadata, Identity, Part, RecordStore, Route } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
 import { metadataFromStoreItem } from "../domain/store-item";
-
-export interface MetadataRoute {
-    bucket: "steam-store" | "web-scraping" | "none";
-    via: string;
-}
 
 export interface MetadataDeps {
     backend: Pick<typeof Backend, "ensureFresh" | "getAllRecords">;
@@ -25,7 +20,7 @@ export interface MetadataDeps {
 }
 
 export interface MetadataResolver {
-    ensure(appid: ShortcutId, route: MetadataRoute, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
+    ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
     /** Preload every record from the backend's disk-only bulk read (replaces initGameInfo's preload). */
     preload(): Promise<void>;
 }
@@ -33,7 +28,7 @@ export interface MetadataResolver {
 export function createMetadata(deps: MetadataDeps): MetadataResolver {
     async function ensure(
         appid: ShortcutId,
-        route: MetadataRoute,
+        route: Route,
         identity: Part<Identity> | undefined,
         opts: { noNetwork?: boolean } = {},
     ): Promise<Part<GameMetadata>> {

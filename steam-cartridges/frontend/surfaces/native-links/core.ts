@@ -1,6 +1,6 @@
 /**
- * Pure part of the section appid redirection (parity plan C). No imports, so
- * Node can run the unit tests with type stripping.
+ * Pure part of the section appid redirection (parity plan C). Its one import (the kernel)
+ * carries `.ts`, so Node can run the unit tests with type stripping.
  *
  * Steam's own Links, Friends and Community sections load their data by appid
  * (`overview.appid`, `details.unAppID`, `appid`). For a shortcut with a Steam
@@ -9,9 +9,10 @@
  * ADR-0009). A shortcut without a match gets Steam's stock behaviour: no links
  * (a shortcut's own appid has no store page).
  */
+import { NON_STEAM_APPID_MIN } from '../../kernel/appid.ts';
+
 export type RedirectKind = 'links' | 'friends' | 'community' | 'event';
 
-export const SHORTCUT_MIN = 0x8000_0000;
 
 const proxies = new WeakMap<object, Map<number, object>>();
 
@@ -74,14 +75,14 @@ export function redirectProps(
     if (!props) return undefined;
     if (kind === 'links') {
         const ov = props.overview;
-        if (!ov || typeof ov !== 'object' || !(ov.appid >= SHORTCUT_MIN)) return undefined;
+        if (!ov || typeof ov !== 'object' || !(ov.appid >= NON_STEAM_APPID_MIN)) return undefined;
         const native = nativeOf(ov.appid);
         props.overview = linksOverview(ov, native);
         return native ?? 0;
     }
     if (kind === 'friends') {
         const d = props.details;
-        if (!d || typeof d !== 'object' || !(d.unAppID >= SHORTCUT_MIN)) return undefined;
+        if (!d || typeof d !== 'object' || !(d.unAppID >= NON_STEAM_APPID_MIN)) return undefined;
         const native = nativeOf(d.unAppID);
         if (native === undefined) return undefined;
         props.details = nativeDetails(d, native);
@@ -90,7 +91,7 @@ export function redirectProps(
     // community (Community Content `{appid}`) and event (partner event overlay
     // `{appid, initialEventID}`, which renders only when appid is the event's app).
     const appid = props.appid;
-    if (!(appid >= SHORTCUT_MIN)) return undefined;
+    if (!(appid >= NON_STEAM_APPID_MIN)) return undefined;
     const native = nativeOf(appid);
     if (native === undefined) return undefined;
     props.appid = native;
@@ -109,7 +110,7 @@ export function navigationTarget(
     isKnown: (appid: number) => boolean,
     shortcutOf: (nativeAppid: number) => number | undefined,
 ): number | undefined {
-    if (typeof appid !== 'number' || appid >= SHORTCUT_MIN) return undefined;
+    if (typeof appid !== 'number' || appid >= NON_STEAM_APPID_MIN) return undefined;
     const shortcut = shortcutOf(appid);
     if (shortcut === undefined || isKnown(appid)) return undefined;
     return shortcut;
@@ -132,7 +133,7 @@ export function cleanLinksProps(
     if (!hasSupport) return false;
 
     const targetAppid = props.overview?.appid ?? links.find((l) => typeof l.appid === 'number')?.appid;
-    if (typeof targetAppid === 'number' && (targetAppid >= SHORTCUT_MIN || isShortcutOrMapped(targetAppid))) {
+    if (typeof targetAppid === 'number' && (targetAppid >= NON_STEAM_APPID_MIN || isShortcutOrMapped(targetAppid))) {
         props.links = links.filter(
             (l) => l?.link !== 'HelpAppPage' && !String(l?.url || '').includes('HelpWithGame') && !String(l?.url || '').includes('help.steampowered.com')
         );
@@ -151,7 +152,7 @@ const shortcutMenuApps = new WeakMap<object, object>();
 
 export function shortcutSafeApps<T extends { appid?: number }>(rgApps: readonly T[]): T[] {
     return rgApps.map((app) => {
-        if (!app || typeof app.appid !== 'number' || (app.appid >>> 0) < SHORTCUT_MIN) return app;
+        if (!app || typeof app.appid !== 'number' || (app.appid >>> 0) < NON_STEAM_APPID_MIN) return app;
         let p = shortcutMenuApps.get(app);
         if (!p) {
             p = new Proxy(app, {

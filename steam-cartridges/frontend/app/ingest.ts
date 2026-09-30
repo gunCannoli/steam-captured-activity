@@ -9,21 +9,8 @@
 // render for all of them at once; see knowledgebase Part 7.)
 import { logger } from "../logger.ts";
 import type { ShortcutId } from "../kernel/appid";
-import type { Identity, Part } from "../kernel/record";
-import type { backend as Backend, OwnedCandidate } from "../ports/backend";
-
-export interface SyncProgress {
-    isSyncing: boolean;
-    total: number;
-    current: number;
-    currentGame: string;
-    phase: "idle" | "scraping" | "complete";
-}
-
-export interface IngestRoute {
-    bucket: "steam-store" | "web-scraping" | "none";
-    via: string;
-}
+import type { Identity, OwnedCandidate, Part, Route, SyncProgress } from "../kernel/record";
+import type { backend as Backend } from "../ports/backend";
 
 export interface IngestDeps {
     backend: Pick<typeof Backend, "getNewShortcuts" | "markKnown" | "ensureFresh">;
@@ -31,7 +18,7 @@ export interface IngestDeps {
     shortcuts(): { appid: number; name: string }[];
     /** Routing inputs are loaded (auto-routing profiles, collections). */
     ready(): Promise<void>;
-    routeOf(appid: ShortcutId): IngestRoute;
+    routeOf(appid: ShortcutId): Route;
     /** Routing rules and Auto Mode allow the plugin to touch this shortcut at all. */
     isAllowed(appid: ShortcutId): boolean;
     owned(): OwnedCandidate[];

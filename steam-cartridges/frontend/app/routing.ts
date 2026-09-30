@@ -1,13 +1,13 @@
 import {
     findConflicts,
     resolveBucket,
-    SHORTCUT_MIN,
     type AutoRoutingProfile,
     type Bucket,
     type BucketsConfig,
     type Resolution,
 } from '../domain/routing/policy.ts';
 import { pendingOr } from '../domain/routing/pending.ts';
+import { NON_STEAM_APPID_MIN } from '../kernel/appid.ts';
 
 export interface CollectionInfo {
     id: string;
@@ -61,7 +61,7 @@ export function createRouting(inputs: RoutingInputs) {
         const keys: Iterable<unknown> = apps instanceof Map ? apps.keys() : Array.isArray(apps) ? apps.map((a: any) => a?.appid ?? a) : [];
         for (const k of keys) {
             const n = Number(k);
-            if (Number.isFinite(n) && n >= SHORTCUT_MIN) out.add(n);
+            if (Number.isFinite(n) && n >= NON_STEAM_APPID_MIN) out.add(n);
         }
         membershipCache.set(id, { at: now, set: out });
         return out;
@@ -120,7 +120,7 @@ export function createRouting(inputs: RoutingInputs) {
         const autoMode = inputs.autoMode();
         const autoProf = autoMode ? getAutoRoutingProfile(appid) : undefined;
         const r =
-            appid >= SHORTCUT_MIN && cfg.overrides[String(appid)]
+            appid >= NON_STEAM_APPID_MIN && cfg.overrides[String(appid)]
                 ? resolveBucket(appid, cfg, membersOf, inputs.titleOf, autoProf)
                 : (pendingOr<Resolution>(cfg.rules.length > 0, inputs.collections.ready(), () =>
                       resolveBucket(appid, cfg, membersOf, inputs.titleOf, autoProf),
