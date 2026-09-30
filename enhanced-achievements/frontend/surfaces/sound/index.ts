@@ -1,7 +1,7 @@
 import type { Surface } from '../../kernel/surface';
 import type { NotificationHook } from '../../steam/notification-hook';
 import { isAchievementUnlock } from '../../steam/notification-store';
-import { phaseOf, subscribe } from '../../banner/queue';
+import { peek, whenShowing } from '../../banner/queue';
 import { activeTheme, audio, tierFor } from '../../theme/active-theme';
 import { isEnabled } from '../../safety/runtime';
 import { createSoundHandler } from './sound';
@@ -28,8 +28,8 @@ export function createSoundSurface(hook: NotificationHook): Surface {
                         source.connect(gain).connect(ctx.destination);
                         source.start();
                     },
-                    phaseOf,
-                    subscribe,
+                    peek,
+                    whenShowing,
                 }),
             );
             return true;

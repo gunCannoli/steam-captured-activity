@@ -198,12 +198,21 @@ function soundRig(over: Partial<Parameters<typeof createSoundHandler>[0]> = {}) 
         audioState: () => 'running',
         resumeAudio: () => log.push('resume'),
         playClip: () => log.push('clip'),
-        phaseOf: (key) => phases.get(key) ?? 'done',
-        subscribe: (key, fn) => {
+        peek: (key) => phases.get(key),
+        whenShowing: (key, onShow) => {
+            const phase = phases.get(key);
+            if (phase === undefined || phase === 'done') return { at: 'never' };
+            if (phase === 'showing') return { at: 'now' };
             const set = listeners.get(key) ?? new Set();
             listeners.set(key, set);
+            const fn = () => {
+                const p = phases.get(key);
+                if (p === 'waiting') return;
+                set.delete(fn);
+                if (p === 'showing') onShow();
+            };
             set.add(fn);
-            return () => set.delete(fn);
+            return { at: 'later', cancel: () => void set.delete(fn) };
         },
         ...over,
     });

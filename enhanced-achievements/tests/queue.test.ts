@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { admit, finish, forget, MAX_QUEUE, phaseOf, resetQueue, subscribe } from '../frontend/banner/queue.ts';
+import { admit, finish, forget, MAX_QUEUE, peek, phaseOf, resetQueue, subscribe, whenShowing } from '../frontend/banner/queue.ts';
 import { bannerTiming } from '../frontend/banner/timing.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -120,3 +120,52 @@ test('timing: exit starts after entrance + display, and the hold covers the whol
 });
 
 test.after(() => resetQueue());
+
+test('queue: peek is undefined for a toast never admitted', () => {
+    resetQueue();
+    const a = {};
+    assert.equal(peek(a), undefined);
+    assert.equal(phaseOf(a), 'done', 'phaseOf still calls an unknown toast done');
+    admit(a, LONG, true);
+    assert.equal(peek(a), 'showing');
+});
+
+test('queue: whenShowing fires once when a waiting toast gets its turn', async () => {
+    resetQueue();
+    const a = {}, b = {};
+    admit(a, LONG, true);
+    admit(b, LONG, true);
+    let fired = 0;
+    const r = whenShowing(b, () => fired++);
+    assert.equal(r.at, 'later');
+    finish(a);
+    await wait(250);
+    assert.equal(fired, 1);
+    finish(b);
+    await wait(150);
+    assert.equal(fired, 1, 'never again');
+});
+
+test('queue: whenShowing never fires for a toast finished before its turn', async () => {
+    resetQueue();
+    const a = {}, b = {};
+    admit(a, LONG, true);
+    admit(b, LONG, true);
+    let fired = 0;
+    whenShowing(b, () => fired++);
+    forget(b);
+    finish(a);
+    await wait(250);
+    assert.equal(fired, 0);
+    assert.deepEqual(whenShowing(b, () => fired++), { at: 'never' }, 'done');
+    assert.deepEqual(whenShowing({}, () => fired++), { at: 'never' }, 'unknown');
+});
+
+test('queue: whenShowing answers now for a toast already showing', () => {
+    resetQueue();
+    const a = {};
+    admit(a, LONG, true);
+    let fired = 0;
+    assert.deepEqual(whenShowing(a, () => fired++), { at: 'now' });
+    assert.equal(fired, 0, 'the caller acts on "now" itself');
+});

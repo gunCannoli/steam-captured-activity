@@ -20,7 +20,7 @@ theme Steam's toasts and sounds.
 **enhanced-achievements architecture migration (planned 2026-09-29).** Plan:
 [enhanced-achievements-architecture-migration-plan.md](docs/plans/enhanced-achievements-architecture-migration-plan.md)
 ([ADR-0043](docs/decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net)).
-enhanced-achievements migration: E0a and E0b done and live-verified (2026-09-30: desktop `npm run test:live` green twice, Big Picture 2/2 PASS, `disabledFeatures=sound` hands the chime back: 1 themed clip on, 0 off); E1a done and live-verified (kernel, pure tier and timing; allowlist 15 → 7); E1b done and live-verified (hook, sensor, sound/duration/toasts surfaces; allowlist 7 → 6); E1c done and live-verified 2026-09-30 (`banner` and `captures` surfaces, allowlist empty, `surfaceStatus()` 5/5 installed, desktop `test:live` green, Big Picture 2/2 PASS); next E2. (Before E0a the
+enhanced-achievements migration: E0a and E0b done and live-verified (2026-09-30: desktop `npm run test:live` green twice, Big Picture 2/2 PASS, `disabledFeatures=sound` hands the chime back: 1 themed clip on, 0 off); E1a done and live-verified (kernel, pure tier and timing; allowlist 15 → 7); E1b done and live-verified (hook, sensor, sound/duration/toasts surfaces; allowlist 7 → 6); E1c done and live-verified 2026-09-30 (`banner` and `captures` surfaces, allowlist empty, `surfaceStatus()` 5/5 installed, desktop `test:live` green, Big Picture 2/2 PASS); E2 done and live-verified (banner admitted from an effect, `whenShowing`; `queue-stress` 4/4 green, EA-K2 and EA-K9 fixed); next E3. (Before E0a the
 working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7-and-alpha-plan.md` (plan § 6, EA-K8), now resolved.)
 
 **F1 Game Data editor (2026-09-30): code committed on top of M10** (`test:ts` 202/202, build OK); waiting for the live verification in [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`dev.ps1`, `check_settings_panel.mjs` 9 titles, `probes/game_editor.mjs`, `npm run test:live`, the by-hand check). The M10 leftover duplicates `asList` and `union` moved to `kernel/lists.ts`; the per-surface `deps` objects stay (a redesign, not a cleanup).
@@ -206,7 +206,6 @@ M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.t
 
 ## Active failures & blockers
 
-- **enhanced-achievements EA-K9 (open until E2)**: the live check `queue on: tiers in firing order` can FAIL occasionally (`magic,normal,rare,…`): banners are admitted in render order, not arrival order (same cause as EA-K2). Not weakened; plan § 11.
 
 ---
 

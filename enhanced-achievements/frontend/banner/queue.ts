@@ -104,6 +104,28 @@ export function phaseOf(key: object): Phase {
     return entries.get(key)?.phase ?? 'done';
 }
 
+/** The toast's phase, or undefined if it was never admitted (unlike `phaseOf`, which calls that `done`). */
+export function peek(key: object): Phase | undefined {
+    return entries.get(key)?.phase;
+}
+
+/**
+ * When does this toast's turn come? `now` if it is showing, `never` if it is done or was never admitted, else
+ * `onShow` runs once when it starts showing (never if it is finished first) and `cancel` withdraws the request.
+ */
+export function whenShowing(key: object, onShow: () => void): { at: 'now' | 'never' } | { at: 'later'; cancel(): void } {
+    const entry = entries.get(key);
+    if (!entry || entry.phase === 'done') return { at: 'never' };
+    if (entry.phase === 'showing') return { at: 'now' };
+    const listener = () => {
+        if (entry.phase === 'waiting') return;
+        entry.listeners.delete(listener);
+        if (entry.phase === 'showing') onShow();
+    };
+    entry.listeners.add(listener);
+    return { at: 'later', cancel: () => void entry.listeners.delete(listener) };
+}
+
 /** Called on every phase change of `key`. Returns an unsubscribe function. */
 export function subscribe(key: object, listener: () => void): () => void {
     const entry = entries.get(key);

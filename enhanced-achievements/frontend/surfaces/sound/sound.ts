@@ -19,8 +19,9 @@ export interface SoundDeps {
     audioState(): string;
     resumeAudio(): void;
     playClip(clip: { buffer: AudioBuffer; volume: number }): void;
-    phaseOf(key: object): 'waiting' | 'showing' | 'done';
-    subscribe(key: object, listener: () => void): () => void;
+    /** The banner scheduler's phase for this toast; undefined when no banner of ours was admitted for it. */
+    peek(key: object): 'waiting' | 'showing' | 'done' | undefined;
+    whenShowing(key: object, onShow: () => void): { at: 'now' | 'never' } | { at: 'later'; cancel(): void };
 }
 
 export function createSoundHandler(deps: SoundDeps): SoundHandler {
@@ -44,14 +45,11 @@ export function createSoundHandler(deps: SoundDeps): SoundHandler {
     return (call) => {
         const n = call.n;
         if (!deps.isAchievementUnlock(n) || !deps.isEnabled()) return call.playSteam();
-        if (deps.phaseOf(n.data) === 'waiting') {
+        if (deps.peek(n.data) === 'waiting') {
             if (deferred.has(n.data)) return;
             deferred.add(n.data);
-            const off = deps.subscribe(n.data, () => {
-                const phase = deps.phaseOf(n.data);
-                if (phase === 'waiting') return;
-                off();
-                if (phase !== 'showing') return; // dismissed before its turn: silent
+            // Silent until its turn, and never if it is dismissed first.
+            deps.whenShowing(n.data, () => {
                 try {
                     playNow(call);
                 } catch {

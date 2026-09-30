@@ -9,7 +9,7 @@ import { BANNER_CSS } from '../../banner/styles';
 import { bannerSize, placeBanner } from '../../banner/geometry';
 import { pinToastWindow, type PinnedWindow } from './window-pin';
 import { setting } from '../../settings/settings';
-import { admit, finish, forget, MAX_QUEUE, phaseOf, subscribe, type Phase } from '../../banner/queue';
+import { admit, finish, forget, MAX_QUEUE, peek, phaseOf, subscribe, type Phase } from '../../banner/queue';
 import { bannerTiming, themedDisplayMs } from '../../banner/timing';
 import { reportError } from '../../safety/runtime';
 
@@ -176,9 +176,8 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedTheme; n: SteamN
 
     // Read once per toast: toggling the setting affects later toasts, not this one.
     const [queued] = useState(() => setting('queue.enabled'));
-    const [phase, setPhase] = useState<Phase>(() =>
-        admit(key, timing.totalMs, queued, () => logger.warn('Achievement toast queue full; showing out of turn.')),
-    );
+    // A render starts nothing (guardrail 17): the shell stays invisible until the mount effect admits the toast.
+    const [phase, setPhase] = useState<Phase>(() => peek(key) ?? 'waiting');
     useEffect(() => {
         setPhase(phaseOf(key)); // it may have changed between render and subscribe
         return subscribe(key, () => setPhase(phaseOf(key)));
@@ -196,6 +195,8 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedTheme; n: SteamN
     };
 
     useLayoutEffect(() => {
+        // The one place a toast is admitted, before the pin reads its phase and before Steam asks for its sound.
+        setPhase(admit(key, timing.totalMs, queued, () => logger.warn('Achievement toast queue full; showing out of turn.')));
         const win = rootRef.current?.ownerDocument?.defaultView;
         const pin = win ? pinToastWindow(win, (slot) => targetFor(slot, phaseOf(key), win)) : null;
         pinRef.current = pin;

@@ -40,6 +40,20 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 - **Diagnostics:** `PLUGIN_LIST['enhanced-achievements-dev'].safetyDiagnostics()` → `{ safeMode, disabled, tripped, errors }`.
 - `claims()` stays O(1): enhanced-notifications calls it on every toast.
 
+## Banner lifetime (E2)
+
+`banner/queue.ts` (pure) is the only owner of when a banner starts, waits, shows and ends.
+
+- **Start:** `ThemedBanner` renders an invisible shell (`peek(key) ?? 'waiting'`) and admits the toast in its mount
+  `useLayoutEffect`, before the window pin reads the phase. A render never starts work
+  ([guardrail 17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components)), so a render React
+  discards leaves no scheduler entry.
+- **Turn:** with the queue on, one toast shows at a time; the next starts 100 ms after the previous ends.
+- **Sound:** `surfaces/sound` asks the scheduler: `peek` (never admitted, e.g. banner off: Steam's chime plays at once), then
+  `whenShowing(key, onShow)`. A waiting toast is silent until its turn and forever if dismissed first.
+- **End:** the scheduler's own timer, a click, or the banner unmounting (`finish`/`forget`); the popup is held open until then
+  (`holdPopup`, desktop only).
+
 ## Steam targets and their one owner
 
 | Steam target | Owner (file) | Guardrail |
@@ -72,6 +86,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 ## History
 
+- 2026-09-30 E2: `admit` moved from the render to the mount effect; `queue.peek` and `queue.whenShowing`; the sound surface uses them instead of `phaseOf` + `subscribe`. Fixes EA-K2 and EA-K9.
 - 2026-09-30 E1c: `banner` and `captures` are surfaces (`git mv` of toast-patch, themed-toast, window-pin, captures, recording; both install and uninstall through `Surface`); `surfaceStatus()` export; the allowlist is empty; test `no two surfaces declare the same Steam target`.
 - 2026-09-30 E1b: `steam/notifications.ts` split into `steam/notification-store.ts` (discovery), `steam/notification-hook.ts` (the one wrapper), `sensors/unlock` and surfaces `sound`, `duration`, `toasts`; captures and the 100% toast run from `achievement.unlocked` one macrotask after the toast; a tripped feature has its surface uninstalled; allowlist 7 → 6.
 - 2026-09-30 E1a: kernel contracts (`kernel/notification|events|surface.ts`); the tier is a pure function (`tierOfNotification`, memo `tierFor` in `theme/active-theme.ts`); `themedDisplayMs` is pure; feature id `toasts` and `onTrip`; final layer rules, allowlist 15 → 7.
