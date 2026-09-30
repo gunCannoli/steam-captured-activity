@@ -107,14 +107,10 @@ test('needs-setup is not memoised (the key may be entered later)', async () => {
     assert.equal(calls.length, 2);
 });
 
-test('an error is retried only after 5 minutes', async () => {
-    const { art, calls, tick } = setup({ response: { appid: SC, parts: {}, error: 'boom' } });
+test('an error is not memoised: the next view asks the backend, whose error TTL decides (M10)', async () => {
+    const { art, calls } = setup({ response: { appid: SC, parts: {}, error: 'boom' } });
     const route = { bucket: 'web-scraping', via: 'default' } as const;
     await art.ensure(SC, route, { status: 'ok', data: {} });
-    tick(60_000);
-    await art.ensure(SC, route, { status: 'ok', data: {} });
-    assert.equal(calls.length, 1);
-    tick(5 * 60_000);
     await art.ensure(SC, route, { status: 'ok', data: {} });
     assert.equal(calls.length, 2);
 });

@@ -53,7 +53,12 @@ local function save()
   end
 end
 
-function M._reset() state = nil end
+--- Errors seen this session, per (appid, part), for the parts whose error is not stored on disk (identity,
+--- artwork). EnsureFresh answers a repeat within M.TTL.error from here instead of the network, so the
+--- frontend keeps no retry timer of its own (M10). Memory only: freshness.json does not change.
+local recent = {}
+
+function M._reset() state = nil; recent = {} end
 
 local function key(appid) return tostring(math.floor(tonumber(appid) or 0)) end
 
@@ -108,6 +113,27 @@ function M.touch(appid, part, now, status)
   s.parts[k][part] = at
   -- Bookkeeping only: a disk error costs a refetch later, never a failed EnsureFresh.
   return pcall(save)
+end
+
+--- Remember an error part at `now` (ms); an ok result forgets it.
+function M.remember_error(appid, part, now, value)
+  recent[key(appid) .. ":" .. part] = { at = now, value = value }
+end
+
+function M.forget_error(appid, part)
+  recent[key(appid) .. ":" .. part] = nil
+end
+
+--- The error part seen for (appid, part) less than M.TTL.error ago, or nil.
+function M.recent_error(appid, part, now)
+  local k = key(appid) .. ":" .. part
+  local e = recent[k]
+  if not e then return nil end
+  if (now or 0) - e.at >= M.TTL.error then
+    recent[k] = nil
+    return nil
+  end
+  return e.value
 end
 
 return M

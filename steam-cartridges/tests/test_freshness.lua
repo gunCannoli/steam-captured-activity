@@ -341,6 +341,26 @@ check("... and nothing when none is paused", resp.paused == nil)
 net2.deps.http, net2.deps.now = nil, nil
 metadata.deps.igdb_fetch = nil
 
+-- ---------- recent errors (M10): EnsureFresh answers a repeat failure from memory for 30 min ----------
+wipe(); fp_wipe()
+local search_calls = 0
+identity.deps.is_emulator = function() return false end
+identity.deps.http_get = function() search_calls = search_calls + 1; return nil, "network" end
+local ROUTE_STORE = { bucket = "steam-store", via = "default" }
+local function ensure_identity()
+  return json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "identity" }, context = { title = "Some Game", route = ROUTE_STORE } }))).parts.identity
+end
+local p1 = ensure_identity()
+local p2 = ensure_identity()
+check("a failed identity lookup is answered from memory on the next call", p1.status == "error" and p2.status == "error" and search_calls == 1, search_calls)
+check("recent_error forgets after 30 min", fp.recent_error(SC, "identity", os.time() * 1000 + 31 * 60000) == nil)
+wipe(); fp_wipe(); search_calls = 0
+ensure_identity()
+store.set_mapping(SC, 435150, "Manual", "manual")
+local p3 = ensure_identity()
+check("a saved mapping wins over a remembered error", p3.status == "ok" and p3.data.native.appid == 435150 and search_calls == 1)
+identity.deps.http_get, identity.deps.is_emulator = nil, nil
+
 fp_wipe()
 os.remove(META_PATH); os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))

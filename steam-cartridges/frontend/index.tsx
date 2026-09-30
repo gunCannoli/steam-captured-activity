@@ -138,7 +138,6 @@ const identity = createIdentity({
     records: records.store,
     owned: ownedCandidates,
     titleOf: shortcutTitle,
-    now: () => Date.now(),
 });
 
 /** Metadata (app/metadata.ts, plan M5b): selects Game Info for a shortcut through one

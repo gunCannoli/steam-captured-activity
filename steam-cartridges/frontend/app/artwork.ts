@@ -7,9 +7,7 @@ import type { ArtworkPlan, ArtworkUrls, Identity, Part, RecordStore, Route, Stor
 import type { backend as Backend } from "../ports/backend";
 import { assetUrlsFromItem } from "../domain/store-item.ts";
 import { artworkPlan, iconPlan, pickUrls, sgdbPlan, slotList } from "../domain/art-plan.ts";
-
-/** A failed lookup is retried on a view after this long (as identity). */
-const RETRY_MS = 5 * 60_000;
+import { createSessionMemo } from "./session-memo.ts";
 
 export interface ArtworkDeps {
     backend: Pick<typeof Backend, "ensureFresh">;
@@ -73,14 +71,12 @@ export function buildPlan(raw: RawArtwork, at: number): ArtworkPlan {
 }
 
 export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
-    const resolved = new Set<ShortcutId>();
-    const inflight = new Map<ShortcutId, Promise<Part<ArtworkPlan>>>();
-    const retryAt = new Map<ShortcutId, number>();
+    /** One lookup per appid per session (app/session-memo.ts); only ok and unsupported are final. */
+    const memo = createSessionMemo<ArtworkPlan>();
 
     async function resolve(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> {
         if (route.bucket === "none") {
             const part: Part<ArtworkPlan> = { status: "unsupported" };
-            resolved.add(appid);
             deps.records.update(appid, { artwork: part });
             return part;
         }
@@ -117,18 +113,11 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
                 }
             }
             part = { status: "ok", source: raw.source, checkedAt: raw.checkedAt, data: plan };
-            resolved.add(appid);
-            retryAt.delete(appid);
         } else if (raw) {
             const { data: _drop, ...rest } = raw;
             part = rest as Part<ArtworkPlan>;
-            if (raw.status === "unsupported") resolved.add(appid);
         } else {
             part = { status: "error", message: res.error ?? "no artwork part" };
-        }
-        if (part.status === "error") {
-            resolved.add(appid);
-            retryAt.set(appid, deps.now() + RETRY_MS);
         }
         logger.info(`Artwork ${appid}: ${part.status} ${part.data ? `${part.data.source} write=[${part.data.write}]` : "-"}`);
         deps.records.update(appid, { artwork: part });
@@ -137,22 +126,10 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
 
     return {
         async ensure(appid, route, identity) {
-            if (resolved.has(appid)) {
-                const at = retryAt.get(appid);
-                if (at === undefined || deps.now() < at) return deps.records.get(appid)?.artwork ?? { status: "pending" };
-                retryAt.delete(appid);
-                resolved.delete(appid);
-            }
-            const existing = inflight.get(appid);
-            if (existing) return existing;
-            const promise = resolve(appid, route, identity).finally(() => inflight.delete(appid));
-            inflight.set(appid, promise);
-            return promise;
+            return memo.run(appid, () => resolve(appid, route, identity), () => deps.records.get(appid)?.artwork);
         },
         invalidate(appid) {
-            resolved.delete(appid);
-            retryAt.delete(appid);
-            inflight.delete(appid);
+            memo.forget(appid);
         },
         clearSlots(appid, slots, iconRestore) {
             if (slots.length === 0 && iconRestore === undefined) return;

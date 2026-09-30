@@ -8,7 +8,7 @@ import type { ShortcutId } from '../frontend/kernel/appid.ts';
 
 const A = toShortcutId(0x8000_0001)!;
 
-function setup(ensureFresh: IdentityDeps['backend']['ensureFresh'], now = () => 0) {
+function setup(ensureFresh: IdentityDeps['backend']['ensureFresh']) {
     const bus = createEventBus();
     const records = createRecordStore(bus);
     records.upsert({ appid: A, gameid: toGameId(A), title: 'Some Game', exe: '' });
@@ -17,7 +17,6 @@ function setup(ensureFresh: IdentityDeps['backend']['ensureFresh'], now = () => 
         records,
         owned: () => [],
         titleOf: () => 'Some Game',
-        now,
     });
     return { identity, records };
 }
@@ -54,21 +53,31 @@ test('pending is not memoised: a later ensure calls the backend again', async ()
     assert.equal(calls, 2);
 });
 
-test('error is retried only after 5 minutes', async () => {
+test('an error is not memoised: the next view asks the backend, whose error TTL decides (M10)', async () => {
     let calls = 0;
-    let now = 0;
     const { identity } = setup(async () => {
         calls++;
         return { appid: A, parts: { identity: { status: 'error', message: 'boom' } } };
-    }, () => now);
+    });
     await identity.ensure(A, { bucket: 'steam-store', via: 'default' });
+    await identity.ensure(A, { bucket: 'steam-store', via: 'default' });
+    assert.equal(calls, 2);
+});
+
+test('a second view while the lookup is in flight joins it', async () => {
+    let calls = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { identity } = setup(async () => {
+        calls++;
+        await gate;
+        return { appid: A, parts: { identity: { status: 'ok', data: {} } } };
+    });
+    const a = identity.ensure(A, { bucket: 'steam-store', via: 'default' });
+    const b = identity.ensure(A, { bucket: 'steam-store', via: 'default' });
+    release();
+    await Promise.all([a, b]);
     assert.equal(calls, 1);
-    now = 60_000; // 1 minute later: still within the 5-minute retry window
-    await identity.ensure(A, { bucket: 'steam-store', via: 'default' });
-    assert.equal(calls, 1, 'not retried before 5 minutes');
-    now = 5 * 60_000 + 1;
-    await identity.ensure(A, { bucket: 'steam-store', via: 'default' });
-    assert.equal(calls, 2, 'retried after 5 minutes');
 });
 
 test('invalidate re-resolves on the next ensure', async () => {

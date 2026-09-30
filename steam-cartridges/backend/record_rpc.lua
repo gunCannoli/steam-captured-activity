@@ -55,15 +55,40 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
   local parts = {}
   for _, name in ipairs(requested) do
     if name == "identity" then
-      parts.identity = resolve_identity.ensure(appid, ctx)
-      if parts.identity.status == "ok" or parts.identity.status == "error" then
-        fresh().touch(appid, "identity", now_ms(), parts.identity.status)
+      -- A lookup that failed less than 30 min ago is answered from memory (a saved mapping always wins).
+      local recent = not ctx.force and not resolve_identity.saved(appid) and fresh().recent_error(appid, "identity", now_ms())
+      if recent then
+        parts.identity = recent
+      else
+        parts.identity = resolve_identity.ensure(appid, ctx)
+        if parts.identity.status == "ok" or parts.identity.status == "error" then
+          fresh().touch(appid, "identity", now_ms(), parts.identity.status)
+        end
+        if parts.identity.status == "error" then
+          fresh().remember_error(appid, "identity", now_ms(), parts.identity)
+        else
+          fresh().forget_error(appid, "identity")
+        end
       end
       ctx.identity = parts.identity -- later parts of this same call see the fresh identity
     elseif name == "metadata" then
       parts.metadata = metadata_service.ensure(appid, ctx)
     elseif name == "artwork" then
-      parts.artwork = art_service.ensure(appid, ctx)
+      -- Only a lookup without a Steam match can fail (SteamGridDB); a failure less than 30 min ago is answered
+      -- from memory. A Steam match (a new mapping) always asks again.
+      local identity = ctx.identity
+      local native = identity and identity.data and identity.data.native
+      local recent = not ctx.force and not native and fresh().recent_error(appid, "artwork", now_ms())
+      if recent then
+        parts.artwork = recent
+      else
+        parts.artwork = art_service.ensure(appid, ctx)
+        if parts.artwork.status == "error" then
+          fresh().remember_error(appid, "artwork", now_ms(), parts.artwork)
+        else
+          fresh().forget_error(appid, "artwork")
+        end
+      end
     elseif name == "achievements" then
       -- The native app comes from the identity: this call's fresh one, else the frontend's, else disk.
       -- Only a steam-store route uses a Steam match (a shortcut moved to web-scraping is unmatched here).
