@@ -393,7 +393,6 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     const [filter, setFilter] = useState("");
     const [selected, setSelected] = useState(0);
     const [busy, setBusy] = useState(false);
-    const [message, setMessage] = useState<string | null>(null);
 
     const visible = filterCandidates(all, filter);
     const chosen = visible.find((c) => c.appid === selected);
@@ -405,10 +404,10 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
 
     const run = async (c: ResetCandidate) => {
         setBusy(true);
-        setMessage(null);
         const result = await api.reset(c);
         setBusy(false);
-        setMessage(
+        // The outcome goes in a popup the user closes, not in the panel, where it would stay until the page is left.
+        showResult(
             !result.ok
                 ? result.reason
                 : result.remaining > 0 || result.skipped > 0
@@ -417,6 +416,20 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
         );
         setSelected(0);
         reload();
+    };
+
+    /** Steam's confirm dialog closes itself on OK, so the outcome is a second, alert-style dialog: one Close button, plus the title bar's X. */
+    const showResult = (text: string) => {
+        showModal(
+            <ConfirmModal
+                strTitle="Reset achievements"
+                strDescription={text}
+                strOKButtonText="Close"
+                bAlertDialog
+                bHideCloseIcon={false}
+            />,
+            window,
+        );
     };
 
     const confirm = () => {
@@ -435,7 +448,7 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
         );
     };
 
-    // One block: the label and description, then the filter, dropdown, button and result, all in one row (one card).
+    // One block: the label and description, then the filter, dropdown and button, all in one row (one card).
     return (
         <ItemRow>
             {/* The card's background belongs to Steam's Field, so this wrapper paints the same colour under the controls and the two read as one card. */}
@@ -471,7 +484,6 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
                 >
                     Reset
                 </DialogButton>
-                {message && <DialogBodyText>{message}</DialogBodyText>}
             </div>
             </div>
         </ItemRow>

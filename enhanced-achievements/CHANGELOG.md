@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- Reset Achievements shows its outcome in a popup with a Close button and the title bar's X, instead of a line under the controls that stayed in the panel.
 - Reset Achievements lists non-Steam games from Steam's own achievement progress, like Steam games (needs steam-cartridges with ADR-0045).
 
 ### Added
