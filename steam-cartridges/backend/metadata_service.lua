@@ -143,12 +143,8 @@ function M.screenscraper_to_metadata(jeu, appid, title)
 end
 
 local function default_screenscraper_fetch(appid, title, info)
-  local media = require("screenscraper_media")
-  local ra = require("retroachievements")
-  local rom_path = info and ra.extract_rom_path(info.exe, info.launch_options) or nil
-  local md5 = rom_path and ra.compute_rom_md5(rom_path) or nil
-  local console_id = info and ra.detect_console_id(info.exe, info.launch_options) or nil
-  local jeu = media.fetch_jeu(appid, rom_path, console_id, nil, md5, title)
+  -- The same `jeu` the media source (features plan F2) lists its images from.
+  local jeu = require("screenscraper_media").jeu_for(appid, title, info)
   if not jeu then return nil end
   return M.screenscraper_to_metadata(jeu, appid, title)
 end

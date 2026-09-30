@@ -1,8 +1,5 @@
 {
   "GetDiagnostics": "debug: called from the SharedJSContext console and tests/live/probes/http_calls.mjs",
-  "GetGameCommunityLinks": "features plan F2 (Media in the Community tab) wires it or replaces it",
-  "GetGameManual": "features plan F2 (Media in the Community tab) wires it or replaces it",
-  "GetGameMedia": "features plan F2 (Media in the Community tab) wires it or replaces it",
-  "GetGameTrailers": "features plan F2 (Media in the Community tab) wires it or replaces it",
+  "GetMediaImage": "features plan F2 step 3: app/media calls it through ports/backend.ts",
   "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it"
 }

@@ -5,6 +5,7 @@ local core             = require("rpc")
 local resolve_identity  = require("resolve_identity")
 local metadata_service  = require("metadata_service")
 local art_service       = require("art_service")
+local media_service     = require("media_service")
 local metadata_db       = require("web_metadata_db")
 local steam_store_store = require("steam_store_store")
 
@@ -71,6 +72,19 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
           fresh().remember_error(appid, "artwork", now_ms(), parts.artwork)
         else
           fresh().forget_error(appid, "artwork")
+        end
+      end
+    elseif name == "media" then
+      -- Community media (features plan F2): a failure less than 30 min ago is answered from memory, as for artwork.
+      local recent = not ctx.force and fresh().recent_error(appid, "media", now_ms())
+      if recent then
+        parts.media = recent
+      else
+        parts.media = media_service.ensure(appid, ctx)
+        if parts.media.status == "error" then
+          fresh().remember_error(appid, "media", now_ms(), parts.media)
+        else
+          fresh().forget_error(appid, "media")
         end
       end
     elseif name == "achievements" then
@@ -168,6 +182,16 @@ end)
 RPC.MarkKnown = method("MarkKnown", function(data)
   require("registry").mark_known(need(data, "appids"))
   return { ok = true }
+end)
+
+--- { appid, key, title? }: one ScreenScraper image of the media part, as base64 (features plan F2b). The bytes
+--- are downloaded into memory on each call; the answer never carries the URL (it holds the account).
+RPC.GetMediaImage = method("GetMediaImage", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local image, err = media_service.image(tonumber(appid), need(data, "key"), data.title)
+  if not image then return { error = err } end
+  return image
 end)
 
 return RPC

@@ -516,4 +516,12 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
   }
 end
 
+--- One query to IGDB's /v4/games endpoint with this module's Twitch token (features plan F2: the media
+--- service asks for a known game's videos, artworks and screenshots). The decoded list, or nil on failure.
+---@param apicalypse_query string
+---@return table|nil
+function igdb.query(apicalypse_query)
+  return query_igdb(apicalypse_query)
+end
+
 return igdb

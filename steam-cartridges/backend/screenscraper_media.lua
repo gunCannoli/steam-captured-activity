@@ -1,63 +1,20 @@
---- steam-cartridges - ScreenScraper media & manuals provider.
+--- steam-cartridges - the ScreenScraper client (jeuInfos.php).
 ---
---- Integrates ScreenScraper's jeuInfos.php API for retro games media:
----   1. In-game screenshots & title screens
----   2. Fanart & promotional backdrops
----   3. Gameplay preview videos (MP4)
----   4. Digital game manuals (PDF / multi-page scans)
+--- One `jeu` record per shortcut, shared by two sources:
+---   metadata (M5d)    metadata_service maps it to Game Info
+---   media (F2b)       media_service lists its screenshot, title screen and fanart as keys; image bytes are
+---                     downloaded on demand into memory (download) and never stored on disk
+---
+--- ScreenScraper's media URLs carry the developer and user accounts in their query string: they never leave
+--- this module and media_service (no record, no file, no log, no RPC answer holds one).
 
 local net         = require("net")
 local json        = require("json")
 local logger      = require("logger")
-local data_dir    = require("data_dir")
 local utils       = require("utils")
 local config      = require("web_config")
-local steam_paths = require("steam_paths")
-local shortcuts   = require("shortcuts")
 
 local M = {}
-
---- Cache for media results keyed by appid
-local media_cache = {}
-
-local function count_keys(tbl)
-  local c = 0
-  for _ in pairs(tbl or {}) do c = c + 1 end
-  return c
-end
-
---- Get media directory for a given appid
-local function get_media_dir(appid)
-  local dir = data_dir.path() .. "/media/" .. tostring(appid)
-  pcall(function()
-    local fs = require("fs")
-    if not fs.is_directory(dir) then
-      fs.create_directories(dir)
-      fs.create_directories(dir .. "/screenshots")
-      fs.create_directories(dir .. "/videos")
-      fs.create_directories(dir .. "/manuals")
-    end
-  end)
-  return dir
-end
-
---- Decode incoming RPC payload
-local function decode_payload(payload_json)
-  if type(payload_json) == "table" then
-    if type(payload_json.payload) == "string" then
-      local ok, inner = pcall(json.decode, payload_json.payload)
-      if ok and type(inner) == "table" then return inner end
-    end
-    return payload_json
-  end
-  local ok, req = pcall(json.decode, payload_json or "{}")
-  if not ok or type(req) ~= "table" then return nil end
-  if type(req.payload) == "string" then
-    local ok_inner, inner = pcall(json.decode, req.payload)
-    if ok_inner and type(inner) == "table" then return inner end
-  end
-  return req
-end
 
 --- In-memory `jeu` records, by shortcut appid (positive results only).
 local jeu_cache = {}
@@ -132,122 +89,106 @@ function M.fetch_jeu(appid, rom_path, system_id, crc, md5, name)
   return jeu_cache[appid]
 end
 
---- Fetch media from ScreenScraper API
+--- The `jeu` for a shortcut: the ROM file name, console and MD5 read from its shortcuts.vdf entry (the
+--- RetroAchievements readers), else the title. Returns what fetch_jeu returns.
 ---@param appid number
----@param rom_path string|nil
----@param system_id number|nil
----@param crc string|nil
----@param md5 string|nil
----@return table|nil
-function M.fetch_media(appid, rom_path, system_id, crc, md5)
-  if not appid then return nil end
-  if media_cache[appid] then return media_cache[appid] end
-
-  local jeu, err = M.fetch_jeu(appid, rom_path, system_id, crc, md5)
-  if err == "no-credentials" then
-    return {
-      appid = appid,
-      screenshots = {},
-      titlescreen = nil,
-      fanart = nil,
-      video = nil,
-      manual = nil,
-    }
-  end
-  if not jeu then return nil end
-
-  local filename = rom_path and rom_path:match("([^/\\]+)$") or ""
-  local medias = jeu.medias or {}
-  local screenshots = {}
-  local titlescreen = nil
-  local fanart = nil
-  local video = nil
-  local manual = nil
-
-  for _, m in ipairs(medias) do
-    local mtype = m.type or ""
-    local murl = m.url or ""
-    if #murl > 0 then
-      if mtype == "ss" or mtype == "screenshot" then
-        table.insert(screenshots, murl)
-      elseif mtype == "sstitle" or mtype == "titlescreen" then
-        titlescreen = titlescreen or murl
-      elseif mtype == "fanart" then
-        fanart = fanart or murl
-      elseif mtype == "video-normalized" or mtype == "video" then
-        video = video or murl
-      elseif mtype == "manual" then
-        manual = manual or murl
-      end
-    end
-  end
-
-  local result = {
-    appid = appid,
-    rom_title = jeu.nom or filename,
-    screenshots = screenshots,
-    titlescreen = titlescreen,
-    fanart = fanart,
-    video = video,
-    manual = manual,
-  }
-
-  media_cache[appid] = result
-  return result
-end
-
---- Get media for a shortcut appid
-function M.GetGameMedia(payload_json)
-  local req = decode_payload(payload_json)
-  local appid = tonumber(req and (req.appid or req.shortcut_appid))
-  if not appid then
-    return json.encode({ error = "missing_appid", screenshots = {} })
-  end
-  if appid < 0 then appid = appid + 0x100000000 end
-
-  if media_cache[appid] then
-    return json.encode({ success = true, media = media_cache[appid] })
-  end
-
-  -- Check if shortcut provides ROM info
+---@param title string|nil
+---@param info table|nil  the registry.shortcut entry
+function M.jeu_for(appid, title, info)
   local ra = require("retroachievements")
-  local paths = steam_paths.resolve()
-  local entries = (paths and paths.shortcuts) and shortcuts.parse(paths.shortcuts) or {}
-  local sc = nil
-  for _, entry in ipairs(entries) do
-    if entry.appid == appid then
-      sc = entry
-      break
-    end
-  end
-
-  local rom_path = sc and ra.extract_rom_path(sc.exe, sc.launch_options) or nil
+  local rom_path = info and ra.extract_rom_path(info.exe, info.launch_options) or nil
   local md5 = rom_path and ra.compute_rom_md5(rom_path) or nil
-  local console_id = sc and ra.detect_console_id(sc.exe, sc.launch_options) or nil
-
-  local media = M.fetch_media(appid, rom_path, console_id, nil, md5)
-  if media then
-    return json.encode({ success = true, media = media })
-  end
-
-  return json.encode({ success = true, media = { appid = appid, screenshots = {} } })
+  local console_id = info and ra.detect_console_id(info.exe, info.launch_options) or nil
+  return M.fetch_jeu(appid, rom_path, console_id, nil, md5, title)
 end
 
---- Get manual info for a game
-function M.GetGameManual(payload_json)
-  local req = decode_payload(payload_json)
-  local appid = tonumber(req and (req.appid or req.shortcut_appid))
-  if not appid then
-    return json.encode({ error = "missing_appid" })
-  end
-  if appid < 0 then appid = appid + 0x100000000 end
+-- ---------- Community media (features plan F2b) ----------
 
-  local cached = media_cache[appid]
-  if cached and cached.manual then
-    return json.encode({ success = true, manual_url = cached.manual })
-  end
+--- ScreenScraper media types Steam's Community Content section can show, and the card each becomes.
+M.MEDIA_KINDS = { sstitle = "screenshot", ss = "screenshot", fanart = "artwork" }
+local MEDIA_ORDER = { "sstitle", "ss", "fanart" }
+--- Region preference when a type exists for several regions (world first).
+local REGION_RANK = { wor = 1, us = 2, eu = 3, ss = 4, jp = 5 }
+--- The size a card is laid out with until the bytes are read (GetMediaImage returns the real one).
+M.DEFAULT_SIZE = { screenshot = { 640, 480 }, artwork = { 1920, 1080 } }
+--- ScreenScraper scales the image down to this width (mediaJeu.php `maxwidth`).
+M.MAX_WIDTH = 1280
 
-  return json.encode({ success = false, message = "no manual available" })
+local function key_of(m)
+  return tostring(m.type) .. "(" .. tostring(m.region or "") .. ")"
+end
+
+--- The images a `jeu` offers for the Community section, one per type (best region), as keys only:
+--- { kind, source = "screenscraper", key = "ss(wor)", width, height }. Never a URL.
+function M.media_items(jeu)
+  local best = {}
+  for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do
+    if type(m) == "table" and M.MEDIA_KINDS[m.type] and type(m.url) == "string" and m.url ~= "" then
+      local rank = REGION_RANK[m.region or "wor"] or 9
+      if not best[m.type] or rank < best[m.type].rank then best[m.type] = { rank = rank, media = m } end
+    end
+  end
+  local items = {}
+  for _, t in ipairs(MEDIA_ORDER) do
+    local b = best[t]
+    if b then
+      local kind = M.MEDIA_KINDS[t]
+      local size = M.DEFAULT_SIZE[kind]
+      items[#items + 1] = { kind = kind, source = "screenscraper", key = key_of(b.media), width = size[1], height = size[2] }
+    end
+  end
+  return items
+end
+
+--- The URL of the media item `key` in `jeu`, or nil. Stays in the backend (it carries the accounts).
+function M.media_url(jeu, key)
+  for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do
+    if type(m) == "table" and type(m.url) == "string" and key_of(m) == key then return m.url end
+  end
+  return nil
+end
+
+local function u16(s, i) return s:byte(i) * 256 + s:byte(i + 1) end
+local function u32(s, i) return u16(s, i) * 65536 + u16(s, i + 2) end
+
+--- "jpg" | "png" from the first bytes, or nil (ScreenScraper answers an error as text with HTTP 200).
+function M.image_type(body)
+  if type(body) ~= "string" then return nil end
+  if body:sub(1, 3) == "\255\216\255" then return "jpg" end
+  if body:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
+  return nil
+end
+
+--- Width and height from a PNG IHDR or a JPEG SOF segment, or nil.
+function M.image_size(body, ext)
+  if ext == "png" and #body >= 24 then return u32(body, 17), u32(body, 21) end
+  if ext ~= "jpg" then return nil end
+  local i = 3
+  while i + 8 <= #body do
+    if body:byte(i) ~= 0xFF then return nil end
+    local marker = body:byte(i + 1)
+    if marker >= 0xC0 and marker <= 0xCF and marker ~= 0xC4 and marker ~= 0xC8 and marker ~= 0xCC then
+      return u16(body, i + 7), u16(body, i + 5)
+    end
+    i = i + 2 + u16(body, i + 2)
+  end
+  return nil
+end
+
+--- The bytes of one media URL, scaled to MAX_WIDTH, in memory (net.get_binary). Never logs the URL.
+---@return string|nil body, string ext_or_err, number|nil width, number|nil height
+function M.download(url)
+  local sep = url:find("?", 1, true) and "&" or "?"
+  local res, err = net.get_binary(url .. sep .. "maxwidth=" .. M.MAX_WIDTH, {
+    source = "screenscraper",
+    user_agent = "steam-cartridges/1.0",
+  })
+  if not res then return nil, tostring(err) end
+  if res.status ~= 200 then return nil, "status " .. tostring(res.status) end
+  local ext = M.image_type(res.body)
+  if not ext then return nil, "not an image" end
+  local w, h = M.image_size(res.body, ext)
+  return res.body, ext, w, h
 end
 
 return M

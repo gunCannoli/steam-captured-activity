@@ -19,6 +19,7 @@ M.FAILURES_BEFORE_PAUSE = 5
 --- Injectable for tests. nil = the real dependency.
 M.deps = {
   http = nil, -- nil = require("http")
+  binary = nil, -- nil = require("bin_http") (get_binary)
   now = nil,  -- nil = wall clock in seconds
 }
 
@@ -153,6 +154,25 @@ function M.post(url, body, opts)
   end
   record(source, first_err)
   return first_err
+end
+
+--- GET a binary body (an image) into memory through bin_http (features plan F2b): Millennium's `http.get`
+--- cuts a binary body at its first NUL. Same breakers as get(). Returns { status, body, content_type },
+--- or `nil, "paused"`, or `nil, err`.
+---@param url string
+---@param opts? { source: string, user_agent?: string, max_bytes?: number }
+function M.get_binary(url, opts)
+  local source = source_of(opts)
+  if M.is_paused(source) then return nil, "paused" end
+  calls[source] = (calls[source] or 0) + 1
+  local binary = M.deps.binary or require("bin_http")
+  local ok, res, err = pcall(binary.get, url, without_source(opts))
+  if not ok or not res then
+    record(source, nil)
+    return nil, ok and tostring(err) or tostring(res)
+  end
+  record(source, res)
+  return res
 end
 
 return M

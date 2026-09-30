@@ -21,6 +21,7 @@ M.TTL = {
   identity_ok_no_native = 7 * DAY,     -- same as the store search negative cache
   metadata_ok = 24 * HOUR,             -- igdb / screenscraper / fallback: Flow B
   achievements_ok = 24 * HOUR,         -- the schema; unlocks are read on every open by their own channels
+  media_ok = 7 * DAY,                  -- community media (features plan F2): trailers and art rarely change
   unsupported = 24 * HOUR,             -- a route or source may change (credentials, settings)
   error = 30 * 60 * 1000,              -- retry soon, never in a loop
 }
@@ -83,6 +84,7 @@ local function ttl_for(part, info)
     end
     if part == "metadata" then return M.TTL.metadata_ok end
     if part == "achievements" then return M.TTL.achievements_ok end
+    if part == "media" then return M.TTL.media_ok end
     return M.TTL.metadata_ok
   end
   if status == "unsupported" then return M.TTL.unsupported end
@@ -107,7 +109,8 @@ function M.touch(appid, part, now, status)
   s.parts[k] = s.parts[k] or {}
   local at = now
   if status == "error" then
-    local ok_ttl = (part == "identity" and M.TTL.identity_ok_no_native) or M.TTL.metadata_ok
+    local ok_ttl = (part == "identity" and M.TTL.identity_ok_no_native) or (part == "media" and M.TTL.media_ok)
+      or M.TTL.metadata_ok
     at = now - (ok_ttl - M.TTL.error)
   end
   s.parts[k][part] = at

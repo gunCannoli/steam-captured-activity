@@ -56,14 +56,8 @@ ClearCustomMetadata = RECORD_RPC.ClearCustomMetadata
 CheckUnlocks   = RECORD_RPC.CheckUnlocks
 GetNewShortcuts = RECORD_RPC.GetNewShortcuts
 MarkKnown      = RECORD_RPC.MarkKnown
-
--- Community & Media (ScreenScraper + IGDB)
-local SS_MEDIA = require("screenscraper_media")
-local IGDB_COMM = require("igdb_community")
-GetGameMedia          = SS_MEDIA.GetGameMedia
-GetGameManual         = SS_MEDIA.GetGameManual
-GetGameTrailers       = IGDB_COMM.GetGameTrailers
-GetGameCommunityLinks = IGDB_COMM.GetGameCommunityLinks
+-- Community media (features plan F2): ScreenScraper image bytes; the rest of the media part comes through EnsureFresh.
+GetMediaImage  = RECORD_RPC.GetMediaImage
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at
