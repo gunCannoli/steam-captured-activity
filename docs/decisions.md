@@ -2758,3 +2758,48 @@ and one guardrail-8 write (`appData.details = {}`).
   another's job fails `npm run test:ts` with the rule's reason, not in review.
 - A Steam boundary still converts appids (Steam keys shortcuts signed or unsigned); those files are named exceptions.
 - Cost: one batch of 13 commits touching most frontend files; each is revertible on its own (the M10 plan § 5).
+
+## ADR-0045: steam-cartridges fills Steam's stores when Steam would; other plugins read Steam, not us
+
+**Status:** Accepted · 2026-09-30 (the user chose option B: "consider steam-cartridges store data just as steam does it
+so we dont just feed the fake data when the game is opened") · Implemented by
+[the achievements preload plan](plans/steam-cartridges-achievements-preload-plan.md) ·
+**Extends [ADR-0009](#adr-0009-prefer-patching-steams-data-over-patching-its-dom),
+[ADR-0022](#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
+[ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)**
+
+### Context
+
+steam-cartridges fed a shortcut's achievements into Steam's stores only when its page opened. enhanced-achievements'
+Reset Achievements, which reads Steam's `appAchievementProgressCache` for Steam games, saw no shortcut, so a
+plugin-to-plugin read (`storedAchievementSummaries()`) was added. Every future plugin would need the same second path.
+Steam fills that cache after login for every owned game, from its own file.
+
+### Decision
+
+1. steam-cartridges fills each Steam store for a shortcut **at the moment Steam fills it for an owned game**: eager
+   stores after Steam's own load (the achievement progress cache), lazy stores on request (their hooks answer at any
+   time, with no page visit needed). The timing table is in steam-components.md, "When Steam fills each achievement
+   store".
+2. What it writes has **Steam's own shape** (the progress entry carries `appid`, `percentage`, `cache_time`, `vetted`).
+3. **Other plugins read a shortcut's data from Steam's stores**, never from a steam-cartridges read API. A write Steam
+   has no command for (resetting a shortcut's achievements) stays a steam-cartridges public API for now; routing it
+   through Steam's own `achievement_clear` is a separate, later decision (option C).
+4. The start-up preload writes only the parts whose surfaces are safe to apply at boot (`achievements`, `metadata`),
+   never `identity` (knowledgebase Part 7). It needs no library: Steam's `appStore` is empty at that moment.
+5. Steam's `LoadCacheFile` replaces the whole progress cache after login (verified live; the first implementation
+   wrote before it and lost everything). steam-cartridges therefore watches the cache map's identity
+   (`sensors/progress-cache`, 1 s, at most 10 min, read-only) and renders every record again on the first map and on
+   each replacement. The exact alternative, a prototype wrap of `LoadCacheFile`, is recorded in TASK.md
+   (Considerations).
+
+### Consequences
+
+- enhanced-achievements lists Steam and non-Steam games with one code path; `storedAchievementSummaries()` is deleted.
+- Steam saves our progress entries into its own `achievement_progress.json` (`SaveCacheFile` writes the whole map), so
+  they survive a restart like an owned game's, and outlive the plugin if it is removed (Steam then shows the last
+  counts; harmless, the entries are only read for those shortcuts). Re-applying after each load refreshes their
+  `cache_time`, so Steam does not ask its server about a shortcut.
+- Start-up renders one pass over every shortcut with stored achievements (~130 here); the sections refresh is
+  coalesced to one per tick.
+- A new store fed for shortcuts must say, in its layer doc, when Steam fills it for an owned game.

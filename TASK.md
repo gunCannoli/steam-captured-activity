@@ -17,11 +17,6 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**Achievements preload (ADR-0045): plan ready, dry-run on `c4f0978`.** Execute
-[the achievements preload plan](docs/plans/steam-cartridges-achievements-preload-plan.md) (option B: steam-cartridges fills
-Steam's achievement progress cache at start-up; enhanced-achievements reads Steam's cache for every game and
-`storedAchievementSummaries()` goes). Option C (reset a shortcut through Steam's own `achievement_clear`) is a later decision.
-
 **F1 Game Data editor: code committed on top of M10 (2026-09-30), waiting for live verification.** Deploy with `dev.ps1`, then
 follow [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`check_settings_panel.mjs` 9 titles,
 `probes/game_editor.mjs`, `npm run test:live`, the by-hand check on desktop and Big Picture). Then mark F1 done in the
@@ -38,6 +33,19 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Considerations (decided later, not scheduled)
 
+- **Wrap `LoadCacheFile` instead of watching (ADR-0045 decision 5, option 2).** steam-cartridges re-applies its
+  achievements when Steam replaces its progress cache after login, detected by polling the map's identity
+  (`sensors/progress-cache`, 1 s, at most 10 min). If the poll ever proves too slow, too costly, or misses a user who logs
+  in after 10 minutes, hook Steam's own load instead. Tips: the target is
+  `window.appAchievementProgressCache.LoadCacheFile` (async; on the store's prototype, read it with
+  `Object.getPrototypeOf(window.appAchievementProgressCache)` first, the class name is minified); call the original, then
+  `achievements.rerenderAll()` (app layer, already exists); install it in a surface, never in a sensor (guardrail: only
+  surfaces patch Steam), so it needs a `touches` entry (`appAchievementProgressCache.LoadCacheFile`), a kill switch and a
+  line in `surfaces.md`; it runs once per login, so guardrail 2 (hot paths) is no concern. Other plugins may wrap the same
+  method: always call the original and return its value so the wraps compose. Verify live with
+  `tests/live/probes/ach_preload.mjs` right after a restart, and read
+  `window.appAchievementProgressCache.m_achievementProgress.mapCache` identity before and after login (steam-components.md,
+  "When Steam fills each achievement store"). Amend ADR-0045 (or supersede it) when done.
 - **Surface `deps` singletons (F30).** Each `surfaces/*/deps.ts` is a module-level object that `create*Surface` overwrites. Rewriting the
   six surfaces as real factories would touch every Steam hook (the highest-risk code) for a benefit that has not occurred. Instead add one
   capability-ratchet rule in `tests/architecture.test.ts`: `index.tsx` calls each `create*Surface` at most once, and nothing outside a

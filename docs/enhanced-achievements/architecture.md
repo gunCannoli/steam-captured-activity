@@ -96,6 +96,9 @@ existing block or becomes a new child of `<Blocks>`; never add spacing on a row.
 
 ## History
 
+- 2026-09-30 ADR-0045: Reset Achievements lists every game, Steam's or not, from Steam's `appAchievementProgressCache`
+  (steam-cartridges fills it for its shortcuts after Steam's own load at start-up); a shortcut is offered only when
+  steam-cartridges' `resetAchievements` is present. The call to `storedAchievementSummaries()` is gone.
 - 2026-09-30 Settings panel: one spacing system (`Blocks`, `BLOCK_GAP`); Record clip, Clip length and Clip delay are one block.
 - 2026-09-30 Reset Achievements: new surface `reset` (feature id `reset`, pure logic in `surfaces/reset/reset.ts`, shared types and `filterCandidates` in `kernel/reset.ts`); the settings panel gets it injected as `achievementReset` (D7). A Steam game is cleared with Steam's console command `achievement_clear <appid> <id>` per unlocked achievement (only ids of plain identifier characters are ever sent) and read back after 1.5 s; a non-Steam game through steam-cartridges' public `resetAchievements`, found in `PLUGIN_LIST` (a soft link: plugins never import each other, and without it non-Steam games are simply not offered). Non-Steam games with unlocks are listed from steam-cartridges' public `storedAchievementSummaries()` (one disk read per call), so `candidates()` is async. The panel is one card: a single `PanelSectionRow` holds the label, description and controls. New exports `achievementReset` and `SettingsPanelView` (live tests). `tests/reset.mjs` is non-destructive.
 - 2026-09-30 E2: `admit` moved from the render to the mount effect; `queue.peek` and `queue.whenShowing`; the sound surface uses them instead of `phaseOf` + `subscribe`. Fixes EA-K2 and EA-K9.

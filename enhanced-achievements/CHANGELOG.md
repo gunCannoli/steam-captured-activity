@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- Reset Achievements lists non-Steam games from Steam's own achievement progress, like Steam games (needs steam-cartridges with ADR-0045).
+
 ### Added
 
 - **Reset Achievements** in the settings panel's Reset group: a games filter, a dropdown of games with unlocked achievements and a **Reset** button that warns first that the game will lose all its achievements. Its own kill switch, `reset` in `disabledFeatures`. It lists Steam games and, with steam-cartridges loaded, non-Steam games that have unlocks.

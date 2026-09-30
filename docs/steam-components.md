@@ -71,6 +71,17 @@ Module ids are one build's breadcrumbs; resolve by § 3.
 | **Community & Workshop**| `CWorkshopStore` (`m_mapPublishedFiles`); Community Content loader (module `77163`, class `ae`) | `m_mapPublishedFiles`, `GetPublishedFileDetails`; `LoadCommunityContentAndVotes(appid, page)` | Workshop store: published file records (our activity cards write it). The Community Content section is **not** fed from it: its loader fetches `library/appcommunityfeed/<appid>` itself.  | [community](#community-media--workshop-store) |
 | **Your Stuff Media**    | Module `57150` (`Ae.E`)                           | `listSource: { type: "app", gameid: overview.gameid }`                                             | Renders Big Picture "YOUR STUFF" media section (screenshots & clips). Requires 64-bit composed ID `m_gameid`.      | [guardrail 1](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid) |
 
+### When Steam fills each achievement store for an owned game
+
+A plugin that feeds a store for a shortcut fills it at the same moment Steam fills it for an owned game (ADR-0045).
+Verified live 2026-09-30.
+
+| Store | Filled for an owned game | steam-cartridges for a shortcut |
+| --- | --- | --- |
+| `appAchievementProgressCache` | At start-up, after login, from `librarycache/achievement_progress.json` (`Init` → `LoadCacheFile`, which **replaces** `m_achievementProgress`); refreshed from the server when an entry's `cache_time` is older than `rt_last_time_played`; the whole map is saved back (`SaveCacheFile`) after each refresh | After each replacement of the map (`sensors/progress-cache`) and on every record change |
+| `AppDetailsStore.GetAchievements` | On request (`RequestAchievements`) | On request (the hook answers from the surface's map) |
+| `AchievementsFullStore` | On request (`LoadMyAchievements`) | On request (the hooks answer from the surface's map) |
+
 ---
 
 ## Map: stable resolution signatures

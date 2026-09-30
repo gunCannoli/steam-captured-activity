@@ -1014,6 +1014,23 @@ news and partner events (`surfaces/captures/activity.ts`). Two facts:
   achievement type passed to `NotificationStore.OnNotification(id, type, binary)`.
 - **Noise:** `Uncaught (in promise)` rejections with a plain-object value and no stack (1-2 per page) also occur when a
   *native* game page opens (appids 730, 570), so they are Steam's own, not the plugin's.
+- **`appAchievementProgressCache`** (verified live 2026-09-30): `Init` awaits `LoadCacheFile` (reads
+  `librarycache/achievement_progress.json`, version 3) and then registers for achievement notifications.
+  **`LoadCacheFile` replaces `m_achievementProgress` with a new object** (`new Map(file.mapCache)`), after login, so
+  anything written into the map before it is lost; a writer must write again after the replacement (steam-cartridges:
+  `sensors/progress-cache`). An entry is `{ appid, unlocked, total, percentage, all_unlocked, cache_time, vetted }`.
+  `GetAchievementProgress(appid)` returns `percentage` and calls `QueueCacheUpdate(appid)` (a server
+  `GetAchievementsProgress` request 100 ms later) when the entry is missing or `cache_time` is older than the
+  overview's `rt_last_time_played`. `BGameHasAchievements(appid)` is `entry.total > 0`, and **true** when there is no
+  entry. `RequestCacheUpdate` ends with `SaveCacheFile`, which writes the whole map through
+  `SteamClient.Apps.SaveAchievementProgressCache`.
+- **`appDetailsStore.GetAppData(appid)` creates** an empty entry in `m_mapAppData` for an unknown id
+  (`m_mapAppData.has(e) || m_mapAppData.set(e, new w)`). To look without creating, read `m_mapAppData.get(appid)`.
+  Every shortcut already has an entry under its unsigned appid; signed keys: none.
+- **A stored schema with no achievements crosses the backend as `achievements: {}`** (K1, cjson's empty table): 8 of
+  135 on this machine. Iterate it with `asList`, never `for...of` on the raw field.
+- **`appStore` is empty at plugin start-up** (before login): `GetAppOverviewByAppID` returns nothing, so a start-up
+  pass must not require a shortcut to have a title.
 - **Probes:** `steam-cartridges/tests/live/probes/find_ach_proto.mjs` (which modules mention the protobuf), `exceptions_all.mjs`,
   `exception_stack.mjs`, `toast_live.mjs`.
 

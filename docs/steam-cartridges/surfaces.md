@@ -359,6 +359,14 @@ data and without Steam-set `details` → `undefined`.
 
 **Record-driven in:** M6b (`achievements`).
 
+**ADR-0045 (2026-09-30):** the start-up preload renders every shortcut with stored achievements. The progress cache
+entry has Steam's own shape (`appid`, `unlocked`, `total`, `percentage`, `all_unlocked`, `cache_time` = now, `vetted`),
+written under the unsigned and the signed id; Steam persists it to its `achievement_progress.json` like an owned
+game's. Steam replaces the whole cache after login, so `sensors/progress-cache` re-renders every record when the map
+appears or is replaced. The `details.achievements` write reads `appDetailsStore.m_mapAppData.get(id)`, never
+`GetAppData(id)`, which creates an entry for an unknown id. The `sections` surface coalesces its achievements refresh
+to one per tick.
+
 ## toasts
 
 The two `NotificationStore` writes that pop a native Steam toast: an

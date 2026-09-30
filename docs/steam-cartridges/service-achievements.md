@@ -83,6 +83,16 @@ its only output, plus the `achievements.unlocked` event:
   into the record and announced with `bus.emit("achievements.unlocked", { appid, ids })`.
 - `trigger` / `reset` / `checkNow` / `startSession` back the public API (`triggerAchievement`, `resetAchievements`,
   `checkObserverUnlocks`, `startAchievementsObserver`; same names and signatures, D8).
+- `preload()` (ADR-0045): at start-up every stored `ok` part from `GetAllRecords` goes into the record of a shortcut,
+  unless the record already has one (no library check: Steam's `appStore` is empty at start-up, verified live
+  2026-09-30). Only the `achievements` part (never `identity`, knowledgebase Part 7). The `achievements` surface then
+  fills Steam's progress cache for every shortcut, so other plugins read a shortcut's progress from Steam as for an
+  owned game. `GetAllRecords` also returns a shortcut that has stored achievements but no metadata and no mapping
+  (`ach_service.stored_appids`).
+- `rerenderAll()` (ADR-0045): Steam's `LoadCacheFile` (after login) replaces `m_achievementProgress` with a map built
+  from its own file, dropping what was written before. `sensors/progress-cache` watches the map's identity (1 s, at
+  most 10 min) and `index.tsx` calls `rerenderAll()` on the first map and on each replacement; it re-emits
+  `record.updated(achievements)` for every record with an `ok` part, and the existing render queue does the rest.
 
 Subscribers (in `index.tsx`): the `toasts` surface shows one toast per id and the `captures` surface adds the
 Post-Game Summary line, both reading name, description and icon from the record's schema. The `achievements`
@@ -117,6 +127,9 @@ For a new emulator family or engine log reader see the Reference section "How to
 
 ## History
 
+- 2026-09-30 (ADR-0045): `preload()`, `rerenderAll()`; `GetAllRecords` covers every stored shortcut
+  (`achievements_store.shortcut_keys`, `ach_service.stored_appids`); `storedAchievementSummaries()` deleted from the public
+  API; `buildSteamAchievements` accepts the `{}` form of an empty list (K1).
 - M6a (2026-09-29): created (this doc replaces `docs/steam-cartridges-achievements.md`, kept below as the
   Reference). `ach_service.lua`, `CheckUnlocks`, the `achievements` part. Fixes K1 (backend half: arrays), K2, K7.
   Nothing calls the new part until M6b.
