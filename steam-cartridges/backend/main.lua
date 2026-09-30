@@ -43,6 +43,8 @@ SteamStoreRejectSuggestion = STORE_RPC.SteamStoreRejectSuggestion
 SteamStoreGetAppDetails  = STORE_RPC.SteamStoreGetAppDetails
 SteamStoreRecordArtwork  = STORE_RPC.SteamStoreRecordArtwork
 SteamStoreDownloadImage  = STORE_RPC.SteamStoreDownloadImage
+SteamStoreSaveIcon       = STORE_RPC.SteamStoreSaveIcon
+SteamStoreRecordIcon     = STORE_RPC.SteamStoreRecordIcon
 
 -- Native Achievements subsystem (P5).
 CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock

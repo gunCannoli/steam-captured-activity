@@ -253,6 +253,120 @@ r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
 check("a thrown search is status error, not a crash", r.status == "error")
 art.deps.search = nil
 
+-- ---------- library icon (icon plan) ----------
+print("icon")
+local EXE = [[D:\Games\Local\Wuchang - Fallen Feathers\Project_Plague.exe]]
+local USER_PNG = [[C:\emu\art\my-icon.png]]
+local function vdf_icon(v)
+  local list = v == nil and {} or { { appid = SC, icon = v } }
+  for i = #SHORTCUTS, 1, -1 do SHORTCUTS[i] = nil end
+  for i, e in ipairs(list) do SHORTCUTS[i] = e end
+end
+art.deps.search = function() return { id = 77 } end
+art.deps.fetch = function(id, key, want_icon) requests = requests + 1; return { portrait = URLS.portrait, icon = want_icon and "https://cdn2.steamgriddb.com/i.png" or nil } end
+
+vdf_icon(nil)
+check("unknown shortcut (no vdf entry): not eligible", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
+vdf_icon(EXE)
+local ok_, prev_ = art.icon_eligible(SC, "steam-cdn", 2277560)
+check("exe icon: eligible, previous is the exe path", ok_ == true and prev_ == EXE)
+vdf_icon("")
+ok_, prev_ = art.icon_eligible(SC, "steam-cdn", 2277560)
+check("empty icon field: eligible, previous is empty", ok_ == true and prev_ == "")
+vdf_icon([["D:\Game\GAME.EXE"]])
+check("a quoted upper-case .EXE counts as the exe", art.icon_eligible(SC, "steam-cdn", 2277560) == true)
+vdf_icon(USER_PNG)
+check("an icon the user chose is never eligible", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
+
+store.set_mapping(SC, 2277560, "WUCHANG", "manual")
+vdf_icon(EXE)
+r = art.ensure(SC, { title = "WUCHANG", route = ROUTE_STORE, allowSgdb = true, artUrls = { icon = "https://shared.steamstatic.com/i_full.jpg" } })
+check("mapped game: iconEligible and the StoreItemCache icon url", r.data.iconEligible == true and r.data.urls.icon == "https://shared.steamstatic.com/i_full.jpg")
+check("record_icon refuses another native app", store.record_icon(SC, { path = "C:/ours.jpg", previous = EXE, source = "steam-cdn", steam_appid = 1 }) == false)
+check("record_icon refuses a SteamGridDB icon on a mapped shortcut", store.record_icon(SC, { path = "C:/ours.jpg", previous = EXE, source = "steamgriddb" }) == false)
+check("record_icon stores ours for the mapped native app", store.record_icon(SC, { path = [[C:\ours.jpg]], previous = EXE, source = "steam-cdn", steam_appid = 2277560 }) == true)
+vdf_icon("c:/OURS.jpg")
+check("ours still in the vdf (any slash or case): not offered again", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
+ok_, prev_ = art.icon_eligible(SC, "steam-cdn", 999)
+check("ours, re-mapped to another native app: offered, previous stays the original", ok_ == true and prev_ == EXE)
+vdf_icon(EXE)
+check("vdf back at previous (our write never landed): offered again", art.icon_eligible(SC, "steam-cdn", 2277560) == true)
+
+local RPC = require("steam_store_rpc")
+vdf_icon([[C:\ours.jpg]])
+local cl = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = SC })))
+check("Clear while ours is shown: icon_restore is the previous value", cl.icon_restore == EXE and cl.icon == nil)
+check("Clear forgets the icon entry", store.get(SC).icon == nil)
+
+store.set_mapping(SC, 2277560, "WUCHANG", "manual")
+store.record_icon(SC, { path = [[C:\ours.jpg]], previous = "", source = "steam-cdn", steam_appid = 2277560 })
+vdf_icon(USER_PNG)
+check("the user picked another icon: not eligible", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
+check("... and the entry is released", store.get(SC).icon.released == true)
+vdf_icon("")
+check("released: never eligible again, even back on the exe", art.icon_eligible(SC, "steam-cdn", 2277560) == false)
+cl = json.decode(RPC.SteamStoreClearMapping(json.encode({ appid = SC })))
+check("Clear after the user chose: no icon_restore", cl.icon_restore == nil)
+wipe()
+
+print("icon rpc")
+local icon_file = require("shortcut_icon")
+local PNG = "\137PNG\r\n\26\n" .. string.rep("x", 200)
+local downloads = 0
+icon_file.deps.download = function(url, kind)
+  downloads = downloads + 1
+  if url:find("junk", 1, true) then return "<html>" .. string.rep(" ", 200) end
+  return PNG
+end
+icon_file.deps.dir = TMP
+check("sniff: png, jpg, ico; junk and short bodies are nil", icon_file.sniff(PNG) == "png" and icon_file.sniff("\255\216\255" .. string.rep("x", 200)) == "jpg"
+  and icon_file.sniff("\0\0\1\0" .. string.rep("x", 200)) == "ico" and icon_file.sniff("<html>" .. string.rep(" ", 200)) == nil and icon_file.sniff("\137PNG") == nil)
+check("hosts: Steam CDN and SteamGridDB only", icon_file.host_kind("https://shared.steamstatic.com/a.jpg") == "steam"
+  and icon_file.host_kind("https://cdn2.steamgriddb.com/i.png") == "sgdb" and icon_file.host_kind("https://evil.example/steamstatic.com/a.jpg") == nil
+  and icon_file.host_kind("http://shared.steamstatic.com/a.jpg") == nil)
+vdf_icon(USER_PNG)
+local sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://cdn2.steamgriddb.com/i.png", source = "steamgriddb" })))
+check("SaveIcon refuses a shortcut whose icon the user chose, without a download", sv.error == "not eligible" and downloads == 0)
+vdf_icon("")
+sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://evil.example/i.png", source = "steamgriddb" })))
+check("SaveIcon refuses a host that is not allowed", sv.error == "url not allowed" and downloads == 0)
+sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://cdn2.steamgriddb.com/junk.png", source = "steamgriddb" })))
+check("SaveIcon never writes a body that is not an image", sv.error == "download failed")
+sv = json.decode(RPC.SteamStoreSaveIcon(json.encode({ appid = SC, url = "https://cdn2.steamgriddb.com/i.png", source = "steamgriddb" })))
+local saved_file = sv.path and sv.path:gsub("\\", "/")
+check("SaveIcon writes <dir>/<appid>.png and returns previous", saved_file == TMP .. "/" .. SC .. ".png" and sv.previous == "")
+check("the stored file holds the downloaded bytes", (function()
+  local f = io.open(saved_file, "rb")
+  if not f then return false end
+  local c = f:read("*a")
+  f:close()
+  return c == PNG
+end)())
+check("a Windows path is returned with backslashes (as Steam's own dialog)", not sv.path:match("^%a:") or not sv.path:find("/", 1, true))
+local rec = json.decode(RPC.SteamStoreRecordIcon(json.encode({ appid = SC, path = sv.path, previous = "", source = "steamgriddb" })))
+check("RecordIcon stores a SteamGridDB icon for an unmapped shortcut", rec.ok == true and store.get(SC).icon.source == "steamgriddb")
+os.remove(saved_file)
+wipe()
+
+print("icon sgdb")
+art.deps.grid_exists = function() return false end
+vdf_icon(EXE)
+requests = 0
+r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
+check("steamgriddb: the icon rides along with the slot lookup", r.data.iconEligible == true and r.data.urls.icon == "https://cdn2.steamgriddb.com/i.png")
+vdf_icon(USER_PNG)
+r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
+check("steamgriddb: no icon asked for when the user chose one", r.data.iconEligible == false and r.data.urls.icon == nil)
+art.deps.grid_exists = function() return true end
+vdf_icon(EXE)
+requests = 0
+r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
+check("steamgriddb: an eligible icon alone never makes a request", requests == 0 and r.data.iconEligible == true and next(r.data.urls) == nil)
+art.deps.grid_exists = function() return false end
+vdf_icon(nil)
+art.deps.fetch = function(id, key) requests = requests + 1; return URLS end
+wipe()
+
 -- ---------- record_rpc ----------
 print("record_rpc")
 art.deps.search = function() return { id = 1 } end
@@ -264,7 +378,7 @@ wipe()
 print("credentials")
 local function read_all(p) local f = io.open(p, "rb"); local c = f:read("*a"); f:close(); return c end
 local leak = false
-for _, file in ipairs({ "art_service.lua", "web_sgdb.lua" }) do
+for _, file in ipairs({ "art_service.lua", "web_sgdb.lua", "shortcut_icon.lua" }) do
   for line in read_all(here .. "/../backend/" .. file):gmatch("[^\n]+") do
     if line:find("logger[:.]") and (line:find("%f[%w_]key%f[^%w_]") or line:find("Bearer")) then leak = true; print("    leak in " .. file .. ": " .. line) end
   end

@@ -1,7 +1,7 @@
 --- Persistent Steam Store state: <data dir>/steam_store.json (ADR-0032).
 ---
 --- User state; never auto-deleted. Holds ONLY facts about the user's non-Steam
---- shortcuts (mapping, suggestions, rejections, which art slots we wrote).
+--- shortcuts (mapping, suggestions, rejections, which art slots and library icon we wrote).
 --- Native Steam data is never persisted: every keyed appid must be a shortcut.
 
 local json     = require("json")
@@ -20,7 +20,7 @@ M._path = nil -- test override
 local function path() return M._path or data_dir.file(FILE) end
 
 local function blank()
-  return { version = 1, mappings = {}, suggestions = {}, rejected = {}, applied_artwork = {}, negative = {} }
+  return { version = 1, mappings = {}, suggestions = {}, rejected = {}, applied_artwork = {}, applied_icon = {}, negative = {} }
 end
 
 local function load()
@@ -82,6 +82,7 @@ function M.get(appid)
     suggestions = s.suggestions[k] or {},
     rejected = s.rejected[k] or {},
     applied = s.applied_artwork[k],
+    icon = s.applied_icon[k],
   }
 end
 
@@ -114,18 +115,19 @@ function M.set_mapping(appid, steam_appid, name, source, now)
   return s.mappings[k]
 end
 
---- Remove the mapping. Returns { steam_appid, slots }: the art slots this
---- plugin wrote (the only ones the frontend may clear).
+--- Remove the mapping. Returns { steam_appid, slots, icon? }: the art slots this
+--- plugin wrote (the only ones the frontend may clear) and the library icon entry
+--- it wrote (icon plan; the caller decides whether to put `previous` back).
 function M.clear(appid, reject)
   local s, k = load(), key(appid)
   local mapping, applied = s.mappings[k], s.applied_artwork[k]
-  local out = { steam_appid = mapping and mapping.steam_appid or (applied and applied.steam_appid), slots = {} }
+  local out = { steam_appid = mapping and mapping.steam_appid or (applied and applied.steam_appid), slots = {}, icon = s.applied_icon[k] }
   for _, slot in ipairs(applied and applied.slots or {}) do out.slots[#out.slots + 1] = slot end
   if reject and out.steam_appid and not M.is_rejected(appid, out.steam_appid) then
     s.rejected[k] = s.rejected[k] or {}
     table.insert(s.rejected[k], out.steam_appid)
   end
-  s.mappings[k], s.applied_artwork[k] = nil, nil
+  s.mappings[k], s.applied_artwork[k], s.applied_icon[k] = nil, nil, nil
   save()
   return out
 end
@@ -206,6 +208,41 @@ function M.record_sgdb_artwork(appid, slots, tried, now)
   }
   save()
   return true
+end
+
+--- Record the library icon this plugin pointed the shortcut at (icon plan): `path` is our
+--- file, `previous` the shortcuts.vdf icon value it replaced (put back on Clear). Same
+--- ownership rules as the slots: a Steam CDN icon needs the shortcut still mapped to that
+--- native app ("no mapping"); a SteamGridDB icon is refused once the shortcut is mapped.
+function M.record_icon(appid, entry, now)
+  local s, k = load(), key(appid)
+  if type(entry) ~= "table" or type(entry.path) ~= "string" or entry.path == "" then return false, "invalid icon" end
+  local mapping = s.mappings[k]
+  if entry.source == "steamgriddb" then
+    if mapping then return false, "mapped" end
+  elseif not mapping or tonumber(mapping.steam_appid) ~= tonumber(entry.steam_appid) then
+    return false, "no mapping"
+  end
+  s.applied_icon[k] = {
+    path = entry.path,
+    previous = type(entry.previous) == "string" and entry.previous or "",
+    source = entry.source == "steamgriddb" and "steamgriddb" or "steam-cdn",
+    steam_appid = entry.source ~= "steamgriddb" and tonumber(entry.steam_appid) or nil,
+    at = now or os.time(),
+  }
+  save()
+  return true
+end
+
+--- The user pointed the shortcut at another icon: the user wins, and this plugin never
+--- sets or restores its icon again (until Clear forgets the entry).
+function M.release_icon(appid)
+  local s, k = load(), key(appid)
+  local entry = s.applied_icon[k]
+  if not entry or entry.released then return entry end
+  entry.released = true
+  save()
+  return entry
 end
 
 --- Grid file names Steam writes for a custom art slot (SetCustomArtworkForApp).

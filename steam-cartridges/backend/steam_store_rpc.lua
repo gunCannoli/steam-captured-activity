@@ -14,6 +14,11 @@ local throttle    = require("steam_store_throttle")
 
 local method = core.method
 
+-- Loaded on first use (icon plan): the artwork resolver and the icon file store pull in modules
+-- the other Steam Store handlers (and their test suite) do not need.
+local function art() return require("art_service") end
+local function icon_file() return require("shortcut_icon") end
+
 local RPC = {}
 
 local function need(data, field)
@@ -48,9 +53,19 @@ RPC.SteamStoreSetMapping = method("SteamStoreSetMapping", function(data)
 end)
 
 --- reject=true remembers the appid so it is never auto-applied again. Returns
---- the slots the frontend must clear (only those this plugin wrote).
+--- the slots the frontend must clear (only those this plugin wrote), and
+--- `icon_restore`: the icon path to put back, only while the shortcut still shows
+--- the icon this plugin set (icon plan; an icon the user chose is left alone).
 RPC.SteamStoreClearMapping = method("SteamStoreClearMapping", function(data)
-  return store.clear(need(data, "appid"), data.reject and true or false)
+  local appid = need(data, "appid")
+  local out = store.clear(appid, data.reject and true or false)
+  local icon = out.icon
+  out.icon = nil
+  if icon and not icon.released then
+    local current = art().current_icon(appid)
+    if current ~= nil and art().same_path(current, icon.path) then out.icon_restore = icon.previous or "" end
+  end
+  return out
 end)
 
 RPC.SteamStoreRejectSuggestion = method("SteamStoreRejectSuggestion", function(data)
@@ -87,6 +102,29 @@ RPC.SteamStoreDownloadImage = method("SteamStoreDownloadImage", function(data)
   if not res or res.status ~= 200 or not res.body then error("download failed") end
   local ext = url:match("%.(%w+)[%?]?[^/]*$") or "jpg"
   return { base64 = utils.base64_encode(res.body), ext = ext:lower() == "png" and "png" or "jpg" }
+end)
+
+--- Icon plan: store our copy of the chosen icon ({ appid, url, source, steam_appid? }) and
+--- return its path and `previous`, the shortcuts.vdf value it replaces (put back on Clear).
+--- Refused unless the icon is still eligible, so a late view never overrides the user's choice.
+RPC.SteamStoreSaveIcon = method("SteamStoreSaveIcon", function(data)
+  local appid = need(data, "appid")
+  local source = data.source == "steamgriddb" and "steamgriddb" or "steam-cdn"
+  local ok, previous = art().icon_eligible(appid, source, data.steam_appid)
+  if not ok then return { error = "not eligible" } end
+  local path, err = icon_file().save(appid, need(data, "url"))
+  if not path then return { error = err } end
+  return { path = path, previous = previous }
+end)
+
+--- Icon plan: remember the icon the artwork surface just set (steam_store.json applied_icon).
+--- `{ error = "no mapping" | "mapped" }` = the shortcut's match changed meanwhile (undo the write).
+RPC.SteamStoreRecordIcon = method("SteamStoreRecordIcon", function(data)
+  local ok, err = store.record_icon(need(data, "appid"), {
+    path = need(data, "path"), previous = data.previous, source = data.source, steam_appid = data.steam_appid,
+  })
+  if not ok then return { error = err } end
+  return { ok = true }
 end)
 
 return RPC

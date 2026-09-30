@@ -9,6 +9,11 @@
 --- a grid file in <user>/config/grid, or one this plugin already attempted, is left
 --- alone, so a slot the user set (or cleared) is never touched.
 ---
+--- The library icon (icon plan) is not a slot: Steam draws a shortcut's icon from the file
+--- its shortcuts.vdf `icon` field names, or from the exe when that is empty. It is offered
+--- (data.iconEligible) only while Steam draws it from the exe, or while it is still the icon
+--- this plugin wrote; an icon the user chose is never touched (icon_eligible below).
+---
 --- ADR-0035: route bucket "none" makes no network call. ADR-0014: a missing key or a
 --- failed lookup is silent to the user (needs-setup / empty urls), never an error toast.
 --- The API key is read here and passed only to web_sgdb; it is never logged.
@@ -20,6 +25,7 @@ local sgdb        = require("web_sgdb")
 local normalize   = require("steam_store_normalize")
 local store       = require("steam_store_store")
 local resolve_identity = require("resolve_identity")
+local shortcuts   = require("shortcuts")
 
 local M = {}
 
@@ -29,6 +35,7 @@ M.deps = {
   search = nil,      -- nil = web_sgdb.search_game(title, key)
   fetch = nil,       -- nil = web_sgdb.fetch_artwork_urls(game_id, key)
   grid_exists = nil, -- nil = files in <user>/config/grid
+  shortcut_icon = nil, -- nil = the shortcut's `icon` field in shortcuts.vdf (M.current_icon)
   now = function() return os.time() end,
 }
 
@@ -82,7 +89,61 @@ end
 
 local function has_urls(urls)
   for _, slot in ipairs(SLOTS) do if urls[SLOT_KEY[slot]] then return true end end
-  return false
+  return urls.icon ~= nil
+end
+
+-- ---------- library icon (icon plan) ----------
+
+--- A shortcuts.vdf path as compared here: no surrounding quotes, forward slashes, lower case.
+local function norm_path(p)
+  local s = tostring(p or ""):gsub('^%s*"', ""):gsub('"%s*$', "")
+  return (s:gsub("\\", "/"):lower())
+end
+
+function M.same_path(a, b) return norm_path(a) == norm_path(b) end
+
+--- Steam draws the icon from the exe: the field is empty or names an .exe.
+function M.is_exe_icon(p)
+  local n = norm_path(p)
+  return n == "" or n:sub(-4) == ".exe"
+end
+
+--- The shortcut's shortcuts.vdf `icon` value ("" when unset), or nil when unknown (no readable
+--- shortcuts.vdf, or no such shortcut): then nothing is ever overwritten blindly.
+function M.current_icon(appid)
+  if M.deps.shortcut_icon then return M.deps.shortcut_icon(appid) end
+  local ok, paths = pcall(steam_paths.resolve)
+  if not ok or not paths or not paths.shortcuts then return nil end
+  local okp, entries = pcall(shortcuts.parse, paths.shortcuts)
+  if not okp or type(entries) ~= "table" then return nil end
+  local entry = shortcuts.by_appid(entries)[tonumber(appid)]
+  if not entry then return nil end
+  return entry.icon or ""
+end
+
+--- May this plugin point the shortcut at a new icon from `source` (and native `steam_appid`)?
+--- Returns eligible, previous (the vdf value Clear puts back).
+---   no entry of ours       -> only while Steam draws the icon from the exe (empty or .exe)
+---   ours, still in the vdf -> only for another source or native app (a Steam match replaces SteamGridDB)
+---   vdf back at `previous` -> our write never landed: as if there were no entry
+---   anything else          -> the user chose an icon: released, never touched again
+function M.icon_eligible(appid, source, steam_appid)
+  local current = M.current_icon(appid)
+  if current == nil then return false end
+  local ours = store.get(appid).icon
+  if ours and ours.released then return false end
+  if ours then
+    if M.same_path(current, ours.path) then
+      local changed = ours.source ~= source or tonumber(ours.steam_appid) ~= tonumber(steam_appid)
+      return changed, ours.previous or ""
+    end
+    if not M.same_path(current, ours.previous) then
+      store.release_icon(appid)
+      return false
+    end
+  end
+  if not M.is_exe_icon(current) then return false end
+  return true, current
 end
 
 --- Full resolution. Returns a Part (table).
@@ -110,10 +171,11 @@ function M.ensure(appid, ctx)
     for k, v in pairs(ctx.artUrls or {}) do
       if type(v) == "string" and v ~= "" then urls[k] = v end
     end
+    local icon_ok = M.icon_eligible(appid, "steam-cdn", native.appid)
     return {
       status = "ok",
       source = "steam-cdn",
-      data = { urls = urls, source = "steam-cdn", steamAppid = native.appid, applied = applied, emptySlots = empty_slots(appid, exists) },
+      data = { urls = urls, source = "steam-cdn", steamAppid = native.appid, applied = applied, emptySlots = empty_slots(appid, exists), iconEligible = icon_ok },
       checkedAt = now_ms(),
     }
   end
@@ -123,10 +185,12 @@ function M.ensure(appid, ctx)
     return { status = "pending", checkedAt = now_ms() }
   end
 
-  -- No Steam match: SteamGridDB, empty slots only.
+  -- No Steam match: SteamGridDB, empty slots only. The icon rides along with a slot lookup; it
+  -- never triggers a SteamGridDB request on its own (a library whose slots are all set makes none).
   local tried = applied and applied.source == "steamgriddb" and applied.tried or {}
   local eligible = without(empty_slots(appid, exists), tried)
-  local base = { urls = {}, source = "steamgriddb", emptySlots = eligible }
+  local icon_ok = M.icon_eligible(appid, "steamgriddb", nil)
+  local base = { urls = {}, source = "steamgriddb", emptySlots = eligible, iconEligible = icon_ok }
 
   if ctx.allowSgdb == false or ctx.noNetwork or #eligible == 0 then
     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
@@ -154,7 +218,7 @@ function M.ensure(appid, ctx)
     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
   end
 
-  local okf, urls = pcall(fetch, game.id, key)
+  local okf, urls = pcall(fetch, game.id, key, icon_ok)
   if not okf or type(urls) ~= "table" then
     return { status = "error", message = "SteamGridDB fetch failed", checkedAt = now_ms() }
   end

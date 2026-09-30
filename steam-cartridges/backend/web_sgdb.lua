@@ -1,6 +1,5 @@
 local net = require("net")
 local json = require("json")
-local utils = require("utils")
 local logger = require("logger")
 
 local sgdb = {}
@@ -90,10 +89,11 @@ function sgdb.get_by_steam_appid(steam_appid, key)
   return nil
 end
 
---- Download binary image and convert to base64
+--- Download a SteamGridDB image (the library icon, icon plan). Replaces the uncalled
+--- download_image_base64: the caller writes the raw bytes to a file.
 ---@param url string
----@return table|nil { base64: string, ext: string }
-function sgdb.download_image_base64(url)
+---@return table|nil { body: string, ext: string }
+function sgdb.download_image(url)
   if not url or url == "" then return nil end
 
   local res = net.get(url, { source = "sgdb", headers = { ["Accept"] = "*/*", ["User-Agent"] = "Mozilla/5.0" }, timeout = 25 })
@@ -122,23 +122,25 @@ function sgdb.download_image_base64(url)
     ext = "jpg"
   end
 
-  local b64 = utils.base64_encode(res.body)
   return {
-    base64 = b64,
+    body = res.body,
     ext = ext,
   }
 end
 
---- Fetch artwork bundle (portrait, hero, logo, wide capsule) for a game id
+--- Fetch artwork bundle (portrait, hero, logo, wide capsule, and the library icon when
+--- `want_icon`) for a game id
 ---@param game_id number
 ---@param key string
+---@param want_icon boolean|nil
 ---@return table bundle
-function sgdb.fetch_artwork_urls(game_id, key)
+function sgdb.fetch_artwork_urls(game_id, key, want_icon)
   local out = {
     portrait = nil,
     hero = nil,
     logo = nil,
     wide = nil,
+    icon = nil,
   }
 
   -- 1. Portrait capsule (600x900)
@@ -163,6 +165,14 @@ function sgdb.fetch_artwork_urls(game_id, key)
   local wide = api_get("https://www.steamgriddb.com/api/v2/grids/game/" .. tostring(game_id) .. "?dimensions=920x430,460x215", key)
   if type(wide) == "table" and wide[1] and wide[1].url then
     out.wide = wide[1].url
+  end
+
+  -- 5. Library icon (PNG or ICO; Steam draws both for a shortcut)
+  if want_icon then
+    local icons = api_get("https://www.steamgriddb.com/api/v2/icons/game/" .. tostring(game_id) .. "?types=static&nsfw=false&mimes=image/png,image/vnd.microsoft.icon", key)
+    if type(icons) == "table" and icons[1] and icons[1].url then
+      out.icon = icons[1].url
+    end
   end
 
   return out
