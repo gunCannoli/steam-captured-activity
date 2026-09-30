@@ -17,32 +17,24 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**Handoff for the next session (2026-09-30), read first.**
-- **Achievements preload (ADR-0045) is done and live-verified.** Pushed up to `3677055`. `a6c7676` (Reset Achievements
-  `candidates()` synchronous, stale docs fixed) is committed locally and live-verified after a Steam restart
-  (`enhanced-achievements/tests/reset.mjs` 8/8, `ach_preload.mjs` 6/6, `npm test` 116/116) but **not pushed**. Both `-dev`
-  builds deployed in Steam are current.
-- **Next is F2** (see Next). The order check holds: ADR-0045 exists, so F2 writes ADR-0046 unchanged. Baselines differ
-  from the F2 plan's text: steam-cartridges `test:ts` is **B = 208** (the plan says 204 after the preload), `test_ach_service`
-  is 23; every F2 expected count is relative to the B you measure in P4, as the plan says. P2 (`64e3350` is an ancestor) holds.
-- **Expect Rule R (`git apply -3`) on F2's patches s3 and s5.** The preload plan also changed `surfaces/sections/index.ts`
-  (`scheduleRefresh`), `app/achievements.ts` (`preload`, `rerenderAll`), `index.tsx` (import of `watchProgressCache`, the
-  start-up block after `libraryHomeReady`), `record_rpc.lua` (`GetAllRecords`) and added `sensors/progress-cache`. A conflict
-  from `-3` means stop (F2 plan § 10). F2 also needs a clean `git status` (P1).
-- **F1's live check is still owed** (first item of Now) and the F2 plan wants it before F2's live verification. Whether F2's
-  code may be written before it is the user's call.
-- **Push:** `git push origin main` (AGENTS.md Routine 5) only after F2's step 8 and the user's live verification (F2 plan § 9).
-  Until then `a6c7676` and the F2 commits stay local. Never add AI attribution to a commit.
-- **Lesson to carry into F2:** a dry run that never restarts Steam cannot see start-up order. The preload plan passed its dry
-  run and then failed live three times (Steam's `appStore` empty at boot, `{}` for an empty list (K1), Steam replacing its
-  progress cache after login). For F2's learn-once jsx observer and loader patch, run the plan's live probe right after a
-  Steam restart and before opening any game page, and read the Steam log
-  (`C:\game\steam\logs\webhelper_js.txt`) for surface errors (`exceeded its error budget`) after each deploy.
+**F2 Community media:** code committed (2026-09-30), waiting for the live verification in
+[the F2 plan § 9](docs/plans/steam-cartridges-f2-community-media-plan.md). Deploy with `dev.ps1`, then § 9.1 scripts, § 9.2
+Routines 1 and 2 (desktop and Big Picture), § 9.3 the card interaction audit (it decides whether Steam's native cards stay).
+F1's live check (below) is still owed.
 
 **F1 Game Data editor: code committed on top of M10 (2026-09-30), waiting for live verification.** Deploy with `dev.ps1`, then
 follow [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`check_settings_panel.mjs` 9 titles,
 `probes/game_editor.mjs`, `npm run test:live`, the by-hand check on desktop and Big Picture). Then mark F1 done in the
-[features plan](docs/plans/steam-cartridges-features-plan.md); F2 is planned (see Next).
+[features plan](docs/plans/steam-cartridges-features-plan.md).
+
+**Not pushed yet (2026-09-30).** The local commits `a6c7676` (Reset Achievements cleanup), the TASK handoff commit (`ae46043`) and the
+seven F2 commits are ahead of `origin/main`. Push with `git push origin main` (AGENTS.md Routine 5) after the user's F2 live
+verification; never add AI attribution to a commit.
+
+**Lesson carried from the achievements preload (ADR-0045):** a dry run that never restarts Steam cannot see start-up order
+(it failed live three times: `appStore` empty at boot, `{}` for an empty list (K1), Steam replacing its progress cache after
+login). For F2's learn-once jsx observer and loader patch, run the plan's live probe right after a Steam restart and before
+opening any game page, and read `C:\game\steam\logs\webhelper_js.txt` for `exceeded its error budget` after each deploy.
 
 **Owed by a human:** the five visual hand checks listed in [verification.md](docs/steam-cartridges/verification.md) (never run after M10).
 The shortcut library icon's optional last check (choose an icon by hand, confirm it is kept) is also yours.
@@ -76,9 +68,6 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
-- **Execute the F2 plan** (Community media in Steam's own Community section): [steam-cartridges-f2-community-media-plan.md](docs/plans/steam-cartridges-f2-community-media-plan.md),
-  ready and dry-run on `64e3350`. The achievements preload plan is done (it took ADR-0045; F2 writes ADR-0046); F1's
-  live check is still owed. See the handoff at the top of Now. Its § 9.3 card interaction audit decides whether Steam's native cards stay.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.

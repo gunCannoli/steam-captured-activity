@@ -46,6 +46,7 @@ RPCs (`record_rpc.lua`): `GetNewShortcuts()` → `{ shortcuts }`; `MarkKnown({ a
 | identity `ok` without a native match | 7 days | same as the store search's negative cache |
 | metadata `ok` (igdb / screenscraper / fallback) | 24 h | Flow B |
 | achievements `ok` | 24 h (the schema; unlocks are read by their own channels, Flow C) | |
+| media `ok` (igdb / screenscraper) | 7 days | trailers and art rarely change (features plan F2) |
 | any part, `error` | 30 min | retry soon, never in a loop |
 | `unsupported` | 24 h | a route, setting or credential may change |
 | `pending`, `needs-setup` | always | cheap to ask again |
@@ -101,7 +102,8 @@ again. Memory only: `freshness.json` does not change.
 | `backend/record_rpc.lua` | `GetNewShortcuts`, `MarkKnown`, the freshness use in `EnsureFresh` |
 | `backend/metadata_service.lua` | The refresh rule for local records |
 | `frontend/app/ingest.ts`, `frontend/app/view.ts` | The background job and the view pipeline (M7b) |
-| `backend/steam_store_throttle.lua`, `web_igdb.lua`, `igdb_community.lua`, `web_sgdb.lua`, `retroachievements.lua`, `screenscraper_media.lua`, `achievements_store.lua`, `steam_store_rpc.lua` | Call `net` instead of `http` |
+| `backend/steam_store_throttle.lua`, `web_igdb.lua`, `web_sgdb.lua`, `retroachievements.lua`, `screenscraper_media.lua`, `achievements_store.lua`, `steam_store_rpc.lua` | Call `net` instead of `http` |
+| `backend/bin_http.lua` (only through `net.get_binary`) | Binary bodies into memory (features plan F2) |
 
 ## Steam targets touched
 

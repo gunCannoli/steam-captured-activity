@@ -104,7 +104,9 @@ export interface SyncProgress { isSyncing; total; current; currentGame; phase } 
 export const PORTABLE_CATEGORY_IDS, STEAM_ONLY_CATEGORY_IDS, MANAGED_CATEGORY_IDS: readonly number[];  // M10 (ADR-0038)
 // GameMetadata gains badge_category_ids?: number[] (decided by app/metadata, written by game-info; M10)
 export type AchievementSet = Record<string, unknown>;
-export type CommunityMedia = Record<string, unknown>;
+export interface MediaItem { kind: "video" | "screenshot" | "artwork"; source: "igdb" | "screenscraper"; youtube?; url?; thumb?; key?; width?; height?; title? }  // F2
+export interface CommunityMedia { items: MediaItem[]; igdb_id?: number; ss_id?: number }   // F2; items may arrive as {} (asList)
+// kernel/media-bin.ts (F2): createMediaBin(release) -> { put(appid, key, { url, width?, height? }), get(appid, key) }; 8 shortcuts
 export type ArtworkPlan = Record<string, unknown>;
 export interface GameRecord {
     appid: ShortcutId; gameid: string; title: string; exe: string;

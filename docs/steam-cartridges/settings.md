@@ -16,6 +16,8 @@
 - **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Game Data, Achievements, Notifications, Activity Feed,
   Community & Media, Routing Rules, Library Audit, Troubleshooting; then the sticky `sync-progress.tsx` bar.
   Shared rows are in `components.tsx`.
+- **Community & Media** (`panels/community.tsx`, F2): two toggles, `communityShowTrailers` and `communityShowArtworks`;
+  `communityShowManuals` and `communityShowExternalLinks` keep their keys and defaults with no row until F2c.
 - **Troubleshooting** (`panels/troubleshooting.tsx`): one toggle per `FEATURE_IDS` entry (on = not in `disabledFeatures`), written with
   the pure `toggleFeature` (`troubleshooting-core.ts`); a read-only block with safe mode and each feature's state
   (`on`, `off`, `tripped (n errors)`) and one line per surface from `ctx.safety.surfaces()` (the surface runner's status:

@@ -183,7 +183,7 @@ timer, after the achievements surface fed Steam's stores in the same pass; the `
   `setContentListener` setter).
 
 **`render(appid, record)`** (M4c; M5b adds the `metadata` half):
-`setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined)`
+`setExtraSections(appid, native ? NATIVE_SECTIONS : isEnabled("community") && media ok with items ? ["community"] : undefined)`
 (`NATIVE_SECTIONS = ["friends", "community", "achievements"]`, moved here from `steam-store/index.ts`).
 Also tracks whether the shortcut has Game Info (`record?.metadata?.status === "ok"`, or `"error"`
 with `data`) in a local `hasGameInfoByAppid` map and re-renders on change — replaces the old
@@ -193,7 +193,7 @@ nothing outside this file calls `setExtraSections`, and nothing pushes a Game In
 
 **Hooks:** `patchedGetSections` (fail-open: Steam's `base.call` runs first; a throw in our part returns Steam's own result and counts against `sections`).
 
-**Record-driven in:** M4c (`identity`); M5b (`metadata`); M6 (`achievements`).
+**Record-driven in:** M4c (`identity`); M5b (`metadata`); M6 (`achievements`); F2 (`media`, the Community section for an unmapped shortcut).
 
 ## captures
 
@@ -431,6 +431,29 @@ resolved link ids, so `check_parity.mjs` check 15 fails on both the pre-M3.7 and
 builds. Out of scope for a pure move (D14); tracked for a bugfix plan after M3.
 
 **Record-driven in:** M4c.
+
+## community
+
+Feeds Steam's own Community Content section (desktop section `community`, Big Picture COMMUNITY tab) with a
+shortcut's community media: IGDB trailers (Steam's YouTube card), IGDB and ScreenScraper screenshots and artwork
+(Steam's image cards and viewer). Features plan F2, ADR-0046. Pure logic in `core.ts`.
+
+**touches:**
+
+| Target | Guardrail |
+| --- | --- |
+| `CommunityContentLoader.LoadCommunityContentAndVotes` (the loader class's prototype) | 2 (one Map lookup per page), 12 (one class for every window) |
+| `jsx:community-section` | 2, 17 (learn-once: property checks until the section class is seen, then disposed; the patch runs on a timer, never in the render) |
+
+**reads:** `media`. **Injected deps:** `SurfaceDeps` + `imageOf(appid, key)` (the media bin, a pure read).
+
+**Kill switch:** `community`. Off: the loader patch calls Steam's own loader and `sections` does not add the section.
+Fail-open: a throw in the patch returns Steam's own loader and counts against `community`; a failed learn leaves the
+section stock.
+
+**API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `jsx`), exported by `index.tsx` for the live probe.
+
+**Record-driven in:** F2.
 
 ## artwork
 

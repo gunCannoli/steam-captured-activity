@@ -2803,3 +2803,37 @@ Steam fills that cache after login for every owned game, from its own file.
 - Start-up renders one pass over every shortcut with stored achievements (~130 here); the sections refresh is
   coalesced to one per tick.
 - A new store fed for shortcuts must say, in its layer doc, when Steam fills it for an owned game.
+
+## ADR-0046: Community media feeds Steam's own Community Content loader; ScreenScraper bytes stay in memory
+
+**Status:** Accepted · 2026-09-30 (user decision, features plan F2) · **Amends [ADR-0041](#adr-0041-jsx-runtime-hooks-stay-one-per-concern)** (a fourth, learn-once jsx site)
+
+### Context
+
+A shortcut with no Steam match has an empty Community section and COMMUNITY tab. Steam's Community Content section
+(module 77163, desktop and Big Picture) does not read a store we can fill: its loader fetches
+`library/appcommunityfeed/<appid>` itself (verified live 2026-09-30). The deleted community plan's loopback files and
+`CWorkshopStore` stubs could not have worked. ScreenScraper media URLs carry the user's account, the frontend cannot
+fetch them (no CORS), and Millennium's Lua `http.get` cuts binary bodies.
+
+### Decision
+
+- Feed Steam's own cards: the `community` surface patches the loader's `LoadCommunityContentAndVotes` prototype
+  method to return our items (types 3 Artwork, 4 Video, 5 Screenshot) for a shortcut with a feed, and Steam's own
+  loader for anything else. The class is reached by a jsx observer that disposes itself once the section class is
+  seen (`surfaces/community`, a fourth `keepJsxPatched` site, transient).
+- The `sections` surface adds `community` to an unmapped shortcut's sections only when it has media and `community`
+  is on.
+- Our cards use published file ids from 9e14 (15 digits), creator `{ name: source, steamid: "0" }`, null counts.
+- IGDB media is asked by the igdb_id Game Info shows, never by title. ScreenScraper items are keys; the backend
+  downloads an image into memory (`net.get_binary`, WinINet via FFI) on request; the frontend holds it as a `blob:`
+  URL in a bounded bin. No media file on disk; no ScreenScraper URL outside the backend.
+
+### Consequences
+
+- Steam's own grid, viewer and YouTube player; nothing of ours is drawn.
+- Each card keeps Steam's Report, vote, award, comment and author controls, which act on Valve's servers with our ids
+  (they fail server-side). If the live check (F2 plan § 9.3) shows a visible fault, the fallback is to render our own
+  grid from Steam's exported parts (`kB` YouTube player, the viewer module, the section CSS), which needs a new ADR.
+- A Steam update that renames the loader method or its class's prototype methods leaves the section stock (the
+  learn fails, reported to the `community` switch), never a crash.

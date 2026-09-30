@@ -22,7 +22,7 @@ steam-cartridges architecture (ADR-0039); index:
 export const FEATURE_IDS = [
     "sections", "store-cache", "captures", "headline", "activity-cards",
     "native-links", "achievements", "achievements-observer", "game-info",
-    "library-home", "background-sync", "playbar", "toasts", "artwork",
+    "library-home", "background-sync", "playbar", "toasts", "artwork", "community",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
@@ -158,5 +158,6 @@ else may import `frontend/safety/` except `index.tsx`.
 - M3.9: `artwork` appended to `FEATURE_IDS` (new surface: custom artwork
   slot and logo position writes, moved from `features/artwork/artwork.ts`
   and `features/steam-store/logo.ts`).
+- F2: `community` appended to `FEATURE_IDS` (new surface: the Community Content loader, features plan F2).
 - M5c: provider credentials section added (SteamGridDB key entered in the settings panel, stored in `.env`).
 - M8d: Troubleshooting panel in the settings panel (`settings.md`): a toggle per feature id, written to `disabledFeatures` by `toggleFeature`.

@@ -83,6 +83,7 @@ One doc per layer, updated by every change that touches the layer.
 | Backend port and RPC facade | [rpc.md](steam-cartridges/rpc.md) |
 | Resolver service (native match, web identity, routing policy) | [service-resolver.md](steam-cartridges/service-resolver.md) |
 | Metadata service and its sources | [service-metadata.md](steam-cartridges/service-metadata.md) |
+| Media service (community media) and its sources | [service-media.md](steam-cartridges/service-media.md) |
 | Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) |
 | Achievements service, sources, observer | [service-achievements.md](steam-cartridges/service-achievements.md) |
 | Freshness and ingestion | [service-freshness.md](steam-cartridges/service-freshness.md) |

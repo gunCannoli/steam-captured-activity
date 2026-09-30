@@ -23,6 +23,7 @@ for the authoritative, up-to-date state):
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
 | Metadata service + RPC facade | done (M5a–M5b) — [service-metadata.md](service-metadata.md), [rpc.md](rpc.md) |
 | Artwork service (SteamGridDB, Steam CDN) | done (M5c) — [service-artwork.md](service-artwork.md) |
+| Media service (IGDB, ScreenScraper) + community surface | done (F2) — [service-media.md](service-media.md), [surfaces.md](surfaces.md#community) |
 | Achievements service | planned (M6) |
 | Freshness + ingestion | done (M7a-M7b) — [service-freshness.md](service-freshness.md) |
 | Settings | done (M8) — [settings.md](settings.md) |

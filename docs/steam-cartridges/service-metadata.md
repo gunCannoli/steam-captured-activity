@@ -104,7 +104,7 @@ which carries them, is never logged.
 | `backend/web_metadata_db.lua` | Persisted `library_metadata.json` (unchanged format, `custom_override` rule) |
 | `backend/steam_store_appdetails.lua` | Store appdetails fetch + `to_metadata` (mapped native apps, in-memory 7-day TTL cache) |
 | `backend/web_igdb.lua` | IGDB search + match scoring (`fetch_game_metadata`) |
-| `backend/screenscraper_media.lua` | `fetch_jeu` (the jeuInfos client, shared with media) — the ScreenScraper metadata source |
+| `backend/screenscraper_media.lua` | `fetch_jeu` and `jeu_for` (the jeuInfos client, shared with the media service, [service-media.md](service-media.md)) — the ScreenScraper metadata source |
 | `backend/web_rpc.lua` | `get_shortcut_info`; pre-M5a `GetGameMetadata`/`RefreshGameMetadata`/`GetAllMetadata` (kept as aliases until M9) |
 
 ## Steam targets touched

@@ -32,7 +32,7 @@ new surface with declared `touches` (disjoint from every other surface; a test e
 | # | Feature | Why this order |
 | --- | --- | --- |
 | F1 | Game Data editor: manual metadata and manual Steam link (settings popup) | Small, no new Steam write. Fixes wrong data and unwanted suggestions today. **Code done 2026-09-30 (rebuilt on top of M10; live verification pending)** ([F1 plan](steam-cartridges-f1-game-data-editor-plan.md)). |
-| F2 | Media in the Community tab | Larger: new record part, new service, new surface. Needs live research first (see F2 open questions). |
+| F2 | Media in the Community tab | Larger: new record part, new service, new surface. **Code done 2026-09-30 (live verification pending)** ([F2 plan](steam-cartridges-f2-community-media-plan.md)). |
 
 Each feature ships separately (own commit series, own live verification, own CHANGELOG entry).
 
