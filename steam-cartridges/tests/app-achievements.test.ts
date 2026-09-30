@@ -156,4 +156,5 @@ test('summary counts the unlocked and total achievements of the record', async (
     assert.deepEqual(ach.summary(SC), { nAchieved: 0, nTotal: 2 });
     await ach.trigger(SC);
     assert.deepEqual(ach.summary(SC), { nAchieved: 1, nTotal: 2 });
+    assert.deepEqual(ach.summary(SC | 0), { nAchieved: 1, nTotal: 2 }, 'a signed appid finds the same record');
 });

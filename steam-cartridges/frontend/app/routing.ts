@@ -10,7 +10,7 @@ import {
     type ServiceTarget,
 } from '../domain/routing/policy.ts';
 import { pendingOr } from '../domain/routing/pending.ts';
-import { NON_STEAM_APPID_MIN } from '../kernel/appid.ts';
+import { NON_STEAM_APPID_MIN, toUnsigned } from '../kernel/appid.ts';
 
 export interface CollectionInfo {
     id: string;
@@ -96,13 +96,14 @@ export function createRouting(inputs: RoutingInputs) {
         const res = await inputs.loadProfiles();
         profiles.clear();
         for (const [key, value] of Object.entries(res ?? {})) {
-            const appid = Number(key);
-            if (Number.isFinite(appid) && value) profiles.set(appid, value);
+            const appid = toUnsigned(key);
+            if (appid !== undefined && value) profiles.set(appid, value);
         }
     }
 
     function getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined {
-        return profiles.get(appid) ?? profiles.get(appid >>> 0) ?? profiles.get(appid | 0);
+        const key = toUnsigned(appid);
+        return key === undefined ? undefined : profiles.get(key);
     }
 
     function listShortcuts(): { appid: number; name: string }[] {

@@ -5,6 +5,7 @@ import { onSettingChange, useSetting, type ControllerOverride } from "../setting
 import { backend } from "../../ports/backend";
 import type { AutoRoutingProfile } from "../../domain/routing/policy";
 import { type GameMetadata } from "../../kernel/record";
+import { lookupStored } from "../../kernel/appid";
 import { usePanelContext } from "../context";
 import { ItemRow, SettingsModal } from "../components";
 import { useSyncProgress } from "../sync-progress";
@@ -126,10 +127,7 @@ export function RevisionSection() {
     }[] = [];
 
     for (const sc of shortcuts) {
-        const profile =
-            autoProfiles[String(sc.appid)] ||
-            autoProfiles[String(sc.appid >>> 0)] ||
-            autoProfiles[String(sc.appid | 0)];
+        const profile = lookupStored(autoProfiles, sc.appid);
 
         // Excluded by routing rules or auto mode (app/routing, the one evaluation)
         const isAllowed = ctx.routing.serviceAllowed("all", sc.appid);
@@ -137,15 +135,8 @@ export function RevisionSection() {
             continue; // Excluded by rule / auto mode: do not count in issues or not-scraped
         }
 
-        const meta =
-            metadataLib[String(sc.appid)] ||
-            metadataLib[String(sc.appid >>> 0)] ||
-            metadataLib[String(sc.appid | 0)];
-        const getLocalAchievements = ctx.records.achievementsOf;
-        const achievements =
-            getLocalAchievements(sc.appid) ||
-            getLocalAchievements(sc.appid >>> 0) ||
-            getLocalAchievements(sc.appid | 0);
+        const meta = lookupStored(metadataLib, sc.appid);
+        const achievements = ctx.records.achievementsOf(sc.appid);
         const isScraped = !!meta || (achievements && achievements.nTotal > 0);
 
         if (!isScraped) {
@@ -153,14 +144,9 @@ export function RevisionSection() {
             continue; // Do NOT count unscraped games as issues!
         }
 
-        const override =
-            controllerOverrides[String(sc.appid)] ||
-            controllerOverrides[String(sc.appid >>> 0)] ||
-            controllerOverrides[String(sc.appid | 0)];
+        const override = lookupStored(controllerOverrides, sc.appid);
         const inferred =
-            controllerInference[String(sc.appid)] ??
-            controllerInference[String(sc.appid >>> 0)] ??
-            controllerInference[String(sc.appid | 0)] ??
+            lookupStored(controllerInference, sc.appid) ??
             (profile?.category === "retroarch" ||
             profile?.category === "console_emulator"
                 ? true

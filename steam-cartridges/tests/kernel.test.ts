@@ -123,3 +123,11 @@ test('surface: render is skipped when none of its parts changed', () => {
     runner.render(AM2R as ShortcutId, undefined, ['metadata']);
     assert.deepEqual(a.calls, ['install', 'render']);
 });
+
+test('lookupStored reads a persisted map under the unsigned key, then the signed one', async () => {
+    const { lookupStored, storedKeys } = await import('../frontend/kernel/appid.ts');
+    assert.deepEqual(storedKeys(4263274102), ['4263274102', String(4263274102 | 0)]);
+    assert.equal(lookupStored({ [String(4263274102 | 0)]: 'old' }, 4263274102), 'old');
+    assert.equal(lookupStored({ '4263274102': 'new', [String(4263274102 | 0)]: 'old' }, 4263274102 | 0), 'new');
+    assert.equal(lookupStored({}, 'x'), undefined);
+});

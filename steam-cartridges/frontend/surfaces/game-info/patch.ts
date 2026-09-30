@@ -4,7 +4,7 @@ import { afterPatch } from "@steambrew/client";
 import { logger } from "../../logger";
 import { steamRequire } from "../../steam/modules";
 import { createPatchedOverview } from "../../steam/overview-proxy";
-import { isShortcutAppId } from "../../kernel/appid";
+import { isShortcutAppId, toUnsigned } from "../../kernel/appid";
 import { deps } from "./deps";
 
 export const enrichedAppIds = new Set<number>();
@@ -15,21 +15,20 @@ export const repairStats = { viaTrigger: 0, viaRender: 0, triggers: 0, source: "
 
 export const gameInfoRepairDiagnostics = () => ({ ...repairStats });
 
+/** Our maps hold one key per shortcut: the unsigned appid (kernel/appid.ts, M10). */
+const key = (appid: unknown): number => toUnsigned(appid) ?? -1;
+
 export function isAppEnriched(appid: number): boolean {
     if (typeof appid !== "number") return false;
-    return enrichedAppIds.has(appid) || enrichedAppIds.has(appid >>> 0) || enrichedAppIds.has(appid | 0);
+    return enrichedAppIds.has(key(appid));
 }
 
 export function markAppEnriched(appid: number): void {
-    enrichedAppIds.add(appid);
-    enrichedAppIds.add(appid >>> 0);
-    enrichedAppIds.add(appid | 0);
+    enrichedAppIds.add(key(appid));
 }
 
 export function unmarkAppEnriched(appid: number): void {
-    enrichedAppIds.delete(appid);
-    enrichedAppIds.delete(appid >>> 0);
-    enrichedAppIds.delete(appid | 0);
+    enrichedAppIds.delete(key(appid));
 }
 
 let cachedDetailsStore: any = undefined;
@@ -160,15 +159,11 @@ export function refreshGameInfoInstances(): void {
 const appCategoriesCache = new Map<number, Set<number>>();
 
 export function setAppCategories(appid: number, categories: Set<number>): void {
-    appCategoriesCache.set(appid, categories);
-    appCategoriesCache.set(appid >>> 0, categories);
-    appCategoriesCache.set(appid | 0, categories);
+    appCategoriesCache.set(key(appid), categories);
 }
 
 export function clearAppCategories(appid: number): void {
-    appCategoriesCache.delete(appid);
-    appCategoriesCache.delete(appid >>> 0);
-    appCategoriesCache.delete(appid | 0);
+    appCategoriesCache.delete(key(appid));
 }
 
 /**
@@ -291,9 +286,7 @@ export function ensureAppOverviewHooked(overview: any): boolean {
                     ) {
                         return true;
                     }
-                    const cached = appCategoriesCache.get(this.appid) ||
-                        appCategoriesCache.get(this.appid >>> 0) ||
-                        appCategoriesCache.get(this.appid | 0);
+                    const cached = appCategoriesCache.get(key(this.appid));
                     if (cached && cached.has(catId)) {
                         return true;
                     }

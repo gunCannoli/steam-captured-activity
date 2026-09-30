@@ -1,7 +1,7 @@
 // Surface `achievements` (migration plan M3.5, ADR-0039): the only code that feeds Steam's
 // achievement stores for shortcuts. Moved from features/achievements/store.ts.
 import { logger } from "../../logger";
-import { isShortcutAppId } from "../../kernel/appid";
+import { isShortcutAppId, toUnsigned } from "../../kernel/appid";
 import type { AchievementSchemaRecord, AchievementUnlockRecord } from "../../kernel/record";
 import type { SurfaceDeps } from "../../kernel/surface";
 import type { SteamAppAchievements } from "../../steam/achievement-types";
@@ -274,7 +274,6 @@ export function setShortcutAchievements(
     const rawId = shortcutAppId >>> 0;
     const signedId = shortcutAppId | 0;
     achievementsMap.set(rawId, achievements);
-    achievementsMap.set(signedId, achievements);
 
     // Synchronize full individual achievements store (Big Picture and desktop)
     try {
@@ -331,16 +330,13 @@ export function updateShortcutState(
     unlocks: Record<string, AchievementUnlockRecord> = {},
 ): SteamAppAchievements | null {
     const rawId = shortcutAppId >>> 0;
-    const signedId = shortcutAppId | 0;
     if (schema) {
         if (nativeAppId > 0) {
             schemasMap.set(nativeAppId, schema);
         }
         schemasMap.set(rawId, schema);
-        schemasMap.set(signedId, schema);
     }
     unlocksMap.set(rawId, unlocks);
-    unlocksMap.set(signedId, unlocks);
 
     const built = buildSteamAchievements(schema, unlocks);
     if (built) {
@@ -349,14 +345,17 @@ export function updateShortcutState(
     return built;
 }
 
+/** Our three maps hold one key per app: the unsigned appid (kernel/appid.ts, M10). */
+const key = (appid: unknown): number => toUnsigned(appid) ?? -1;
+
 export function getLocalAchievements(shortcutAppId: number): SteamAppAchievements | undefined {
-    return achievementsMap.get(shortcutAppId) ?? achievementsMap.get(shortcutAppId >>> 0) ?? achievementsMap.get(shortcutAppId | 0);
+    return achievementsMap.get(key(shortcutAppId));
 }
 
 export function getLocalSchema(nativeAppId: number): AchievementSchemaRecord | undefined {
-    return schemasMap.get(nativeAppId) ?? schemasMap.get(nativeAppId >>> 0) ?? schemasMap.get(nativeAppId | 0);
+    return schemasMap.get(key(nativeAppId));
 }
 
 export function getLocalUnlocks(shortcutAppId: number): Record<string, AchievementUnlockRecord> | undefined {
-    return unlocksMap.get(shortcutAppId) ?? unlocksMap.get(shortcutAppId >>> 0) ?? unlocksMap.get(shortcutAppId | 0);
+    return unlocksMap.get(key(shortcutAppId));
 }

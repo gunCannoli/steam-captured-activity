@@ -1,7 +1,6 @@
 import { logger } from "../../logger";
 import type { GameMetadata as ConsolidatedMetadata } from "../../kernel/record";
-import { MANAGED_CATEGORY_IDS, badgeCategoryIds } from "./category-policy";
-import { deps } from "./deps";
+import { MANAGED_CATEGORY_IDS } from "../../kernel/record";
 import {
     markAppEnriched,
     unmarkAppEnriched,
@@ -140,7 +139,7 @@ export function enrichGameDetails(
             json = JSON.stringify(meta);
             metaJson.set(meta, json);
         }
-        const categoryIds = badgeCategoryIds(meta, deps.controllerContext(uAppid));
+        const categoryIds = meta.badge_category_ids ?? [];
         const signature = json + "|" + categoryIds.join(",");
         const previous = applied.get(uAppid);
         if (previous && previous.signature === signature) {
@@ -214,7 +213,7 @@ export function enrichGameDetails(
         // 2. Populate appCategoriesCache and AppOverview (Categories, Game Modes, Controller Support, Release Date)
         // Only categories true of the game itself: no Steam services (ADR-0038, parity plan F).
         // Controller: Steam Store data > emulator inference > the default setting > none (ADR-0038 addendum).
-        const catSet = new Set<number>(badgeCategoryIds(meta, deps.controllerContext(uAppid)));
+        const catSet = new Set<number>(meta.badge_category_ids ?? []);
 
         setAppCategories(uAppid, catSet);
 

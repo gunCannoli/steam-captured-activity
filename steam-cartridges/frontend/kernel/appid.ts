@@ -45,3 +45,24 @@ export function fromGameId(gameid: string): ShortcutId | undefined {
     if ((g & 0xffff_ffffn) !== 0x0200_0000n) return undefined;
     return toShortcutId(Number(g >> 32n));
 }
+
+/**
+ * The keys a shortcut may be stored under in a JSON map that older code wrote (settings, backend files):
+ * unsigned first, then signed. For reading persisted maps only; our own in-memory maps use one
+ * unsigned key (toUnsigned). The one place the two-key read lives (M10).
+ */
+export function storedKeys(raw: unknown): string[] {
+    const u = toUnsigned(raw);
+    if (u === undefined) return [];
+    const signed = u | 0;
+    return signed === u ? [String(u)] : [String(u), String(signed)];
+}
+
+/** The value a persisted map holds for this appid under either key (storedKeys), or undefined. */
+export function lookupStored<T>(map: Record<string, T> | undefined, raw: unknown): T | undefined {
+    for (const key of storedKeys(raw)) {
+        const value = map?.[key];
+        if (value !== undefined) return value;
+    }
+    return undefined;
+}

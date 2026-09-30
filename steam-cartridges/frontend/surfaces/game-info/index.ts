@@ -4,7 +4,6 @@
 // through setters wired in index.tsx (plan § 7.0 D3, D4).
 import type { GameMetadata } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
-import type { ControllerContext } from "./category-policy";
 import { deps } from "./deps";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
 import { patchPlayBar } from "./playbar";
@@ -35,13 +34,11 @@ const nativeByAppid = new Map<number, number>();
 
 export function createGameInfoSurface(
     d: SurfaceDeps & {
-        controllerContext(appid: number): ControllerContext;
         metadataOf(appid: number): GameMetadata | undefined;
     },
 ): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
-    deps.controllerContext = d.controllerContext;
     deps.metadataOf = d.metadataOf;
     return {
         id: "game-info",

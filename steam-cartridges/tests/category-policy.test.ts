@@ -7,7 +7,7 @@ import {
     badgeCategoryIds,
     inferredControllerIds,
     portableCategoryIds,
-} from '../frontend/surfaces/game-info/category-policy.ts';
+} from '../frontend/domain/category-policy.ts';
 
 test('allow and deny lists are disjoint; managed covers both', () => {
     for (const id of STEAM_ONLY_CATEGORY_IDS) assert.equal(PORTABLE_CATEGORY_IDS.includes(id), false, `${id} is Steam-only`);

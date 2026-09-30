@@ -40,6 +40,30 @@ export interface GameCategories {
  * Normalized Game Info of one shortcut, as the backend stores it in library_metadata.json
  * (moved from rpc.ts `ConsolidatedMetadata` in M3.3, plan § 7.0 D12; rpc.ts keeps that name).
  */
+/** Steam category ids a shortcut may carry: StoreItemCache player and controller ids with a known meaning (ADR-0038). */
+export const PORTABLE_CATEGORY_IDS: readonly number[] = [
+    // Players: 1 Multi-player, 2 Single-player, 9 Co-op, 20 MMO, 24 Shared/Split Screen,
+    // 27 Cross-Platform Multiplayer, 36 Online PvP, 37 Shared/Split Screen PvP,
+    // 38 Online Co-op, 39 Shared/Split Screen Co-op, 49 PvP
+    1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49,
+    // Controller: 18 Partial, 28 Full, 55/56 PlayStation 4, 57/58 PlayStation 5
+    18, 28, 55, 56, 57, 58,
+];
+
+/**
+ * Steam services seen on native apps (never written for a shortcut). Everything outside
+ * PORTABLE_CATEGORY_IDS is dropped anyway; this list names them for the tests and gate check 14.
+ */
+export const STEAM_ONLY_CATEGORY_IDS: readonly number[] = [
+    // 22 Steam Achievements, 23 Steam Cloud, 29 Steam Trading Cards, 30 Steam Workshop,
+    // 42/43 Remote Play on Phone/Tablet, 44 Remote Play Together, 59 Steam Input API,
+    // 62 Family Sharing
+    22, 23, 29, 30, 42, 43, 44, 59, 62,
+];
+
+/** Every category id this plugin may have written; the game-info surface purges them before each write (guardrail 7). */
+export const MANAGED_CATEGORY_IDS: readonly number[] = [...PORTABLE_CATEGORY_IDS, ...STEAM_ONLY_CATEGORY_IDS];
+
 export interface GameMetadata {
     appid: number;
     title: string;
@@ -62,6 +86,8 @@ export interface GameMetadata {
     /** Set by the Steam Store bucket. */
     source?: string;
     steam_appid?: number;
+    /** The Steam categories the game-info surface writes, decided by app/metadata (domain/category-policy, M10). Frontend only. */
+    badge_category_ids?: number[];
 }
 
 /** One achievement of a schema (moved from rpc.ts in M3.5, plan § 7.0 D12). */

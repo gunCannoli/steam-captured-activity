@@ -4,7 +4,7 @@
 // launch toast on the bus. The surfaces (achievements, toasts, captures) only render what the record
 // and the `achievements.unlocked` / `achievements.launch-toast` events say (M10: no surface callbacks).
 import { logger } from "../logger.ts";
-import type { ShortcutId } from "../kernel/appid";
+import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
 import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
@@ -45,7 +45,7 @@ export interface AchievementsService {
     trigger(appid: ShortcutId, achievementId?: string): Promise<boolean>;
     reset(appid: ShortcutId): Promise<boolean>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
-    summary(appid: ShortcutId): { nAchieved: number; nTotal: number } | undefined;
+    summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
 }
 
 /** K1: Millennium's cjson encodes an empty Lua table as `{}`; accept an array or an object of items. */
@@ -247,7 +247,8 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             }
         },
         summary(appid) {
-            const set = current(appid)?.data;
+            const id = toShortcutId(appid); // the panel hands Steam's appids, signed or not
+            const set = id === undefined ? undefined : current(id)?.data;
             if (!set) return undefined;
             return { nAchieved: Object.keys(set.unlocks ?? {}).length, nTotal: set.schema.total ?? 0 };
         },

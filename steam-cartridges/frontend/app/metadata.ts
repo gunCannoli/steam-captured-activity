@@ -3,7 +3,8 @@
 import type { ShortcutId } from "../kernel/appid";
 import type { GameMetadata, Identity, Part, RecordStore, Route } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
-import { metadataFromStoreItem } from "../domain/store-item";
+import { metadataFromStoreItem } from "../domain/store-item.ts";
+import { badgeCategoryIds, type ControllerContext } from "../domain/category-policy.ts";
 
 export interface MetadataDeps {
     backend: Pick<typeof Backend, "ensureFresh" | "getAllRecords">;
@@ -17,6 +18,8 @@ export interface MetadataDeps {
     allowWeb(appid: ShortcutId): boolean;
     /** services.screenscraperEnabled and the routing service check for "screenscraper". */
     allowScreenscraper(appid: ShortcutId): boolean;
+    /** What decides the controller badge without Steam Store data (app/controller + setting defaultFullController). */
+    controller(appid: ShortcutId): ControllerContext;
 }
 
 export interface MetadataResolver {
@@ -26,6 +29,12 @@ export interface MetadataResolver {
 }
 
 export function createMetadata(deps: MetadataDeps): MetadataResolver {
+    /** The part with the Steam categories the game-info surface writes (ADR-0038; M10: decided here, not in the surface). */
+    function withBadges(appid: ShortcutId, part: Part<GameMetadata>): Part<GameMetadata> {
+        if (!part.data) return part;
+        return { ...part, data: { ...part.data, badge_category_ids: badgeCategoryIds(part.data, deps.controller(appid)) } };
+    }
+
     async function ensure(
         appid: ShortcutId,
         route: Route,
@@ -50,7 +59,7 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
         });
 
         const raw = res.error ? undefined : (res.parts.metadata as Part<GameMetadata> | undefined);
-        const part: Part<GameMetadata> = raw ?? { status: "error", message: res.error ?? "no metadata part" };
+        const part: Part<GameMetadata> = withBadges(appid, raw ?? { status: "error", message: res.error ?? "no metadata part" });
         deps.records.update(appid, { metadata: part });
         return part;
     }
@@ -68,7 +77,7 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
                 // Identity is resolved on the first view of a shortcut, as before.
                 if (!parts.metadata) continue;
                 deps.ensureBase(appid);
-                deps.records.update(appid, { metadata: parts.metadata as Part<GameMetadata> });
+                deps.records.update(appid, { metadata: withBadges(appid, parts.metadata as Part<GameMetadata>) });
             }
         },
     };

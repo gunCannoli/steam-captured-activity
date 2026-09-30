@@ -10,32 +10,10 @@
  * (FeaturesList) and StoreItemCache's three category groups
  * (docs/steam-components.md, "Store categories and feature badges").
  */
-import type { GameCategories } from '../../kernel/record';
+import type { GameCategories } from '../kernel/record';
+import { MANAGED_CATEGORY_IDS, PORTABLE_CATEGORY_IDS, STEAM_ONLY_CATEGORY_IDS } from '../kernel/record.ts';
 
-/** Allowed: StoreItemCache `supported_player_categoryids` and `controller_categoryids` ids with a known meaning. */
-export const PORTABLE_CATEGORY_IDS: readonly number[] = [
-    // Players: 1 Multi-player, 2 Single-player, 9 Co-op, 20 MMO, 24 Shared/Split Screen,
-    // 27 Cross-Platform Multiplayer, 36 Online PvP, 37 Shared/Split Screen PvP,
-    // 38 Online Co-op, 39 Shared/Split Screen Co-op, 49 PvP
-    1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49,
-    // Controller: 18 Partial, 28 Full, 55/56 PlayStation 4, 57/58 PlayStation 5
-    18, 28, 55, 56, 57, 58,
-];
-
-/**
- * Denied: Steam services seen on native apps here. Everything outside
- * PORTABLE_CATEGORY_IDS is dropped anyway (the whole `feature_categoryids`
- * group, for one); this list names them for the tests and gate check 14.
- */
-export const STEAM_ONLY_CATEGORY_IDS: readonly number[] = [
-    // 22 Steam Achievements, 23 Steam Cloud, 29 Steam Trading Cards, 30 Steam Workshop,
-    // 42/43 Remote Play on Phone/Tablet, 44 Remote Play Together, 59 Steam Input API,
-    // 62 Family Sharing
-    22, 23, 29, 30, 42, 43, 44, 59, 62,
-];
-
-/** Every id this plugin may have written; purged before each write (guardrail 7). */
-export const MANAGED_CATEGORY_IDS: readonly number[] = [...PORTABLE_CATEGORY_IDS, ...STEAM_ONLY_CATEGORY_IDS];
+export { MANAGED_CATEGORY_IDS, PORTABLE_CATEGORY_IDS, STEAM_ONLY_CATEGORY_IDS };
 
 const ALLOWED = new Set<number>(PORTABLE_CATEGORY_IDS);
 

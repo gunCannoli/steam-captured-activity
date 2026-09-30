@@ -127,6 +127,9 @@ const identity = createIdentity({
     titleOf: shortcutTitle,
 });
 
+/** Controller support inferred from each shortcut's emulator (app/controller.ts). */
+const controller = createController({ backend });
+
 /** Metadata (app/metadata.ts, plan M5b): selects Game Info for a shortcut through one
  *  EnsureFresh call instead of the old scattered local/store/IGDB pipeline. */
 const metadata = createMetadata({
@@ -137,6 +140,7 @@ const metadata = createMetadata({
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
     allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
+    controller: (appid) => ({ inferred: controller.inferredFor(appid), defaultFull: setting("defaultFullController") }),
 });
 
 /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
@@ -177,9 +181,6 @@ const view = createView({ routing, identity, metadata, artwork, achievements });
 
 /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
 const steamStore = createSteamStore({ backend, identity, metadata, artwork });
-
-/** Controller support inferred from each shortcut's emulator (app/controller.ts). */
-const controller = createController({ backend });
 
 /** Capture stats for the library grid (app/library-stats.ts): loaded at start-up and after a game quits. */
 const libraryStats = createLibraryStats({ backend });
@@ -277,7 +278,7 @@ async function init() {
             trigger: ingest.triggerSync,
             start: ingest.startSync,
         },
-        records: { achievementsOf: (appid) => achievements.summary(appid as ShortcutId) },
+        records: { achievementsOf: (appid) => achievements.summary(appid) },
         controller: { load: controller.load, inferredFor: controller.inferredFor },
         steamStore: { setMapping: steamStore.setMapping },
         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
@@ -386,7 +387,6 @@ async function init() {
     runner.register(
         createGameInfoSurface({
             ...surfaceDeps,
-            controllerContext: (appid) => ({ inferred: controller.inferredFor(appid), defaultFull: setting("defaultFullController") }),
             metadataOf: (appid) => records.store.get(appid as ShortcutId)?.metadata?.data,
         }),
     );
