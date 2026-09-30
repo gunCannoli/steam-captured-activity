@@ -41,6 +41,18 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
+- **Strip AI co-author trailers from history — run only when every other agent is idle.** 119 of the 276 commits on `main` (as of
+  2026-09-30, `223873a`..`aef1dd2`) end with `Co-Authored-By: Claude … <noreply@anthropic.com>` (Sonnet 5: 50, Sonnet 5.5: 44, Opus 5.5: 25);
+  all are already on `origin/main`. Policy: [AGENTS.md Routine 6](AGENTS.md#routine-6-commit-guardrail--never-add-ai-agents-as-contributors).
+  Steps:
+  1. Confirm no agent has uncommitted work or an open session; `git pull`, `git status` clean, note `git rev-list --count main`.
+  2. Recount: `git rev-list --count -i -E --grep='co-authored-by:.*(claude|anthropic)' main` (it grows while agents still use the old default).
+  3. Backup: `git branch backup-trailers main`.
+  4. `git filter-branch -f --msg-filter '<script deleting the Co-Authored-By Claude/anthropic line and any blank line it leaves at the end>' -- main`.
+  5. Verify: `git diff backup-trailers main --stat` is empty, the count in step 2 is 0, commit count is unchanged, `git log --format=%B | grep -ci 'generated with'` is 0.
+  6. `git push --force-with-lease origin main`, then delete `backup-trailers`, `backup-e0a`, `backup-docs-split` and `refs/original/*` (they keep the old trailers reachable locally).
+  7. Tell the user every other clone and agent must `git fetch && git reset --hard origin/main` (their unpushed work must be rebased first). Old SHAs stay resolvable on GitHub until a support ticket purges them.
+  Skip it only if the history is never made public or the plugin repos are started fresh rather than extracted.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.
