@@ -8,7 +8,6 @@ local logger = require("logger")
 local json = require("json")
 
 local config = require("web_config")
-local sgdb = require("web_sgdb")
 local metadata_db = require("web_metadata_db")
 local steam_paths = require("steam_paths")
 local shortcuts = require("shortcuts")
@@ -16,16 +15,6 @@ local controllers = require("emulator_controllers")
 local emulators = require("steam_store_emulators")
 
 local M = {}
-
-function M.get_shortcut_info(appid)
-  local ok_paths, paths = pcall(steam_paths.resolve)
-  if ok_paths and paths and paths.shortcuts then
-    local entries = shortcuts.parse(paths.shortcuts) or {}
-    local by_id = shortcuts.by_appid(entries)
-    return by_id[appid]
-  end
-  return nil
-end
 
 --- Check status of providers (Twitch/IGDB, SteamGridDB, ScreenScraper, RetroAchievements)
 function M.GetStatus()
@@ -140,46 +129,6 @@ function M.SaveGameMetadata(payload_json)
   req.metadata.custom_override = true
   local saved = metadata_db.set(req.appid, req.metadata, true)
   return json.encode({ success = true, metadata = saved })
-end
-
---- Retain GetArtworkForGame for artwork provider requests
----@param payload_json string JSON string with { title = string, steam_appid = number|nil }
-function M.GetArtworkForGame(payload_json)
-  local key = config.get_api_key()
-  if not key then
-    return json.encode({ error = "missing_api_key", message = "SteamGridDB API key is not configured" })
-  end
-
-  local req = decode_payload(payload_json)
-  if not req then
-    return json.encode({ error = "invalid_payload", message = "Invalid JSON payload" })
-  end
-
-  local title = req.title or ""
-  local steam_appid = req.steam_appid
-
-  local game = nil
-  if steam_appid and tonumber(steam_appid) and tonumber(steam_appid) > 0 then
-    game = sgdb.get_by_steam_appid(tonumber(steam_appid), key)
-  end
-  if not game and title ~= "" then
-    game = sgdb.search_game(title, key)
-  end
-
-  if not game then
-    return json.encode({ error = "not_found", message = "Game not found on SteamGridDB" })
-  end
-
-  local urls = sgdb.fetch_artwork_urls(game.id, key)
-  return json.encode({
-    success = true,
-    game = {
-      id = game.id,
-      name = game.name,
-      release_date = game.release_date,
-    },
-    urls = urls,
-  })
 end
 
 return M

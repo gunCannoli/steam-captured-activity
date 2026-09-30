@@ -255,16 +255,8 @@ check("checkedAt is in ms", r.checkedAt == 1234000, r.checkedAt)
 identity.deps.now = function() return 1000 end
 wipe()
 
--- ---------- record_rpc ----------
-print("record_rpc")
-store.set_mapping(SC, 2820820, "Jotunnslayer: Hordes of Hel", "manual")
-identity.deps.http_get = function() error("network in GetGameRecord") end
-local out = json.decode(record_rpc.GetGameRecord(json.encode({ appid = SC })))
-check("GetGameRecord is disk only", out.parts.identity and out.parts.identity.data.native.appid == 2820820)
-identity.deps.http_get = nil
-wipe()
 
-out = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "bogus-part" }, context = { route = ROUTE_STORE, title = "x" } })))
+local out = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "bogus-part" }, context = { route = ROUTE_STORE, title = "x" } })))
 check("EnsureFresh ignores unknown parts", out.parts.identity == nil and out.error == nil)
 
 out = json.decode(record_rpc.EnsureFresh(json.encode({ appid = 435150, parts = { "identity" }, context = { route = ROUTE_STORE, title = "x" } })))

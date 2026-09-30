@@ -313,15 +313,9 @@ check("steam-store metadata is never written to library_metadata.json", metadata
 metadata.deps.appdetails_fetch = nil
 wipe()
 
--- ---------- record_rpc ----------
-print("record_rpc")
-metadata_db.set(SC, { appid = SC, title = "Disk Only" })
-local out = json.decode(record_rpc.GetGameRecord(json.encode({ appid = SC })))
-check("GetGameRecord includes local metadata, disk only", out.parts.metadata and out.parts.metadata.data.title == "Disk Only")
-wipe()
 
 metadata_db.set(SC, { appid = SC, title = "Via EnsureFresh" })
-out = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "metadata" }, context = { route = ROUTE_NONE, title = "x" } })))
+local out = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "metadata" }, context = { route = ROUTE_NONE, title = "x" } })))
 check("EnsureFresh resolves metadata", out.parts.metadata and out.parts.metadata.data.title == "Via EnsureFresh")
 wipe()
 

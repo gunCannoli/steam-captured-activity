@@ -321,8 +321,8 @@ package.loaded["rpc"] = package.loaded["rpc"] or { method = function(_, f)
   end
 end }
 local RPC = require("steam_store_rpc")
-check("all seven RPCs exist", (function()
-  for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreGetAppDetails", "SteamStoreRecordArtwork" }) do
+check("all six RPCs exist", (function()
+  for _, n in ipairs({ "SteamStoreGetState", "SteamStoreGetMapping", "SteamStoreSetMapping", "SteamStoreClearMapping", "SteamStoreRejectSuggestion", "SteamStoreRecordArtwork" }) do
     if type(RPC[n]) ~= "function" then return false, n end
   end
   return true

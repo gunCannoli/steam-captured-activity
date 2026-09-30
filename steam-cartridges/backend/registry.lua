@@ -31,6 +31,15 @@ local function current_entries()
   return ok and list or {}
 end
 
+--- The shortcuts.vdf entry of one shortcut ({ appid, name, exe, launch_options, icon, ... }), or nil
+--- (no readable shortcuts.vdf, or no such shortcut). The one lookup every service uses (M10: it was
+--- four copies, in ach_service, art_service, resolve_identity and web_rpc).
+function M.shortcut(appid)
+  local n = tonumber(appid)
+  if not n then return nil end
+  return shortcuts.by_appid(current_entries())[n]
+end
+
 --- appid (unsigned) -> true, or nil when there is no usable file (first run).
 local function read_known()
   local text = utils.read_file(path())

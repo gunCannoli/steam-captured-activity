@@ -247,6 +247,17 @@ local ok_em = false
 for _, n in ipairs(em) do if n == "Game - Sequel" then ok_em = true end end
 check("an em dash is replaced as a whole sequence, not byte by byte", ok_em, table.concat(em, " | "))
 
+-- ---------- steam_schema (M10: the source that fetches; the store only stores) ----------
+wipe()
+local steam_schema = require("steam_schema")
+local fetches = 0
+local get_json = function() fetches = fetches + 1; return '{"achievementpercentages":{"achievements":[{"name":"A1","percent":12.5}]}}' end
+local get_html = function() return "" end
+local r1 = steam_schema.get_or_fetch(4000000001, 440, get_json, get_html)
+check("steam_schema fetches a schema and the store keeps it", r1.schema ~= nil and r1.schema.total == 1 and store.get_schema(440) ~= nil and fetches == 1)
+local r2 = steam_schema.get_or_fetch(4000000001, 440, get_json, get_html)
+check("... the next call is served from the store, no request", r2.schema ~= nil and r2.schema.achievements[1].id == "A1" and fetches == 1)
+
 os.remove(ACH_PATH); os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

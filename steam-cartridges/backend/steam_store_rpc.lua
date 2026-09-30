@@ -8,7 +8,6 @@ local fs          = require("fs")
 local steam_paths = require("steam_paths")
 local core        = require("rpc")
 local store       = require("steam_store_store")
-local appdetails  = require("steam_store_appdetails")
 local throttle    = require("steam_store_throttle")
 
 local method = core.method
@@ -70,12 +69,6 @@ end)
 RPC.SteamStoreRejectSuggestion = method("SteamStoreRejectSuggestion", function(data)
   store.reject(need(data, "appid"), need(data, "steam_appid"))
   return { ok = true }
-end)
-
-RPC.SteamStoreGetAppDetails = method("SteamStoreGetAppDetails", function(data)
-  local d, err, cached = appdetails.fetch(need(data, "steam_appid"), nil, { force = data.force and true or false })
-  if not d then return { error = err } end
-  return { metadata = appdetails.to_metadata(d, data.appid), cached = cached }
 end)
 
 RPC.SteamStoreRecordArtwork = method("SteamStoreRecordArtwork", function(data)

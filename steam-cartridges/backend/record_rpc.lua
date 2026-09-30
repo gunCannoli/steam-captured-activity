@@ -1,6 +1,5 @@
---- The record facade: GetGameRecord (disk only), EnsureFresh (resolves stale
---- parts) and GetAllRecords (disk only). Migration plan M4b; M5a adds
---- "metadata" and GetAllRecords.
+--- The record facade: EnsureFresh (resolves stale parts) and GetAllRecords (disk only).
+--- Migration plan M4b; M5a adds "metadata" and GetAllRecords; M10 removed GetGameRecord (never called).
 
 local core             = require("rpc")
 local resolve_identity  = require("resolve_identity")
@@ -30,21 +29,6 @@ local function is_shortcut(appid)
   local n = tonumber(appid)
   return n ~= nil and n >= SHORTCUT_MIN
 end
-
-RPC.GetGameRecord = method("GetGameRecord", function(data)
-  local appid = need(data, "appid")
-  if not is_shortcut(appid) then return { error = "not a shortcut" } end
-
-  local parts = {}
-  local identity = resolve_identity.saved(appid)
-  if identity then parts.identity = identity end
-  local metadata = metadata_service.local_part(appid)
-  if metadata then parts.metadata = metadata end
-  local achievements = ach().local_part(appid)
-  if achievements then parts.achievements = achievements end
-
-  return { appid = tonumber(appid), parts = parts }
-end)
 
 RPC.EnsureFresh = method("EnsureFresh", function(data)
   local appid = need(data, "appid")

@@ -10,8 +10,6 @@
 --- K2: a PC game with no ROM path is never sent to RetroAchievements, and a shortcut no source
 --- supports is `unsupported` and silent (no log line, no request).
 
-local steam_paths = require("steam_paths")
-local shortcuts   = require("shortcuts")
 local store       = require("achievements_store")
 
 local M = {}
@@ -19,7 +17,7 @@ local M = {}
 --- Injectable for tests. nil = the real dependency.
 M.deps = {
   entry = nil, -- fun(appid) -> { exe, launch_options } | nil ; nil = shortcuts.vdf lookup
-  steam = nil, -- fun(appid, native) -> res, err   ; nil = achievements_store.get_or_fetch
+  steam = nil, -- fun(appid, native) -> res, err   ; nil = steam_schema.get_or_fetch
   ps3 = nil,   -- fun(appid) -> res, err          ; nil = ps3_trophies.get_or_fetch
   ps4 = nil,   -- fun(appid) -> res, err          ; nil = ps4_trophies.get_or_fetch
   ra = nil,    -- fun(appid, hardcore) -> res, err ; nil = retroachievements.get_or_fetch
@@ -34,12 +32,7 @@ local function now_ms()
 end
 
 local function default_entry(appid)
-  local ok, result = pcall(function()
-    local paths = steam_paths.resolve()
-    if not paths then return nil end
-    return shortcuts.by_appid(shortcuts.parse(paths.shortcuts) or {})[tonumber(appid)]
-  end)
-  return ok and result or nil
+  return require("registry").shortcut(appid)
 end
 
 local function dep(name, module_name, fn_name)
@@ -50,7 +43,7 @@ local SOURCES = {
   {
     name = "steam",
     supports = function(ctx) return (tonumber(ctx.native) or 0) > 0 end,
-    fetch = function(appid, ctx) return dep("steam", "achievements_store", "get_or_fetch")(appid, tonumber(ctx.native)) end,
+    fetch = function(appid, ctx) return dep("steam", "steam_schema", "get_or_fetch")(appid, tonumber(ctx.native)) end,
   },
   {
     name = "rpcs3",

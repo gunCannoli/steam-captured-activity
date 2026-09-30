@@ -13,7 +13,6 @@ local resolve_identity = require("resolve_identity")
 local metadata_db      = require("web_metadata_db")
 local appdetails       = require("steam_store_appdetails")
 local igdb             = require("web_igdb")
-local web_rpc          = require("web_rpc")
 
 local M = {}
 
@@ -24,7 +23,7 @@ M.deps = {
                              -- M.screenscraper_to_metadata; fun(appid, title, shortcut_info) -> meta|nil
   igdb_fetch = nil,       -- nil = igdb.fetch_game_metadata
   appdetails_fetch = nil, -- nil = appdetails.fetch
-  shortcut_info = nil,    -- nil = web_rpc.get_shortcut_info
+  shortcut_info = nil,    -- nil = registry.shortcut (the shortcuts.vdf entry)
   now = function() return os.time() end,
 }
 
@@ -37,7 +36,8 @@ local function appdetails_fetch(steam_appid)
 end
 
 local function shortcut_info(appid)
-  return (M.deps.shortcut_info or web_rpc.get_shortcut_info)(appid)
+  if M.deps.shortcut_info then return M.deps.shortcut_info(appid) end
+  return require("registry").shortcut(appid)
 end
 
 --- ScreenScraper `jeu` record -> our metadata (M5d). Field mapping (decided with the user):

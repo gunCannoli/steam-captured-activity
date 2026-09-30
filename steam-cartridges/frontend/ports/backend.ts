@@ -98,10 +98,6 @@ export interface RecordResponse {
 }
 
 export const backend = {
-    /** Disk only. */
-    getGameRecord(appid: number): Promise<RecordResponse> {
-        return call<RecordResponse>("GetGameRecord", { appid });
-    },
     ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse> {
         return call<RecordResponse>("EnsureFresh", { appid, parts, context: ctx });
     },

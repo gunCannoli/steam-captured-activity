@@ -25,7 +25,6 @@ local sgdb        = require("web_sgdb")
 local normalize   = require("steam_store_normalize")
 local store       = require("steam_store_store")
 local resolve_identity = require("resolve_identity")
-local shortcuts   = require("shortcuts")
 
 local M = {}
 
@@ -112,11 +111,7 @@ end
 --- shortcuts.vdf, or no such shortcut): then nothing is ever overwritten blindly.
 function M.current_icon(appid)
   if M.deps.shortcut_icon then return M.deps.shortcut_icon(appid) end
-  local ok, paths = pcall(steam_paths.resolve)
-  if not ok or not paths or not paths.shortcuts then return nil end
-  local okp, entries = pcall(shortcuts.parse, paths.shortcuts)
-  if not okp or type(entries) ~= "table" then return nil end
-  local entry = shortcuts.by_appid(entries)[tonumber(appid)]
+  local entry = require("registry").shortcut(appid)
   if not entry then return nil end
   return entry.icon or ""
 end

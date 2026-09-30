@@ -7,8 +7,6 @@
 --- Only route bucket "steam-store" is ever resolved; every other route is
 --- "unsupported" without a disk write or a network call (ADR-0036).
 
-local steam_paths = require("steam_paths")
-local shortcuts   = require("shortcuts")
 local emulators   = require("steam_store_emulators")
 local normalize   = require("steam_store_normalize")
 local search      = require("steam_store_search")
@@ -28,9 +26,7 @@ M.deps = {
 --- Moved from steam_store_rpc.lua (M4b); steam_store_rpc requires it from here.
 function M.launches_emulator(appid)
   local ok, result = pcall(function()
-    local paths = steam_paths.resolve()
-    if not paths then return false end
-    local entry = shortcuts.by_appid(shortcuts.parse(paths.shortcuts) or {})[tonumber(appid)]
+    local entry = require("registry").shortcut(appid)
     return entry ~= nil and emulators.is_emulator(entry.exe)
   end)
   return ok and result == true
