@@ -48,7 +48,7 @@ export interface AchievementsService {
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
     /**
-     * Start-up: every stored achievements part of a shortcut in the library into its record (disk only, no
+     * Start-up: every stored achievements part of a shortcut into its record (disk only, no
      * request), so the achievements surface fills Steam's stores for every shortcut, as Steam does for an owned
      * game (ADR-0045). A part already in the record (a view that ran first) is kept. Resolves to how many it added.
      */
@@ -253,8 +253,8 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 const appid = toShortcutId(Number(key));
                 const part = parts.achievements as Part<AchievementSet> | undefined;
                 if (appid === undefined || part?.status !== "ok" || !part.data) continue;
-                // A shortcut no longer in the library: nothing of Steam's should hold it.
-                if (deps.titleOf(appid) === undefined) continue;
+                // No library check: at start-up Steam's appStore is not populated yet (verified live 2026-09-30:
+                // a titleOf check skipped every shortcut). A key for a removed shortcut is harmless, as in app/metadata's preload.
                 if (current(appid)) continue;
                 deps.ensureBase(appid);
                 // Achievements only: preloading `identity` would make other surfaces fetch at start-up (knowledgebase Part 7).

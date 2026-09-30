@@ -185,22 +185,23 @@ function preloadSetup(stored: Record<string, any>, titles: Record<number, string
     return { ach, records, updated, calls };
 }
 
-test('preload: every stored ok part of a shortcut in the library goes into its record, with no request (ADR-0045)', async () => {
+test('preload: every stored ok part of a shortcut goes into its record, with no request and no library needed (ADR-0045)', async () => {
     const other = 4263274103;
-    const gone = 4263274104;
+    const unnamed = 4263274104;
     const { ach, records, updated, calls } = preloadSetup({
         [String(SC)]: { achievements: STORED, metadata: { status: 'ok', data: {} }, identity: { status: 'ok', data: { native: { appid: 77, source: 'owned' } } } },
         [String(other)]: { achievements: { status: 'error', message: 'x' } },
-        [String(gone)]: { achievements: STORED },
+        [String(unnamed)]: { achievements: STORED },
         '440': { achievements: STORED },
     }, { [SC]: 'Game', [other]: 'Other' });
-    assert.equal(await ach.preload(), 1);
+    assert.equal(await ach.preload(), 2);
     assert.deepEqual(records.get(SC)?.achievements, STORED);
     assert.equal(records.get(SC)?.metadata, undefined, 'metadata is app/metadata\'s preload');
     assert.equal(records.get(SC)?.identity, undefined, 'identity is never preloaded (knowledgebase Part 7)');
     assert.equal(records.get(other as any), undefined, 'a part that is not ok is left out');
-    assert.equal(records.get(gone as any), undefined, 'a shortcut no longer in the library is left out');
-    assert.deepEqual(updated, [SC]);
+    assert.deepEqual(records.get(unnamed as any)?.achievements, STORED, 'a shortcut Steam cannot name yet (start-up) is preloaded too');
+    assert.equal(records.get(440 as any), undefined, 'a native appid is left out');
+    assert.deepEqual(updated, [SC, unnamed]);
     assert.equal(calls.ensure, 0);
     assert.deepEqual(ach.summary(SC), { nAchieved: 1, nTotal: 2 });
 });

@@ -427,7 +427,7 @@ async function init() {
     await libraryHomeReady();
 
     // ===== Achievements in Steam's stores from start-up (ADR-0045) =====
-    // After the library is ready (the preload skips shortcuts it cannot name). Disk only; not awaited.
+    // Disk only; not awaited. Needs no library: Steam's appStore is not populated yet at this point.
     features.run("achievements", () => {
         void achievements.preload().catch((e) => {
             features.reportError("achievements", e);
