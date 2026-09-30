@@ -37,10 +37,13 @@ const ITEM_ROW_STYLE: React.CSSProperties = {
 /** Steam's settings-card background (a Field's own), measured live: rgb(35, 38, 46). */
 const CARD_BACKGROUND = "rgb(35, 38, 46)";
 
-function ItemRow({ children }: { children: React.ReactNode }) {
+/** Steam's SliderField ends with this much blank space; `joinNext` cancels it so the next block merges with it. */
+const SLIDER_GAP = 22;
+
+function ItemRow({ children, joinNext }: { children: React.ReactNode; joinNext?: boolean }) {
     return (
         <PanelSectionRow>
-            <div style={ITEM_ROW_STYLE}>{children}</div>
+            <div style={joinNext ? { ...ITEM_ROW_STYLE, marginBottom: -SLIDER_GAP } : ITEM_ROW_STYLE}>{children}</div>
         </PanelSectionRow>
     );
 }
@@ -76,17 +79,19 @@ function SliderRow({
     label,
     suffix,
     disabled,
+    joinNext,
 }: {
     k: SettingKey;
     label: string;
     suffix: string;
     disabled?: boolean;
+    joinNext?: boolean;
 }) {
     const [value, set] = useSetting(k);
     const range = RANGES[k]!;
 
     return (
-        <ItemRow>
+        <ItemRow joinNext={joinNext}>
             <SliderField
                 label={label}
                 layout="below"
@@ -329,6 +334,7 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
                 label="Clip length"
                 suffix=" s"
                 disabled={disabled || !clipOn}
+                joinNext
             />
 
             <SliderRow
@@ -405,21 +411,24 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     return (
         <ItemRow>
             {/* The card's background belongs to Steam's Field, so this wrapper paints the same colour under the controls and the two read as one card. */}
-            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px" }}>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px", marginTop: SLIDER_GAP }}>
             <Field
                 label="Reset Achievements"
                 description="Select a game to reset the achievements count"
                 disabled={!available}
                 bottomSeparator="none"
             />
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 12px 12px" }}>
-                <TextField
-                    label="Games filter"
-                    value={filter}
-                    disabled={!available}
-                    onFocus={reload}
-                    onChange={(e) => setFilter(e.target.value)}
-                />
+            <div style={{ display: "flex", flexDirection: "column", gap: "0", padding: "0 12px 12px" }}>
+                {/* Steam's text field ends with 22 px of blank space: pull the dropdown up to 8 px below it. */}
+                <div style={{ marginBottom: 8 - SLIDER_GAP }}>
+                    <TextField
+                        label="Games filter"
+                        value={filter}
+                        disabled={!available}
+                        onFocus={reload}
+                        onChange={(e) => setFilter(e.target.value)}
+                    />
+                </div>
                 <Dropdown
                     rgOptions={options}
                     selectedOption={chosen ? chosen.appid : 0}
