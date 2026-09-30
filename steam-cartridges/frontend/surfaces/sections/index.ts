@@ -173,6 +173,19 @@ function refreshInstances(): void {
     }
 }
 
+let refreshScheduled = false;
+
+/** One refreshInstances on the next tick however many records changed before it: the start-up achievements
+ *  preload renders every shortcut with stored achievements in one pass (ADR-0045). */
+function scheduleRefresh(): void {
+    if (refreshScheduled) return;
+    refreshScheduled = true;
+    setTimeout(() => {
+        refreshScheduled = false;
+        refreshInstances();
+    }, 0);
+}
+
 /** True when `overview` is a non-Steam shortcut. */
 function isShortcut(overview: unknown): boolean {
     const ov = overview as AppOverview | undefined;
@@ -296,7 +309,7 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
             // render pass (was that surface's refreshSections call through index.tsx before M10).
             if (record?.achievements !== achievementsByAppid.get(appid)) {
                 achievementsByAppid.set(appid, record?.achievements);
-                if (record?.achievements) setTimeout(refreshInstances, 0);
+                if (record?.achievements) scheduleRefresh();
             }
             const meta = record?.metadata;
             const hasInfo = meta?.status === "ok" || (meta?.status === "error" && !!meta.data);

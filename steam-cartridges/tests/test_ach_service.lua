@@ -236,6 +236,13 @@ store.save_schema(77, SCHEMA); store.bind_schema(SC, 77)
 store_steam.set_mapping(SC, 2820820, "J", "manual")
 local all = json.decode(record_rpc.GetAllRecords(json.encode({})))
 check("GetAllRecords adds stored achievements (disk only)", all.records[tostring(SC)] and all.records[tostring(SC)].achievements and all.records[tostring(SC)].achievements.data.schema.total == 2)
+local LONE, NOSCHEMA = 4000000077, 4000000078
+store.save_schema(78, SCHEMA); store.bind_schema(LONE, 78)
+store.bind_schema(NOSCHEMA, 999)
+all = json.decode(record_rpc.GetAllRecords(json.encode({})))
+local lone = all.records[tostring(LONE)]
+check("GetAllRecords adds a shortcut with stored achievements and no metadata or mapping (ADR-0045)", lone and lone.achievements and lone.achievements.data.schema.total == 2 and lone.metadata == nil and lone.identity == nil)
+check("GetAllRecords leaves out a stored shortcut with no schema", all.records[tostring(NOSCHEMA)] == nil)
 
 print("K7")
 local names = observer.get_possible_folder_names("WUCHANG: Fallen Feathers", "")

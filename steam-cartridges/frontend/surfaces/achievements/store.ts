@@ -282,14 +282,18 @@ export function setShortcutAchievements(
         logger.warn("Could not feed AchievementsFullStore:", e);
     }
 
-    // Synchronize Big Picture Mode play bar cache
+    // Steam's progress cache (Big Picture play bar; what other plugins read for any game), one entry in Steam's
+    // own shape per key. cache_time = now: Steam's GetAchievementProgress asks its server again for an entry
+    // older than the game's rt_last_time_played (ADR-0045).
     try {
-        const progress = buildAchievementProgress(achievements);
-        if (progress) {
-            const cache = (window as any).appAchievementProgressCache?.m_achievementProgress?.mapCache;
-            if (cache && typeof cache.set === "function") {
-                cache.set(rawId, progress);
-                cache.set(signedId, progress);
+        const cache = (window as any).appAchievementProgressCache?.m_achievementProgress?.mapCache;
+        if (cache && typeof cache.set === "function") {
+            const now = Math.floor(Date.now() / 1000);
+            const unsignedEntry = buildAchievementProgress(achievements, rawId, now);
+            const signedEntry = buildAchievementProgress(achievements, signedId, now);
+            if (unsignedEntry && signedEntry) {
+                cache.set(rawId, unsignedEntry);
+                cache.set(signedId, signedEntry);
             }
         }
     } catch (e) {
@@ -298,11 +302,13 @@ export function setShortcutAchievements(
 
     // Synchronize appDetailsStore appData.details.achievements for MobX reactivity, only where Steam
     // created `details` itself: guardrail 8 (never create or overwrite appData.details; M10 fix).
+    // m_mapAppData.get, not GetAppData: GetAppData creates an entry for an id it does not know (verified live
+    // 2026-09-30), and the start-up preload renders every shortcut with stored achievements (ADR-0045).
     try {
-        const store = (window as any).appDetailsStore;
-        if (store?.GetAppData) {
+        const appDataMap = (window as any).appDetailsStore?.m_mapAppData;
+        if (appDataMap && typeof appDataMap.get === "function") {
             for (const id of [rawId, signedId, shortcutAppId]) {
-                const appData = store.GetAppData(id);
+                const appData = appDataMap.get(id);
                 if (appData?.details) appData.details.achievements = achievements;
             }
         }

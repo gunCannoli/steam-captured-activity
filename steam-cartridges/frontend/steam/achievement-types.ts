@@ -25,9 +25,16 @@ export interface SteamAppAchievements {
     vecUnachieved: SteamAchievementItem[];
 }
 
+/** One entry of Steam's `appAchievementProgressCache.m_achievementProgress.mapCache`, in Steam's own shape (ADR-0045). */
 export interface AchievementProgress {
+    appid: number;
     unlocked: number;
     total: number;
+    /** 0-100: what Steam's GetAchievementProgress(appid) returns. */
+    percentage: number;
     all_unlocked: boolean;
+    /** Unix seconds. Steam asks its server again for an entry older than the game's rt_last_time_played. */
+    cache_time: number;
+    vetted: boolean;
 }
 

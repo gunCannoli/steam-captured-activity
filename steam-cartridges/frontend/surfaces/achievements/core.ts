@@ -54,16 +54,25 @@ export function buildSteamAchievements(
 }
 
 /**
- * Computes Big Picture progress cache payload.
+ * An entry of Steam's achievement progress cache (the Big Picture play bar; what other plugins read for any
+ * game), in the shape Steam writes for an owned game (ADR-0045).
  */
 export function buildAchievementProgress(
     achievements: SteamAppAchievements | null,
+    appid: number,
+    nowSeconds: number,
 ): AchievementProgress | null {
     if (!achievements) return null;
+    const unlocked = achievements.nAchieved;
+    const total = achievements.nTotal;
     return {
-        unlocked: achievements.nAchieved,
-        total: achievements.nTotal,
-        all_unlocked: achievements.nTotal > 0 && achievements.nAchieved === achievements.nTotal,
+        appid,
+        unlocked,
+        total,
+        percentage: total > 0 ? (unlocked / total) * 100 : 0,
+        all_unlocked: total > 0 && unlocked === total,
+        cache_time: nowSeconds,
+        vetted: true,
     };
 }
 

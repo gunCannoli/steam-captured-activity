@@ -145,4 +145,11 @@ function M.reset(shortcut_appid)
   return { ok = true, unlocks = {} }
 end
 
+--- Every shortcut key (a string) the store holds an entry for, in no order. Disk only (ADR-0045).
+function M.shortcut_keys()
+  local keys = {}
+  for key in pairs(load().shortcuts) do keys[#keys + 1] = key end
+  return keys
+end
+
 return M

@@ -89,14 +89,18 @@ test('buildSteamAchievements: zero unlocks provides empty highlights without nul
     assert.equal(res.vecUnachieved[2].strID, 'ACH_C');
 });
 
-test('buildAchievementProgress: computes Big Picture completion payload', () => {
-    assert.equal(buildAchievementProgress(null), null);
+test('buildAchievementProgress: an entry in the shape of Steam\'s progress cache (ADR-0045)', () => {
+    assert.equal(buildAchievementProgress(null, 4000000000, 1700000000), null);
 
     const partial = buildSteamAchievements(mockSchema, { ACH_A: { unlocked_time: 100 } });
-    assert.deepEqual(buildAchievementProgress(partial), {
+    assert.deepEqual(buildAchievementProgress(partial, 4000000000, 1700000000), {
+        appid: 4000000000,
         unlocked: 1,
         total: 3,
+        percentage: (1 / 3) * 100,
         all_unlocked: false,
+        cache_time: 1700000000,
+        vetted: true,
     });
 
     const full = buildSteamAchievements(mockSchema, {
@@ -104,10 +108,14 @@ test('buildAchievementProgress: computes Big Picture completion payload', () => 
         ACH_B: { unlocked_time: 200 },
         ACH_C: { unlocked_time: 300 },
     });
-    assert.deepEqual(buildAchievementProgress(full), {
+    assert.deepEqual(buildAchievementProgress(full, -294967296, 1700000001), {
+        appid: -294967296,
         unlocked: 3,
         total: 3,
+        percentage: 100,
         all_unlocked: true,
+        cache_time: 1700000001,
+        vetted: true,
     });
 });
 

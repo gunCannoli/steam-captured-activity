@@ -16,7 +16,7 @@ export type LaunchPolicy = "off" | "first_run" | "all_runs";
 const POLL_MS = 2000;
 
 export interface AchievementsDeps {
-    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "steamStoreGetMapping">;
+    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "steamStoreGetMapping" | "getAllRecords">;
     records: RecordStore;
     bus: EventBus;
     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
@@ -47,6 +47,12 @@ export interface AchievementsService {
     reset(appid: ShortcutId): Promise<boolean>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
+    /**
+     * Start-up: every stored achievements part of a shortcut in the library into its record (disk only, no
+     * request), so the achievements surface fills Steam's stores for every shortcut, as Steam does for an owned
+     * game (ADR-0045). A part already in the record (a view that ran first) is kept. Resolves to how many it added.
+     */
+    preload(): Promise<number>;
 }
 
 interface NewUnlock {
@@ -239,6 +245,24 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 logger.error(`Error resetting achievements for shortcut ${appid}:`, e);
                 return false;
             }
+        },
+        async preload() {
+            const res = await deps.backend.getAllRecords();
+            let added = 0;
+            for (const [key, parts] of Object.entries(res.records ?? {})) {
+                const appid = toShortcutId(Number(key));
+                const part = parts.achievements as Part<AchievementSet> | undefined;
+                if (appid === undefined || part?.status !== "ok" || !part.data) continue;
+                // A shortcut no longer in the library: nothing of Steam's should hold it.
+                if (deps.titleOf(appid) === undefined) continue;
+                if (current(appid)) continue;
+                deps.ensureBase(appid);
+                // Achievements only: preloading `identity` would make other surfaces fetch at start-up (knowledgebase Part 7).
+                deps.records.update(appid, { achievements: part });
+                added++;
+            }
+            logger.info(`Preloaded stored achievements for ${added} shortcut(s).`);
+            return added;
         },
         summary(appid) {
             const id = toShortcutId(appid); // the panel hands Steam's appids, signed or not

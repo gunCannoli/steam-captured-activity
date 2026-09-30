@@ -108,4 +108,15 @@ function M.local_part(appid)
   return { status = "ok", data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
 end
 
+--- Every shortcut appid (a number) the store holds an entry for, with or without a schema. Disk only;
+--- GetAllRecords uses it so a shortcut with no metadata and no mapping still gets its part (ADR-0045).
+function M.stored_appids()
+  local ids = {}
+  for _, key in ipairs(store.shortcut_keys()) do
+    local n = tonumber(key)
+    if n then ids[#ids + 1] = n end
+  end
+  return ids
+end
+
 return M

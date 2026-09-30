@@ -158,3 +158,58 @@ test('summary counts the unlocked and total achievements of the record', async (
     assert.deepEqual(ach.summary(SC), { nAchieved: 1, nTotal: 2 });
     assert.deepEqual(ach.summary(SC | 0), { nAchieved: 1, nTotal: 2 }, 'a signed appid finds the same record');
 });
+
+const STORED = { status: 'ok', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 5 } } } };
+
+function preloadSetup(stored: Record<string, any>, titles: Record<number, string>) {
+    const bus = createEventBus();
+    const records = createRecordStore(bus);
+    const updated: number[] = [];
+    bus.on('record.updated', (e) => updated.push(e.appid));
+    const calls = { ensure: 0 };
+    const ach = createAchievements({
+        backend: {
+            async ensureFresh() { calls.ensure++; return { appid: 0, parts: {} }; },
+            async getAllRecords() { return { records: stored }; },
+        } as any,
+        records,
+        bus,
+        ensureBase: (appid) => { records.upsert({ appid, gameid: 'g', title: titles[appid] ?? '', exe: '' }); },
+        titleOf: (appid) => titles[appid],
+        routeOf: () => ({ bucket: 'web-scraping' as any, via: 'default' }),
+        hardcore: () => false,
+        launchPolicy: () => 'off',
+        observerEnabled: () => false,
+        now: () => 1000,
+    });
+    return { ach, records, updated, calls };
+}
+
+test('preload: every stored ok part of a shortcut in the library goes into its record, with no request (ADR-0045)', async () => {
+    const other = 4263274103;
+    const gone = 4263274104;
+    const { ach, records, updated, calls } = preloadSetup({
+        [String(SC)]: { achievements: STORED, metadata: { status: 'ok', data: {} }, identity: { status: 'ok', data: { native: { appid: 77, source: 'owned' } } } },
+        [String(other)]: { achievements: { status: 'error', message: 'x' } },
+        [String(gone)]: { achievements: STORED },
+        '440': { achievements: STORED },
+    }, { [SC]: 'Game', [other]: 'Other' });
+    assert.equal(await ach.preload(), 1);
+    assert.deepEqual(records.get(SC)?.achievements, STORED);
+    assert.equal(records.get(SC)?.metadata, undefined, 'metadata is app/metadata\'s preload');
+    assert.equal(records.get(SC)?.identity, undefined, 'identity is never preloaded (knowledgebase Part 7)');
+    assert.equal(records.get(other as any), undefined, 'a part that is not ok is left out');
+    assert.equal(records.get(gone as any), undefined, 'a shortcut no longer in the library is left out');
+    assert.deepEqual(updated, [SC]);
+    assert.equal(calls.ensure, 0);
+    assert.deepEqual(ach.summary(SC), { nAchieved: 1, nTotal: 2 });
+});
+
+test('preload: a part the view already loaded this session is kept', async () => {
+    const { ach, records } = preloadSetup({ [String(SC)]: { achievements: STORED } }, { [SC]: 'Game' });
+    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
+    const viewed = { status: 'ok', data: { schema: SCHEMA, unlocks: {} } } as any;
+    records.update(SC, { achievements: viewed });
+    assert.equal(await ach.preload(), 0);
+    assert.deepEqual(records.get(SC)?.achievements, viewed);
+});

@@ -139,6 +139,15 @@ RPC.GetAllRecords = method("GetAllRecords", function(_)
     local achievements = ach().local_part(tonumber(key))
     if achievements then records[key].achievements = achievements end
   end
+  -- A shortcut with stored achievements but no metadata and no mapping (ADR-0045: the frontend preloads
+  -- every stored part into Steam's progress cache at start-up).
+  for _, appid in ipairs(ach().stored_appids()) do
+    local key = tostring(appid)
+    if not records[key] then
+      local achievements = ach().local_part(appid)
+      if achievements then records[key] = { achievements = achievements } end
+    end
+  end
   return { records = records }
 end)
 
