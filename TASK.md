@@ -25,7 +25,7 @@ working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7
 
 **Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
 
-**M10 gap batch (Ready, 2026-09-30).** [steam-cartridges-m10-gap-batch-plan.md](docs/plans/steam-cartridges-m10-gap-batch-plan.md): 13 patch steps (dry-run replayed, byte-identical) that close the migration audit's gaps and add the capability ratchet; decisions in [ADR-0044](docs/decisions.md#adr-0044-steam-cartridges-layers-stay-dumb-and-a-test-checks-what-each-layer-does). Next: execute it (live verification § 8 needs a Steam restart). Runs before F1, whose patches must then be regenerated. Found: K20 (controller inference is never loaded at start-up), plan § 12.
+**M10 gap batch: done 2026-09-30** (live verification pending: M10 § 8); the F1 plan's patches must be regenerated on top of M10 before F1 runs.
 
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
@@ -205,6 +205,7 @@ M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.t
 ## Active failures & blockers
 
 - **enhanced-achievements EA-K9 (open until E2)**: the live check `queue on: tiers in firing order` can FAIL occasionally (`magic,normal,rare,…`): banners are admitted in render order, not arrival order (same cause as EA-K2). Not weakened; plan § 11.
+- **steam-cartridges M10-K21 (flaky Lua check)**: `lua tests/test_ach_service.lua` fails intermittently after M10 (`EnsureFresh achievements uses the saved identity` and/or `… for a PC game with no source is unsupported`: 20/1 or 19/2 instead of 21/0), roughly 1 run in 3, also with no leftover `%TEMP%sc_*_test_*` files. `m10-base` passed 12/12 runs, so it appeared inside M10 (suspect step 5, `fresh_policy` error memory reading the real clock while the test stubs `now`). Not fixed (no hand edits); needs a bugfix plan. Seen once in the step 13 Lua block; step 13 is docs only.
 
 ---
 
