@@ -49,6 +49,8 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `SteamStoreGetAppDetails` | `steam_store_rpc.lua` | live | native app details for Game Info parity |
 | `SteamStoreRecordArtwork` | `steam_store_rpc.lua` | live | records which artwork slots were applied |
 | `SteamStoreDownloadImage` | `steam_store_rpc.lua` | live | artwork image fetch (allowlisted hosts) |
+| `SteamStoreSaveIcon` | `steam_store_rpc.lua` (→ `shortcut_icon.save`) | live | icon plan: store our copy of the library icon; refused unless still eligible |
+| `SteamStoreRecordIcon` | `steam_store_rpc.lua` (→ `steam_store_store.record_icon`) | live | icon plan: remember the icon the `artwork` surface set |
 | `CartridgesAchievementsUnlock` | `achievements_rpc.lua` | live | manual unlock |
 | `CartridgesAchievementsReset` | `achievements_rpc.lua` | live | reset local achievements |
 | `CartridgesAchievementsGetRetroStatus` | `achievements_rpc.lua` | live | RetroAchievements connection status |
@@ -118,6 +120,12 @@ StoreItemCache URLs for the mapped native app) and `allowSgdb` (`services.steamg
 The part's `data` is `{ urls, source, steamAppid?, applied?, emptySlots }`; `app/artwork.ts` turns it into
 the `ArtworkPlan` in `record.artwork`. `SteamStoreRecordArtwork` also accepts `source: "steamgriddb"` (with
 `tried`) to record slots for a shortcut with no Steam mapping. No new RPC name is registered.
+
+Icon plan (2026-09-29): the `artwork` part's `data` also carries `iconEligible` (and `urls.icon`);
+`SteamStoreClearMapping` also returns `icon_restore` (a string, only while the shortcut still shows the icon
+this plugin set). Two RPCs added, both called by the `artwork` surface through `ports/backend.ts`:
+`SteamStoreSaveIcon { appid, url, source, steam_appid? } -> { path, previous } | { error }` and
+`SteamStoreRecordIcon { appid, path, previous, source, steam_appid? } -> { ok } | { error }`.
 
 ## Ports (M4c)
 

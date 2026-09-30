@@ -71,6 +71,7 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/surfaces/native-links/core.ts` | Pure redirect logic (tested with node) |
 | `frontend/surfaces/artwork/index.ts` | `artwork` surface: `createArtworkSurface`, `artworkWriter` (§ artwork below) |
 | `frontend/surfaces/artwork/{artwork,logo,deps}.ts` | Slot writes, logo position, injected deps |
+| `frontend/surfaces/artwork/icon.ts` | The library icon write and restore (`SetShortcutIcon`, icon plan) |
 | `frontend/surfaces/library-home/index.ts` | `library-home` surface: `createLibraryHomeSurface`, `ready()` (§ library-home below) |
 | `frontend/surfaces/library-home/grid.ts` | The grid patch, async registration |
 
@@ -426,7 +427,7 @@ builds. Out of scope for a pure move (D14); tracked for a bugfix plan after M3.
 ## artwork
 
 The only code that writes a shortcut's custom artwork slots (portrait,
-hero, logo, wide) and logo position into Steam. No hooks. Record-driven
+hero, logo, wide), logo position and library icon into Steam. No hooks. Record-driven
 since M5c: `app/artwork.ts` decides which slots to clear and write and from
 which URLs (Steam CDN for a shortcut with a Steam match, SteamGridDB for one
 without) and puts that plan in `record.artwork`; this surface only executes it.
@@ -439,15 +440,16 @@ without) and puts that plan in `record.artwork`; this surface only executes it.
 | `SteamClient.Apps.ClearCustomArtworkForApp` | 1 |
 | `AppDetailsStore.SaveCustomLogoPosition` | 1 |
 | `AppDetailsStore.ClearCustomLogoPosition` | 1 |
+| `SteamClient.Apps.SetShortcutIcon` | 1 (the supported icon path: `BIsModOrShortcut` stays untouched) |
 
 **reads:** `artwork` (record-driven since M5c, D4).
 
-**Kill switch:** `artwork`. Checked at the top of every write (`applyCustomArtworkFromUrls`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`) — while off, no slot is written or cleared and the logo position is not touched.
+**Kill switch:** `artwork`. Checked at the top of every write (`applyCustomArtworkFromUrls`, `clearSlot`, `ensureLogoPosition`, `clearLogoPosition`, `applyIcon`) — while off, no slot is written or cleared, the logo position is not touched and the library icon is neither set nor restored.
 
 **Injected deps:**
-- `SurfaceDeps & { downloadImage(url); recordArtwork(appid, info) }`, passed to `createArtworkSurface`. `downloadImage` replaces the direct `rpc.steamStoreDownloadImage` call; `recordArtwork` tells the backend which slots were written (`SteamStoreRecordArtwork`, `source: "steamgriddb"` for a shortcut with no Steam match) and returns `{ error }` when the mapping vanished meanwhile, so the surface undoes the write (P4 H5).
+- `SurfaceDeps & { downloadImage(url); recordArtwork(appid, info); saveIcon(appid, url, source, steamAppid?); recordIcon(appid, info) }`, passed to `createArtworkSurface`. `saveIcon` stores our copy of the icon image (`SteamStoreSaveIcon`) and returns its path and `previous`; `recordIcon` remembers the icon set (`SteamStoreRecordIcon`) and returns `{ error }` when the match changed meanwhile, so the surface puts `previous` back. `downloadImage` replaces the direct `rpc.steamStoreDownloadImage` call; `recordArtwork` tells the backend which slots were written (`SteamStoreRecordArtwork`, `source: "steamgriddb"` for a shortcut with no Steam match) and returns `{ error }` when the mapping vanished meanwhile, so the surface undoes the write (P4 H5).
 
-**`render(appid, record)`** (M5c): when `record.artwork.status` is `ok`, run `record.artwork.data` (an `ArtworkPlan`): clear `clear` slots (and the logo position when slot 2 is cleared), write `write` from `urls`, record what was written, then ensure the logo position when slot 2 is ours. Plans run one at a time per shortcut (a Clear followed by a write never interleaves). `setArtworkSink` is gone — `features/steam-store` no longer writes art; it asks `app/artwork.clearSlots()` and the surface clears.
+**`render(appid, record)`** (M5c): when `record.artwork.status` is `ok`, run `record.artwork.data` (an `ArtworkPlan`): clear `clear` slots (and the logo position when slot 2 is cleared), write `write` from `urls`, record what was written, then ensure the logo position when slot 2 is ours, then the library icon when the plan has one (`icon.url`: save, `SetShortcutIcon`, record; `icon.restore`: `SetShortcutIcon(appid, restore)`, a Clear). Plans run one at a time per shortcut (a Clear followed by a write never interleaves). `setArtworkSink` is gone — `features/steam-store` no longer writes art; it asks `app/artwork.clearSlots()` and the surface clears.
 
 **Hooks:** none — `artwork` only writes, never patches a Steam method.
 
@@ -489,3 +491,5 @@ Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K
   `achievements.unlocked`; `captures` gains `addSessionAchievement` (K14). `store-port.ts` and `toast-port.ts` are gone
   (the `PURGE(M6)` ports).
 - 2026-09-29 (post-M6): K17 fixed (`toasts` protobuf resolver) and K19 fixed (`achievements` `GetAchievements` wrapper).
+- Icon plan (2026-09-29): `artwork` touches `SteamClient.Apps.SetShortcutIcon` (the shortcut's library icon,
+  `surfaces/artwork/icon.ts`); `ArtworkPlan.icon`.

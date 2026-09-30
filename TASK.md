@@ -23,9 +23,7 @@ theme Steam's toasts and sounds.
 Next: **E0a** (safety net, a dry-run patch), then E0b (architecture test, `npm run test:live`). Before E0a the
 working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7-and-alpha-plan.md` (plan § 6, EA-K8).
 
-**Shortcut library icon (planned 2026-09-29).** A shortcut Steam draws with its exe's 32 px BMP (WUCHANG, Jotunnslayer)
-gets the mapped native app's 184 px community icon. Plan, dry-run patches included:
-[steam-cartridges-icon-plan.md](docs/plans/steam-cartridges-icon-plan.md). Applies before or after the F1 plan.
+**Shortcut library icon: code committed (2026-09-29)**, waiting for the live verification in [the plan § 7](docs/plans/steam-cartridges-icon-plan.md#7-live-verification-the-user-or-a-verifier-the-user-names).
 
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:

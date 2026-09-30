@@ -89,7 +89,8 @@ export interface AchievementSchemaRecord {
     native_appid: number; total: number; achievements: AchievementSchemaItem[]; fetched_at?: number;
 }
 export interface AchievementUnlockRecord { unlocked_time: number; }
-export interface ArtworkUrls { portrait?: string; hero?: string; logo?: string; wide?: string; }
+export interface ArtworkUrls { portrait?: string; hero?: string; logo?: string; wide?: string; icon?: string; }
+export type IconPlan = { url: string } | { restore: string };   // ArtworkPlan.icon (icon plan)
 export type AchievementSet = Record<string, unknown>;
 export type CommunityMedia = Record<string, unknown>;
 export type ArtworkPlan = Record<string, unknown>;
@@ -200,3 +201,4 @@ Per [migration plan § 4.1](../plans/steam-cartridges-architecture-migration-pla
 - M3.5: `AchievementSchemaItem`, `AchievementSchemaRecord`,
   `AchievementUnlockRecord` (D12) — moved from `rpc.ts`; `rpc.ts` keeps the names.
 - M3.9: `ArtworkUrls` (D12) — moved from `rpc.ts`; `rpc.ts` keeps the name.
+- Icon plan (2026-09-29): `ArtworkUrls.icon`, `IconPlan`, `ArtworkPlan.icon` (the library icon, not a slot).
