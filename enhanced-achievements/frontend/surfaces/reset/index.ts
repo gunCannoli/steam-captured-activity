@@ -18,7 +18,7 @@ interface AppOverviewLike {
 }
 interface Cartridges {
     resetAchievements(appid: number): Promise<boolean>;
-    getLocalAchievements(appid: number): { nAchieved?: number; nTotal?: number } | undefined;
+    storedAchievementSummaries(): Promise<Record<string, { nAchieved: number; nTotal: number }>>;
 }
 
 const steamConsole = (): SteamConsole | undefined => Reflect.get(globalThis, 'SteamClient')?.Console;
@@ -31,7 +31,7 @@ function cartridges(): Cartridges | null {
     const list = Reflect.get(globalThis, 'PLUGIN_LIST') as Record<string, Partial<Cartridges> | undefined> | undefined;
     for (const name of ['steam-cartridges-dev', 'steam-cartridges']) {
         const p = list?.[name];
-        if (typeof p?.resetAchievements === 'function' && typeof p.getLocalAchievements === 'function') return p as Cartridges;
+        if (typeof p?.resetAchievements === 'function' && typeof p.storedAchievementSummaries === 'function') return p as Cartridges;
     }
     return null;
 }
@@ -62,16 +62,17 @@ const engine = createReset({
 /** Handed to the settings panel by index.tsx (D7). Fail-open: an error is counted and reported to the user, never thrown. */
 export const achievementReset: AchievementResetApi = {
     available: () => isEnabled('reset') && typeof steamConsole()?.ExecCommand === 'function',
-    candidates() {
+    async candidates() {
         try {
-            const sc = cartridges();
+            // Non-Steam games: steam-cartridges' stored unlocks, read from disk once per call.
+            const stored = (await cartridges()?.storedAchievementSummaries().catch(() => undefined)) ?? {};
             return buildCandidates(libraryApps(), (app) => {
                 if (!app.isShortcut) {
                     const p = progressFor(app.appid);
                     return typeof p?.unlocked === 'number' ? { unlocked: p.unlocked, total: Number(p.total) || 0 } : undefined;
                 }
-                const local = sc?.getLocalAchievements(app.appid);
-                return local ? { unlocked: local.nAchieved ?? 0, total: local.nTotal ?? 0 } : undefined;
+                const local = stored[String(app.appid >>> 0)];
+                return local ? { unlocked: local.nAchieved, total: local.nTotal } : undefined;
             });
         } catch (error) {
             reportError('reset', error);

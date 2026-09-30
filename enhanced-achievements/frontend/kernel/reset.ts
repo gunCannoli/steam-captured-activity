@@ -16,7 +16,7 @@ export interface AchievementResetApi {
     /** false when the surface is switched off or Steam has no console command. */
     available(): boolean;
     /** Games that have at least one unlocked achievement, sorted by name. Reads Steam's stores: call on demand, not per render. */
-    candidates(): ResetCandidate[];
+    candidates(): Promise<ResetCandidate[]>;
     reset(candidate: ResetCandidate): Promise<ResetResult>;
 }
 

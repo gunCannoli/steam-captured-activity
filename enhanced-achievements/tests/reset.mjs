@@ -27,10 +27,13 @@ try {
     check('reset surface installed', status.some((s) => s.id === 'reset' && s.installed && s.skipped === null), JSON.stringify(status.find((s) => s.id === 'reset')));
     check('API available', (await plugin('achievementReset.available()')) === true);
 
-    const list = JSON.parse(await plugin('JSON.stringify(achievementReset.candidates())'));
+    const list = JSON.parse(await plugin('achievementReset.candidates().then((c) => JSON.stringify(c))'));
     const names = list.map((c) => c.name);
     const sorted = [...names].sort((a, b) => a.localeCompare(b));
     check('candidates have unlocks and are sorted by name', list.length > 0 && list.every((c) => c.unlocked > 0) && JSON.stringify(names) === JSON.stringify(sorted), `${list.length} games`);
+    // With steam-cartridges loaded, its stored unlocks list its games too (non-Steam games have the `shortcut` kind).
+    const cartridges = await plugin("Object.keys(window.PLUGIN_LIST).some((n) => n.startsWith('steam-cartridges') && typeof window.PLUGIN_LIST[n].storedAchievementSummaries === 'function')");
+    check('non-Steam games with unlocks are listed when steam-cartridges is loaded', !cartridges || list.some((c) => c.kind === 'shortcut'), `${list.filter((c) => c.kind === 'shortcut').length} shortcuts`);
 
     const wrapped = await cdp.evaluate(`(() => { window.__eaConsole = []; const c = SteamClient.Console; window.__eaExec = c.ExecCommand; c.ExecCommand = (x) => { window.__eaConsole.push(x); return window.__eaExec.call(c, x); }; return true; })()`);
     const res = JSON.parse(await plugin("achievementReset.reset({ appid: 480, name: 'Spacewar', unlocked: 0, total: 0, kind: 'steam' }).then((r) => JSON.stringify(r))"));

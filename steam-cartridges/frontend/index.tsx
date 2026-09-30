@@ -248,6 +248,21 @@ export const triggerAchievement = (shortcutAppId: number, targetAchievementId?: 
 /** Resets all unlocked achievements for a shortcut. */
 export const resetAchievements = (shortcutAppId: number) => achievements.reset(shortcutAppId as ShortcutId);
 
+/**
+ * Unlocked and total counts for every shortcut with stored achievements (disk only, one backend read), keyed by
+ * appid: read by enhanced-achievements' Reset Achievements, which cannot import this plugin.
+ */
+export async function storedAchievementSummaries(): Promise<Record<string, { nAchieved: number; nTotal: number }>> {
+    const out: Record<string, { nAchieved: number; nTotal: number }> = {};
+    const res = await backend.getAllRecords();
+    for (const [key, parts] of Object.entries(res.records ?? {})) {
+        const set = (parts.achievements as { data?: { schema?: { total?: number }; unlocks?: Record<string, unknown> } } | undefined)?.data;
+        const nAchieved = Object.keys(set?.unlocks ?? {}).length;
+        if (nAchieved > 0) out[key] = { nAchieved, nTotal: set?.schema?.total ?? 0 };
+    }
+    return out;
+}
+
 /** One unlock check against the backend observer; resolves to the number of new unlocks. */
 export const checkObserverUnlocks = (shortcutAppId: number, nativeAppId: number, gameTitle?: string) =>
     achievements.checkNow(shortcutAppId as ShortcutId, { native: nativeAppId, title: gameTitle });

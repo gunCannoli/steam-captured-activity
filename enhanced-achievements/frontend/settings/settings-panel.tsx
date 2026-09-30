@@ -350,7 +350,9 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
  * Reset is never disabled by Steam's toasts being off: it does not use them. `api` is injected (D7).
  */
 function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
-    const [all, setAll] = useState<ResetCandidate[]>(() => api.candidates());
+    const [all, setAll] = useState<ResetCandidate[]>([]);
+    const reload = () => void api.candidates().then(setAll);
+    useEffect(reload, []);
     const [filter, setFilter] = useState("");
     const [selected, setSelected] = useState(0);
     const [busy, setBusy] = useState(false);
@@ -377,7 +379,7 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
                   : `Cleared all achievements in ${c.name}.`,
         );
         setSelected(0);
-        setAll(api.candidates());
+        reload();
     };
 
     const confirm = () => {
@@ -396,43 +398,40 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
         );
     };
 
+    // One block: the label and description, then the filter, dropdown, button and result, all in one row (one card).
     return (
-        <>
-            <ItemRow>
-                <Field
-                    label="Reset Achievements"
-                    description="Select a game to reset the achievements count"
-                    disabled={!available}
-                    bottomSeparator="none"
-                />
-            </ItemRow>
-            <ItemRow>
+        <ItemRow>
+            <Field
+                label="Reset Achievements"
+                description="Select a game to reset the achievements count"
+                disabled={!available}
+                bottomSeparator="none"
+            />
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 16px 16px" }}>
                 <TextField
                     label="Games filter"
                     value={filter}
                     disabled={!available}
-                    onFocus={() => setAll(api.candidates())}
+                    onFocus={reload}
                     onChange={(e) => setFilter(e.target.value)}
                 />
-            </ItemRow>
-            <ItemRow>
-                <Field disabled={!available} childrenContainerWidth="max">
-                    <Dropdown
-                        rgOptions={options}
-                        selectedOption={chosen ? chosen.appid : 0}
-                        disabled={!available}
-                        contextMenuPositionOptions={{ bMatchWidth: true }}
-                        onChange={(o) => setSelected(o.data as number)}
-                    />
-                </Field>
-            </ItemRow>
-            <ButtonRow label="" buttonLabel="Reset" disabled={!available || busy || !chosen} onClick={confirm} />
-            {message && (
-                <ItemRow>
-                    <DialogBodyText>{message}</DialogBodyText>
-                </ItemRow>
-            )}
-        </>
+                <Dropdown
+                    rgOptions={options}
+                    selectedOption={chosen ? chosen.appid : 0}
+                    disabled={!available}
+                    contextMenuPositionOptions={{ bMatchWidth: true }}
+                    onChange={(o) => setSelected(o.data as number)}
+                />
+                <DialogButton
+                    disabled={!available || busy || !chosen}
+                    onClick={confirm}
+                    style={{ padding: "0 16px", minWidth: 0, width: "auto", alignSelf: "flex-end" }}
+                >
+                    Reset
+                </DialogButton>
+                {message && <DialogBodyText>{message}</DialogBodyText>}
+            </div>
+        </ItemRow>
     );
 }
 
