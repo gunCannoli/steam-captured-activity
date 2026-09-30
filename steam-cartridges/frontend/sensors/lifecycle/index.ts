@@ -13,7 +13,8 @@ export function installLifecycleSensor(bus: EventBus): void {
     onAppLaunch((app, { onQuit }) => {
         const appid = toShortcutId(app.appid);
         if (appid === undefined) return;
-        bus.emit("shortcut.launched", { appid, name: String(app.display_name ?? appid) });
-        onQuit(() => bus.emit("shortcut.quit", { appid }));
+        const name = String(app.display_name ?? appid);
+        bus.emit("shortcut.launched", { appid, name });
+        onQuit(() => bus.emit("shortcut.quit", { appid, name }));
     });
 }

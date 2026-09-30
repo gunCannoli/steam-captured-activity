@@ -5,7 +5,6 @@
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { ensureStoreCacheHooked, setNativeActivitySource } from "./activity";
 import { installActivityCardsPatch } from "./activity-cards";
-import { installBpmStyle } from "./bpm-style";
 import { deps, type ActivityOptions } from "./deps";
 import { installHeadlinePatch } from "./headline";
 import { patch, unpatch } from "./publish";
@@ -13,6 +12,7 @@ import { patch, unpatch } from "./publish";
 export { patch, refresh, setContentListener, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
 export { addSessionAchievement } from "./session";
+export { onWindowClosed, onWindowOpened } from "./bpm-style";
 export { registerSummaryProvider } from "./summary";
 export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
 export { headlineJsxDiagnostics } from "./headline";
@@ -51,7 +51,6 @@ export function createCapturesSurface(d: SurfaceDeps & { activityOptions(): Acti
             part("store-cache", ensureStoreCacheHooked);
             part("headline", installHeadlinePatch);
             part("activity-cards", installActivityCardsPatch);
-            installBpmStyle();
         },
         render(appid, record) {
             // Captures are Steam's own data, read live (ADR-0022); only the native

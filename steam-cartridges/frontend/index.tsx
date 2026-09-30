@@ -5,6 +5,8 @@ import {
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
     addSessionAchievement,
+    onWindowClosed as capturesWindowClosed,
+    onWindowOpened as capturesWindowOpened,
     setContentListener,
     unpatch as unpatchLibraryApp,
 } from "./surfaces/captures";
@@ -43,7 +45,7 @@ import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
-import { resolveShortcutTitle } from "./steam/shortcut";
+import { listShortcuts, shortcutTitle } from "./sensors/shortcuts";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
 import { backend } from "./ports/backend";
 import {
@@ -104,7 +106,7 @@ function serviceAllowed(service: ServiceTarget, appid: number): boolean {
     return isServiceAllowed(
         service,
         appid,
-        resolveShortcutTitle(appid) ?? "",
+        shortcutTitle(appid) ?? "",
         collNames,
         setting("routingRules"),
         setting("autoRoutingMode"),
@@ -120,20 +122,8 @@ const routing = createRouting({
     buckets: () => setting("buckets"),
     autoMode: () => setting("autoRoutingMode"),
     collections: collectionsSource,
-    titleOf: (appid) => {
-        try {
-            const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
-            return typeof name === "string" ? name : undefined;
-        } catch {
-            return undefined;
-        }
-    },
-    shortcuts: () => {
-        const all: any[] = (window as any).appStore?.allApps ?? [];
-        return all
-            .filter((a) => a?.appid >= 0x8000_0000)
-            .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
-    },
+    titleOf: shortcutTitle,
+    shortcuts: listShortcuts,
     loadProfiles: async () => (await backend.getAutoRoutingProfiles())?.profiles ?? {},
     metadataAppids: () => records.store.all().filter((r) => r.metadata).map((r) => r.appid),
 });
@@ -148,14 +138,7 @@ const identity = createIdentity({
     backend,
     records: records.store,
     owned: ownedCandidates,
-    titleOf: (appid) => {
-        try {
-            const name = (window as any).appStore?.GetAppOverviewByAppID?.(appid)?.display_name;
-            return typeof name === "string" ? name : undefined;
-        } catch {
-            return undefined;
-        }
-    },
+    titleOf: shortcutTitle,
     now: () => Date.now(),
 });
 
@@ -164,8 +147,8 @@ const identity = createIdentity({
 const metadata = createMetadata({
     backend,
     records: records.store,
-    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
-    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
+    titleOf: (appid) => shortcutTitle(appid),
+    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
     allowWeb: (appid) => setting("services").igdbEnabled !== false && serviceAllowed("igdb", appid),
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && serviceAllowed("screenscraper", appid),
@@ -177,8 +160,8 @@ const achievements = createAchievements({
     backend,
     records: records.store,
     bus,
-    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
-    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
+    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+    titleOf: (appid) => shortcutTitle(appid),
     routeOf: (appid) => routing.getBucket(appid),
     resolveNative: async (appid) => {
         const known = records.store.get(appid)?.identity?.data?.native?.appid;
@@ -198,8 +181,8 @@ const achievements = createAchievements({
 const artwork = createArtwork({
     backend,
     records: records.store,
-    ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
-    titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
+    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+    titleOf: (appid) => shortcutTitle(appid),
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
     fetchImage,
     allowSgdb: (appid) => setting("services").steamgriddbEnabled !== false && serviceAllowed("steamgriddb", appid),
@@ -354,7 +337,7 @@ async function init() {
     bus.on("record.updated", ({ appid, parts }) => renderQueue.push(appid, parts));
     // The record must exist before anything writes a part to it (kernel/record.ts update()
     // is a no-op for an unknown appid); every view ensures its base record first.
-    bus.on("shortcut.viewed", ({ appid }) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""));
+    bus.on("shortcut.viewed", ({ appid }) => records.ensureBase(appid, shortcutTitle(appid) ?? ""));
 
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
@@ -514,6 +497,9 @@ async function init() {
     bus.on("shortcut.left", ({ appid }) => {
         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
     });
+    // Big Picture thumbnail styling goes into each gamepad window the view sensor reports.
+    bus.on("window.opened", capturesWindowOpened);
+    bus.on("window.closed", capturesWindowClosed);
 
     // ===== Refresh after play =====
     // Quitting a game is exactly when new screenshots and clips exist, so

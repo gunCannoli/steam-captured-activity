@@ -10,7 +10,10 @@ export interface Events {
     /** The user left a shortcut's page. */
     "shortcut.left": { appid: ShortcutId; mode: "desktop" | "gamepad" };
     "shortcut.launched": { appid: ShortcutId; name: string };
-    "shortcut.quit": { appid: ShortcutId };
+    "shortcut.quit": { appid: ShortcutId; name: string };
+    /** A Steam window opened or closed (view sensor); `document` is the window's own DOM document. */
+    "window.opened": { mode: "desktop" | "gamepad"; document: Document | undefined };
+    "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
     /** Parts of a GameRecord changed; surfaces re-render only if they read one of `parts`. */
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
     "achievements.unlocked": { appid: ShortcutId; ids: string[] };

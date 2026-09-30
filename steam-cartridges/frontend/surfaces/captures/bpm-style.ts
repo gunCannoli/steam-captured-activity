@@ -1,33 +1,11 @@
-// Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2).
-// Moved verbatim from index.tsx; a <style> element in the gamepad popup is a Steam write.
-import { onPopupCreate, PopupType } from "steambrew-utils/watchers";
+// Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2; M10: driven by the
+// view sensor's window.opened / window.closed, it watches no popups itself). A <style> element in the
+// gamepad window's document is a Steam write.
 import { deps } from "./deps";
 
-let installed = false;
+const STYLE_ID = "nsga-bpm-activity-thumbs";
 
-export function installBpmStyle(): void {
-    if (installed) return;
-    installed = true;
-    onPopupCreate((popup, type) => {
-        if (!deps.isEnabled("captures")) return undefined;
-        if (type === PopupType.Gamepad) {
-            // Big Picture renders through a React portal from SharedJSContext
-            // into the gamepad popup window (ADR-0029). Both UI modes share the
-            // same store singletons, webpack chunks, and CAppDetailsSections registry.
-            //
-            // Because Ge.T (module 53074) is already built into Big Picture's
-            // "ACTIVITY" tab, feeding appSpotlightStore via patchLibraryApp(appid)
-            // makes Steam render its genuine native GamePlaySummaryContainer with
-            // controller focus rings and carousel scrolling automatically.
-
-            // Inject scoped BPM activity feed thumbnail styling into the gamepad popup document
-            const doc = popup.window?.document;
-            let styleEl: HTMLStyleElement | null = doc
-                ? doc.createElement("style")
-                : null;
-            if (styleEl && doc) {
-                styleEl.id = "nsga-bpm-activity-thumbs";
-                styleEl.textContent = `
+const STYLE = `
           [class*="CarouselThumbs"] {
             display: flex !important;
             flex-direction: row !important;
@@ -58,17 +36,30 @@ export function installBpmStyle(): void {
             display: block !important;
           }
         `;
-                doc.head?.appendChild(styleEl);
-            }
 
-            return () => {
-                if (styleEl && styleEl.parentNode) {
-                    styleEl.parentNode.removeChild(styleEl);
-                }
-            };
-        }
+const styles = new Map<Document, HTMLStyleElement>();
 
-        // Desktop, Modal, ContextMenu, Unknown: no styling needed.
-        return undefined;
-    });
+/**
+ * Big Picture renders through a React portal from SharedJSContext into the gamepad window (ADR-0029);
+ * Steam's own GamePlaySummaryContainer draws the activity thumbnails there, and this styles them.
+ * Desktop windows need nothing.
+ */
+export function onWindowOpened({ mode, document }: { mode: "desktop" | "gamepad"; document: Document | undefined }): void {
+    if (mode !== "gamepad" || !document || styles.has(document)) return;
+    if (!deps.isEnabled("captures")) return;
+    try {
+        const el = document.createElement("style");
+        el.id = STYLE_ID;
+        el.textContent = STYLE;
+        document.head?.appendChild(el);
+        styles.set(document, el);
+    } catch (err) {
+        deps.reportError("captures", err);
+    }
+}
+
+export function onWindowClosed({ document }: { document: Document | undefined }): void {
+    if (!document) return;
+    styles.get(document)?.remove();
+    styles.delete(document);
 }
