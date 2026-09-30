@@ -66,6 +66,8 @@ and **new features are frozen** until migration step M3 is done.
 | [plans/steam-cartridges-architecture-migration-plan.md](plans/steam-cartridges-architecture-migration-plan.md) | The `steam-cartridges` migration: target architecture, execution manual, child steps M0a–M9                                                                                     |
 | [steam-cartridges/service-achievements.md](steam-cartridges/service-achievements.md)                           | The achievements layer doc (source order, `supports` rules, `CheckUnlocks`) plus the earlier reference for channels, stores and toasts (was `steam-cartridges-achievements.md`) |
 | `docs/steam-cartridges/` (§ 3)                                                                                 | One doc per architecture layer, created by the migration step that builds the layer                                                                                             |
+| [plans/enhanced-achievements-architecture-migration-plan.md](plans/enhanced-achievements-architecture-migration-plan.md) | The `enhanced-achievements` migration (ADR-0043): safety net, one owner per Steam target, execution manual, steps E0a–E3 |
+| [enhanced-achievements/architecture.md](enhanced-achievements/architecture.md) | How `enhanced-achievements` is built: layers, the owner of each Steam target, the safety net, how to add a feature. planned (E0a) |
 | [plans/phase7-and-alpha-plan.md](plans/phase7-and-alpha-plan.md)                                               | `enhanced-achievements` / `enhanced-notifications` phase 7 and the user's alpha test checklist (cited by their code)                                                            |
 
 ---

@@ -2653,3 +2653,45 @@ and re-checking it on every Game Info render, so the repair was a Steam store wr
 ### Consequences
 
 A non-zero `viaRender` means the trigger missed a rebuild: find the missing path, do not remove the fallback.
+
+## ADR-0043: enhanced-achievements has one owner per Steam target and a safety net
+
+**Status:** Accepted · 2026-09-29 · Plan: [enhanced-achievements-architecture-migration-plan.md](plans/enhanced-achievements-architecture-migration-plan.md) · Same principles as [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam), applied in a lighter form
+
+### Context
+
+`enhanced-achievements` (about 6.4k lines) has regressed the same way `steam-cartridges` did: every bug in its
+CHANGELOG was either two owners of one Steam target (the banner position raced Steam's per-frame moves; the 100%
+toast was scheduled twice) or state changed from the wrong place (a hook-order error when a queued toast got its
+turn; previews swapping tiers through a shared time-window flag; sounds played on arrival instead of with their
+banner). One 482-line file, `steam/notifications.ts`, does six jobs inside one Steam prototype hook, and nothing
+switches a failing part off: `init()` either hooks everything or nothing.
+
+### Decision
+
+1. **Safety net first.** Every part that writes into Steam has a feature id with a kill switch
+   (`disabledFeatures` setting), a per-session error budget (5) and a boot sentinel that starts in safe mode
+   (nothing hooked) after two unclean starts. A switched-off feature leaves Steam's stock behaviour and is handed
+   back through `claims()`.
+2. **One owner per Steam target.** Each Steam write (prototype wrapper, config field, popup method, jsx runtime,
+   RPC) lives in exactly one file. `tests/architecture.test.ts` enforces it (`OWNERS`), plus an import ratchet
+   that only shrinks and a list of pure files that `npm test` runs under node.
+3. **One notification hook, one event.** A single `PlayNotificationSound` wrapper (`steam/notification-hook.ts`)
+   observes every shown toast and offers one sound slot. A sensor turns a shown unlock into one
+   `achievement.unlocked` event per notification, emitted one macrotask later (the only work this hook may hand
+   off; it replaces the inline capture scheduling of phase-7 A1.7). Captures and the 100% toast subscribe to it.
+4. **Surfaces write, nothing else does:** `banner`, `sound`, `duration`, `toasts`, `captures`, each with its
+   declared `touches`, installed in isolation and uninstalled when its budget is spent.
+5. **The toast scheduler (`banner/queue.ts`) is the only owner of banner lifetime**, including when a queued
+   banner's sound plays. Nothing is admitted to it from a render.
+6. **No shared package.** Plugins may not import each other; shared files stay copies, and a test fails when a
+   copy drifts (`steam/jsx-hook.ts` with steam-cartridges, `pristineDuration` with enhanced-notifications).
+
+### Consequences
+
+- Steam-side changes (Millennium restoring `jsx`, a new toast stack) still happen; they now fail one feature, not
+  the plugin, and the failing feature can be switched off without uninstalling.
+- New features go into a new surface or a new event subscriber; a diff that touches another surface's file needs
+  a reason in its plan.
+- Not adopted from ADR-0039: the `GameRecord` read model, backend services and per-layer docs. One doc,
+  `docs/enhanced-achievements/architecture.md`, covers the plugin.

@@ -17,6 +17,12 @@ theme Steam's toasts and sounds.
 
 ## Now
 
+**enhanced-achievements architecture migration (planned 2026-09-29).** Plan:
+[enhanced-achievements-architecture-migration-plan.md](docs/plans/enhanced-achievements-architecture-migration-plan.md)
+([ADR-0043](docs/decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net)).
+Next: **E0a** (safety net, a dry-run patch), then E0b (architecture test, `npm run test:live`). Before E0a the
+working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7-and-alpha-plan.md` (plan § 6, EA-K8).
+
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
 [steam-cartridges-architecture-migration-plan.md](docs/plans/steam-cartridges-architecture-migration-plan.md).
