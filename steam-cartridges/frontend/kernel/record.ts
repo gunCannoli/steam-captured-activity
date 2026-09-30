@@ -128,7 +128,28 @@ export interface AchievementSet {
     schema: AchievementSchemaRecord;
     unlocks: Record<string, AchievementUnlockRecord>;
 }
-export type CommunityMedia = Record<string, unknown>;
+/** One card of Steam's Community Content section (features plan F2, backend media_service.lua). */
+export interface MediaItem {
+    kind: "video" | "screenshot" | "artwork";
+    source: "igdb" | "screenscraper";
+    /** A video's YouTube id. */
+    youtube?: string;
+    /** Public full-size and preview URLs (IGDB). A ScreenScraper item has none: its image is fetched by `key` into the media bin. */
+    url?: string;
+    thumb?: string;
+    /** ScreenScraper media key, e.g. "ss(wor)". */
+    key?: string;
+    width?: number;
+    height?: number;
+    title?: string;
+}
+
+/** The `media` part. The backend writes an empty list as `{}`: read `items` with kernel/lists asList. */
+export interface CommunityMedia {
+    items: MediaItem[];
+    igdb_id?: number;
+    ss_id?: number;
+}
 /** What the backend recorded as written for a shortcut's art (steam_store.json applied_artwork). */
 export interface StoreApplied {
     /** Absent for SteamGridDB art (a shortcut with no Steam match). */
