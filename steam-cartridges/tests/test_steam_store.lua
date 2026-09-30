@@ -260,6 +260,7 @@ end
 print("store")
 local path = TMP .. "/sc_steam_store_test_" .. os.time() .. ".json"
 store._path = path
+os.remove(path) -- a run in the same second must not see another run's file
 store._reset()
 local SC = 4263274102
 check("set_mapping (search)", store.set_mapping(SC, 2820820, "Jotunnslayer: Hordes of Hel", "search", 100).source == "search")

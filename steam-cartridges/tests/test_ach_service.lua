@@ -142,11 +142,11 @@ local STORE_PATH = TMP .. "/sc_ach_store_test_" .. os.time() .. ".json"
 local ACH_PATH = TMP .. "/sc_ach_test_" .. os.time() .. ".json"
 store._path = ACH_PATH
 store_steam._path = STORE_PATH
-local function wipe() os.remove(ACH_PATH); os.remove(STORE_PATH); store._reset(); store_steam._reset() end
-wipe()
-
 local fresh_policy = require("fresh_policy")
 fresh_policy._path = TMP .. "/sc_fresh_test_" .. os.time() .. ".json"
+-- The freshness policy is state too: without resetting it, a case sees what an earlier case recorded.
+local function wipe() os.remove(ACH_PATH); os.remove(STORE_PATH); os.remove(fresh_policy._path); store._reset(); store_steam._reset(); fresh_policy._reset() end
+wipe()
 local SC = 4263274102
 local SCHEMA = { total = 2, achievements = { { id = "A", name = "a" }, { id = "B", name = "b" } } }
 local calls = {}
