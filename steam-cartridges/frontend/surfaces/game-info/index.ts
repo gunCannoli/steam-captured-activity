@@ -7,6 +7,7 @@ import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import type { ControllerContext } from "./category-policy";
 import { deps } from "./deps";
 import { enrichGameDetails, revertGameDetails } from "./metadata";
+import { patchPlayBar } from "./playbar";
 import {
     enrichedAppIds,
     ensureAppOverviewHooked,
@@ -57,6 +58,9 @@ export function createGameInfoSurface(
             "AppOverview.m_setStoreCategories",
             "AppDetailsStore.descriptionsData",
             "AppDetailsStore.associationData",
+            // part `playbar` (its own kill switch; was a surface of its own until M10)
+            "PlayBar.render",
+            "PlayBar.props",
         ],
         reads: ["identity", "metadata"],
         install() {
@@ -65,6 +69,14 @@ export function createGameInfoSurface(
             // Bypass Big Picture native shortcut filter on Game Info tab
             patchGameInfoComponent();
             installOverviewRepair();
+            // The desktop PlayBar's ⓘ button: its own switch, so its failure never takes Game Info down.
+            if (deps.isEnabled("playbar")) {
+                try {
+                    patchPlayBar();
+                } catch (err) {
+                    deps.reportError("playbar", err);
+                }
+            }
         },
         render(appid, record) {
             // Guardrail 11: Game Info already rendered with the shortcut's own appid before the Steam

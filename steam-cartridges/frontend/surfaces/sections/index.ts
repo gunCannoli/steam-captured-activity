@@ -14,6 +14,9 @@ let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
 /** Does the shortcut show our Game Info? Record-driven (migration plan M5b). */
 const hasGameInfoByAppid = new Map<number, boolean>();
 
+/** The achievements part each shortcut last rendered with (M10: a change re-renders the sections). */
+const achievementsByAppid = new Map<number, unknown>();
+
 /**
  * Re-enable the app detail sections Steam hides from non-Steam games.
  *
@@ -103,6 +106,11 @@ export function setExtraSections(appid: number, names: readonly string[] | undef
  * section we added. Only fires on an actual change, so navigation alone does
  * not force re-renders.
  */
+/** captures.published (the captures surface's result): drop the placeholder once there is content. */
+export function onCapturesPublished({ appid, hasContent }: { appid: number; hasContent: boolean }): void {
+    setHasContent(appid, hasContent);
+}
+
 export function setHasContent(appid: number, hasContent: boolean): void {
     const had = appsWithContent.has(appid);
     if (had === hasContent) return;
@@ -284,6 +292,12 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
         },
         render(appid, record) {
             setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined);
+            // New achievements: re-render after the achievements surface fed Steam's stores in this same
+            // render pass (was that surface's refreshSections call through index.tsx before M10).
+            if (record?.achievements !== achievementsByAppid.get(appid)) {
+                achievementsByAppid.set(appid, record?.achievements);
+                if (record?.achievements) setTimeout(refreshInstances, 0);
+            }
             const meta = record?.metadata;
             const hasInfo = meta?.status === "ok" || (meta?.status === "error" && !!meta.data);
             if (hasGameInfoByAppid.get(appid) === hasInfo) return;
@@ -293,6 +307,7 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
         clear(appid) {
             setExtraSections(appid, undefined);
             hasGameInfoByAppid.delete(appid);
+            achievementsByAppid.delete(appid);
         },
         uninstall: unpatchSections,
     };

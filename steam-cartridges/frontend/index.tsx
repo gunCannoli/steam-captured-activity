@@ -7,7 +7,6 @@ import {
     onUnlocked as capturesOnUnlocked,
     onWindowClosed as capturesWindowClosed,
     onWindowOpened as capturesWindowOpened,
-    setContentListener,
     unpatch as unpatchLibraryApp,
 } from "./surfaces/captures";
 import {
@@ -51,15 +50,11 @@ import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
 import { backend } from "./ports/backend";
 import {
     createSectionsSurface,
-    refreshSections,
-    setHasContent,
+    onCapturesPublished as sectionsOnCapturesPublished,
 } from "./surfaces/sections";
 import {
     createGameInfoSurface,
-    ensureAppOverviewHooked,
-    trackInstance,
 } from "./surfaces/game-info";
-import { createPlaybarSurface } from "./surfaces/playbar";
 import { createController } from "./app/controller";
 import { setPanelContext } from "./settings/context";
 import { createSteamStore } from "./app/steam-store";
@@ -288,8 +283,8 @@ async function init() {
         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
     });
 
-    // Surface and app APIs reach the settings panel and the features only through these setters (plan § 7.0 D3).
-    setContentListener(setHasContent);
+    // The sections surface drops Steam's placeholder once captures has published content (captures.published).
+    bus.on("captures.published", sectionsOnCapturesPublished);
 
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
     // timer after record.updated, never from inside a Steam render (plan § 7.0 D5).
@@ -356,6 +351,7 @@ async function init() {
                 showAdded: setting("activityShowAddedToLibrary") !== false,
                 showFirstPlayed: setting("activityShowFirstPlayed") !== false,
             }),
+            bus,
         }),
     );
     runner.installAll();
@@ -373,7 +369,7 @@ async function init() {
 
     // ===== Native Achievements Subsystem =====
     // Steam's achievement stores (surfaces/achievements, plan M3.5); the loader below feeds them.
-    runner.register(createAchievementsSurface({ ...surfaceDeps, refreshSections }));
+    runner.register(createAchievementsSurface(surfaceDeps));
     // Steam's notification toasts (surfaces/toasts, plan M3.6).
     runner.register(createToastsSurface(surfaceDeps));
     runner.installAll();
@@ -394,8 +390,6 @@ async function init() {
             metadataOf: (appid) => records.store.get(appid as ShortcutId)?.metadata?.data,
         }),
     );
-    // The desktop PlayBar's ⓘ button (surfaces/playbar, plan M3.4); on only while game-info is.
-    runner.register(createPlaybarSurface({ ...surfaceDeps, hookOverview: ensureAppOverviewHooked, track: trackInstance }));
     runner.installAll();
 
     // ===== Game Info data (ex steamgriddb-artwork) =====

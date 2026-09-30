@@ -2,6 +2,7 @@ import { logger } from "../../logger";
 import { clearActivity, publishActivity } from "./activity";
 import { toGameId, type ShortcutId } from "../../kernel/appid";
 import { clearSummary, publishSummary } from "./summary";
+import { deps } from "./deps";
 
 /**
  * Brings the native app detail sections to a non-Steam game's page.
@@ -24,11 +25,9 @@ import { clearSummary, publishSummary } from "./summary";
 /** Apps whose summary or activity we have published, so a quitting game can refresh them. */
 const published = new Set<number>();
 
-/** Tells the sections surface whether an app has content (wired in index.tsx, plan § 7.0 D3). */
-let setHasContent: (appid: number, hasContent: boolean) => void = () => {};
-
-export function setContentListener(fn: (appid: number, hasContent: boolean) => void): void {
-    setHasContent = fn;
+/** Report whether an app has content (`captures.published`; the sections surface drops its placeholder, M10). */
+function setHasContent(appid: number, hasContent: boolean): void {
+    deps.bus.emit("captures.published", { appid: appid as ShortcutId, hasContent });
 }
 
 /**

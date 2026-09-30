@@ -8,12 +8,8 @@ import type { SteamAppAchievements } from "../../steam/achievement-types";
 import { buildAchievementProgress, buildSteamAchievements, getAchievementsAction } from "./core";
 import { resolveSingleton } from "../../steam/modules";
 
-/** Set by createAchievementsSurface (plan § 7.0 D3/D6); open defaults until then. */
-export const deps: SurfaceDeps & {
-    /** Re-renders Steam's section list (the sections surface). */
-    refreshSections(): void;
-} = { isEnabled: () => true, reportError: () => {}, refreshSections: () => {} };
-const refreshSections = () => deps.refreshSections();
+/** Set by createAchievementsSurface (plan § 7.0 D6); open defaults until then. */
+export const deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
 
 /**
  * Fail-open (plan § 7.0 D6): wrap an installed hook so a switched-off surface, a throw or a
@@ -301,16 +297,14 @@ export function setShortcutAchievements(
         logger.warn("Could not update Big Picture achievement progress cache:", e);
     }
 
-    // Synchronize appDetailsStore appData.details.achievements for MobX reactivity
+    // Synchronize appDetailsStore appData.details.achievements for MobX reactivity, only where Steam
+    // created `details` itself: guardrail 8 (never create or overwrite appData.details; M10 fix).
     try {
         const store = (window as any).appDetailsStore;
         if (store?.GetAppData) {
             for (const id of [rawId, signedId, shortcutAppId]) {
                 const appData = store.GetAppData(id);
-                if (appData) {
-                    if (!appData.details) appData.details = {};
-                    appData.details.achievements = achievements;
-                }
+                if (appData?.details) appData.details.achievements = achievements;
             }
         }
     } catch (e) {
@@ -325,12 +319,6 @@ export function setShortcutAchievements(
         logger.warn("Failed to notify appDetailsStore of achievement change:", e);
     }
 
-    // Refresh sections so that the "achievements" section is visible
-    try {
-        refreshSections();
-    } catch (e) {
-        logger.warn("Could not refresh sections:", e);
-    }
 }
 
 /**

@@ -20,6 +20,8 @@ export interface Events {
     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };
     /** The launch toast policy (app/achievements) decided a launch gets the "Achievements Enabled" toast. */
     "achievements.launch-toast": { appid: ShortcutId };
+    /** The captures surface published (or cleared) a shortcut's summary and activity (sections drops the placeholder). */
+    "captures.published": { appid: ShortcutId; hasContent: boolean };
     /** What the artwork surface wrote for a plan (app/artwork records it through the port, M10). */
     "artwork.applied": {
         appid: ShortcutId;

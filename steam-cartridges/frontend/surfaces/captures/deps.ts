@@ -1,5 +1,6 @@
 // Surface `captures`: what the composition root gives it (migration plan M3.2, § 7.0 D3/D6).
 // Set once by createCapturesSurface; open defaults until then.
+import type { EventBus } from "../../kernel/events";
 import type { SurfaceDeps } from "../../kernel/surface";
 
 export interface ActivityOptions {
@@ -9,8 +10,13 @@ export interface ActivityOptions {
     showFirstPlayed: boolean;
 }
 
-export const deps: SurfaceDeps & { activityOptions(): ActivityOptions } = {
+export const deps: SurfaceDeps & {
+    activityOptions(): ActivityOptions;
+    /** Where the surface reports what it published (`captures.published`). */
+    bus: Pick<EventBus, "emit">;
+} = {
     isEnabled: () => true,
     reportError: () => {},
     activityOptions: () => ({ showAdded: true, showFirstPlayed: true }),
+    bus: { emit: () => {} },
 };

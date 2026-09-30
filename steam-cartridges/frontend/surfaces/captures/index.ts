@@ -5,11 +5,11 @@
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { ensureStoreCacheHooked, setNativeActivitySource } from "./activity";
 import { installActivityCardsPatch } from "./activity-cards";
-import { deps, type ActivityOptions } from "./deps";
+import { deps } from "./deps";
 import { installHeadlinePatch } from "./headline";
 import { patch, unpatch } from "./publish";
 
-export { patch, refresh, setContentListener, unpatch } from "./publish";
+export { patch, refresh, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
 export { addSessionAchievement, onUnlocked } from "./session";
 export { onWindowClosed, onWindowOpened } from "./bpm-style";
@@ -28,10 +28,11 @@ function part(id: string, install: () => unknown): void {
     }
 }
 
-export function createCapturesSurface(d: SurfaceDeps & { activityOptions(): ActivityOptions }): Surface {
+export function createCapturesSurface(d: SurfaceDeps & Pick<typeof deps, "activityOptions" | "bus">): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
     deps.activityOptions = d.activityOptions;
+    deps.bus = d.bus;
     return {
         id: "captures",
         touches: [

@@ -13,10 +13,9 @@ import {
 
 export { ensureAchievementsStoreHooked, getLocalAchievements, getLocalSchema, getLocalUnlocks };
 
-export function createAchievementsSurface(d: SurfaceDeps & { refreshSections(): void }): Surface {
+export function createAchievementsSurface(d: SurfaceDeps): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
-    deps.refreshSections = d.refreshSections;
     return {
         id: "achievements",
         touches: [
@@ -30,6 +29,7 @@ export function createAchievementsSurface(d: SurfaceDeps & { refreshSections(): 
             "AchievementsFullStore.m_mapGlobalAchievements",
             "appAchievementProgressCache.m_achievementProgress",
             "AppDetailsStore.AppDetailsChanged(achievements)",
+            "AppDetailsStore.appData.details.achievements",
         ],
         reads: ["achievements"],
         install() {

@@ -1,20 +1,13 @@
-// Surface `playbar` (migration plan M3.4, ADR-0039): restores the ⓘ "Show/Hide game details"
-// button on a shortcut's desktop PlayBar. Split out of surfaces/game-info; the hooks are the
-// ones game-info installed before (hookComponentProps with requireMetadata: false, and the
-// PlayBar render fallback). The button opens Game Info, so it is on only while both
-// `playbar` and `game-info` are (as before the split, when game-info owned it).
+// Surface `game-info`, part `playbar` (migration plan M3.4; M10: back inside game-info, whose hooks it
+// uses, under its own kill switch `playbar`): restores the ⓘ "Show/Hide game details" button on a
+// shortcut's desktop PlayBar (hookComponentProps with requireMetadata: false, and the PlayBar render
+// fallback). The button opens Game Info, so it is on only while both `playbar` and `game-info` are.
 import { logger } from "../../logger";
-import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { resolveOnce } from "../../steam/modules";
 import { createPatchedOverview } from "../../steam/overview-proxy";
 import { isShortcutAppId } from "../../kernel/appid";
-
-let deps: SurfaceDeps & {
-    /** game-info's ensureAppOverviewHooked (GetGameID / BHasStoreCategory on the overview's prototype chain). */
-    hookOverview(overview: any): void;
-    /** game-info's trackInstance, so its refresh re-renders the PlayBar too. */
-    track(inst: any): void;
-} = { isEnabled: () => true, reportError: () => {}, hookOverview: () => {}, track: () => {} };
+import { deps } from "./deps";
+import { ensureAppOverviewHooked, trackInstance } from "./patch";
 
 const on = () => deps.isEnabled("playbar") && deps.isEnabled("game-info");
 
@@ -35,12 +28,12 @@ function hookPlayBarProps(componentClass: any): void {
             get() {
                 if (!on()) return this._nsga_raw_props;
                 try {
-                    deps.track(this);
+                    trackInstance(this);
                     const rawProps = this._nsga_raw_props;
                     if (!rawProps) return rawProps;
                     const overview = rawProps.overview;
                     if (!overview) return rawProps;
-                    deps.hookOverview(overview);
+                    ensureAppOverviewHooked(overview);
 
                     if (isShortcutOverview(overview)) {
                         if (
@@ -78,7 +71,7 @@ function hookPlayBarProps(componentClass: any): void {
     }
 }
 
-function patchPlayBar(): void {
+export function patchPlayBar(): void {
     const targetPlayBar = resolveOnce<any>(
         "PlayBar component",
         (v) => typeof v === "function" && (v as any).s_setGameInfoVisible instanceof Set && Array.isArray((v as any).s_rgFakeDetails),
@@ -92,10 +85,10 @@ function patchPlayBar(): void {
         targetPlayBar.prototype.render = function () {
             if (!on()) return origPlayBarRender.apply(this, arguments);
             try {
-                deps.track(this);
+                trackInstance(this);
                 const overview = this.props?.overview;
                 if (overview) {
-                    deps.hookOverview(overview);
+                    ensureAppOverviewHooked(overview);
                 }
                 if (overview && isShortcutOverview(overview)) {
                     this.props = {
@@ -112,21 +105,4 @@ function patchPlayBar(): void {
     logger.info(
         "Successfully patched Steam PlayBar component (show/hide game details ⓘ button restored).",
     );
-}
-
-export function createPlaybarSurface(d: typeof deps): Surface {
-    deps = d;
-    return {
-        id: "playbar",
-        touches: ["PlayBar.render", "PlayBar.props"],
-        reads: ["metadata"],
-        install: patchPlayBar,
-        render() {
-            /* record-driven from M5 (plan § 7.0 D4) */
-        },
-        clear() {},
-        uninstall() {
-            /* the patch stays until Steam restarts, as before M3.4 */
-        },
-    };
 }
