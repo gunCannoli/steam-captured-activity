@@ -64,6 +64,4 @@ Game Info, launch/quit toast log line, library grid last-played order, PlayBar â
 | --- | --- | --- |
 | K20 | Nothing loads the controller inference at start-up (only the audit panel calls `controller.load()`), so emulator-inferred controller badges are missing until the panel is opened. Evidence: `git grep -n "controller.load\|loadControllerInference" -- steam-cartridges/frontend` | a one-line fix: `void controller.load()` in `init()`, with a live check of AM2R's badge |
 | F30 | Six module-level `deps` objects mutated by `create*Surface` (`surfaces/*/deps.ts`): a hidden singleton per surface | **Decided not to refactor** (see TASK.md "Considerations"): add a ratchet rule instead |
-| EA-K6 | `enhanced-achievements/tests/settings-sound.mjs` resets settings when run alone (`run-live.mjs` restores the snapshot) | stays, a check |
-| EA-K7 | `toastWarning()` in `enhanced-achievements/frontend/steam/notification-settings.ts` has no caller | dead code, a later cleanup |
 | F32 | `test_backend.lua` expects 213 screenshots / 6 media games; the live library has more | library drift, refresh the fixture when convenient (AGENTS Routine 4) |

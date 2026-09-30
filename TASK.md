@@ -38,7 +38,6 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
   capability-ratchet rule in `tests/architecture.test.ts`: `index.tsx` calls each `create*Surface` at most once, and nothing outside a
   surface's folder imports its `deps`. Revisit the factory rewrite only if a surface ever needs a second instance.
 - **K20:** load the controller inference at start-up (`void controller.load()` in `init()`), live-check AM2R's badge.
-- **Dead code, low:** `toastWarning()` in `enhanced-achievements` (EA-K7).
 
 ## Next
 

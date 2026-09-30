@@ -7,6 +7,8 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-achievements: EA-K6 and EA-K7 closed (2026-09-30)**: `settings-sound.mjs` snapshots and restores stored settings (verified standalone with a marker setting); dead `toastWarning()` deleted. Full live pass repeated: `test:live` all PASS, Big Picture 2/2, banner screenshot checked.
+
 - **enhanced-achievements: architecture migration complete (E3, 2026-09-30)**: docs closed (architecture doc, `plugins.md` pointer, plugin README Troubleshooting, plan § 11 triaged). Final state: safety net, one notification hook, one unlock sensor, five surfaces, empty import allowlist, `npm test` 111/111.
 
 - **enhanced-achievements: the scheduler owns banner lifetime (migration E2, 2026-09-30)**: a banner is admitted from its mount effect, not a render (guardrail 17); `queue.peek` / `queue.whenShowing` replace `phaseOf` + `subscribe` in the sound surface. `npm test` 111/111. Live: `test:live` all PASS, `queue-stress.mjs` 16/16 three more times (the flaky `tiers in firing order` check, EA-K9, passed every time), Big Picture 2/2, safety clean. Plan: [enhanced-achievements-architecture-migration-plan.md](docs/plans/enhanced-achievements-architecture-migration-plan.md).

@@ -1,6 +1,7 @@
 // Live test: sound replacement, display time, and settings round-trips through
 // Millennium's Configuration API (the same store the settings panel writes).
-// Leaves every setting as it found it (deletes the keys it set).
+// Leaves every setting as it found it: it snapshots the stored settings first and puts them back in `finally`
+// (the check near the end resets them to prove defaults, so it would otherwise wipe the user's), EA-K6.
 import { connect, resolvePluginName } from './cdp.mjs';
 import { bannerTiming } from '../frontend/banner/timing.ts';
 
@@ -16,6 +17,7 @@ class Skip extends Error {}
 // Drive settings through the plugin's own exports (what the settings panel calls).
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
+const before = (await stored()) ?? {};
 
 // Record sounds: WebAudio buffers started in SharedJSContext (ours), and every
 // PlayNavSound request (Steam's own chime; it dispatches to a native player, so
@@ -146,6 +148,8 @@ try {
     console.log(`SKIP  ${e.message}`);
     await plugin(`resetSettings()`);
 } finally {
+    await plugin(`resetSettings()`).catch(() => {});
+    for (const [key, value] of Object.entries(before)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
     // Put back what the instrumentation wrapped, so a script run after this one sees the real functions.
     await cdp.evaluate(`(() => {
         if (window.__eaOrigStart) AudioBufferSourceNode.prototype.start = window.__eaOrigStart;
