@@ -15,11 +15,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   chime or duration returns for it, and `claims()` hands it to enhanced-notifications. Two starts in a
   row that do not end cleanly start the next one in safe mode (nothing hooked). `safetyDiagnostics()`
   shows the state. See docs/enhanced-achievements/architecture.md.
+- `npm run test:live` runs every live check with the stored settings snapshotted and restored; `tests/architecture.test.ts` enforces one owner per Steam target, the import ratchet, pure files, RPC registration and the copies shared with steam-cartridges and enhanced-notifications (migration E0b).
 
 ### Fixed
 
 - `claims()` is O(1) again: it no longer walks the jsx wrapper chain (and could call the jsx runtime)
   on every call, which enhanced-notifications makes on every toast.
+- `tests/queue-stress.mjs` no longer resets your theme to "Steam default" when it ends.
 
 ## [1.0.0] - 2026-09-25
 

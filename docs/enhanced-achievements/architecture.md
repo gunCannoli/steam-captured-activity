@@ -58,6 +58,8 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | Command | What it proves |
 | --- | --- |
 | `npm test` | Pure modules: themes, tiers, queue, geometry, capture plan, safety (`tests/safety.test.ts`) |
+| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, which only shrinks); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` and `pristineDuration` match the sibling plugins' copies; every live script is in `tests/run-live.mjs` |
+| `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `smoke`, `tiers`, `safety`, `queue-stress`, `captures`, `settings-sound`, `bigpicture` (SKIP unless Big Picture is open) |
 | `node tests/safety.mjs` (live) | A clean start is not in safe mode; `disabledFeatures` hands the banner back and restores it |
 
 ## How to add a feature
@@ -70,3 +72,4 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 ## History
 
 - 2026-09-29 E0a: safety net (kill switches, error budget, safe mode); `claims()` made O(1).
+- 2026-09-29 E0b: architecture test, `npm run test:live`; `queue-stress.mjs` restores the stored settings.

@@ -1,0 +1,17 @@
+[
+  "banner -> settings",
+  "banner -> steam",
+  "banner -> theme",
+  "capture -> settings",
+  "capture -> steam",
+  "capture -> theme",
+  "settings -> capture",
+  "settings -> rpc",
+  "settings -> steam",
+  "settings -> theme",
+  "steam -> banner",
+  "steam -> capture",
+  "steam -> theme",
+  "theme -> rpc",
+  "theme -> settings"
+]

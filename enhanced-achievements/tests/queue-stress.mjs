@@ -14,7 +14,8 @@
 // 3. Queue off: the same burst may overlap, but every banner still shows with
 //    its own tier (no tier swapped between rapid previews).
 //
-// Settings touched are reset to their defaults at the end (theme "", queue off). Previews never capture.
+// Restores exactly the settings stored before it ran (it used to reset theme and
+// queue to their defaults, wiping the user's theme choice). Previews never capture.
 import { connect, resolvePluginName } from './cdp.mjs';
 
 const THEME = process.env.THEME ?? 'ps5';
@@ -23,6 +24,8 @@ const BURST = ['magic', 'rare', 'normal', 'exceptional', 'magic'];
 const cdp = await connect();
 const name = await resolvePluginName(cdp, 'EA_PLUGIN', 'enhanced-achievements');
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(name)}].${expr}`);
+const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(name)})`);
+const before_ = (await stored()) ?? {};
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = false;
 const check = (label, ok, detail = '') => {
@@ -149,8 +152,8 @@ try {
     check('queue off: every toast themed with its own tier', counts(tiersSeen.values()) === counts(BURST), [...tiersSeen.values()].join(','));
     check('queue off: never Steam fallback toast', !offSamples.flat().some(isFallback), offSamples.flat().filter(isFallback).map((p) => p.steamText).join(' | '));
 } finally {
-    await plugin(`setSetting('queue.enabled', false)`).catch(() => {});
-    await plugin(`setSetting('theme', '')`).catch(() => {});
+    await plugin('resetSettings()').catch(() => {});
+    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
     cdp.close();
 }
 process.exit(failed ? 1 : 0);
