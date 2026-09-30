@@ -1,10 +1,10 @@
-import { logger } from '../logger';
-import { setting } from '../settings/settings';
-import type { Tier } from '../theme/theme';
-import { addTimelineEntry, runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from '../steam/recording';
-import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from './plan';
-import type { SteamNotification } from '../kernel/notification';
-import { reportError } from '../safety/runtime';
+import { logger } from '../../logger';
+import { setting } from '../../settings/settings';
+import type { Tier } from '../../theme/theme';
+import { addTimelineEntry, runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from './recording';
+import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from '../../capture/plan';
+import type { SteamNotification } from '../../kernel/notification';
+import { reportError } from '../../safety/runtime';
 
 /**
  * Schedules Phase 7 auto-captures (screenshot / clip / timeline marker) on

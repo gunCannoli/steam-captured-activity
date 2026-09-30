@@ -1,5 +1,5 @@
 import { achievementEType } from './steam/notification-store';
-import { toastPatchInstalled } from './steam/toast-patch';
+import { toastPatchInstalled } from './surfaces/banner/toast-patch';
 import { activeTheme } from './theme/active-theme';
 import { isEnabled } from './safety/runtime';
 

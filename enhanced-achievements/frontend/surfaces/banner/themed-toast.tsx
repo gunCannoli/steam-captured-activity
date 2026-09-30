@@ -1,17 +1,17 @@
 import React, { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { IconsModule } from '@steambrew/client';
-import { logger } from '../logger';
-import { activeTheme, tierFor, type LoadedTheme } from '../theme/active-theme';
-import type { AnchorPosition, IconSlot, ResolvedTier } from '../theme/theme';
-import type { SteamNotification } from '../kernel/notification';
-import { notificationStore } from '../steam/notification-store';
-import { BANNER_CSS } from './styles';
-import { bannerSize, placeBanner } from './geometry';
+import { logger } from '../../logger';
+import { activeTheme, tierFor, type LoadedTheme } from '../../theme/active-theme';
+import type { AnchorPosition, IconSlot, ResolvedTier } from '../../theme/theme';
+import type { SteamNotification } from '../../kernel/notification';
+import { notificationStore } from '../../steam/notification-store';
+import { BANNER_CSS } from '../../banner/styles';
+import { bannerSize, placeBanner } from '../../banner/geometry';
 import { pinToastWindow, type PinnedWindow } from './window-pin';
-import { setting } from '../settings/settings';
-import { admit, finish, forget, MAX_QUEUE, phaseOf, subscribe, type Phase } from './queue';
-import { bannerTiming, themedDisplayMs } from './timing';
-import { reportError } from '../safety/runtime';
+import { setting } from '../../settings/settings';
+import { admit, finish, forget, MAX_QUEUE, phaseOf, subscribe, type Phase } from '../../banner/queue';
+import { bannerTiming, themedDisplayMs } from '../../banner/timing';
+import { reportError } from '../../safety/runtime';
 
 /**
  * The themed achievement banner, rendered in place of Steam's toast

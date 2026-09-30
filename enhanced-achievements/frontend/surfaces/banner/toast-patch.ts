@@ -1,12 +1,12 @@
 import { findModuleByExport } from '@steambrew/client';
-import { logger } from '../logger';
-import { activeTheme } from '../theme/active-theme';
-import { ThemedToast, setSteamToast } from '../banner/themed-toast';
-import type { SteamNotification } from '../kernel/notification';
-import { isAchievementUnlock } from './notification-store';
-import { findExports } from './webpack';
-import { keepJsxPatched, type JsxHookDiagnostics } from './jsx-hook';
-import { isEnabled, reportError } from '../safety/runtime';
+import { logger } from '../../logger';
+import { activeTheme } from '../../theme/active-theme';
+import { ThemedToast, setSteamToast } from './themed-toast';
+import type { SteamNotification } from '../../kernel/notification';
+import { isAchievementUnlock } from '../../steam/notification-store';
+import { findExports } from '../../steam/webpack';
+import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
+import { isEnabled, reportError } from '../../safety/runtime';
 
 /**
  * Swaps Steam's notification-toast dispatcher for our themed toast, for

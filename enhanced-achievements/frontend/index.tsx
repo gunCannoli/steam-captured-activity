@@ -11,25 +11,24 @@ export { allSettings, resetSettings, setSetting } from './settings/settings';
 export { previewTier, fireTestUnlock, fireExceptionalCompletionToast } from './surfaces/toasts/post';
 export { activeTheme } from './theme/active-theme';
 export { claims } from './claims';
-export { jsxDiagnostics } from './steam/toast-patch';
-export { captureLog, setCaptureDryRun } from './capture/captures';
-export { recordingDiagnostics, runningGameAppid } from './steam/recording';
+export { jsxDiagnostics } from './surfaces/banner/toast-patch';
+export { captureLog, setCaptureDryRun } from './surfaces/captures/captures';
+export { recordingDiagnostics, runningGameAppid } from './surfaces/captures/recording';
 export { toastsEnabled } from './steam/notification-settings';
 export { safetyDiagnostics } from './safety/runtime';
 import { SettingsPanel } from './settings/settings-panel';
 import { resolveNotificationStore } from './steam/notification-store';
 import { installNotificationHook } from './steam/notification-hook';
-import { initToastPatch } from './steam/toast-patch';
-import { initActiveTheme, tierFor } from './theme/active-theme';
+import { initActiveTheme } from './theme/active-theme';
 import { createEventBus } from './kernel/events';
-import { installSurfaces } from './kernel/surface';
+import { installSurfaces, type SurfaceStatus } from './kernel/surface';
 import { installUnlockSensor } from './sensors/unlock';
 import { createSoundSurface } from './surfaces/sound';
 import { createDurationSurface } from './surfaces/duration';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
 import { previewTier } from './surfaces/toasts/post';
-import { onUnlock } from './capture/captures';
-import { initRecording } from './steam/recording';
+import { createBannerSurface } from './surfaces/banner';
+import { capturesHandler, createCapturesSurface } from './surfaces/captures';
 import { initNotificationSettingsDetection } from './steam/notification-settings';
 
 /**
@@ -40,6 +39,13 @@ import { initNotificationSettingsDetection } from './steam/notification-settings
  * activity/spotlight stores that steam-cartridges feeds, and never imports
  * from that plugin.
  */
+let surfaceReport: SurfaceStatus[] = [];
+
+/** Which surfaces installed and why one did not (window.PLUGIN_LIST[...].surfaceStatus()). */
+export function surfaceStatus(): SurfaceStatus[] {
+    return surfaceReport;
+}
+
 async function init(): Promise<void> {
     await initSettings();
     // Kill switches, error budget and safe mode (migration plan § E0a).
@@ -72,13 +78,12 @@ async function init(): Promise<void> {
     });
     installUnlockSensor(hook, bus);
     logger.info(`Notification hook installed (achievement eType ${handle.achievementType}).`);
-    initRecording(); // its failure only disables captures, not the rest of the plugin
     initNotificationSettingsDetection(); // its failure only disables the settings-panel warning
     await initActiveTheme();
 
-    const surfaces = [createSoundSurface(hook), createDurationSurface(handle), createToastsSurface(handle)];
+    const surfaces = [createSoundSurface(hook), createDurationSurface(handle), createToastsSurface(handle), createBannerSurface(), createCapturesSurface()];
     for (const s of surfaces) uninstallers[s.id as FeatureId] = () => s.uninstall();
-    installSurfaces(surfaces, {
+    surfaceReport = installSurfaces(surfaces, {
         isEnabled: (id) => isEnabled(id as FeatureId),
         reportError: (id, err) => reportError(id as FeatureId, err),
     });
@@ -89,11 +94,7 @@ async function init(): Promise<void> {
             reportError('completion', error);
         }
     });
-    // Captures run one macrotask after the toast is shown, never inside Steam's call; onUnlock reports its own errors.
-    bus.on('achievement.unlocked', (e) => {
-        if (isEnabled('captures')) onUnlock(e.n, tierFor(e.n));
-    });
-    initToastPatch();
+    bus.on('achievement.unlocked', capturesHandler);
 }
 
 export default definePlugin(() => {

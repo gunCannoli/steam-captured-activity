@@ -1,4 +1,4 @@
-import { logger } from '../logger';
+import { logger } from '../../logger';
 
 /**
  * Pins one desktop / in-game overlay toast popup to our computed position.

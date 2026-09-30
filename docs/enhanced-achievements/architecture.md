@@ -13,9 +13,9 @@ Every migration step updates this doc; the **Status** column says what is built.
 | Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode | current (E0a) |
 | Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | current (E1a) |
 | Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
-| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the one `PlayNotificationSound` hook (`notification-hook.ts`, infrastructure), the shared jsx-runtime hook | current (E1b); `toast-patch.ts` and `recording.ts` move in E1c |
+| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the one `PlayNotificationSound` hook (`notification-hook.ts`, infrastructure), the shared jsx-runtime hook | current (E1c) |
 | Sensor | `frontend/sensors/unlock/` | Sees an achievement toast shown and emits `achievement.unlocked` once, one macrotask later | current (E1b) |
-| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `sound`, `duration`, `toasts` (current, E1b); `banner`, `captures` (planned, E1c) | partly current |
+| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `sound`, `duration`, `toasts` (E1b); `banner`, `captures` (E1c). `surfaceStatus()` shows which installed | current (E1c) |
 | Composition root | `frontend/index.tsx`, `frontend/claims.ts` | Start-up order, wiring, the public exports and `claims()` | current |
 
 ## Safety net (E0a)
@@ -49,17 +49,17 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | The hook's sound slot | `surfaces/sound/index.ts` | 2 |
 | `NotificationStore.OnNotification` (synthetic toasts) | `surfaces/toasts/post.ts` | — |
 | Achievement type config `toastDurationMS` | `surfaces/duration/index.ts` | — |
-| `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `steam/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](../plugins.md#sharing-the-jsx-runtime-between-plugins) |
-| Notification `fnNotificationResolved` (popup hold) | `banner/themed-toast.tsx` | 17 |
-| Toast popup `SteamClient.Window.MoveTo` (pin) | `banner/window-pin.ts` | — |
-| Game Recording RPCs | `steam/recording.ts` | — |
+| `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `surfaces/banner/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](../plugins.md#sharing-the-jsx-runtime-between-plugins) |
+| Notification `fnNotificationResolved` (popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
+| Toast popup `SteamClient.Window.MoveTo` (pin) | `surfaces/banner/window-pin.ts` | — |
+| Game Recording RPCs | `surfaces/captures/recording.ts` | — |
 
 ## Tests
 
 | Command | What it proves |
 | --- | --- |
 | `npm test` | Pure modules: themes, tiers, queue, geometry, capture plan, safety (`tests/safety.test.ts`) |
-| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, which only shrinks); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` and `pristineDuration` match the sibling plugins' copies; every live script is in `tests/run-live.mjs` |
+| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, now empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` and `pristineDuration` match the sibling plugins' copies; every live script is in `tests/run-live.mjs` |
 | `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `smoke`, `tiers`, `safety`, `queue-stress`, `captures`, `settings-sound`, `bigpicture` (SKIP unless Big Picture is open) |
 | `node tests/safety.mjs` (live) | A clean start is not in safe mode; `disabledFeatures` hands the banner back and restores it |
 
@@ -72,6 +72,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 ## History
 
+- 2026-09-30 E1c: `banner` and `captures` are surfaces (`git mv` of toast-patch, themed-toast, window-pin, captures, recording; both install and uninstall through `Surface`); `surfaceStatus()` export; the allowlist is empty; test `no two surfaces declare the same Steam target`.
 - 2026-09-30 E1b: `steam/notifications.ts` split into `steam/notification-store.ts` (discovery), `steam/notification-hook.ts` (the one wrapper), `sensors/unlock` and surfaces `sound`, `duration`, `toasts`; captures and the 100% toast run from `achievement.unlocked` one macrotask after the toast; a tripped feature has its surface uninstalled; allowlist 7 → 6.
 - 2026-09-30 E1a: kernel contracts (`kernel/notification|events|surface.ts`); the tier is a pure function (`tierOfNotification`, memo `tierFor` in `theme/active-theme.ts`); `themedDisplayMs` is pure; feature id `toasts` and `onTrip`; final layer rules, allowlist 15 → 7.
 - 2026-09-29 E0a: safety net (kill switches, error budget, safe mode); `claims()` made O(1).

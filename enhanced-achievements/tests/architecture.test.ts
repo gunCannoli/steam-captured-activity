@@ -141,6 +141,7 @@ export const PURE = [
     'safety/runtime.ts',
     'sensors/unlock/unlock.ts',
     'steam/notification-hook.ts',
+    'banner/styles.ts',
     'surfaces/duration/duration.ts',
     'surfaces/sound/sound.ts',
     'surfaces/toasts/completion.ts',
@@ -187,10 +188,10 @@ export const OWNERS: [string, RegExp, string][] = [
     ['NotificationStore ChooseSound (per call)', /\.ChooseSound\s*=(?!=)/, 'steam/notification-hook.ts'],
     ['NotificationStore.OnNotification (synthetic toasts)', /\.OnNotification\s*\(/, 'surfaces/toasts/post.ts'],
     ['achievement type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'surfaces/duration/index.ts'],
-    ['notification fnNotificationResolved (popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'banner/themed-toast.tsx'],
-    ['toast popup SteamClient.Window.MoveTo (pin)', /\.MoveTo\s*=(?!=)/, 'banner/window-pin.ts'],
-    ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'steam/toast-patch.ts'],
-    ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip|UserAddTimelineEntry)\s*\(/, 'steam/recording.ts'],
+    ['notification fnNotificationResolved (popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'surfaces/banner/themed-toast.tsx'],
+    ['toast popup SteamClient.Window.MoveTo (pin)', /\.MoveTo\s*=(?!=)/, 'surfaces/banner/window-pin.ts'],
+    ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'surfaces/banner/toast-patch.ts'],
+    ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip|UserAddTimelineEntry)\s*\(/, 'surfaces/captures/recording.ts'],
 ];
 
 test('architecture: one owner per Steam write', () => {
@@ -201,6 +202,26 @@ test('architecture: one owner per Steam write', () => {
         if (writers.length !== 1 || writers[0] !== owner) wrong.push(`${target}: expected only ${owner}, found [${writers.join(', ')}]`);
     }
     assert.deepEqual(wrong, []);
+});
+
+test('architecture: no two surfaces declare the same Steam target', () => {
+    const owner = new Map<string, string>();
+    const clashes: string[] = [];
+    const dirs = readdirSync(join(FRONTEND, 'surfaces'), { withFileTypes: true }).filter((d) => d.isDirectory());
+    for (const dir of dirs) {
+        const src = readFileSync(join(FRONTEND, 'surfaces', dir.name, 'index.ts'), 'utf8');
+        for (const block of src.matchAll(/touches:\s*\[([\s\S]*?)\]/g)) {
+            for (const m of block[1]!.replace(/\/\/.*$/gm, '').matchAll(/'([^']+)'/g)) {
+                const target = m[1]!;
+                const first = owner.get(target);
+                if (first !== undefined && first !== dir.name) clashes.push(`${target}: ${first} and ${dir.name}`);
+                owner.set(target, dir.name);
+            }
+        }
+    }
+    assert.equal(dirs.length, 5, 'expected the five surfaces');
+    assert.ok(owner.size >= 9, `expected to read the surfaces' touches, found ${owner.size}`);
+    assert.deepEqual(clashes, []);
 });
 
 test('architecture: every RPC the frontend calls is registered in backend/main.lua', () => {

@@ -1,5 +1,5 @@
-import { logger } from '../logger';
-import { findExports } from './webpack';
+import { logger } from '../../logger';
+import { findExports } from '../../steam/webpack';
 
 /**
  * The only file that touches Steam's Game Recording objects: the RPC service
