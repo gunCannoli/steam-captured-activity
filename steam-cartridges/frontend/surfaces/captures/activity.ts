@@ -287,9 +287,13 @@ export async function publishActivity(
 
     // 3. Obtain or instantiate CAppActivity
     let appActivity = actStore.m_mapAppActivity.get(appid);
-    const sampleEntry = actStore.m_mapAppActivity.values().next().value as
-        | AppActivity
-        | undefined;
+    // An entry that is not a real activity (no day map) is dropped and rebuilt: a plain-object fallback
+    // used as the constructor sample once produced a Number wrapper here.
+    if (appActivity && !(appActivity.m_mapActivityByDay instanceof Map)) appActivity = undefined;
+    // The constructor sample must be Steam's own class: never a plain object (our fallback literal).
+    const sampleEntry = [...actStore.m_mapAppActivity.values()].find(
+        (e) => e?.m_mapActivityByDay instanceof Map && e.constructor !== Object,
+    ) as AppActivity | undefined;
     const CAppActivity = sampleEntry?.constructor as
         | (new (appid: number) => AppActivity)
         | undefined;
