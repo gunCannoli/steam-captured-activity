@@ -18,6 +18,7 @@ import { createView } from "./app/view";
 import { createIngest } from "./app/ingest";
 import { createNativeLinksSurface, wrapNavigators } from "./surfaces/native-links";
 import { createArtworkSurface } from "./surfaces/artwork";
+import { createCommunitySurface } from "./surfaces/community";
 import {
     initSettings,
     onSettingChange,
@@ -32,8 +33,9 @@ import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
+import { createMedia } from "./app/media";
 import { createLibraryStats } from "./app/library-stats";
-import { fetchImage } from "./ports/image";
+import { fetchImage, objectUrl, releaseObjectUrl } from "./ports/image";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
@@ -41,6 +43,7 @@ import { createFeatureSwitches, FEATURE_IDS, type FeatureId } from "./safety/fea
 import { beginBoot, watchBoot } from "./safety/boot";
 import type { ShortcutId } from "./kernel/appid";
 import { createImageBin } from "./kernel/image-bin";
+import { createMediaBin } from "./kernel/media-bin";
 import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
@@ -178,8 +181,23 @@ const artwork = createArtwork({
     now: () => Date.now(),
 });
 
+/** ScreenScraper images as object URLs (kernel/media-bin, features plan F2b): app/media puts, surfaces/community reads. */
+const mediaBin = createMediaBin(releaseObjectUrl);
+
+/** Community media (app/media.ts, features plan F2): the cards Steam's Community section shows for a shortcut with no Steam match. */
+const media = createMedia({
+    backend,
+    records: records.store,
+    bin: mediaBin,
+    titleOf: (appid) => shortcutTitle(appid),
+    allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
+    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
+    toggles: () => ({ trailers: setting("communityShowTrailers") !== false, artworks: setting("communityShowArtworks") !== false }),
+    objectUrl,
+});
+
 /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
-const view = createView({ routing, identity, metadata, artwork, achievements });
+const view = createView({ routing, identity, metadata, artwork, achievements, media });
 
 /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
 const steamStore = createSteamStore({ backend, identity, metadata, artwork });
@@ -262,6 +280,7 @@ export { jsxDiagnostics } from "./steam/gamepad-appid";
 export { headlineJsxDiagnostics } from "./surfaces/captures";
 export { activityCardsJsxDiagnostics } from "./surfaces/captures";
 export { nativeSectionsDiagnostics } from "./surfaces/native-links";
+export { communityDiagnostics } from "./surfaces/community";
 export type {
     SummaryContext,
     SummaryContribution,
@@ -377,6 +396,10 @@ async function init() {
     // Steam's own Links / Friends / Community sections read the native appid
     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
     runner.register(createNativeLinksSurface(surfaceDeps));
+    // Community media in Steam's own Community section for shortcuts with no Steam match (surfaces/community, features plan F2).
+    runner.register(
+        createCommunitySurface({ ...surfaceDeps, imageOf: (appid, key) => mediaBin.get(appid, key) }),
+    );
     // Custom artwork slots and logo position for mapped games (surfaces/artwork, plan M3.9).
     runner.register(
         createArtworkSurface({ ...surfaceDeps, images, bus }),

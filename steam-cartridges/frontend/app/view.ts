@@ -15,6 +15,8 @@ export interface ViewDeps {
     metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
     artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
     achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
+    /** Community media (features plan F2); runs after metadata, whose igdb_id it reads from the record. */
+    media: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<unknown> };
 }
 
 export interface View {
@@ -55,11 +57,13 @@ export function createView(deps: ViewDeps): View {
                 const identityPart = await deps.identity.ensure(id, route);
                 await deps.metadata.ensure(id, route, identityPart);
                 await deps.artwork.ensure(id, route, identityPart);
+                void deps.media.ensure(id, route, identityPart); // a Steam match keeps Steam's own community content
                 void deps.achievements.ensure(id, route); // reads the identity just resolved from the record
             } else {
                 // web-scraping or none: metadata and artwork are record-driven and follow the new route's result.
                 await deps.metadata.ensure(id, route, undefined);
                 await deps.artwork.ensure(id, route, undefined);
+                void deps.media.ensure(id, route, undefined);
                 void deps.achievements.ensure(id, route);
             }
         } finally {
