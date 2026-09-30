@@ -5,7 +5,7 @@ import { logger } from "../../logger";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
 import { steamRequire } from "../../steam/modules";
-import { cleanLinksProps, navigationTarget, redirectProps, type RedirectKind } from "./core";
+import { cleanLinksProps, MARK_PRIVATE_SOURCE, navigationTarget, redirectProps, shortcutSafeApps, type RedirectKind } from "./core";
 
 /** Set by createNativeLinksSurface (plan § 7.0 D6); open defaults until then. */
 let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
@@ -57,6 +57,22 @@ export function setNativeAppid(appid: number, nativeAppid: number | undefined): 
 }
 
 const nativeOf = (appid: number) => nativeFor.get(appid);
+
+/** Is this jsx type Steam's "Mark as Private" menu item (K4)? Decided once per component from its source. */
+const markPrivate = new WeakMap<object, boolean>();
+function isMarkPrivateItem(type: unknown): boolean {
+    if (typeof type !== "function") return false;
+    let known = markPrivate.get(type);
+    if (known === undefined) {
+        try {
+            known = Function.prototype.toString.call(type).includes(MARK_PRIVATE_SOURCE);
+        } catch {
+            known = false;
+        }
+        markPrivate.set(type, known);
+    }
+    return known;
+}
 
 /** Navigators already patched (one per Steam UI window: desktop, Big Picture). */
 const wrappedNavigators = new WeakSet<object>();
@@ -237,6 +253,7 @@ export function installNativeSections(): void {
                     if (Array.isArray(p.links)) {
                         cleanLinksProps(p, (n) => shortcutFor.has(n));
                     }
+                    if (Array.isArray(p.rgApps) && isMarkPrivateItem(type)) p.rgApps = shortcutSafeApps(p.rgApps);
                     const kind = TYPES.get(type);
                     if (kind === undefined) return;
                     const used = redirectProps(kind, p, nativeOf);

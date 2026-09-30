@@ -235,6 +235,8 @@ const ingest = createIngest({
 export { setSetting, resetSettings, SettingsPanel };
 /** Kill switches, error counts and safe mode (migration plan M0b). */
 export const safetyDiagnostics = () => features.diagnostics();
+/** K6: how often Game Info was re-applied from Steam's overview rebuild (`viaTrigger`) or from a render (`viaRender`, the fallback). */
+export { gameInfoRepairDiagnostics } from "./surfaces/game-info";
 export const bucketReport = () => routing.bucketReport();
 export const loadAutoRoutingProfiles = () => routing.loadAutoRoutingProfiles();
 export {

@@ -10,6 +10,8 @@ import { enrichGameDetails, revertGameDetails } from "./metadata";
 import {
     enrichedAppIds,
     ensureAppOverviewHooked,
+    gameInfoRepairDiagnostics,
+    installOverviewRepair,
     isAppEnriched,
     patchGameInfoComponent,
     refreshGameInfoInstances,
@@ -17,7 +19,7 @@ import {
     trackInstance,
 } from "./patch";
 
-export { enrichGameDetails, revertGameDetails, isAppEnriched, refreshGameInfoInstances, ensureAppOverviewHooked, trackInstance };
+export { gameInfoRepairDiagnostics, enrichGameDetails, revertGameDetails, isAppEnriched, refreshGameInfoInstances, ensureAppOverviewHooked, trackInstance };
 
 /** What the features call (structurally matched by their setters). */
 export const gameInfoWriter = {
@@ -44,6 +46,8 @@ export function createGameInfoSurface(
             "GameInfo.k.props",
             "GameInfo.G.render",
             "GameInfo.G.props",
+            // a second, independent listener on the method library-home also patches: named apart so the touches stay disjoint
+            "collectionStore.OnAppOverviewChange#game-info-repair",
             "AppOverview.GetGameID",
             "AppOverview.BHasStoreCategory",
             "AppOverview.rt_original_release_date",
@@ -57,6 +61,7 @@ export function createGameInfoSurface(
             setCachedStores((window as any).appDetailsStore, (window as any).appStore);
             // Bypass Big Picture native shortcut filter on Game Info tab
             patchGameInfoComponent();
+            installOverviewRepair();
         },
         render(appid, record) {
             const metadata = record?.metadata;

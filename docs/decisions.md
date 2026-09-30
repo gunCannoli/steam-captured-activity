@@ -2629,3 +2629,27 @@ file for no measured gain. `tests/architecture.test.ts` fails if `keepJsxPatched
 
 A fifth hook needs a new ADR (or a decision to merge), not a quiet call.
 
+## ADR-0042: Game Info is re-applied from Steam's overview rebuild; the render-time check is only a fallback
+
+**Status:** Accepted · 2026-09-29 (K6) · **Amends [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)** (only surfaces write to Steam, never on a Steam render stack)
+
+### Context
+
+Steam replaces an app's overview object when it refreshes the app (`appStore.UpdateAppOverview` builds a new
+`AppOverview` and calls `collectionStore.OnAppOverviewChange(changed, removed)`), which drops the release date and
+badge categories `surfaces/game-info` wrote. M0a fixed the render feedback loop by making the enrichment idempotent
+and re-checking it on every Game Info render, so the repair was a Steam store write during a render (K6).
+
+### Decision
+
+1. `surfaces/game-info` patches `collectionStore.OnAppOverviewChange` (prototype owner; `UpdateAppOverview` is a
+   read-only property and cannot be patched) and re-applies the enrichment for the changed enriched shortcuts on a
+   `setTimeout(0)`, off Steam's stack.
+2. The render-time check in the Game Info render patches **stays as a fallback** for a rebuild the event misses. It is
+   allowed only because `enrichGameDetails` is idempotent (a repeat call with live data writes nothing). Every
+   write is counted in `gameInfoRepairDiagnostics()` (`viaTrigger`, `viaRender`); `viaRender` is expected to stay 0.
+3. `steam-cartridges/tests/live/probes/overview_repair.mjs` (part of `npm run test:live`) fails if the repair comes from a render.
+
+### Consequences
+
+A non-zero `viaRender` means the trigger missed a rebuild: find the missing path, do not remove the fallback.

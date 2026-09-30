@@ -242,4 +242,5 @@ All stay public; other plugins and the CDP scripts reach them through `PLUGIN_LI
 | `getLocalAchievements`, `getLocalSchema`, `dispatchAchievementToast` | read a shortcut's achievements; show a toast |
 | `initAchievements`, `loadAchievementsForApp`, `triggerAchievement`, `resetAchievements`, `checkObserverUnlocks`, `startAchievementsObserver` | achievements test hooks and manual control |
 | `registerSummaryProvider` (+ `SummaryContext`, `SummaryContribution`, `SummaryProvider`) | providers add lines to the Post-Game Summary |
+| `gameInfoRepairDiagnostics` | K6: how often Game Info was re-applied from Steam's overview rebuild (`viaTrigger`) or a render (`viaRender`, must stay 0) |
 | `jsxDiagnostics`, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks |

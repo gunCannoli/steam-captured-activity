@@ -1,5 +1,6 @@
 // Surface `game-info` (migration plan M3.3, ADR-0039): Steam's Game Info components and the
 // AppOverview hooks that let a shortcut show them. Moved from features/game-info/game-info-patch.ts.
+import { afterPatch } from "@steambrew/client";
 import { logger } from "../../logger";
 import { steamRequire } from "../../steam/modules";
 import { createPatchedOverview } from "../../steam/overview-proxy";
@@ -7,6 +8,12 @@ import { isShortcutAppId } from "../../kernel/appid";
 import { deps } from "./deps";
 
 export const enrichedAppIds = new Set<number>();
+
+/** K6: who re-applied the enrichment after Steam rebuilt an overview. `viaRender` should stay 0: the
+ *  render-time check is only the fallback (ADR-0042); `source` tells enrichGameDetails who is calling. */
+export const repairStats = { viaTrigger: 0, viaRender: 0, triggers: 0, source: "other" as "trigger" | "render" | "other" };
+
+export const gameInfoRepairDiagnostics = () => ({ ...repairStats });
 
 export function isAppEnriched(appid: number): boolean {
     if (typeof appid !== "number") return false;
@@ -169,6 +176,79 @@ export function clearAppCategories(appid: number): void {
  * BHasStoreCategory: Consults appCategoriesCache to dynamically return category flags
  * (Single-player, Multi-player, Co-op, Full Controller, Achievements, Remote Play Together).
  */
+let repairInstalled = false;
+const repairQueue = new Set<number>();
+
+/** The render-time fallback (ADR-0042): idempotent, and counted so a live check can prove it stays idle. */
+function enrichFromRender(appid: number, meta: any): void {
+    repairStats.source = "render";
+    try {
+        onEnrichGameDetails?.(appid, meta);
+    } finally {
+        repairStats.source = "other";
+    }
+}
+
+/**
+ * K6: Steam replaces an app's overview object (`appStore.UpdateAppOverview` -> `InitFromProto`), which drops our
+ * release date and badges, then calls `collectionStore.OnAppOverviewChange(changedOverviews, removed)`. Re-apply
+ * from that event instead of from a Game Info render, deferred off Steam's stack (plan § 7.0 D5). The render-time
+ * check in the render patches stays as the fallback (ADR-0042). `UpdateAppOverview` itself is read-only, and the
+ * collection store is created after plugin load, so this waits for it; the method lives on its prototype.
+ */
+export function installOverviewRepair(): void {
+    if (repairInstalled) return;
+    let tries = 0;
+    const attempt = () => {
+        const store = (window as any).collectionStore;
+        if (!store) {
+            if (++tries < 40) setTimeout(attempt, 500);
+            else logger.warn("collectionStore never appeared; Game Info repair stays on the render fallback.");
+            return;
+        }
+        const owner = Object.prototype.hasOwnProperty.call(store, "OnAppOverviewChange") ? store : Object.getPrototypeOf(store);
+        if (typeof owner?.OnAppOverviewChange !== "function") {
+            logger.warn("CollectionStore.OnAppOverviewChange not found; Game Info repair stays on the render fallback.");
+            return;
+        }
+        repairInstalled = true;
+        afterPatch(owner, "OnAppOverviewChange", (args: unknown[], ret: unknown) => {
+            if (!deps.isEnabled("game-info")) return ret;
+            try {
+                const apps = args[0];
+                if (!Array.isArray(apps)) return ret;
+                for (const app of apps) {
+                    const appid = typeof app?.appid === "number" ? app.appid >>> 0 : 0;
+                    if (appid >= 0x8000_0000 && enrichedAppIds.has(appid)) repairQueue.add(appid); // cheap early-out
+                }
+                if (repairQueue.size > 0) setTimeout(runRepair, 0);
+            } catch (err) {
+                deps.reportError("game-info", err); // fail-open (plan § 7.0 D6)
+            }
+            return ret;
+        });
+    };
+    attempt();
+}
+
+function runRepair(): void {
+    if (repairQueue.size === 0) return;
+    const appids = [...repairQueue];
+    repairQueue.clear();
+    repairStats.triggers++;
+    repairStats.source = "trigger";
+    try {
+        for (const appid of appids) {
+            const meta = onGetMetadata(appid);
+            if (meta && onEnrichGameDetails) onEnrichGameDetails(appid, meta);
+        }
+    } catch (err) {
+        deps.reportError("game-info", err);
+    } finally {
+        repairStats.source = "other";
+    }
+}
+
 export function ensureAppOverviewHooked(overview: any): boolean {
     if (!overview) return false;
     let hookedAny = false;
@@ -313,7 +393,7 @@ function hookComponentProps(
                                     onGetMetadata(rawAppid) ||
                                     onGetMetadata(overview.appid);
                                 if (meta) {
-                                    onEnrichGameDetails(rawAppid, meta);
+                                    enrichFromRender(rawAppid, meta);
                                     appData =
                                         store?.GetAppData?.(overview.appid) ||
                                         store?.GetAppData?.(rawAppid);
@@ -419,7 +499,7 @@ function patchKComponent(k: any): boolean {
                         const meta =
                             onGetMetadata(rawAppid) || onGetMetadata(overview.appid);
                         if (meta) {
-                            onEnrichGameDetails(rawAppid, meta);
+                            enrichFromRender(rawAppid, meta);
                         }
                     }
 
@@ -574,7 +654,7 @@ export function patchGameInfoComponent(): boolean {
                                     onGetMetadata(rawAppid) ||
                                     onGetMetadata(overview.appid);
                                 if (meta) {
-                                    onEnrichGameDetails(rawAppid, meta);
+                                    enrichFromRender(rawAppid, meta);
                                     appData =
                                         store?.GetAppData?.(overview.appid) ||
                                         store?.GetAppData?.(rawAppid);

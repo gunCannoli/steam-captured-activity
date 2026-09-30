@@ -135,3 +135,24 @@ test('architecture: keepJsxPatched is installed only by steam/gamepad-appid (vie
         .map((f) => areaOf(f));
     assert.deepEqual([...new Set(users)].sort(), ['steam', 'surfaces/captures', 'surfaces/native-links']);
 });
+
+test('architecture: no two surfaces declare the same Steam target (assertDisjointTouches would abort start-up)', () => {
+    const owner = new Map<string, string>();
+    const dupes: string[] = [];
+    for (const dir of readdirSync(join(FRONTEND, 'surfaces'))) {
+        for (const name of ['index.ts', 'index.tsx']) {
+            const file = join(FRONTEND, 'surfaces', dir, name);
+            if (!existsSync(file)) continue;
+            const src = readFileSync(file, 'utf8');
+            for (const block of src.matchAll(/touches:\s*\[([\s\S]*?)\]/g)) {
+                for (const m of block[1]!.replace(/\/\/.*$/gm, '').matchAll(/"([^"]+)"/g)) {
+                    const prev = owner.get(m[1]!);
+                    if (prev && prev !== dir) dupes.push(`${m[1]} (${prev}, ${dir})`);
+                    owner.set(m[1]!, dir);
+                }
+            }
+        }
+    }
+    assert.ok(owner.size > 20, `expected to read the surfaces' touches, found ${owner.size}`);
+    assert.deepEqual(dupes, []);
+});

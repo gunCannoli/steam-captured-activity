@@ -9,6 +9,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
     // first: something in the later checks makes Steam drop back into Big Picture, which has no desktop window
     { name: "parity (needs the desktop window, not Big Picture)", file: "check_parity.mjs", args: [], must: /./, skipWhen: /No CDP target: desktop Steam window/ },
+    { name: "K4: Mark as Private disabled (desktop)", file: "probes/manage_menu.mjs", args: [], must: /^PASS K4/m },
+    { name: "K6: overview repair via trigger", file: "probes/overview_repair.mjs", args: [], must: /^PASS K6/m },
     { name: "render loop", file: "count_cycle.mjs", args: ["4263274102"], must: /^PASS render loop:/m },
     { name: "Properties (WUCHANG)", file: "test_props.mjs", args: ["3135033888", "--page"], must: /page=true: OK/ },
     { name: "Properties (Jotunnslayer)", file: "test_props.mjs", args: ["2315502503", "--page"], must: /page=true: OK/ },

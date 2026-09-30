@@ -6,6 +6,7 @@ import {
     nativeDetails,
     navigationTarget,
     redirectProps,
+    shortcutSafeApps,
 } from '../frontend/surfaces/native-links/core.ts';
 
 const SHORTCUT = 2315502503;
@@ -122,4 +123,14 @@ test('cleanLinksProps: strips Support link for shortcuts and mapped games, leave
     assert.equal(cleanLinksProps(nativeProps, isMapped), false);
     assert.equal(nativeProps.links.length, 2);
     assert.equal(nativeProps.links[1].label, 'Support');
+});
+
+test('K4: the Mark as Private item sees shortcuts as shortcuts, native apps untouched', () => {
+    const shortcut = overview(SHORTCUT + 0x8000_0000 - 2315502503 + 5); // any appid >= 0x80000000
+    const native = overview(NATIVE);
+    const [s, n] = shortcutSafeApps([shortcut, native]);
+    assert.equal(s.BIsModOrShortcut(), true);
+    assert.equal(s.appid, shortcut.appid);
+    assert.equal(n, native);
+    assert.equal(shortcutSafeApps([shortcut])[0], s, 'stable proxy across renders');
 });

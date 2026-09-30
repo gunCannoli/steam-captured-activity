@@ -165,7 +165,7 @@ nav cycle 6/6, `check_all_tabs` 11/11, parity 16/1 (K18 only), audit 0 missing, 
 (the clock cannot be moved) and K15 (no `custom_override` record exists and creating one would change your data); both are covered by `tests/test_freshness.lua`.
 Every game's first page open after this update refreshes its metadata once (no freshness entry yet counts as stale), then not again for 24 h.
 
-M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.ts` and the import allowlist are gone, live checks live in `steam-cartridges/tests/live/` (`npm run test:live`). K3, K13 and K18 are fixed (parity 17/0, `npm run test:live` all PASS on the desktop). Waiting on a decision: K4 (hide or keep "Mark as Private" for enriched shortcuts). Needs investigation: K6 (render-time Steam store writes). Next features, in order: the § 7.10 unwired ones (Media service, manual Game Info editing UI, reject-suggestion UI).
+M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.ts` and the import allowlist are gone, live checks live in `steam-cartridges/tests/live/` (`npm run test:live`). K3, K13 and K18 are fixed (parity 17/0, `npm run test:live` all PASS on the desktop). K4 and K6 are fixed (ADR-0042). Next: the features plan [steam-cartridges-features-plan.md](docs/plans/steam-cartridges-features-plan.md) (manual Game Info and linking panel, Media in the Community tab).
 
 ## Next
 

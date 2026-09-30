@@ -1670,7 +1670,7 @@ for the reusable lesson and CHANGELOG.md for the fix record.
   artwork, browse local files, hide and "Remove non-Steam game from your library".
 - Only "Mark as Private" (`Ge`) keys on `BIsModOrShortcut()`. Our prototype hook
   makes it enabled for an enriched shortcut, where it would send the shortcut appid
-  to the private-apps service. Recorded risk; not in any plan.
+  to the private-apps service. **Fixed 2026-09-29 (K4):** `native-links` gives that menu item apps that report `BIsModOrShortcut() === true` for shortcuts (identified once from the component source token `GameAction_MarkAsPrivate_NoShortcuts`), and Steam disables it with its own note.
 - **The Properties dialog is a separate popup, rendered from SharedJSContext**
   (✅ verified live 2026-09-28). `Navigator.AppProperties(appid)` opens a
   `g_PopupManager`-registered window (CDP target titled with the game's name,

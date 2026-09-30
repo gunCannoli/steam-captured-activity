@@ -10,6 +10,7 @@ import {
     getAppDetailsStore,
     getAppStore,
     refreshGameInfoInstances,
+    repairStats,
     setAppCategories,
     setEnricher,
 } from "./patch";
@@ -159,6 +160,8 @@ export function enrichGameDetails(
         }
 
         markAppEnriched(uAppid);
+        if (repairStats.source === "trigger") repairStats.viaTrigger++;
+        else if (repairStats.source === "render") repairStats.viaRender++;
 
         const developers = toArray<string>(meta.developers);
         const publishers = toArray<string>(meta.publishers);

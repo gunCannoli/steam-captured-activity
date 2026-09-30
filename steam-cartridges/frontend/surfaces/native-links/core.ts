@@ -140,3 +140,31 @@ export function cleanLinksProps(
     }
     return false;
 }
+
+/**
+ * K4: Steam's "Mark as Private" menu item (module 5808) is disabled when any of its `rgApps` reports
+ * `BIsModOrShortcut()`. The Game Info proxy (guardrail 1) says false for an enriched shortcut, which
+ * enabled the item and would send the shortcut's fake appid to the private-apps service. Give the item
+ * apps that report true for shortcuts, so Steam disables it itself, as for any other shortcut.
+ */
+const shortcutMenuApps = new WeakMap<object, object>();
+
+export function shortcutSafeApps<T extends { appid?: number }>(rgApps: readonly T[]): T[] {
+    return rgApps.map((app) => {
+        if (!app || typeof app.appid !== 'number' || (app.appid >>> 0) < SHORTCUT_MIN) return app;
+        let p = shortcutMenuApps.get(app);
+        if (!p) {
+            p = new Proxy(app, {
+                get(t, prop) {
+                    if (prop === 'BIsModOrShortcut') return () => true;
+                    return passThrough(t, prop);
+                },
+            });
+            shortcutMenuApps.set(app, p);
+        }
+        return p as T;
+    });
+}
+
+/** The component source that identifies the "Mark as Private" item (its localisation token). */
+export const MARK_PRIVATE_SOURCE = 'GameAction_MarkAsPrivate_NoShortcuts';
