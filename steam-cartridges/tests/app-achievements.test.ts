@@ -214,3 +214,15 @@ test('preload: a part the view already loaded this session is kept', async () =>
     assert.equal(await ach.preload(), 0);
     assert.deepEqual(records.get(SC)?.achievements, viewed);
 });
+
+test('rerenderAll: emits record.updated(achievements) for every record with an ok part, and only those', async () => {
+    const other = 4263274103;
+    const { ach, records, updated } = preloadSetup({}, {});
+    records.upsert({ appid: SC, gameid: 'g', title: 'A', exe: '' });
+    records.upsert({ appid: other as any, gameid: 'g', title: 'B', exe: '' });
+    records.update(SC, { achievements: STORED as any });
+    records.update(other as any, { achievements: { status: 'error', message: 'x' } as any });
+    updated.length = 0;
+    assert.equal(ach.rerenderAll(), 1);
+    assert.deepEqual(updated, [SC]);
+});

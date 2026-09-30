@@ -46,6 +46,7 @@ import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
 import { listShortcuts, shortcutTitle } from "./sensors/shortcuts";
+import { watchProgressCache } from "./sensors/progress-cache";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
 import { backend } from "./ports/backend";
 import {
@@ -433,6 +434,9 @@ async function init() {
             features.reportError("achievements", e);
             logger.error("Achievements preload failed; a game's page still loads them.", e);
         });
+        // Steam rebuilds its progress cache from its own file after login, which drops what we wrote before
+        // it: write again whenever the cache map appears or is replaced (bounded; ADR-0045).
+        watchProgressCache(() => achievements.rerenderAll());
     });
 
     // ===== App detail pages =====

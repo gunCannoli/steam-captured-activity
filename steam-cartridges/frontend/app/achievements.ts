@@ -53,6 +53,11 @@ export interface AchievementsService {
      * game (ADR-0045). A part already in the record (a view that ran first) is kept. Resolves to how many it added.
      */
     preload(): Promise<number>;
+    /**
+     * Steam replaced its progress cache (it loads its own file after login): render every record that has an
+     * achievements part again so the surface refills it (ADR-0045). Resolves to how many records it re-emitted.
+     */
+    rerenderAll(): number;
 }
 
 interface NewUnlock {
@@ -263,6 +268,15 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             }
             logger.info(`Preloaded stored achievements for ${added} shortcut(s).`);
             return added;
+        },
+        rerenderAll() {
+            let n = 0;
+            for (const rec of deps.records.all()) {
+                if (rec.achievements?.status !== "ok") continue;
+                deps.bus.emit("record.updated", { appid: rec.appid, parts: ["achievements"] });
+                n++;
+            }
+            return n;
         },
         summary(appid) {
             const id = toShortcutId(appid); // the panel hands Steam's appids, signed or not

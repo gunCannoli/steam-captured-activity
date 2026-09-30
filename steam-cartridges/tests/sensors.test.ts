@@ -69,3 +69,38 @@ test('view: gamepad switch and close emit left; modes are independent', () => {
         `left ${WUCHANG} desktop`,
     ]);
 });
+
+import { watchIdentity } from '../frontend/sensors/progress-cache/index.ts';
+
+function fakeTimers() {
+    let fn: (() => void) | undefined;
+    const log = { cleared: 0 };
+    return {
+        timers: { setInterval: (f: () => void) => { fn = f; return 1; }, clearInterval: () => { log.cleared++; } },
+        tick: () => fn?.(),
+        log,
+    };
+}
+
+test('progress-cache: onChange fires for the first map and again for each replacement, never for the same map', () => {
+    const t = fakeTimers();
+    let map: unknown;
+    let calls = 0;
+    watchIdentity(() => map, () => { calls++; }, { timers: t.timers, intervalMs: 1000, maxMs: 100000 });
+    assert.equal(calls, 0, 'nothing while Steam has no map');
+    const first = new Map(); map = first; t.tick();
+    assert.equal(calls, 1);
+    t.tick(); t.tick();
+    assert.equal(calls, 1, 'the same map is not reported twice');
+    map = new Map(); t.tick();
+    assert.equal(calls, 2, "Steam's LoadCacheFile replaced it");
+});
+
+test('progress-cache: a map that is already there is reported at once, and the watch stops after maxMs', () => {
+    const t = fakeTimers();
+    let calls = 0;
+    watchIdentity(() => new Map(), () => { calls++; }, { timers: t.timers, intervalMs: 1000, maxMs: 3000 });
+    assert.equal(calls, 1, 'reported by the first look (Steam loaded before us)');
+    t.tick(); t.tick();
+    assert.equal(t.log.cleared, 1, 'stopped after 3 ticks (bounded)');
+});
