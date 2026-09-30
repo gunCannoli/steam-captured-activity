@@ -42,6 +42,15 @@ async function selectTheme() {
     for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== THEME; i++) await wait(250);
 }
 
+/** A check must not start while the previous one's toast windows are still up (they flake smoke and queue-stress). */
+async function waitForNoToasts(maxMs = 60_000) {
+    for (let t = 0; t < maxMs; t += 500) {
+        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
+        if (!targets.some((x) => /notificationtoasts/i.test(x.title))) return;
+        await wait(500);
+    }
+}
+
 function run(c) {
     const r = spawnSync(process.execPath, [join(here, c.file)], { encoding: 'utf8', timeout: 300_000, env: { ...process.env, EA_PLUGIN: name, THEME } });
     const out = (r.stdout ?? '') + (r.stderr ?? '');
@@ -53,6 +62,7 @@ const snapshot = (await stored()) ?? {};
 let bad = 0;
 try {
     for (const c of checks) {
+        await waitForNoToasts();
         if (c.theme) await selectTheme();
         const r = run(c);
         console.log(`${r.skipped ? 'SKIP' : r.ok ? 'PASS' : 'FAIL'}  ${c.file}`);

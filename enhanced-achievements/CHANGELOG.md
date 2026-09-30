@@ -22,6 +22,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - `claims()` is O(1) again: it no longer walks the jsx wrapper chain (and could call the jsx runtime)
   on every call, which enhanced-notifications makes on every toast.
 - `tests/queue-stress.mjs` no longer resets your theme to "Steam default" when it ends.
+- Live tests no longer disturb each other: `settings-sound.mjs` restores the audio wrappers it installs and checks the toast duration against the banner's full lifetime, `queue-stress.mjs` uses its own globals, and `npm run test:live` waits for the previous check's toasts to close.
 
 ## [1.0.0] - 2026-09-25
 

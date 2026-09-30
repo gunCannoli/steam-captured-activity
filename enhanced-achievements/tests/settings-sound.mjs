@@ -2,6 +2,7 @@
 // Millennium's Configuration API (the same store the settings panel writes).
 // Leaves every setting as it found it (deletes the keys it set).
 import { connect, resolvePluginName } from './cdp.mjs';
+import { bannerTiming } from '../frontend/banner/timing.ts';
 
 const cdp = await connect();
 const PLUGIN = await resolvePluginName(cdp, 'EA_PLUGIN', 'enhanced-achievements');
@@ -39,6 +40,7 @@ const instrumented = await cdp.evaluate(`(() => {
                 v.__eaOrigPlayNavSound ??= v.PlayNavSound;
                 const orig = v.__eaOrigPlayNavSound;
                 v.PlayNavSound = function (...a) { window.__eaSounds.push({ kind: 'steam', id: a[0] }); return orig.apply(this, a); };
+                window.__eaRestoreNav = () => { v.PlayNavSound = orig; };
                 return 'ok';
             }
         }
@@ -89,7 +91,11 @@ try {
         }
         return found?.toastDurationMS;
     })()`);
-    check('display_time_ms applied to Steam achievement toast config', duration === 4000, `toastDurationMS=${duration}`);
+    // The plugin writes the banner's whole lifetime (entrance + display + exit + settle,
+    // banner/timing.ts), not the bare display time, so Steam keeps the popup open through the fades.
+    const themed = JSON.parse(await cdp.evaluate(`JSON.stringify((() => { const t = window.PLUGIN_LIST['${PLUGIN}'].activeTheme()?.theme; return { animation: t?.animation, displayTimeMs: t?.displayTimeMs }; })())`));
+    const expected = bannerTiming(themed.animation, themed.displayTimeMs).totalMs;
+    check('display_time_ms applied to Steam achievement toast config', themed.displayTimeMs === 4000 && duration === expected, `toastDurationMS=${duration}, expected ${expected}`);
 
     // First toast may find the AudioContext suspended (then Steam's chime plays once); warm it up.
     await fire();
@@ -140,6 +146,12 @@ try {
     console.log(`SKIP  ${e.message}`);
     await plugin(`resetSettings()`);
 } finally {
+    // Put back what the instrumentation wrapped, so a script run after this one sees the real functions.
+    await cdp.evaluate(`(() => {
+        if (window.__eaOrigStart) AudioBufferSourceNode.prototype.start = window.__eaOrigStart;
+        window.__eaRestoreNav?.();
+        return true;
+    })()`).catch(() => {});
     cdp.close();
 }
 process.exitCode = failed ? 1 : 0;

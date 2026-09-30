@@ -101,27 +101,27 @@ try {
 
     // Log every achievement sound: WebAudio clip starts and Steam chime decisions.
     await cdp.evaluate(`(() => {
-        const log = (window.__eaSounds = []);
+        const log = (window.__eaQueueSounds = []);
         const src = AudioBufferSourceNode.prototype;
-        window.__eaStart ??= src.start;
-        src.start = function (...a) { log.push(Date.now()); return window.__eaStart.apply(this, a); };
+        window.__eaQueueStart ??= src.start;
+        src.start = function (...a) { log.push(Date.now()); return window.__eaQueueStart.apply(this, a); };
         const proto = Object.getPrototypeOf(window.NotificationStore);
-        window.__eaChoose ??= proto.ChooseSound;
+        window.__eaQueueChoose ??= proto.ChooseSound;
         // Steam's ProcessNotification also asks ChooseSound once on arrival without
         // playing anything; only the PlayNotificationSound path is a real play.
         proto.ChooseSound = function (cfg, n) {
             const playing = (new Error().stack ?? '').includes('PlayNotificationSound');
             if (playing && n?.data?.getClassName?.() === 'CClientNotificationAchievement') log.push(Date.now());
-            return window.__eaChoose.call(this, cfg, n);
+            return window.__eaQueueChoose.call(this, cfg, n);
         };
         return true;
     })()`);
     const samples = await burst();
     const sounds = JSON.parse(
         await cdp.evaluate(`(() => {
-            AudioBufferSourceNode.prototype.start = window.__eaStart;
-            Object.getPrototypeOf(window.NotificationStore).ChooseSound = window.__eaChoose;
-            return JSON.stringify(window.__eaSounds);
+            AudioBufferSourceNode.prototype.start = window.__eaQueueStart;
+            Object.getPrototypeOf(window.NotificationStore).ChooseSound = window.__eaQueueChoose;
+            return JSON.stringify(window.__eaQueueSounds);
         })()`),
     );
     const gaps = sounds.slice(1).map((t, i) => t - sounds[i]);

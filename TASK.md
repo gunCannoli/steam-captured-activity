@@ -20,7 +20,7 @@ theme Steam's toasts and sounds.
 **enhanced-achievements architecture migration (planned 2026-09-29).** Plan:
 [enhanced-achievements-architecture-migration-plan.md](docs/plans/enhanced-achievements-architecture-migration-plan.md)
 ([ADR-0043](docs/decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net)).
-enhanced-achievements migration: E0a and E0b done (live verification of both pending); next E1a. (Before E0a the
+enhanced-achievements migration: E0a and E0b done; desktop `npm run test:live` green twice (2026-09-30), Big Picture row and the E0a `disabledFeatures=sound` chime check still pending; test fixes EA-K10 done; next E1a. (Before E0a the
 working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7-and-alpha-plan.md` (plan § 6, EA-K8), now resolved.)
 
 **Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
@@ -206,7 +206,7 @@ M0-M9 are done (2026-09-29): the migration plan is Complete; `features/`, `rpc.t
 
 ## Active failures & blockers
 
-- **enhanced-achievements E0a/E0b live verification, 2026-09-30 00:52**: `npm run test:live` FAILED (exit 1); `safetyDiagnostics()` clean, `smoke`, `tiers`, `safety`, `captures` PASS. (1) `settings-sound.mjs`: `display_time_ms applied to Steam achievement toast config (toastDurationMS=4800)`: the test expects 4000, the code has written display time + animation (`bannerTiming(...).totalMs`) since before E0a (present at 08b2960), so the check is stale, not a regression. (2) `queue-stress.mjs`: run 1 failed `queue on: tiers in firing order (magic,normal,rare,exceptional,magic)`; run 2 (alone) passed that but failed `one sound per toast (10 sounds)` and `sounds follow the banners` (gaps NaN). Flaky: the burst fires with `Promise.all` and run 2 probably counted sounds of leftover toasts from run 1. Not fixed (plan § 0.7/§ 0.8: no editing checks); E0a and E0b stay `Done (live pending)`. Needs a decision on whether to fix the two tests.
+- **enhanced-achievements EA-K9 (open until E2)**: the live check `queue on: tiers in firing order` can FAIL occasionally (`magic,normal,rare,…`): banners are admitted in render order, not arrival order (same cause as EA-K2). Not weakened; plan § 11.
 
 ---
 
