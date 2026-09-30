@@ -1,6 +1,6 @@
 # Plan: artwork image fetch leaves the surface (one job per layer, for the four art slots and the icon)
 
-**Status:** Draft (2026-09-29). **Not dry-run yet** (§ 9): the before blocks were copied from `98397df`, the after blocks and the
+**Status:** Draft (2026-09-29). **Not dry-run yet** (§ 9); decisions recorded in § 0: the before blocks were copied from `98397df`, the after blocks and the
 expected test counts are derived, not observed. A dry-run in a scratch worktree (as the icon plan's § 9) is the first task of
 whoever executes this. Do not hand it to a weak implementer before that.
 **Kind:** Architecture cleanup (ADR-0039), no user-visible change.
@@ -9,6 +9,14 @@ whoever executes this. Do not hand it to a weak implementer before that.
 the surface only writes).
 **Layer rules:** [steam-cartridges/README.md § May import / must never import](../steam-cartridges/README.md),
 [surfaces.md](../steam-cartridges/surfaces.md). **Related:** [steam-cartridges-icon-plan.md § 11](steam-cartridges-icon-plan.md).
+
+## 0. Decisions (the user, 2026-09-29)
+
+1. **The image bin, not `GameRecord`,** carries the fetched bytes (finding 3). The icon moves into it too. Agreed.
+2. **The F1 plan may be edited** to fit this one. So the F1/`SteamStoreDownloadImage` interplay is resolved by editing the F1 plan, not by ordering: whoever executes first, the other plan's before-blocks
+   (`tests/test_steam_store.lua`, `frontend/ports/backend.ts` near `steamStoreClearMapping`) are re-copied from the tree at that moment. Before executing this plan, check
+   `git grep -n "steam-cartridges-artwork-fetch\|DownloadImage" -- docs/plans/steam-cartridges-f1-game-data-editor*` and update the F1 plan/patches if they touch those lines.
+3. **Steps 3-5 are one session and one commit** (`tsc` is red between them by design). Do not stop between them; if § 8 forces a stop, `git stash` is not allowed: `git restore .` and start step 3 again.
 
 ## 1. Root cause and what the research found
 
@@ -286,7 +294,7 @@ from `setup`), and the icon test at its end changes from `part.data.icon` deep-e
 old bytes).
 
 Expected: `npm run check` prints an error in `frontend/index.tsx` and `frontend/surfaces/artwork/icon.ts` only (steps 4-5 fix them); therefore run
-the tests after step 5. **Commit steps 3-5 together** only if § 8 forces a stop between them; otherwise commit at step 5.
+the tests after step 5. **Do not commit here: steps 3-5 are one commit, made at step 5 (§ 0 decision 3).
 
 ### Step 4: the surface reads the bin and writes; it fetches nothing
 
@@ -448,7 +456,7 @@ Run a failing command at most twice. On the second failure stop: append the comm
 
 **Not done.** What was checked when writing: the before blocks and line numbers were read from `98397df`; the live measurements of finding 2 (4-byte body) and finding 3
 (the four file sizes) were taken on 2026-09-29. What must be done before execution: apply the steps in a scratch worktree of `98397df`, replace the derived expected counts
-(163, 165, `test_steam_store` 82) with the observed ones, and check the interplay with the F1 plan (its patches edit `tests/test_steam_store.lua` and `ports/backend.ts` near `steamStoreClearMapping`;
+(163, 165, `test_steam_store` 82) with the observed ones, and update the F1 plan first (§ 0 decision 2; its patches edit `tests/test_steam_store.lua` and `ports/backend.ts` near `steamStoreClearMapping`;
 step 6 edits other lines of both, but that is unverified).
 
 ## 10. Not in this plan (follow-ups)
