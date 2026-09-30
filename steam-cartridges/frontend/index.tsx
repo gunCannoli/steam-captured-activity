@@ -56,13 +56,12 @@ import {
 import {
     createGameInfoSurface,
     ensureAppOverviewHooked,
-    refreshGameInfoInstances,
     trackInstance,
 } from "./surfaces/game-info";
 import { createPlaybarSurface } from "./surfaces/playbar";
-import { controllerContext, getInferredControllerSupport, loadControllerInference } from "./app/controller";
+import { createController } from "./app/controller";
 import { setPanelContext } from "./settings/context";
-import { handleSteamStoreView, leaveSteamStore, setSteamStoreMapping, setArtworkSource, setGameInfoRefresher, setIdentitySource, setMetadataSource } from "./app/steam-store";
+import { createSteamStore } from "./app/steam-store";
 import {
     createAchievementsSurface,
     ensureAchievementsStoreHooked,
@@ -190,14 +189,13 @@ const artwork = createArtwork({
 });
 
 /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
-const view = createView({
-    routing,
-    identity,
-    metadata,
-    artwork,
-    achievements,
-    steamStore: { onView: handleSteamStoreView, leave: leaveSteamStore },
-});
+const view = createView({ routing, identity, metadata, artwork, achievements });
+
+/** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
+const steamStore = createSteamStore({ backend, identity, metadata, artwork });
+
+/** Controller support inferred from each shortcut's emulator (app/controller.ts). */
+const controller = createController({ backend });
 
 /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
 const ingest = createIngest({
@@ -224,11 +222,9 @@ export const safetyDiagnostics = () => features.diagnostics();
 export { gameInfoRepairDiagnostics } from "./surfaces/game-info";
 export const bucketReport = () => routing.bucketReport();
 export const loadAutoRoutingProfiles = () => routing.loadAutoRoutingProfiles();
-export {
-    clearSteamStore,
-    setSteamStoreMapping,
-    steamStoreState,
-} from "./app/steam-store";
+export const clearSteamStore = (appid: number, reject: boolean) => steamStore.clear(appid, reject);
+export const setSteamStoreMapping = (appid: number, steamAppid: number, name?: string) => steamStore.setMapping(appid, steamAppid, name);
+export const steamStoreState = () => steamStore.state();
 
 export { getLocalAchievements, getLocalSchema, dispatchAchievementToast };
 
@@ -318,19 +314,13 @@ async function init() {
             start: ingest.startSync,
         },
         records: { achievementsOf: (appid) => getLocalAchievements(appid) },
-        controller: { load: loadControllerInference, inferredFor: getInferredControllerSupport },
-        steamStore: { setMapping: setSteamStoreMapping },
+        controller: { load: controller.load, inferredFor: controller.inferredFor },
+        steamStore: { setMapping: steamStore.setMapping },
         safety: { featureIds: FEATURE_IDS, diagnostics: () => features.diagnostics(), surfaces: () => runner.status() },
     });
 
-    // The manual mapping API (features/steam-store, public per D8) reaches app/ only through these setters.
-    setIdentitySource(identity);
-    setMetadataSource(metadata);
-    setArtworkSource(artwork);
-
     // Surface and app APIs reach the settings panel and the features only through these setters (plan § 7.0 D3).
     setContentListener(setHasContent);
-    setGameInfoRefresher({ refresh: refreshGameInfoInstances });
 
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
     // timer after record.updated, never from inside a Steam render (plan § 7.0 D5).
@@ -458,7 +448,7 @@ async function init() {
     runner.register(
         createGameInfoSurface({
             ...surfaceDeps,
-            controllerContext: (appid) => controllerContext(appid, setting("defaultFullController")),
+            controllerContext: (appid) => ({ inferred: controller.inferredFor(appid), defaultFull: setting("defaultFullController") }),
             metadataOf: (appid) => records.store.get(appid as ShortcutId)?.metadata?.data,
         }),
     );

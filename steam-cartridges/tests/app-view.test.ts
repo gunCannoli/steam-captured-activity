@@ -6,25 +6,23 @@ const SC = 4263274102;
 
 function setup(getBucket: () => { bucket: string; via: string }, opts: { collections?: Promise<boolean> } = {}) {
     const log: string[] = [];
-    let onView: (id: number) => Promise<boolean | undefined> = async () => true;
     const view = createView({
         routing: { getBucket: getBucket as any, waitForCollections: async () => opts.collections ?? true },
         identity: { async ensure() { log.push('identity'); return { status: 'ok', data: { native: { appid: 77, source: 'search' } } } as any; } },
         metadata: { async ensure(_a: any, _r: any, id: any) { log.push('metadata:' + (id ? 'identity' : 'none')); return { status: 'ok' } as any; } },
         artwork: { async ensure() { log.push('artwork'); return { status: 'ok' } as any; } },
         achievements: { async ensure() { log.push('achievements'); } },
-        steamStore: { onView: (id: any) => { log.push('steamStore.onView'); return onView(id); }, leave: () => { log.push('steamStore.leave'); } },
     });
-    return { view, log, setOnView: (f: typeof onView) => { onView = f; } };
+    return { view, log };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-test('a steam-store shortcut runs identity, the store side effects, metadata, artwork, achievements in order', async () => {
+test('a steam-store shortcut runs identity, metadata, artwork, achievements in order', async () => {
     const s = setup(() => ({ bucket: 'steam-store', via: 'default' }));
     await s.view.onSourceView(SC);
     await tick();
-    assert.deepEqual(s.log, ['identity', 'steamStore.onView', 'metadata:identity', 'artwork', 'achievements']);
+    assert.deepEqual(s.log, ['identity', 'metadata:identity', 'artwork', 'achievements']);
 });
 
 test('a web-scraping shortcut skips identity and the store', async () => {
@@ -55,15 +53,14 @@ test('a pending route is local metadata only, replayed once collections are read
     assert.deepEqual(s.log, ['metadata:none', 'metadata:none', 'artwork', 'achievements']);
 });
 
-test('leaving the steam-store bucket calls leave once', async () => {
+test('leaving the steam-store bucket stops resolving identity', async () => {
     let bucket = 'steam-store';
     const s = setup(() => ({ bucket, via: 'default' }));
     await s.view.onSourceView(SC);
     bucket = 'web-scraping';
     await s.view.onSourceView(SC);
-    await s.view.onSourceView(SC);
     await tick();
-    assert.equal(s.log.filter((l) => l === 'steamStore.leave').length, 1);
+    assert.equal(s.log.filter((l) => l === 'identity').length, 1);
 });
 
 test('a view that arrives while the same shortcut is in flight is replayed once, not run in parallel', async () => {

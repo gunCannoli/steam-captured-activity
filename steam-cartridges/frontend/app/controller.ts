@@ -1,46 +1,35 @@
+// app/controller: controller support inferred from each shortcut's emulator (backend
+// emulator_controllers.lua), loaded once at start-up (ADR-0038 addendum). A factory with its backend
+// passed in (M10, ADR-0044); keyed by the unsigned appid (kernel), one lookup per appid.
 import { logger } from "../logger";
-import { backend } from "../ports/backend";
+import { toUnsigned } from "../kernel/appid";
+import type { backend as Backend } from "../ports/backend";
 
-/** Structural copy of surfaces/game-info/category-policy ControllerContext (plan § 7.0 D3). */
-export interface ControllerContext {
-    inferred?: boolean;
-    defaultFull?: boolean;
-    override?: 'full' | 'partial' | 'none' | 'auto';
+export interface Controller {
+    load(): Promise<void>;
+    /** True/false when the shortcut's emulator says so, undefined when unknown. O(1). */
+    inferredFor(appid: number): boolean | undefined;
 }
 
-/**
- * Controller support inferred from each shortcut's emulator (backend
- * emulator_controllers.lua), loaded once at startup (ADR-0038 addendum).
- */
-const inferred = new Map<number, boolean>();
-
-export async function loadControllerInference(): Promise<void> {
-    try {
-        const res = await backend.getControllerInference();
-        inferred.clear();
-        for (const [key, value] of Object.entries(res?.games ?? {})) {
-            const appid = Number(key);
-            if (Number.isFinite(appid) && typeof value === "boolean") inferred.set(appid, value);
-        }
-        logger.info(`Controller support inferred for ${inferred.size} shortcut(s) from their emulator.`);
-    } catch (err) {
-        logger.warn("Could not load controller inference; only the default setting applies.", err);
-    }
-}
-
-/** O(1): what decides the controller badge of a shortcut without Steam Store data. */
-export function controllerContext(appid: number, defaultFull: boolean): ControllerContext {
+export function createController(deps: { backend: Pick<typeof Backend, "getControllerInference"> }): Controller {
+    const inferred = new Map<number, boolean>();
     return {
-        inferred: getInferredControllerSupport(appid),
-        defaultFull,
+        async load() {
+            try {
+                const res = await deps.backend.getControllerInference();
+                inferred.clear();
+                for (const [key, value] of Object.entries(res?.games ?? {})) {
+                    const appid = toUnsigned(key);
+                    if (appid !== undefined && typeof value === "boolean") inferred.set(appid, value);
+                }
+                logger.info(`Controller support inferred for ${inferred.size} shortcut(s) from their emulator.`);
+            } catch (err) {
+                logger.warn("Could not load controller inference; only the default setting applies.", err);
+            }
+        },
+        inferredFor(appid) {
+            const key = toUnsigned(appid);
+            return key === undefined ? undefined : inferred.get(key);
+        },
     };
-}
-
-/** Check if a shortcut was inferred to have controller support by its emulator */
-export function getInferredControllerSupport(appid: number): boolean | undefined {
-    return (
-        inferred.get(appid) ??
-        inferred.get(appid >>> 0) ??
-        inferred.get(appid | 0)
-    );
 }

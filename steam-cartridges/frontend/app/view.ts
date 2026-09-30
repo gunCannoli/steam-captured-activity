@@ -15,11 +15,6 @@ export interface ViewDeps {
     metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
     artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
     achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
-    /** The Steam Store bucket's side effects (features/steam-store): true = a Steam match, false = none. */
-    steamStore: {
-        onView(appid: ShortcutId, identity: Part<Identity>): Promise<boolean | undefined>;
-        leave(appid: ShortcutId): void;
-    };
 }
 
 export interface View {
@@ -36,8 +31,6 @@ export function createView(deps: ViewDeps): View {
     const deferred = new Set<number>();
     /** A view that arrived while the same appid was in flight; replayed once afterwards (P4 H6). */
     const rerun = new Set<number>();
-    /** Appids currently showing the Steam Store bucket's data (for steamStore.leave). */
-    const inSteamStore = new Set<number>();
 
     async function onSourceView(appid: number): Promise<void> {
         const id = toShortcutId(appid);
@@ -60,15 +53,11 @@ export function createView(deps: ViewDeps): View {
                 // ADR-0036: Steam Store first; no Steam match -> the web tier (metadata); not known yet
                 // (title missing) -> local Game Info only.
                 const identityPart = await deps.identity.ensure(id, route);
-                const matched = await deps.steamStore.onView(id, identityPart);
-                if (matched === true) inSteamStore.add(id);
                 await deps.metadata.ensure(id, route, identityPart);
                 await deps.artwork.ensure(id, route, identityPart);
                 void deps.achievements.ensure(id, route); // reads the identity just resolved from the record
             } else {
-                // web-scraping or none. Came from steam-store: drop its memory first; metadata and artwork
-                // are record-driven and follow the new route's result.
-                if (inSteamStore.delete(id)) deps.steamStore.leave(id);
+                // web-scraping or none: metadata and artwork are record-driven and follow the new route's result.
                 await deps.metadata.ensure(id, route, undefined);
                 await deps.artwork.ensure(id, route, undefined);
                 void deps.achievements.ensure(id, route);
