@@ -1,5 +1,4 @@
 {
   "GetDiagnostics": "debug: called from the SharedJSContext console and tests/live/probes/http_calls.mjs",
-  "GetMediaImage": "features plan F2 step 3: app/media calls it through ports/backend.ts",
   "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it"
 }

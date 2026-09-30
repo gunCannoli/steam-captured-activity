@@ -91,6 +91,17 @@ export interface FreshContext {
     hardcore?: boolean;
     /** M7a: ignore TTLs, never a custom_override record. */
     force?: boolean;
+    /** Media only (features plan F2): the IGDB game Game Info shows; IGDB media is asked by this id, never by title. */
+    igdb_id?: number;
+}
+
+/** One ScreenScraper image of the media part (features plan F2b): the bytes, never the URL. */
+export interface MediaImageResponse {
+    base64?: string;
+    ext?: string;
+    width?: number;
+    height?: number;
+    error?: string;
 }
 
 export interface RecordResponse {
@@ -137,6 +148,10 @@ export const backend = {
     /** Game Data editor: drops the manual edit; follow with ensureFresh(["metadata"]) for the fetched data. */
     clearCustomMetadata(appid: number) {
         return call<{ removed?: boolean; error?: string }>("ClearCustomMetadata", { appid });
+    },
+    /** Community media (features plan F2b): one ScreenScraper image, downloaded by the backend into memory. */
+    getMediaImage(appid: number, key: string, title?: string): Promise<MediaImageResponse> {
+        return call<MediaImageResponse>("GetMediaImage", { appid, key, title });
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

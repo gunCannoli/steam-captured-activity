@@ -33,3 +33,29 @@ export async function fetchImage(url: string, forcePng = false): Promise<{ base6
     const ext = found.type === 'image/jpeg' || lower.includes('.jpg') || lower.includes('.jpeg') ? 'jpg' : found.type === 'image/x-icon' || lower.includes('.ico') ? 'ico' : 'png';
     return { base64, ext };
 }
+
+/**
+ * An object URL (blob:) for image bytes the backend sent as base64 (features plan F2b), or null. The bytes stay in
+ * memory until releaseObjectUrl; nothing is written to disk and the URL names no host (a ScreenScraper URL carries the
+ * account, so it never reaches Steam's DOM).
+ */
+export function objectUrl(base64: string, ext: string): string | null {
+    try {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const type = ext === 'jpg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'application/octet-stream';
+        return URL.createObjectURL(new Blob([bytes], { type }));
+    } catch {
+        return null;
+    }
+}
+
+/** Free an object URL made by objectUrl (the media bin calls it on eviction). */
+export function releaseObjectUrl(url: string): void {
+    try {
+        URL.revokeObjectURL(url);
+    } catch {
+        /* already released */
+    }
+}
