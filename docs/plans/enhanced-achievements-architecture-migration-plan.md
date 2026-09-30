@@ -1,7 +1,6 @@
 # Plan: enhanced-achievements Architecture Migration (one owner per Steam target, safety net)
 
-**Status:** Accepted 2026-09-29. **E0a and E0b are `Ready`** (packaged as patches and dry-run, § 6).
-**E1a–E3 are `Build`** (detailed specs with binding contracts and named tests, § 0.9).
+**Status:** Complete (2026-09-30). Accepted 2026-09-29; E0a–E3 all `Done`, live-verified. § 11 is triaged.
 **Kind:** Umbrella plan plus execution manual, modelled on the
 [steam-cartridges migration](steam-cartridges-architecture-migration-plan.md) but deliberately smaller: no
 `GameRecord`, no backend services, one architecture doc instead of one per layer.
@@ -57,7 +56,7 @@ conflicts with an ADR or a [plugins.md](../plugins.md) guardrail, stop and repor
 | E1b | Split `steam/notifications.ts`: store discovery, the one notification hook, the unlock sensor, surfaces `sound`, `duration`, `toasts` | `Done` |
 | E1c | Surfaces `banner` and `captures` (moves), surface runner complete, allowlist empty | `Done` |
 | E2 | The scheduler owns banner lifetime: nothing admitted from a render, one `whenShowing` API for sounds | `Done` |
-| E3 | Close: docs, known issues, plan complete | `Build` |
+| E3 | Close: docs, known issues, plan complete | `Done` |
 
 Order is fixed: never start a row while an earlier row is not `Done`. A row becomes `Done` only after the
 verifier's live PASS (§ 0.5).
@@ -999,9 +998,9 @@ changes), message `docs(plan): enhanced-achievements migration <what>`, attribut
 | EA-K3 | `dispose*` functions have no caller; nothing can remove a patch at runtime | § 1.7 | E1b, E1c (`Surface.uninstall`) |
 | EA-K4 | `tests/queue-stress.mjs` resets theme and queue to their defaults instead of restoring the user's values | `tests/queue-stress.mjs:151–154` | E0b |
 | EA-K5 | `smoke.mjs`, `tiers.mjs`, `bigpicture.mjs` assume a theme is selected; they FAIL on the shipped default | § 1.8 | E0b (`run-live.mjs` selects `ps5` for them) |
-| EA-K6 | `tests/settings-sound.mjs` calls `resetSettings()` and asserts nothing is stored, wiping the user's settings when run alone | its lines 107–113 | not fixed (a check, § 0.8); `run-live.mjs` restores the snapshot afterwards |
-| EA-K7 | `toastWarning()` in `steam/notification-settings.ts` has no caller | `grep -rn toastWarning frontend` | not in scope; E3 lists it for removal by a later plan |
-| EA-K8 | The working tree deletes `docs/plans/phase7-and-alpha-plan.md` without a commit, but code comments and the docs index still cite it | `git status` 2026-09-29 | the user decides before E0a (§ 6) |
+| EA-K6 | `tests/settings-sound.mjs` calls `resetSettings()` and asserts nothing is stored, wiping the user's settings when run alone | its lines 107–113 | not fixed (a check, § 0.8); `run-live.mjs` restores the snapshot afterwards; stays so |
+| EA-K7 | `toastWarning()` in `steam/notification-settings.ts` has no caller | `grep -rn toastWarning frontend` | open, low: dead code, for a later cleanup plan (E3 triage) |
+| EA-K8 | The working tree deletes `docs/plans/phase7-and-alpha-plan.md` without a commit, but code comments and the docs index still cite it | `git status` 2026-09-29 | resolved: the deletion is committed (file untracked; comments citing it are stale, low) |
 | EA-K9 | The live check `queue on: tiers in firing order` flakes (`magic,normal,rare,…`): the burst's banners are admitted to the scheduler in the order their toast windows render, not the order Steam received them. Serialising `previewTier` was tried and did not change it | same root cause as EA-K2 (`themed-toast.tsx` admits from a render) | fixed by E2 (2026-09-30): `queue-stress.mjs` passed 4 runs in a row, `tiers in firing order` included; the check was not weakened |
 | EA-K11 | The first themed toast after Big Picture opens was invisible: its toast window's animation clock is 0 until it first paints, so the entrance and the exit both finished at once (opacity 0); `bigpicture.mjs` still passed (DOM only) | `banner/themed-toast.tsx` (found live 2026-09-30; steam-debug.md Trap 11) | fixed before E1c: `restartFrozenAnimations`; `bigpicture.mjs` now also requires the banner to reach full opacity. E2 keeps this function when it edits `ThemedBanner` |
 | EA-K12 | `tests/captures.mjs` decided "new log entry" by `log.length` growing, but the capture log is a ring buffer of 20, so the check failed once it was full | `tests/captures.mjs` step 4 | fixed: a newer timestamp also counts |

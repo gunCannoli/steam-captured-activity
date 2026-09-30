@@ -75,6 +75,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - The 100% completion toast and the unlock captures now run one macrotask after the toast is shown, never inside Steam's own call; the sound, duration and synthetic-toast code sit behind their own switches, and a feature that trips its error budget has its Steam patch removed, not only gated (migration E1b).
 - The banner and the capture code are surfaces too: `frontend/surfaces/banner/` and `frontend/surfaces/captures/` (files moved, behaviour unchanged); `surfaceStatus()` reports which installed (migration E1c).
 - A banner is admitted to the toast scheduler from its mount effect, not from a render, and a queued toast's sound waits on the scheduler through `whenShowing` (migration E2).
+- README: a Troubleshooting section for `disabledFeatures`, `safetyDiagnostics()`, `surfaceStatus()` and safe mode (migration E3).
 
 - **`[v]` in `scale`, `margin`, `padding` and `gap` now means both values**,
   like a bare `v` (`[5]` = `[5, 5]`); `[a, b]` still sets each. Previously

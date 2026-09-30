@@ -112,6 +112,18 @@ The workflow is: edit the theme file, press **Reload themes**, press **Preview**
   but Millennium may log an error). The plugin works around it; you should
   never see a broken save.
 
+## Troubleshooting
+
+- **A banner, sound or capture misbehaves.** Each part can be switched off on its own: in the SharedJSContext console run
+  `PLUGIN_LIST['enhanced-achievements'].setSetting('disabledFeatures', 'banner,sound')`. Ids: `banner`, `sound`, `duration`,
+  `completion`, `captures`, `toasts`. Steam's own toast, chime or duration comes back for that part. Empty string switches
+  everything back on.
+- **A part switched itself off.** After 5 errors in one session a part is switched off until Steam restarts.
+  `PLUGIN_LIST['enhanced-achievements'].safetyDiagnostics()` shows what tripped and the error counts;
+  `surfaceStatus()` shows which parts installed.
+- **Safe mode.** If two starts in a row did not end cleanly, the next start hooks nothing (Steam's own toasts) and leaves safe
+  mode after a clean run.
+
 ## Uninstall
 
 Disable **Enhanced Achievements** in Millennium's plugin list, then delete

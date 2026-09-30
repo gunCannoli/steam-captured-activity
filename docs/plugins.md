@@ -42,6 +42,11 @@ millennium-plugins/                 <- this repo (private)
 > never by importing its code. Code shared between plugins (e.g.
 > `steam/jsx-hook.ts`) is copied identically into each one.
 
+Inside the frontend, a plugin that writes into Steam follows the same shape: pure decisions, one
+`Surface` per Steam target with a kill switch, and an architecture test that enforces it. The worked
+examples are [steam-cartridges](steam-cartridges/) (layer docs) and
+[enhanced-achievements](enhanced-achievements/architecture.md) (one architecture doc).
+
 ---
 
 ## 1. Scaffold
