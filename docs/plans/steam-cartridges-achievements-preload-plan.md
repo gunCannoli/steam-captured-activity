@@ -3,9 +3,20 @@
 **Status:** Ready to execute. Written and **dry-run 2026-09-30 on `c4f0978`**: the code steps 1–10 were applied with the
 Edit tool to the working tree and every expected output of § 3 and steps 1–10 was observed (Lua 23 / 77+3, `test:ts`
 204/204, enhanced 116/116, `tsc` clean, both builds `Succeeded`), then the tree was restored with `git checkout`. The
-doc steps 11–12 were checked for their anchors only. Live verification (§ 10) is for the user or a verifier after deploy.
+doc steps 11–12 were checked for their anchors only. The live check `tests/live/probes/ach_preload.mjs` was run
+against the old build and reported the old behaviour (`n=0`, the old export present), as Phase A expects.
+
+**Who does what:** the implementing agent runs everything: unit tests, both deploys, Steam restarts and every live
+check, using only the proven methods of [steam-debug.md](../steam-debug.md) and
+[verification.md](../steam-cartridges/verification.md). It stops and asks the user at three gates: **G1** (the baseline
+differs from what this plan expects), **G2** (a live check fails after the change) and **G3** (the user's visual review,
+before the docs commit and the push). The user makes the decisions and does the real review; the agent never works
+around a gate.
+
+**Order:** § 3 preconditions → Phase A (live baseline on the unchanged code) → steps 1–10 (code, commits 1–2, not pushed)
+→ Phase C (deploy the change, live checks, compare with the baseline) → G3 → steps 11–12 (docs, commit 3, push).
 **Kind:** Feature plan for the weak implementer ([the plan writing standard](README.md)).
-**Decision:** ADR-0045 (written by step 12 of this plan; its text is in § 7.12). The user chose option B on 2026-09-30.
+**Decision:** ADR-0045 (written by step 12a of this plan). The user chose option B on 2026-09-30.
 **Layer rules:** [steam-cartridges.md § 4](../steam-cartridges.md#4-adding-a-feature), [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam),
 [ADR-0044](../decisions.md#adr-0044-steam-cartridges-layers-stay-dumb-and-a-test-checks-what-each-layer-does),
 [enhanced-achievements architecture](../enhanced-achievements/architecture.md).
@@ -37,7 +48,7 @@ No new Steam target, no new RPC, no new setting, no new kill switch (the preload
 | 3 | Steam fills `appAchievementProgressCache` at start-up for every owned game from `userdata/<id>/config/librarycache/achievement_progress.json` (`Init` → `LoadCacheFile`). | Live, read-only (2026-09-30): `LoadCacheFile` source reads `${Library.AppDetails}/achievement_progress.json`; the file holds 32 entries, none a shortcut | Matching Steam's timing means filling this cache at start-up. |
 | 4 | Steam's entry shape is `{ appid, unlocked, total, percentage, all_unlocked, cache_time, vetted }`. Ours is `{ unlocked, total, all_unlocked }`. | Live sample: `{"appid":435150,"unlocked":4,"total":97,"percentage":4.12…,"all_unlocked":false,"cache_time":1761528585,"vetted":true}`; `surfaces/achievements/core.ts` `buildAchievementProgress` | Step 4 adds the missing fields. |
 | 5 | `GetAchievementProgress(appid)` returns `entry.percentage` and **queues a server request** (`QueueCacheUpdate` → `GetAchievementsProgress`) when the entry's `cache_time` is older than the game's `rt_last_time_played`. | Live source: `GetAchievementProgress(e){…t=r.percentage,o.tw.GetAppOverviewByAppID(e).rt_last_time_played<=r.cache_time)return t}return this.QueueCacheUpdate(e),t}` | Without `percentage` Steam reads `undefined`; without `cache_time` it asks the server about a shortcut. `cache_time` = now at render. |
-| 6 | `SaveCacheFile` writes the **whole** map to Steam's file (`SteamClient.Apps.SaveAchievementProgressCache`) after every server refresh. | Live source of `RequestCacheUpdate` (ends `this.SaveCacheFile()`) and `SaveCacheFile` | Our shortcut entries will be persisted into Steam's file, like an owned game's. Accepted in ADR-0045 (§ 7.12); § 10 checks it. |
+| 6 | `SaveCacheFile` writes the **whole** map to Steam's file (`SteamClient.Apps.SaveAchievementProgressCache`) after every server refresh. | Live source of `RequestCacheUpdate` (ends `this.SaveCacheFile()`) and `SaveCacheFile` | Our shortcut entries will be persisted into Steam's file, like an owned game's. Accepted in ADR-0045 (step 12a); informational note in § 10. |
 | 7 | `appDetailsStore.GetAppData(id)` **creates** an entry for an id it does not know. The surface calls it for the unsigned and the signed id. | Live source: `GetAppData(e){return this.m_mapAppData.has(e)\|\|this.m_mapAppData.set(e,new w),this.m_mapAppData.get(e)}`; `m_mapAppData` has 220 shortcut keys, 0 signed keys | At start-up that would add one junk entry (negative key) per preloaded shortcut. Step 5 reads `m_mapAppData.get(id)` instead (the write happens only where `details` exists, as today). |
 | 8 | `GetAllRecords` adds achievements only for keys that already have metadata or a saved mapping. | `backend/record_rpc.lua` `GetAllRecords`; on disk: 136 stored shortcuts with a schema, 1 (`4034579314`) has neither | Step 3 also adds every shortcut the achievements store holds. |
 | 9 | The sections surface schedules one `setTimeout(refreshInstances, 0)` per appid whose achievements changed. The preload changes ~130 in one render pass. | `surfaces/sections/index.ts` `render`; `app/render-queue.ts` flushes every pending appid in one pass | Step 6 coalesces them into one refresh per tick. |
@@ -60,6 +71,8 @@ Run in Git Bash from `c:\game\millennium` unless a row says otherwise. Every row
 | P5 | the Lua block below | `test_ach_service: 21 PASS, last: ALL PASS` and `test_backend: 77 PASS, last: 3 FAILURE(S)` |
 | P6 | `cd enhanced-achievements && npm run check` | after `> tsc --noEmit` nothing; exit 0 |
 | P7 | `cd enhanced-achievements && npm test 2>&1 \| grep -E "^ℹ (pass\|fail)"` | `ℹ pass 116` and `ℹ fail 0` |
+| P8 | `test -f steam-cartridges/tests/live/probes/ach_preload.mjs && echo ok` | `ok` |
+| P9 | `curl -s --max-time 3 http://127.0.0.1:8080/json/version \| grep -c Browser` | `1` (Steam runs with DevTools). If `0`: run `powershell -ExecutionPolicy Bypass -File start-steam-dev.ps1`, then repeat P9 once |
 
 The 3 `test_backend` failures are the `captures` fixture counts (`non-steam games with media -> 7`, `screenshots
 indexed -> 214`, `library_stats covers every media game -> 7`): they track the live library (AGENTS.md Routine 4) and
@@ -87,13 +100,32 @@ If P1–P7 do not hold, stop (failure rule, § 8).
 - Public exports of `steam-cartridges/frontend/index.tsx` other than `storedAchievementSummaries` (D8).
 - `backend/achievements_store.lua` functions other than the one added.
 
-## 5. Banned actions
+## 5. Allowed and banned actions
 
-No deploy or Steam restart (`dev.ps1`, `start-steam-dev.ps1`); no SharedJSContext reload; no CDP script, probe or
-throwaway plugin; no edits to Millennium's `config.json` or any plugin config; no changes to the user's library,
-collections, shortcuts, or files under `C:\game\steam`; no `npm install` or upgrade (ignore the `@steambrew/ttc` update
-nag); no `git push --force`; no `--no-verify`; no `git add -A`; no `Co-Authored-By` or "Generated with" line in any
-commit (AGENTS.md Routine 6); do not rewrite existing history.
+**Allowed, and only in the phase that names them:**
+
+- Deploying with exactly the commands of Phase A and Phase C (`dev.ps1` of each plugin; they build, deploy the `-dev`
+  copy, and the steam-cartridges one restarts Steam gracefully).
+- `powershell -ExecutionPolicy Bypass -File start-steam-dev.ps1 -Restart` from `c:\game\millennium`, only for the
+  recovery in § 8.
+- Running the existing live scripts named in Phase A and Phase C, and `tests/live/probes/ach_preload.mjs`. They are
+  the proven checks of [verification.md](../steam-cartridges/verification.md); each restores what it changes.
+- Waiting for Steam with the checks' own bounded polling (`ach_preload.mjs --wait`), not with `sleep`.
+
+**Banned:** a SharedJSContext reload (`location.reload()`, `Page.reload`, Ctrl+R: it can open a blocking "Save as"
+dialog, [plugins.md § 4](../plugins.md#4-develop)); toggling Big Picture from a script (`SetUIMode`, steam-debug Trap 6: the
+user checks Big Picture at G3); any CDP expression or script not named in this plan (no ad-hoc probing: if a check's
+output is unclear, stop at G2 and ask); writing a new probe or plugin; calling `triggerAchievement`,
+`resetAchievements`, `achievementReset.reset` on a real game, or anything else that changes the user's unlocks,
+library, collections, shortcuts or files under `C:\game\steam` (the checks only read, and `reset.mjs` resets nothing);
+launching a game; editing Millennium's `config.json` or any plugin config by hand (except the documented recovery in
+§ 8); `npm install` or upgrade (ignore the `@steambrew/ttc` update nag); `git push` before G3; `git push --force`;
+`--no-verify`; `git add -A`; any `Co-Authored-By` or "Generated with" line in a commit (AGENTS.md Routine 6); rewriting
+existing history.
+
+**Logs:** keep every live output for the report: `mkdir -p "$TEMP/ach-preload-live"` once, and pipe each live command
+through `tee "$TEMP/ach-preload-live/<name>.txt"` with the `<name>` given in its row. Report only PASS/FAIL lines to
+the user, plus the tail of a failing output (steam-debug § 7).
 
 **Line endings:** every file this plan edits is LF in the working tree except three, which are CRLF:
 `enhanced-achievements/tests/reset.mjs` (step 10), `TASK.md` (step 12f) and `docs/enhanced-achievements/architecture.md`
@@ -108,6 +140,26 @@ blocks keep the file's indentation). Read the file first. If the before block is
 is stale: stop (§ 8). Never edit around a mismatch.
 
 ## 7. Steps
+
+### Phase A: live baseline on the unchanged code
+
+Proves the live checks work here and records what "normal" looks like before anything changes. Run from
+`c:\game\millennium` in Git Bash, in this order. **Do not open any game page before A3.**
+
+| # | Command | Expected |
+| --- | --- | --- |
+| A0 | `mkdir -p "$TEMP/ach-preload-live" && echo ok` | `ok` |
+| A1 | `cd enhanced-achievements && powershell -ExecutionPolicy Bypass -File dev.ps1 -NoRestart 2>&1 \| tail -3; cd ..` | contains `Deployed enhanced-achievements-dev.` |
+| A2 | `cd steam-cartridges && powershell -ExecutionPolicy Bypass -File dev.ps1 2>&1 \| tail -4; cd ..` | contains `Deployed steam-cartridges-dev.` and `Starting Steam in dev mode...`; Steam restarts |
+| A3 | `node steam-cartridges/tests/live/probes/ach_preload.mjs --wait 90 \| tee "$TEMP/ach-preload-live/A3-preload.txt"` | exactly: `PASS steam-cartridges is loaded`, **`FAIL storedAchievementSummaries is gone from the public API`**, **`FAIL progress cache holds shortcuts from start-up  (n=0, min 100)`** (`n=1` is also normal if Steam reopened the last game page), `PASS every shortcut entry has Steam's shape`, `PASS no signed appid entries in appDetailsStore.m_mapAppData`, and a `SKIP` or `PASS` for the last line. Exit code 1 is expected here |
+| A4 | `cd steam-cartridges && npm run test:live 2>&1 \| tee "$TEMP/ach-preload-live/A4-test-live.txt" \| grep -E "^(PASS\|FAIL\|SKIP)"; cd ..` | eleven lines, each `PASS` (`parity` may be `SKIP`), no `FAIL` |
+| A5 | `node enhanced-achievements/tests/reset.mjs \| tee "$TEMP/ach-preload-live/A5-reset.txt"` | every line starts `PASS`; the line `non-Steam games with unlocks are listed when steam-cartridges is loaded` shows `(3 shortcuts)` |
+| A6 | `node steam-cartridges/tests/live/probes/http_calls.mjs \| tee "$TEMP/ach-preload-live/A6-http.txt"` | one JSON line; note it (compared in C7) |
+| A7 | `git status --short` | prints nothing (the deploy restores `plugin.json`; `.millennium/` is ignored) |
+
+**Gate G1:** if any row differs from its Expected (another FAIL, a different count, a timeout, Steam's "restart the
+UI" dialog), stop. Tell the user which row, its PASS/FAIL lines, and the last 15 lines of its log file. Do not start
+step 1 until the user says how to go on (a pre-existing failure is theirs to judge). If A2–A6 all match, continue.
 
 ### Step 1: `steam-cartridges/backend/achievements_store.lua`: list the stored shortcut keys
 
@@ -794,6 +846,44 @@ git add enhanced-achievements/frontend/surfaces/reset/index.ts enhanced-achievem
 git commit -m "feat(enhanced-achievements): Reset Achievements lists every game from Steam's progress cache (ADR-0045)"
 ```
 
+Do **not** push yet (pushing waits for G3).
+
+### Phase C: deploy the change and verify it live
+
+Same commands as Phase A, now on the new code. From `c:\game\millennium`, in this order. **Do not open any game page
+before C3.**
+
+| # | Command | Expected |
+| --- | --- | --- |
+| C1 | `cd enhanced-achievements && powershell -ExecutionPolicy Bypass -File dev.ps1 -NoRestart 2>&1 \| tail -3; cd ..` | contains `Deployed enhanced-achievements-dev.` |
+| C2 | `cd steam-cartridges && powershell -ExecutionPolicy Bypass -File dev.ps1 2>&1 \| tail -4; cd ..` | contains `Deployed steam-cartridges-dev.` and `Starting Steam in dev mode...` |
+| C3 | `node steam-cartridges/tests/live/probes/ach_preload.mjs --wait 120 \| tee "$TEMP/ach-preload-live/C3-preload.txt"` | **every** line `PASS` (the INFO line aside): `storedAchievementSummaries is gone`, `progress cache holds shortcuts from start-up  (n=<N>, min 100)` with N > 100, `every shortcut entry has Steam's shape  (bad=0)`, `no signed appid entries … (0)`, `GetAchievementProgress answers from the cache, no server request  (appid 2315502503: …"queued":false…)`. Exit 0 |
+| C4 | `cd steam-cartridges && npm run test:live 2>&1 \| tee "$TEMP/ach-preload-live/C4-test-live.txt" \| grep -E "^(PASS\|FAIL\|SKIP)"; cd ..` | the same eleven lines as A4, each `PASS` (`parity` `SKIP` only if it was `SKIP` in A4) |
+| C5 | `node enhanced-achievements/tests/reset.mjs \| tee "$TEMP/ach-preload-live/C5-reset.txt"` | the same lines as A5, every one `PASS`, still `(3 shortcuts)` |
+| C6 | `node steam-cartridges/tests/live/test_props.mjs 2315502503 --page \| tee "$TEMP/ach-preload-live/C6-props.txt"` | contains `appid 2315502503 page=true: OK` (guardrail 17 on the mapped game with unlocks) |
+| C7 | `node steam-cartridges/tests/live/probes/http_calls.mjs \| tee "$TEMP/ach-preload-live/C7-http.txt"` | the same line as A6 (both are measured after the same `test:live` run). Any difference goes to the user at G2 with both lines |
+| C8 | `git status --short` | prints nothing |
+
+**Gate G2:** if any row differs from its Expected, stop. Do not change code, tests or checks, do not re-deploy, do not
+push. If Steam shows "restart the UI" or CDP calls time out, first recover with steam-debug
+[Trap 10](../steam-debug.md#trap-10-diagnosing-a-hung-sharedjscontext-restart-the-ui-dialog) step 5
+(`start-steam-dev.ps1 -Restart`). Then tell the user: the failing row, its PASS/FAIL lines, the last 15 lines of its
+log, and the matching Phase A line. The user decides: fix (a new plan step from the user) or roll back (§ 10).
+
+**Gate G3: the user's review.** When C1–C8 all match, send the user this checklist, word for word, and wait for
+their answer. Continue with step 11 only when they say it is approved.
+
+> Live checks passed (C3 n=<N>, test:live 11/11, reset.mjs all PASS). Please check by hand, on the deployed build:
+> 1. Desktop, Jotunnslayer (`2315502503`): the Achievements section shows 2 of 38; Routine 1's four views render.
+> 2. Big Picture, Jotunnslayer: the play bar under Play shows the achievement count as soon as the page opens
+>    (before, it appeared only after the page loaded its data).
+> 3. Settings → Enhanced Achievements → Reset Achievements: the dropdown lists your Steam games and the 3 non-Steam
+>    games with unlocks. Do not press Reset unless you mean it: it clears real unlocks.
+> 4. Routine 2 (Jotunnslayer → a Steam game → Jotunnslayer): everything is still there.
+> Reply "approved", or tell me what looks wrong.
+
+If the user reports a problem, treat it as G2 (stop; the user decides).
+
 ### Step 11: layer and reference docs
 
 Insert each block exactly; "after line X" means as the next line(s) after the line that starts with X.
@@ -872,8 +962,18 @@ Verified live 2026-09-30.
   Every shortcut already has an entry under its unsigned appid; signed keys: none.
 ```
 
-Check: `git diff --stat -- docs` lists exactly these 5 files: `docs/knowledgebase.md`, `docs/steam-cartridges/rpc.md`,
-`docs/steam-cartridges/service-achievements.md`, `docs/steam-cartridges/surfaces.md`, `docs/steam-components.md`.
+11g. `docs/steam-cartridges/verification.md`, the per-area extras list: after the bullet that starts
+`- Desktop PlayBar info button on AM2R` and its continuation line (ends `Troubleshooting lists 8 surfaces.`), insert:
+
+```md
+- Achievements in Steam from start-up (ADR-0045): right after a Steam restart, before opening any game page,
+  `node tests/live/probes/ach_preload.mjs` prints no `FAIL` (progress cache holds > 100 shortcuts in Steam's shape, no
+  signed `m_mapAppData` keys, no server request for a shortcut). Then `node ../enhanced-achievements/tests/reset.mjs`.
+```
+
+Check: `git diff --stat -- docs` lists exactly these 6 files: `docs/knowledgebase.md`, `docs/steam-cartridges/rpc.md`,
+`docs/steam-cartridges/service-achievements.md`, `docs/steam-cartridges/surfaces.md`,
+`docs/steam-cartridges/verification.md`, `docs/steam-components.md`.
 
 ### Step 12: ADR-0045, the enhanced-achievements doc, changelogs, TASK
 
@@ -931,9 +1031,12 @@ Steam fills that cache at start-up for every owned game, from its own file.
 12c. `CHANGELOG.md` (workspace): insert as the first entry (after the line `This repo is private and unversioned; entries are grouped by date.` and its blank line):
 
 ```md
-- **steam-cartridges + enhanced-achievements: achievements in Steam's stores from start-up (ADR-0045, 2026-09-30)**: steam-cartridges preloads every stored achievements part at start-up (disk only) so Steam's progress cache holds every shortcut, in Steam's own entry shape; `GetAllRecords` covers every stored shortcut; the surface no longer creates `m_mapAppData` entries; the sections refresh is coalesced. enhanced-achievements' Reset Achievements reads Steam's cache for every game; `storedAchievementSummaries()` is deleted. `test:ts` 204/204, `test_ach_service` 23, enhanced `npm test` 116/116. Live verification pending ([plan § 10](docs/plans/steam-cartridges-achievements-preload-plan.md#10-live-verification)).
+- **steam-cartridges + enhanced-achievements: achievements in Steam's stores from start-up (ADR-0045, 2026-09-30)**: steam-cartridges preloads every stored achievements part at start-up (disk only) so Steam's progress cache holds every shortcut, in Steam's own entry shape; `GetAllRecords` covers every stored shortcut; the surface no longer creates `m_mapAppData` entries; the sections refresh is coalesced. enhanced-achievements' Reset Achievements reads Steam's cache for every game; `storedAchievementSummaries()` is deleted. `test:ts` 204/204, `test_ach_service` 23, enhanced `npm test` 116/116. Live-verified by the plan's Phase C: `ach_preload.mjs` all PASS (n=<N> shortcuts in Steam's progress cache at start-up, before any page opened; it was 0 in Phase A), `test:live` 11/11 as in the baseline, `reset.mjs` all PASS, Jotunnslayer Properties OK; the user's review (desktop, Big Picture play bar, Reset dropdown, Routine 2) approved. New live check `tests/live/probes/ach_preload.mjs`.
 
 ```
+
+Replace `<N>` with the number from the C3 log line `progress cache holds shortcuts from start-up  (n=<N>, min 100)`
+(`grep -o "n=[0-9]*" "$TEMP/ach-preload-live/C3-preload.txt"`). Nothing else in the block changes.
 
 12d. `steam-cartridges/CHANGELOG.md`: after the line `## [Unreleased]` and its blank line, insert:
 
@@ -959,32 +1062,48 @@ Steam's achievement progress cache at start-up; enhanced-achievements reads Stea
 `storedAchievementSummaries()` goes). Option C (reset a shortcut through Steam's own `achievement_clear`) is a later decision.
 ```
 
-After:
+After: nothing. Delete these four lines and the one blank line that follows them (the work is done and verified; its
+history is the CHANGELOG entry of 12c, AGENTS.md Routine 5).
 
-```md
-**Achievements preload (ADR-0045): code committed 2026-09-30, waiting for live verification.** Deploy both plugins, then
-follow [the plan § 10](docs/plans/steam-cartridges-achievements-preload-plan.md#10-live-verification).
-```
-
-Check: `git status --short` lists exactly 11 files: these 6 (`CHANGELOG.md`, `TASK.md`, `docs/decisions.md`,
+Check: `git status --short` lists exactly 12 files: these 6 (`CHANGELOG.md`, `TASK.md`, `docs/decisions.md`,
 `docs/enhanced-achievements/architecture.md`, `enhanced-achievements/CHANGELOG.md`, `steam-cartridges/CHANGELOG.md`)
-plus the 5 docs of step 11.
+plus the 6 docs of step 11.
 
 **Commit 3:**
 
 ```bash
-git add CHANGELOG.md TASK.md docs/decisions.md docs/enhanced-achievements/architecture.md docs/knowledgebase.md docs/steam-components.md docs/steam-cartridges/rpc.md docs/steam-cartridges/service-achievements.md docs/steam-cartridges/surfaces.md enhanced-achievements/CHANGELOG.md steam-cartridges/CHANGELOG.md
+git add CHANGELOG.md TASK.md docs/decisions.md docs/enhanced-achievements/architecture.md docs/knowledgebase.md docs/steam-components.md docs/steam-cartridges/rpc.md docs/steam-cartridges/service-achievements.md docs/steam-cartridges/surfaces.md docs/steam-cartridges/verification.md enhanced-achievements/CHANGELOG.md steam-cartridges/CHANGELOG.md
 git commit -m "docs: ADR-0045 achievements in Steam's stores from start-up; layer docs, changelogs"
+git log -3 --format=%B | grep -ci "co-authored\|generated with"
+```
+
+The last command must print `0`. Then push the three commits:
+
+```bash
 git push origin main
 ```
 
-`git status --short` then prints nothing, and `git log -3 --format=%B | grep -ci "co-authored\|generated with"` prints `0`.
+`git status --short` then prints nothing. Tell the user: the three commit hashes (`git log -3 --format="%h %s"`), and
+that the work is live-verified and pushed. The deployed `-dev` build stays as it is.
 
 ## 8. Failure rule
 
-Run a failing command at most twice. On the second failure, stop. Append the command, its output (trimmed to 30 lines)
-and the step number to `TASK.md` § Active failures & blockers, then exit. Do not retry, edit around the failure,
-skip ahead, or change a test to make it pass. A before block that does not match exactly once is a failure of that step.
+**Steps 1–12 and § 3:** run a failing command at most twice. On the second failure, stop. Append the command, its
+output (trimmed to 30 lines) and the step number to `TASK.md` § Active failures & blockers, tell the user, and wait for
+their decision. Do not retry, edit around the failure, skip ahead, or change a test to make it pass. A before block
+that does not match exactly once is a failure of that step.
+
+**Live rows (Phase A, Phase C):** a live row is run **once**, then its gate applies (G1 in Phase A, G2 in Phase C).
+The one exception is a row that failed only because Steam was not ready (`SharedJSContext target  (none within …)`,
+`target not found`, a connection refused): recover as below and run that row once more. Everything else goes to the
+user; a live check is never re-run hoping for a PASS.
+
+**Recovering Steam** (from `c:\game\millennium`), the proven order from steam-debug.md:
+1. Steam's UI is frozen, shows "restart the UI", or CDP calls time out: `powershell -ExecutionPolicy Bypass -File start-steam-dev.ps1 -Restart`, then P9.
+2. Steam will not start its UI at all after a deploy: stop and tell the user; the fix
+   ([verification.md § Rollback](../steam-cartridges/verification.md#rollback), last bullet) edits Millennium's
+   `config.json`, which only the user may approve.
+3. Never reload SharedJSContext to "fix" anything.
 
 ## 9. Guardrail checklist ([plugins.md § 3](../plugins.md))
 
@@ -1000,30 +1119,20 @@ Re-read each and tick "not violated" with one line of proof.
 - [ ] **15 Checks not weakened:** `reset.mjs` keeps its expected result; only the detection of steam-cartridges changes.
 - [ ] **17 A render never starts work:** the preload runs from `init()` after `libraryHomeReady()`, not from a render; surface writes run only when a record part changed; the refresh touches only patched section instances.
 
-## 10. Live verification
+## 10. Rollback (only when the user decides it at G2 or G3)
 
-For the user or a verifier, **not** the implementer. Deploy both plugins and restart Steam:
+Commits 1–2 are local until G3, so a rollback never touches pushed history:
 
-```powershell
-cd c:\game\millennium\enhanced-achievements; powershell -ExecutionPolicy Bypass -File dev.ps1 -NoRestart
-cd c:\game\millennium\steam-cartridges; powershell -ExecutionPolicy Bypass -File dev.ps1
-```
+1. With commit 2 at `HEAD` and commit 1 at `HEAD~1` (check with `git log -2 --format="%h %s"`):
+   `C2=$(git rev-parse HEAD); C1=$(git rev-parse HEAD~1); git revert --no-edit $C2 && git revert --no-edit $C1`:
+   two revert commits, newest first. Check `git diff c4f0978 HEAD --stat -- steam-cartridges enhanced-achievements` lists only
+   `steam-cartridges/tests/live/probes/ach_preload.mjs` (the check stays; it was committed with the plan).
+2. Redeploy the reverted code with Phase C rows C1 and C2, then run A3: its lines must match Phase A again.
+3. Tell the user it is rolled back, and push only if they say so.
 
-Wait about 30 s after the library appears. **Do not open any game page before L1–L3.** Run from `c:\game\millennium\steam-cartridges`.
+The shortcut entries Steam already saved in its own `achievement_progress.json` stay until Steam overwrites them; they
+are only read for those shortcuts (ADR-0045 consequences).
 
-| # | Command | PASS when |
-| --- | --- | --- |
-| L1 | `node tests/live/probes/eval_js.mjs "JSON.stringify((()=>{const m=appAchievementProgressCache.m_achievementProgress.mapCache;const s=[...m.entries()].filter(([k])=>k>=0x80000000);return {n:s.length,bad:s.filter(([k,v])=>!(v.appid===k&&typeof v.percentage==='number'&&v.cache_time>0&&v.vetted===true)).length}})())"` | `n` > 100 and `bad` = 0 (before the change `n` was 0 until a page opened) |
-| L2 | `node tests/live/probes/eval_js.mjs "[...appDetailsStore.m_mapAppData.keys()].filter(k=>k<0).length"` | `0` |
-| L3 | `node tests/live/probes/eval_js.mjs "(()=>{appAchievementProgressCache.GetAchievementProgress(2315502503);return appAchievementProgressCache.m_mapQueuedCacheMisses.has(2315502503)})()"` | `false` (no server request queued for a shortcut) |
-| L4 | `node ../enhanced-achievements/tests/reset.mjs` | every line starts `PASS`, including `non-Steam games with unlocks are listed when steam-cartridges is loaded  (3 shortcuts)` (the number is the non-Steam games with at least one unlock) |
-| L5 | `npm run test:live` | the same result as the baseline in [verification.md](../steam-cartridges/verification.md); `count_cycle` prints `PASS render loop` |
-| L6 | `node tests/live/test_props.mjs 2315502503 --page` | `OK` |
-| L7 | Routines 1 and 2 by hand (AGENTS.md), on a shortcut with unlocks (Jotunnslayer `2315502503`), desktop and Big Picture | all four views render; Big Picture's play bar shows `2 / 38` as soon as the page opens; A → B → A keeps everything |
-| L8 | Settings → Enhanced Achievements → Reset Achievements dropdown | lists Steam games and the non-Steam games with unlocks, as before |
-
-Informational, not PASS/FAIL: after opening any **Steam** game (which makes Steam refresh and save its cache),
-`userdata/83513586/config/librarycache/achievement_progress.json` contains shortcut appids. That is expected (ADR-0045).
-
-**Rollback:** `git revert` the three commits (newest first), redeploy both plugins with the commands above. The
-shortcut entries Steam saved in its file stay until they are overwritten; they are only read for those shortcuts.
+Informational, never PASS/FAIL: after a **Steam** game's page is opened (Steam then refreshes and saves its cache),
+`C:\game\steam\userdata\83513586\config\librarycache\achievement_progress.json` contains shortcut appids. That is
+expected (ADR-0045). Do not edit that file.
