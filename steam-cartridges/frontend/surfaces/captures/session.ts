@@ -1,6 +1,7 @@
 // Surface `captures`: the Post-Game Summary session write (migration plan M6b, K14). Moved from
 // features/achievements/observer-session.ts, the last Steam write outside surfaces/.
 import { logger } from "../../logger";
+import type { Events } from "../../kernel/events";
 import { deps } from "./deps";
 
 export interface SessionAchievement {
@@ -36,5 +37,12 @@ export function addSessionAchievement(appid: number, item: SessionAchievement): 
         }
     } catch (err) {
         logger.warn("Could not push achievement to spotlight store session:", err);
+    }
+}
+
+/** Each new unlock also goes into the Post-Game Summary session (achievements.unlocked, M10). */
+export function onUnlocked({ appid, items }: Events["achievements.unlocked"]): void {
+    for (const a of items) {
+        addSessionAchievement(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, unlockedAt: a.unlockedAt });
     }
 }

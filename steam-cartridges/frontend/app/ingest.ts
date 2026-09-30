@@ -27,8 +27,6 @@ export interface IngestDeps {
     hardcore(): boolean;
     /** Polite pause between shortcuts (300 ms). */
     sleep(ms: number): Promise<void>;
-    /** Tell the settings panel its audit counts changed. */
-    onRulesUpdated?(): void;
     /** Re-run a start-up sync that was requested while one was running (tests pass a no-op). */
     schedule?(fn: () => void, ms: number): void;
 }
@@ -169,12 +167,10 @@ export function createIngest(deps: IngestDeps): Ingest {
                 }
                 if (outcome.done) await deps.backend.markKnown([item.appid]).catch(() => undefined);
 
-                if ((i + 1) % 4 === 0 || i + 1 === items.length) deps.onRulesUpdated?.();
                 await deps.sleep(PAUSE_MS);
             }
 
             setProgress({ isSyncing: false, phase: "complete" });
-            deps.onRulesUpdated?.();
             // Back to idle after a few seconds.
             const idle = setTimeout(() => {
                 if (!running) setProgress({ phase: "idle" });

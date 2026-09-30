@@ -170,8 +170,6 @@ export function RulesSection() {
         }
         setRules(copy);
         setShowAddModal(false);
-
-        window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated"));
         ctx.ingest.trigger(100);
     };
 
@@ -179,7 +177,6 @@ export function RulesSection() {
         const copy = [...rules];
         copy.splice(index, 1);
         setRules(copy);
-        window.dispatchEvent(new CustomEvent("steam-cartridges:rule-updated"));
         ctx.ingest.trigger(100);
     };
 
@@ -191,9 +188,6 @@ export function RulesSection() {
                 value={autoMode}
                 onChange={(val) => {
                     setAutoMode(val);
-                    window.dispatchEvent(
-                        new CustomEvent("steam-cartridges:rule-updated"),
-                    );
                     if (val) {
                         ctx.ingest.trigger(100);
                     }

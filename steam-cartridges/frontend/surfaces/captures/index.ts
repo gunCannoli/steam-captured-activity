@@ -11,7 +11,7 @@ import { patch, unpatch } from "./publish";
 
 export { patch, refresh, setContentListener, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
-export { addSessionAchievement } from "./session";
+export { addSessionAchievement, onUnlocked } from "./session";
 export { onWindowClosed, onWindowOpened } from "./bpm-style";
 export { registerSummaryProvider } from "./summary";
 export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";

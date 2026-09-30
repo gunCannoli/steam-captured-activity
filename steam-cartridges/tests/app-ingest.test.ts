@@ -35,7 +35,6 @@ function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<numbe
         allowScreenscraper: () => true,
         hardcore: () => true,
         sleep: async (ms: number) => { sleeps.push(ms); },
-        onRulesUpdated: () => {},
         schedule: over.schedule ?? (() => {}),
     });
     return { ingest, calls, known, sleeps, get maxActive() { return maxActive; }, get newCalls() { return newCalls; } };

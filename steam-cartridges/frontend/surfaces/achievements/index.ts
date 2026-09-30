@@ -33,8 +33,13 @@ export function createAchievementsSurface(d: SurfaceDeps & { refreshSections(): 
         ],
         reads: ["achievements"],
         install() {
-            // Steam may not have created the stores yet; index.tsx retries (initAchievements).
-            ensureAchievementsStoreHooked();
+            // Steam may not have created the stores yet: retry for a few seconds (moved from index.tsx, M10).
+            if (ensureAchievementsStoreHooked()) return;
+            let attempts = 0;
+            const interval = setInterval(() => {
+                attempts++;
+                if (ensureAchievementsStoreHooked() || attempts >= 10) clearInterval(interval);
+            }, 500);
         },
         render(appid, record) {
             const part = record?.achievements;

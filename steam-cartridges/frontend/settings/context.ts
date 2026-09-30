@@ -1,7 +1,7 @@
 // The only way settings panels reach the app (migration plan M8b, § 7.0 D3): `index.tsx` calls
 // setPanelContext() at the top of init(); panels read it with usePanelContext(). Structural types only,
 // never an import of app/, surfaces/ or features/. Backend calls go through ports/backend.ts.
-import type { AutoRoutingProfile } from '../domain/routing/policy';
+import type { AutoRoutingProfile, ServiceTarget } from '../domain/routing/policy';
 import type { SyncProgress } from '../kernel/record';
 
 export interface PanelContext {
@@ -11,6 +11,8 @@ export interface PanelContext {
         membersOf(id: string): ReadonlySet<number> | undefined;
         shortcutName(appid: number): string;
         getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined;
+        /** Do the routing rules and Auto Mode allow `service` for this shortcut? (app/routing) */
+        serviceAllowed(service: ServiceTarget, appid: number): boolean;
         /** Re-read the auto-routing profiles from the backend (the audit does this before each render). */
         reloadProfiles(): Promise<void>;
     };
@@ -42,6 +44,7 @@ const INERT: PanelContext = {
         membersOf: () => undefined,
         shortcutName: (appid) => String(appid),
         getAutoRoutingProfile: () => undefined,
+        serviceAllowed: () => true,
         reloadProfiles: async () => {},
     },
     ingest: { progress: () => EMPTY_PROGRESS, onProgress: () => () => {}, trigger: () => {}, start: async () => {} },

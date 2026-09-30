@@ -1,10 +1,13 @@
 import {
     findConflicts,
     resolveBucket,
+    isServiceAllowed,
     type AutoRoutingProfile,
     type Bucket,
     type BucketsConfig,
     type Resolution,
+    type RoutingRule,
+    type ServiceTarget,
 } from '../domain/routing/policy.ts';
 import { pendingOr } from '../domain/routing/pending.ts';
 import { NON_STEAM_APPID_MIN } from '../kernel/appid.ts';
@@ -28,6 +31,8 @@ export interface BucketReport {
 export interface RoutingInputs {
     buckets(): BucketsConfig;
     autoMode(): boolean;
+    /** Setting routingRules (service rules, ADR-0040). */
+    rules(): RoutingRule[];
     collections: { ready(): boolean; list(): any[] | undefined };
     titleOf(appid: number): string | undefined;
     shortcuts(): { appid: number; name: string }[];
@@ -175,8 +180,25 @@ export function createRouting(inputs: RoutingInputs) {
         };
     }
 
+    /** Do the routing rules and Auto Mode allow `service` for this shortcut? (was index.tsx and the audit panel) */
+    function serviceAllowed(service: ServiceTarget, appid: number): boolean {
+        const collNames = listCollections()
+            .filter((c) => membersOf(c.id)?.has(appid))
+            .map((c) => c.name);
+        return isServiceAllowed(
+            service,
+            appid,
+            inputs.titleOf(appid) ?? "",
+            collNames,
+            inputs.rules(),
+            inputs.autoMode(),
+            getAutoRoutingProfile(appid),
+        );
+    }
+
     return {
         getBucket,
+        serviceAllowed,
         onBucketsChanged,
         bucketReport,
         listCollections,

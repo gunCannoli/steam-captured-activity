@@ -16,8 +16,22 @@ export interface Events {
     "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
     /** Parts of a GameRecord changed; surfaces re-render only if they read one of `parts`. */
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
-    "achievements.unlocked": { appid: ShortcutId; ids: string[] };
+    /** New unlocks (app/achievements), with what the toast and the Post-Game Summary show. */
+    "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };
+    /** The launch toast policy (app/achievements) decided a launch gets the "Achievements Enabled" toast. */
+    "achievements.launch-toast": { appid: ShortcutId };
     "settings.changed": { key: string };
+}
+
+/** One new unlock, as the surfaces show it (name, description and icon from the record's schema). */
+export interface UnlockedAchievement {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    global_pct: number;
+    /** Unix seconds. */
+    unlockedAt: number;
 }
 
 export type EventName = keyof Events;

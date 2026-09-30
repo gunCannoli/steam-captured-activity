@@ -1,9 +1,9 @@
 // Settings: Library Audit (migration plan M8c; reads the app through the panel context and the backend port).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DialogButton, Dropdown, Field, PanelSection } from "@steambrew/client";
-import { useSetting, type ControllerOverride } from "../settings";
+import { onSettingChange, useSetting, type ControllerOverride } from "../settings";
 import { backend } from "../../ports/backend";
-import { type AutoRoutingProfile, isServiceAllowed } from "../../domain/routing/policy";
+import type { AutoRoutingProfile } from "../../domain/routing/policy";
 import { type GameMetadata } from "../../kernel/record";
 import { usePanelContext } from "../context";
 import { ItemRow, SettingsModal } from "../components";
@@ -38,8 +38,9 @@ export function RevisionSection() {
     const [controllerOverrides, setControllerOverrides] = useSetting(
         "controllerOverrides",
     );
-    const [rules] = useSetting("routingRules");
-    const [autoModeEnabled] = useSetting("autoRoutingMode");
+    // Re-render when the rules or Auto Mode change (ctx.routing.serviceAllowed reads them).
+    useSetting("routingRules");
+    useSetting("autoRoutingMode");
     const [autoProfiles, setAutoProfiles] = useState<
         Record<string, AutoRoutingProfile>
     >(() => cachedAutoProfiles || {});
@@ -97,14 +98,18 @@ export function RevisionSection() {
 
     useEffect(() => {
         refreshAuditData();
-        const onRuleUpdated = () => refreshAuditData();
-        window.addEventListener("steam-cartridges:rule-updated", onRuleUpdated);
-        return () =>
-            window.removeEventListener(
-                "steam-cartridges:rule-updated",
-                onRuleUpdated,
-            );
-    }, [refreshAuditData]);
+        // Rules or Auto Mode changed (the settings store's own events), or a sync made progress (every 4 games).
+        const offSettings = onSettingChange((key) => {
+            if (key === "routingRules" || key === "autoRoutingMode") void refreshAuditData();
+        });
+        const offProgress = ctx.ingest.onProgress((p) => {
+            if (p.isSyncing && p.current > 0 && p.current % 4 === 0) void refreshAuditData();
+        });
+        return () => {
+            offSettings();
+            offProgress();
+        };
+    }, [refreshAuditData, ctx]);
 
     useEffect(() => {
         if (prevSyncingRef.current && !syncProgress.isSyncing) {
@@ -112,18 +117,6 @@ export function RevisionSection() {
         }
         prevSyncingRef.current = syncProgress.isSyncing;
     }, [syncProgress.isSyncing, refreshAuditData]);
-
-    const collections = ctx.routing.listCollections();
-    const collMap: Record<number, string[]> = {};
-    for (const c of collections) {
-        const members = ctx.routing.membersOf(c.id);
-        if (members) {
-            for (const appid of members) {
-                if (!collMap[appid]) collMap[appid] = [];
-                collMap[appid].push(c.name);
-            }
-        }
-    }
 
     const flagged: FlaggedShortcut[] = [];
     const notScraped: {
@@ -133,22 +126,13 @@ export function RevisionSection() {
     }[] = [];
 
     for (const sc of shortcuts) {
-        const collNames = collMap[sc.appid] || [];
         const profile =
             autoProfiles[String(sc.appid)] ||
             autoProfiles[String(sc.appid >>> 0)] ||
             autoProfiles[String(sc.appid | 0)];
 
-        // Check if excluded by routing rules or auto mode
-        const isAllowed = isServiceAllowed(
-            "all",
-            sc.appid,
-            sc.name,
-            collNames,
-            rules,
-            autoModeEnabled,
-            profile,
-        );
+        // Excluded by routing rules or auto mode (app/routing, the one evaluation)
+        const isAllowed = ctx.routing.serviceAllowed("all", sc.appid);
         if (!isAllowed) {
             continue; // Excluded by rule / auto mode: do not count in issues or not-scraped
         }

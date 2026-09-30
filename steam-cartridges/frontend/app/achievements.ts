@@ -1,11 +1,11 @@
 // app/achievements: a shortcut's achievements in its record, and Flow C (launch -> observe ->
 // unlock) (migration plan M6b). The backend picks the source (ach_service.lua); this loads the
-// part, runs the launch toast policy and the in-game unlock polling, and announces unlocks on the
-// bus. The surfaces (achievements, toasts, captures) only render what the record and the
-// `achievements.unlocked` event say.
+// part, runs the launch toast policy and the in-game unlock polling, and announces unlocks and the
+// launch toast on the bus. The surfaces (achievements, toasts, captures) only render what the record
+// and the `achievements.unlocked` / `achievements.launch-toast` events say (M10: no surface callbacks).
 import { logger } from "../logger.ts";
 import type { ShortcutId } from "../kernel/appid";
-import type { EventBus } from "../kernel/events";
+import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
 
@@ -15,21 +15,17 @@ export type LaunchPolicy = "off" | "first_run" | "all_runs";
 const POLL_MS = 2000;
 
 export interface AchievementsDeps {
-    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements">;
+    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "steamStoreGetMapping">;
     records: RecordStore;
     bus: EventBus;
     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
     ensureBase(appid: ShortcutId): void;
     titleOf(appid: number): string | undefined;
     routeOf(appid: ShortcutId): Route;
-    /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
-    resolveNative(appid: ShortcutId): Promise<number>;
     /** Setting raHardcoreMode. */
     hardcore(): boolean;
     /** Setting localAchievementsNotifyOnLaunch. */
     launchPolicy(): LaunchPolicy;
-    /** The toasts surface's launch toast (wired in index.tsx). */
-    showLaunchToast(): void;
     /** Kill switch `achievements-observer`: gates the launch toast and the polling session. */
     observerEnabled(): boolean;
     timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(handle: unknown): void };
@@ -48,6 +44,8 @@ export interface AchievementsService {
     /** Unlock one achievement (the given id, else the next locked one). */
     trigger(appid: ShortcutId, achievementId?: string): Promise<boolean>;
     reset(appid: ShortcutId): Promise<boolean>;
+    /** Unlocked and total count from the record, for the settings panel's audit. */
+    summary(appid: ShortcutId): { nAchieved: number; nTotal: number } | undefined;
 }
 
 /** K1: Millennium's cjson encodes an empty Lua table as `{}`; accept an array or an object of items. */
@@ -74,6 +72,27 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
     const running = new Set<ShortcutId>();
 
     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
+
+    /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
+    async function resolveNative(appid: ShortcutId): Promise<number> {
+        const known = deps.records.get(appid)?.identity?.data?.native?.appid;
+        if (known) return known;
+        const res = await deps.backend.steamStoreGetMapping(appid).catch(() => null);
+        return res?.mapping?.steam_appid || 0;
+    }
+
+    /** Announce new unlocks with what the surfaces show (from the record's schema). */
+    function announce(appid: ShortcutId, ids: string[]): void {
+        const set = current(appid)?.data;
+        const items: UnlockedAchievement[] = [];
+        for (const id of ids) {
+            const a = set?.schema.achievements.find((x) => x.id === id);
+            if (!a) continue;
+            const at = set!.unlocks[id]?.unlocked_time ?? Math.floor(deps.now() / 1000);
+            items.push({ id: a.id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: at });
+        }
+        deps.bus.emit("achievements.unlocked", { appid, ids, items });
+    }
 
     async function load(appid: ShortcutId, route: Route, native?: number): Promise<Part<AchievementSet>> {
         deps.ensureBase(appid);
@@ -114,7 +133,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
 
     async function checkNow(appid: ShortcutId, opts: { native?: number; title?: string } = {}): Promise<number> {
         try {
-            const native = opts.native ?? (await deps.resolveNative(appid));
+            const native = opts.native ?? (await resolveNative(appid));
             const res = await deps.backend.checkUnlocks(appid, native, opts.title ?? deps.titleOf(appid));
             const fresh = asList<NewUnlock>(res?.new_unlocks).filter((u) => u && typeof u.id === "string");
             if (fresh.length === 0) return 0;
@@ -130,7 +149,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             }
             const ids = fresh.map((u) => u.id);
             logger.info(`Observer detected ${ids.length} new unlock(s) for shortcut ${appid}: ${ids.join(", ")}`);
-            deps.bus.emit("achievements.unlocked", { appid, ids });
+            announce(appid, ids);
             return ids.length;
         } catch (e) {
             logger.error(`Error checking unlocks for ${appid}:`, e);
@@ -161,7 +180,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             if (notified.has(appid)) return;
             notified.add(appid);
         }
-        deps.showLaunchToast();
+        deps.bus.emit("achievements.launch-toast", { appid });
     }
 
     return {
@@ -170,7 +189,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 if (!deps.observerEnabled()) return;
                 running.add(appid);
                 launchToast(appid);
-                void deps.resolveNative(appid).then((n) => {
+                void resolveNative(appid).then((n) => {
                     if (!running.has(appid)) return; // the game quit while the mapping loaded
                     startSession(appid, { native: n, title: name });
                 });
@@ -204,7 +223,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 }
                 const unlocks = { ...(res.unlocks && typeof res.unlocks === "object" ? res.unlocks : {}) };
                 deps.records.update(appid, { achievements: { ...current(appid)!, data: { ...set, unlocks } } });
-                deps.bus.emit("achievements.unlocked", { appid, ids: [item.id] });
+                announce(appid, [item.id]);
                 return true;
             } catch (e) {
                 logger.error(`Error triggering achievement ${item.id}:`, e);
@@ -226,6 +245,11 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 logger.error(`Error resetting achievements for shortcut ${appid}:`, e);
                 return false;
             }
+        },
+        summary(appid) {
+            const set = current(appid)?.data;
+            if (!set) return undefined;
+            return { nAchieved: Object.keys(set.unlocks ?? {}).length, nTotal: set.schema.total ?? 0 };
         },
     };
 }

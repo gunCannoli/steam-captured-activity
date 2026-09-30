@@ -23,6 +23,7 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
     const timers: { fn: () => void; ms: number; cleared: boolean }[] = [];
     const emitted: any[] = [];
     bus.on('achievements.unlocked', (e) => emitted.push(e));
+    bus.on('achievements.launch-toast', () => { calls.toast++; });
     const ach = createAchievements({
         backend: {
             async ensureFresh() {
@@ -35,16 +36,15 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
             },
             async unlockAchievement() { return { ok: true, unlocks: { A: { unlocked_time: 9 } } }; },
             async resetAchievements() { return { ok: true, unlocks: {} }; },
+            async steamStoreGetMapping() { return { mapping: { steam_appid: 77 } }; },
         } as any,
         records,
         bus,
         ensureBase: () => {},
         titleOf: () => 'Game',
         routeOf: () => ({ bucket: (over.bucket ?? 'web-scraping') as any, via: 'default' }),
-        resolveNative: async () => 77,
         hardcore: () => true,
         launchPolicy: () => over.policy ?? 'all_runs',
-        showLaunchToast: () => { calls.toast++; },
         observerEnabled: () => over.observer !== false,
         timers: {
             setInterval: (fn: () => void, ms: number) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
@@ -97,7 +97,7 @@ test('launch toast all_runs: every launch, only when the record has achievements
 test('unlock emits achievements.unlocked with the new ids and merges them into the record', async () => {
     const { ach, records, emitted } = setup({ checkUnlocks: () => ({ new_unlocks: [{ id: 'B', rtime_unlocked: 42 }] }) });
     assert.equal(await ach.checkNow(SC, { native: 77 }), 1);
-    assert.deepEqual(emitted, [{ appid: SC, ids: ['B'] }]);
+    assert.deepEqual(emitted, [{ appid: SC, ids: ['B'], items: [{ id: 'B', name: 'Beta', description: 'db', icon: 'ib', global_pct: 20, unlockedAt: 42 }] }]);
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, { B: { unlocked_time: 42 } });
 });
 
@@ -139,8 +139,21 @@ test('ensure asks the backend once while a call is in flight', async () => {
 test('trigger unlocks the next locked achievement and emits it; reset clears the unlocks', async () => {
     const { ach, records, emitted } = setup();
     assert.equal(await ach.trigger(SC), true);
-    assert.deepEqual(emitted[0], { appid: SC, ids: ['A'] });
+    assert.deepEqual(emitted[0], { appid: SC, ids: ['A'], items: [{ id: 'A', name: 'Alpha', description: 'da', icon: 'ia', global_pct: 10, unlockedAt: 9 }] });
     assert.deepEqual(Object.keys(records.get(SC)?.achievements?.data?.unlocks ?? {}), ['A']);
     assert.equal(await ach.reset(SC), true);
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, {});
+});
+
+test('the native app comes from the record, else from the saved mapping', async () => {
+    const { ach, calls } = setup();
+    await ach.checkNow(SC);
+    assert.equal(calls.check[0].native, 77);
+});
+
+test('summary counts the unlocked and total achievements of the record', async () => {
+    const { ach } = setup();
+    assert.deepEqual(ach.summary(SC), { nAchieved: 0, nTotal: 2 });
+    await ach.trigger(SC);
+    assert.deepEqual(ach.summary(SC), { nAchieved: 1, nTotal: 2 });
 });
