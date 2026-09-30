@@ -16,6 +16,7 @@ Not here: how to write plugin code and the regression guardrails
 - **Part 2 — Steam's own data & runtime**: ids, capture/recording/shortcut files, CEF quirks
 - **Parts 3–5 — Provider sources**: RetroAchievements, RetroArch, and the join key
 - **Part 6 — Prior art**: other plugins we studied
+- **Part 9 — Regressions and the test that now catches each**: what broke, why it was hard to see, which test fails now
 
 ---
 
@@ -964,6 +965,47 @@ news and partner events (`surfaces/captures/activity.ts`). Two facts:
   *native* game page opens (appids 730, 570), so they are Steam's own, not the plugin's.
 - **Probes:** `steam-cartridges/tests/live/probes/find_ach_proto.mjs` (which modules mention the protobuf), `exceptions_all.mjs`,
   `exception_stack.mjs`, `toast_live.mjs`.
+
+## Part 9 — Regressions and the test that now catches each (verified live 2026-09-29)
+
+### Two surfaces declared the same Steam target: start-up aborted half way (K4/K6 deploy)
+
+**Symptom.** After the K6 change, the plugin loaded, `safetyDiagnostics()` was clean (`errors: {}`, no tripped
+feature), yet on the desktop the **Post-Game Summary and the activity feed were gone**
+(`check_all_tabs.js`: `1. Post-Game Summary` FAIL, `2. Activity feed` FAIL, `activity cards {"cards":0,"days":0}`), and
+`check_parity.mjs` failed checks 6, 7, 9, 10, 11, 15, 16, 17. Game Info and Your Stuff still worked, so it looked like a data
+or mode problem, not a crash.
+
+**Root cause.** `kernel/surface.ts` `assertDisjointTouches()` throws when two surfaces declare the same string in
+`touches` (ADR-0039: one owner per Steam target). `surfaces/game-info` had just declared
+`"collectionStore.OnAppOverviewChange"`, which `surfaces/library-home` already declared. `assertDisjointTouches` runs while
+`index.tsx` `init()` registers surfaces, so the exception aborted `init()` at that point: every surface registered *after* it
+(and the sensors installed at the end) never started. `init()` runs inside `init().catch(logger.error)`, so the only trace
+was one error line in the log; the kill-switch/error counter is not involved (it counts surface errors, and this was not
+inside a surface).
+
+**How it was found.** Bisecting deployed builds: last good commit passed, K4-only passed, K6 files failed **even with the
+new hook code commented out**, which pointed at declaration-level code; the only declaration-level change was the new
+`touches` entry.
+
+**Rule.** A second *listener* on a method another surface already patches is legitimate, but it must be declared under its
+own name: `"collectionStore.OnAppOverviewChange#game-info-repair"`. Two surfaces may not share a `touches` string.
+
+**Tests that now catch it, in the order they run**
+1. `npm run test:ts` → `tests/architecture.test.ts`, test *"architecture: no two surfaces declare the same Steam target
+   (assertDisjointTouches would abort start-up)"*: reads every `touches: [...]` list in `frontend/surfaces/*/index.ts(x)`
+   and fails with the duplicate and both surface ids. No Steam needed, runs in under a second. (Before this test, the whole
+   unit suite was green with the bug present, because no test built the real surfaces.)
+2. `npm run test:live` → `tabs` and `parity`: a start-up abort shows up as a missing Post-Game Summary / activity feed and
+   missing native links. Read a mass failure of those two as "init() aborted" first, not "Steam changed".
+3. A quick manual check: `PLUGIN_LIST['steam-cartridges-dev'].safetyDiagnostics()` cannot see this; look for
+   `Plugin init failed.` in the Steam log/console.
+
+**Environment trap found in the same session (not a plugin bug).** `check_all_tabs.js` and `test_nav_cycle.js` are Big
+Picture checks and **open Big Picture themselves** (`steam://open/bigpicture`), so Steam sits in Big Picture after them, and
+`check_parity.mjs` and the Manage-menu probe need the **desktop** window (`Steam` target with `minwidth=1010`). Switch back
+with `SteamClient.UI.ExitBigPictureMode()` from SharedJSContext (Steam restarts its UI; wait for the `Steam` target).
+`npm run test:live` therefore runs the desktop-only checks first.
 
 ## Sources
 
