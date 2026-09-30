@@ -4,7 +4,7 @@
 // write from which URLs); it never decides what art a game gets.
 import type { ArtworkPlan } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
-import { applyCustomArtworkFromUrls, fetchImageAsBase64 } from "./artwork";
+import { applyCustomArtworkFromUrls } from "./artwork";
 import { deps, type RecordArtworkInfo } from "./deps";
 import { applyIcon } from "./icon";
 import { clearLogoPosition, ensureLogoPosition } from "./logo";
@@ -68,7 +68,6 @@ export function createArtworkSurface(
     deps.recordArtwork = d.recordArtwork;
     deps.saveIcon = d.saveIcon;
     deps.recordIcon = d.recordIcon;
-    deps.fetchImage = (url) => fetchImageAsBase64(url);
     return {
         id: "artwork",
         touches: [

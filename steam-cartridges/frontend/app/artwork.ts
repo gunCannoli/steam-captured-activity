@@ -24,6 +24,8 @@ export interface ArtworkDeps {
     titleOf(appid: number): string | undefined;
     /** The mapped native's StoreItemCache item (sensors/store-item), for its hashed art URLs. */
     storeItemFor(steamAppid: number): Promise<any | null>;
+    /** The icon image bytes (ports/image); the surface only writes, it never fetches. */
+    fetchImage(url: string): Promise<{ base64: string; ext: string } | null>;
     /** services.steamgriddbEnabled and the routing rules for "steamgriddb". */
     allowSgdb(appid: ShortcutId): boolean;
     now(): number;
@@ -110,7 +112,16 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
 
         let part: Part<ArtworkPlan>;
         if (raw?.status === "ok" && raw.data) {
-            part = { status: "ok", source: raw.source, checkedAt: raw.checkedAt, data: buildPlan(raw.data, deps.now()) };
+            const plan = buildPlan(raw.data, deps.now());
+            if (plan.icon && "url" in plan.icon) {
+                const image = await deps.fetchImage(plan.icon.url);
+                if (image) plan.icon = { url: plan.icon.url, base64: image.base64 };
+                else {
+                    delete plan.icon;
+                    logger.warn(`Artwork ${appid}: library icon not fetched`);
+                }
+            }
+            part = { status: "ok", source: raw.source, checkedAt: raw.checkedAt, data: plan };
             resolved.add(appid);
             retryAt.delete(appid);
         } else if (raw) {

@@ -24,6 +24,7 @@ function setup(over: Partial<Record<string, any>> = {}) {
         ensureBase: () => records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' }),
         titleOf: () => 'Game',
         storeItemFor: async () => null,
+        fetchImage: async () => over.image === undefined ? { base64: 'QUJD', ext: 'jpg' } : over.image,
         allowSgdb: () => true,
         now: () => clock,
     });
@@ -130,4 +131,15 @@ test('clearSlots writes a clear-only plan, and a repeated clear re-renders', () 
     assert.deepEqual(records.get(SC)?.artwork?.data?.clear, [0, 2]);
     art.clearSlots(SC, []);
     assert.equal(changed, 2);
+});
+
+test('icon: app fetches the icon bytes into the plan; a failed fetch drops the icon, slots stay', async () => {
+    const ok = { appid: SC, parts: { artwork: { status: 'ok', data: { urls: { ...URLS, icon: 'i' }, source: 'steamgriddb', emptySlots: [0], iconEligible: true } } } };
+    const a = setup({ response: ok });
+    const part: any = await a.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.deepEqual(part.data.icon, { url: 'i', base64: 'QUJD' });
+    const b = setup({ response: ok, image: null });
+    const bad: any = await b.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.equal('icon' in bad.data, false);
+    assert.deepEqual(bad.data.write, [0]);
 });

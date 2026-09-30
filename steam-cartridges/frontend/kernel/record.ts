@@ -138,9 +138,9 @@ export interface ArtworkPlan {
 
 /**
  * The shortcut's library icon (not an artwork slot): `url` = store that image and point the
- * shortcut at it; `restore` = put back the shortcuts.vdf icon value ours replaced ("" = the exe).
+ * shortcut at it (`base64` = the image bytes app/artwork fetched, so no surface does network I/O); `restore` = put back the shortcuts.vdf icon value ours replaced ("" = the exe).
  */
-export type IconPlan = { url: string } | { restore: string };
+export type IconPlan = { url: string; base64?: string } | { restore: string };
 
 export interface GameRecord {
     appid: ShortcutId;

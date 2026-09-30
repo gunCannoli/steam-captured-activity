@@ -32,6 +32,7 @@ import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
+import { fetchImage } from "./ports/image";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
@@ -200,6 +201,7 @@ const artwork = createArtwork({
     ensureBase: (appid) => records.ensureBase(appid, resolveShortcutTitle(appid) ?? ""),
     titleOf: (appid) => resolveShortcutTitle(appid) || undefined,
     storeItemFor: (steamAppid) => loadStoreItem(steamAppid),
+    fetchImage,
     allowSgdb: (appid) => setting("services").steamgriddbEnabled !== false && serviceAllowed("steamgriddb", appid),
     now: () => Date.now(),
 });

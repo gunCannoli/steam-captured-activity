@@ -32,11 +32,6 @@ export const deps: SurfaceDeps & {
         steamAppid?: number,
         base64?: string,
     ): Promise<{ path?: string; previous?: string; error?: string } | null | undefined>;
-    /**
-     * Fetch the icon image in the frontend (the backend's http.get cuts a binary body at its first NUL
-     * byte). Unset = the backend downloads it itself.
-     */
-    fetchImage?: (url: string) => Promise<{ base64: string; ext: string } | null>;
     /** Remember the icon set; `{ error }` = the match changed meanwhile (undo the write). */
     recordIcon(appid: number, info: RecordIconInfo): Promise<{ error?: string } | null | undefined>;
 } = {

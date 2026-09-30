@@ -18,7 +18,7 @@ for the authoritative, up-to-date state):
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
 | Sensors: view, lifecycle, collections, owned-apps, store-item | done (M2, M4c, M5b) — [sensors.md](sensors.md) |
 | App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c; achievements M6b; ingest and view M7b) | current (M7b) |
-| Ports: the backend RPC client (`transport.ts`, `backend.ts`) | current (M4c, M5b) — [rpc.md](rpc.md) |
+| Ports: the backend RPC client (`transport.ts`, `backend.ts`) and the image fetch (`image.ts`, icon plan) | current (M4c, M5b) — [rpc.md](rpc.md) |
 | Surfaces: the only code that writes to Steam | done (M3.1–M3.10); record-driven for `identity` (M4c), `metadata` (M5b) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
 | Metadata service + RPC facade | done (M5a–M5b) — [service-metadata.md](service-metadata.md), [rpc.md](rpc.md) |
