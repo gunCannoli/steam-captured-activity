@@ -4,7 +4,7 @@
 `backend/main.lua`, classified live / unwired / dead, so a future step never
 has to re-derive which ones the frontend actually calls. Part of the
 steam-cartridges architecture (ADR-0039); index:
-[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs).
 Created in M4.0; extended by M4b and M5a as the record facade RPCs
 (`GetGameRecord`, `EnsureFresh`, `GetAllRecords`) are added.
 

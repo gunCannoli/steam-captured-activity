@@ -13,6 +13,44 @@ Not here: _what_ the plugins do and why
 
 ---
 
+## Playbook: creating a plugin or a feature
+
+The short path through the docs. Each step names the one doc to open; don't read
+the rest. Index of everything: [README.md](README.md).
+
+### A. Both cases, before any code
+
+1. **Orient.** [AGENTS.md](../AGENTS.md) (ids, this machine's paths, routines), then [TASK.md](../TASK.md) *Now* so you don't collide with work in flight.
+2. **Check the decisions.** Skim [decisions.md](decisions.md) for the topic. Don't contradict an ADR; supersede it with a new one.
+3. **Build nothing Steam already builds.** Walk the [ladder](#build-nothing-steam-already-builds). Restoring a filtered section beat a rebuild by ~1200 lines ([ADR-0022](decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
+4. **Find the Steam target.** [steam-components.md § Map](steam-components.md#map-core-stores--modules) names the store or module and its stable signature. For Steam's overall shape: [steam-architecture.md](steam-architecture.md). Facts outside Steam's UI (SDK, config API, file formats, provider APIs): [knowledgebase.md](knowledgebase.md).
+5. **Prove it live before designing.** Probe the running client, cheapest method first: [steam-debug.md § 3](steam-debug.md#3-the-inspection-method) and [§ 7](steam-debug.md#7-cost-efficient-debugging). Never plan from a screenshot or memory.
+6. **Read the guardrails.** All of [§ Guardrails](#guardrails--regression-prevention-must-read-before-writing-code). They are cited by code and tests.
+7. **Write the plan** to [plans/README.md](plans/README.md) (root cause, ordered steps, verification). One plan per feature or fix, deleted once executed.
+
+### B. A new plugin
+
+1. Scaffold and layout: [§ Layout](#layout), [§ 1 Scaffold](#1-scaffold), [§ 2 Backend](#2-backend-luajit), [§ 3 Frontend](#3-frontend-typescript--steams-react).
+2. Decide its place in the suite: core or provider, and what it may depend on ([millennium-architecture.md](millennium-architecture.md); a provider returns data, the core renders it: [ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it), [ADR-0014](decisions.md#adr-0014-providers-are-isolated-and-fail-silently)). The core never depends on a provider.
+3. Copy the shape of a migrated plugin, don't invent one: a safety net, one owner per Steam target, an architecture test with an empty allowlist. References: [enhanced-achievements/architecture.md](enhanced-achievements/architecture.md) (smaller) and [steam-cartridges.md](steam-cartridges.md).
+4. Develop, deploy and test with `dev.ps1` ([§ 4](#4-develop), [§ 5](#5-test)). Close with the [checklist for a new plugin](#checklist-for-a-new-plugin).
+
+### C. A new feature in an existing plugin
+
+1. `steam-cartridges`: [steam-cartridges.md § 4 Adding a feature](steam-cartridges.md#4-adding-a-feature). Place each piece on its layer (surface, service or source, sensor, domain, app, port) and stay inside its "what changes, what does not" row.
+2. `enhanced-achievements`: [How to add a feature](enhanced-achievements/architecture.md#how-to-add-a-feature).
+3. Open the layer doc of each module you touch ([steam-cartridges.md § 3](steam-cartridges.md#3-layer-docs)) and update it in the same change.
+4. The architecture tests are the judge. Never widen an allowlist to go green; an entry needs a plan step and a reason.
+
+### D. Done means
+
+1. `npm run check`, the TS tests and (backend) the Lua tests pass ([AGENTS.md Routine 4](../AGENTS.md#routine-4-build--run)).
+2. Verified live on the running client: [AGENTS.md Routines 1–3](../AGENTS.md#agent-operating-routines) (four views, Game A ➔ B ➔ A, the CDP scripts). Never weaken a check to match new behaviour (guardrail 15).
+3. Docs: the layer doc, [CHANGELOG.md](../CHANGELOG.md) (decisions and findings), an ADR if you decided something, and [TASK.md](../TASK.md) (move finished work out of *Now*).
+4. Commit and push ([Routine 5](../AGENTS.md#routine-5-end-of-session-prune-sync--auto-push)). Nothing bound for `SteamClientHomebrew/Millennium` carries AI attribution ([Routine 6](../AGENTS.md#routine-6-no-ai-attribution-on-anything-that-reaches-steamclienthomebrewmillennium)).
+
+---
+
 ## Layout
 
 Each plugin is a self-contained subfolder. Nothing outside its own folder may be

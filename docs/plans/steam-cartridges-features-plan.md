@@ -5,7 +5,7 @@
 which layer* each one touches. It does not contain literal before/after blocks; the architect adds those (see
 [the plan writing standard](README.md)).
 **Builds on:** the migration plan (Complete). Layer rules:
-[steam-architecture.md § 3](../steam-architecture.md), [README of the layer docs](../steam-cartridges/README.md),
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs), [README of the layer docs](../steam-cartridges/README.md),
 [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
 **Replaces:** items 3–6 of the migration plan's § 7.10 unwired register.
 

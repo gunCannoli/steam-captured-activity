@@ -2,7 +2,7 @@
 
 **This doc's job:** which source answers a shortcut's achievements, how unlocks are detected, and how
 Steam's native UI is fed. Part of the steam-cartridges architecture (ADR-0039); index:
-[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers). The
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs). The
 [Reference](#reference-channels-stores-and-toasts-pre-migration-doc-kept) at the end is the earlier
 "Native Achievements" doc (Phase 5), kept for the observer channels, Steam's native sinks and the emulator
 notes; the sections before it are the migration's layer doc (M6a backend, M6b frontend).

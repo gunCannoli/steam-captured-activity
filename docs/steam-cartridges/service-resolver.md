@@ -2,7 +2,7 @@
 
 **This doc's job:** identity resolution — is this shortcut a Steam game? Part
 of the steam-cartridges architecture (ADR-0039); index:
-[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs).
 
 ## What it owns
 

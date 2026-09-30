@@ -3,7 +3,7 @@
 **This doc's job:** kill switches, error budget and the boot sentinel / safe mode
 that stop one crashing feature from taking down the whole plugin. Part of the
 steam-cartridges architecture (ADR-0039); index:
-[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs).
 
 ## What it owns
 

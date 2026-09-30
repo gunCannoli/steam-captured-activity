@@ -9,7 +9,7 @@ of every other doc. For _why_, see [decisions.md](decisions.md).
 ## Where to look (doc map)
 
 The doc map, the per-situation guide and the orchestrator roles live in the
-index: [steam-architecture.md](steam-architecture.md). Start there.
+index: [README.md](README.md). Start there.
 
 ---
 
@@ -141,7 +141,7 @@ Where the backend is still involved, it owns the I/O
 
 ### Module layout
 
-`<layer>` is the layer of [steam-architecture.md § 3](steam-architecture.md#3-steam-cartridges-architecture-layers); the description is each file's own header line. Generated from `git ls-files steam-cartridges/frontend steam-cartridges/backend` at M9b (2026-09-29).
+`<layer>` is the layer of [steam-cartridges.md § 3](steam-cartridges.md#3-layer-docs); the description is each file's own header line. Generated from `git ls-files steam-cartridges/frontend steam-cartridges/backend` at M9b (2026-09-29).
 
 ```
 backend/_lib/

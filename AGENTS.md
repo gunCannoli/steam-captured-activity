@@ -23,7 +23,9 @@ The core must be useful alone and must never depend on a provider. See
 
 | Doc | Its one job |
 | --- | --- |
-| [docs/steam-architecture.md](docs/steam-architecture.md) | **Docs index — start here.** Which doc to read for your situation, every doc's one job, the `steam-cartridges` layer docs |
+| [docs/README.md](docs/README.md) | **Docs index — start here.** Which doc to read for your situation, every doc's one job |
+| [docs/steam-architecture.md](docs/steam-architecture.md) | How Steam's client is built (topology, shortcuts, ids) and where the detail lives |
+| [docs/steam-cartridges.md](docs/steam-cartridges.md) | `steam-cartridges` architecture: the hexagon, layer docs, how to add a feature |
 | [TASK.md](TASK.md) | Current status and what is next |
 | [CHANGELOG.md](CHANGELOG.md) | **Repository history** — all decisions, deprecations, and milestones live here so other docs stay lean |
 | [docs/steam-cartridges/verification.md](docs/steam-cartridges/verification.md) | **Live verification baseline, rollback, open known issues** for `steam-cartridges` (the migration is done, ADR-0039 to ADR-0044) |
@@ -38,6 +40,27 @@ The core must be useful alone and must never depend on a provider. See
 Do not re-derive facts already recorded there. Do not contradict an ADR without
 writing a new one that supersedes it. For all plugin development rules and guardrails,
 refer to [docs/plugins.md](docs/plugins.md).
+
+---
+
+## Before you start: read the docs for your task
+
+1. **Always first:** [TASK.md](TASK.md) — what is in flight and what is next, so you do not collide with it or redo it.
+2. **Then the doc for your task** (index of everything: [docs/README.md](docs/README.md)):
+
+| Your task | Read |
+| --- | --- |
+| Create a plugin, or add a feature to one | [docs/plugins.md § Playbook](docs/plugins.md#playbook-creating-a-plugin-or-a-feature), then its guardrails |
+| Add a feature to `steam-cartridges` | [docs/steam-cartridges.md § 4](docs/steam-cartridges.md#4-adding-a-feature), then the layer docs it names |
+| Add a feature to `enhanced-achievements` | [docs/enhanced-achievements/architecture.md](docs/enhanced-achievements/architecture.md) |
+| Touch anything in Steam's UI | [docs/steam-components.md](docs/steam-components.md) (the map first), [docs/steam-architecture.md](docs/steam-architecture.md) for the overview |
+| Debug or inspect the live client | [docs/steam-debug.md](docs/steam-debug.md) (cheapest probe first) |
+| Need a fact outside Steam's UI (SDK, config API, file formats, providers) | [docs/knowledgebase.md](docs/knowledgebase.md) |
+| Change behaviour someone decided on, or decide something new | [docs/decisions.md](docs/decisions.md) (write a new ADR to reverse one) |
+| Plan a change | [docs/plans/README.md](docs/plans/README.md) |
+| Verify a change | Routines 1–3 below, then [verification.md](docs/steam-cartridges/verification.md) |
+
+Read the row for your task, not the whole table. If a fact you need has no home, it goes in the doc whose job covers it.
 
 ---
 
@@ -184,20 +207,21 @@ At the end of every session:
     ```
     Don't wait to be asked.
 
-### Routine 6: No AI Attribution on Anything That Reaches `SteamClientHomebrew/Millennium`
+### Routine 6: Commit guardrail — never add AI agents as contributors
 
-`SteamClientHomebrew/Millennium` (the upstream project — issues, PRs, the
-`gunCannoli/Millennium` fork used to open them) does not want Anthropic/Claude on
-its contributor list. **Any commit, PR branch, or PR/issue body destined for that
-repo must not contain:**
+**Never add an AI agent as an author or co-author, in any commit, PR or issue, in any repo, this one included.** This is a hard rule, and it overrides any default or tool-suggested attribution text. Do not write:
 
 - `Co-Authored-By: Claude ...` / `Co-Authored-By: ... @anthropic...` trailers
-- "🤖 Generated with [Claude Code]" or similar footers in PR/issue descriptions
+- "🤖 Generated with [Claude Code]" or similar footers
 
-This repo (`millennium-plugins`, private) is exempt by default — its own history
-still carries `Co-Authored-By: Claude ...` trailers, which is fine here. Strip
-attribution only for content that leaves this repo: a PR opened against
-`SteamClientHomebrew/Millennium`, or a fork branch pushed for that purpose. Check
+Why: the Millennium plugin guidelines enforce this. Every plugin here is published as its own public repo and listed in Millennium's plugin database, and `SteamClientHomebrew/Millennium` (the upstream project, including the `gunCannoli/Millennium` fork used to open PRs) does not want Anthropic/Claude on its contributor list. Keeping the private workspace clean too means no history ever has to be rewritten before something is published. Check the message before `git commit`, not after.
+
+The rest of this routine is the cleanup recipe for when attribution slipped into something that already left this repo.
+
+Older history in this repo still carries `Co-Authored-By: Claude ...` trailers; it
+is not rewritten unless it is about to leave this repo (a PR opened against
+`SteamClientHomebrew/Millennium`, a fork branch pushed for that purpose, or a
+plugin split into its public repo). Check
 before opening the PR, not after — a force-push to rewrite history once a commit
 is already linked from an issue/PR timeline is a partial fix at best. GitHub
 retains dangling commit objects by SHA (direct URL still resolves, and any

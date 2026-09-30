@@ -70,11 +70,8 @@ None.
 
 ---
 
-## Before writing any UI
+## Before writing any code
 
-Check whether Steam already builds it — the ladder is in
-[docs/plugins.md](docs/plugins.md#build-nothing-steam-already-builds). Restoring a filtered-out section beat
-a from-scratch rebuild by ~1200 lines once already
-([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
-The inspection method (CDP harness, traps, how to verify) is in
-[steam-debug.md § 3 The inspection method](docs/steam-debug.md#3-the-inspection-method).
+Building a plugin or a feature? Follow the playbook in
+[docs/plugins.md § Playbook](docs/plugins.md#playbook-creating-a-plugin-or-a-feature).
+Every other doc, by situation: [docs/README.md](docs/README.md).

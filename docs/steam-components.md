@@ -15,7 +15,7 @@ stable resolution signature — start there), then the deep traces.
 
 Not here: how to inspect the client yourself ([steam-debug.md](steam-debug.md));
 the rules for plugin code that touches any of this ([plugins.md](plugins.md));
-the index of all docs ([steam-architecture.md](steam-architecture.md)).
+the index of all docs ([README.md](README.md)).
 
 > **Numeric module ids and minified names in this doc are one build's
 > breadcrumbs** — how the code was read, not how to resolve it. Production code

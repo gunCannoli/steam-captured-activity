@@ -3,7 +3,7 @@
 **This doc's job:** detecting page views, launches and quits, and reading
 collection membership; nothing else detects these. Part of the
 steam-cartridges architecture (ADR-0039); index:
-[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs).
 
 ## What it owns
 

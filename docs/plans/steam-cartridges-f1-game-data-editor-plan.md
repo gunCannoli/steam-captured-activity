@@ -11,7 +11,7 @@ folder was deleted: the commits are the record (`git log --grep "F1"`). Steps 1-
 blocks are the five patch files in [steam-cartridges-f1-game-data-editor/](steam-cartridges-f1-game-data-editor/); each step
 applies one and checks it.
 **Parent:** [steam-cartridges-features-plan.md § F1](steam-cartridges-features-plan.md) (the decisions and the user-facing scope).
-**Layer rules:** [steam-architecture.md § 3](../steam-architecture.md), [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
+**Layer rules:** [steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs), [ADR-0039](../decisions.md#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam).
 
 ## 1. What ships, and what the research found
 

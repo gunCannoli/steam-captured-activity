@@ -2,7 +2,7 @@
 
 **This doc's job:** the layer list, the dependency rule, and how a new feature is
 added under the migration (ADR-0039). Part of the steam-cartridges architecture;
-index: [steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+index: [steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs).
 
 ## What it owns
 

@@ -3,7 +3,7 @@
 **This doc's job:** the small, stable types every other layer is built on —
 `ShortcutId`, the event bus, the `GameRecord` read model and the `Surface`
 contract. Part of the steam-cartridges architecture (ADR-0039); index:
-[steam-architecture.md § 3](../steam-architecture.md#3-steam-cartridges-architecture-layers).
+[steam-cartridges.md § 3](../steam-cartridges.md#3-layer-docs).
 
 ## What it owns
 
