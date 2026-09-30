@@ -1,0 +1,457 @@
+diff --git a/steam-cartridges/frontend/safety/features.ts b/steam-cartridges/frontend/safety/features.ts
+index e754fe9..31b23fa 100644
+--- a/steam-cartridges/frontend/safety/features.ts
++++ b/steam-cartridges/frontend/safety/features.ts
+@@ -22,6 +22,7 @@ export const FEATURE_IDS = [
+     "playbar",
+     "toasts",
+     "artwork",
++    "community",
+ ] as const;
+ export type FeatureId = (typeof FEATURE_IDS)[number];
+ 
+diff --git a/steam-cartridges/frontend/surfaces/community/core.ts b/steam-cartridges/frontend/surfaces/community/core.ts
+new file mode 100644
+index 0000000..7422589
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/community/core.ts
+@@ -0,0 +1,147 @@
++/**
++ * Pure part of the community surface (features plan F2, ADR-0046): our media items as the items Steam's Community
++ * Content loader returns from `library/appcommunityfeed/<appid>` (module 77163, class `ae`). Shape copied from a live
++ * feed (435150, 2026-09-30): the card code reads every field below. Its one runtime import carries `.ts` for the tests.
++ *
++ * Card types Steam renders (EWorkshopFileType, module 44846): 3 Artwork and 5 Screenshot (an image; a click opens
++ * Steam's fullscreen viewer on full_image_url), 4 Video (Steam's own YouTube player on youtube_video_id). Guides (9, 10)
++ * open a Community page by file id, so no item becomes one.
++ */
++import type { MediaItem } from "../../kernel/record";
++import type { MediaImage } from "../../kernel/media-bin";
++import { toShortcutId } from "../../kernel/appid.ts";
++
++export const FILE_TYPE = { artwork: 3, video: 4, screenshot: 5 } as const;
++
++/**
++ * Our cards' published file ids: 15 digits from 9e14 (Valve's ids are ~3.8e9 today), unique per (shortcut, index),
++ * and a safe integer. Steam keys cards, dedupes pages and asks PublishedFile.GetDetails by this id.
++ */
++export const FEED_ID_BASE = 900_000_000_000_000;
++export const MAX_ITEMS = 10_000;
++
++export function feedId(appid: number, index: number): string {
++    return String(FEED_ID_BASE + appid * MAX_ITEMS + index);
++}
++
++export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper" };
++
++/** One item of Steam's community feed, as its card components read it. */
++export interface FeedItem {
++    published_file_id: string;
++    type: number;
++    title: string;
++    description: string;
++    preview_image_url: string;
++    full_image_url: string;
++    image_width: number;
++    image_height: number;
++    youtube_video_id: string | null;
++    /** null hides the count (Steam renders a count only when it is not null). */
++    comment_count: null;
++    votes_for: null;
++    /** Must be an array: the card filters the user's content preferences with indexOf on it. */
++    content_descriptorids: number[];
++    spoiler_tag: boolean;
++    rating_stars: number;
++    maybe_inappropriate_sex: number;
++    maybe_inappropriate_violence: number;
++    creator: { name: string; steamid: string; avatar: string; online_state: number };
++    reactions: never[];
++}
++
++const youtubeThumb = (id: string) => `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
++
++/**
++ * The feed for one shortcut, in the record's order. A ScreenScraper item shows only when `imageOf(key)` has its
++ * object URL (app/media fetched it); an item that cannot be shown is left out.
++ */
++export function toFeedItems(appid: number, items: readonly MediaItem[], imageOf: (key: string) => MediaImage | undefined): FeedItem[] {
++    const out: FeedItem[] = [];
++    items.forEach((item, index) => {
++        if (index >= MAX_ITEMS) return;
++        let type: number;
++        let preview: string;
++        let full: string;
++        let width = 0;
++        let height = 0;
++        let youtube: string | null = null;
++        if (item.kind === "video") {
++            if (!item.youtube) return;
++            type = FILE_TYPE.video;
++            youtube = item.youtube;
++            preview = full = youtubeThumb(item.youtube);
++        } else if (item.kind === "screenshot" || item.kind === "artwork") {
++            type = FILE_TYPE[item.kind];
++            if (item.source === "screenscraper") {
++                const image = item.key ? imageOf(item.key) : undefined;
++                if (!image) return;
++                preview = full = image.url;
++                width = image.width ?? item.width ?? 0;
++                height = image.height ?? item.height ?? 0;
++            } else {
++                if (!item.url) return;
++                full = item.url;
++                preview = item.thumb ?? item.url;
++                width = item.width ?? 0;
++                height = item.height ?? 0;
++            }
++            // Steam lays an image out by its size and drops one without it (no row template matches size 0).
++            if (!(width > 0 && height > 0)) return;
++        } else {
++            return;
++        }
++        out.push({
++            published_file_id: feedId(appid, index),
++            type,
++            title: item.title ?? "",
++            description: "",
++            preview_image_url: preview,
++            full_image_url: full,
++            image_width: width,
++            image_height: height,
++            youtube_video_id: youtube,
++            comment_count: null,
++            votes_for: null,
++            content_descriptorids: [],
++            spoiler_tag: false,
++            rating_stars: 0,
++            maybe_inappropriate_sex: 0,
++            maybe_inappropriate_violence: 0,
++            creator: { name: CREATOR_NAMES[item.source] ?? "", steamid: "0", avatar: "", online_state: 0 },
++            reactions: [],
++        });
++    });
++    return out;
++}
++
++/** A fresh copy for each load: Steam's cards write into what they are given (votes), and desktop and Big Picture load separately. */
++export function copyFeed(feed: readonly FeedItem[]): FeedItem[] {
++    return feed.map((item) => ({ ...item, content_descriptorids: [], reactions: [], creator: { ...item.creator } }));
++}
++
++/**
++ * What the patched `LoadCommunityContentAndVotes(appid, page)` returns for one of our shortcuts, or undefined to let
++ * Steam's own loader run (a native app, a mapped shortcut whose appid native-links already swapped, or no feed).
++ * Page 1 is the whole feed; later pages are empty, so Steam shows its own "no more content" line.
++ */
++export function loaderAnswer(
++    rawAppid: unknown,
++    page: unknown,
++    feedOf: (appid: number) => readonly FeedItem[] | undefined,
++): { vecContent: FeedItem[]; mapVotes: Map<string, unknown> } | undefined {
++    const appid = toShortcutId(rawAppid);
++    if (appid === undefined) return undefined;
++    const feed = feedOf(appid);
++    if (!feed || feed.length === 0) return undefined;
++    return { vecContent: Number(page) <= 1 ? copyFeed(feed) : [], mapVotes: new Map() };
++}
++
++/** Is this jsx element Steam's Community Content section class (the one that owns the loader)? O(1). */
++export function isContentSection(type: unknown, props: unknown): boolean {
++    if (typeof type !== "function") return false;
++    const p = props as { appid?: unknown; labelId?: unknown } | null | undefined;
++    if (!p || typeof p.appid !== "number" || !("labelId" in p)) return false;
++    const proto = (type as { prototype?: object }).prototype;
++    return !!proto && "BindInnerContainer" in proto && "AutoLoadAdditionalContent" in proto && "CheckAndLoadInitialContent" in proto;
++}
+diff --git a/steam-cartridges/frontend/surfaces/community/index.ts b/steam-cartridges/frontend/surfaces/community/index.ts
+new file mode 100644
+index 0000000..f608f3e
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/community/index.ts
+@@ -0,0 +1,125 @@
++// Surface `community` (features plan F2, ADR-0046): Steam's own Community Content section (desktop section
++// `community`, Big Picture COMMUNITY tab, both `wb({ appid })` of module 77163) shows a shortcut's community media as
++// Steam's own cards. Pure logic in core.ts.
++//
++// Steam's loader (class `ae`, not exported) fetches `library/appcommunityfeed/<appid>` in
++// `LoadCommunityContentAndVotes(appid, page)`. We patch that one prototype method: for a shortcut with a feed it returns
++// ours (and no vote summary call); for everything else it calls Steam's. The class is reached once: a jsx observer
++// learns the section class the first time Steam renders one (core.isContentSection), a timer then builds one throwaway
++// section (constructor only: no mount, no request) to read its loader's prototype, patches it and disposes the hook.
++// Verified live 2026-09-30 (435150): the element type is the class, a throwaway's loader shares the mounted one's
++// prototype. The first page loads >= 1 s after the section mounts, so the patch is in place before it.
++import { callOriginal, replacePatch } from "@steambrew/client";
++import { logger } from "../../logger";
++import type { ShortcutId } from "../../kernel/appid";
++import type { MediaImage } from "../../kernel/media-bin";
++import type { MediaItem } from "../../kernel/record";
++import type { Surface, SurfaceDeps } from "../../kernel/surface";
++import { keepJsxPatched, type JsxHookDiagnostics } from "../../steam/jsx-hook";
++import { jsxRuntime } from "../../steam/modules";
++import { isContentSection, loaderAnswer, toFeedItems, type FeedItem } from "./core";
++
++export interface CommunityDeps extends SurfaceDeps {
++    /** The object URL app/media put in the media bin for a ScreenScraper item (a pure read). */
++    imageOf(appid: number, key: string): MediaImage | undefined;
++}
++
++/** Set by createCommunitySurface; open defaults until then. */
++let deps: CommunityDeps = { isEnabled: () => true, reportError: () => {}, imageOf: () => undefined };
++
++/** Shortcut appid -> its feed, from record.media (render). */
++const feeds = new Map<number, FeedItem[]>();
++let hook: ReturnType<typeof keepJsxPatched> | undefined;
++let lastJsx: JsxHookDiagnostics[] = [];
++let learnScheduled = false;
++let unpatchLoader: (() => void) | undefined;
++let served = 0;
++
++function patchLoader(section: new (props: unknown) => { m_loader?: object }): void {
++    if (unpatchLoader) return;
++    const probe = new section({ appid: 0, labelId: "" });
++    const proto = probe.m_loader ? (Object.getPrototypeOf(probe.m_loader) as Record<string, unknown>) : undefined;
++    if (!proto || typeof proto.LoadCommunityContentAndVotes !== "function") {
++        throw new Error("Community Content loader has no LoadCommunityContentAndVotes; left stock.");
++    }
++    const patch = replacePatch(proto, "LoadCommunityContentAndVotes", function (args: unknown[]): unknown {
++        if (!deps.isEnabled("community")) return callOriginal;
++        try {
++            const answer = loaderAnswer(args[0], args[1], (appid) => feeds.get(appid));
++            if (!answer) return callOriginal;
++            served++;
++            return Promise.resolve(answer);
++        } catch (err) {
++            deps.reportError("community", err); // fail-open: Steam's own loader
++            return callOriginal;
++        }
++    });
++    unpatchLoader = () => patch.unpatch();
++    lastJsx = hook?.diagnostics() ?? [];
++    hook?.dispose(); // learned: the jsx observer is not needed any more
++    hook = undefined;
++    logger.info("Community Content loader patched.");
++}
++
++/** Install the learn-once jsx observer. Idempotent; a failure leaves the section stock. */
++export function installCommunity(): void {
++    if (hook || unpatchLoader) return;
++    const runtime = jsxRuntime();
++    if (!runtime) throw new Error("react/jsx-runtime not found; community media stays off.");
++    hook = keepJsxPatched(runtime, {
++        label: "steam-cartridges.community",
++        observe: (type, props) => {
++            if (learnScheduled || !deps.isEnabled("community")) return;
++            try {
++                if (!isContentSection(type, props)) return;
++                learnScheduled = true;
++                // Never patch from inside Steam's render (D5): the next tick, well before the first page (>= 1 s).
++                setTimeout(() => {
++                    try {
++                        patchLoader(type as new (props: unknown) => { m_loader?: object });
++                    } catch (err) {
++                        deps.reportError("community", err);
++                        logger.warn("Community Content loader not patched; the section stays stock.", err);
++                    }
++                }, 0);
++            } catch (err) {
++                deps.reportError("community", err);
++            }
++        },
++    });
++}
++
++/** For CDP checks (PLUGIN_LIST[...].communityDiagnostics()). */
++export function communityDiagnostics(): { patched: boolean; feeds: Record<number, number>; served: number; jsx: JsxHookDiagnostics[] } {
++    const counts: Record<number, number> = {};
++    feeds.forEach((feed, appid) => (counts[appid] = feed.length));
++    return { patched: !!unpatchLoader, feeds: counts, served, jsx: hook?.diagnostics() ?? lastJsx };
++}
++
++export function createCommunitySurface(d: CommunityDeps): Surface {
++    deps = d;
++    return {
++        id: "community",
++        touches: ["CommunityContentLoader.LoadCommunityContentAndVotes", "jsx:community-section"],
++        reads: ["media"],
++        install: installCommunity,
++        render(appid: ShortcutId, record) {
++            const media = record?.media;
++            const items: MediaItem[] = media?.status === "ok" && Array.isArray(media.data?.items) ? media.data!.items : [];
++            if (items.length === 0) {
++                feeds.delete(appid);
++                return;
++            }
++            feeds.set(appid, toFeedItems(appid, items, (key) => deps.imageOf(appid, key)));
++        },
++        clear: (appid) => void feeds.delete(appid),
++        uninstall() {
++            unpatchLoader?.();
++            unpatchLoader = undefined;
++            hook?.dispose();
++            hook = undefined;
++            learnScheduled = false;
++            feeds.clear();
++        },
++    };
++}
+diff --git a/steam-cartridges/frontend/surfaces/sections/index.ts b/steam-cartridges/frontend/surfaces/sections/index.ts
+index fe05df6..1a48eb2 100644
+--- a/steam-cartridges/frontend/surfaces/sections/index.ts
++++ b/steam-cartridges/frontend/surfaces/sections/index.ts
+@@ -2,12 +2,23 @@
+ // app detail section registry. Moved from steam/sections.ts.
+ import { logger } from "../../logger";
+ import type { Surface, SurfaceDeps } from "../../kernel/surface";
++import type { GameRecord } from "../../kernel/record";
+ import { appDetailsSections } from "../../steam/stores";
+ import { isShortcutAppId } from "../../kernel/appid";
+ 
+ /** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
+ const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
+ 
++/** Steam's own Community Content section for a shortcut with no Steam match that has community media (features plan F2;
++ *  the community surface feeds its loader). */
++const COMMUNITY_SECTIONS = ["community"] as const;
++
++/** Does the record carry community media cards (app/media keeps only showable items)? */
++function hasCommunityMedia(record: GameRecord | undefined): boolean {
++    const media = record?.media;
++    return media?.status === "ok" && Array.isArray(media.data?.items) && media.data!.items.length > 0;
++}
++
+ /** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
+ let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
+ 
+@@ -286,12 +297,19 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
+     return {
+         id: "sections",
+         touches: ["CAppDetailsSections.GetSections", "CAppDetailsSections.m_setSectionsMemo"],
+-        reads: ["identity", "metadata", "achievements"],
++        reads: ["identity", "metadata", "achievements", "media"],
+         install() {
+             if (!patchSections()) throw new Error("CAppDetailsSections not found; sections stay stock.");
+         },
+         render(appid, record) {
+-            setExtraSections(appid, record?.identity?.data?.native ? NATIVE_SECTIONS : undefined);
++            setExtraSections(
++                appid,
++                record?.identity?.data?.native
++                    ? NATIVE_SECTIONS
++                    : deps.isEnabled("community") && hasCommunityMedia(record)
++                      ? COMMUNITY_SECTIONS
++                      : undefined,
++            );
+             // New achievements: re-render after the achievements surface fed Steam's stores in this same
+             // render pass (was that surface's refreshSections call through index.tsx before M10).
+             if (record?.achievements !== achievementsByAppid.get(appid)) {
+diff --git a/steam-cartridges/tests/architecture.test.ts b/steam-cartridges/tests/architecture.test.ts
+index b5f8b2c..902d65a 100644
+--- a/steam-cartridges/tests/architecture.test.ts
++++ b/steam-cartridges/tests/architecture.test.ts
+@@ -133,12 +133,12 @@ test('architecture: every RPC the frontend calls is registered in backend/main.l
+     assert.deepEqual(missing, [], `ports/backend.ts calls methods main.lua does not register: ${missing.join(', ')}`);
+ });
+ 
+-test('architecture: keepJsxPatched is installed only by steam/gamepad-appid (view sensor), surfaces/captures and surfaces/native-links (ADR-0041)', () => {
++test('architecture: keepJsxPatched is installed only by steam/gamepad-appid (view sensor), surfaces/captures, surfaces/native-links and surfaces/community (ADR-0041, ADR-0046)', () => {
+     const users = walk(FRONTEND)
+         .filter((f) => !/steam[\\/]jsx-hook\.ts$/.test(f))
+         .filter((f) => /keepJsxPatched\s*\(/.test(readFileSync(f, 'utf8')))
+         .map((f) => areaOf(f));
+-    assert.deepEqual([...new Set(users)].sort(), ['steam', 'surfaces/captures', 'surfaces/native-links']);
++    assert.deepEqual([...new Set(users)].sort(), ['steam', 'surfaces/captures', 'surfaces/community', 'surfaces/native-links']);
+ });
+ 
+ test('architecture: no two surfaces declare the same Steam target (assertDisjointTouches would abort start-up)', () => {
+diff --git a/steam-cartridges/tests/community-core.test.ts b/steam-cartridges/tests/community-core.test.ts
+new file mode 100644
+index 0000000..d8fa742
+--- /dev/null
++++ b/steam-cartridges/tests/community-core.test.ts
+@@ -0,0 +1,86 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, loaderAnswer, toFeedItems } from '../frontend/surfaces/community/core.ts';
++
++const SC = 4263274102;
++const none = () => undefined;
++
++test('community core: feed ids are 15-digit safe integers above every Valve id, unique per shortcut and index', () => {
++    const a = feedId(SC, 0);
++    const b = feedId(SC, 1);
++    assert.equal(a.length, 15);
++    assert.ok(Number(a) > FEED_ID_BASE && Number.isSafeInteger(Number(feedId(0xffffffff, 9999))));
++    assert.notEqual(a, b);
++    assert.notEqual(feedId(SC, 0), feedId(SC + 1, 0));
++});
++
++test('community core: a video becomes Steam\'s YouTube card (type 4)', () => {
++    const [item] = toFeedItems(SC, [{ kind: 'video', source: 'igdb', youtube: 'abcDEF12345', title: 'Trailer' }], none);
++    assert.equal(item!.type, FILE_TYPE.video);
++    assert.equal(item!.youtube_video_id, 'abcDEF12345');
++    assert.equal(item!.preview_image_url, 'https://img.youtube.com/vi/abcDEF12345/hqdefault.jpg');
++    assert.equal(item!.title, 'Trailer');
++});
++
++test('community core: an IGDB image becomes a screenshot or artwork card with its size and URLs', () => {
++    const items = toFeedItems(SC, [
++        { kind: 'screenshot', source: 'igdb', url: 'https://i/full.jpg', thumb: 'https://i/big.jpg', width: 1280, height: 720 },
++        { kind: 'artwork', source: 'igdb', url: 'https://i/art.jpg', width: 1920, height: 1080 },
++    ], none);
++    assert.equal(items[0]!.type, FILE_TYPE.screenshot);
++    assert.equal(items[0]!.preview_image_url, 'https://i/big.jpg');
++    assert.equal(items[0]!.full_image_url, 'https://i/full.jpg');
++    assert.deepEqual([items[0]!.image_width, items[0]!.image_height], [1280, 720]);
++    assert.equal(items[1]!.type, FILE_TYPE.artwork);
++    assert.equal(items[1]!.preview_image_url, 'https://i/art.jpg', 'no thumb: the full URL is the preview');
++});
++
++test('community core: every card has the fields Steam\'s card code reads, with counts hidden', () => {
++    const [item] = toFeedItems(SC, [{ kind: 'artwork', source: 'igdb', url: 'u', width: 10, height: 10 }], none);
++    assert.deepEqual(item!.content_descriptorids, [], 'an array: the card calls indexOf on it');
++    assert.equal(item!.comment_count, null);
++    assert.equal(item!.votes_for, null);
++    assert.deepEqual(item!.reactions, []);
++    assert.equal(item!.spoiler_tag, false);
++    assert.deepEqual(item!.creator, { name: 'IGDB', steamid: '0', avatar: '', online_state: 0 });
++});
++
++test('community core: a ScreenScraper image shows only with its object URL, at the bin\'s size', () => {
++    const ss = { kind: 'artwork', source: 'screenscraper', key: 'fanart()', width: 1920, height: 1080 } as const;
++    assert.deepEqual(toFeedItems(SC, [ss], none), [], 'not fetched: no card');
++    const [item] = toFeedItems(SC, [ss], (key) => (key === 'fanart()' ? { url: 'blob:x', width: 800, height: 450 } : undefined));
++    assert.equal(item!.full_image_url, 'blob:x');
++    assert.equal(item!.preview_image_url, 'blob:x');
++    assert.deepEqual([item!.image_width, item!.image_height], [800, 450]);
++    assert.equal(item!.creator.name, 'ScreenScraper');
++});
++
++test('community core: an image without a size is left out (Steam would drop it)', () => {
++    assert.deepEqual(toFeedItems(SC, [{ kind: 'screenshot', source: 'igdb', url: 'u' }], none), []);
++});
++
++test('community core: the loader answers page 1 with a copy of the feed, later pages empty, others untouched', () => {
++    const feed = toFeedItems(SC, [{ kind: 'video', source: 'igdb', youtube: 'a' }], none);
++    const feeds = new Map([[SC, feed]]);
++    const page1 = loaderAnswer(SC, 1, (a) => feeds.get(a));
++    assert.equal(page1!.vecContent.length, 1);
++    assert.notEqual(page1!.vecContent[0], feed[0], 'a copy: Steam writes into what it is given');
++    assert.equal(page1!.mapVotes.size, 0);
++    assert.deepEqual(loaderAnswer(SC, 2, (a) => feeds.get(a))!.vecContent, []);
++    assert.equal(loaderAnswer(SC | 0, 1, (a) => feeds.get(a))!.vecContent.length, 1, 'a signed appid is the same shortcut');
++    assert.equal(loaderAnswer(435150, 1, (a) => feeds.get(a)), undefined, 'a native app: Steam\'s own loader');
++    assert.equal(loaderAnswer(SC + 1, 1, (a) => feeds.get(a)), undefined, 'no feed: Steam\'s own loader');
++});
++
++test('community core: the section class is recognised by its props and prototype, nothing else is', () => {
++    class Section {
++        BindInnerContainer() {}
++        AutoLoadAdditionalContent() {}
++        CheckAndLoadInitialContent() {}
++    }
++    assert.ok(isContentSection(Section, { appid: SC, labelId: ':r1:' }));
++    assert.ok(!isContentSection(Section, { appid: SC }), 'the wrapper (no labelId) is not the class');
++    assert.ok(!isContentSection(class Other {}, { appid: SC, labelId: 'x' }));
++    assert.ok(!isContentSection('div', { appid: SC, labelId: 'x' }));
++    assert.ok(!isContentSection(Section, null));
++});

@@ -94,6 +94,12 @@ No new surface, no new Steam write, no kill switch (the editor writes only our o
 
 ## F2: Media in the Community tab
 
+**Detailed, executable plan:** [steam-cartridges-f2-community-media-plan.md](steam-cartridges-f2-community-media-plan.md)
+(seven dry-run patches, live research findings, ADR-0046, the card interaction audit). It supersedes the module table
+and the open questions below where they differ; they stay as the scope record. User decisions (2026-09-30): feed
+Steam's native cards and reconsider only if the live audit shows faults; ScreenScraper images stay in memory (no
+disk cache, no URL outside the backend). Manuals and links moved to a follow-up (F2c): Steam has no card for them.
+
 ### What the user sees
 
 On a shortcut's page, in Big Picture's **Community** tab (and the desktop Community Content section where Steam's own
@@ -127,6 +133,13 @@ Steam native app keep Steam's own community content (unchanged); this feature is
 3. How does the section behave for an **unmapped** shortcut (`native-links` currently redirects only mapped ones)?
 4. Image/video **hosts** and the CORS/allowlist story (`SteamStoreDownloadImage` has an allowlist).
 5. Credentials: ScreenScraper needs the user's account; IGDB uses the Twitch keys already in settings.
+
+**Answered 2026-09-30** (live, read-only; details in the F2 plan § 1): (1) `wb` of module 77163 in both UIs; its loader
+fetches `library/appcommunityfeed/<appid>` itself, it never reads `CWorkshopStore`. (2) Video cards play YouTube ids in
+Steam's own player; no MP4. (3) An unmapped shortcut has no `community` section; `sections` adds it. (4) IGDB and YouTube
+images load in Steam's UI; ScreenScraper has no CORS and its URLs carry the account, so the backend downloads into
+memory (WinINet via FFI; Lua `http.get` cuts binary). (5) Unchanged: ScreenScraper needs the user's account
+(`needs-setup` without), IGDB the Twitch keys.
 
 ### Tests and live verification
 

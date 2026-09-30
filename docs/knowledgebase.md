@@ -261,6 +261,32 @@ local ok, res = pcall(http.get, url, {
 
 Omitting `user_agent` causes libcurl to fall back to an empty/default User-Agent, which is blocked by Cloudflare and WAFs with **HTTP 403 Forbidden** (e.g. on RetroAchievements API).
 
+### Lua backend binary downloads: `http.get` cuts at the first NUL; WinINet through FFI does not
+
+- `http.get` returns the body as a C string, so a binary body (an image) is cut at its first NUL byte (found by the
+  icon plan; that is why `ports/image.ts` fetches artwork in the frontend).
+- **✅ Verified 2026-09-30** (standalone LuaJIT 2.1, the same FFI `silent_exec.lua` uses in Millennium): `wininet.dll`
+  through `ffi.load("wininet")` (`InternetOpenA`, `InternetOpenUrlA` with `RELOAD | NO_CACHE_WRITE | NO_COOKIES | NO_UI`,
+  `InternetReadFile` in 64 KB chunks, `HttpQueryInfoA` for the status) returned an IGDB JPEG whole: 21,797 bytes, NUL
+  bytes included, the same size the browser fetch saw. In memory only: no temp file, no child process, so a URL that
+  carries an account never reaches a command line or disk. `steam-cartridges` wraps it as `bin_http.lua` behind
+  `net.get_binary` (features plan F2b). Not yet verified inside Millennium's own LuaJIT (the F2 plan's live check).
+
+### Image hosts seen from Steam's UI
+
+**✅ Verified 2026-09-30** from SharedJSContext (`https://steamloopback.host/index.html`, no CSP meta):
+
+| Host | `<img>` | `fetch` (CORS) |
+| --- | --- | --- |
+| `images.igdb.com` | loads | 200, readable (`type: cors`) |
+| `img.youtube.com` | loads | not tried |
+| `api.screenscraper.fr`, `neoclone.screenscraper.fr` (`mediaJeu.php`) | not tried | `TypeError: Failed to fetch` (no CORS) |
+
+ScreenScraper's `jeuInfos.php` media URLs carry the developer and user accounts in the query string
+(`devid`, `devpassword`, `ssid`, `sspassword`), and an error comes back as **text with HTTP 200** (without an account:
+`Erreur de login : Vérifier vos identifiants développeur !`), so check the first bytes before treating a body as an
+image. `mediaJeu.php` takes `maxwidth` to scale an image down.
+
 ### Backend RPC crash trap: Unregistered methods & unhandled errors
 
 **✅ Verified.** In Millennium v3.4–v3.5:

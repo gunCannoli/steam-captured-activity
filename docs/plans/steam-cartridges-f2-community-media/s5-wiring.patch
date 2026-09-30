@@ -1,0 +1,202 @@
+diff --git a/steam-cartridges/frontend/app/view.ts b/steam-cartridges/frontend/app/view.ts
+index d7ea98a..1fe87b4 100644
+--- a/steam-cartridges/frontend/app/view.ts
++++ b/steam-cartridges/frontend/app/view.ts
+@@ -15,6 +15,8 @@ export interface ViewDeps {
+     metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
+     artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
+     achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
++    /** Community media (features plan F2); runs after metadata, whose igdb_id it reads from the record. */
++    media: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<unknown> };
+ }
+ 
+ export interface View {
+@@ -55,11 +57,13 @@ export function createView(deps: ViewDeps): View {
+                 const identityPart = await deps.identity.ensure(id, route);
+                 await deps.metadata.ensure(id, route, identityPart);
+                 await deps.artwork.ensure(id, route, identityPart);
++                void deps.media.ensure(id, route, identityPart); // a Steam match keeps Steam's own community content
+                 void deps.achievements.ensure(id, route); // reads the identity just resolved from the record
+             } else {
+                 // web-scraping or none: metadata and artwork are record-driven and follow the new route's result.
+                 await deps.metadata.ensure(id, route, undefined);
+                 await deps.artwork.ensure(id, route, undefined);
++                void deps.media.ensure(id, route, undefined);
+                 void deps.achievements.ensure(id, route);
+             }
+         } finally {
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index 65c7b98..4a9b1e1 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -18,6 +18,7 @@ import { createView } from "./app/view";
+ import { createIngest } from "./app/ingest";
+ import { createNativeLinksSurface, wrapNavigators } from "./surfaces/native-links";
+ import { createArtworkSurface } from "./surfaces/artwork";
++import { createCommunitySurface } from "./surfaces/community";
+ import {
+     initSettings,
+     onSettingChange,
+@@ -32,8 +33,9 @@ import { createRenderQueue } from "./app/render-queue";
+ import { createIdentity } from "./app/identity";
+ import { createMetadata } from "./app/metadata";
+ import { createArtwork } from "./app/artwork";
++import { createMedia } from "./app/media";
+ import { createLibraryStats } from "./app/library-stats";
+-import { fetchImage } from "./ports/image";
++import { fetchImage, objectUrl, releaseObjectUrl } from "./ports/image";
+ import { createAchievements } from "./app/achievements";
+ import { ownedCandidates } from "./sensors/owned-apps";
+ import { loadStoreItem } from "./sensors/store-item";
+@@ -41,6 +43,7 @@ import { createFeatureSwitches, FEATURE_IDS, type FeatureId } from "./safety/fea
+ import { beginBoot, watchBoot } from "./safety/boot";
+ import type { ShortcutId } from "./kernel/appid";
+ import { createImageBin } from "./kernel/image-bin";
++import { createMediaBin } from "./kernel/media-bin";
+ import { bus } from "./app/bus";
+ import { installViewSensor } from "./sensors/view";
+ import { installLifecycleSensor } from "./sensors/lifecycle";
+@@ -177,8 +180,23 @@ const artwork = createArtwork({
+     now: () => Date.now(),
+ });
+ 
++/** ScreenScraper images as object URLs (kernel/media-bin, features plan F2b): app/media puts, surfaces/community reads. */
++const mediaBin = createMediaBin(releaseObjectUrl);
++
++/** Community media (app/media.ts, features plan F2): the cards Steam's Community section shows for a shortcut with no Steam match. */
++const media = createMedia({
++    backend,
++    records: records.store,
++    bin: mediaBin,
++    titleOf: (appid) => shortcutTitle(appid),
++    allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
++    allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
++    toggles: () => ({ trailers: setting("communityShowTrailers") !== false, artworks: setting("communityShowArtworks") !== false }),
++    objectUrl,
++});
++
+ /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
+-const view = createView({ routing, identity, metadata, artwork, achievements });
++const view = createView({ routing, identity, metadata, artwork, achievements, media });
+ 
+ /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
+ const steamStore = createSteamStore({ backend, identity, metadata, artwork });
+@@ -276,6 +294,7 @@ export { jsxDiagnostics } from "./steam/gamepad-appid";
+ export { headlineJsxDiagnostics } from "./surfaces/captures";
+ export { activityCardsJsxDiagnostics } from "./surfaces/captures";
+ export { nativeSectionsDiagnostics } from "./surfaces/native-links";
++export { communityDiagnostics } from "./surfaces/community";
+ export type {
+     SummaryContext,
+     SummaryContribution,
+@@ -391,6 +410,10 @@ async function init() {
+     // Steam's own Links / Friends / Community sections read the native appid
+     // of a Steam Store match; unmatched shortcuts keep Steam's stock sections.
+     runner.register(createNativeLinksSurface(surfaceDeps));
++    // Community media in Steam's own Community section for shortcuts with no Steam match (surfaces/community, features plan F2).
++    runner.register(
++        createCommunitySurface({ ...surfaceDeps, imageOf: (appid, key) => mediaBin.get(appid, key) }),
++    );
+     // Custom artwork slots and logo position for mapped games (surfaces/artwork, plan M3.9).
+     runner.register(
+         createArtworkSurface({ ...surfaceDeps, images, bus }),
+diff --git a/steam-cartridges/frontend/settings/panels/community.tsx b/steam-cartridges/frontend/settings/panels/community.tsx
+index 371dccf..82862df 100644
+--- a/steam-cartridges/frontend/settings/panels/community.tsx
++++ b/steam-cartridges/frontend/settings/panels/community.tsx
+@@ -1,4 +1,6 @@
+-// Settings: Community & Media (migration plan M8c; adds one help line).
++// Settings: Community & Media (migration plan M8c; features plan F2 wires the first two toggles).
++// communityShowManuals and communityShowExternalLinks stay in the settings (defaults unchanged) for F2c; they get
++// a row when something reads them.
+ import { PanelSection } from "@steambrew/client";
+ import { useSetting } from "../settings";
+ import { ItemRow, ToggleRow } from "../components";
+@@ -10,40 +12,27 @@ import { ItemRow, ToggleRow } from "../components";
+ export function CommunitySection() {
+     const [showTrailers, setShowTrailers] = useSetting("communityShowTrailers");
+     const [showArtworks, setShowArtworks] = useSetting("communityShowArtworks");
+-    const [showManuals, setShowManuals] = useSetting("communityShowManuals");
+-    const [showLinks, setShowLinks] = useSetting("communityShowExternalLinks");
+ 
+     return (
+         <PanelSection title="Community & Media">
+             <ItemRow>
+                 <div style={{ fontSize: "12px", opacity: 0.7, padding: "0 0 6px" }}>
+-                    These apply when the Media service is connected (migration plan § 7.10).
++                    For games with no Steam match: Steam's own Community section shows IGDB trailers and art, and
++                    ScreenScraper screenshots and fanart (with a ScreenScraper account). Applies the next time a game's page opens.
+                 </div>
+             </ItemRow>
+             <ToggleRow
+                 label="Gameplay Trailers"
+-                description="Show video trailers and gameplay previews in the Community tab"
++                description="Show IGDB video trailers in the Community section, played by Steam's own player"
+                 value={showTrailers}
+                 onChange={setShowTrailers}
+             />
+             <ToggleRow
+-                label="Fanart & Screenshots"
+-                description="Show promotional artworks, title screens, and fanart galleries"
++                label="Screenshots & Artwork"
++                description="Show IGDB screenshots and artwork, and ScreenScraper screenshots, title screens and fanart"
+                 value={showArtworks}
+                 onChange={setShowArtworks}
+             />
+-            <ToggleRow
+-                label="Digital Game Manuals"
+-                description="Show original retro game manuals viewer modal when available"
+-                value={showManuals}
+-                onChange={setShowManuals}
+-            />
+-            <ToggleRow
+-                label="Community Hub Links"
+-                description="Display quick action links to Wikipedia, Speedrun leaderboards, Discord, and wikis"
+-                value={showLinks}
+-                onChange={setShowLinks}
+-            />
+         </PanelSection>
+     );
+ }
+diff --git a/steam-cartridges/tests/app-view.test.ts b/steam-cartridges/tests/app-view.test.ts
+index 56d8d59..2e47c4d 100644
+--- a/steam-cartridges/tests/app-view.test.ts
++++ b/steam-cartridges/tests/app-view.test.ts
+@@ -12,24 +12,25 @@ function setup(getBucket: () => { bucket: string; via: string }, opts: { collect
+         metadata: { async ensure(_a: any, _r: any, id: any) { log.push('metadata:' + (id ? 'identity' : 'none')); return { status: 'ok' } as any; } },
+         artwork: { async ensure() { log.push('artwork'); return { status: 'ok' } as any; } },
+         achievements: { async ensure() { log.push('achievements'); } },
++        media: { async ensure(_a: any, _r: any, id: any) { log.push('media:' + (id ? 'identity' : 'none')); return { status: 'ok' } as any; } },
+     });
+     return { view, log };
+ }
+ 
+ const tick = () => new Promise((r) => setTimeout(r, 0));
+ 
+-test('a steam-store shortcut runs identity, metadata, artwork, achievements in order', async () => {
++test('a steam-store shortcut runs identity, metadata, artwork, media, achievements in order', async () => {
+     const s = setup(() => ({ bucket: 'steam-store', via: 'default' }));
+     await s.view.onSourceView(SC);
+     await tick();
+-    assert.deepEqual(s.log, ['identity', 'metadata:identity', 'artwork', 'achievements']);
++    assert.deepEqual(s.log, ['identity', 'metadata:identity', 'artwork', 'media:identity', 'achievements']);
+ });
+ 
+ test('a web-scraping shortcut skips identity and the store', async () => {
+     const s = setup(() => ({ bucket: 'web-scraping', via: 'default' }));
+     await s.view.onSourceView(SC);
+     await tick();
+-    assert.deepEqual(s.log, ['metadata:none', 'artwork', 'achievements']);
++    assert.deepEqual(s.log, ['metadata:none', 'artwork', 'media:none', 'achievements']);
+ });
+ 
+ test('a native appid is not a shortcut view', async () => {
+@@ -50,7 +51,7 @@ test('a pending route is local metadata only, replayed once collections are read
+     release(true);
+     await tick();
+     await tick();
+-    assert.deepEqual(s.log, ['metadata:none', 'metadata:none', 'artwork', 'achievements']);
++    assert.deepEqual(s.log, ['metadata:none', 'metadata:none', 'artwork', 'media:none', 'achievements']);
+ });
+ 
+ test('leaving the steam-store bucket stops resolving identity', async () => {

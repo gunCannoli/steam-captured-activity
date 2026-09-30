@@ -68,7 +68,7 @@ Module ids are one build's breadcrumbs; resolve by § 3.
 | **Shortcut Icons**      | `SteamClient.Apps` / `GetIconURLForApp`           | `RequestIconDataForApp(appid)`, `app.icon_data`, `app.icon_data_format`                             | Steam lazy-loads shortcut icons via `RequestIconDataForApp`. Requires `e.BIsModOrShortcut() === true`. | [plugins](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid) |
 | **App Overview Lookup** | `appStore.GetAppOverviewByAppID(appid)`           | Returns `null` for any unowned app — normal, not a bug. Called unguarded by Steam's own Friends module (module 2326) and used (correctly) by `Navigator.App`'s early-return. **Multiple callers, one method — a patch for one can silently break another.** | [pitfalls](knowledgebase.md#appstoregetappoverviewbyappid-has-multiple-callers--patch-the-method-carefully-or-not-at-all) · [m_mapApps trap](knowledgebase.md#appstorem_mapapps-is-the-global-enumerated-backing-store-for-the-entire-library--never-write-into-it) |
 | **Game Info Container** | Module `15448` (`G` & `k`)                        | `onCollapseStarted`, `onCollapseComplete`, `setBoxHeight`, `descriptionsData`, `associationData`   | Renders native summary capsule, description, developer/publisher credits, release date, and category badges. Requires on-demand synchronous enrichment in `k.prototype.render` before paint to avoid `#AppDetails_Shortcut_Explanation` ("Detailed information is unavailable"). | [game info](#game-info-tab--metadata) |
-| **Community & Workshop**| `CWorkshopStore` (`m_mapPublishedFiles`)          | `m_mapPublishedFiles`, `GetPublishedFileDetails`                                                   | In-memory store for user-generated and community items. Maps loopback URLs for fanart, trailers, and manual items.  | [community](#community-media--workshop-store) |
+| **Community & Workshop**| `CWorkshopStore` (`m_mapPublishedFiles`); Community Content loader (module `77163`, class `ae`) | `m_mapPublishedFiles`, `GetPublishedFileDetails`; `LoadCommunityContentAndVotes(appid, page)` | Workshop store: published file records (our activity cards write it). The Community Content section is **not** fed from it: its loader fetches `library/appcommunityfeed/<appid>` itself.  | [community](#community-media--workshop-store) |
 | **Your Stuff Media**    | Module `57150` (`Ae.E`)                           | `listSource: { type: "app", gameid: overview.gameid }`                                             | Renders Big Picture "YOUR STUFF" media section (screenshots & clips). Requires 64-bit composed ID `m_gameid`.      | [guardrail 1](plugins.md#1-prototype-hook-coupling-bismodorshortcut-shortcut-icons-and-getgameid) |
 
 ---
@@ -105,7 +105,8 @@ global where Steam exposes one.
 | Window `Navigator` (`App`, `SteamWeb`, `AppProperties`, …) | `SteamUIStore.WindowStore.SteamUIWindows[i].Navigator` (a plain object per window) | parity plan G · `App()` early-returns on `appStore.GetAppOverviewByAppID` being null ([steam-components.md](#navigatorapp-module-874)) — a second, independent consumer of the same method as the Friends section above |
 | Steam URL ids (`GameHub`, `HelpAppPage`, `StoreAppPage`, …) | `window.urlStore.ResolveURL(id, appid)` | parity gate check 15 |
 | Game Info feature badges → store category ids | module with `n$` + the `#AppDetails_Feature_*` table ([mapping](#store-categories-and-feature-badges)) | `features/game-info/category-policy.ts` |
-| `CWorkshopStore`              | `m_mapPublishedFiles` (keyed by published file id) or `window.WorkshopStore`                         | `features/steam-store/community-store.ts` |
+| `CWorkshopStore`              | `m_mapPublishedFiles` (keyed by published file id) or `window.WorkshopStore`                         | `surfaces/captures` (activity cards) |
+| Community Content loader (`ae`, not exported) | the section class `oe`: jsx element with `{ appid, labelId }` whose prototype has `BindInnerContainer`, `AutoLoadAdditionalContent`, `CheckAndLoadInitialContent`; its `m_loader`'s prototype | `surfaces/community` (features plan F2) |
 
 The store singletons are long-lived MobX objects: resolve once and cache.
 
@@ -1571,12 +1572,50 @@ categories are still ours, and writes again only if not.
 
 ### Community media & Workshop store
 
-For non-Steam games, Steam leaves the Big Picture "COMMUNITY" tab and desktop community sections completely unpopulated because shortcuts lack a Valve Workshop AppId.
+Verified live 2026-09-30 (read-only CDP, module source dumps; native 435150 as the sample). Used by
+[features plan F2](plans/steam-cartridges-f2-community-media-plan.md) and ADR-0046. The earlier text here (media
+files served through `steamloopback.host`, stubs in `m_mapPublishedFiles` feeding the section) came from a deleted
+plan and was never true: the section does not read `CWorkshopStore`.
 
-- **`CWorkshopStore` (`window.WorkshopStore`, `m_mapPublishedFiles`):**
-  Steam's client-side user content store. Keyed by 64-bit `publishedfileid`.
-- **Loopback URL Integration:** Local media files (manuals, screenshots, video previews) stored under `<Steam>/millennium/config/steam-cartridges/media/<appid>/` are served via `https://steamloopback.host/` to satisfy CEF CORS and CSP restrictions.
-- **Native Component Feeding:** Stubs injected into `m_mapPublishedFiles` allow Steam's native `<Carousel>`, fullscreen image lightbox, and media players to consume community fanart and video trailers identically to native Steam Workshop items.
+- **One component, both UIs.** Desktop section `community` and Big Picture's COMMUNITY tab (module `3375`, `lt`:
+  `setSections.has("community") && jsx(wb, { appid: overview.appid })`) render `wb` (module `77163`). A shortcut's
+  section list has no `community` unless we add it (`surfaces/sections`), so the tab is empty for an unmapped shortcut.
+- **Classes.** `wb` = `le` (a function component: `useId`, then `jsx(oe, { labelId, ...props })`). `oe` is a mobx
+  observer class holding `m_loader = new ae(appid)`; `ae` (not exported) is the loader. States `ne`: Init 0, Loading 1,
+  MoreContent 2, OutOfContent 3, Errored 4. The first page loads 1 s after the section is bound **and** on screen
+  (`DelayCheckAndLoadInitialContent`, an IntersectionObserver); later pages as the user scrolls. Client setting
+  `library_disable_community_content` shows a Load button instead.
+- **The fetch.** `ae.LoadCommunityContentAndVotes(appid, page)`: `f.uc` (module `14688`) GETs
+  `${communityURL}library/appcommunityfeed/<appid>` (`rgSections: [2,4,3,9]`) and returns `hub[]`; then `F.dK`
+  (module `20414`) asks `PublishedFile.GetUserVoteSummary` for those ids. Returns `{ vecContent, mapVotes }`. A page with
+  no items ends the feed (OutOfContent, `#AppDetails_CommunityFeed_OutOfContent`). The method is a plain prototype
+  method, called as `this.LoadCommunityContentAndVotes(...)`: patching `ae.prototype` covers every instance. A
+  throwaway `new oe({ appid: 0, labelId: "" })` (constructor only: no mount, no request) exposes that prototype;
+  verified: its loader shares the mounted section's prototype.
+- **Card types** (`item.type`, EWorkshopFileType enum in module `44846`): `3` Artwork (`CvG`), `4` Video (`ADn`),
+  `5` Screenshot (`pmA`), `9` WebGuide (`z41`), `10` IntegratedGuide (`QPp`); any other type renders nothing.
+  - Artwork / Screenshot → `ye`: `preview_image_url` in an image; a click runs `Se`: `PublishedFile.GetDetails` for
+    the id (CM service call), `ThreadStore.FindOrLoadThreadByPublishedFileID(new SteamID(creator.steamid), id)`, then
+    Steam's fullscreen viewer (module `94715` export `N`: `{ strURL: full_image_url, strTitle, children: comments }`).
+    Right-click: "Save screenshot" → `SteamClient.Browser.StartDownload(full_image_url)`.
+  - Video → `Te` (exported as `kB`): 16:9 preview with Steam's play icon; activating it plays `youtube_video_id` inline
+    in Steam's own YouTube player (module `4042` `N1`, `youtube-nocookie.com`). Only YouTube ids: no MP4.
+  - Guide → `fe`: preview, title, BBCode `description` (module `82325` `T`, `[url]` supported); activating the card
+    navigates to `CommunityFilePage` for the id.
+  - Every card: author row (`creator.avatar`, `creator.name`; click → `SteamIDPage(creator.steamid)`), a menu with
+    **Report** (`sharedfiles/reportitem` POST), and for artwork/screenshot/video **award**, **vote up/down**
+    (`sharedfiles/voteup|votedown` POST) and a **comments** count (→ `CommunityFilePage`). A count shows only when it is
+    not `null` (`comment_count`, `votes_for`, sum of `reactions`).
+- **Card size.** `pe(item)`: video → 8 (VideoAspect), guides → 65; an image by aspect and width from `image_width` /
+  `image_height`. An image **without** a size gets 0, matches no row template and is dropped (`No matching template`).
+- **Fields the card code reads** (live sample): `published_file_id` (string), `type`, `title`, `description`,
+  `preview_image_url`, `full_image_url`, `image_width`, `image_height`, `youtube_video_id`, `comment_count`,
+  `votes_for`, `content_descriptorids` (**must be an array**: filtered with `indexOf` against the user's content
+  preferences), `spoiler_tag`, `rating_stars`, `maybe_inappropriate_sex`, `maybe_inappropriate_violence`,
+  `creator { name, steamid, avatar, online_state }`, `reactions []`. `new SteamID("0")` is valid.
+- **Images from other hosts load in Steam's UI:** no CSP on `steamloopback.host/index.html`; `images.igdb.com` and
+  `img.youtube.com` load in an `<img>` and answer `fetch` with CORS. ScreenScraper does not allow a cross-origin fetch
+  ([knowledgebase](knowledgebase.md#image-hosts-seen-from-steams-ui)).
 
 ## Links, navigation and native content for a mapped shortcut
 

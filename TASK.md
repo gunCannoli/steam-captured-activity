@@ -25,7 +25,7 @@ Steam's achievement progress cache at start-up; enhanced-achievements reads Stea
 **F1 Game Data editor: code committed on top of M10 (2026-09-30), waiting for live verification.** Deploy with `dev.ps1`, then
 follow [the F1 plan § 7](docs/plans/steam-cartridges-f1-game-data-editor-plan.md) (`check_settings_panel.mjs` 9 titles,
 `probes/game_editor.mjs`, `npm run test:live`, the by-hand check on desktop and Big Picture). Then mark F1 done in the
-[features plan](docs/plans/steam-cartridges-features-plan.md) and open F2 (Media in the Community tab).
+[features plan](docs/plans/steam-cartridges-features-plan.md); F2 is planned (see Next).
 
 **Owed by a human:** the five visual hand checks listed in [verification.md](docs/steam-cartridges/verification.md) (never run after M10).
 The shortcut library icon's optional last check (choose an icon by hand, confirm it is kept) is also yours.
@@ -46,6 +46,9 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
+- **Execute the F2 plan** (Community media in Steam's own Community section): [steam-cartridges-f2-community-media-plan.md](docs/plans/steam-cartridges-f2-community-media-plan.md),
+  ready and dry-run on `64e3350`. After the achievements preload plan (it takes ADR-0045; F2 writes ADR-0046) and F1's
+  live check. Its § 9.3 card interaction audit decides whether Steam's native cards stay.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.
