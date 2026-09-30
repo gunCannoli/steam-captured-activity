@@ -8,6 +8,7 @@ import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
 import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
+import { asList } from "../kernel/lists.ts";
 
 export type LaunchPolicy = "off" | "first_run" | "all_runs";
 
@@ -46,13 +47,6 @@ export interface AchievementsService {
     reset(appid: ShortcutId): Promise<boolean>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
-}
-
-/** K1: Millennium's cjson encodes an empty Lua table as `{}`; accept an array or an object of items. */
-function asList<T>(v: unknown): T[] {
-    if (Array.isArray(v)) return v as T[];
-    if (v && typeof v === "object") return Object.values(v as Record<string, T>);
-    return [];
 }
 
 interface NewUnlock {

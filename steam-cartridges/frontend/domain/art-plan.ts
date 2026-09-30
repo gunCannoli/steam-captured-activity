@@ -11,6 +11,7 @@
  * not in `failed`, so it is never written again (the user wins).
  */
 import type { ArtworkPlan, ArtworkUrls, StoreApplied } from '../kernel/record';
+import { union } from "../kernel/lists.ts";
 
 export const ALL_SLOTS: readonly number[] = [0, 1, 2, 3];
 
@@ -92,8 +93,6 @@ export interface RawArtwork {
     /** The library icon may be set (icon plan; backend art_service.icon_eligible). */
     iconEligible?: unknown;
 }
-
-const union = (a: number[], b: number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y);
 
 /**
  * The artwork plan for the backend's part (moved from app/artwork, M10): which slots to clear and write

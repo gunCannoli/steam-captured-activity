@@ -11,6 +11,7 @@ import { logger } from "../logger.ts";
 import type { ShortcutId } from "../kernel/appid";
 import type { Identity, OwnedCandidate, Part, Route, SyncProgress } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
+import { asList } from "../kernel/lists.ts";
 
 export interface IngestDeps {
     backend: Pick<typeof Backend, "getNewShortcuts" | "markKnown" | "ensureFresh">;
@@ -44,12 +45,6 @@ const PAUSE_MS = 300;
 
 /** Sources whose pause should stop a run (sgdb is not used here). */
 const RELEVANT_SOURCES = ["steam-store", "igdb", "screenscraper", "steam-web", "retroachievements"];
-
-function asList<T>(v: unknown): T[] {
-    if (Array.isArray(v)) return v as T[];
-    if (v && typeof v === "object") return Object.values(v as Record<string, T>);
-    return [];
-}
 
 function pausedIn(res: { paused?: Record<string, number> } | undefined): boolean {
     return !!res?.paused && RELEVANT_SOURCES.some((s) => s in (res.paused as Record<string, number>));

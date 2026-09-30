@@ -6,6 +6,7 @@
 import type { ShortcutId } from "../../kernel/appid";
 import type { ArtworkPlan } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
+import { union } from "../../kernel/lists";
 import { applyCustomArtwork } from "./artwork";
 import { deps } from "./deps";
 import { applyIcon } from "./icon";
@@ -18,7 +19,6 @@ async function clearSlot(appid: number, slot: number): Promise<void> {
     await apps?.ClearCustomArtworkForApp?.(appid, slot);
 }
 
-const union = (a: readonly number[], b: readonly number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y);
 
 async function execute(appid: ShortcutId, plan: ArtworkPlan): Promise<void> {
     if (!deps.isEnabled("artwork")) return;
