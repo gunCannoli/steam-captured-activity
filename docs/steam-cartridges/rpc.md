@@ -124,7 +124,7 @@ the `ArtworkPlan` in `record.artwork`. `SteamStoreRecordArtwork` also accepts `s
 Icon plan (2026-09-29): the `artwork` part's `data` also carries `iconEligible` (and `urls.icon`);
 `SteamStoreClearMapping` also returns `icon_restore` (a string, only while the shortcut still shows the icon
 this plugin set). Two RPCs added, both called by the `artwork` surface through `ports/backend.ts`:
-`SteamStoreSaveIcon { appid, url, source, steam_appid? } -> { path, previous } | { error }` and
+`SteamStoreSaveIcon { appid, url, source, steam_appid?, base64? } -> { path, previous } | { error }` and
 `SteamStoreRecordIcon { appid, path, previous, source, steam_appid? } -> { ok } | { error }`.
 
 ## Ports (M4c)

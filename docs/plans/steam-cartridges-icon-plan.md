@@ -1,6 +1,6 @@
 # Plan: shortcut library icon (mirror the Steam icon onto a non-Steam game)
 
-**Status:** Ready to execute (2026-09-29). Dry-run done: the six patches apply in order to `cdc656d` and to `987ae8c`
+**Status:** Executed and live-verified (2026-09-29); one plan bug fixed afterwards (§ 11). Dry-run done: the six patches apply in order to `cdc656d` and to `987ae8c`
 (docs-only descendant), both alone and before or after the F1 plan's patches; every step's expected output below
 was observed (§ 9).
 **Kind:** Feature plan, written for the weak implementer ([the plan writing standard](README.md)). The literal
@@ -307,3 +307,8 @@ The code was written and run in a scratch worktree of `cdc656d`; the patches are
 - Deleting `<data dir>/icons/<appid>.*` on Clear (kept: a few KB each, and overwritten by the next write).
 - A per-game "keep the exe icon" switch: today the opt-out is to pick any icon in Properties (the user-wins rule) or the `artwork` kill switch.
 - Adding the probe to `tests/live/run.mjs` once the F1 plan's edit of that file has landed.
+
+## 11. Execution record (2026-09-29)
+
+Steps 1-6 applied as written (TS 147 -> 158, \	est_art_service\ 55). The first live run failed: the backend's \http.get\ cuts a binary body at its first NUL byte, so \SteamStoreSaveIcon\ got a 4-byte JPEG and returned \download failed\. Fix (a separate commit): the surface fetches the image with \etchImageAsBase64\ and passes \ase64\; \shortcut_icon.decode_base64\; TS 159, \	est_art_service\ 59. § 7 items 1-7 then passed live; item 8 was not run (it changes an icon by hand). Note for future plans: never have the backend download an image; only text bodies survive \http.get\.
+

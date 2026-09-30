@@ -64,7 +64,7 @@ the `artwork` surface executes it. `Clear` (`SteamStoreClearMapping`) returns th
 (also for SteamGridDB) and resets `tried`; it also returns `icon_restore` (the icon value ours replaced)
 while the shortcut still shows our icon, and forgets `applied_icon`.
 
-The icon file: `SteamStoreSaveIcon` (`backend/shortcut_icon.lua`) downloads the eligible URL (Steam CDN or
+The icon file: `SteamStoreSaveIcon` (`backend/shortcut_icon.lua`) stores the eligible URL's image, which the frontend fetched and sent as `base64` (the backend's `http.get` cuts a binary body at its first NUL byte, so it cannot download one; the download below is only a fallback that a real image never reaches) (Steam CDN or
 SteamGridDB CDN only, body sniffed as PNG/JPEG/ICO) to `<data dir>/icons/<appid>.<ext>` and returns that
 path and `previous`; the surface calls `SetShortcutIcon`, then `SteamStoreRecordIcon` records it (refused,
 and undone, when the match changed meanwhile). The backend never writes Steam's `config/grid/` files.

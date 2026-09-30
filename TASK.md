@@ -23,7 +23,7 @@ theme Steam's toasts and sounds.
 Next: **E0a** (safety net, a dry-run patch), then E0b (architecture test, `npm run test:live`). Before E0a the
 working tree must be clean: it has an uncommitted deletion of `docs/plans/phase7-and-alpha-plan.md` (plan § 6, EA-K8).
 
-**Shortcut library icon: code committed (2026-09-29)**, waiting for the live verification in [the plan § 7](docs/plans/steam-cartridges-icon-plan.md#7-live-verification-the-user-or-a-verifier-the-user-names).
+**Shortcut library icon: done and live-verified (2026-09-29)**, see the CHANGELOG. Only the optional § 7 item 8 (choose an icon by hand, check it is kept) is left for the user.
 
 **steam-cartridges architecture migration (ports & adapters).** The plugin was
 uninstalled on 2026-09-28 because Steam's UI kept crashing. Plan:
