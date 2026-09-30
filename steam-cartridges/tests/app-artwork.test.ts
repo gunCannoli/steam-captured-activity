@@ -46,6 +46,29 @@ test('steam-cdn plan: a different native app clears ours and writes all four', (
     assert.deepEqual(plan.kept, []);
 });
 
+test('icon: an eligible icon url rides on either plan; not eligible means no icon', () => {
+    const cdn = buildPlan({ urls: { ...URLS, icon: 'i' }, source: 'steam-cdn', steamAppid: 2, iconEligible: true }, 5);
+    assert.deepEqual(cdn.icon, { url: 'i' });
+    assert.equal(cdn.urls.icon, undefined);
+    const sgdb = buildPlan({ urls: { icon: 'i' }, source: 'steamgriddb', emptySlots: {}, iconEligible: true }, 5);
+    assert.deepEqual(sgdb.icon, { url: 'i' });
+    assert.deepEqual(sgdb.write, []);
+    const no = buildPlan({ urls: { ...URLS, icon: 'i' }, source: 'steam-cdn', steamAppid: 2, iconEligible: false }, 5);
+    assert.equal('icon' in no, false);
+});
+
+test('icon: clearSlots with only a restore still writes a plan; without either it does nothing', () => {
+    const { art, records } = setup();
+    art.clearSlots(SC, [], '');
+    assert.deepEqual(records.get(SC)?.artwork?.data?.icon, { restore: '' });
+    assert.deepEqual(records.get(SC)?.artwork?.data?.clear, []);
+    art.clearSlots(SC, [1], 'D:\Game\game.exe');
+    assert.deepEqual(records.get(SC)?.artwork?.data?.icon, { restore: 'D:\Game\game.exe' });
+    const before = records.get(SC)?.artwork;
+    art.clearSlots(SC, []);
+    assert.equal(records.get(SC)?.artwork, before);
+});
+
 test('route none: unsupported without a backend call', async () => {
     const { art, calls, records } = setup();
     const part = await art.ensure(SC, { bucket: 'none', via: 'default' }, undefined);

@@ -6,7 +6,7 @@ import type { ShortcutId } from "../kernel/appid";
 import type { ArtworkPlan, ArtworkUrls, Identity, Part, RecordStore, StoreApplied } from "../kernel/record";
 import type { backend as Backend } from "../ports/backend";
 import { assetUrlsFromItem } from "../domain/store-item.ts";
-import { artworkPlan, pickUrls, sgdbPlan, slotList } from "../domain/art-plan.ts";
+import { artworkPlan, iconPlan, pickUrls, sgdbPlan, slotList } from "../domain/art-plan.ts";
 
 export interface ArtworkRoute {
     bucket: "steam-store" | "web-scraping" | "none";
@@ -33,8 +33,11 @@ export interface ArtworkResolver {
     ensure(appid: ShortcutId, route: ArtworkRoute, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>>;
     /** Drop this session's memory so the next ensure asks the backend again. */
     invalidate(appid: ShortcutId): void;
-    /** Ask the surface to clear these slots (Clear / re-map); the backend already forgot them. */
-    clearSlots(appid: ShortcutId, slots: number[]): void;
+    /**
+     * Ask the surface to clear these slots (Clear / re-map), and to put the library icon back
+     * when `iconRestore` is given (icon plan); the backend already forgot them.
+     */
+    clearSlots(appid: ShortcutId, slots: number[], iconRestore?: string): void;
 }
 
 /** The backend's `artwork` part data (backend/art_service.lua). */
@@ -44,16 +47,19 @@ interface RawArtwork {
     steamAppid?: number;
     applied?: StoreApplied | null;
     emptySlots?: unknown;
+    /** The library icon may be set (icon plan; backend art_service.icon_eligible). */
+    iconEligible?: unknown;
 }
 
 const union = (a: number[], b: number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y);
 
 export function buildPlan(raw: RawArtwork, at: number): ArtworkPlan {
     const applied = raw.applied && typeof raw.applied === "object" ? raw.applied : null;
+    const icon = iconPlan(raw.urls ?? {}, raw.iconEligible);
     if (raw.source === "steam-cdn" && raw.steamAppid !== undefined) {
         const plan = artworkPlan(applied, raw.steamAppid, false);
         const kept = applied && applied.steam_appid === raw.steamAppid ? slotList(applied.slots) : [];
-        return { source: "steam-cdn", steamAppid: raw.steamAppid, urls: pickUrls(raw.urls, plan.write), write: plan.write, clear: plan.clear, tried: [], kept, at };
+        return { source: "steam-cdn", steamAppid: raw.steamAppid, urls: pickUrls(raw.urls, plan.write), write: plan.write, clear: plan.clear, tried: [], kept, at, ...(icon ? { icon } : {}) };
     }
     const plan = sgdbPlan(raw.urls, raw.emptySlots);
     const ours = applied && applied.source === "steamgriddb" ? applied : null;
@@ -65,6 +71,7 @@ export function buildPlan(raw: RawArtwork, at: number): ArtworkPlan {
         tried: union(slotList(ours?.tried), plan.write),
         kept: slotList(ours?.slots),
         at,
+        ...(icon ? { icon } : {}),
     };
 }
 
@@ -141,10 +148,11 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
             retryAt.delete(appid);
             inflight.delete(appid);
         },
-        clearSlots(appid, slots) {
-            if (slots.length === 0) return;
+        clearSlots(appid, slots, iconRestore) {
+            if (slots.length === 0 && iconRestore === undefined) return;
             deps.ensureBase(appid);
             const plan: ArtworkPlan = { source: "cleared", urls: {}, write: [], clear: slots, tried: [], kept: [], at: deps.now() };
+            if (iconRestore !== undefined) plan.icon = { restore: iconRestore };
             deps.records.update(appid, { artwork: { status: "ok", data: plan } });
         },
     };

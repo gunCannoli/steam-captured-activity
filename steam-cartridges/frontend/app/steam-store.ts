@@ -2,7 +2,7 @@ import { logger } from "../logger";
 import { backend, type StoreState } from "../ports/backend";
 import type { GameMetadata, Identity, Part } from "../kernel/record";
 import { NON_STEAM_APPID_MIN } from "../kernel/appid";
-import { slotList } from "../domain/art-plan";
+import { iconRestoreOf, slotList } from "../domain/art-plan";
 
 type Route = { bucket: "steam-store" | "web-scraping" | "none"; via: string };
 
@@ -26,11 +26,12 @@ export function setMetadataSource(source: typeof metadataSource): void {
 }
 
 /** app/artwork: the record-driven artwork plan (M5c). `clearSlots` asks the surface to clear the
- *  slots the backend just forgot; the surface is the only code that writes them. */
+ *  slots the backend just forgot (and put the library icon back, icon plan); the surface is the
+ *  only code that writes them. */
 let artworkSource: {
     ensure(appid: number, route: Route, identity: Part<Identity>): Promise<unknown>;
     invalidate(appid: number): void;
-    clearSlots(appid: number, slots: number[]): void;
+    clearSlots(appid: number, slots: number[], iconRestore?: string): void;
 } = { ensure: async () => ({ status: "pending" }), invalidate: () => {}, clearSlots: () => {} };
 
 export function setArtworkSource(source: typeof artworkSource): void {
@@ -92,12 +93,13 @@ function forget(appid: number): void {
 }
 
 /**
- * Remove the mapping, clear the art slots this plugin wrote (and only those).
+ * Remove the mapping, clear the art slots this plugin wrote (and only those), and put back
+ * the library icon ours replaced while the shortcut still shows ours (icon plan).
  * `reject` remembers the match so it is never re-applied.
  */
 export async function clearSteamStore(appid: number, reject: boolean) {
     const res = await backend.steamStoreClearMapping(appid, reject);
-    artworkSource.clearSlots(appid, slotList(res.slots));
+    artworkSource.clearSlots(appid, slotList(res.slots), iconRestoreOf(res));
     forget(appid);
     const identity = await identitySource.ensure(appid, { bucket: "steam-store", via: "manual" });
     await metadataSource.ensure(appid, { bucket: "steam-store", via: "manual" }, identity);
