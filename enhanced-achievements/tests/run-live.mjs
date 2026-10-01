@@ -10,6 +10,7 @@
 // Desktop checks run first; bigpicture.mjs last (open Big Picture before running
 // it, or it SKIPs). tests/architecture.test.ts fails if a live script is not listed.
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connect, resolvePluginName } from './cdp.mjs';
@@ -26,6 +27,18 @@ const checks = [
     { file: 'reset.mjs', must: /^PASS {2}switched off: unavailable/m },
     { file: 'bigpicture.mjs', theme: true, must: /^PASS {2}themed banner in Big Picture/m, skipWhen: /is Big Picture open\?/ },
 ];
+
+// Boot health first (workspace-only script, absent in a public repo): no point running checks on a broken client.
+const health = join(here, '..', '..', 'steam-health.mjs');
+if (existsSync(health)) {
+    const r = spawnSync(process.execPath, [health], { encoding: 'utf8', timeout: 60_000 });
+    if (r.status !== 0) {
+        console.log(`FAIL  boot health
+${r.stdout}${r.stderr}`);
+        process.exit(1);
+    }
+    console.log('PASS  boot health');
+}
 
 const cdp = await connect();
 const name = await resolvePluginName(cdp, 'EA_PLUGIN', 'enhanced-achievements');

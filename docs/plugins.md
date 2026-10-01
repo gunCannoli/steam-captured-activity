@@ -699,6 +699,20 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      are not shown to the user (removed from steam-cartridges 2026-09-30); the log and
      `disabledFeatures` stay the tools for that.
 
+### 19. Every restart ends with the boot health check
+
+- **The Trap:** "Steam's UI is not loading" after a deploy gets blamed on the last change, and an
+  agent starts reverting code. On 2026-10-01 the suspected change (F2c) had not even been written; the
+  cause was Steam itself after the PC woke from sleep, started without DevTools
+  ([steam-debug.md Trap 12](steam-debug.md#trap-12-steams-ui-is-not-loading-is-often-not-a-plugin)).
+  The opposite also happens: a plugin that throws at start-up leaves Steam up but the plugin missing
+  from `PLUGIN_LIST`, and nothing says so until a feature is found dead.
+- **The Rule:** after every Steam restart, `node steam-health.mjs --wait 120` must PASS before any
+  other live check counts. `dev.ps1` (all three plugins) and `start-steam-dev.ps1` run it for you,
+  and `npm run test:live` runs it first. A FAIL that survives a clean restart
+  (`start-steam-dev.ps1 -Restart`) is ours; one that does not is Steam's. Never weaken its thresholds to
+  get a PASS (guardrail 15). A new plugin's `dev.ps1` and live runner call it the same way.
+
 ---
 
 ## 4. Develop

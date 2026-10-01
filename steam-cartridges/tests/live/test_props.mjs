@@ -3,6 +3,12 @@
 //   node tests/live/test_props.mjs <appid> [--page] [--pre "<js to eval in SJC before opening>"]
 import { pick, session, targets } from "./cdp.mjs";
 const APPID = Number(process.argv[2]);
+// Without an appid it would open Properties for NaN, which leaves the client on an empty
+// /routes/app/NaN/properties page (seen 2026-10-01: Big Picture showed only MENU / BACK).
+if (!Number.isInteger(APPID) || APPID <= 0) {
+  console.log("usage: node tests/live/test_props.mjs <appid> [--page] [--pre \"<js>\"]");
+  process.exit(2);
+}
 const withPage = process.argv.includes("--page");
 const preIdx = process.argv.indexOf("--pre");
 const pre = preIdx > 0 ? process.argv[preIdx + 1] : null;

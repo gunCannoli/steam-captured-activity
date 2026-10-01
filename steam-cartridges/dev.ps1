@@ -235,4 +235,15 @@ if (-not $NoRestart) {
   Write-Host 'Starting Steam in dev mode...'
   Start-Process -FilePath (Join-Path $steam 'steam.exe') -ArgumentList '-dev', '-cef-enable-debugging'
   Write-Host 'Devtools: http://localhost:8080' -ForegroundColor Cyan
+
+  # Boot health (workspace only; absent in a plugin's public repo): the UI rendered and
+  # every enabled plugin loaded. A failure here means this deploy broke Steam's start.
+  $health = Join-Path $PSScriptRoot '..\steam-health.mjs'
+  if ((Test-Path $health) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+    node $health --wait 120 --steam $steam
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning 'Steam boot health check failed after this deploy (FAIL lines above).'
+      exit 1
+    }
+  }
 }

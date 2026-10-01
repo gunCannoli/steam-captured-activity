@@ -304,6 +304,23 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
   Fix pattern: restart animations that started on the frozen clock after two real frames
   (`restartFrozenAnimations` in `banner/themed-toast.tsx`).
 
+### Trap 12: "Steam's UI is not loading" is often not a plugin
+
+- **Symptom:** the Steam window opens blank or does not come up from the tray; it looks like the
+  last deploy broke Steam's start.
+- **Reality (2026-10-01):** Steam had started at 04:26 offline, the PC slept, and at 09:25 it
+  resumed (`SuspendResume: Received resume request` in `webhelper_js.txt`). The window was shown and
+  hidden several times from 09:43 with nothing else logged: it never painted. Steam was also running
+  **without** `-cef-enable-debugging`, so there was no CDP to look with. A clean restart brought the
+  UI back with the same deployed plugins, and Routine 3 passed. Everything here runs in an RDP
+  session, and CEF's GPU process falls back to `--use-gl=disabled` about 2 minutes after **every**
+  start on this machine (`webhelper.txt`), so that fallback alone is not a cause.
+- **Rule:** run `node steam-health.mjs` (§ 8) **before** suspecting code. It reads the logs even
+  without CDP and names the cause it can see (resume from sleep, no CDP, a hung SharedJSContext, a
+  plugin that did not load, an error budget). If it reports a resume or a window that does not paint,
+  restart with `start-steam-dev.ps1 -Restart` and run it again; only a FAIL that survives a clean
+  restart points at the code. Check `git log` too: the suspected change may not even be deployed.
+
 ---
 
 ## 5. Automated CDP Inspection via PowerShell / Node.js
@@ -399,3 +416,25 @@ Anti-patterns:
   answers.
 - Writing a new one-off script when a `scratch/` or plugin `tests/` script already
   covers the same check.
+
+---
+
+## 8. Boot Health Check (`steam-health.mjs`)
+
+One command for "is Steam up, and did our plugins load?", at the workspace root:
+
+```powershell
+node steam-health.mjs              # now
+node steam-health.mjs --wait 120   # right after a restart: poll until healthy or 120 s
+```
+
+| Line | Meaning |
+| ---- | ------- |
+| `FAIL` (exit 1) | `steam.exe` not running; running without CDP; SharedJSContext does not answer in 5 s (Trap 10); an enabled plugin (`config.json` `enabledPlugins`) missing from `PLUGIN_LIST`; the desktop / Big Picture window empty, or visible but not painting; a surface that `exceeded its error budget` since this start |
+| `WARN` | plugin `ERROR` lines and Millennium `ErrorBoundaryHook` catches since this start (Steam's own `Uncaught (in promise) Error: Assertion failed` is old noise: 200+ lines since 2026-09-30) |
+| `INFO` | resume from sleep, the GPU software fallback, the start time and the last JS log line |
+
+"Since this start" means after the last `Client version:` line of `webhelper_js.txt`.
+It runs on its own after `start-steam-dev.ps1` (skip with `-NoHealthCheck`), at the end of every
+plugin's `dev.ps1` (the deploy fails if it fails), and as the first step of each plugin's
+`npm run test:live`. In a plugin's public repo the script is absent and those steps are skipped.

@@ -155,9 +155,14 @@ Never test only a single "clean restart ➔ open game" navigation path. Single-p
 Run the live diagnostic scripts in `steam-cartridges/tests/live/` (or `npm run test:live` inside `steam-cartridges/`) against the running Steam client (`127.0.0.1:8080`):
 
 ```powershell
+node steam-health.mjs                                 # First: Steam UI up, every enabled plugin loaded (steam-debug.md § 8)
 node steam-cartridges/tests/live/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
 node steam-cartridges/tests/live/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
 ```
+
+**"Steam's UI is not loading"?** Run `node steam-health.mjs` before touching code: it reads
+Steam's logs even without DevTools and says whether it is Steam (resume from sleep, no CDP, a
+window that does not paint) or a plugin ([steam-debug.md Trap 12](docs/steam-debug.md#trap-12-steams-ui-is-not-loading-is-often-not-a-plugin)).
 
 For cheap ways to answer a debugging question (cheapest method first, screenshots
 last), see [steam-debug.md § Cost-Efficient Debugging](docs/steam-debug.md#7-cost-efficient-debugging).

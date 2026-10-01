@@ -8,6 +8,7 @@
 //
 // tests/architecture.test.ts fails if a live script is not listed.
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connect, resolvePluginName } from './cdp.mjs';
@@ -21,6 +22,18 @@ const checks = [
     { file: 'placement.mjs', must: /^(PASS {2}placement off: Steam places the toast|SKIP {2}desktop only)/m },
     { file: 'bigpicture.mjs', must: /^(PASS {2}Big Picture: settings reset|SKIP {2}Big Picture is not open)/m },
 ];
+
+// Boot health first (workspace-only script, absent in a public repo): no point running checks on a broken client.
+const health = join(here, '..', '..', 'steam-health.mjs');
+if (existsSync(health)) {
+    const r = spawnSync(process.execPath, [health], { encoding: 'utf8', timeout: 60_000 });
+    if (r.status !== 0) {
+        console.log(`FAIL  boot health
+${r.stdout}${r.stderr}`);
+        process.exit(1);
+    }
+    console.log('PASS  boot health');
+}
 
 const cdp = await connect();
 const name = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');

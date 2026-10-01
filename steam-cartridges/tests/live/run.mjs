@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
+    // first: is Steam's UI up and every enabled plugin loaded? Workspace-only script, skipped in a public repo.
+    { name: "boot health (UI rendered, plugins loaded)", file: "../../../steam-health.mjs", args: [], must: /^PASS/m, skipWhen: /Cannot find module/ },
     // first: something in the later checks makes Steam drop back into Big Picture, which has no desktop window
     { name: "parity (needs the desktop window, not Big Picture)", file: "check_parity.mjs", args: [], must: /./, skipWhen: /No CDP target: desktop Steam window/ },
     { name: "K4: Mark as Private disabled (desktop)", file: "probes/manage_menu.mjs", args: [], must: /^PASS K4/m },

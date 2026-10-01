@@ -30,6 +30,10 @@
 .PARAMETER KillOnly
   Stops any running Steam process without starting a new one.
 
+.PARAMETER NoHealthCheck
+  Skips the boot health check (steam-health.mjs) that runs once DevTools is ready:
+  Steam UI rendered and painting, every enabled plugin loaded, no error budget hit.
+
 .EXAMPLE
   .\start-steam-dev.ps1
   Checks if Steam is running with debugging; if not, starts Steam in -dev mode.
@@ -49,7 +53,8 @@ param(
   [switch] $BigPicture,
   [switch] $OpenBrowser,
   [int]    $Port = 8080,
-  [switch] $KillOnly
+  [switch] $KillOnly,
+  [switch] $NoHealthCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -230,6 +235,14 @@ try {
 }
 catch {
   Write-Host "Could not query target list from http://localhost:$Port/json." -ForegroundColor DarkYellow
+}
+
+# 5. Boot health: the UI rendered and every enabled plugin loaded (docs/steam-debug.md § 8).
+$health = Join-Path $PSScriptRoot 'steam-health.mjs'
+if (-not $NoHealthCheck -and (Test-Path $health) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+  Write-Host 'Boot health check...' -ForegroundColor Cyan
+  node $health --wait 90 --steam $steamDir
+  if ($LASTEXITCODE -ne 0) { Write-Warning 'Steam boot health check failed (FAIL lines above).' }
 }
 
 if ($OpenBrowser) {
