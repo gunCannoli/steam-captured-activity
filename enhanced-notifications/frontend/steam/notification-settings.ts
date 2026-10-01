@@ -45,15 +45,3 @@ export function toastsEnabled(): boolean | null {
     const v = store.clientSettings.disable_all_toasts;
     return typeof v === 'boolean' ? !v : null;
 }
-
-/** One line for the settings panel, or `null` when nothing needs saying. */
-export function toastWarning(): string | null {
-    const enabled = toastsEnabled();
-    if (enabled === false) {
-        return "Steam's toast notifications are off, so styled toasts, sounds and display time will not show. Turn them on in Steam Settings -> Notifications.";
-    }
-    if (enabled === null) {
-        return 'This plugin needs Steam toast notifications enabled (Steam Settings -> Notifications) to trigger.';
-    }
-    return null;
-}
