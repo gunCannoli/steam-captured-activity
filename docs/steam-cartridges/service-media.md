@@ -115,6 +115,6 @@ breakers of `get_binary`, the RPC facade, no URL or account in the store or a lo
 
 ## History
 
-- F2 (features plan, [the F2 plan](../plans/steam-cartridges-f2-community-media-plan.md)): created. Replaces the
+- F2 (features plan; the F2 plan was removed once done, recover it with `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`): created. Replaces the
   unwired `igdb_community.lua` (deleted: its own Twitch token and title search) and the unwired half of
   `screenscraper_media.lua` (`GetGameMedia`, `GetGameManual`, a disk media folder that was never written).

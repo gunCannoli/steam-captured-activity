@@ -4,7 +4,7 @@
 split, the open questions (each with the cheap probe that answers it) and the order of work. Before any code it must be
 turned into a full plan per [the plan writing standard](README.md) (literal before/after blocks, exact commands and
 expected output, dry run). Written 2026-09-30, after F2 shipped
-([steam-cartridges-f2-community-media-plan.md](steam-cartridges-f2-community-media-plan.md), ADR-0046).
+(the F2 plan, removed once done, recover it with `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`; ADR-0046).
 **Decisions by the user (2026-09-30), binding on the full plan:**
 1. **The manual card is one ordinary cell, not a full-width row.** Roughly one card of five across in Big Picture, whatever Steam's
    layout gives for the width (a full-row card looks bad). It is still the **first** card of the grid (top left).
@@ -14,7 +14,7 @@ expected output, dry run). Written 2026-09-30, after F2 shipped
    (`appStore.allApps`, `display_name`), and probe its ScreenScraper record for the manual (Q1, Q2).
 4. This is only a skeleton: nothing is executed from it. Another agent will enhance it into the full plan.
 
-**Parent:** [F2 plan § 12](steam-cartridges-f2-community-media-plan.md#12-not-in-this-plan-follow-ups) (F2c: links and manuals).
+**Parent:** F2 plan § 12 (plan removed once done: `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`) (F2c: links and manuals).
 **Layer rules:** [steam-cartridges.md § 4](../steam-cartridges.md#4-adding-a-feature), ADR-0039, ADR-0044, ADR-0046.
 **Needs:** a new ADR (ADR-0047 if the achievements and F2 numbering is unchanged) when the design is chosen.
 
@@ -121,8 +121,11 @@ joins `surfaces/community`'s existing hook), the F2 rule that no ScreenScraper U
 
 ## 7. Do-not-touch and banned actions (as F2)
 
-The F2 plan's § 4 and § 5 apply. In addition: no new dependency is installed without the user's approval (Option A needs
-one), no PDF or page image is written to disk, no manual is opened in a browser.
+The F2 plan's do-not-touch list and banned actions apply (recover it as above): no deploy outside the plan's own live steps,
+no SharedJSContext reload, no probe or throwaway plugins, no edits to Millennium's config or `.env`, never read or print the
+ScreenScraper or Twitch credentials, no changes to the user's library, collections or shortcuts, no `git push --force`, no
+`--no-verify`, no AI attribution in a commit. In addition: no new dependency is installed without the user's approval
+(pdf.js is approved, nothing else), no PDF or page image is written to disk, no manual is opened in a browser.
 
 ## 8. Live verification (sketch; exact PASS lines in the full plan)
 

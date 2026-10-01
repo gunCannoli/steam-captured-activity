@@ -2763,7 +2763,7 @@ and one guardrail-8 write (`appData.details = {}`).
 
 **Status:** Accepted · 2026-09-30 (the user chose option B: "consider steam-cartridges store data just as steam does it
 so we dont just feed the fake data when the game is opened") · Implemented by
-[the achievements preload plan](plans/steam-cartridges-achievements-preload-plan.md) ·
+the achievements preload plan (plan removed once done: `git show 585cc5c:docs/plans/steam-cartridges-achievements-preload-plan.md`) ·
 **Extends [ADR-0009](#adr-0009-prefer-patching-steams-data-over-patching-its-dom),
 [ADR-0022](#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them),
 [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam)**

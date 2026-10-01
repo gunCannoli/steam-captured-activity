@@ -1584,7 +1584,7 @@ categories are still ours, and writes again only if not.
 ### Community media & Workshop store
 
 Verified live 2026-09-30 (read-only CDP, module source dumps; native 435150 as the sample). Used by
-[features plan F2](plans/steam-cartridges-f2-community-media-plan.md) and ADR-0046. The earlier text here (media
+features plan F2 (plan removed once done: `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`) and ADR-0046. The earlier text here (media
 files served through `steamloopback.host`, stubs in `m_mapPublishedFiles` feeding the section) came from a deleted
 plan and was never true: the section does not read `CWorkshopStore`.
 

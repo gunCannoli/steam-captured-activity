@@ -32,7 +32,7 @@ new surface with declared `touches` (disjoint from every other surface; a test e
 | # | Feature | Why this order |
 | --- | --- | --- |
 | F1 | Game Data editor: manual metadata and manual Steam link (settings popup) | Small, no new Steam write. Fixes wrong data and unwanted suggestions today. **Code done 2026-09-30 (rebuilt on top of M10; live verification pending)** ([F1 plan](steam-cartridges-f1-game-data-editor-plan.md)). |
-| F2 | Media in the Community tab | Larger: new record part, new service, new surface. **Code done 2026-09-30 (live verification pending)** ([F2 plan](steam-cartridges-f2-community-media-plan.md)). |
+| F2 | Media in the Community tab | Larger: new record part, new service, new surface. **Code done 2026-09-30 (live verification pending)** (F2 plan (plan removed once done: `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`)). |
 
 Each feature ships separately (own commit series, own live verification, own CHANGELOG entry).
 
@@ -94,7 +94,7 @@ No new surface, no new Steam write, no kill switch (the editor writes only our o
 
 ## F2: Media in the Community tab
 
-**Detailed, executable plan:** [steam-cartridges-f2-community-media-plan.md](steam-cartridges-f2-community-media-plan.md)
+**Detailed, executable plan:** done and removed; recover it with `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`
 (seven dry-run patches, live research findings, ADR-0046, the card interaction audit). It supersedes the module table
 and the open questions below where they differ; they stay as the scope record. User decisions (2026-09-30): feed
 Steam's native cards and reconsider only if the live audit shows faults; ScreenScraper images stay in memory (no
