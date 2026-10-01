@@ -17,4 +17,6 @@ export interface ToastSelectors {
     logoBox?: string; // StandardLogoDimensions + ShortLogoDimensions
     appLogo?: string;
     headerIcon?: string;
+    toastTemplate?: string; // DesktopToastTemplate + ShortTemplate: the box with Steam's 10 px padding
+    content?: string; // the text column right of the logo
 }

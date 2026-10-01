@@ -18,6 +18,7 @@ const checks = [
     { file: 'safety.mjs', must: /^PASS {2}style on again: the preview is restyled/m },
     { file: 'categories.mjs', theme: true, must: /^PASS {2}downloads: restyled in place/m },
     { file: 'sound-duration.mjs', must: /^PASS {2}settings reset, temp theme removed/m },
+    { file: 'placement.mjs', must: /^PASS {2}placement off: Steam places the toast/m },
 ];
 
 const cdp = await connect();

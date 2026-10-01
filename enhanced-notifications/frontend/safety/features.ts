@@ -13,7 +13,7 @@
  */
 
 /** Stable ids: users type them. Never rename one; add new ones at the end. */
-export const FEATURE_IDS = ['style', 'sound', 'duration', 'preview'] as const;
+export const FEATURE_IDS = ['style', 'sound', 'duration', 'preview', 'placement'] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Safe mode keeps nothing: every toast is Steam's own. */

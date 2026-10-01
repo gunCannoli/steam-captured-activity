@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildCss, categoryOf, merge, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
+import { buildAnimationCss, buildCss, categoryOf, keyframeName, merge, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
 import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
@@ -148,4 +148,65 @@ test('jsonc: stripping keeps line structure, so parse errors point at the real l
 
 test('jsonc: a comma inside a string before } is not treated as trailing', () => {
     assert.deepEqual(parseJsonc('{"a": ",", "b": [","]}'), { a: ',', b: [','] });
+});
+
+test('settings.position and settings.animation: unset keeps Steam, enhanced-achievements values accepted', () => {
+    const stock = resolveTheme({});
+    assert.equal(stock.position, null);
+    assert.equal(stock.animation, null);
+    const t = resolveTheme({ settings: { position: 'top_left', animation: 'ps5' } });
+    assert.equal(t.position, 'top_left');
+    assert.deepEqual(t.animation, { in: 'ps5', out: 'ps5' });
+    assert.deepEqual(resolveTheme({ settings: { animation: { in: 'fade' } } }).animation, { in: 'fade', out: 'fade' });
+    assert.deepEqual(resolveTheme({ settings: { animation: { out: 'none' } } }).animation, { in: 'slide', out: 'none' });
+    const bad = resolveTheme({ settings: { position: 'middle', animation: 'spin' } });
+    assert.equal(bad.position, null);
+    assert.equal(bad.animation, null);
+    assert.equal(bad.warnings.length, 2);
+});
+
+test('popup.margin / padding / gap: enhanced-achievements shorthand, inherited like any style', () => {
+    const t = resolveTheme({
+        default: { popup: { margin: 5, padding: [6, 12], gap: [8, 2] } },
+        types: { FriendOnline: { popup: { padding: [10, 5, 4, 7], gap: 3 } } },
+    });
+    const d = t.styleFor('DownloadComplete');
+    assert.deepEqual(d.margin, { top: 5, bottom: 5, left: 5, right: 5 });
+    assert.deepEqual(d.padding, { top: 6, bottom: 6, left: 12, right: 12 });
+    assert.deepEqual(d.gap, [8, 2]);
+    const f = t.styleFor('FriendOnline');
+    assert.deepEqual(f.padding, { top: 10, bottom: 5, left: 4, right: 7 }, 'order is top, bottom, left, right');
+    assert.deepEqual(f.gap, [3, 3]);
+    assert.deepEqual(f.margin, d.margin, 'margin inherited from default');
+    const stock = resolveTheme({}).styleFor('DownloadComplete');
+    assert.equal(stock.margin, null);
+    assert.equal(stock.padding, null);
+    assert.deepEqual(stock.gap, [null, null]);
+});
+
+test('padding and gap CSS target the toast template and the text column, scoped to the type', () => {
+    const sel: ToastSelectors = { ...SEL, toastTemplate: ':is(.tt)', content: ':is(.ct)' };
+    const t = resolveTheme({ default: { popup: { padding: [10, 5, 4, 7], gap: [6, 2] } } });
+    const css = buildCss('DownloadComplete', t.styleFor('DownloadComplete'), sel);
+    assert.match(css, /body\[data-en-type="DownloadComplete"\] :is\(\.tt\) \{ padding: 10px 7px 5px 4px !important;/);
+    assert.match(css, /body\[data-en-type="DownloadComplete"\] :is\(\.ct\) \{ margin-left: 6px !important; gap: 2px !important; \}/);
+    const onlyY = buildCss('X', resolveTheme({ default: { popup: { gap: [null, 4] } } }).styleFor('X'), sel);
+    assert.match(onlyY, /:is\(\.ct\) \{ gap: 4px !important; \}/);
+});
+
+test('animation CSS: direction follows the corner, exit ends when Steam closes the popup', () => {
+    assert.equal(buildAnimationCss(resolveTheme({}), SEL), '', 'no animation: Steam slide, no CSS');
+    const ps5 = buildAnimationCss(resolveTheme({ settings: { position: 'top_left', animation: 'ps5' } }), SEL);
+    assert.match(ps5, /@keyframes en-in-ps5-left/);
+    assert.match(ps5, /@keyframes en-out-ps5-left/);
+    assert.match(ps5, /body\[data-en-type\] > :has\(> :is\(\.dp\)\) \{/);
+    assert.match(ps5, /animation-duration: 450ms, 400ms;/);
+    // Steam: 300 in + display + 300 out; a 400 ms exit starts 200 ms after the display time.
+    assert.match(ps5, /animation-delay: 0ms, calc\(var\(--en-display-ms, 5000ms\) \+ 200ms\);/);
+    const none = buildAnimationCss(resolveTheme({ settings: { animation: { in: 'fade', out: 'none' } } }), SEL);
+    assert.match(none, /animation-name: en-in-fade, none;/);
+    assert.equal(keyframeName('in', 'slide', 'bottom_left'), 'en-in-slide-left');
+    assert.equal(keyframeName('out', 'slide', 'top_center'), 'en-out-slide');
+    assert.equal(keyframeName('in', 'ps5', 'bottom_center'), 'en-in-ps5-bottom');
+    assert.equal(keyframeName('in', 'none', 'top_right'), null);
 });

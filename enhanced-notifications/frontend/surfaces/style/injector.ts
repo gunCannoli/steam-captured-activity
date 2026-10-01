@@ -3,8 +3,9 @@ import { setting, onSettingChange } from '../../settings/settings';
 import { knownTypeNames, typeName } from '../../steam/notification-store';
 import { handles } from '../../steam/coexistence';
 import type { NotificationHook } from '../../steam/notification-hook';
-import { activeTheme, cssFor, onThemeChange } from '../../theme/active-theme';
+import { activeTheme, animationCss, cssFor, onThemeChange } from '../../theme/active-theme';
 import { isEnabled, reportError } from '../../safety/runtime';
+import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
 
 /**
  * Styles Steam's toast windows without touching React.
@@ -29,6 +30,12 @@ import { isEnabled, reportError } from '../../safety/runtime';
  *   Big Picture main window: a few `.return` steps up that div's React fiber, a
  *   hook holds the BrowserView popup object, whose `GetViewWindow()` is the
  *   toast window. Scanned once per toast shown, no new timers.
+ *
+ * Desktop shows several toasts at once, so each per-toast popup gets its own type
+ * as soon as it is known (./toast-window.ts reads it at Steam's first move of that
+ * popup, and also places the popup); until then, and for Big Picture's one
+ * window, the current toast's type is used. A per-toast window also carries
+ * `--en-display-ms`, its type's toast duration, which times a theme's exit animation.
  *
  * Why not wrap the dispatcher element through react/jsx-runtime, as
  * enhanced-achievements does? Verified live 2026-09-24: for these toasts the
@@ -75,6 +82,8 @@ interface BrowserViewPopup {
 
 const STYLE_ID = 'enhanced-notifications-theme';
 const toastWindows = new Set<Window>();
+/** Per-toast popups whose own notification type is known (./toast-window.ts). */
+const ownTypes = new Map<Window, number>();
 let themeCss = '';
 let currentType: string | null = null;
 let placeholderSelector: string | undefined;
@@ -86,7 +95,7 @@ let offs: (() => void)[] = [];
 /** Every styled type's CSS, built once per theme load (cssFor caches per type). */
 function buildThemeCss(): string {
     if (!activeTheme()) return '';
-    return knownTypeNames().map(cssFor).filter(Boolean).join('\n');
+    return [animationCss(), ...knownTypeNames().map(cssFor)].filter(Boolean).join('\n');
 }
 
 function applyStyle(win: Window): void {
@@ -101,17 +110,39 @@ function applyStyle(win: Window): void {
     if (el.textContent !== themeCss) el.textContent = themeCss;
 }
 
+/** The type name to style a toast of `eType` as, or null to leave it stock. O(1) (cssFor is cached per theme). */
+function styledName(eType: number | undefined): string | null {
+    const name = typeName(eType);
+    if (!name || !isEnabled('style') || !setting('style.enabled') || !activeTheme() || !handles(eType!, 'banner')) return null;
+    return cssFor(name) !== '' || animationCss() !== '' ? name : null;
+}
+
 function applyType(win: Window): void {
     const body = win.document?.body;
     if (!body) return;
-    if (currentType) body.setAttribute('data-en-type', currentType);
+    const own = ownTypes.get(win);
+    const type = own === undefined ? currentType : styledName(own);
+    if (type) body.setAttribute('data-en-type', type);
     else body.removeAttribute('data-en-type');
+    if (own !== undefined) body.style.setProperty('--en-display-ms', `${displayMsFor(own)}ms`);
+}
+
+/** ./toast-window.ts read a per-toast popup's own notification type. */
+function onWindowType(win: Window, eType: number): void {
+    if (!installed || win.closed) return;
+    ownTypes.set(win, eType);
+    try {
+        applyType(win);
+    } catch (error) {
+        reportError('style', error);
+    }
 }
 
 function forEachToastWindow(fn: (win: Window) => void): void {
     for (const win of toastWindows) {
         if (win.closed) {
             toastWindows.delete(win);
+            ownTypes.delete(win);
             continue;
         }
         try {
@@ -127,6 +158,7 @@ function track(win: Window | undefined | null): void {
     if (!toastWindows.has(win)) {
         toastWindows.add(win);
         applyStyle(win);
+        attachToastWindow(win, onWindowType);
     }
     applyType(win);
 }
@@ -135,6 +167,7 @@ function onPopup(popup: Popup): void {
     if (!installed) return;
     const win = popup?.window;
     if (!win || !/notificationtoasts/i.test(popup.m_strName ?? '')) return;
+    pruneToastWindows();
     track(win);
 }
 
@@ -184,10 +217,7 @@ function scanBigPictureToastWindows(): void {
 /** Decide which type (if any) the current toast should be styled as. */
 function onCurrentToast(toast: CurrentToast | null | undefined): void {
     if (!installed) return;
-    const eType = toast?.eType;
-    const name = typeName(eType);
-    currentType =
-        name && isEnabled('style') && setting('style.enabled') && activeTheme() && handles(eType!, 'banner') && cssFor(name) !== '' ? name : null;
+    currentType = styledName(toast?.eType);
     scanBigPictureToastWindows();
     forEachToastWindow(applyType);
 }
@@ -246,11 +276,14 @@ export function uninstallInjector(): void {
     }
     offs = [];
     currentType = null;
+    detachToastWindows();
+    ownTypes.clear();
     for (const win of toastWindows) {
         try {
             if (win.closed) continue;
             win.document?.getElementById(STYLE_ID)?.remove();
             win.document?.body?.removeAttribute('data-en-type');
+            win.document?.body?.style.removeProperty('--en-display-ms');
         } catch {
             /* a window going away mid-cleanup is fine */
         }

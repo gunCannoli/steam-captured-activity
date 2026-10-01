@@ -14,6 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Added
 
+- **Toast position, animation and spacing**, with Enhanced Achievements' names and values (themes.md): `settings.position` (`top_right`, `top_left`, `bottom_right`, `bottom_left`, `top_center`, `bottom_center`), `settings.animation` (`slide`, `fade`, `up`, `down`, `ps5`, `none`, or `{ "in", "out" }`), and per style `popup.margin`, `popup.padding`, `popup.gap`. Position and animation apply to desktop and in-game overlay toasts and keep Steam's stacking; Big Picture keeps Steam's place and motion; achievement toasts drawn by Enhanced Achievements keep that plugin's. New kill switch `placement`. Live check `tests/placement.mjs`.
 - **Safety net:** each feature can be switched off without uninstalling (`disabledFeatures` setting, e.g. `style,sound`; no panel control), a feature that fails 5 times in a session switches itself off until Steam restarts, and two unclean starts in a row start the plugin in safe mode (Steam's own toasts). `safetyDiagnostics()` and `surfaceStatus()` exports.
 - `npm run test:live` runs every live check with settings snapshotted and restored; new live check `tests/safety.mjs`.
 - **JSONC themes:** themes can be `.jsonc` (or `.json`) with `//` and `/* */` comments and trailing commas; `name.jsonc` wins over `name.json` in the same folder. Same rules as Enhanced Achievements.
@@ -22,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- With several desktop toasts on screen, each keeps its own type's style: every toast window now carries its own notification type instead of the newest toast's (an older toast used to be restyled, or lose its style, when a new one arrived).
 - Toast durations are restored to Steam's own value even when enhanced-achievements wrote a type's duration first: both plugins record the pristine value in one shared place (`pristineDuration`, same helper in each).
 
 ## [0.1.0-alpha.1] - 2026-09-24

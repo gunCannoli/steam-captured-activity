@@ -134,6 +134,7 @@ export const PURE = [
     'surfaces/duration/duration.ts',
     'surfaces/sound/sound.ts',
     'theme/jsonc.ts',
+    'theme/placement.ts',
     'theme/theme.ts',
 ];
 
@@ -171,6 +172,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['NotificationStore.prototype.PlayNotificationSound', /\.PlayNotificationSound\s*=(?!=)/, 'steam/notification-hook.ts'],
     ['NotificationStore ChooseSound (per call)', /\.ChooseSound\s*=(?!=)/, 'steam/notification-hook.ts'],
     ['type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'surfaces/duration/index.ts'],
+    ['toast popup SteamClient.Window.MoveTo', /\.MoveTo\s*=(?!=)/, 'surfaces/style/toast-window.ts'],
     ['toast window body[data-en-type]', /\.setAttribute\(\s*'data-en-type'/, 'surfaces/style/injector.ts'],
     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],

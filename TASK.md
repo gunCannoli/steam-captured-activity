@@ -21,6 +21,10 @@ theme Steam's toasts and sounds.
 [its plan § 9](docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
 `npm run test:live` in both, then the by-hand checks.
 
+**enhanced-notifications toast position / animation / margin / padding / gap (2026-10-01): done, live-verified on desktop** with test
+toasts (`test:live` 4/4). Left for a human: look at it (a theme with `"settings": { "position": "top_left", "animation": "ps5" }`),
+an in-game overlay toast, and Big Picture (padding and gap should apply there; position and animation stay Steam's by design).
+
 **F2 Community media: done and pushed (2026-09-30); a few live checks are still pending.** Live-verified by the agent: § 9.1
 (feed, loader, cards, ScreenScraper `blob:` images, no URL or credential on disk), Routine 2 in desktop and Big Picture
 (native game, AM2R, mapped game), `npm run test:live` 12/12 in desktop, trailer plays inline, image viewer in Big Picture

@@ -2,7 +2,7 @@ import { logger } from '../logger';
 import { rpc } from '../rpc';
 import { setting, onSettingChange } from '../settings/settings';
 import { parseJsonc } from './jsonc';
-import { buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
+import { buildAnimationCss, buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
 
 /**
  * The active theme, with sounds pre-decoded and per-type CSS cached.
@@ -23,6 +23,8 @@ let loading: Promise<void> | null = null;
 let audioContext: AudioContext | null = null;
 let selectors: ToastSelectors = {};
 const cssCache = new Map<string, string>();
+/** The theme's entrance/exit CSS, built once per theme load; undefined = not built yet. */
+let animationCache: string | undefined;
 const listeners = new Set<() => void>();
 
 export function activeTheme(): LoadedTheme | null {
@@ -43,6 +45,7 @@ export function audio(): AudioContext {
 export function setSelectors(value: ToastSelectors): void {
     selectors = value;
     cssCache.clear();
+    animationCache = undefined;
 }
 
 export function styleFor(typeName: string): ResolvedStyle | null {
@@ -59,6 +62,13 @@ export function cssFor(typeName: string): string {
         cssCache.set(typeName, css);
     }
     return css;
+}
+
+/** The theme's entrance and exit CSS (one block for every type), cached. '' = Steam's own slide. */
+export function animationCss(): string {
+    if (!loaded) return '';
+    animationCache ??= buildAnimationCss(loaded.theme, selectors);
+    return animationCache;
 }
 
 /** Theme sound for a type: a decoded clip, `false` to mute, or `null` for Steam's own. */
@@ -98,11 +108,13 @@ async function load(name: string): Promise<void> {
         }
         loaded = { name, theme, audio: decoded };
         cssCache.clear();
+        animationCache = undefined;
         for (const warning of theme.warnings) logger.warn(`Theme "${name}": ${warning}`);
         logger.info(`Theme "${name}" loaded (${decoded.size} sounds).`);
     } catch (error) {
         loaded = null;
         cssCache.clear();
+        animationCache = undefined;
         logger.error(`Theme "${name}" could not be loaded; toasts stay stock.`, error);
     }
     for (const listener of listeners) listener();

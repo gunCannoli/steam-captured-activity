@@ -26,6 +26,8 @@ const PARTS: Record<keyof ToastSelectors, string[]> = {
     logoBox: ['StandardLogoDimensions', 'ShortLogoDimensions'],
     appLogo: ['AppLogo'],
     headerIcon: ['Icon'],
+    toastTemplate: ['DesktopToastTemplate', 'ShortTemplate'],
+    content: ['Content'],
 };
 
 /** A module is a toast class map if it has at least one of these distinctive keys. */

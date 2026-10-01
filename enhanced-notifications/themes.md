@@ -9,6 +9,7 @@ comments and trailing commas. If a folder has both `name.jsonc` and
 
 ```json
 {
+  "settings":   { "position": "top_right", "animation": "ps5" },
   "default":    { ...style },
   "categories": { "friends": { ...style }, "messages": {}, "downloads": {}, "recording": {}, "achievement": {}, "system": {} },
   "types":      { "DownloadComplete": { ...style }, "FriendOnline": { ...style } }
@@ -21,6 +22,21 @@ key; arrays and tuples are replaced whole. Type names are Steam's
 `DownloadComplete`, `GameRecordingInstantClip`, `CloudSyncFailure`,
 `Achievement`, `LowBattery`, …). Unlisted types belong to `system`.
 
+## Settings
+
+Theme-wide, in a top-level `settings` object. Same names and values as Enhanced Achievements'
+`settings`. Both apply to desktop and in-game overlay toasts; in Big Picture, Steam's own place and
+motion stay.
+
+| Key | Format | Notes |
+| --- | --- | --- |
+| `position` | `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"` | Screen corner. Unset: Steam's own corner (the one picked in Steam's settings). Steam's stacking is kept: the newest toast sits at the corner and older ones move inward |
+| `animation` | `"slide"`, `"fade"`, `"up"`, `"down"`, `"ps5"`, `"none"`, or `{ "in": ..., "out": ... }` | Entrance and exit. One name sets both; in the object form an unset side is `slide` (in) or `fade` (out). Unset: Steam's own slide. `slide` and `ps5` move from the side of the corner (`ps5`: a short slide with a fade, vertical for the centred positions) |
+
+With an `animation`, the toast does not travel with Steam's slide: it appears at its place, and the exit ends
+when Steam closes the toast (Steam's slide in, then the type's display time, then Steam's slide out).
+Achievement toasts drawn by Enhanced Achievements keep that plugin's own position and animation.
+
 ## Style keys
 
 | Key | Format | Notes |
@@ -30,6 +46,9 @@ key; arrays and tuples are replaced whole. Type names are Steam's
 | `popup.border` | `[width_px, "#hex", radius_px]` | |
 | `popup.glow` | `["#hex", spread_px, pulse_ms]` | Inner glow; `pulse_ms` `0` = steady |
 | `popup.watermark` | `true` / `false` | Steam logo behind desktop toasts |
+| `popup.margin` | `px`, `[vertical, horizontal]` or `[top, bottom, left, right]` | Distance from the screen corner; only the sides the toast is anchored to count (`top_right` uses top and right; centred positions ignore left and right). Works with Steam's own corner too. Desktop and overlay only |
+| `popup.padding` | `px`, `[vertical, horizontal]` or `[top, bottom, left, right]` | Space inside the toast around the logo and text. Steam's is `10` |
+| `popup.gap` | `px` or `[logo_to_text, between_rows]` | Steam's is `[12, 0]` |
 | `font_family` | `"Name, Fallback"` | Plain font names only |
 | `text.title` / `text.body` / `text.subtext` | `["#hex", size_pct, "bold"\|"regular"\|"italic"]` | Size is relative to Steam's default |
 | `logo.visible` | `true` / `false` | App logo |
@@ -37,6 +56,9 @@ key; arrays and tuples are replaced whole. Type names are Steam's
 | `header_icon` | `true` / `false` | Small icon before the title |
 | `sound` | `["path", volume_pct]` or `false` | `false` mutes the type; see File paths; `.mp3`, `.wav`, `.ogg` |
 | `display_time_ms` | ms | How long the toast stays |
+
+`margin` and `padding` take Enhanced Achievements' order: four values are top, bottom, left,
+right (not CSS's clockwise order), so `[10, 5, 4, 7]` is 10 top, 5 bottom, 4 left, 7 right.
 
 Colours accept `#rgb`, `#rrggbb`, `#rrggbbaa`. Invalid values are ignored
 (logged as warnings) and that part stays stock.
