@@ -1,5 +1,4 @@
 import type { Surface } from '../../kernel/surface';
-import { achievementsClaims } from '../../steam/coexistence';
 import { audio } from '../../theme/active-theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { pickPreview } from './pick';
@@ -8,13 +7,19 @@ import { pickPreview } from './pick';
  * Preview: one of Steam's own test toasts, picked at random each time (./pick.ts), from the settings panel (injected
  * as `onPreview`, never imported by it) and the live tests. Only test toasts that Steam shows whatever the user's
  * Friends notification settings are listed (verified live 2026-10-01: friend, message, gift, wishlist, trade and
- * comment test toasts showed nothing here); the incoming voice chat is left out (it is a call). Achievements are
- * offered only while enhanced-achievements does not draw them, since that is its style, not this theme's.
+ * comment test toasts showed nothing here); the incoming voice chat is left out (it is a call).
+ *
+ * Achievements are never Steam's `TestAchievement`: it posts a real achievement id, which the unlock sensor would take
+ * for a real unlock (screenshot, clip, a 100% toast). The achievement preview is injected instead (index.tsx: the
+ * banner's own preview, surfaces/toasts/post.ts `previewTier`, whose ids the sensor skips): a surface never imports another.
  */
 
 type TestStore = Record<string, ((...args: unknown[]) => unknown) | undefined>;
 
-/** Preview id (Steam's test method without `Test`) -> how to call it. */
+/** The injected achievement preview (createPreviewSurface); null until installed. */
+let previewAchievement: (() => Promise<unknown>) | null = null;
+
+/** Preview id (Steam's test method without `Test`, or `Achievement`) -> how to call it. */
 const PREVIEWS: Record<string, (store: TestStore, appid: number) => unknown> = {
     DownloadComplete: (s, appid) => s.TestDownloadComplete?.(appid),
     GameRecordingInstantClip: (s) => s.TestGameRecordingInstantClip?.(),
@@ -24,14 +29,14 @@ const PREVIEWS: Record<string, (store: TestStore, appid: number) => unknown> = {
     LowBatteryNotification: (s) => s.TestLowBatteryNotification?.(),
     HardwareUpdateNotification: (s) => s.TestHardwareUpdateNotification?.(),
     PlaytimeWarning: (s) => s.TestPlaytimeWarning?.(),
-    Achievement: (s, appid) => s.TestAchievement?.(appid),
+    Achievement: () => previewAchievement?.(),
 };
 
 let last: string | null = null;
 
 /** The ids a random preview picks from right now. */
 export function previewIds(): string[] {
-    return Object.keys(PREVIEWS).filter((id) => id !== 'Achievement' || !achievementsClaims('banner'));
+    return Object.keys(PREVIEWS);
 }
 
 /**
@@ -56,12 +61,17 @@ export async function preview(id?: string): Promise<string | null> {
     }
 }
 
-/** Nothing to patch: previews only call Steam's test methods, on demand. */
-export function createPreviewSurface(): Surface {
+/** Nothing to patch: previews only call Steam's test methods (and `achievement`), on demand. */
+export function createPreviewSurface(achievement: () => Promise<unknown>): Surface {
     return {
         id: 'preview',
         touches: ['NotificationStore.Test*'],
-        install: () => !!Reflect.get(globalThis, 'NotificationStore'),
-        uninstall() {},
+        install: () => {
+            previewAchievement = achievement;
+            return !!Reflect.get(globalThis, 'NotificationStore');
+        },
+        uninstall() {
+            previewAchievement = null;
+        },
     };
 }

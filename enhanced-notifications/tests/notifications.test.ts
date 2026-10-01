@@ -1,11 +1,13 @@
-// Notification hook, its composition with enhanced-achievements' identical hook, the sound decision,
-// the duration plan and the surface runner. Fake `proto` and `owner` objects: nothing here needs Steam.
+// Notification hook, its composition with a second copy of itself (another plugin using the same file, or the
+// released and the -dev copy loaded together), the sound decision, the duration plan and the surface runner.
+// Fake `proto` and `owner` objects: nothing here needs Steam. The achievement side (unlock sensor, queued banner
+// sounds, the 100% toast) is in tests/achievements.test.ts.
 import { pickPreview } from '../frontend/surfaces/preview/pick.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installNotificationHook, type SoundHandler } from '../frontend/steam/notification-hook.ts';
 import { createSoundHandler, type Clip, type SoundDeps } from '../frontend/surfaces/sound/sound.ts';
-import { planDurations } from '../frontend/surfaces/duration/duration.ts';
+import { planDurations, type DurationEntry } from '../frontend/surfaces/duration/duration.ts';
 import { assertDisjointTouches, installSurfaces, type Surface } from '../frontend/kernel/surface.ts';
 import type { SteamNotification } from '../frontend/kernel/notification.ts';
 
@@ -25,7 +27,7 @@ function fakeStore() {
         },
     };
     const owner = Object.create(proto) as object;
-    const show = (eType: number) => (proto.PlayNotificationSound as (this: unknown, n: SteamNotification) => void).call(owner, { eType });
+    const show = (eType: number) => (proto.PlayNotificationSound as (this: unknown, n: SteamNotification) => void).call(owner, { eType } as SteamNotification);
     return { proto, owner, played, show };
 }
 
@@ -37,7 +39,7 @@ function hookOn(f: Store) {
     return { hook, reported };
 }
 
-/** What enhanced-achievements' sound surface does: its clip for achievements, Steam's chime for the rest. */
+/** A second copy of the hook that only themes achievements (its clip), and gives Steam's chime to the rest. */
 const achievementsHandler =
     (f: Store): SoundHandler =>
     (call) => {
@@ -45,23 +47,26 @@ const achievementsHandler =
         if (call.askSteam()) f.played.push('ea-clip');
     };
 
-/** This plugin's handler as the sound surface builds it, with achievements handed to enhanced-achievements. */
+/** This plugin's handler as the sound surface builds it: a clip for downloads, Steam's sound for the rest (no tier sounds). */
 function notificationsHandler(f: Store, over: Partial<SoundDeps> = {}): SoundHandler {
     const clip = { buffer: {} as AudioBuffer, volume: 1 };
     return createSoundHandler({
         isEnabled: () => true,
         nameOf: (eType) => ({ [ACHIEVEMENT]: 'Achievement', [DOWNLOAD]: 'DownloadComplete', [OTHER]: 'LowBattery' })[eType] ?? null,
-        handles: (eType) => eType !== ACHIEVEMENT,
         clipFor: (name) => (name === 'DownloadComplete' ? clip : null),
+        isAchievementUnlock: () => false,
+        tierClipFor: () => undefined,
         audioState: () => 'running',
         resumeAudio() {},
         playClip: () => f.played.push('en-clip'),
+        peek: () => undefined,
+        whenShowing: () => ({ at: 'never' }),
         ...over,
     });
 }
 
-for (const order of ['enhanced-achievements first', 'enhanced-notifications first'] as const) {
-    test(`hook composition (${order}): each plugin sees every toast once, and each type gets exactly one sound`, () => {
+for (const order of ['the other copy first', 'this plugin first'] as const) {
+    test(`hook composition (${order}): each copy sees every toast once, and each type gets exactly one sound`, () => {
         const f = fakeStore();
         const seen: string[] = [];
         const install = (who: 'ea' | 'en') => {
@@ -70,7 +75,7 @@ for (const order of ['enhanced-achievements first', 'enhanced-notifications firs
             hook.setSoundHandler(who === 'ea' ? achievementsHandler(f) : notificationsHandler(f));
             return hook;
         };
-        if (order === 'enhanced-achievements first') {
+        if (order === 'the other copy first') {
             install('ea');
             install('en');
         } else {
@@ -79,7 +84,7 @@ for (const order of ['enhanced-achievements first', 'enhanced-notifications firs
         }
 
         f.show(ACHIEVEMENT);
-        assert.deepEqual(f.played, ['ea-clip'], 'achievement: enhanced-achievements plays, no Steam chime');
+        assert.deepEqual(f.played, ['ea-clip'], 'achievement: the other copy plays (ours gives Steam its sound), no Steam chime');
         f.played.length = 0;
         f.show(DOWNLOAD);
         assert.deepEqual(f.played, ['en-clip'], 'download: our clip, no Steam chime');
@@ -130,8 +135,8 @@ test('hook composition: uninstalling the outer hook leaves the inner one working
     assert.deepEqual(f.played, ['steam']);
 });
 
-test("sound: switched off, unknown or handed-over types get Steam's chime", () => {
-    for (const over of [{ isEnabled: () => false }, { nameOf: () => null }, { handles: () => false }] as Partial<SoundDeps>[]) {
+test("sound: switched off, unknown or unthemed types get Steam's chime", () => {
+    for (const over of [{ isEnabled: () => false }, { nameOf: () => null }, { clipFor: () => null }] as Partial<SoundDeps>[]) {
         const f = fakeStore();
         hookOn(f).hook.setSoundHandler(notificationsHandler(f, over));
         f.show(DOWNLOAD);
@@ -176,26 +181,52 @@ test("sound: a throwing clip lookup falls back to Steam's chime and counts a sou
     assert.deepEqual(reported, ['sound']);
 });
 
-test("duration: themed values, Steam's pristine value otherwise, handed-over types skipped", () => {
-    const entries = [
+test("sound: an unlock plays its tier's clip, else the notification sound; a muted theme mutes it too", () => {
+    const unlock = { isAchievementUnlock: (n: SteamNotification) => n.eType === ACHIEVEMENT };
+    const tier = { buffer: {} as AudioBuffer, volume: 0.5 };
+    const f = fakeStore();
+    hookOn(f).hook.setSoundHandler(
+        notificationsHandler(f, { ...unlock, tierClipFor: () => tier, playClip: (c) => f.played.push(c === tier ? 'tier-clip' : 'en-clip') }),
+    );
+    f.show(ACHIEVEMENT);
+    f.show(DOWNLOAD);
+    assert.deepEqual(f.played, ['tier-clip', 'en-clip'], 'the tier clip for the unlock only');
+
+    const g = fakeStore();
+    hookOn(g).hook.setSoundHandler(notificationsHandler(g, { ...unlock, clipFor: () => ({ buffer: {} as AudioBuffer, volume: 1 }) }));
+    g.show(ACHIEVEMENT);
+    assert.deepEqual(g.played, ['en-clip'], 'no tier sound: the notification sound');
+
+    const h = fakeStore();
+    hookOn(h).hook.setSoundHandler(notificationsHandler(h, { ...unlock, clipFor: () => false }));
+    h.show(ACHIEVEMENT);
+    assert.deepEqual(h.played, [], 'no tier sound, theme muted: silent');
+});
+
+test("duration: themed values, the banner's lifetime for achievements, Steam's pristine value otherwise", () => {
+    const entries: DurationEntry[] = [
         { eType: ACHIEVEMENT, name: 'Achievement', pristineMs: 5000 },
         { eType: DOWNLOAD, name: 'DownloadComplete', pristineMs: 6000 },
         { eType: OTHER, name: 'LowBattery', pristineMs: undefined },
     ];
     const themedMs = (name: string) => (name === 'DownloadComplete' ? 9000 : null);
-    const handles = (eType: number) => eType !== ACHIEVEMENT;
-    assert.deepEqual(planDurations(entries, { themed: true, handles, themedMs }), [
+    const noBanner = () => undefined;
+    const banner = (e: DurationEntry) => (e.eType === ACHIEVEMENT ? 4800 : undefined);
+    assert.deepEqual(planDurations(entries, { themed: true, themedMs, bannerMs: noBanner }), [
+        [ACHIEVEMENT, 5000],
         [DOWNLOAD, 9000],
         [OTHER, undefined],
     ]);
-    assert.deepEqual(planDurations(entries, { themed: false, handles, themedMs }), [
+    assert.deepEqual(planDurations(entries, { themed: true, themedMs: () => 7000, bannerMs: banner }), [
+        [ACHIEVEMENT, 4800],
+        [DOWNLOAD, 7000],
+        [OTHER, 7000],
+    ]);
+    assert.deepEqual(planDurations(entries, { themed: false, themedMs, bannerMs: banner }), [
+        [ACHIEVEMENT, 5000],
         [DOWNLOAD, 6000],
         [OTHER, undefined],
     ]);
-    assert.deepEqual(
-        planDurations(entries, { themed: true, handles: () => true, themedMs }).map(([e]) => e),
-        [ACHIEVEMENT, DOWNLOAD, OTHER],
-    );
 });
 
 const surface = (id: string, touches: string[], install: () => boolean = () => true): Surface => ({ id, touches, install, uninstall() {} });

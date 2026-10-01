@@ -1,13 +1,13 @@
 import type { Surface } from '../../kernel/surface';
 import type { NotificationHook } from '../../steam/notification-hook';
-import { typeName } from '../../steam/notification-store';
-import { handles } from '../../steam/coexistence';
+import { isAchievementUnlock, typeName } from '../../steam/notification-store';
 import { setting } from '../../settings/settings';
-import { audio, themeSound } from '../../theme/active-theme';
+import { peek, whenShowing } from '../../banner/queue';
+import { achievementTheme, audio, themeSound, tierFor } from '../../theme/active-theme';
 import { isEnabled } from '../../safety/runtime';
 import { createSoundHandler } from './sound';
 
-/** The theme's sound instead of Steam's chime, for every notification it handles: owns the hook's one sound slot. */
+/** The theme's sounds instead of Steam's chime (a tier's for an achievement unlock): owns the hook's one sound slot. */
 export function createSoundSurface(hook: NotificationHook): Surface {
     return {
         id: 'sound',
@@ -17,8 +17,9 @@ export function createSoundSurface(hook: NotificationHook): Surface {
                 createSoundHandler({
                     isEnabled: () => isEnabled('sound') && setting('sound.enabled'),
                     nameOf: typeName,
-                    handles: (eType) => handles(eType, 'sound'),
                     clipFor: themeSound,
+                    isAchievementUnlock,
+                    tierClipFor: (n) => achievementTheme()?.sounds.get(tierFor(n)),
                     audioState: () => audio().state,
                     resumeAudio: () => void audio().resume(),
                     playClip(clip) {
@@ -30,6 +31,8 @@ export function createSoundSurface(hook: NotificationHook): Surface {
                         source.connect(gain).connect(ctx.destination);
                         source.start();
                     },
+                    peek,
+                    whenShowing,
                 }),
             );
             return true;

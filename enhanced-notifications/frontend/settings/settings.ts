@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { pluginConfig, subscribePluginConfig } from '@steambrew/client';
 import defaults from '../../settings.json';
 import { logger } from '../logger';
+import { CAPTURE_RANGES } from '../capture/plan';
 
 /**
- * Plugin settings, backed by Millennium's Configuration API. Same module as
- * enhanced-achievements/frontend/settings/settings.ts (plugins may not share code).
+ * Plugin settings, backed by Millennium's Configuration API.
  *
  * Defaults ship in settings.json (bundled here at build time). Millennium has
  * no way to declare defaults, so an unset key reads `undefined` and every value
@@ -31,6 +31,14 @@ export interface Settings {
     'style.enabled': boolean;
     'sound.enabled': boolean;
     'duration.enabled': boolean;
+    /** Achievement banners one at a time instead of Steam's stacking. */
+    'queue.enabled': boolean;
+    'screenshot.enabled': boolean;
+    'screenshot.delay_ms': number;
+    'recording.enabled': boolean;
+    'recording.duration_s': number;
+    'recording.delay_ms': number;
+    'recording.add_timeline_marker': boolean;
     /** Comma-separated FeatureIds switched off (safety/features.ts); no panel control. */
     disabledFeatures: string;
 }
@@ -43,11 +51,18 @@ export const DEFAULTS: Settings = {
     'style.enabled': defaults.style.enabled,
     'sound.enabled': defaults.sound.enabled,
     'duration.enabled': defaults.duration.enabled,
+    'queue.enabled': defaults.queue.enabled,
+    'screenshot.enabled': defaults.screenshot.enabled,
+    'screenshot.delay_ms': defaults.screenshot.delay_ms,
+    'recording.enabled': defaults.recording.enabled,
+    'recording.duration_s': defaults.recording.duration_s,
+    'recording.delay_ms': defaults.recording.delay_ms,
+    'recording.add_timeline_marker': defaults.recording.add_timeline_marker,
     disabledFeatures: defaults.disabledFeatures,
 };
 
-/** Numeric ranges (none yet; kept for parity with validate()). */
-export const RANGES: Partial<Record<SettingKey, { min: number; max: number; step: number }>> = {};
+/** Numeric ranges; also used by the settings panel's sliders. Single source: capture/plan.ts. */
+export const RANGES: Partial<Record<SettingKey, { min: number; max: number; step: number }>> = { ...CAPTURE_RANGES };
 
 /** A stored value of the wrong type or out of range is ignored, never thrown. */
 function validate<K extends SettingKey>(key: K, value: unknown): Settings[K] | undefined {
@@ -144,6 +159,11 @@ export async function initSettings(): Promise<void> {
     } catch {
         /* our own writes go through write(), which syncs */
     }
+}
+
+/** A copy of every current value (tests snapshot and restore settings with it). */
+export function allSettings(): Settings {
+    return { ...current };
 }
 
 /** O(1) read from the in-memory copy. */

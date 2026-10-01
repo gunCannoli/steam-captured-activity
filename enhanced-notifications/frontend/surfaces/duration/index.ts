@@ -1,19 +1,17 @@
 import type { Surface } from '../../kernel/surface';
-import { typeName, type NotificationStoreHandle } from '../../steam/notification-store';
-import { handles } from '../../steam/coexistence';
+import { achievementEType, typeName, type NotificationStoreHandle } from '../../steam/notification-store';
 import { onSettingChange, setting } from '../../settings/settings';
-import { activeTheme, onThemeChange } from '../../theme/active-theme';
+import { achievementTheme, activeTheme, onThemeChange } from '../../theme/active-theme';
 import { isEnabled, reportError } from '../../safety/runtime';
-import { planDurations, type DurationEntry } from './duration';
+import { bannerDurationMs, planDurations, type DurationEntry } from './duration';
 
 /**
- * Writes each type's toast duration into Steam's per-type config; follows theme
- * and setting changes. Switched off (safety/features.ts `duration`): writes
- * nothing, and a value already written stays until the next theme change,
- * restart or uninstall.
+ * Writes each type's toast duration into Steam's per-type config (the achievement type's from the banner's lifetime);
+ * follows theme and setting changes. Switched off (safety/features.ts `duration`): writes nothing, and a value already
+ * written stays until the next theme change, restart or uninstall.
  */
 export function createDurationSurface(handle: NotificationStoreHandle): Surface {
-    /** Types this surface wrote, so uninstall restores only those (never enhanced-achievements' one). */
+    /** Types this surface wrote, so uninstall restores only those. */
     const written = new Set<number>();
     let offs: (() => void)[] = [];
 
@@ -26,13 +24,18 @@ export function createDurationSurface(handle: NotificationStoreHandle): Surface 
         return out;
     }
 
+    function bannerMs(entry: DurationEntry): number | undefined {
+        const banner = achievementTheme()?.theme;
+        return banner && entry.eType === achievementEType() ? bannerDurationMs(banner, entry.pristineMs) : undefined;
+    }
+
     function apply(): void {
         if (!isEnabled('duration')) return;
         try {
             const plan = planDurations(entries(), {
                 themed: setting('duration.enabled') && activeTheme() !== null,
-                handles: (eType) => handles(eType, 'duration'),
                 themedMs: () => activeTheme()?.theme.displayTimeMs,
+                bannerMs,
             });
             for (const [eType, ms] of plan) {
                 handle.configs.get(eType)!.config.toastDurationMS = ms;

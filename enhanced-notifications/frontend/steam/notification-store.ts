@@ -4,27 +4,44 @@ import type { SteamNotification } from '../kernel/notification';
 
 /**
  * Steam's NotificationStore, found once at start-up (read-only: nothing here
- * writes into Steam; the hook and the surfaces do that).
+ * writes into Steam; the hook, the surfaces and the sensor do that).
  *
- * Same verified mechanics as enhanced-achievements (docs/steam-components.md §
- * Resolution signatures & toast windows): `PlayNotificationSound` is a plain
- * prototype method that asks `this.ChooseSound(config, n)`, and each type's
- * config (with `toastDurationMS`) is reachable through a stand-in call.
- *
- * Type names come from the SDK's `EClientNotificationType`, verified 1:1 with
- * `notification.eType`, so themes never use numbers.
+ * Verified live (docs/steam-components.md § Resolution signatures & toast
+ * windows):
+ * - `PlayNotificationSound(n)` is a plain prototype method: it looks up the
+ *   per-type config and asks `this.ChooseSound(config, n)`, which already
+ *   honours Steam's "play sound on toast" setting. Each type's config (with
+ *   `toastDurationMS`) is reachable through a stand-in call.
+ * - `ProcessNotification` is a bound, non-writable own property, so it cannot
+ *   be wrapped. The toast duration comes from the per-type config's
+ *   `toastDurationMS` instead, which both the desktop and in-game overlay paths read.
+ * - Type names come from the SDK's `EClientNotificationType`, verified 1:1 with
+ *   `notification.eType`, so themes never use numbers.
+ * - Achievement notifications carry `data.getClassName() ===
+ *   "CClientNotificationAchievement"`. Their eType is discovered from that at
+ *   startup, never hardcoded.
  */
+
+const ACHIEVEMENT_CLASS = 'CClientNotificationAchievement';
 
 export interface TypeConfig {
     toastDurationMS?: number;
     showToast?: unknown;
+    /** The type's protobuf class: how achievements are recognised, and how synthetic achievement toasts are built. */
+    proto?: new () => { getClassName?(): string };
 }
 
 export interface NotificationStoreHandle {
-    store: object;
+    store: { OnNotification(id: number, eType: number, bytes: Uint8Array): void; m_nNextTestNotificationID?: number };
     proto: { PlayNotificationSound(this: unknown, n: SteamNotification): void; ChooseSound(this: unknown, config: unknown, n: SteamNotification): unknown };
     /** eType -> Steam's per-type config, and Steam's own toast duration for it. */
     configs: Map<number, { config: TypeConfig; pristineMs: number | undefined }>;
+    /** The achievement type: its eType and config. null when this Steam build has none we recognise (the banner, its sound, the 100% toast and captures stay off). */
+    achievement: { eType: number; config: TypeConfig; pristineMs: number | undefined } | null;
+}
+
+interface ProgressCache {
+    m_achievementProgress?: { mapCache?: Map<number, { unlocked?: unknown; total?: unknown; all_unlocked?: unknown }> };
 }
 
 /** eType -> name, built once from the SDK enum, plus `Type<n>` for types Steam has and the enum lacks. */
@@ -43,12 +60,34 @@ export function notificationStore(): NotificationStoreHandle | null {
     return handle;
 }
 
+/** The numeric eType of achievement notifications on this Steam build; null until resolved, or when it has none. */
+export function achievementEType(): number | null {
+    return handle?.achievement?.eType ?? null;
+}
+
+/** O(1): is this an unlocked-achievement notification (not a progress toast)? */
+export function isAchievementUnlock(n: SteamNotification | undefined): n is SteamNotification {
+    const eType = achievementEType();
+    if (!n || eType === null || n.eType !== eType) return false;
+    try {
+        return n.data.achieved() === true;
+    } catch {
+        return false;
+    }
+}
+
+/** O(1): Steam's achievement progress for an app, as its cache holds it right now. */
+export function progressFor(appid: number): { unlocked?: unknown; total?: unknown; all_unlocked?: unknown } | undefined {
+    const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as ProgressCache | undefined;
+    return cache?.m_achievementProgress?.mapCache?.get(appid);
+}
+
 /**
  * Steam's own `toastDurationMS` for a type config, before any plugin wrote it.
- * SAME HELPER in enhanced-achievements (plugins may not import each other):
- * the first plugin to see a config records its value in a shared global
- * WeakMap, so whichever loads second still restores Steam's value, not the
- * other plugin's.
+ * Recorded in a global WeakMap the first time a config is seen (by this plugin,
+ * or before it was merged by enhanced-achievements, which used the same helper),
+ * so a second load of the plugin in one session still restores Steam's value,
+ * not the value the first load wrote.
  */
 function pristineDuration(config: object & { toastDurationMS?: number }): number | undefined {
     const g = globalThis as { __enhancedPristineToastDurations?: WeakMap<object, number | undefined> };
@@ -88,9 +127,24 @@ function discoverConfigs(p: NotificationStoreHandle['proto']): NotificationStore
     return configs;
 }
 
+/** The type whose protobuf class is Steam's achievement notification, or null. */
+function findAchievementType(configs: NotificationStoreHandle['configs']): NotificationStoreHandle['achievement'] {
+    for (const [eType, { config, pristineMs }] of configs) {
+        if (typeof config.proto !== 'function') continue;
+        let className: string | undefined;
+        try {
+            className = new config.proto().getClassName?.();
+        } catch {
+            continue;
+        }
+        if (className === ACHIEVEMENT_CLASS) return { eType, config, pristineMs };
+    }
+    return null;
+}
+
 /** Resolve the store once, at start-up. null: Steam lacks what we need, leave it stock. */
 export function resolveNotificationStore(): NotificationStoreHandle | null {
-    const store = Reflect.get(globalThis, 'NotificationStore') as object | undefined;
+    const store = Reflect.get(globalThis, 'NotificationStore') as NotificationStoreHandle['store'] | undefined;
     const p = store ? (Object.getPrototypeOf(store) as NotificationStoreHandle['proto']) : null;
     if (!store || typeof p?.PlayNotificationSound !== 'function' || typeof p.ChooseSound !== 'function') {
         logger.warn('NotificationStore not found; enhanced-notifications is inactive.');
@@ -101,6 +155,8 @@ export function resolveNotificationStore(): NotificationStoreHandle | null {
         logger.warn('EClientNotificationType unavailable; enhanced-notifications is inactive.');
         return null;
     }
-    handle = { store, proto: p, configs };
+    const achievement = findAchievementType(configs);
+    if (!achievement) logger.warn('Could not identify the achievement notification type; the achievement banner, its sounds and captures are off.');
+    handle = { store, proto: p, configs, achievement };
     return handle;
 }

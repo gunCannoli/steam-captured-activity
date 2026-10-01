@@ -1,5 +1,4 @@
 import { setting } from '../../settings/settings';
-import { handles } from '../../steam/coexistence';
 import { notificationStore, typeName } from '../../steam/notification-store';
 import { activeTheme, themeStyle } from '../../theme/active-theme';
 import { animatedOffset, placeToast, stackOffset, steamCorner, STEAM_TOAST_HEIGHT, STEAM_TOAST_WIDTH, type Corner } from '../../theme/placement';
@@ -20,8 +19,9 @@ import { isEnabled, reportError } from '../../safety/runtime';
  * - **Place.** With the theme's `position`, `popup.margin` or `animation`, each of Steam's moves is
  *   remapped from Steam's corner to the theme's (theme/placement.ts), so Steam keeps its timing and stacking.
  *
- * Passed through untouched: an achievement toast enhanced-achievements claims (it pins that popup itself, and its pin
- * calls this wrapper with its own position), feature `placement` off, the `style.enabled` setting off, or any error.
+ * Passed through untouched: a toast the achievement banner draws (`bannerDraws`: the banner pins that popup itself,
+ * ../banner/window-pin.ts, wrapping this wrapper, and its pin calls it with its own position), feature `placement`
+ * off, the `style.enabled` setting off, or any error.
  * Every call is O(1) once the type is known: map lookups and arithmetic (docs/plugins.md guardrail 2).
  */
 
@@ -77,7 +77,7 @@ const attached = new Map<Window, Attached>();
  * Wrap one per-toast popup's `MoveTo`. `onType` gets the popup's notification type once it is known. false when `win`
  * is not a per-toast popup or has no own `MoveTo`; the caller then styles it as a shared toast window.
  */
-export function attachToastWindow(win: Window, onType: (win: Window, eType: number) => void): boolean {
+export function attachToastWindow(win: Window, onType: (win: Window, eType: number) => void, bannerDraws: (eType: number) => boolean): boolean {
     if (attached.has(win)) return true;
     if (!isPerToastPopup(win)) return false;
     const api = (win as unknown as { SteamClient?: { Window?: WindowApi } }).SteamClient?.Window;
@@ -91,7 +91,7 @@ export function attachToastWindow(win: Window, onType: (win: Window, eType: numb
     let lastOffset: number | null = null;
 
     const place = (x: number, y: number): { x: number; y: number } | null => {
-        if (eType === null || !isEnabled('placement') || !setting('style.enabled') || !handles(eType, 'banner')) return null;
+        if (eType === null || !isEnabled('placement') || !setting('style.enabled') || bannerDraws(eType)) return null;
         const theme = activeTheme()?.theme;
         if (!theme || !typeName(eType)) return null;
         const margin = themeStyle()?.margin ?? null;

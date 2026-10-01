@@ -1,9 +1,9 @@
 import { logger } from '../../logger';
 import { setting, onSettingChange } from '../../settings/settings';
 import { typeName } from '../../steam/notification-store';
-import { handles } from '../../steam/coexistence';
 import type { NotificationHook } from '../../steam/notification-hook';
-import { activeTheme, animationCss, onThemeChange, themeCss, themeStyle } from '../../theme/active-theme';
+import type { SteamNotification } from '../../kernel/notification';
+import { achievementTheme, activeTheme, animationCss, onThemeChange, themeCss, themeStyle, tierFor } from '../../theme/active-theme';
 import { buildPlaceholderCss } from '../../theme/theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
@@ -25,6 +25,10 @@ import { takesSignal, type TypeSignal } from './type-source';
  *   restyled the one on screen (./type-source.ts). No attribute means no rule
  *   matches, so the toast stays stock.
  *
+ * A toast the achievement banner draws (`bannerDraws`) gets no attribute: the banner is its whole look. In Big Picture
+ * the placeholder then takes the banner theme's corner and the toast tier's margin, so its one toast place follows
+ * the toast on screen (ADR-0050; before the merge, enhanced-achievements' forced position, ADR-0049).
+ *
  * Toast windows come from two different sources, per mode
  * (fixed and verified live 2026-09-24, see docs/steam-components.md § Toast windows):
  * - Desktop and the in-game overlay: Steam opens one popup per notification
@@ -43,8 +47,8 @@ import { takesSignal, type TypeSignal } from './type-source';
  * window, the current toast's type is used. A per-toast window also carries
  * `--en-display-ms`, its type's toast duration, which times a theme's exit animation.
  *
- * Why not wrap the dispatcher element through react/jsx-runtime, as
- * enhanced-achievements does? Verified live 2026-09-24: for these toasts the
+ * Why not wrap the dispatcher element through react/jsx-runtime, as the
+ * achievement banner does? Verified live 2026-09-24: for these toasts the
  * wrapped element was not the one React committed. This approach needs no
  * React interception at all, which is also less risky.
  *
@@ -62,6 +66,9 @@ interface Popup {
 interface CurrentToast {
     eType?: number;
 }
+
+/** Does the achievement banner draw toasts of this type right now? O(1). Injected by index.tsx. */
+export type BannerDraws = (eType: number | undefined) => boolean;
 
 interface Subscribable<T> {
     Value?: T;
@@ -98,6 +105,9 @@ let windowCss = '';
 let currentType: string | null = null;
 /** The eType behind `currentType`, so a theme or setting refresh keeps a debug type source's choice (./bp-debug.ts). */
 let currentEType: number | undefined;
+/** The toast behind `currentType`, for the banner's tier margin in Big Picture. */
+let currentToast: CurrentToast | null = null;
+let bannerDraws: BannerDraws = () => false;
 let placeholderSelector: string | undefined;
 let installed = false;
 /** Steam has `PopNextToastNotification` and it is wrapped (steam/toast-pop.ts); false: the type follows `onShown`. */
@@ -127,7 +137,7 @@ function applyStyle(win: Window): void {
 /** The type name to mark a toast of `eType` with, or null to leave it stock. O(1) (the CSS is cached per theme). */
 function styledName(eType: number | undefined): string | null {
     const name = typeName(eType);
-    if (!name || !isEnabled('style') || !setting('style.enabled') || !activeTheme() || !handles(eType!, 'banner')) return null;
+    if (!name || !isEnabled('style') || !setting('style.enabled') || !activeTheme() || bannerDraws(eType)) return null;
     return themeCss() !== '' || animationCss() !== '' ? name : null;
 }
 
@@ -175,7 +185,7 @@ function track(win: Window | undefined | null): void {
     if (!toastWindows.has(win)) {
         toastWindows.add(win);
         applyStyle(win);
-        attachToastWindow(win, onWindowType);
+        attachToastWindow(win, onWindowType, bannerDraws);
     }
     applyType(win);
 }
@@ -214,10 +224,20 @@ function viewWindowFromFiber(el: Element): Window | null {
  * windows that ARE in the popup manager (the Big Picture main window). Runs
  * once per toast shown, no new timers.
  */
-/** The placeholder CSS for the current theme and switches ('' = Steam's place). */
+/**
+ * The placeholder CSS for the toast on screen, the theme and the switches ('' = Steam's place): the banner theme's corner
+ * and the tier's margin while the banner draws it, else the theme's corner and `popup.margin`.
+ */
 function placementCss(): string {
     const theme = activeTheme()?.theme;
     if (!theme || !isEnabled('placement') || !isEnabled('style') || !setting('style.enabled')) return '';
+    const banner = achievementTheme()?.theme;
+    if (banner && currentToast && bannerDraws(currentToast.eType)) {
+        // A debug type source (./bp-debug.ts) sets a type without the notification: its tier is unknown, so normal.
+        const n = currentToast as Partial<SteamNotification>;
+        const tier = banner.tiers[n.data ? tierFor(n as SteamNotification) : 'normal'];
+        return buildPlaceholderCss(banner.position, tier.banner.margin, placeholderSelector);
+    }
     return buildPlaceholderCss(theme.position, themeStyle()?.margin ?? null, placeholderSelector);
 }
 
@@ -274,6 +294,7 @@ function onCurrentToast(toast: CurrentToast | null | undefined, signal: TypeSign
     const used = takesSignal(typeSource(), signal, popAvailable);
     bpLog(signal, { eType: toast?.eType ?? null, used });
     if (!used) return;
+    if (signal !== 'refresh') currentToast = toast ?? null;
     currentEType = toast?.eType;
     currentType = styledName(toast?.eType);
     scanBigPictureToastWindows();
@@ -291,7 +312,7 @@ function refresh(): void {
 }
 
 /** false: Steam lacks the NotificationStore or Millennium the window hook; toasts stay stock. */
-export function installInjector(placeholder: string | undefined, onShown: NotificationHook['onShown']): boolean {
+export function installInjector(placeholder: string | undefined, onShown: NotificationHook['onShown'], drawsBanner: BannerDraws): boolean {
     const store = Reflect.get(globalThis, 'NotificationStore') as (object & { CurrentToastSubscribableValue?: Subscribable<CurrentToast> }) | undefined;
     const millennium = Reflect.get(globalThis, 'Millennium') as { AddWindowCreateHook?: (cb: (popup: Popup) => void) => void } | undefined;
     if (!store || typeof millennium?.AddWindowCreateHook !== 'function') {
@@ -301,6 +322,7 @@ export function installInjector(placeholder: string | undefined, onShown: Notifi
 
     installed = true;
     placeholderSelector = placeholder;
+    bannerDraws = drawsBanner;
     windowCss = buildThemeCss();
     const unpop = installToastPop(store, (n) => onCurrentToast(n, 'pop'), (error) => reportError('style', error));
     popAvailable = unpop !== null;
@@ -343,6 +365,7 @@ export function uninstallInjector(): void {
     popAvailable = false;
     currentType = null;
     currentEType = undefined;
+    currentToast = null;
     detachToastWindows();
     ownTypes.clear();
     for (const doc of placeholderDocs) {

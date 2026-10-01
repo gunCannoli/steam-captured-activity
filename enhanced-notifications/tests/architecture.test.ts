@@ -7,7 +7,9 @@
 // 2. Pure files stay pure: their runtime imports resolve only to other pure files
 //    (no Steam, SDK, React or logger), so `npm test` can run them under node.
 // 3. One owner per Steam write: each pattern that writes into Steam appears in
-//    exactly one file (OWNERS).
+//    exactly one file (OWNERS). One documented exception: each toast popup's own
+//    MoveTo has two writers in a fixed order, the style surface's remap and the
+//    achievement banner's pin on top of it (ADR-0050; its own test below).
 // 4. Every RPC the frontend calls is registered in backend/main.lua (an
 //    unregistered method crashes the backend host; knowledgebase.md).
 // 5. Shared copies have not drifted from enhanced-achievements: steam/notification-hook.ts
@@ -203,23 +205,41 @@ test('architecture: pure files import only other pure files at runtime', () => {
 export const OWNERS: [string, RegExp, string][] = [
     ['NotificationStore.prototype.PlayNotificationSound', /\.PlayNotificationSound\s*=(?!=)/, 'steam/notification-hook.ts'],
     ['NotificationStore ChooseSound (per call)', /\.ChooseSound\s*=(?!=)/, 'steam/notification-hook.ts'],
+    ['NotificationStore.OnNotification (synthetic achievement toasts)', /\.OnNotification\s*\(/, 'surfaces/toasts/post.ts'],
     ['type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'surfaces/duration/index.ts'],
-    ['toast popup SteamClient.Window.MoveTo', /\.MoveTo\s*=(?!=)/, 'surfaces/style/toast-window.ts'],
+    ['toast popup SteamClient.Window.MoveTo (remap)', /\bapi\.MoveTo\s*=\s*wrapper\b/, 'surfaces/style/toast-window.ts'],
+    ['achievement banner popup SteamClient.Window.MoveTo (pin)', /\bapi\.MoveTo\s*=\s*pinned\b/, 'surfaces/banner/window-pin.ts'],
+    ['notification fnNotificationResolved (banner popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'surfaces/banner/themed-toast.tsx'],
+    ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'surfaces/banner/toast-patch.ts'],
     ['toast window body[data-en-type]', /\.setAttribute\(\s*'data-en-type'/, 'surfaces/style/injector.ts'],
     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
+    ['Big Picture <style id=enhanced-notifications-placement>', /'enhanced-notifications-placement'/, 'surfaces/style/injector.ts'],
     ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'steam/toast-pop.ts'],
     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],
+    ['Steam console commands (reset achievements)', /\.ExecCommand\s*\(/, 'surfaces/reset/index.ts'],
+    ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip|UserAddTimelineEntry)\s*\(/, 'surfaces/captures/recording.ts'],
 ];
+
+/** Files the owner scan skips: the shared jsx runtime hook defines the patch helper the banner calls. */
+const scanned = () => walk(FRONTEND).filter((f) => !f.endsWith(join('steam', 'jsx-hook.ts')));
 
 test('architecture: one owner per Steam write', () => {
     const wrong: string[] = [];
     for (const [target, pattern, owner] of OWNERS) {
-        const writers = walk(FRONTEND)
+        const writers = scanned()
             .filter((f) => pattern.test(readFileSync(f, 'utf8')))
             .map(rel);
         if (writers.length !== 1 || writers[0] !== owner) wrong.push(`${target}: expected only ${owner}, found [${writers.join(', ')}]`);
     }
     assert.deepEqual(wrong, []);
+});
+
+test("architecture: a toast popup's MoveTo has exactly its two writers, the remap and the banner's pin (ADR-0050)", () => {
+    const writers = scanned()
+        .filter((f) => /\.MoveTo\s*=(?!=)/.test(readFileSync(f, 'utf8')))
+        .map(rel)
+        .sort();
+    assert.deepEqual(writers, ['surfaces/banner/window-pin.ts', 'surfaces/style/toast-window.ts']);
 });
 
 test('architecture: no two surfaces declare the same Steam target', () => {
@@ -237,8 +257,8 @@ test('architecture: no two surfaces declare the same Steam target', () => {
             }
         }
     }
-    assert.equal(dirs.length, 4, 'expected the four surfaces');
-    assert.ok(owner.size >= 5, `expected to read the surfaces' touches, found ${owner.size}`);
+    assert.equal(dirs.length, 8, 'expected the eight surfaces');
+    assert.ok(owner.size >= 15, `expected to read the surfaces' touches, found ${owner.size}`);
     assert.deepEqual(clashes, []);
 });
 
@@ -249,6 +269,12 @@ test('architecture: every RPC the frontend calls is registered in backend/main.l
     const registered = new Set([...mainLua.matchAll(/^([A-Z][A-Za-z0-9]+)\s*=\s*method\(/gm)].map((m) => m[1]!));
     assert.equal(called.size, 4, `expected the four rpc.ts method names, found ${[...called].join(', ')}`);
     assert.deepEqual([...called].filter((n) => !registered.has(n)), []);
+});
+
+test('architecture: steam/jsx-hook.ts is identical to the steam-cartridges copy', (t) => {
+    const sibling = join(ROOT, '..', 'steam-cartridges', 'frontend', 'steam', 'jsx-hook.ts');
+    if (!existsSync(sibling)) return t.skip('steam-cartridges is not next to this plugin');
+    assert.equal(readFileSync(join(FRONTEND, 'steam', 'jsx-hook.ts'), 'utf8'), readFileSync(sibling, 'utf8'));
 });
 
 for (const file of ['steam/notification-hook.ts', 'steam/toast-pop.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {

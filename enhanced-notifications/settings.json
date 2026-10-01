@@ -9,5 +9,18 @@
     "duration": {
         "enabled": true
     },
+    "queue": {
+        "enabled": false
+    },
+    "screenshot": {
+        "enabled": false,
+        "delay_ms": 500
+    },
+    "recording": {
+        "enabled": false,
+        "duration_s": 15,
+        "delay_ms": 0,
+        "add_timeline_marker": false
+    },
     "disabledFeatures": ""
 }

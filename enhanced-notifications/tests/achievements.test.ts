@@ -1,11 +1,15 @@
 // The achievement side of the notification hook (frontend/steam/notification-hook.ts) and the unlock sensor
-// (frontend/sensors/unlock/unlock.ts), from enhanced-achievements (ADR-0050). The merged sound and duration decisions
-// are in tests/notifications.test.ts.
+// (frontend/sensors/unlock/unlock.ts), a queued banner's sound, the 100% toast and the banner's lifetime, from
+// enhanced-achievements (ADR-0050). The sound and duration decisions for every other toast are in tests/notifications.test.ts.
 // Fake `proto` and `owner` objects: nothing here needs Steam.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installNotificationHook, type SoundCall } from '../frontend/steam/notification-hook.ts';
 import { createUnlockSensor } from '../frontend/sensors/unlock/unlock.ts';
+import { createSoundHandler } from '../frontend/surfaces/sound/sound.ts';
+import { createCompletion } from '../frontend/surfaces/toasts/completion.ts';
+import { bannerDurationMs } from '../frontend/surfaces/duration/duration.ts';
+import { resolveAchievementTheme } from '../frontend/theme/achievements.ts';
 import type { Events } from '../frontend/kernel/events.ts';
 import type { SteamNotification } from '../frontend/kernel/notification.ts';
 
@@ -182,4 +186,124 @@ test('sensor: completesGame and atMs are read at show time, the event is emitted
     assert.equal(s.emitted.length, 1);
     assert.equal(s.emitted[0]!.atMs, 5000);
     assert.equal(s.emitted[0]!.completesGame, true);
+});
+
+/** The sound handler as the sound surface builds it, for an achievement unlock with a tier clip and no notification sound. */
+function soundRig(over: Partial<Parameters<typeof createSoundHandler>[0]> = {}) {
+    const phases = new Map<object, 'waiting' | 'showing' | 'done'>();
+    const listeners = new Map<object, Set<() => void>>();
+    const log: string[] = [];
+    let enabled = true;
+    const handler = createSoundHandler({
+        isEnabled: () => enabled,
+        nameOf: () => 'Achievement',
+        clipFor: () => null,
+        isAchievementUnlock: () => true,
+        tierClipFor: () => ({ buffer: {} as AudioBuffer, volume: 1 }),
+        audioState: () => 'running',
+        resumeAudio: () => log.push('resume'),
+        playClip: () => log.push('clip'),
+        peek: (key) => phases.get(key),
+        whenShowing: (key, onShow) => {
+            const phase = phases.get(key);
+            if (phase === undefined || phase === 'done') return { at: 'never' };
+            if (phase === 'showing') return { at: 'now' };
+            const set = listeners.get(key) ?? new Set();
+            listeners.set(key, set);
+            const fn = () => {
+                const p = phases.get(key);
+                if (p === 'waiting') return;
+                set.delete(fn);
+                if (p === 'showing') onShow();
+            };
+            set.add(fn);
+            return { at: 'later', cancel: () => void set.delete(fn) };
+        },
+        ...over,
+    });
+    const call = (n: SteamNotification): SoundCall => ({
+        n,
+        playSteam: () => log.push('steam'),
+        askSteam: () => (log.push('ask'), true),
+    });
+    const setPhase = (n: SteamNotification, p: 'waiting' | 'showing' | 'done') => {
+        phases.set(n.data, p);
+        for (const fn of [...(listeners.get(n.data) ?? [])]) fn();
+    };
+    return { handler, call, log, phases, setPhase, listeners, setEnabled: (v: boolean) => (enabled = v) };
+}
+
+test("sound: a queued banner's sound plays once when its turn comes and never if it is dismissed first", () => {
+    const r = soundRig();
+    const a = note('A');
+    r.phases.set(a.data, 'waiting');
+    r.handler(r.call(a));
+    r.handler(r.call(a)); // Steam may ask again for the same toast
+    assert.deepEqual(r.log, [], 'nothing on arrival');
+    r.setPhase(a, 'showing');
+    assert.deepEqual(r.log, ['ask', 'clip'], 'once, on its turn');
+    r.setPhase(a, 'done');
+    assert.deepEqual(r.log, ['ask', 'clip']);
+
+    const b = note('B');
+    r.log.length = 0;
+    r.phases.set(b.data, 'waiting');
+    r.handler(r.call(b));
+    r.setPhase(b, 'done'); // dismissed before its turn
+    assert.deepEqual(r.log, [], 'silent');
+
+    // Audio not unlocked yet: Steam's chime this time, and the context is resumed for the next one.
+    const c = soundRig({ audioState: () => 'suspended' });
+    const n = note('C');
+    c.phases.set(n.data, 'showing');
+    c.handler(c.call(n));
+    assert.deepEqual(c.log, ['resume', 'steam']);
+    // No clip for this tier and no notification sound: Steam's chime, no resume.
+    const d = soundRig({ tierClipFor: () => undefined });
+    d.phases.set(n.data, 'showing');
+    d.handler(d.call(n));
+    assert.deepEqual(d.log, ['steam']);
+});
+
+test("sound: switched off, Steam's chime plays at once and nothing is deferred", () => {
+    const r = soundRig();
+    r.setEnabled(false);
+    const a = note('A');
+    r.phases.set(a.data, 'waiting');
+    r.handler(r.call(a));
+    assert.deepEqual(r.log, ['steam']);
+    assert.equal(r.listeners.size, 0, 'nothing subscribed');
+    const other = soundRig({ isAchievementUnlock: () => false });
+    other.handler(other.call(note('P', 3)));
+    assert.deepEqual(other.log, ['steam'], 'not an unlock: no tier clip, and no notification sound here');
+});
+
+test('completion: one 100% toast 1.5 s after a completing unlock; none when completion is off', () => {
+    const posted: number[] = [];
+    const scheduled: { ms: number; fn: () => void }[] = [];
+    let enabled = true;
+    const handle = createCompletion({
+        isEnabled: () => enabled,
+        post: (appid) => void posted.push(appid),
+        schedule: (fn, ms) => void scheduled.push({ fn, ms }),
+    });
+    const event = (completesGame: boolean) => ({ n: note('X'), atMs: 1, completesGame });
+    handle(event(false));
+    assert.equal(scheduled.length, 0, 'not a completing unlock');
+    handle(event(true));
+    assert.deepEqual(scheduled.map((s) => s.ms), [1500]);
+    assert.deepEqual(posted, [], 'not posted until the delay passes');
+    scheduled[0]!.fn();
+    assert.deepEqual(posted, [480]);
+    enabled = false;
+    handle(event(true));
+    assert.equal(scheduled.length, 1, 'switched off: nothing scheduled');
+});
+
+test("duration: the banner's lifetime is its entrance, display time and exit", () => {
+    const theme = resolveAchievementTheme({ themes: { normal: {} }, settings: { display_time_ms: 4000, animation: 'fade' } });
+    // fade: 400 in, 300 out, 100 settle
+    assert.equal(bannerDurationMs(theme, 7000), 4000 + 400 + 300 + 100);
+    const noDisplay = resolveAchievementTheme({ themes: { normal: {} }, settings: { animation: 'fade' } });
+    assert.equal(bannerDurationMs(noDisplay, 7000), 7000 + 800, "no display_time_ms: Steam's own duration");
 });

@@ -2,14 +2,16 @@ import { logger } from '../logger';
 import { rpc } from '../rpc';
 import { setting, onSettingChange } from '../settings/settings';
 import { parseJsonc } from './jsonc';
+import { achievementIdOf, type SteamNotification } from '../kernel/notification';
 import { buildAnimationCss, buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
+import { tierOfNotification, type AchievementTheme, type Tier } from './achievements';
 
 /**
- * The active theme, with its sound pre-decoded and its CSS cached.
+ * The active theme, with every asset loaded, its sounds pre-decoded and its CSS cached.
  *
- * Loading happens once per theme change. Toast-time reads (`themeStyle`,
- * `themeCss`, `animationCss`, `themeSound`) are cached values: no disk, RPC or
- * network work per toast.
+ * Loading happens once per theme change (startup, theme setting, "Reload themes"). Toast-time reads
+ * (`themeStyle`, `themeCss`, `animationCss`, `themeSound`, `achievementTheme`, `tierFor`) are cached values:
+ * no disk, RPC or network work per toast.
  */
 
 export interface LoadedTheme {
@@ -17,9 +19,30 @@ export interface LoadedTheme {
     theme: ResolvedTheme;
     /** Decoded audio per asset path; missing or undecodable paths are absent. */
     audio: Map<string, AudioBuffer>;
+    /** Asset path -> data URL (the banner's icons, and the sounds); missing assets are absent. */
+    assets: Map<string, string>;
+}
+
+/** The theme's `achievements` block, ready for the banner: built once per load, null without the block. */
+export interface LoadedAchievementTheme {
+    name: string;
+    theme: AchievementTheme;
+    /** Asset path -> data URL; missing assets are absent. */
+    assets: Map<string, string>;
+    /** Decoded sound per tier; a tier without one gets the notification sound (or Steam's chime). */
+    sounds: Map<Tier, { buffer: AudioBuffer; volume: number }>;
+}
+
+/** What went wrong in the last load: `error` when the theme could not be used at all, else the fields that fell back. */
+export interface ThemeIssues {
+    name: string;
+    error: string | null;
+    warnings: string[];
 }
 
 let loaded: LoadedTheme | null = null;
+let achievements: LoadedAchievementTheme | null = null;
+let issues: ThemeIssues | null = null;
 let loading: Promise<void> | null = null;
 let audioContext: AudioContext | null = null;
 let selectors: ToastSelectors = {};
@@ -31,6 +54,16 @@ const listeners = new Set<() => void>();
 
 export function activeTheme(): LoadedTheme | null {
     return loaded;
+}
+
+/** The achievement banner's theme, or null: no theme loaded, or it has no `achievements` block. */
+export function achievementTheme(): LoadedAchievementTheme | null {
+    return achievements;
+}
+
+/** The last load's problems; null when it had none. */
+export function themeIssues(): ThemeIssues | null {
+    return issues;
 }
 
 export function onThemeChange(listener: () => void): () => void {
@@ -78,6 +111,22 @@ export function themeSound(): { buffer: AudioBuffer; volume: number } | false | 
     return buffer ? { buffer, volume: spec.volumePct / 100 } : null;
 }
 
+/** Tier memo keyed by the notification's data object: computed once, read by sound, banner, placement and captures. */
+const tiers = new WeakMap<object, Tier>();
+
+export function tierFor(n: SteamNotification): Tier {
+    const memo = tiers.get(n.data);
+    if (memo) return memo;
+    let tier: Tier = 'normal';
+    try {
+        tier = tierOfNotification({ id: achievementIdOf(n), globalPct: n.data.global_achieved_pct() }, achievements?.theme ?? null);
+    } catch (error) {
+        logger.warn('Could not determine rarity tier; using normal.', error);
+    }
+    tiers.set(n.data, tier);
+    return tier;
+}
+
 function dataUrlToArrayBuffer(url: string): ArrayBuffer {
     const binary = atob(url.slice(url.indexOf(',') + 1));
     const bytes = new Uint8Array(binary.length);
@@ -85,36 +134,69 @@ function dataUrlToArrayBuffer(url: string): ArrayBuffer {
     return bytes.buffer;
 }
 
+/** Every sound path the theme uses: the notification sound and each tier's. */
+function soundPaths(theme: ResolvedTheme): Set<string> {
+    const paths = new Set<string>();
+    if (theme.style.sound) paths.add(theme.style.sound.path);
+    for (const tier of Object.values(theme.achievements?.tiers ?? {})) if (tier.sound) paths.add(tier.sound.path);
+    return paths;
+}
+
 async function load(name: string): Promise<void> {
+    const warnings: string[] = [];
+    const warn = (text: string, error?: unknown) => {
+        warnings.push(text);
+        if (error === undefined) logger.warn(`Theme "${name}": ${text}`);
+        else logger.warn(`Theme "${name}": ${text}`, error);
+    };
+    let failure: string | null = null;
     try {
         const file = await rpc.loadTheme(name);
         const theme = resolveTheme(parseJsonc(file.text));
-        const decoded = new Map<string, AudioBuffer>();
+        for (const warning of theme.warnings) warn(warning);
+
+        const assets = new Map<string, string>();
         if (theme.assetPaths.length) {
             const urls = await rpc.loadAssets(file.dir, theme.assetPaths);
             for (const [path, url] of Object.entries(urls)) {
-                if (!url) {
-                    logger.warn(`Theme "${name}": sound unavailable, keeping Steam's: ${path}`);
-                    continue;
-                }
-                try {
-                    decoded.set(path, await audio().decodeAudioData(dataUrlToArrayBuffer(url)));
-                } catch (error) {
-                    logger.warn(`Theme "${name}": could not decode ${path}; keeping Steam's sound.`, error);
-                }
+                if (url) assets.set(path, url);
+                else warn(`Asset unavailable, falling back: ${path}`);
             }
         }
-        loaded = { name, theme, audio: decoded };
-        cssCache = undefined;
-        animationCache = undefined;
-        for (const warning of theme.warnings) logger.warn(`Theme "${name}": ${warning}`);
-        logger.info(`Theme "${name}" loaded (${decoded.size} sounds).`);
+
+        // Decode each distinct sound once; tiers often share a file.
+        const decoded = new Map<string, AudioBuffer>();
+        for (const path of soundPaths(theme)) {
+            const url = assets.get(path);
+            if (!url) continue;
+            try {
+                decoded.set(path, await audio().decodeAudioData(dataUrlToArrayBuffer(url)));
+            } catch (error) {
+                warn(`Could not decode ${path}; using the fallback sound.`, error);
+            }
+        }
+
+        loaded = { name, theme, audio: decoded, assets };
+        achievements = null;
+        if (theme.achievements) {
+            const sounds = new Map<Tier, { buffer: AudioBuffer; volume: number }>();
+            for (const tier of Object.values(theme.achievements.tiers)) {
+                const buffer = tier.sound ? decoded.get(tier.sound.path) : undefined;
+                if (tier.sound && buffer) sounds.set(tier.tier, { buffer, volume: tier.sound.volumePct / 100 });
+            }
+            achievements = { name, theme: theme.achievements, assets, sounds };
+        }
+        logger.info(`Theme "${name}" loaded (${assets.size} assets, ${decoded.size} sounds${achievements ? ', achievement banner' : ''}).`);
     } catch (error) {
+        // An unusable theme means stock Steam, never a half-styled toast.
         loaded = null;
-        cssCache = undefined;
-        animationCache = undefined;
+        achievements = null;
+        failure = error instanceof Error ? error.message : String(error);
         logger.error(`Theme "${name}" could not be loaded; toasts stay stock.`, error);
     }
+    cssCache = undefined;
+    animationCache = undefined;
+    issues = failure || warnings.length ? { name, error: failure, warnings } : null;
     for (const listener of listeners) listener();
 }
 
