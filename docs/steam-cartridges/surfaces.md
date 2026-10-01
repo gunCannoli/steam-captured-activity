@@ -497,6 +497,14 @@ reads `kernel/manual-shelf` (`manualOf`, `onManuals`) and, from an effect, emits
 `community.manual-opened` (`bus`), which `app/manuals` handles. No new Steam target: it is a branch of the existing
 `jsx:community-cards` hook.
 
+**Loading and ordering (2026-10-01):** `sections` adds the Community section while a shortcut's media is unknown or pending
+(`sections/community.ts`), so Steam shows its own placeholder rows at once. The patched loader returns a *held* promise for a
+shortcut that is not `settled` yet (`core.createFirstPageHold`, 120 s limit) and answers it from `render` when the media is
+final: the feed, or an empty page when none will come. A feed whose manual has no first-page cover yet waits up to
+`COVER_WAIT_MS` (8 s, once per shortcut per session) for it. The viewer's lookup (`viewerMeta`) knows **both** a manual's
+cover URL and its placeholder URL, because Steam keeps the feed it was served: a card built before the cover existed still
+opens the pages. Steam places cards with a shuffled template, so the manual is not guaranteed the first cell.
+
 **API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `firstPageLoads`, `cardsHidden`, `cardsHook`, `jsx`), exported by `index.tsx` for the live probe.
 
 **Record-driven in:** F2.

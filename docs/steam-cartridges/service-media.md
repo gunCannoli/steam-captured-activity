@@ -69,6 +69,13 @@ announces `record.updated` (`media`) so the community surface re-reads. The size
 layout choice, not the picture's size. An item cached before a manual existed has no manual item until its 7-day
 freshness (`media_ok`) ends.
 
+The image types are `MEDIA_KINDS` (title screen, screenshot, fan art, the Recalbox mixes, `box-2D` front, `box-2D-back`,
+`box-3D`, `support-2D` cartridge / disc, `figurine`, flyer, HyperSpin theme); each has a caption (`MEDIA_TITLES`), and the
+frontend gives any item without one its kind's ("Screenshot", "Artwork", "Video"), so IGDB cards and items cached before
+captions existed are labelled too. Chunk 0 of a manual reuses a copy younger than `MANUAL_DOC_TTL` (10 min): a download that
+outlasts the caller's 30 s RPC limit finishes in the backend and the frontend's retry (`RPC_RETRIES`) finds it. `app/manuals`
+keeps the last manual's chunks (the cover and the pages read the PDF once) and gives every pdf.js step `RENDER_TIMEOUT`.
+
 ScreenScraper lookups send ScreenScraper's own system id (`SS_SYSTEM`, from the RetroAchievements console id), and a ROM
 ScreenScraper does not know falls back to the title search on that console (F2c phase 0).
 

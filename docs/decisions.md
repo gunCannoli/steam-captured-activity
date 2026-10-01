@@ -2963,6 +2963,10 @@ so a ROM shortcut never matched (the test game, Captain Commando, answered `not-
   when rendering fails. The cover and the pages never read the PDF at the same time (one document in the backend).
   Steam places cards by a `Math.random` template shuffle, so the manual is **not guaranteed the top-left cell** (see
   [steam-components.md](steam-components.md#community-media--workshop-store)).
+- *Amended 2026-10-01 (live, Chrono Trigger):* chunk 0 reuses a backend copy younger than 10 min and the frontend retries a
+  timed-out read, because a 7.5 MiB download can outlast the 30 s RPC limit; the cover and the pages share the chunks; every
+  pdf.js step has a timeout so a hung document cannot block the queue. The viewer knows the placeholder URL as well as the
+  cover URL: Steam keeps the feed it was served, and a card built before the cover opened a viewer with no pages.
 - **Viewer text:** the viewer's "Scroll down for comments" line (shown because the viewer has `children`) reads "Scroll down
   to view the manual", replaced by a jsx hook like the "Added by" label.
 - **Backend:** `screenscraper_media.manual_item` names the best-region `manuel(<region>)` key; `GetManualChunk` returns

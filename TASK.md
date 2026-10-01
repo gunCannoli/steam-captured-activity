@@ -48,7 +48,8 @@ order (the user, or an agent with the user's go-ahead):
 6. **Section reuse between games:** the stale-loader repair is proven on a simulated stale section only; navigation alone
    remounted the section every time here. Open a few shortcuts one after another in Big Picture (and on a controller) and
    confirm each COMMUNITY tab shows its own game's cards, never another game's or an empty section.
-7. **F2c manuals** (ADR-0048): live-checked in desktop 2026-10-01 (backend, first-page cover, viewer with 20 pages,
+7. **F2c manuals** (ADR-0048): Big Picture checked by the user (Captain Commando); Chrono Trigger (7.5 MiB, 80 pages) fixed and
+   live-checked in desktop 2026-10-01, as are the loading skeleton and the captions. Earlier note: live-checked in desktop 2026-10-01 (backend, first-page cover, viewer with 20 pages,
    "Scroll down to view the manual", fonts released, `test:live` 13/13); still open: **Steam places cards with a
    `Math.random` template shuffle, so the manual is not guaranteed the top-left cell** (decide: leave it, or wrap the
    loader's `AddCommunityContent` to move its cell first); a game whose media was cached before manuals has none for

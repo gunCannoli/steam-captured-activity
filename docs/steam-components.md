@@ -1843,6 +1843,16 @@ set (`{ creator: steamid string, time_created, file_description }`; the row look
 its persona); an appid in it makes Steam load app info (asserts for a non-Steam app). Desktop mode on this machine failed to
 open the viewer with `CVRPathHelpers not found` (a Steam-internal native call, native cards too); Big Picture opens it.
 
+**Loading state** (verified live 2026-10-01). When the section is bound Steam builds placeholder rows (`m_bHasEmptyRows`;
+10 rows, two CSS-animated elements on this build) and shows them while `LoadCommunityContentAndVotes` is pending; the cards
+replace them when the promise resolves. So a plugin that answers late keeps Steam's own loading animation for free:
+`surfaces/community` returns a held promise for a shortcut whose media is still being fetched, and answers it with the
+feed (or an empty page) when the media settles. The section itself must be in the page's section list first
+(`surfaces/sections` adds `community` while the media is unknown or pending, `wantsCommunitySection`), otherwise nothing
+shows until the feed is ready (16 s of blank page on a cold game). Steam keeps the feed it was served: a cover or
+image that arrives after the first page is served does not reach the cards already built, and the viewer is handed the
+URL the **card** had, so every URL a card could have carried must stay known to the viewer hook.
+
 **The viewer's text and layout** (`I` in `94715`, verified 2026-10-01): props `{ children, closeModal, appid, file_details,
 title, artworkURL, window, nMaxScreenPercentage, screenshot, ... }`. The image is `ArtworkImage` (capped at
 `maxHeight: 600px` in Big Picture); under it `ArtworkModalDetails` holds the header (the Close button

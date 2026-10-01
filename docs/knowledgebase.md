@@ -750,6 +750,12 @@ as for images). `mediaJeu.php` serves it without `maxwidth` (a PDF is not scaled
 2 MiB, the EU one needs 8. One image download takes about 1.3 s and a lookup about 2 s (ScreenScraper throttles; see the
 30 s RPC limit above).
 
+**Media types seen on 2026-10-01** (probed with `GetMediaImage` keys on two SNES games; `region` in brackets, `()` is none):
+`box-2D-back` (us, eu, jp), `figurine()` (Chrono Trigger only), `box-2D-side`, `box-texture`, `support-texture`, `wheel(wor)`,
+`steamgrid()`, `screenmarquee(wor)`, `bezel-16-9`, `maps()`, `pictoliste()`, besides the types the plugin already shows. The plugin
+shows `box-2D-back` ("Box: back") and `figurine` ("Figurine"). A 7.5 MiB manual (Chrono Trigger, US) took 30+ s to download on
+one run and 9 s on another: the backend keeps the copy so the caller's retry after the 30 s RPC limit reuses it.
+
 ### pdf.js inside Steam's client (Chromium 126)
 
 **✅ Verified live 2026-10-01** (SharedJSContext, `https://steamloopback.host`, no CSP, `devicePixelRatio` 2):
