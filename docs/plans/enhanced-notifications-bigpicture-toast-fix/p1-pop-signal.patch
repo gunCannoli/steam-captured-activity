@@ -1,0 +1,376 @@
+diff --git a/enhanced-notifications/frontend/surfaces/style/bp-debug.ts b/enhanced-notifications/frontend/surfaces/style/bp-debug.ts
+index ce09b47..4355855 100644
+--- a/enhanced-notifications/frontend/surfaces/style/bp-debug.ts
++++ b/enhanced-notifications/frontend/surfaces/style/bp-debug.ts
+@@ -1,4 +1,5 @@
+ import { logger } from '../../logger';
++import { TYPE_SOURCES, type TypeSource } from './type-source';
+ 
+ /**
+  * Big Picture toast debugging (off by default, never persisted): a trace of what the style surface saw and did for
+@@ -12,16 +13,9 @@ import { logger } from '../../logger';
+  *   PLUGIN_LIST['enhanced-notifications-dev'].bigPictureTrace()          // entries, `t` is performance.now()
+  *   PLUGIN_LIST['enhanced-notifications-dev'].debugBigPicture({ typeSource: 'shown' })
+  *
+- * Type sources (which Steam signal sets the type used for Big Picture's window and a desktop popup not yet typed):
+- * - `arrival` (today): NotificationStore's current toast, which changes when a toast ARRIVES, even while another one is
+- *   still on screen (queued), plus the shared hook's `onShown`.
+- * - `shown`: only `onShown` (Steam's toast component asking for its sound, in an effect after the toast is committed).
+- * - `manual`: neither; the type is set by `debugBigPictureType(eType)`, so a probe can drive it from any signal
+- *   (the probe's `--source pop` wraps `NotificationStore.PopNextToastNotification` from CDP).
++ * Type sources (`pop`, the default, `shown`, `arrival`, `manual`): ./type-source.ts.
+  */
+ 
+-export type TypeSource = 'arrival' | 'shown' | 'manual';
+-
+ export interface TraceEntry {
+     t: number;
+     ev: string;
+@@ -31,7 +25,7 @@ export interface TraceEntry {
+ const MAX_ENTRIES = 1000;
+ let enabled = false;
+ let echo = false;
+-let source: TypeSource = 'arrival';
++let source: TypeSource = 'pop';
+ let entries: TraceEntry[] = [];
+ let manualSink: ((eType: number | null) => void) | null = null;
+ 
+@@ -61,7 +55,7 @@ export function setManualTypeSink(sink: ((eType: number | null) => void) | null)
+ export function debugBigPicture(opts: { enabled?: boolean; echo?: boolean; typeSource?: TypeSource } = {}): { enabled: boolean; echo: boolean; typeSource: TypeSource } {
+     if (opts.enabled !== undefined) enabled = opts.enabled;
+     if (opts.echo !== undefined) echo = opts.echo;
+-    if (opts.typeSource && ['arrival', 'shown', 'manual'].includes(opts.typeSource)) {
++    if (opts.typeSource && TYPE_SOURCES.includes(opts.typeSource)) {
+         source = opts.typeSource;
+         bpLog('typeSource', { source });
+     }
+diff --git a/enhanced-notifications/frontend/surfaces/style/index.ts b/enhanced-notifications/frontend/surfaces/style/index.ts
+index 26acf8e..f134572 100644
+--- a/enhanced-notifications/frontend/surfaces/style/index.ts
++++ b/enhanced-notifications/frontend/surfaces/style/index.ts
+@@ -9,7 +9,12 @@ import { installInjector, uninstallInjector } from './injector';
+ export function createStyleSurface(hook: NotificationHook, placeholder: string | undefined): Surface {
+     return {
+         id: 'style',
+-        touches: ['toastWindow <style id=enhanced-notifications-theme>', 'toastWindow body data-en-type', 'toastPopup SteamClient.Window.MoveTo'],
++        touches: [
++            'toastWindow <style id=enhanced-notifications-theme>',
++            'toastWindow body data-en-type',
++            'toastPopup SteamClient.Window.MoveTo',
++            'NotificationStore PopNextToastNotification (own property)',
++        ],
+         install: () => installInjector(placeholder, hook.onShown),
+         uninstall: uninstallInjector,
+     };
+diff --git a/enhanced-notifications/frontend/surfaces/style/injector.ts b/enhanced-notifications/frontend/surfaces/style/injector.ts
+index c42e31b..3fa530a 100644
+--- a/enhanced-notifications/frontend/surfaces/style/injector.ts
++++ b/enhanced-notifications/frontend/surfaces/style/injector.ts
+@@ -8,6 +8,8 @@ import { buildPlaceholderCss } from '../../theme/theme';
+ import { isEnabled, reportError } from '../../safety/runtime';
+ import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
+ import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
++import { installToastPop } from './toast-pop';
++import { takesSignal, type TypeSignal } from './type-source';
+ 
+ /**
+  * Styles Steam's toast windows without touching React.
+@@ -15,11 +17,13 @@ import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
+  * - One `<style>` per toast window holds the CSS for every type the theme styles.
+  *   Each rule is scoped to `body[data-en-type="<Type>"]`.
+  * - While a toast shows, its window's `<body>` carries `data-en-type` = the
+- *   notification's Steam type name. The type comes from two Steam signals: the
+- *   "toast shown" call every toast container makes (the shared hook's
+- *   `onShown`, steam/notification-hook.ts; desktop popups only have this one) and NotificationStore's
+- *   current-toast value (Big Picture). No attribute means no rule matches, so
+- *   the toast stays stock.
++ *   notification's Steam type name. The type comes from the moment Steam hands
++ *   the toast to a toast view (`PopNextToastNotification`, ./toast-pop.ts),
++ *   before it renders; without that method, from the shared hook's `onShown`
++ *   (steam/notification-hook.ts), a frame late. Never from NotificationStore's
++ *   current-toast value: it changes when a toast arrives, so a queued toast
++ *   restyled the one on screen (./type-source.ts). No attribute means no rule
++ *   matches, so the toast stays stock.
+  *
+  * Toast windows come from two different sources, per mode
+  * (fixed and verified live 2026-09-24, see docs/steam-components.md § Toast windows):
+@@ -96,6 +100,8 @@ let currentType: string | null = null;
+ let currentEType: number | undefined;
+ let placeholderSelector: string | undefined;
+ let installed = false;
++/** Steam has `PopNextToastNotification` and it is wrapped (./toast-pop.ts); false: the type follows `onShown`. */
++let popAvailable = false;
+ /** Registered once: Millennium has no way to remove a window-create hook. */
+ let windowHookAdded = false;
+ let offs: (() => void)[] = [];
+@@ -263,12 +269,11 @@ function scanBigPictureToastWindows(): void {
+ }
+ 
+ /** Decide which type (if any) the current toast should be styled as. */
+-function onCurrentToast(toast: CurrentToast | null | undefined, signal: 'arrival' | 'shown' | 'manual' | 'refresh' = 'refresh'): void {
++function onCurrentToast(toast: CurrentToast | null | undefined, signal: TypeSignal = 'refresh'): void {
+     if (!installed) return;
+-    const src = typeSource();
+-    bpLog(signal, { eType: toast?.eType ?? null, used: signal === 'refresh' || signal === src || (src === 'arrival' && signal === 'shown') });
+-    // Debug type sources (./bp-debug.ts): `arrival` (today) takes both signals; `shown` drops arrivals; `manual` takes neither.
+-    if (signal !== 'refresh' && signal !== src && !(src === 'arrival' && signal === 'shown')) return;
++    const used = takesSignal(typeSource(), signal, popAvailable);
++    bpLog(signal, { eType: toast?.eType ?? null, used });
++    if (!used) return;
+     currentEType = toast?.eType;
+     currentType = styledName(toast?.eType);
+     scanBigPictureToastWindows();
+@@ -285,23 +290,27 @@ function refresh(): void {
+     else onCurrentToast(currentEType === undefined ? null : { eType: currentEType });
+ }
+ 
+-/** false: Steam lacks the current-toast value or Millennium the window hook; toasts stay stock. */
++/** false: Steam lacks the NotificationStore or Millennium the window hook; toasts stay stock. */
+ export function installInjector(placeholder: string | undefined, onShown: NotificationHook['onShown']): boolean {
+-    const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
+-    const current = store?.CurrentToastSubscribableValue;
++    const store = Reflect.get(globalThis, 'NotificationStore') as (object & { CurrentToastSubscribableValue?: Subscribable<CurrentToast> }) | undefined;
+     const millennium = Reflect.get(globalThis, 'Millennium') as { AddWindowCreateHook?: (cb: (popup: Popup) => void) => void } | undefined;
+-    if (!current?.Subscribe || typeof millennium?.AddWindowCreateHook !== 'function') {
+-        logger.warn('Current-toast value or window hook unavailable; styling disabled.');
++    if (!store || typeof millennium?.AddWindowCreateHook !== 'function') {
++        logger.warn('NotificationStore or window hook unavailable; styling disabled.');
+         return false;
+     }
+ 
+     installed = true;
+     placeholderSelector = placeholder;
+     windowCss = buildThemeCss();
+-    const subscription = current.Subscribe((toast) => toast && onCurrentToast(toast, 'arrival'));
++    const unpop = installToastPop(store, (n) => onCurrentToast(n, 'pop'), (error) => reportError('style', error));
++    popAvailable = unpop !== null;
++    if (!popAvailable) logger.warn('PopNextToastNotification unavailable; the toast type follows onShown, a frame late.');
++    // Arrivals are read only for the debug trace and the `arrival` debug source (./type-source.ts).
++    const subscription = store.CurrentToastSubscribableValue?.Subscribe?.((toast) => toast && onCurrentToast(toast, 'arrival'));
+     setManualTypeSink((eType) => onCurrentToast(eType === null ? null : { eType }, 'manual'));
+     offs = [
+-        () => subscription.Unsubscribe(),
++        () => unpop?.(),
++        () => subscription?.Unsubscribe(),
+         onShown((n) => {
+             if (typeof n?.eType === 'number') onCurrentToast(n, 'shown');
+         }),
+@@ -331,6 +340,7 @@ export function uninstallInjector(): void {
+     }
+     offs = [];
+     setManualTypeSink(null);
++    popAvailable = false;
+     currentType = null;
+     currentEType = undefined;
+     detachToastWindows();
+diff --git a/enhanced-notifications/frontend/surfaces/style/toast-pop.ts b/enhanced-notifications/frontend/surfaces/style/toast-pop.ts
+new file mode 100644
+index 0000000..23a2030
+--- /dev/null
++++ b/enhanced-notifications/frontend/surfaces/style/toast-pop.ts
+@@ -0,0 +1,40 @@
++/**
++ * The moment Steam hands a toast to a toast view: `NotificationStore.PopNextToastNotification(context)`. Every toast
++ * container (Big Picture, desktop, in-game overlay) calls it inside a React state updater, so before that toast
++ * renders (verified live 2026-10-01, docs/steam-components.md § Big Picture toast view).
++ *
++ * Wrapped as an own property of the store instance, nothing global. The wrapper calls what the store resolved
++ * before it (an own property someone else set, or else the prototype's method looked up at call time, so a later
++ * prototype wrapper still runs) and returns its value unchanged. `onPop` sees only real toasts (a non-null object)
++ * and cannot break Steam's pop: its error goes to `reportError`. Pure (no imports), so `npm test` checks it.
++ */
++type PopFn = (this: unknown, ...args: unknown[]) => unknown;
++
++const KEY = 'PopNextToastNotification';
++
++/** Returns an uninstall function, or null when Steam has no such method (the caller falls back to `onShown`). */
++export function installToastPop(store: object, onPop: (notification: { eType?: number }) => void, reportError: (error: unknown) => void): (() => void) | null {
++    const target = store as Record<string, unknown>;
++    if (typeof target[KEY] !== 'function') return null;
++    const own = Object.prototype.hasOwnProperty.call(store, KEY) ? (target[KEY] as PopFn) : null;
++    let active = true;
++    const wrapper: PopFn = function (this: unknown, ...args: unknown[]) {
++        const next = own ?? ((Object.getPrototypeOf(store) as Record<string, unknown>)[KEY] as PopFn);
++        const n = next.apply(this, args);
++        if (active && n && typeof n === 'object') {
++            try {
++                onPop(n as { eType?: number });
++            } catch (error) {
++                reportError(error);
++            }
++        }
++        return n;
++    };
++    target[KEY] = wrapper;
++    return () => {
++        active = false;
++        if (target[KEY] !== wrapper) return; // someone wrapped on top of us: stay in the chain, passing through
++        if (own) target[KEY] = own;
++        else delete target[KEY];
++    };
++}
+diff --git a/enhanced-notifications/frontend/surfaces/style/type-source.ts b/enhanced-notifications/frontend/surfaces/style/type-source.ts
+new file mode 100644
+index 0000000..f95776f
+--- /dev/null
++++ b/enhanced-notifications/frontend/surfaces/style/type-source.ts
+@@ -0,0 +1,28 @@
++/**
++ * Which Steam signal sets the type of the toast on screen, for Big Picture's one toast window and for a desktop popup
++ * whose own type is not known yet (./injector.ts). Pure, so `npm test` checks it.
++ *
++ * - `pop` (the default): `NotificationStore.PopNextToastNotification` handed this toast to a toast view
++ *   (./toast-pop.ts). Steam calls it before the toast renders, so the type is in place for its first frame.
++ * - `shown`: the shared hook's `onShown`, from Steam's effect after the toast is committed (a frame late). The
++ *   fallback when Steam has no `PopNextToastNotification`.
++ * - `arrival`: NotificationStore's current toast, which changes when a toast ARRIVES, also while another one is on
++ *   screen: a queued toast restyled the one showing, and Steam's own 300 px slide-in restarted (verified live
++ *   2026-10-01, docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md). Kept only as a debug switch that
++ *   reproduces that; like the old code, it also takes `shown`.
++ * - `manual`: neither; a probe sets the type (./bp-debug.ts `debugBigPictureType`).
++ */
++export type TypeSource = 'pop' | 'shown' | 'arrival' | 'manual';
++
++/** A signal is a source, or `refresh` (a theme or setting change re-applying the current type). */
++export type TypeSignal = TypeSource | 'refresh';
++
++export const TYPE_SOURCES: readonly TypeSource[] = ['pop', 'shown', 'arrival', 'manual'];
++
++/** Whether `signal` may set the current toast type under `source`. `popAvailable` false: `pop` falls back to `shown`. */
++export function takesSignal(source: TypeSource, signal: TypeSignal, popAvailable: boolean): boolean {
++    if (signal === 'refresh') return true;
++    const effective: TypeSource = source === 'pop' && !popAvailable ? 'shown' : source;
++    if (effective === 'arrival') return signal === 'arrival' || signal === 'shown';
++    return signal === effective;
++}
+diff --git a/enhanced-notifications/tests/architecture.test.ts b/enhanced-notifications/tests/architecture.test.ts
+index 355b0db..70e2c53 100644
+--- a/enhanced-notifications/tests/architecture.test.ts
++++ b/enhanced-notifications/tests/architecture.test.ts
+@@ -134,6 +134,8 @@ export const PURE = [
+     'surfaces/duration/duration.ts',
+     'surfaces/preview/pick.ts',
+     'surfaces/sound/sound.ts',
++    'surfaces/style/toast-pop.ts',
++    'surfaces/style/type-source.ts',
+     'theme/jsonc.ts',
+     'theme/placement.ts',
+     'theme/theme.ts',
+@@ -176,6 +178,7 @@ export const OWNERS: [string, RegExp, string][] = [
+     ['toast popup SteamClient.Window.MoveTo', /\.MoveTo\s*=(?!=)/, 'surfaces/style/toast-window.ts'],
+     ['toast window body[data-en-type]', /\.setAttribute\(\s*'data-en-type'/, 'surfaces/style/injector.ts'],
+     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
++    ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'surfaces/style/toast-pop.ts'],
+     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],
+ ];
+ 
+diff --git a/enhanced-notifications/tests/bigpicture-type.test.ts b/enhanced-notifications/tests/bigpicture-type.test.ts
+new file mode 100644
+index 0000000..db8d815
+--- /dev/null
++++ b/enhanced-notifications/tests/bigpicture-type.test.ts
+@@ -0,0 +1,104 @@
++// Which signal sets the type of the toast on screen (surfaces/style/type-source.ts) and the
++// PopNextToastNotification wrapper that provides the `pop` signal (surfaces/style/toast-pop.ts).
++// Regression guard for the Big Picture flicker: a toast that ARRIVES while another is on screen
++// must never restyle it (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { takesSignal, TYPE_SOURCES } from '../frontend/surfaces/style/type-source.ts';
++import { installToastPop } from '../frontend/surfaces/style/toast-pop.ts';
++
++test('type source: by default an arriving toast never sets the type, the pop does', () => {
++    assert.equal(takesSignal('pop', 'arrival', true), false);
++    assert.equal(takesSignal('pop', 'pop', true), true);
++    assert.equal(takesSignal('pop', 'shown', true), false, 'the pop already set it, before the toast rendered');
++    assert.equal(takesSignal('pop', 'manual', true), false);
++});
++
++test('type source: without PopNextToastNotification, pop falls back to shown, still never arrival', () => {
++    assert.equal(takesSignal('pop', 'shown', false), true);
++    assert.equal(takesSignal('pop', 'arrival', false), false);
++    assert.equal(takesSignal('pop', 'pop', false), false);
++});
++
++test('type source: the debug sources', () => {
++    assert.equal(takesSignal('shown', 'shown', true), true);
++    assert.equal(takesSignal('shown', 'pop', true), false);
++    assert.equal(takesSignal('arrival', 'arrival', true), true, 'reproduces the old behaviour');
++    assert.equal(takesSignal('arrival', 'shown', true), true, 'the old code also took onShown');
++    assert.equal(takesSignal('manual', 'manual', true), true);
++    assert.equal(takesSignal('manual', 'pop', true), false);
++    for (const source of TYPE_SOURCES) assert.equal(takesSignal(source, 'refresh', true), true, `refresh under ${source}`);
++});
++
++/** A fake NotificationStore: the method on the prototype, a queue of toasts. */
++function fakeStore(queue: ({ eType: number } | undefined)[]) {
++    const proto = {
++        PopNextToastNotification(this: unknown, _context: number) {
++            return queue.shift();
++        },
++    };
++    return { proto, store: Object.create(proto) as Record<string, unknown> & { PopNextToastNotification(ctx: number): unknown } };
++}
++
++test('toast pop: returns what Steam returns and reports each real toast once', () => {
++    const { store } = fakeStore([{ eType: 1 }, undefined, { eType: 5 }]);
++    const seen: number[] = [];
++    const off = installToastPop(store, (n) => seen.push(n.eType!), () => assert.fail('no error expected'));
++    assert.ok(off);
++    assert.deepEqual(store.PopNextToastNotification(0), { eType: 1 });
++    assert.equal(store.PopNextToastNotification(0), undefined, 'an empty pop is passed through');
++    assert.deepEqual(store.PopNextToastNotification(0), { eType: 5 });
++    assert.deepEqual(seen, [1, 5]);
++});
++
++test('toast pop: a listener error never breaks Steam', () => {
++    const { store } = fakeStore([{ eType: 1 }]);
++    const errors: unknown[] = [];
++    installToastPop(store, () => { throw new Error('boom'); }, (e) => errors.push(e));
++    assert.deepEqual(store.PopNextToastNotification(0), { eType: 1 });
++    assert.equal(errors.length, 1);
++});
++
++test('toast pop: own property on the instance only; uninstall restores Steam', () => {
++    const { proto, store } = fakeStore([{ eType: 1 }]);
++    const original = proto.PopNextToastNotification;
++    const off = installToastPop(store, () => {}, () => {})!;
++    assert.ok(Object.prototype.hasOwnProperty.call(store, 'PopNextToastNotification'));
++    assert.equal(proto.PopNextToastNotification, original, 'the prototype is never written');
++    off();
++    assert.equal(Object.prototype.hasOwnProperty.call(store, 'PopNextToastNotification'), false);
++});
++
++test('toast pop: a later prototype wrapper still runs (looked up at call time)', () => {
++    const { proto, store } = fakeStore([{ eType: 1 }]);
++    const seen: number[] = [];
++    installToastPop(store, (n) => seen.push(n.eType!), () => {});
++    const original = proto.PopNextToastNotification;
++    let wrapped = 0;
++    proto.PopNextToastNotification = function (this: unknown, ctx: number) {
++        wrapped++;
++        return original.call(this, ctx);
++    };
++    store.PopNextToastNotification(0);
++    assert.equal(wrapped, 1);
++    assert.deepEqual(seen, [1]);
++});
++
++test('toast pop: wrapped on top of us, uninstall leaves the chain and stops reporting', () => {
++    const { store } = fakeStore([{ eType: 1 }, { eType: 2 }]);
++    const seen: number[] = [];
++    const off = installToastPop(store, (n) => seen.push(n.eType!), () => {})!;
++    const ours = store.PopNextToastNotification;
++    const theirs = function (this: unknown, ctx: number) {
++        return ours.call(this, ctx);
++    };
++    store.PopNextToastNotification = theirs;
++    off();
++    assert.equal(store.PopNextToastNotification, theirs, 'their wrapper is kept');
++    assert.deepEqual(store.PopNextToastNotification(0), { eType: 1 }, 'still passes through');
++    assert.deepEqual(seen, [], 'but we no longer report');
++});
++
++test('toast pop: no method, no wrapper', () => {
++    assert.equal(installToastPop({}, () => {}, () => {}), null);
++});

@@ -21,6 +21,8 @@ theme Steam's toasts and sounds.
 [its plan § 9](docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
 `npm run test:live` in both, then the by-hand checks.
 
+**Big Picture toast flicker (2026-10-01): plan ready, dry-run done, not executed.** [enhanced-notifications-bigpicture-toast-fix-plan.md](docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md): apply its three patches, then § 11 (live, Big Picture in front). Note: the Steam client currently runs the dry-run build of enhanced-notifications-dev (fix applied) while `main` does not have it; any `dev.ps1` of that plugin redeploys `main`. Open question for the user in its § 13 (where achievement toasts go in Big Picture). Small follow-up: give enhanced-achievements' `tiers`, `safety` and `queue-stress` a Big Picture SKIP (they wait for the persistent toast window to close).
+
 **enhanced-notifications: one style for every notification, random Preview, position / animation in Big Picture too (2026-10-01): done,
 live-verified** on desktop and in Big Picture with test toasts (`test:live` 5/5 in each). Left for a human: look at it (a theme with
 `"settings": { "position": "top_left", "animation": "ps5" }`, Preview pressed a few times), and an in-game overlay toast. Both toast
