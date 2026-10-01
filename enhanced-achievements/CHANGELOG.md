@@ -10,11 +10,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 ### Changed
 
 - Internal: the settings rows and spacing system moved to `settings/rows.tsx`, a copy shared with Enhanced Notifications (no visible change); more shared copies drift-checked (ADR-0047).
-- Reset Achievements shows its outcome in a popup with a Close button and the title bar's X, instead of a line under the controls that stayed in the panel.
+- Reset Achievements is one dialog from start to end: **Reset** keeps it open, it shows "Resetting..." and then the outcome with a Close button. The earlier version opened the outcome in a second popup that never appeared on desktop, because Steam drops a popup opened while the confirm popup is closing. On desktop the dialog's window is now 480 x 250 px instead of Steam's default popup size: it opens with Steam's own `showModal`, which takes a size, rather than Millennium's, which does not.
+- `ps5` animation: a quarter-width slide with a fade you can see, in and out. It used the full-width slide, whose fade ended while the banner was still mostly outside the toast window.
+- Icon ripple stays close to the icon: it starts just inside the icon's edge and ends at 1.35x its size (was 1.9x).
 - Reset Achievements lists non-Steam games from Steam's own achievement progress, like Steam games (needs steam-cartridges with ADR-0045).
 
 ### Added
 
+- `margin` and `padding` take four values, `[top, bottom, left, right]` (e.g. `"padding": [10, 5, 4, 7]`), as well as one value or `[vertical, horizontal]`. With four margins, only the sides the banner is anchored to count.
 - **Reset Achievements** in the settings panel's Reset group: a games filter, a dropdown of games with unlocked achievements and a **Reset** button that warns first that the game will lose all its achievements. Its own kill switch, `reset` in `disabledFeatures`. It lists Steam games and, with steam-cartridges loaded, non-Steam games that have unlocks.
 - **Kill switches, error budget and safe mode** (migration E0a, ADR-0043). Each part that writes into
   Steam (`banner`, `sound`, `duration`, `completion`, `captures`) can be switched off with the

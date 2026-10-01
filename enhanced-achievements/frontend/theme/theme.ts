@@ -78,9 +78,17 @@ export interface BannerStyle {
     gradientAngle: number;
     border: { width: number; color: string; radius: number };
     glow: { color: string; spread: number; pulseMs: number };
-    margin: [number, number];
-    padding: [number, number];
+    margin: Edges;
+    padding: Edges;
     gap: [number, number];
+}
+
+/** One px value per side, for `margin` and `padding`. */
+export interface Edges {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
 }
 
 /** One fully resolved tier: every field present, inheritance already applied. */
@@ -118,8 +126,8 @@ const DEFAULT_BANNER: BannerStyle = {
     gradientAngle: 90,
     border: { width: 0, color: '#ffffff', radius: 4 },
     glow: { color: '#000000', spread: 0, pulseMs: 0 },
-    margin: [0, 0],
-    padding: [6, 10],
+    margin: { top: 0, bottom: 0, left: 0, right: 0 },
+    padding: { top: 6, bottom: 6, left: 10, right: 10 },
     gap: [10, 2],
 };
 
@@ -185,6 +193,35 @@ function pair(raw: unknown, fallback: [number, number], min: number, max: number
         return [first, raw.length === 1 ? first : (num(raw[1], min, max) ?? fallback[1])];
     }
     return fallback;
+}
+
+/**
+ * `margin` / `padding`: a bare `v` or `[v]` sets all four sides; `[vertical, horizontal]` sets top and bottom, then left
+ * and right; `[top, bottom, left, right]` sets each (the order is top, bottom, left, right, not CSS's clockwise order).
+ * A side that is missing or out of range keeps its default.
+ */
+function edges(raw: unknown, fallback: Edges, min: number, max: number): Edges {
+    const side = (v: unknown, d: number) => num(v, min, max) ?? d;
+    if (typeof raw === 'number') {
+        const v = side(raw, fallback.top);
+        return { top: v, bottom: v, left: v, right: v };
+    }
+    if (!Array.isArray(raw)) return fallback;
+    if (raw.length === 1) {
+        const v = side(raw[0], fallback.top);
+        return { top: v, bottom: v, left: v, right: v };
+    }
+    if (raw.length < 4) {
+        const v = side(raw[0], fallback.top);
+        const h = side(raw[1], fallback.left);
+        return { top: v, bottom: v, left: h, right: h };
+    }
+    return {
+        top: side(raw[0], fallback.top),
+        bottom: side(raw[1], fallback.bottom),
+        left: side(raw[2], fallback.left),
+        right: side(raw[3], fallback.right),
+    };
 }
 
 /**
@@ -254,8 +291,8 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: Te
     const scale = pair(bannerRaw.scale, [100, 100], 25, 400);
     const width = num(bannerRaw.width, 100, 2000) ?? undefined;
     const height = num(bannerRaw.height, 30, 1000) ?? undefined;
-    const margin = pair(bannerRaw.margin, [0, 0], -100, 200);
-    const padding = pair(bannerRaw.padding, [6, 10], 0, 100);
+    const margin = edges(bannerRaw.margin, DEFAULT_BANNER.margin, -100, 200);
+    const padding = edges(bannerRaw.padding, DEFAULT_BANNER.padding, 0, 100);
     const gap = pair(bannerRaw.gap, [10, 2], 0, 100);
 
     const border = Array.isArray(bannerRaw.border) ? bannerRaw.border : [];

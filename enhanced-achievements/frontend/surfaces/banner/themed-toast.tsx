@@ -237,8 +237,7 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedTheme; n: SteamN
 
     const rootStyle = {
         '--ea-inner-h': `${size.innerH}px`,
-        '--ea-pad-y': `${banner.padding[0]}px`,
-        '--ea-pad-x': `${banner.padding[1]}px`,
+        '--ea-pad': `${banner.padding.top}px ${banner.padding.right}px ${banner.padding.bottom}px ${banner.padding.left}px`,
         '--ea-gap-x': `${banner.gap[0]}px`,
         '--ea-gap-y': `${banner.gap[1]}px`,
         '--ea-text-align': textAlign,

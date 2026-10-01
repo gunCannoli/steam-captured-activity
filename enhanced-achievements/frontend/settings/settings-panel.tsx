@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     DialogBodyText,
     DialogButton,
@@ -7,13 +7,13 @@ import {
     Field,
     PanelSection,
     TextField,
-    showModal,
 } from "@steambrew/client";
 import { logger } from "../logger";
 import { rpc, type ThemeEntry } from "../rpc";
 import { activeTheme, onThemeChange, reloadTheme } from "../theme/active-theme";
 import { TIERS, type Tier } from "../theme/theme";
-import { filterCandidates, type AchievementResetApi, type ResetCandidate } from "../kernel/reset";
+import { filterCandidates, type AchievementResetApi, type ResetCandidate, type ResetResult } from "../kernel/reset";
+import { showDialog } from "../steam/modal";
 import { resetSettings, setting, useSetting } from "./settings";
 import { Blocks, ButtonRow, CARD_BACKGROUND, CONTROL_GAP, ItemRow, SliderRow, STEAM_TRAILING, ToggleRow, usePanelDisabled } from "./rows";
 
@@ -230,6 +230,76 @@ function CapturesSection({ disabled }: { disabled: boolean }) {
     );
 }
 
+function resultText(c: ResetCandidate, result: ResetResult): string {
+    if (!result.ok) return result.reason;
+    return result.remaining > 0 || result.skipped > 0
+        ? `Cleared ${result.cleared} in ${c.name}; ${result.remaining} still show as unlocked (Steam may need a moment, or a restart).`
+        : `Cleared all achievements in ${c.name}.`;
+}
+
+/**
+ * One dialog from confirm to outcome. Steam's confirm dialog closes itself on OK, and a second dialog opened while the
+ * first popout window is closing never shows on desktop, so OK keeps this one open (its `closeModal` is held) and the
+ * same dialog shows "Resetting..." and then the outcome, with one Close button.
+ * `closeModal` is injected by showModal. `onStart`/`onFinished` bracket the reset itself, so the panel's Reset button is
+ * disabled only while it runs, whatever the user does with the dialog.
+ */
+function ResetDialog({
+    candidate: c,
+    api,
+    onStart,
+    onFinished,
+    closeModal,
+}: {
+    candidate: ResetCandidate;
+    api: AchievementResetApi;
+    onStart: () => void;
+    onFinished: () => void;
+    closeModal?: () => void;
+}) {
+    const [phase, setPhase] = useState<"confirm" | "running" | "done">("confirm");
+    const [outcome, setOutcome] = useState("");
+    const hold = useRef(false);
+    const close = () => {
+        if (!hold.current) closeModal?.();
+    };
+    const start = async () => {
+        hold.current = true;
+        setPhase("running");
+        onStart();
+        const result = await api.reset(c);
+        hold.current = false;
+        setOutcome(resultText(c, result));
+        setPhase("done");
+        onFinished();
+    };
+
+    if (phase === "confirm") {
+        return (
+            <ConfirmModal
+                strTitle="Reset achievements"
+                strDescription={`${c.name} will lose all its achievements (${c.unlocked} unlocked). ${
+                    c.kind === "steam" ? "They are cleared on your Steam account. " : ""
+                }This cannot be undone.`}
+                strOKButtonText="Reset"
+                bDestructiveWarning
+                onOK={() => void start()}
+                closeModal={close}
+            />
+        );
+    }
+    return (
+        <ConfirmModal
+            strTitle="Reset achievements"
+            strDescription={phase === "running" ? "Resetting..." : outcome}
+            strOKButtonText="Close"
+            bAlertDialog
+            bOKDisabled={phase === "running"}
+            closeModal={close}
+        />
+    );
+}
+
 /**
  * Five rows (label, description, then the three controls), the same convention as the theme picker.
  * Reset is never disabled by Steam's toasts being off: it does not use them. `api` is injected (D7).
@@ -250,49 +320,20 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     ];
     const available = api.available();
 
-    const run = async (c: ResetCandidate) => {
-        setBusy(true);
-        const result = await api.reset(c);
-        setBusy(false);
-        // The outcome goes in a popup the user closes, not in the panel, where it would stay until the page is left.
-        showResult(
-            !result.ok
-                ? result.reason
-                : result.remaining > 0 || result.skipped > 0
-                  ? `Cleared ${result.cleared} in ${c.name}; ${result.remaining} still show as unlocked (Steam may need a moment, or a restart).`
-                  : `Cleared all achievements in ${c.name}.`,
-        );
-        setSelected(0);
-        reload();
-    };
-
-    /** Steam's confirm dialog closes itself on OK, so the outcome is a second, alert-style dialog: one Close button, plus the title bar's X. */
-    const showResult = (text: string) => {
-        showModal(
-            <ConfirmModal
-                strTitle="Reset achievements"
-                strDescription={text}
-                strOKButtonText="Close"
-                bAlertDialog
-                bHideCloseIcon={false}
-            />,
-            window,
-        );
-    };
-
     const confirm = () => {
         if (!chosen) return;
-        showModal(
-            <ConfirmModal
-                strTitle="Reset achievements"
-                strDescription={`${chosen.name} will lose all its achievements (${chosen.unlocked} unlocked). ${
-                    chosen.kind === "steam" ? "They are cleared on your Steam account. " : ""
-                }This cannot be undone.`}
-                strOKButtonText="Reset"
-                bDestructiveWarning
-                onOK={() => void run(chosen)}
+        showDialog(
+            <ResetDialog
+                candidate={chosen}
+                api={api}
+                onStart={() => setBusy(true)}
+                onFinished={() => {
+                    setBusy(false);
+                    setSelected(0);
+                    reload();
+                }}
             />,
-            window,
+            { strTitle: "Reset achievements", popupWidth: 480, popupHeight: 250 },
         );
     };
 

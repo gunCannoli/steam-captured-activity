@@ -13,7 +13,7 @@ Every migration step updates this doc; the **Status** column says what is built.
 | Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode | current (E0a) |
 | Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | current (E1a) |
 | Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
-| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`), the one `PlayNotificationSound` hook (`notification-hook.ts`, infrastructure), the shared jsx-runtime hook | current (E1c) |
+| Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`, Steam's own `showModal` in `modal.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`, infrastructure), the shared jsx-runtime hook | current (E1c) |
 | Sensor | `frontend/sensors/unlock/` | Sees an achievement toast shown and emits `achievement.unlocked` once, one macrotask later | current (E1b) |
 | Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `sound`, `duration`, `toasts` (E1b); `banner`, `captures` (E1c). `surfaceStatus()` shows which installed | current (E1c) |
 | Composition root | `frontend/index.tsx`, `frontend/claims.ts` | Start-up order, wiring, the public exports and `claims()` | current |

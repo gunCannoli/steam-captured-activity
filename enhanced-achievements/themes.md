@@ -37,8 +37,9 @@ Display behaviour for this theme's banners.
     - `"slide"` mirrors the anchor: from the right edge for `*_right`, the left edge for `*_left`.
     - `"slide"`, `"up"`, `"down"`: enter and exit both move (the exit is the
       reverse motion of the entrance), not just fade.
-    - `"ps5"`: slides in from the screen edge the banner is anchored to (and
-      slides back out the same way) plus a fade, like a PS5 trophy popup.
+    - `"ps5"`: a short slide (a quarter of the banner's width) in from the
+      screen edge the banner is anchored to, fading in as it moves, and the
+      same slide and fade back out, like a PS5 trophy popup.
       `top_center`/`bottom_center` slide vertically instead, since they have
       no horizontal edge to anchor to.
 - **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
@@ -97,8 +98,8 @@ Geometry, colours, border, glow, margin, padding, and gap of the banner. (The ke
 - **`scale`**: `[width_pct, height_pct]` or scalar `pct` — size of the banner **box** relative to the default (`[100, 100]` = standard size). Text and icons keep their own sizes (`text.*` size %, icon `scale_pct`); they do not grow or shrink with the box.
 - **`width`**: *(optional)* Base banner width in px (defaults to 400 for `ps5` and `custom`, 283 for standard Steam).
 - **`height`**: *(optional)* Base banner height in px (defaults to 70 for normal cards, 48 for `compact_pill`).
-- **`margin`**: `[vertical_px, horizontal_px]` or one number — distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. The horizontal margin is ignored for `top_center`/`bottom_center`.
-- **`padding`**: `[vert_px, horiz_px]` or scalar `px` — internal breathing room pushing banner content inward (e.g. `[6, 12]`).
+- **`margin`**: one number, `[vertical_px, horizontal_px]`, or `[top, bottom, left, right]` — distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. Only the sides the banner is anchored to count: `top_right` uses `top` and `right`. The horizontal margins are ignored for `top_center`/`bottom_center`.
+- **`padding`**: one number, `[vert_px, horiz_px]` (e.g. `[6, 12]`), or `[top, bottom, left, right]` (e.g. `[10, 5, 4, 7]`) — internal breathing room pushing banner content inward. Note the four-value order is top, bottom, left, right, not CSS's clockwise order.
 - **`gap`**: `[col_gap_px, row_gap_px]` or scalar `px` — flexbox spacing between layout zones, columns, and text rows (e.g. `[10, 2]`).
 - **`background_color`**: `["#hex", ...]` — one colour is solid; two or more make a smooth gradient.
 - **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
@@ -125,7 +126,7 @@ Every slot takes `[source, scale_pct, ripple_ms]`, `[source, ripple_ms]`, or bar
     - `false`: hide the slot.
     - `"path"`: a custom `.png` or `.svg`.
 - **`scale_pct`**: icon scaling relative to standard bounds (`100` = 100%, `50` = half size).
-- **`ripple_ms`**: `0` is static; `> 0` loops an expanding water-ripple ring behind the icon at that period (e.g. `2000` = 2-second pulse). The ring starts as a ring at the icon's own edge and expands outward (not a pre-inflated glow).
+- **`ripple_ms`**: `0` is static; `> 0` loops an expanding water-ripple ring behind the icon at that period (e.g. `2000` = 2-second pulse). The ring starts just inside the icon's own edge and expands to 1.35x the icon's size, close around it (not a pre-inflated glow).
 
 Slots:
 

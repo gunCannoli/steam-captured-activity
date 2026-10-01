@@ -17,7 +17,7 @@ export const BANNER_CSS = `
     display: flex;
     align-items: center;
     gap: var(--ea-gap-x, 10px);
-    padding: var(--ea-pad-y, 6px) var(--ea-pad-x, 10px);
+    padding: var(--ea-pad, 6px 10px);
     box-sizing: border-box;
     overflow: hidden;
     font-family: "Motiva Sans", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
@@ -39,7 +39,7 @@ export const BANNER_CSS = `
 .ea-banner {
     animation-name: var(--ea-in-name, none), var(--ea-out-name, none);
     animation-duration: var(--ea-in-ms, 0ms), var(--ea-out-ms, 0ms);
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1), ease-in;
+    animation-timing-function: var(--ea-in-ease, cubic-bezier(0.16, 1, 0.3, 1)), var(--ea-out-ease, ease-in);
     animation-delay: 0ms, calc(var(--ea-in-ms, 0ms) + var(--ea-display-ms, 5000ms));
     animation-fill-mode: both, forwards;
 }
@@ -62,11 +62,14 @@ export const BANNER_CSS = `
 .ea-in-up    { --ea-in-name: ea-in-up; }
 .ea-in-down  { --ea-in-name: ea-in-down; }
 .ea-in-none  { --ea-in-name: none; }
-/* ps5: slide in from the anchored screen edge + fade, direction from ea-pos-*. */
-.ea-in-ps5.ea-pos-top_right, .ea-in-ps5.ea-pos-bottom_right { --ea-in-name: ea-in-slide; }
-.ea-in-ps5.ea-pos-top_left,  .ea-in-ps5.ea-pos-bottom_left  { --ea-in-name: ea-in-slide-left; }
-.ea-in-ps5.ea-pos-top_center                                { --ea-in-name: ea-in-down; }
-.ea-in-ps5.ea-pos-bottom_center                             { --ea-in-name: ea-in-up; }
+/* ps5: a short slide from the anchored screen edge with a fade you can see, direction from ea-pos-*.
+   The plain slide travels the banner's whole width, so its fade ends while the banner is still mostly
+   outside the toast window; ps5 travels a quarter of it, on a gentler curve, so the fade spans the motion. */
+.ea-in-ps5.ea-pos-top_right, .ea-in-ps5.ea-pos-bottom_right { --ea-in-name: ea-in-ps5-right; }
+.ea-in-ps5.ea-pos-top_left,  .ea-in-ps5.ea-pos-bottom_left  { --ea-in-name: ea-in-ps5-left; }
+.ea-in-ps5.ea-pos-top_center                                { --ea-in-name: ea-in-ps5-top; }
+.ea-in-ps5.ea-pos-bottom_center                             { --ea-in-name: ea-in-ps5-bottom; }
+.ea-in-ps5 { --ea-in-ease: cubic-bezier(0.25, 0.6, 0.3, 1); }
 
 /* --- exit (ea-out-*) --- */
 .ea-out-fade  { --ea-out-name: ea-out-fade; }
@@ -75,10 +78,11 @@ export const BANNER_CSS = `
 .ea-out-up    { --ea-out-name: ea-out-up; }
 .ea-out-down  { --ea-out-name: ea-out-down; }
 .ea-out-none  { --ea-out-name: none; }
-.ea-out-ps5.ea-pos-top_right, .ea-out-ps5.ea-pos-bottom_right { --ea-out-name: ea-out-slide; }
-.ea-out-ps5.ea-pos-top_left,  .ea-out-ps5.ea-pos-bottom_left  { --ea-out-name: ea-out-slide-left; }
-.ea-out-ps5.ea-pos-top_center                                 { --ea-out-name: ea-out-up; }
-.ea-out-ps5.ea-pos-bottom_center                              { --ea-out-name: ea-out-down; }
+.ea-out-ps5.ea-pos-top_right, .ea-out-ps5.ea-pos-bottom_right { --ea-out-name: ea-out-ps5-right; }
+.ea-out-ps5.ea-pos-top_left,  .ea-out-ps5.ea-pos-bottom_left  { --ea-out-name: ea-out-ps5-left; }
+.ea-out-ps5.ea-pos-top_center                                 { --ea-out-name: ea-out-ps5-top; }
+.ea-out-ps5.ea-pos-bottom_center                              { --ea-out-name: ea-out-ps5-bottom; }
+.ea-out-ps5 { --ea-out-ease: ease-in-out; }
 
 @keyframes ea-in-fade  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ea-out-fade { from { opacity: 1; } to { opacity: 0; } }
@@ -87,6 +91,15 @@ export const BANNER_CSS = `
 @keyframes ea-in-slide-left  { from { opacity: 0; transform: translateX(-100%); } to { opacity: 1; transform: translateX(0); } }
 @keyframes ea-out-slide      { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
 @keyframes ea-out-slide-left { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-100%); } }
+
+@keyframes ea-in-ps5-right   { from { opacity: 0; transform: translateX(25%); }  to { opacity: 1; transform: none; } }
+@keyframes ea-in-ps5-left    { from { opacity: 0; transform: translateX(-25%); } to { opacity: 1; transform: none; } }
+@keyframes ea-in-ps5-top     { from { opacity: 0; transform: translateY(-40%); } to { opacity: 1; transform: none; } }
+@keyframes ea-in-ps5-bottom  { from { opacity: 0; transform: translateY(40%); }  to { opacity: 1; transform: none; } }
+@keyframes ea-out-ps5-right  { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(25%); } }
+@keyframes ea-out-ps5-left   { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-25%); } }
+@keyframes ea-out-ps5-top    { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-40%); } }
+@keyframes ea-out-ps5-bottom { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(40%); } }
 
 @keyframes ea-in-up   { from { opacity: 0; transform: translateY(100%); }  to { opacity: 1; transform: translateY(0); } }
 @keyframes ea-out-up  { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(100%); } }
@@ -108,11 +121,12 @@ export const BANNER_CSS = `
     object-fit: contain;
 }
 
-/* Water-ripple: starts as a ring collapsed onto the icon's own outline and
-   expands outward from there (like an object breaking the surface of water),
+/* Water-ripple: starts as a ring just inside the icon's own outline and
+   expands a little past it (like an object breaking the surface of water),
    not a pre-inflated blurred disc drifting further away. Fixed-size ring
    (inset: 0, same box as the icon) rather than a percentage inset, so it
-   always starts exactly at the icon's edge regardless of icon scale. */
+   always starts at the icon's edge regardless of icon scale; it ends at 1.35x,
+   hugging the icon rather than drifting into the text beside it. */
 .ea-ripple {
     position: absolute;
     inset: 0;
@@ -120,14 +134,14 @@ export const BANNER_CSS = `
     border: calc(1.5px * var(--ea-icon-scale, 1)) solid rgba(255, 255, 255, 0.85);
     filter: blur(calc(0.65px * var(--ea-icon-scale, 1)));
     pointer-events: none;
-    transform: scale(1);
+    transform: scale(0.92);
     opacity: 0;
     animation: ea-ripple var(--ea-ripple) cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
 }
 @keyframes ea-ripple {
-    0%   { transform: scale(1);    opacity: 0.9; }
+    0%   { transform: scale(0.92); opacity: 0.9; }
     15%  { opacity: 0.7; }
-    100% { transform: scale(1.9);  opacity: 0; }
+    100% { transform: scale(1.35); opacity: 0; }
 }
 
 /* 3-Zone Flexbox Architecture */

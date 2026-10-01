@@ -88,8 +88,8 @@ test('banner geometry: margin, padding, gap parse scalars and pairs', () => {
             },
         },
     });
-    assert.deepEqual(theme.tiers.normal.banner.margin, [10, 10]);
-    assert.deepEqual(theme.tiers.normal.banner.padding, [8, 16]);
+    assert.deepEqual(theme.tiers.normal.banner.margin, { top: 10, bottom: 10, left: 10, right: 10 });
+    assert.deepEqual(theme.tiers.normal.banner.padding, { top: 8, bottom: 8, left: 16, right: 16 });
     assert.deepEqual(theme.tiers.normal.banner.gap, [5, 5]);
     // box is backward compatibility alias
     assert.deepEqual(theme.tiers.normal.box, theme.tiers.normal.banner);
@@ -310,9 +310,15 @@ test('text shorthand: a tier overriding only the words keeps the inherited title
 
 test('pairs: a bare number or a one-element array sets both values; two elements set each', () => {
     const t = resolveTheme({ themes: { normal: { banner: { margin: 7, padding: [5], gap: [10, 5] } } } });
-    assert.deepEqual(t.tiers.normal.banner.margin, [7, 7]);
-    assert.deepEqual(t.tiers.normal.banner.padding, [5, 5]);
+    assert.deepEqual(t.tiers.normal.banner.margin, { top: 7, bottom: 7, left: 7, right: 7 });
+    assert.deepEqual(t.tiers.normal.banner.padding, { top: 5, bottom: 5, left: 5, right: 5 });
     assert.deepEqual(t.tiers.normal.banner.gap, [10, 5]);
+});
+
+test('edges: four values are top, bottom, left, right; a bad side keeps its default', () => {
+    const t = resolveTheme({ themes: { normal: { banner: { padding: [10, 5, 4, 7], margin: [1, 2, 'x', 4] } } } });
+    assert.deepEqual(t.tiers.normal.banner.padding, { top: 10, bottom: 5, left: 4, right: 7 });
+    assert.deepEqual(t.tiers.normal.banner.margin, { top: 1, bottom: 2, left: 0, right: 4 });
 });
 
 test('tier: a preview id carries its own tier, whatever the thresholds', () => {
