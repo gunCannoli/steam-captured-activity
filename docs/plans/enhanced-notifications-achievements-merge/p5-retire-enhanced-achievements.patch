@@ -1,0 +1,220 @@
+diff --git a/enhanced-notifications/frontend/settings/rows.tsx b/enhanced-notifications/frontend/settings/rows.tsx
+index 01e9881..b44c500 100644
+--- a/enhanced-notifications/frontend/settings/rows.tsx
++++ b/enhanced-notifications/frontend/settings/rows.tsx
+@@ -4,9 +4,8 @@ import { toastsEnabled } from "../steam/notification-settings";
+ import { DEFAULTS, RANGES, useSetting, type SettingKey } from "./settings";
+ 
+ /**
+- * Settings panel rows and the spacing system (docs/plugins.md guardrail 18). SAME FILE in
+- * enhanced-achievements and enhanced-notifications (plugins may not import each other):
+- * each plugin's tests/architecture.test.ts fails when the copies differ. Change both in one commit.
++ * Settings panel rows and the spacing system (docs/plugins.md guardrail 18): the reference
++ * every plugin's settings panel copies (steam-cartridges' settings/components.tsx follows it).
+  */
+ 
+ // Compact row wrapper to reduce inter-item vertical spacing and
+diff --git a/enhanced-notifications/frontend/steam/jsx-hook.ts b/enhanced-notifications/frontend/steam/jsx-hook.ts
+index 94453d1..cabcd50 100644
+--- a/enhanced-notifications/frontend/steam/jsx-hook.ts
++++ b/enhanced-notifications/frontend/steam/jsx-hook.ts
+@@ -4,8 +4,8 @@ import { beforePatch, callOriginal, replacePatch } from '@steambrew/client';
+  * A self-healing patch on Steam's shared `react/jsx-runtime` (`jsx` / `jsxs`),
+  * safe to use from several plugins at once.
+  *
+- * SAME FILE in every plugin that hooks jsx (non-steam-games-activity,
+- * enhanced-achievements); plugins may not import each other, so keep the copies
++ * SAME FILE in every plugin that hooks jsx (steam-cartridges,
++ * enhanced-notifications); plugins may not import each other, so keep the copies
+  * identical. Design: docs/plugins.md, "Sharing the jsx runtime between plugins".
+  *
+  * Why: each plugin used to re-patch whenever `runtime.jsx` was not its own
+diff --git a/enhanced-notifications/frontend/steam/toast-pop.ts b/enhanced-notifications/frontend/steam/toast-pop.ts
+index 3174929..3b4ae19 100644
+--- a/enhanced-notifications/frontend/steam/toast-pop.ts
++++ b/enhanced-notifications/frontend/steam/toast-pop.ts
+@@ -8,9 +8,9 @@
+  * prototype wrapper still runs) and returns its value unchanged. `onPop` sees only real toasts (a non-null object)
+  * and cannot break Steam's pop: its error goes to `reportError`. Pure (no imports), so `npm test` checks it.
+  *
+- * Shared, identical, by enhanced-notifications (the type of the toast on screen) and enhanced-achievements (its
+- * forced Big Picture position): each architecture test fails when the copies differ. Whichever plugin installs second
+- * wraps the first one's own property, so both listeners run on every pop, in either load order.
++ * Written to compose, like the notification hook: whichever install comes second (another plugin, or the released
++ * and the -dev copy loaded together) wraps the first one's own property, so both listeners run on every pop, in
++ * either load order (tests/bigpicture-type.test.ts).
+  */
+ type PopFn = (this: unknown, ...args: unknown[]) => unknown;
+ 
+diff --git a/enhanced-notifications/frontend/steam/webpack.ts b/enhanced-notifications/frontend/steam/webpack.ts
+index 140e7b1..c7777ab 100644
+--- a/enhanced-notifications/frontend/steam/webpack.ts
++++ b/enhanced-notifications/frontend/steam/webpack.ts
+@@ -4,7 +4,7 @@ import { logger } from '../logger';
+  * Steam's webpack module cache, for resolving exports that
+  * `@steambrew/client` cannot reach (it only sees already-evaluated modules).
+  *
+- * Same technique as non-steam-games-activity/frontend/steam/modules.ts (and enhanced-achievements), kept
++ * Same technique as steam-cartridges/frontend/steam/modules.ts, kept
+  * separate because plugins may not import each other (docs/plugins.md § Layout).
+  *
+  * NOTHING here resolves by numeric module id: ids reshuffle between Steam
+diff --git a/enhanced-notifications/tests/architecture.test.ts b/enhanced-notifications/tests/architecture.test.ts
+index 06ece80..89a7821 100644
+--- a/enhanced-notifications/tests/architecture.test.ts
++++ b/enhanced-notifications/tests/architecture.test.ts
+@@ -1,4 +1,4 @@
+-// Architecture guard (ADR-0047, same checks as enhanced-achievements' ADR-0043). Runs under `npm test`, no Steam needed.
++// Architecture guard (ADR-0043, ADR-0047, ADR-0050). Runs under `npm test`, no Steam needed.
+ //
+ // 1. Import ratchet: every import between two different areas of frontend/ must be
+ //    allowed by LAYER_RULES or listed in tests/architecture-allowlist.json. A new
+@@ -12,10 +12,8 @@
+ //    achievement banner's pin on top of it (ADR-0050; its own test below).
+ // 4. Every RPC the frontend calls is registered in backend/main.lua (an
+ //    unregistered method crashes the backend host; knowledgebase.md).
+-// 5. Shared copies have not drifted from enhanced-achievements: steam/notification-hook.ts
+-//    (both plugins wrap the same Steam method with it, so they must compose),
+-//    kernel/surface.ts, theme/jsonc.ts, settings/rows.tsx, pristineDuration and backend/main.lua (name swapped).
+-//    Skipped when the sibling plugin is not next to this one.
++// 5. The shared copy has not drifted: steam/jsx-hook.ts (steam-cartridges). Skipped when
++//    that plugin is not next to this one.
+ // 6. Every live script in tests/ is run by tests/run-live.mjs (or listed as a helper).
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+@@ -25,7 +23,6 @@ import { fileURLToPath } from 'node:url';
+ 
+ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+ const FRONTEND = join(ROOT, 'frontend');
+-const SIBLING = join(ROOT, '..', 'enhanced-achievements', 'frontend');
+ const ALLOWLIST = join(ROOT, 'tests', 'architecture-allowlist.json');
+ /** Imports of these areas are never counted (shared utilities every area may use). */
+ const ALWAYS_ALLOWED = new Set(['logger']);
+@@ -277,31 +274,6 @@ test('architecture: steam/jsx-hook.ts is identical to the steam-cartridges copy'
+     assert.equal(readFileSync(join(FRONTEND, 'steam', 'jsx-hook.ts'), 'utf8'), readFileSync(sibling, 'utf8'));
+ });
+ 
+-for (const file of ['steam/notification-hook.ts', 'steam/toast-pop.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {
+-    test(`architecture: ${file} is identical to the enhanced-achievements copy`, (t) => {
+-        const sibling = join(SIBLING, file);
+-        if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');
+-        assert.equal(readFileSync(join(FRONTEND, file), 'utf8'), readFileSync(sibling, 'utf8'));
+-    });
+-}
+-
+-test('architecture: pristineDuration is identical to the enhanced-achievements copy', (t) => {
+-    if (!existsSync(SIBLING)) return t.skip('enhanced-achievements is not next to this plugin');
+-    const fn = (src: string) => src.match(/function pristineDuration[\s\S]*?\n}\n/)?.[0];
+-    const ours = walk(FRONTEND).map((f) => fn(readFileSync(f, 'utf8'))).filter(Boolean);
+-    const theirs = walk(SIBLING).map((f) => fn(readFileSync(f, 'utf8'))).filter(Boolean);
+-    assert.equal(ours.length, 1, 'expected exactly one pristineDuration in frontend/');
+-    assert.equal(theirs.length, 1, 'expected exactly one pristineDuration in enhanced-achievements/frontend/');
+-    assert.equal(ours[0], theirs[0]);
+-});
+-
+-test('architecture: backend/main.lua is the enhanced-achievements copy with the plugin name swapped', (t) => {
+-    const sibling = join(ROOT, '..', 'enhanced-achievements', 'backend', 'main.lua');
+-    if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');
+-    const theirs = readFileSync(sibling, 'utf8').split('enhanced-achievements').join('enhanced-notifications');
+-    assert.equal(readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8'), theirs);
+-});
+-
+ /** Live scripts that are helpers, not checks. */
+ const LIVE_HELPERS = ['cdp.mjs', 'console.mjs', 'reload.mjs', 'run-live.mjs'];
+ 
+diff --git a/enhanced-notifications/tests/bigpicture-type.test.ts b/enhanced-notifications/tests/bigpicture-type.test.ts
+index 57e023f..504a683 100644
+--- a/enhanced-notifications/tests/bigpicture-type.test.ts
++++ b/enhanced-notifications/tests/bigpicture-type.test.ts
+@@ -1,5 +1,5 @@
+ // Which signal sets the type of the toast on screen (surfaces/style/type-source.ts) and the
+-// PopNextToastNotification wrapper that provides the `pop` signal (steam/toast-pop.ts, shared with enhanced-achievements).
++// PopNextToastNotification wrapper that provides the `pop` signal (steam/toast-pop.ts).
+ // Regression guard for the Big Picture flicker: a toast that ARRIVES while another is on screen
+ // must never restyle it (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
+ import test from 'node:test';
+@@ -103,7 +103,7 @@ test('toast pop: no method, no wrapper', () => {
+     assert.equal(installToastPop({}, () => {}, () => {}), null);
+ });
+ 
+-test('toast pop: both toast plugins install it, in either order, and both hear every pop', () => {
++test('toast pop: two installs (another plugin, or the released and the -dev copy), in either order, both hear every pop', () => {
+     for (const order of [['en', 'ea'], ['ea', 'en']]) {
+         const { proto, store } = fakeStore([{ eType: 1 }, { eType: 5 }]);
+         const original = proto.PopNextToastNotification;
+diff --git a/enhanced-notifications/tests/theme.test.ts b/enhanced-notifications/tests/theme.test.ts
+index 87dcca8..9601894 100644
+--- a/enhanced-notifications/tests/theme.test.ts
++++ b/enhanced-notifications/tests/theme.test.ts
+@@ -145,7 +145,7 @@ test('jsonc: a comma inside a string before } is not treated as trailing', () =>
+     assert.deepEqual(parseJsonc('{"a": ",", "b": [","]}'), { a: ',', b: [','] });
+ });
+ 
+-test('settings.position and settings.animation: unset keeps Steam, enhanced-achievements values accepted', () => {
++test('settings.position and settings.animation: unset keeps Steam, the achievement banner values accepted', () => {
+     const stock = resolveTheme({});
+     assert.equal(stock.position, null);
+     assert.equal(stock.animation, null);
+diff --git a/steam-cartridges/frontend/settings/components.tsx b/steam-cartridges/frontend/settings/components.tsx
+index 48cb4f0..d10d015 100644
+--- a/steam-cartridges/frontend/settings/components.tsx
++++ b/steam-cartridges/frontend/settings/components.tsx
+@@ -1,5 +1,5 @@
+ // Shared building blocks of the settings panels (migration plan M8c). The spacing system and row kinds are the ones of
+-// enhanced-achievements (its settings-panel.tsx), the reference; the rules are in docs/plugins.md § Settings panel layout.
++// enhanced-notifications (its settings/rows.tsx), the reference; the rules are in docs/plugins.md § Settings panel layout.
+ import { Children, useEffect } from "react";
+ import { DialogButton, Field, PanelSectionRow, Toggle as SteamToggle } from "@steambrew/client";
+ 
+diff --git a/steam-cartridges/frontend/settings/game-editor/game-picker.tsx b/steam-cartridges/frontend/settings/game-editor/game-picker.tsx
+index c0d679c..d4d3dd2 100644
+--- a/steam-cartridges/frontend/settings/game-editor/game-picker.tsx
++++ b/steam-cartridges/frontend/settings/game-editor/game-picker.tsx
+@@ -1,5 +1,5 @@
+ // Game Data editor: the text filter and the dropdown of every non-Steam shortcut (features plan F1).
+-// One card, like Reset Achievements in enhanced-achievements: the controls stack, each across the full row.
++// One card, like Reset Achievements in enhanced-notifications: the controls stack, each across the full row.
+ import { Dropdown, TextField } from "@steambrew/client";
+ import { usePanelContext } from "../context";
+ import { CONTROL_GAP, STEAM_TRAILING } from "../components";
+diff --git a/steam-cartridges/frontend/steam/jsx-hook.ts b/steam-cartridges/frontend/steam/jsx-hook.ts
+index 94453d1..cabcd50 100644
+--- a/steam-cartridges/frontend/steam/jsx-hook.ts
++++ b/steam-cartridges/frontend/steam/jsx-hook.ts
+@@ -4,8 +4,8 @@ import { beforePatch, callOriginal, replacePatch } from '@steambrew/client';
+  * A self-healing patch on Steam's shared `react/jsx-runtime` (`jsx` / `jsxs`),
+  * safe to use from several plugins at once.
+  *
+- * SAME FILE in every plugin that hooks jsx (non-steam-games-activity,
+- * enhanced-achievements); plugins may not import each other, so keep the copies
++ * SAME FILE in every plugin that hooks jsx (steam-cartridges,
++ * enhanced-notifications); plugins may not import each other, so keep the copies
+  * identical. Design: docs/plugins.md, "Sharing the jsx runtime between plugins".
+  *
+  * Why: each plugin used to re-patch whenever `runtime.jsx` was not its own
+diff --git a/steam-cartridges/tests/buckets.mjs b/steam-cartridges/tests/buckets.mjs
+index ed6f1fb..41f70c9 100644
+--- a/steam-cartridges/tests/buckets.mjs
++++ b/steam-cartridges/tests/buckets.mjs
+@@ -2,7 +2,7 @@
+ // run it only with the user's OK). Needs Steam with DevTools and two fixture
+ // collections. Usage: node tests/buckets.mjs
+ // Assumes the plugin's exports are reachable as PLUGIN_LIST[name] (dev copy first).
+-import { connect } from '../../enhanced-achievements/tests/cdp.mjs';
++import { connect } from '../../enhanced-notifications/tests/cdp.mjs';
+ 
+ const cdp = await connect();
+ const ev = (x) => cdp.evaluate(x);
+diff --git a/steam-cartridges/tests/steam-store.mjs b/steam-cartridges/tests/steam-store.mjs
+index eeb8d46..bfc1de2 100644
+--- a/steam-cartridges/tests/steam-store.mjs
++++ b/steam-cartridges/tests/steam-store.mjs
+@@ -4,7 +4,7 @@
+ // Usage: node tests/steam-store.mjs
+ // Env: STEAM_COLL / RETRO_COLL (collection names), SC_STEAM_OWNED_NATIVE (native appid of the
+ // owned fixture, default 435150), SC_STEAM_UNOWNED_NATIVE (default 2820820).
+-import { connect } from '../../enhanced-achievements/tests/cdp.mjs';
++import { connect } from '../../enhanced-notifications/tests/cdp.mjs';
+ 
+ const cdp = await connect();
+ const ev = (x) => cdp.evaluate(x);

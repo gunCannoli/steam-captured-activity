@@ -1,0 +1,1301 @@
+diff --git a/enhanced-notifications/tests/achievements-bigpicture.mjs b/enhanced-notifications/tests/achievements-bigpicture.mjs
+new file mode 100644
+index 0000000..bfd0c67
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-bigpicture.mjs
+@@ -0,0 +1,155 @@
++// Live Big Picture check of the achievement banner. Run with Big Picture open
++// (SteamClient.URL.ExecuteSteamURL('steam://open/bigpicture')) and a theme with an `achievements` block selected
++// (tests/run-live.mjs selects ps5). Fires Steam's test achievement and asserts the themed banner renders in Big
++// Picture's toast window. SCREENSHOT=out.png captures it. Then a download toast queued behind a second banner must
++// not restyle it while it shows (the Big Picture flicker). Run it with Big Picture in front: a hidden window does not
++// paint, so its animations never start.
++// Then Big Picture's one toast place follows the toast on screen (ADR-0050): with a temporary theme, an achievement
++// goes to the `achievements` block's corner, the next download to the theme's corner, and, with no `achievements`
++// block, an achievement to the theme's corner too.
++import { rmSync, writeFileSync } from 'node:fs';
++import { connect, resolvePluginName } from './cdp.mjs';
++
++const cdp = await connect();
++let failed = false;
++try {
++    await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
++    await new Promise((r) => setTimeout(r, 1200));
++    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++    const toast = targets.find((t) => /^notificationtoasts_uid/i.test(t.title));
++    if (!toast) throw new Error('No Big Picture toast window; is Big Picture open?');
++    const win = await connect(toast.title);
++    const result = JSON.parse(
++        await win.evaluate(`JSON.stringify((() => {
++            const b = document.querySelector('.ea-banner');
++            if (!b) return { found: false };
++            const r = b.getBoundingClientRect(), p = b.parentElement.getBoundingClientRect();
++            return { found: true, classes: b.className, banner: [Math.round(r.width), Math.round(r.height)], frame: [Math.round(p.width), Math.round(p.height)], focused: document.activeElement?.closest?.('.ea-banner') ? 'banner' : document.activeElement?.tagName };
++        })())`),
++    );
++    console.log(`${result.found ? 'PASS' : 'FAIL'}  themed banner in Big Picture toast  ${JSON.stringify(result)}`);
++    if (!result.found) failed = true;
++    if (result.found && result.focused === 'banner') {
++        console.log('FAIL  banner took focus (would steal controller focus)');
++        failed = true;
++    }
++    if (process.env.SCREENSHOT) await win.screenshot(process.env.SCREENSHOT);
++
++    // Big Picture times the toast itself (no popup hold there), so Steam's
++    // duration must cover the whole banner: the exit animation has to finish
++    // (opacity ~0) before Steam removes the banner, never be cut mid-way. The banner
++    // must also have been visible (opacity ~1) at some point: a banner stuck at
++    // opacity 0 (the first toast after Big Picture opens, when its toast window's
++    // animation clock had not started) would otherwise pass this check unseen.
++    if (result.found) {
++        let last = null;
++        let max = 0;
++        for (let t = 0; t < 30_000; t += 100) {
++            const s = await win.evaluate(`(() => { const b = document.querySelector('.ea-banner'); return b ? Number(getComputedStyle(b).opacity) : null; })()`);
++            if (s === null) break;
++            last = s;
++            if (s > max) max = s;
++            await new Promise((r) => setTimeout(r, 100));
++        }
++        const ok = last !== null && last < 0.1 && max > 0.9;
++        console.log(`${ok ? 'PASS' : 'FAIL'}  exit animation finished before Steam removed the banner  (last opacity ${last}, max opacity ${max})`);
++        if (!ok) failed = true;
++
++        // A queued toast must not restyle the banner on screen: until the banner is done, its animation stays the
++        // banner's and its window carries no notification type.
++        await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
++        await new Promise((r) => setTimeout(r, 1500));
++        await cdp.evaluate(`(window.NotificationStore.TestDownloadComplete(435150), true)`);
++        const states = [];
++        for (let t = 0; t < 8_000; t += 50) {
++            const s = await win.evaluate(`(() => { const b = document.querySelector('.ea-banner:not(.ea-done)'); return b ? (document.body.getAttribute('data-en-type') ?? '-') + ' | ' + getComputedStyle(b).animationName : null; })()`);
++            if (s === null && states.length) break;
++            if (s !== null && states[states.length - 1] !== s) states.push(s);
++            await new Promise((r) => setTimeout(r, 50));
++        }
++        const kept = states.length === 1 && states[0].startsWith('- | ea-');
++        console.log(`${kept ? 'PASS' : 'FAIL'}  a queued toast does not restyle the banner on screen  ${JSON.stringify(states)}`);
++        if (!kept) failed = true;
++        await new Promise((r) => setTimeout(r, 7000)); // let the queued download finish
++    }
++    win.close();
++
++    await achievementPosition();
++} finally {
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
++
++/** Fire one toast; return the first place Steam sends Big Picture's toast view ([x, y] in the window, and its size), after the view is idle again. */
++async function placeOf(fire) {
++    return JSON.parse(
++        await cdp.evaluate(`(async () => {
++            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++            const find = () => {
++                for (const p of g_PopupManager.GetPopups()) {
++                    const el = p.window?.document?.querySelector('.GamepadToastPlaceholder');
++                    if (!el) continue;
++                    const k = Object.keys(el).find((x) => x.startsWith('__reactFiber'));
++                    for (let f = el[k], d = 0; f && d < 4; f = f.return, d++)
++                        for (let h = f.memoizedState, i = 0; h && i < 16; h = h.next, i++) if (h.memoizedState?.GetBrowserView) return { win: p.window, ph: el, bv: h.memoizedState.GetBrowserView() };
++                }
++                return null;
++            };
++            const t = find();
++            if (!t) return 'null';
++            const busy = () => (NotificationStore.m_rgNotificationToasts?.length ?? 0) > 0 || t.win.getComputedStyle(t.ph).display !== 'none';
++            for (let i = 0; i < 60 && busy(); i++) await sleep(500);
++            let first = null;
++            const own = Object.prototype.hasOwnProperty.call(t.bv, 'SetBounds'), orig = t.bv.SetBounds;
++            t.bv.SetBounds = function (x, y, w, h) { if (w > 0 && !first) first = [Math.round(x), Math.round(y)]; return orig.apply(this, arguments); };
++            await (${fire});
++            for (let i = 0; i < 20 && !first; i++) await sleep(250);
++            if (own) t.bv.SetBounds = orig; else delete t.bv.SetBounds;
++            for (let i = 0; i < 60 && busy(); i++) await sleep(500);
++            return JSON.stringify({ at: first, w: t.win.innerWidth, h: t.win.innerHeight });
++        })()`),
++    );
++}
++
++async function achievementPosition() {
++    const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
++    const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
++    const top = (p) => p.startsWith('top_');
++    const quadrant = (r, pos) => !!r?.at && (top(pos) ? r.at[1] < r.h / 2 : r.at[1] > r.h / 2) && (pos.endsWith('_left') ? r.at[0] < r.w / 2 : pos.endsWith('_right') ? r.at[0] > r.w / 2 : true);
++    const userDir = JSON.parse(await cdp.evaluate(`window.Millennium.callServerMethod('${PLUGIN}', 'ListThemes', { payload: '{}' })`)).userDir;
++    const themePos = 'top_left';
++    const bannerPos = 'bottom_right';
++    const banner = `${userDir}/en_bp_achievements.json`;
++    const plain = `${userDir}/en_bp_plain.json`;
++    writeFileSync(banner, JSON.stringify({ settings: { position: themePos }, popup: { margin: [20, 30] }, achievements: { settings: { position: bannerPos }, tiers: { normal: { banner: { margin: 10 } } } } }));
++    writeFileSync(plain, JSON.stringify({ settings: { position: themePos }, popup: { margin: [20, 30] } }));
++    const before = await plugin('activeTheme()?.name');
++    const select = async (name) => {
++        await plugin(`setSetting('theme', '${name}')`);
++        for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== name; i++) await new Promise((r) => setTimeout(r, 250));
++    };
++    try {
++        const achievement = `NotificationStore.TestAchievement(480)`;
++        const download = `(NotificationStore.TestDownloadComplete(435150), 0)`;
++
++        await select('en_bp_achievements');
++        const ach = await placeOf(achievement);
++        const okAch = quadrant(ach, bannerPos);
++        console.log(`${okAch ? 'PASS' : 'FAIL'}  an achievement goes to the achievements block's corner (${bannerPos})  ${JSON.stringify(ach)}`);
++        if (!okAch) failed = true;
++        const next = await placeOf(download);
++        const okNext = quadrant(next, themePos);
++        console.log(`${okNext ? 'PASS' : 'FAIL'}  the next download goes back to the theme's corner (${themePos})  ${JSON.stringify(next)}`);
++        if (!okNext) failed = true;
++
++        await select('en_bp_plain');
++        const same = await placeOf(achievement);
++        const okSame = quadrant(same, themePos);
++        console.log(`${okSame ? 'PASS' : 'FAIL'}  without an achievements block, an achievement goes to the theme's corner (${themePos})  ${JSON.stringify(same)}`);
++        if (!okSame) failed = true;
++    } finally {
++        await plugin(before ? `setSetting('theme', ${JSON.stringify(before)})` : 'resetSettings()');
++        rmSync(banner, { force: true });
++        rmSync(plain, { force: true });
++    }
++}
+diff --git a/enhanced-notifications/tests/achievements-captures.mjs b/enhanced-notifications/tests/achievements-captures.mjs
+new file mode 100644
+index 0000000..55a856a
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-captures.mjs
+@@ -0,0 +1,88 @@
++// Live test: Phase 7 auto-captures, dry-run only. Creates nothing (no real
++// screenshot, clip or marker) — it only exercises the planning/scheduling path
++// with setCaptureDryRun(true), which logs the RPC it would have sent instead
++// of sending it. Restores every setting it touches.
++import { connect, resolvePluginName } from './cdp.mjs';
++
++const cdp = await connect();
++const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
++let failed = false;
++const check = (label, ok, detail = '') => {
++    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
++    if (!ok) failed = true;
++};
++const wait = (ms) => new Promise((r) => setTimeout(r, ms));
++const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
++const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
++
++// The user's own stored settings, restored exactly at the end (never wiped).
++const before_ = (await stored()) ?? {};
++try {
++    // 1. recordingDiagnostics() resolves the service and the live store.
++    const diag = JSON.parse(await plugin('recordingDiagnostics()').then((r) => JSON.stringify(r)));
++    check('recordingDiagnostics(): service resolved', diag.service === true, JSON.stringify(diag));
++    check('recordingDiagnostics(): g_GRS resolved', diag.grs === true, JSON.stringify(diag));
++
++    // 2. Enable every capture and turn on dry-run.
++    await plugin(`setSetting('screenshot.enabled', true)`);
++    await plugin(`setSetting('recording.enabled', true)`);
++    await plugin(`setSetting('recording.add_timeline_marker', true)`);
++    await wait(300);
++    await plugin('setCaptureDryRun(true)');
++
++    // 3. Fire Steam's own test achievement (no game running: appid 480, Spacewar).
++    const before = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
++    await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
++    await wait(1500);
++
++    // 4. Assert the newest log entry: no running timeline, no RPC (eresult) sent.
++    const after = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
++    const entry = after[after.length - 1];
++    // The log is a ring buffer (20 entries): once full its length no longer grows, so a newer timestamp also counts.
++    const isNew = after.length > before.length || (entry?.at ?? 0) > (before[before.length - 1]?.at ?? 0);
++    check('captureLog(): new entry recorded', isNew, JSON.stringify(entry));
++    if (isNew) {
++        check('captureLog(): appid 480', entry.appid === 480, JSON.stringify(entry));
++        check("captureLog(): skipped no-running-timeline", entry.skipped?.[0]?.reason === 'no-running-timeline', JSON.stringify(entry.skipped));
++        check('captureLog(): no eresult on any action (nothing sent)', !entry.actions?.some((a) => 'eresult' in a), JSON.stringify(entry.actions));
++    }
++
++    // 5. previewTier() must never schedule a capture (suppressed).
++    const beforePreview = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
++    await plugin(`previewTier('normal')`);
++    await wait(1500);
++    const afterPreview = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
++    check('previewTier(): no new capture log entry (suppressed)', afterPreview.length === beforePreview.length, `${beforePreview.length} -> ${afterPreview.length}`);
++
++    // 6. Optional: with a real recorded game running, assert a real plan (still dry-run, no RPC).
++    if (process.env.RUNNING) {
++        const appid = await plugin('runningGameAppid()');
++        check('RUNNING: a game with a running timeline was found', typeof appid === 'number', String(appid));
++        if (typeof appid === 'number') {
++            const beforeRun = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
++            await plugin(`fireTestUnlock(${appid}, 'Phase 7 dry-run test')`);
++            await wait(2500);
++            const afterRun = JSON.parse(await plugin('captureLog()').then((r) => JSON.stringify(r)));
++            const runEntry = afterRun[afterRun.length - 1];
++            const gotNew = afterRun.length > beforeRun.length;
++            check('RUNNING: new log entry for the real game', gotNew, JSON.stringify(runEntry));
++            if (gotNew) {
++                const kinds = (runEntry.actions ?? []).map((a) => a.kind);
++                check('RUNNING: planned screenshot and/or clip with a timeline_id', kinds.some((k) => k === 'screenshot' || k === 'clip') && runEntry.actions.every((a) => a.request?.timeline_id || a.request?.start?.timeline_id), JSON.stringify(runEntry.actions));
++                check('RUNNING: no RPC actually sent (dry-run)', !runEntry.actions.some((a) => 'eresult' in a), JSON.stringify(runEntry.actions));
++            }
++        }
++    } else {
++        console.log('SKIP  RUNNING=1 scenario (no game/recording set up for this run)');
++    }
++} finally {
++    // 7. Restore dry-run mode and exactly the settings stored before the test.
++    await plugin('setCaptureDryRun(false)');
++    await plugin('resetSettings()');
++    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
++    const left = (await stored()) ?? {};
++    const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
++    check('settings restored to what was stored before the test', sorted(left) === sorted(before_), `${JSON.stringify(before_)} -> ${JSON.stringify(left)}`);
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
+diff --git a/enhanced-notifications/tests/achievements-queue.mjs b/enhanced-notifications/tests/achievements-queue.mjs
+new file mode 100644
+index 0000000..fc17946
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-queue.mjs
+@@ -0,0 +1,159 @@
++// Live stress test for the achievement queue, against a running Steam (-dev) with
++// enhanced-notifications deployed.
++//
++//   node tests/achievements-queue.mjs            (THEME=<name> to pick the theme; default ps5)
++//
++// 1. A theme without an `achievements` block (steam_midnight): a preview achievement is no
++//    banner, and gets the notification style like every toast (data-en-type on its window).
++// 2. Queue on + a burst of previews clicked faster than a human can: every
++//    sample must show at most one visible banner, every visible banner pinned
++//    at the same spot and size, in the order fired, with the tier it was fired
++//    for, never Steam's fallback toast; all of them must eventually show; and
++//    their sounds (theme clip or Steam chime) spaced out with the banners,
++//    never stacked on arrival.
++// 3. Queue off: the same burst may overlap, but every banner still shows with
++//    its own tier (no tier swapped between rapid previews).
++//
++// Restores exactly the settings stored before it ran (it used to reset theme and
++// queue to their defaults, wiping the user's theme choice). Previews never capture.
++import { connect, resolvePluginName } from './cdp.mjs';
++
++const THEME = process.env.THEME ?? 'ps5';
++const BURST = ['magic', 'rare', 'normal', 'exceptional', 'magic'];
++
++const cdp = await connect();
++const name = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
++const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(name)}].${expr}`);
++const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(name)})`);
++const before_ = (await stored()) ?? {};
++const wait = (ms) => new Promise((r) => setTimeout(r, ms));
++let failed = false;
++const check = (label, ok, detail = '') => {
++    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
++    if (!ok) failed = true;
++};
++
++/** One sample of every achievement toast popup, read from SharedJSContext. */
++const sample = () =>
++    cdp.evaluate(`JSON.stringify([...g_PopupManager.GetPopups()]
++        .filter((p) => /^notificationtoasts_/.test(p.m_strName) && (p.window ?? p.m_popup) && !(p.window ?? p.m_popup).closed)
++        .map((p) => {
++            const w = p.window ?? p.m_popup, doc = w.document, b = doc.querySelector('.ea-banner');
++            const cls = b?.className ?? '';
++            return {
++                name: p.m_strName,
++                banner: !!b,
++                waiting: cls.includes('ea-waiting'),
++                done: cls.includes('ea-done'),
++                tier: cls.match(/ea-tier-(\\w+)/)?.[1] ?? null,
++                title: doc.querySelector('.ea-title')?.textContent ?? null,
++                opacity: b ? Number(w.getComputedStyle(b).opacity) : null,
++                enType: doc.body?.getAttribute('data-en-type') ?? null,
++                steamText: b ? '' : (doc.body?.innerText ?? '').trim().slice(0, 60),
++                x: w.screenX, y: w.screenY, w: w.outerWidth, h: w.outerHeight,
++            };
++        }))`).then(JSON.parse);
++
++async function waitForNoToasts(maxMs = 60_000) {
++    for (let t = 0; t < maxMs; t += 500) {
++        if ((await sample()).length === 0) return true;
++        await wait(500);
++    }
++    return false;
++}
++
++/** Fire the burst as fast as possible, then sample until every popup is gone. */
++async function burst() {
++    await Promise.all(BURST.map((tier) => plugin(`previewTier(${JSON.stringify(tier)})`)));
++    const samples = [];
++    for (let t = 0; t < 90_000; t += 150) {
++        const s = await sample();
++        samples.push(s);
++        if (t > 3000 && s.length === 0) break;
++        await wait(150);
++    }
++    return samples;
++}
++
++try {
++    check('no toast on screen before starting', await waitForNoToasts());
++
++    // --- 1. no achievements block -----------------------------------------------
++    await plugin(`setSetting('theme', 'steam_midnight')`);
++    for (let i = 0; i < 20 && (await plugin(`activeTheme()?.name`)) !== 'steam_midnight'; i++) await wait(250);
++    check('no achievements block: no banner theme', (await plugin(`achievementTheme()`)) === null);
++    await plugin(`previewTier('normal')`);
++    let stock = null;
++    for (let i = 0; i < 20 && !stock?.steamText; i++) {
++        await wait(250);
++        stock = (await sample())[0] ?? null;
++    }
++    check('no achievements block: toast shown', !!stock);
++    check('no achievements block: our banner not drawn', stock && !stock.banner);
++    check('no achievements block: the notification style', stock && stock.enType === 'Achievement', `data-en-type=${stock?.enType}`);
++    check('no achievements block: toast cleared', await waitForNoToasts());
++
++    // --- 2. queue on -------------------------------------------------------------
++    await plugin(`setSetting('theme', ${JSON.stringify(THEME)})`);
++    await plugin(`setSetting('queue.enabled', true)`);
++    for (let i = 0; i < 20 && (await plugin(`activeTheme()?.name`)) !== THEME; i++) await wait(250);
++    check(`theme "${THEME}" loaded`, (await plugin(`activeTheme()?.name`)) === THEME);
++
++    // Log every achievement sound: WebAudio clip starts and Steam chime decisions.
++    await cdp.evaluate(`(() => {
++        const log = (window.__eaQueueSounds = []);
++        const src = AudioBufferSourceNode.prototype;
++        window.__eaQueueStart ??= src.start;
++        src.start = function (...a) { log.push(Date.now()); return window.__eaQueueStart.apply(this, a); };
++        const proto = Object.getPrototypeOf(window.NotificationStore);
++        window.__eaQueueChoose ??= proto.ChooseSound;
++        // Steam's ProcessNotification also asks ChooseSound once on arrival without
++        // playing anything; only the PlayNotificationSound path is a real play.
++        proto.ChooseSound = function (cfg, n) {
++            const playing = (new Error().stack ?? '').includes('PlayNotificationSound');
++            if (playing && n?.data?.getClassName?.() === 'CClientNotificationAchievement') log.push(Date.now());
++            return window.__eaQueueChoose.call(this, cfg, n);
++        };
++        return true;
++    })()`);
++    const samples = await burst();
++    const sounds = JSON.parse(
++        await cdp.evaluate(`(() => {
++            AudioBufferSourceNode.prototype.start = window.__eaQueueStart;
++            Object.getPrototypeOf(window.NotificationStore).ChooseSound = window.__eaQueueChoose;
++            return JSON.stringify(window.__eaQueueSounds);
++        })()`),
++    );
++    const gaps = sounds.slice(1).map((t, i) => t - sounds[i]);
++    const visible = (s) => s.filter((p) => p.banner && !p.waiting && !p.done && p.opacity > 0.01);
++    const maxVisible = Math.max(...samples.map((s) => visible(s).length));
++    // A real fallback is Steam's own toast (it has text); an empty popup is one sampled
++    // before React rendered into it or after it unmounted, while Steam closes it.
++    const isFallback = (p) => !p.banner && p.steamText !== '';
++    const fallbacks = samples.flat().filter(isFallback);
++    const fallback = fallbacks.length;
++    const spots = new Set(samples.flatMap((s) => visible(s).map((p) => `${p.x},${p.y},${p.w}x${p.h}`)));
++    const shown = [];
++    for (const s of samples) for (const p of visible(s)) if (shown.at(-1)?.name !== p.name) shown.push(p);
++    check('queue on: never more than one banner visible', maxVisible <= 1, `max ${maxVisible}`);
++    check('queue on: never Steam fallback toast', fallback === 0, fallbacks.map((p) => p.steamText).join(' | '));
++    check('queue on: every visible banner at one spot/size', spots.size === 1, [...spots].join(' | '));
++    check('queue on: all burst toasts shown', shown.length === BURST.length, `${shown.length}/${BURST.length}`);
++    check('queue on: one sound per toast', sounds.length === BURST.length, `${sounds.length} sounds`);
++    check('queue on: sounds follow the banners, not stacked on arrival', gaps.every((g) => g > 1000), `gaps ${gaps.join(', ')} ms`);
++    check('queue on: tiers in firing order', JSON.stringify(shown.map((p) => p.tier)) === JSON.stringify(BURST), shown.map((p) => p.tier).join(','));
++
++    // --- 3. queue off ------------------------------------------------------------
++    await plugin(`setSetting('queue.enabled', false)`);
++    const offSamples = await burst();
++    const tiersSeen = new Map();
++    for (const p of offSamples.flat()) if (p.banner && p.tier) tiersSeen.set(p.name, p.tier);
++    const counts = (arr) => JSON.stringify([...arr].sort());
++    check('queue off: every toast themed with its own tier', counts(tiersSeen.values()) === counts(BURST), [...tiersSeen.values()].join(','));
++    check('queue off: never Steam fallback toast', !offSamples.flat().some(isFallback), offSamples.flat().filter(isFallback).map((p) => p.steamText).join(' | '));
++} finally {
++    await plugin('resetSettings()').catch(() => {});
++    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
++    cdp.close();
++}
++process.exit(failed ? 1 : 0);
+diff --git a/enhanced-notifications/tests/achievements-reset.mjs b/enhanced-notifications/tests/achievements-reset.mjs
+new file mode 100644
+index 0000000..1eba31c
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-reset.mjs
+@@ -0,0 +1,71 @@
++// Live test: Reset Achievements (non-destructive). It never clears a real achievement.
++//
++//   node tests/achievements-reset.mjs
++//
++// 1. The `reset` surface is installed and the API says it is available.
++// 2. candidates() lists games with unlocks, sorted, each with unlocked > 0.
++// 3. A no-op reset of Spacewar (480, nothing unlocked) sends no console command and reports 0 cleared.
++// 4. The settings panel renders the five rows (label, description, filter, dropdown, Reset) and Reset starts disabled.
++// 5. With the surface switched off (`disabledFeatures = reset`) the API is unavailable and reset() refuses; restored after.
++import { connect, resolvePluginName } from './cdp.mjs';
++
++const cdp = await connect();
++const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
++// `expr` sees the plugin's exports as bare names (surfaceStatus(), achievementReset, setSetting(...)).
++const plugin = (expr) => cdp.evaluate(`(() => { with (window.PLUGIN_LIST[${JSON.stringify(PLUGIN)}]) { return (${expr}); } })()`);
++const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(PLUGIN)})`);
++const wait = (ms) => new Promise((r) => setTimeout(r, ms));
++const snapshot = (await stored()) ?? {};
++let failed = false;
++const check = (label, ok, detail = '') => {
++    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
++    if (!ok) failed = true;
++};
++
++try {
++    const status = JSON.parse(await plugin('JSON.stringify(surfaceStatus())'));
++    check('reset surface installed', status.some((s) => s.id === 'reset' && s.installed && s.skipped === null), JSON.stringify(status.find((s) => s.id === 'reset')));
++    check('API available', (await plugin('achievementReset.available()')) === true);
++
++    const list = JSON.parse(await plugin('JSON.stringify(achievementReset.candidates())'));
++    const names = list.map((c) => c.name);
++    const sorted = [...names].sort((a, b) => a.localeCompare(b));
++    check('candidates have unlocks and are sorted by name', list.length > 0 && list.every((c) => c.unlocked > 0) && JSON.stringify(names) === JSON.stringify(sorted), `${list.length} games`);
++    // With steam-cartridges loaded, Steam's progress cache lists its games too (ADR-0045; non-Steam games have the `shortcut` kind).
++    const cartridges = await plugin("Object.keys(window.PLUGIN_LIST).some((n) => n.startsWith('steam-cartridges') && typeof window.PLUGIN_LIST[n].resetAchievements === 'function')");
++    check('non-Steam games with unlocks are listed when steam-cartridges is loaded', !cartridges || list.some((c) => c.kind === 'shortcut'), `${list.filter((c) => c.kind === 'shortcut').length} shortcuts`);
++
++    const wrapped = await cdp.evaluate(`(() => { window.__eaConsole = []; const c = SteamClient.Console; window.__eaExec = c.ExecCommand; c.ExecCommand = (x) => { window.__eaConsole.push(x); return window.__eaExec.call(c, x); }; return true; })()`);
++    const res = JSON.parse(await plugin("achievementReset.reset({ appid: 480, name: 'Spacewar', unlocked: 0, total: 0, kind: 'steam' }).then((r) => JSON.stringify(r))"));
++    const sent = JSON.parse(await cdp.evaluate('JSON.stringify(window.__eaConsole)'));
++    await cdp.evaluate('(() => { SteamClient.Console.ExecCommand = window.__eaExec; return true; })()');
++    check('no-op reset sends no console command and clears nothing', wrapped === true && res.ok === true && res.cleared === 0 && sent.length === 0, JSON.stringify({ res, sent }));
++
++    await cdp.evaluate(`(() => {
++        document.getElementById('ea-reset-mount')?.remove();
++        const d = document.createElement('div');
++        d.id = 'ea-reset-mount';
++        document.body.appendChild(d);
++        window.__eaResetRoot = window.SP_REACTDOM.createRoot(d);
++        window.__eaResetRoot.render(window.SP_REACT.createElement(window.PLUGIN_LIST[${JSON.stringify(PLUGIN)}].SettingsPanelView));
++        return true;
++    })()`);
++    await wait(1200);
++    const text = await cdp.evaluate("(() => { const t = document.getElementById('ea-reset-mount').innerText; return t.slice(t.indexOf('Reset Achievements')); })()");
++    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
++    check('panel: label, description, filter, dropdown and Reset rows', JSON.stringify(lines) === JSON.stringify(['Reset Achievements', 'Select a game to reset the achievements count', 'GAMES FILTER', 'All games', 'Reset']), JSON.stringify(lines));
++    const resetDisabled = await cdp.evaluate("(() => { const b = [...document.querySelectorAll('#ea-reset-mount [class*=\"DialogButton\"]')].pop(); return b.disabled || /Disabled/.test(b.className); })()");
++    check('panel: Reset is disabled until a game is selected', resetDisabled === true);
++    await cdp.evaluate("(() => { window.__eaResetRoot.unmount(); document.getElementById('ea-reset-mount')?.remove(); return true; })()");
++
++    await plugin("setSetting('disabledFeatures', 'reset').then(() => true)");
++    await wait(300);
++    const off = JSON.parse(await plugin("(async () => JSON.stringify({ available: achievementReset.available(), res: await achievementReset.reset({ appid: 480, name: 'x', unlocked: 1, total: 1, kind: 'steam' }) }))()"));
++    check('switched off: unavailable and reset() refuses', off.available === false && off.res.ok === false, JSON.stringify(off));
++} finally {
++    // Put back exactly the stored settings from before this script ran.
++    await plugin('resetSettings()').catch(() => {});
++    for (const [key, value] of Object.entries(snapshot)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
+diff --git a/enhanced-notifications/tests/achievements-safety.mjs b/enhanced-notifications/tests/achievements-safety.mjs
+new file mode 100644
+index 0000000..9fabc9f
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-safety.mjs
+@@ -0,0 +1,87 @@
++// Live test: the achievement banner's kill switch, against a running Steam (-dev)
++// with enhanced-notifications deployed. Restores exactly the settings stored before it ran.
++//
++//   node tests/achievements-safety.mjs            (THEME=<name> to pick the theme; default ps5)
++//
++// 1. A clean start: not in safe mode, nothing tripped, no errors counted.
++// 2. `disabledFeatures = banner`: the banner is off, sound stays on, and a preview
++//    achievement is no banner but the theme's notification style (data-en-type).
++// 3. Switch cleared: the preview is our themed banner again.
++import { connect, resolvePluginName } from './cdp.mjs';
++
++const THEME = process.env.THEME ?? 'ps5';
++const cdp = await connect();
++const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
++const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(PLUGIN)}].${expr}`);
++const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(PLUGIN)})`);
++const wait = (ms) => new Promise((r) => setTimeout(r, ms));
++let failed = false;
++const check = (label, ok, detail = '') => {
++    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
++    if (!ok) failed = true;
++};
++
++/** Every achievement toast popup: does it hold our banner, and which tier? */
++const sample = () =>
++    cdp.evaluate(`JSON.stringify([...g_PopupManager.GetPopups()]
++        .filter((p) => /^notificationtoasts_/.test(p.m_strName) && (p.window ?? p.m_popup) && !(p.window ?? p.m_popup).closed)
++        .map((p) => {
++            const doc = (p.window ?? p.m_popup).document, b = doc.querySelector('.ea-banner');
++            return { banner: !!b, tier: b?.className.match(/ea-tier-(\\w+)/)?.[1] ?? null, enType: doc.body?.getAttribute('data-en-type') ?? null, text: (doc.body?.innerText ?? '').trim().slice(0, 60) };
++        }))`).then(JSON.parse);
++
++async function waitForNoToasts(maxMs = 60_000) {
++    for (let t = 0; t < maxMs; t += 500) {
++        if ((await sample()).length === 0) return true;
++        await wait(500);
++    }
++    return false;
++}
++
++/** Fire one preview and return the first popup that has rendered content. */
++async function previewOnce(tier) {
++    await plugin(`previewTier(${JSON.stringify(tier)})`);
++    for (let i = 0; i < 20; i++) {
++        await wait(250);
++        const hit = (await sample()).find((p) => p.banner || p.text !== '');
++        if (hit) return hit;
++    }
++    return null;
++}
++
++const before_ = (await stored()) ?? {};
++try {
++    const diag = await plugin('safetyDiagnostics()');
++    check('clean start: not in safe mode', diag?.safeMode === false, JSON.stringify(diag));
++    check('clean start: nothing tripped, no errors', diag?.tripped?.length === 0 && Object.keys(diag?.errors ?? {}).length === 0, JSON.stringify(diag));
++
++    check('no toast on screen before starting', await waitForNoToasts());
++    await plugin(`setSetting('theme', ${JSON.stringify(THEME)})`);
++    for (let i = 0; i < 20 && (await plugin('activeTheme()?.name')) !== THEME; i++) await wait(250);
++    check(`theme "${THEME}" loaded`, (await plugin('activeTheme()?.name')) === THEME);
++
++    await plugin(`setSetting('disabledFeatures', 'banner')`);
++    const switched = await plugin('safetyDiagnostics()');
++    check('banner off: the switch reads off', switched?.disabled?.includes('banner') === true, JSON.stringify(switched));
++    check('banner off: sound stays on', switched?.disabled?.includes('sound') === false, JSON.stringify(switched));
++    const stock = await previewOnce('rare');
++    check('banner off: the preview is the notification style, not the banner', !!stock && !stock.banner && stock.enType === 'Achievement', JSON.stringify(stock));
++    check('banner off: toast cleared', await waitForNoToasts());
++
++    await plugin(`setSetting('disabledFeatures', '')`);
++    check('banner on again: the switch reads on', (await plugin('safetyDiagnostics()'))?.disabled?.includes('banner') === false);
++    const themed = await previewOnce('rare');
++    check('banner on again: preview is our banner with its tier', !!themed && themed.banner && themed.tier === 'rare', JSON.stringify(themed));
++    check('banner on again: toast cleared', await waitForNoToasts());
++
++    const after = await plugin('safetyDiagnostics()');
++    check('no errors counted during the test', Object.keys(after?.errors ?? {}).length === 0, JSON.stringify(after));
++} finally {
++    await plugin('resetSettings()');
++    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
++    const left = (await stored()) ?? {};
++    const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
++    check('settings restored to what was stored before the test', sorted(left) === sorted(before_), `${JSON.stringify(before_)} -> ${JSON.stringify(left)}`);
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
+diff --git a/enhanced-notifications/tests/achievements-settings.mjs b/enhanced-notifications/tests/achievements-settings.mjs
+new file mode 100644
+index 0000000..db7a3e1
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-settings.mjs
+@@ -0,0 +1,156 @@
++// Live test: the achievement banner's sound replacement and display time, and settings round-trips through
++// Millennium's Configuration API (the same store the settings panel writes). Needs a theme whose `achievements`
++// block has tier sounds (SOUND_THEME, default ps5: the user's own ps5 theme, which wins over the bundled one); SKIP
++// without one.
++// Leaves every setting as it found it: it snapshots the stored settings first and puts them back in `finally`
++// (the check near the end resets them to prove defaults, so it would otherwise wipe the user's), EA-K6.
++import { connect, resolvePluginName } from './cdp.mjs';
++import { bannerTiming } from '../frontend/banner/timing.ts';
++
++const cdp = await connect();
++const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
++const SOUND_THEME = process.env.SOUND_THEME ?? 'ps5';
++let failed = false;
++const check = (label, ok, detail = '') => {
++    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
++    if (!ok) failed = true;
++};
++const wait = (ms) => new Promise((r) => setTimeout(r, ms));
++class Skip extends Error {}
++// Drive settings through the plugin's own exports (what the settings panel calls).
++const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
++const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
++const before = (await stored()) ?? {};
++
++// Record sounds: WebAudio buffers started in SharedJSContext (ours), and every
++// PlayNavSound request (Steam's own chime; it dispatches to a native player, so
++// the request itself is the reliable signal).
++const instrumented = await cdp.evaluate(`(() => {
++    // Idempotent: always wrap the saved originals, so re-running never stacks wrappers.
++    window.__eaSounds = [];
++    const proto = AudioBufferSourceNode.prototype;
++    window.__eaOrigStart ??= proto.start;
++    const start = window.__eaOrigStart;
++    proto.start = function (...a) {
++        window.__eaSounds.push({ kind: 'webaudio', seconds: +(this.buffer?.duration ?? 0).toFixed(2) });
++        return start.apply(this, a);
++    };
++    let req;
++    const key = '__ea_probe_' + Date.now();
++    window.webpackChunksteamui.push([[key], { [key]: (m, e, r) => (req = r) }, (r) => r(key)]);
++    for (const id of Object.keys(req.m)) {
++        if (!req.m[id].toString().includes('m_fnCallbackOnPlaySound')) continue;
++        for (const v of Object.values(req(id))) {
++            if (v && typeof v.PlayNavSound === 'function' && v.m_fnCallbackOnPlaySound) {
++                v.__eaOrigPlayNavSound ??= v.PlayNavSound;
++                const orig = v.__eaOrigPlayNavSound;
++                v.PlayNavSound = function (...a) { window.__eaSounds.push({ kind: 'steam', id: a[0] }); return orig.apply(this, a); };
++                window.__eaRestoreNav = () => { v.PlayNavSound = orig; };
++                return 'ok';
++            }
++        }
++    }
++    return 'PlayNavSound not found';
++})()`);
++if (instrumented !== 'ok') throw new Error(`Sound instrumentation failed: ${instrumented}`);
++
++async function fire() {
++    await cdp.evaluate(`(async () => { window.__eaSounds.length = 0; await window.NotificationStore.TestAchievement(480); return true; })()`);
++    await wait(1500);
++    const sounds = JSON.parse(await cdp.evaluate(`JSON.stringify(window.__eaSounds)`));
++    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++    const toast = targets.find((t) => /notificationtoasts/i.test(t.title));
++    let banner = null;
++    if (toast) {
++        const win = await connect(toast.title);
++        banner = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
++        win.close();
++    }
++    await wait(5500);
++    return { sounds, banner };
++}
++
++try {
++    // The bundled themes ship with no sound (no local paths in the bundle). Sound-dependent checks need a theme that
++    // has tier sounds: the user's own (SOUND_THEME). Point the plugin at it for the duration of this test.
++    await plugin(`setSetting('theme', ${JSON.stringify(SOUND_THEME)})`);
++    let soundTheme = false;
++    for (let i = 0; i < 10 && !soundTheme; i++) {
++        await wait(300);
++        soundTheme = await cdp.evaluate(`(() => {
++            const t = window.PLUGIN_LIST['${PLUGIN}'].achievementTheme();
++            return t?.name === ${JSON.stringify(SOUND_THEME)} && t.sounds.size > 0;
++        })()`);
++    }
++    if (!soundTheme) throw new Skip(`theme '${SOUND_THEME}' with achievement tier sounds is not installed on this machine`);
++
++    const duration = await cdp.evaluate(`(() => {
++        const proto = Object.getPrototypeOf(window.NotificationStore);
++        let cfg, found;
++        for (let t = 0; t < 256 && !found; t++) {
++            proto.PlayNotificationSound.call({ ChooseSound(c) { cfg = c; return null; } }, { eType: t });
++            try { if (cfg?.proto && new cfg.proto().getClassName() === 'CClientNotificationAchievement') found = cfg; } catch {}
++        }
++        return found?.toastDurationMS;
++    })()`);
++    // The plugin writes the banner's whole lifetime (entrance + display + exit + settle,
++    // banner/timing.ts), not the bare display time, so Steam keeps the popup open through the fades.
++    const themed = JSON.parse(await cdp.evaluate(`JSON.stringify((() => { const t = window.PLUGIN_LIST['${PLUGIN}'].achievementTheme()?.theme; return { animation: t?.animation, displayTimeMs: t?.displayTimeMs }; })())`));
++    const expected = bannerTiming(themed.animation, themed.displayTimeMs).totalMs;
++    check('display_time_ms applied to Steam achievement toast config', themed.displayTimeMs === 4000 && duration === expected, `toastDurationMS=${duration}, expected ${expected}`);
++
++    // First toast may find the AudioContext suspended (then Steam's chime plays once); warm it up.
++    await fire();
++    let r = await fire();
++    const ours = r.sounds.filter((s) => s.kind === 'webaudio');
++    const steam = r.sounds.filter((s) => s.kind === 'steam');
++    check('themed sound played', ours.length === 1, JSON.stringify(r.sounds));
++    check("Steam's chime suppressed", steam.length === 0);
++
++    // A tier with no sound gets the notification sound; steam_tiers has neither, so Steam's chime,
++    // while the banner is themed whenever the theme has an `achievements` block.
++    await plugin(`setSetting('theme', 'steam_tiers')`);
++    await wait(500);
++    r = await fire();
++    check('theme with no sound -> Steam chime plays', r.sounds.some((s) => s.kind === 'steam'));
++    check('theme with no sound -> no themed sound', !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
++    check('theme with no sound -> banner still themed', !!r.banner);
++    await plugin(`setSetting('theme', ${JSON.stringify(SOUND_THEME)})`);
++    await wait(500);
++    await plugin(`setSetting('theme', 'does_not_exist')`);
++    await wait(1000);
++    r = await fire();
++    check('missing theme -> stock toast', r.banner === null);
++    check('missing theme -> Steam chime', r.sounds.some((s) => s.kind === 'steam') && !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
++
++    // A theme without an `achievements` block: no banner, the notification style and its sound (none: Steam's chime).
++    await plugin(`setSetting('theme', 'steam_midnight')`);
++    await wait(500);
++    r = await fire();
++    check('no achievements block -> no banner', r.banner === null);
++    check('no achievements block -> Steam chime', r.sounds.some((s) => s.kind === 'steam') && !r.sounds.some((s) => s.kind === 'webaudio'), JSON.stringify(r.sounds));
++
++    await plugin(`resetSettings()`);
++    await wait(1500);
++
++    r = await fire();
++    // The shipped default theme is steam_midnight (settings.json): no banner, no themed sound.
++    check('defaults restored -> steam_midnight (no banner, no themed sound)', r.banner === null && !r.sounds.some((s) => s.kind === 'webaudio'));
++    const left = await stored();
++    check('setting a default / reset leaves nothing stored', left && Object.keys(left).length === 0, JSON.stringify(left));
++} catch (e) {
++    if (!(e instanceof Skip)) throw e;
++    console.log(`SKIP  ${e.message}`);
++    await plugin(`resetSettings()`);
++} finally {
++    await plugin(`resetSettings()`).catch(() => {});
++    for (const [key, value] of Object.entries(before)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
++    // Put back what the instrumentation wrapped, so a script run after this one sees the real functions.
++    await cdp.evaluate(`(() => {
++        if (window.__eaOrigStart) AudioBufferSourceNode.prototype.start = window.__eaOrigStart;
++        window.__eaRestoreNav?.();
++        return true;
++    })()`).catch(() => {});
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
+diff --git a/enhanced-notifications/tests/achievements-smoke.mjs b/enhanced-notifications/tests/achievements-smoke.mjs
+new file mode 100644
+index 0000000..7811550
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-smoke.mjs
+@@ -0,0 +1,59 @@
++// Live smoke test of the achievement banner, against a running Steam (-dev) with enhanced-notifications-dev deployed
++// and a theme with an `achievements` block selected (tests/run-live.mjs selects ps5).
++// Usage: node tests/achievements-smoke.mjs      (SCREENSHOT=out.png to also capture the toast window)
++//   Checks the hooks are installed, fires Steam's test achievement, and asserts
++//   the themed banner rendered in the toast window. Exit code 1 on failure.
++import { connect } from './cdp.mjs';
++
++const cdp = await connect();
++let failed = false;
++const check = (label, ok, detail = '') => {
++    console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `  (${detail})` : ''}`);
++    if (!ok) failed = true;
++};
++
++try {
++    const state = JSON.parse(
++        await cdp.evaluate(`JSON.stringify((() => {
++            const proto = Object.getPrototypeOf(window.NotificationStore);
++            return { soundHooked: !proto.PlayNotificationSound.toString().includes('PlayNavSound') };
++        })())`),
++    );
++    check('sound hook installed on NotificationStore.prototype', state.soundHooked);
++
++    // Steam's own test toast (global_achieved_pct 10). The plugin themes it like a real unlock.
++    await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
++    // The first toast after a Steam start also has to create its popup window.
++    let toast;
++    for (let i = 0; i < 12 && !toast; i++) {
++        await new Promise((r) => setTimeout(r, 500));
++        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++        toast = targets.find((t) => /notificationtoasts/i.test(t.title));
++    }
++    await new Promise((r) => setTimeout(r, 500));
++    check('toast window opened', !!toast, toast?.title);
++    if (toast) {
++        const win = await connect(toast.title);
++        const banner = JSON.parse(
++            await win.evaluate(`JSON.stringify((() => {
++                const b = document.querySelector('.ea-banner');
++                if (!b) return { found: false, html: document.body.innerHTML.slice(0, 400) };
++                const r = b.getBoundingClientRect();
++                return {
++                    found: true,
++                    classes: b.className,
++                    size: [Math.round(r.width), Math.round(r.height)],
++                    title: b.querySelector('.ea-title')?.textContent,
++                    icons: [...b.querySelectorAll('.ea-icon')].map((i) => i.className.replace('ea-icon ', '')),
++                    background: getComputedStyle(b).backgroundImage.slice(0, 80),
++                };
++            })())`),
++        );
++        check('themed banner rendered', banner.found, banner.found ? JSON.stringify(banner) : banner.html);
++        if (process.env.SCREENSHOT) console.log('screenshot:', await win.screenshot(process.env.SCREENSHOT));
++        win.close();
++    }
++} finally {
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
+diff --git a/enhanced-notifications/tests/achievements-tiers.mjs b/enhanced-notifications/tests/achievements-tiers.mjs
+new file mode 100644
+index 0000000..29ba037
+--- /dev/null
++++ b/enhanced-notifications/tests/achievements-tiers.mjs
+@@ -0,0 +1,118 @@
++// Live tier test: dispatches real achievement notifications through Steam's
++// NotificationStore.OnNotification with chosen rarity, and checks which tier
++// the themed banner used (a theme with an `achievements` block must be selected;
++// tests/run-live.mjs selects ps5). Screenshots go to $SHOTS_DIR when set.
++//
++// The protobuf class and eType are found the same way the plugin finds them
++// (stand-in call to PlayNotificationSound), not hardcoded.
++//
++// A game-completing unlock keeps its own rarity tier; the plugin then posts a
++// separate synthetic 100% toast (tier exceptional) ~1.5 s later (the design
++// since fe25714), so that case checks both toasts.
++import { connect } from './cdp.mjs';
++
++const cases = [
++    { label: 'normal (50%)', pct: 50, expect: 'normal' },
++    { label: 'magic (20%)', pct: 20, expect: 'magic' },
++    { label: 'rare (5%)', pct: 5, expect: 'rare' },
++    { label: 'no rarity data (0%)', pct: 0, expect: 'normal' },
++    { label: 'completes game (50%)', pct: 50, expect: 'normal', completes: true, then: 'exceptional' },
++];
++
++const cdp = await connect();
++let failed = false;
++
++/** Tiers of every themed banner currently in a toast window. */
++async function allBannerTiers() {
++    const targets = (await (await fetch('http://127.0.0.1:8080/json')).json()).filter((t) => /notificationtoasts/i.test(t.title));
++    const tiers = [];
++    for (const t of targets) {
++        const win = await connect(t.title);
++        try {
++            const cls = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
++            const tier = cls?.match(/ea-tier-(\w+)/)?.[1];
++            if (tier) tiers.push(tier);
++        } finally {
++            win.close();
++        }
++    }
++    return tiers;
++}
++
++async function bannerTier() {
++    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++    const toast = targets.find((t) => /notificationtoasts/i.test(t.title));
++    if (!toast) return { tier: null };
++    const win = await connect(toast.title);
++    try {
++        const cls = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
++        return { tier: cls?.match(/ea-tier-(\w+)/)?.[1] ?? null, win };
++    } catch (error) {
++        win.close();
++        throw error;
++    }
++}
++
++/** Each case must start on a clean screen, or bannerTier() could read a toast still closing. */
++async function waitForNoToasts(maxMs = 30_000) {
++    for (let t = 0; t < maxMs; t += 500) {
++        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++        if (!targets.some((x) => /notificationtoasts/i.test(x.title))) return true;
++        await new Promise((r) => setTimeout(r, 500));
++    }
++    return false;
++}
++
++try {
++    for (const [i, c] of cases.entries()) {
++        if (!(await waitForNoToasts())) {
++            failed = true;
++            console.log(`FAIL  ${c.label}: a previous toast never cleared`);
++            continue;
++        }
++        // A fresh, never-seen appid so tier memos and caches cannot leak between cases.
++        const appid = 900000 + i;
++        await cdp.evaluate(`(() => {
++            const ns = window.NotificationStore, proto = Object.getPrototypeOf(ns);
++            let cfg, type;
++            for (let t = 0; t < 256 && type === undefined; t++) {
++                proto.PlayNotificationSound.call({ ChooseSound(c) { cfg = c; return null; } }, { eType: t });
++                try { if (cfg?.proto && new cfg.proto().getClassName() === 'CClientNotificationAchievement') type = t; } catch {}
++                cfg = type === undefined ? undefined : cfg;
++            }
++            const cache = window.appAchievementProgressCache.m_achievementProgress.mapCache;
++            ${c.completes ? `cache.set(${appid}, { appid: ${appid}, unlocked: 9, total: 10, percentage: 90, all_unlocked: false });` : ''}
++            const msg = cfg.proto.fromObject({
++                achievement_id: 'EA_TEST', appid: ${appid}, name: ${JSON.stringify(c.label)},
++                description: 'enhanced-notifications live tier test', image_url: '',
++                achieved: true, rtime_unlocked: Math.floor(Date.now() / 1000),
++                current_progress: 0, max_progress: 0, min_progress: 0, global_achieved_pct: ${c.pct},
++            });
++            ns.OnNotification(ns.m_nNextTestNotificationID++, type, msg.serializeBinary());
++            return true;
++        })()`);
++        await new Promise((r) => setTimeout(r, 1500));
++        const { tier, win } = await bannerTier();
++        const ok = tier === c.expect;
++        if (!ok) failed = true;
++        console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.label}: banner tier = ${tier}, expected ${c.expect}`);
++        if (win && process.env.SHOTS_DIR) await win.screenshot(`${process.env.SHOTS_DIR}/tier-${c.expect}-${c.pct}.png`);
++        win?.close();
++        if (c.then) {
++            let seen = [];
++            for (let t = 0; t < 12 && !seen.includes(c.then); t++) {
++                await new Promise((r) => setTimeout(r, 500));
++                seen = await allBannerTiers();
++            }
++            const okThen = seen.includes(c.then);
++            if (!okThen) failed = true;
++            console.log(`${okThen ? 'PASS' : 'FAIL'}  ${c.label}: then a ${c.then} toast (seen: ${seen.join(',') || 'none'})`);
++        }
++        if (c.completes) await cdp.evaluate(`(window.appAchievementProgressCache.m_achievementProgress.mapCache.delete(${appid}), true)`);
++        // Let the toast expire before the next one (display_time_ms + fade).
++        await new Promise((r) => setTimeout(r, 6000));
++    }
++} finally {
++    cdp.close();
++}
++process.exitCode = failed ? 1 : 0;
+diff --git a/enhanced-notifications/tests/bigpicture.mjs b/enhanced-notifications/tests/bigpicture.mjs
+index 5998ddc..289109a 100644
+--- a/enhanced-notifications/tests/bigpicture.mjs
++++ b/enhanced-notifications/tests/bigpicture.mjs
+@@ -3,9 +3,10 @@
+ // view moves to the theme corner (it follows the placeholder in the Big Picture window), that the theme animation
+ // replaces Steam's on the toast template, that the restyle applies, and that the `placement` kill switch gives
+ // Steam's place back. Then the flicker regressions (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md):
+-// a toast queued behind the one on screen never restyles it, in both orders (with enhanced-achievements drawing the
+-// achievement, its banner never gets our type or animation), every place Steam sends the view is the theme's, and the
+-// placement style is in place before Steam measures, even in a window that did not have it yet.
++// a toast queued behind the one on screen never restyles it, in both orders (the temporary theme has no
++// `achievements` block, so the achievement is styled like every toast; tests/achievements-bigpicture.mjs covers the
++// banner), every place Steam sends the view is the theme's, and the placement style is in place before Steam
++// measures, even in a window that did not have it yet.
+ // Run it with Big Picture in front: a hidden window does not paint, so its animations never start.
+ import { rmSync, writeFileSync } from 'node:fs';
+ import { connect, resolvePluginName } from './cdp.mjs';
+@@ -105,7 +106,7 @@ function checkQueued(label, r) {
+     check(`${label}: both toasts shown`, r?.seen?.length === 2, JSON.stringify(r?.seen));
+     for (const [i, t] of (r?.seen ?? []).entries()) {
+         check(`${label}: toast ${i + 1} keeps one style while on screen`, t.states.length === 1, JSON.stringify(t.states));
+-        if (t.banner) check(`${label}: enhanced-achievements' banner never gets our type or animation`, t.states.every((s) => s.startsWith('- | ') && !/\ben-/.test(s)), JSON.stringify(t.states));
++        if (t.banner) check(`${label}: the achievement banner never gets the notification type or animation`, t.states.every((s) => s.startsWith('- | ') && !/\ben-/.test(s)), JSON.stringify(t.states));
+         else check(`${label}: toast ${i + 1} has the theme's animation`, t.states.every((s) => s.endsWith('en-in-fade, en-out-fade')), JSON.stringify(t.states));
+     }
+     check(`${label}: Steam always sends the view to the theme's place`, (r?.bounds?.length ?? 0) >= 2 && r.bounds.every(([x, y]) => Math.abs(x - 30) <= 2 && Math.abs(y - 20) <= 2), JSON.stringify(r?.bounds));
+diff --git a/enhanced-notifications/tests/probes/bp-toast-trace.mjs b/enhanced-notifications/tests/probes/bp-toast-trace.mjs
+index 04ba93a..1c86d43 100644
+--- a/enhanced-notifications/tests/probes/bp-toast-trace.mjs
++++ b/enhanced-notifications/tests/probes/bp-toast-trace.mjs
+@@ -16,7 +16,7 @@
+ //   --pattern theme-switch   one toast, switch theme mid-toast, one more toast
+ //   --pattern first          switch to the theme right before the first toast (placement not yet applied)
+ //   --pattern mixed          a Warning-class toast (LowBattery, smaller placeholder), a download, an achievement
+-//                            (drawn by enhanced-achievements when it claims the banner), 7 s apart
++//                            (the achievement banner, with a theme that has an `achievements` block), 7 s apart
+ //   --pattern queue          an achievement queued behind a download, then a download queued behind an achievement:
+ //                            shows whether the showing toast's styling changes when the next one arrives
+ //   --pattern fresh          remove our placement <style> from the Big Picture window first (as in a Big Picture
+diff --git a/enhanced-notifications/tests/probes/jsx.mjs b/enhanced-notifications/tests/probes/jsx.mjs
+new file mode 100644
+index 0000000..25ced4c
+--- /dev/null
++++ b/enhanced-notifications/tests/probes/jsx.mjs
+@@ -0,0 +1,67 @@
++// Step 0 probe: confirm the toast dispatcher is created through react/jsx-runtime,
++// and inspect the group shape and how toast duration is applied.
++import { connect } from '../cdp.mjs';
++
++const cdp = await connect();
++try {
++    const result = await cdp.evaluate(`(async () => {
++        let req;
++        const key = '__ea_probe_' + Date.now();
++        window.webpackChunksteamui.push([[key], { [key]: (m, e, r) => (req = r) }, (r) => r(key)]);
++
++        // Resolve by signature: an export whose source switches on eType and returns renderer components.
++        let dispatcher, jsxRuntime;
++        for (const id of Object.keys(req.m)) {
++            const src = req.m[id].toString();
++            let mod;
++            if (!jsxRuntime && src.includes('jsxs') && src.includes('Fragment') && src.length < 3000) {
++                try { mod = req(id); } catch { continue; }
++                if (typeof mod?.jsx === 'function' && typeof mod?.jsxs === 'function') jsxRuntime = mod;
++            }
++            if (!dispatcher && src.includes('global_achieved_pct()') && src.includes('Missing activate function')) {
++                try { mod = req(id); } catch { continue; }
++                for (const v of Object.values(mod)) {
++                    if (typeof v === 'function' && /switch\\(e\\)\\{case/.test(v.toString()) && v.toString().includes('group')) dispatcher = v;
++                }
++            }
++        }
++        if (!dispatcher || !jsxRuntime) return JSON.stringify({ dispatcher: !!dispatcher, jsxRuntime: !!jsxRuntime });
++
++        const hits = [];
++        const orig = { jsx: jsxRuntime.jsx, jsxs: jsxRuntime.jsxs };
++        for (const k of ['jsx', 'jsxs']) {
++            jsxRuntime[k] = function (type, props, k2) {
++                if (type === dispatcher) {
++                    const g = props.group;
++                    hits.push({
++                        via: k,
++                        propKeys: Object.keys(props),
++                        location: props.location,
++                        groupKeys: g ? Object.keys(g) : null,
++                        first: g?.notifications?.[0] ? { eType: g.notifications[0].eType, cls: g.notifications[0].data?.getClassName?.(), dur: g.notifications[0].nToastDurationMS } : null,
++                        win: (props.ownerWindow || null) && 'has ownerWindow',
++                    });
++                }
++                return orig[k].apply(this, arguments);
++            };
++        }
++        const ns = window.NotificationStore;
++        try {
++            await ns.TestAchievement(480);
++            await new Promise(r => setTimeout(r, 2500));
++        } finally {
++            Object.assign(jsxRuntime, orig);
++        }
++        const proto = Object.getPrototypeOf(ns);
++        return JSON.stringify({
++            writable: JSON.stringify(Object.getOwnPropertyDescriptor(jsxRuntime, 'jsx'), (k, v) => typeof v === 'function' ? 'fn' : v),
++            hits: hits.slice(0, 5),
++            hitCount: hits.length,
++            dispatchNext: proto.DispatchNextToast.toString().slice(0, 900),
++            processNotification: proto.ProcessNotification.toString().slice(0, 1200),
++        });
++    })()`);
++    console.log(JSON.stringify(result, null, 2));
++} finally {
++    cdp.close();
++}
+diff --git a/enhanced-notifications/tests/probes/toast-dom.mjs b/enhanced-notifications/tests/probes/toast-dom.mjs
+new file mode 100644
+index 0000000..a4a72cc
+--- /dev/null
++++ b/enhanced-notifications/tests/probes/toast-dom.mjs
+@@ -0,0 +1,36 @@
++// enhanced-notifications Step 0: dump a stock toast's DOM (tags, classes, paint)
++// so restyling can target structure and resolved class maps, not hashed names.
++// Usage: node tests/probes/toast-dom.mjs "TestDownloadComplete(435150)"
++import { connect } from '../cdp.mjs';
++
++const call = process.argv[2] ?? 'TestDownloadComplete(435150)';
++const shared = await connect();
++await shared.evaluate(`(window.NotificationStore.${call}, true)`);
++let toast;
++for (let i = 0; i < 12 && !toast; i++) {
++    await new Promise((r) => setTimeout(r, 500));
++    toast = (await (await fetch('http://127.0.0.1:8080/json')).json()).find((t) => new RegExp(process.env.TOAST_MATCH ?? 'notificationtoasts', 'i').test(t.title));
++}
++await new Promise((r) => setTimeout(r, 600));
++const win = await connect(toast.title);
++console.log(
++    await win.evaluate(`(() => {
++    const lines = [];
++    const walk = (el, depth) => {
++        if (depth > 9) return;
++        const cs = getComputedStyle(el), r = el.getBoundingClientRect();
++        const paint = [
++            cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? 'bg=' + cs.backgroundColor : '',
++            cs.backgroundImage !== 'none' ? 'bgimg=' + cs.backgroundImage.slice(0, 40) : '',
++            el.childElementCount === 0 && el.textContent.trim() ? 'color=' + cs.color + ' font=' + cs.fontSize + '/' + cs.fontWeight + ' "' + el.textContent.trim().slice(0, 30) + '"' : '',
++            cs.borderRadius !== '0px' ? 'radius=' + cs.borderRadius : '',
++        ].filter(Boolean).join(' ');
++        lines.push('  '.repeat(depth) + el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\\s+/).join('.') : '') + ' [' + Math.round(r.width) + 'x' + Math.round(r.height) + '] ' + paint);
++        for (const c of el.children) walk(c, depth + 1);
++    };
++    walk(document.body, 0);
++    return lines.join('\\n');
++})()`),
++);
++win.close();
++shared.close();
+diff --git a/enhanced-notifications/tests/probes/toast.mjs b/enhanced-notifications/tests/probes/toast.mjs
+new file mode 100644
+index 0000000..312c402
+--- /dev/null
++++ b/enhanced-notifications/tests/probes/toast.mjs
+@@ -0,0 +1,54 @@
++// Step 0 probe: capture a live achievement notification and locate the toast renderer by signature.
++import { connect } from '../cdp.mjs';
++
++const cdp = await connect();
++try {
++    const result = await cdp.evaluate(`(async () => {
++        const ns = window.NotificationStore;
++        const proto = Object.getPrototypeOf(ns);
++        const orig = proto.PlayNotificationSound;
++        let seen = null;
++        proto.PlayNotificationSound = function (n) {
++            try {
++                seen = {
++                    eType: n.eType,
++                    keys: Object.keys(n),
++                    dataType: n.data?.constructor?.name,
++                    dataMethods: n.data ? Object.getOwnPropertyNames(Object.getPrototypeOf(n.data)).slice(0, 40) : null,
++                    pct: n.data?.global_achieved_pct?.(),
++                    name: n.data?.name?.(),
++                    appid: n.data?.appid?.(),
++                    image: n.data?.image_url?.(),
++                };
++            } catch (e) { seen = { err: String(e) }; }
++            return orig.apply(this, arguments);
++        };
++        try {
++            await ns.TestAchievement(480);
++            await new Promise(r => setTimeout(r, 1500));
++        } finally {
++            proto.PlayNotificationSound = orig;
++        }
++
++        // Locate the toast renderer by signature.
++        let req;
++        const key = '__ea_probe_' + Date.now();
++        window.webpackChunksteamui.push([[key], { [key]: (m, e, r) => (req = r) }, (r) => r(key)]);
++        const hits = [];
++        for (const id of Object.keys(req.m)) {
++            const src = req.m[id].toString();
++            if (!src.includes('global_achieved_pct()') || !src.includes('achievement_id()')) continue;
++            let mod; try { mod = req(id); } catch { continue; }
++            for (const [k, v] of Object.entries(mod)) {
++                if (typeof v !== 'function') continue;
++                const s = v.toString();
++                if (s.includes('global_achieved_pct()')) hits.push({ id, k, len: s.length, head: s.slice(0, 900) });
++            }
++            hits.push({ id, moduleOnly: true, exports: Object.keys(mod).length });
++        }
++        return { seen, hits };
++    })()`);
++    console.log(JSON.stringify(result, null, 2));
++} finally {
++    cdp.close();
++}
+diff --git a/enhanced-notifications/tests/probes/window.mjs b/enhanced-notifications/tests/probes/window.mjs
+new file mode 100644
+index 0000000..9d19869
+--- /dev/null
++++ b/enhanced-notifications/tests/probes/window.mjs
+@@ -0,0 +1,26 @@
++// Step 0 probe: ProcessNotification wrappability and the desktop toast window geometry.
++import { connect } from '../cdp.mjs';
++
++const cdp = await connect();
++try {
++    const before = await cdp.evaluate(`JSON.stringify((() => {
++        const ns = window.NotificationStore, proto = Object.getPrototypeOf(ns);
++        const d = (o, k) => { const x = Object.getOwnPropertyDescriptor(o, k); return x && { get: !!x.get, value: typeof x.value, writable: x.writable, configurable: x.configurable }; };
++        return { protoPN: d(proto, 'ProcessNotification'), ownPN: d(ns, 'ProcessNotification'), ownPNS: d(ns, 'PlayNotificationSound') };
++    })())`);
++    console.log('descriptors', before);
++
++    await cdp.evaluate(`(window.NotificationStore.TestAchievement(480), true)`);
++    await new Promise((r) => setTimeout(r, 1200));
++    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++    console.log(targets.filter((t) => /toast|notif/i.test(t.title + t.url)).map((t) => `${t.title} | ${t.url.slice(0, 160)}`));
++
++    const toast = targets.find((t) => /notificationtoasts/i.test(t.title + t.url));
++    if (toast) {
++        const tcdp = await connect(toast.title);
++        console.log('toast window', await tcdp.evaluate(`JSON.stringify({ w: innerWidth, h: innerHeight, dpr: devicePixelRatio, body: document.body.innerHTML.length, alert: (() => { const a = document.querySelector('[role=alert]'); if (!a) return null; const r = a.getBoundingClientRect(); return { w: r.width, h: r.height, cls: a.className, style: a.getAttribute('style') }; })() })`));
++        tcdp.close();
++    }
++} finally {
++    cdp.close();
++}
+diff --git a/enhanced-notifications/tests/run-live.mjs b/enhanced-notifications/tests/run-live.mjs
+index e0ac5c4..39bd098 100644
+--- a/enhanced-notifications/tests/run-live.mjs
++++ b/enhanced-notifications/tests/run-live.mjs
+@@ -1,29 +1,39 @@
+ // npm run test:live: every live check against the running Steam client
+-// (127.0.0.1:8080, enhanced-notifications or -dev deployed). Same runner as enhanced-achievements'.
++// (127.0.0.1:8080, enhanced-notifications or -dev deployed).
+ //
+ // Snapshots the plugin's stored settings first and restores exactly those at the
+-// end, whatever the checks did. Checks marked `theme` start with THEME (default
+-// steam_midnight) selected, because they assert a restyled toast. A check PASSes
+-// when it exits 0, prints no FAIL line and prints its `must` line.
++// end, whatever the checks did. A check with a `theme` starts with that theme
++// selected (steam_midnight: the notification style only; ps5: with an
++// `achievements` block, for the banner checks). A check PASSes when it exits 0,
++// prints no FAIL line and prints its `must` line; it SKIPs when its output
++// matches `skipWhen` (e.g. Big Picture is not open).
+ //
+-// tests/architecture.test.ts fails if a live script is not listed.
++// Desktop checks run first; the Big Picture ones last (open Big Picture before
++// running them, or they SKIP). tests/architecture.test.ts fails if a live script
++// is not listed.
+ import { spawnSync } from 'node:child_process';
+ import { existsSync } from 'node:fs';
+ import { dirname, join } from 'node:path';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { connect, resolvePluginName } from './cdp.mjs';
+ 
+-const THEME = process.env.THEME ?? 'steam_midnight';
+ const here = dirname(fileURLToPath(import.meta.url));
+ const checks = [
+     { file: 'safety.mjs', must: /^PASS {2}style on again: the preview is restyled/m },
+-    { file: 'previews.mjs', theme: true, must: /^PASS {2}DownloadComplete: restyled in place/m },
++    { file: 'previews.mjs', theme: 'steam_midnight', must: /^PASS {2}DownloadComplete: restyled in place/m },
+     { file: 'sound-duration.mjs', must: /^PASS {2}settings reset, temp theme removed/m },
+     { file: 'placement.mjs', must: /^(PASS {2}placement off: Steam places the toast|SKIP {2}desktop only)/m },
++    { file: 'achievements-smoke.mjs', theme: 'ps5', must: /^PASS {2}themed banner rendered/m },
++    { file: 'achievements-tiers.mjs', theme: 'ps5', must: /^PASS {2}completes game \(50%\): then a exceptional toast/m },
++    { file: 'achievements-safety.mjs', must: /^PASS {2}settings restored/m },
++    { file: 'achievements-queue.mjs', must: /^PASS {2}queue off: never Steam fallback toast/m },
++    { file: 'achievements-captures.mjs', must: /^PASS {2}settings restored/m },
++    { file: 'achievements-settings.mjs', must: /^(PASS|SKIP) /m },
++    { file: 'achievements-reset.mjs', must: /^PASS {2}switched off: unavailable/m },
+     { file: 'bigpicture.mjs', must: /^(PASS {2}Big Picture: settings reset|SKIP {2}Big Picture is not open)/m },
++    { file: 'achievements-bigpicture.mjs', theme: 'ps5', must: /^PASS {2}themed banner in Big Picture/m, skipWhen: /is Big Picture open\?/ },
+ ];
+ 
+-
+ // Hold the Steam lock for the whole run, so no other agent restarts or drives Steam
+ // meanwhile (AGENTS.md, "Sharing the live Steam client"). Re-entrant through
+ // STEAM_LOCK_OWNER; released on exit only if taken here. Absent in a public repo.
+@@ -51,6 +61,13 @@ ${r.stdout}${r.stderr}`);
+ }
+ 
+ const cdp = await connect();
++// enhanced-achievements was merged into this plugin (ADR-0050): loaded too, it would draw a second banner.
++const merged = JSON.parse(await cdp.evaluate(`JSON.stringify(Object.keys(window.PLUGIN_LIST || {}).filter((n) => n.startsWith('enhanced-achievements')))`));
++if (merged.length) {
++    console.log(`FAIL  enhanced-achievements is still loaded (${merged.join(', ')}): disable it in Millennium and restart Steam`);
++    cdp.close();
++    process.exit(1);
++}
+ const name = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
+ const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(name)}].${expr}`);
+ const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(name)})`);
+@@ -61,24 +78,39 @@ async function restore(snapshot) {
+     for (const [key, value] of Object.entries(snapshot)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
+ }
+ 
+-async function selectTheme() {
+-    await plugin(`setSetting('theme', ${JSON.stringify(THEME)})`);
+-    for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== THEME; i++) await wait(250);
++async function selectTheme(theme) {
++    await plugin(`setSetting('theme', ${JSON.stringify(theme)})`);
++    for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== theme; i++) await wait(250);
++}
++
++/**
++ * A check must not start while the previous one's toast windows are still up (they flake the banner checks). Desktop
++ * only: Big Picture's toast window is persistent, so it never goes away.
++ */
++async function waitForNoToasts(maxMs = 60_000) {
++    if ((await cdp.evaluate(`SteamClient.UI.GetUIMode?.()`)) === 4) return;
++    for (let t = 0; t < maxMs; t += 500) {
++        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
++        if (!targets.some((x) => /notificationtoasts/i.test(x.title))) return;
++        await wait(500);
++    }
+ }
+ 
+ function run(c) {
+-    const r = spawnSync(process.execPath, [join(here, c.file)], { encoding: 'utf8', timeout: 300_000, env: { ...process.env, EN_PLUGIN: name, THEME } });
++    const r = spawnSync(process.execPath, [join(here, c.file)], { encoding: 'utf8', timeout: 300_000, env: { ...process.env, EN_PLUGIN: name, THEME: c.theme ?? 'ps5' } });
+     const out = (r.stdout ?? '') + (r.stderr ?? '');
+-    return { ok: r.status === 0 && c.must.test(out) && !/^FAIL/m.test(out), out };
++    const skipped = c.skipWhen?.test(out) === true;
++    return { ok: skipped || (r.status === 0 && c.must.test(out) && !/^FAIL/m.test(out)), skipped, out };
+ }
+ 
+ const snapshot = (await stored()) ?? {};
+ let bad = 0;
+ try {
+     for (const c of checks) {
+-        if (c.theme) await selectTheme();
++        await waitForNoToasts();
++        if (c.theme) await selectTheme(c.theme);
+         const r = run(c);
+-        console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${c.file}`);
++        console.log(`${r.skipped ? 'SKIP' : r.ok ? 'PASS' : 'FAIL'}  ${c.file}`);
+         if (!r.ok) {
+             bad++;
+             console.log(r.out.split('\n').slice(-15).join('\n'));

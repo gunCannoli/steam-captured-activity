@@ -17,6 +17,11 @@ theme Steam's toasts and sounds.
 
 ## Now
 
+**Merge enhanced-achievements into enhanced-notifications (ADR-0050, the user's decisions 2026-10-01): plan ready to
+execute, dry-run on `080b5d4`:** [enhanced-notifications-achievements-merge-plan.md](docs/plans/enhanced-notifications-achievements-merge-plan.md)
+(six patches, then a live verification that is the user's). Any change to either toast plugin before it runs makes its
+patches stale: land those first or re-cut the plan.
+
 **enhanced-notifications sibling port (ADR-0047): code committed (2026-09-30), waiting for the live verification in
 [its plan § 9](docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
 `npm run test:live` in both, then the by-hand checks.

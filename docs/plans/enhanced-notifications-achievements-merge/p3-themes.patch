@@ -1,0 +1,977 @@
+diff --git a/enhanced-notifications/README.md b/enhanced-notifications/README.md
+index bbe698d..9489c89 100644
+--- a/enhanced-notifications/README.md
++++ b/enhanced-notifications/README.md
+@@ -9,15 +9,27 @@ changes only how they look and sound:
+ - font, title, body and subtext colours, sizes and weights
+ - app-logo corner radius and visibility, header icon
+ - position on screen, entrance and exit animation, margin, padding and gap
+-  (same options as Enhanced Achievements)
+ - sound (custom file, or `false` to mute) and display time
+ 
+-One style applies to every notification, so they all look alike.
+-
+-Anything a theme doesn't set stays exactly as Steam draws it.
+-
+-Works alongside **Enhanced Achievements**: when that plugin is active, it
+-handles achievement toasts and this one leaves them alone.
++One style applies to every notification, so they all look alike. Anything a
++theme doesn't set stays exactly as Steam draws it.
++
++**Achievements, optionally themed further.** A theme can add an `achievements`
++block that replaces Steam's achievement toast with a themed banner (this was
++the Enhanced Achievements plugin, now part of this one):
++
++- **Four rarity tiers**: normal (bronze), magic (silver), rare (gold) and
++  exceptional (the unlock that completes the game), chosen from Steam's own
++  global unlock percentage.
++- **Custom sound per tier.** Steam's "play a sound with notifications" setting
++  is still respected.
++- **Themed banner** with gradients, borders, icons and animations, on the
++  desktop client, in Big Picture, and in the in-game overlay.
++- **Auto-captures on unlock** (opt-in, any theme): a screenshot, a clip and a
++  timeline marker, using Steam's own Game Recording. Off by default.
++- **Nothing breaks if something is wrong.** A missing sound falls back to the
++  notification sound (or Steam's chime), and a broken `achievements` block
++  falls back to the notification style.
+ 
+ ## Install (alpha)
+ 
+@@ -26,6 +38,12 @@ This is an alpha: expect rough edges, and please report anything odd.
+ **From a release zip:** unzip it into `<Steam>/millennium/plugins/`, then
+ enable **Enhanced Notifications** in Millennium and restart Steam.
+ 
++**Coming from Enhanced Achievements?** Disable it in Millennium first (this
++plugin does everything it did, and the two must not run together). Your
++Enhanced Achievements theme works as this plugin's `achievements` block: see
++[themes.md § achievements](themes.md#achievements). Your settings (queue,
++captures) are set again once in this plugin's panel.
++
+ **From source:**
+ 
+ ```bash
+@@ -39,61 +57,92 @@ copy) and enables it. Steam restarts automatically unless you pass
+ 
+ ## Settings
+ 
+-Open Millennium's sidebar and select **Enhanced Notifications**: pick a theme,
+-reload or open the themes folder, preview a notification, toggle style, sounds
+-and display time, or reset.
++Open Millennium's sidebar and select **Enhanced Notifications**:
+ 
+ | Setting | What it does |
+ | --- | --- |
+ | Theme | Which theme to use |
+-| Reload themes | Pick up edits to a theme file without restarting Steam |
++| Reload themes | Pick up edits to a theme file without restarting Steam. If the theme has errors, a popup lists them (a field that falls back to its default, a missing asset, or why the theme could not load) |
+ | Themes folder | Opens the folder for your own themes |
+-| Preview | Shows one of Steam's own test toasts, a different type each press |
+-| Themed style | Off: Steam's own look for every notification |
++| Preview a notification | Shows a random notification (one of Steam's own test toasts, or an achievement), a different type each press |
++| Preview achievement tiers | Fires a test achievement for each tier (the banner, or the notification style without an `achievements` block) |
++| Themed style | Off: Steam's own look for every notification, achievements included |
+ | Themed sounds | Off: Steam's own sounds. Steam's mute setting is always respected |
+ | Themed display time | Off: Steam's own display time per notification |
++| Achievement queue | One achievement banner at a time instead of Steam's own stacking |
++| Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
++| Record clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
++| Timeline marker | Adds an achievement marker on non-Steam games' timelines |
+ | Reset to defaults | Clears every changed setting |
++| Reset Achievements | Pick a game (type to filter the list) and press **Reset** to clear its achievements, after a warning. Steam games are cleared on your Steam account through Steam's own console command; non-Steam games need steam-cartridges to be cleared. Only games with at least one unlocked achievement are listed |
++
++Captures are **off by default**: they write files into your library. Both
++screenshot and clip need Steam's Game Recording turned on (background or
++manual) for the game.
+ 
+ ## How to test
+ 
+-Five minutes, no game required:
++Five minutes, no game required for the first four:
+ 
+-1. Open the settings panel and press **Preview** a few times: each press
+-   shows a different notification type (downloads, clips, cloud sync,
+-   battery, updates), all restyled the same way.
+-2. Toggle **Themed style**, **Themed sounds** and **Themed display time** off
++1. Open the settings panel and press **Preview a notification** a few times:
++   each press shows a different notification type (downloads, clips, cloud
++   sync, battery, updates, an achievement), all restyled the same way.
++2. Switch **Theme** to `ps5` and press each **Achievement** preview: a PS5-style
++   trophy banner per tier. Back on `steam_midnight` (no `achievements` block),
++   the same previews look like every other toast.
++3. Toggle **Themed style**, **Themed sounds** and **Themed display time** off
+    and on; confirm Steam's own look/sound/timing comes back when off.
+-3. Edit `themes/steam_midnight.json` (or a copy in your themes folder), press
+-   **Reload themes**, then **Preview** again to see the change.
+-4. Switch between the desktop client and Big Picture Mode and preview in
+-   each: both should show the themed toast, in the theme's position.
++4. Edit a theme (a copy in your themes folder), press **Reload themes**, then
++   preview again to see the change.
++5. Start any game with Game Recording on (Steam Settings -> In-Game ->
++   Recording), enable **Screenshot on unlock** and/or **Record clip on
++   unlock**, then unlock an achievement for that game (previews never capture).
++   Check Steam's Screenshots/Recordings for the game shortly after.
+ 
+ ## Themes
+ 
+-Themes are `.jsonc` (or `.json`) files: JSON with `//` comments and trailing commas allowed. Put your own in
+-`<Steam>/millennium/config/enhanced-notifications/themes/`. That folder
+-survives updates, and a theme there replaces a bundled one with the same name.
+-See [themes.md](themes.md) for the format and
+-[themes/steam_midnight.json](themes/steam_midnight.json) for an example.
++Themes are `.jsonc` (or `.json`) files: JSON with `//` comments and trailing
++commas allowed. Start from [themes/theme.jsonc](themes/theme.jsonc): every
++option, commented, in a working theme. The full reference is
++[themes.md](themes.md). Also bundled: [steam_midnight](themes/steam_midnight.json),
++[ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json). Fuller,
++asset-based examples are in [examples/](examples/) (not installed).
++
++Put your own in `<Steam>/millennium/config/enhanced-notifications/themes/`
++(**Themes folder** takes you there). That folder survives updates, and a theme
++there replaces a bundled one with the same name. To share a theme, share its
++folder: the `.jsonc` and an `assets/` folder, with paths in the theme written
++relative to it (`"assets/gold.png"`).
++
++The workflow is: edit the theme file, press **Reload themes**, press **Preview**.
+ 
+ ## Known limitations
+ 
+-- Friend and message toasts depend on Steam's Friends notification settings —
++- Friend and message toasts depend on Steam's Friends notification settings:
+   if Steam wouldn't show the toast, there's nothing for this plugin to style.
+-- The in-game overlay is not yet verified.
+-- Desktop toast frame is 284×71.
+-- Styling, sounds and display time do nothing while Steam's own toast
+-  notifications are turned off entirely (Steam Settings -> Notifications).
+-  The settings panel shows a warning when it can detect this.
++- The in-game overlay is not yet verified with a real in-game unlock.
++- Desktop toast frame is 284×71; Big Picture's is 300×80, for the banner too.
++- **Rarity needs Steam's data.** Games without global unlock percentages
++  (including non-Steam games) always use the normal tier, except for the
++  unlock that completes the game.
++- **Captures need Game Recording on**, and never happen if Steam's in-game
++  toast notifications are disabled for that game: Steam itself never calls
++  the hook this plugin uses in that case. Steam already marks achievements on
++  its own games' timelines; the timeline marker only applies to non-Steam
++  shortcuts.
++- Styling, sounds, display time and captures do nothing while Steam's own
++  toast notifications are turned off entirely (Steam Settings ->
++  Notifications). The settings panel shows a warning when it can detect this.
+ - On Millennium v3.4.1 the Configuration API only partly works (settings save,
+   but Millennium may log an error). The plugin works around it; you should
+   never see a broken save.
+ 
+ ## Troubleshooting
+ 
+-- **Styling, a sound or the display time misbehaves.** Each part can be switched off on its own: in the SharedJSContext console run
+-  `PLUGIN_LIST['enhanced-notifications'].setSetting('disabledFeatures', 'style,sound')`. Ids: `style`, `sound`, `duration`,
+-  `preview`. Steam's own look, sound or duration comes back for that part. Empty string switches everything back on.
++- **Styling, a banner, a sound or a capture misbehaves.** Each part can be switched off on its own: in the SharedJSContext
++  console run `PLUGIN_LIST['enhanced-notifications'].setSetting('disabledFeatures', 'style,sound')`. Ids: `style`,
++  `sound`, `duration`, `preview`, `placement`, `banner`, `completion`, `captures`, `toasts`, `reset`. Steam's own look,
++  toast, sound or duration comes back for that part. Empty string switches everything back on.
+ - **A part switched itself off.** After 5 errors in one session a part is switched off until Steam restarts.
+   `PLUGIN_LIST['enhanced-notifications'].safetyDiagnostics()` shows what tripped and the error counts;
+   `surfaceStatus()` shows which parts installed.
+diff --git a/enhanced-notifications/package-lock.json b/enhanced-notifications/package-lock.json
+index 4b56f01..4642cf6 100644
+--- a/enhanced-notifications/package-lock.json
++++ b/enhanced-notifications/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "enhanced-notifications",
+-  "version": "0.1.0-alpha.1",
++  "version": "0.2.0-alpha.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "enhanced-notifications",
+-      "version": "0.1.0-alpha.1",
++      "version": "0.2.0-alpha.1",
+       "dependencies": {
+         "@steambrew/client": "^5.8.5",
+         "steambrew-utils": "0.0.0-beta-20260816131110"
+diff --git a/enhanced-notifications/package.json b/enhanced-notifications/package.json
+index f1c9370..c9baafa 100644
+--- a/enhanced-notifications/package.json
++++ b/enhanced-notifications/package.json
+@@ -1,8 +1,8 @@
+ {
+   "name": "enhanced-notifications",
+-  "version": "0.1.0-alpha.1",
++  "version": "0.2.0-alpha.1",
+   "private": true,
+-  "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content.",
++  "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content; optional themed achievement banners and sounds per rarity tier.",
+   "scripts": {
+     "check": "tsc --noEmit",
+     "build": "millennium-ttc --build prod",
+diff --git a/enhanced-notifications/plugin.json b/enhanced-notifications/plugin.json
+index 6a86397..02f0765 100644
+--- a/enhanced-notifications/plugin.json
++++ b/enhanced-notifications/plugin.json
+@@ -2,8 +2,8 @@
+   "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
+   "name": "enhanced-notifications",
+   "common_name": "Enhanced Notifications",
+-  "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content.",
+-  "version": "0.1.0-alpha.1",
++  "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content; optional themed achievement banners and sounds per rarity tier.",
++  "version": "0.2.0-alpha.1",
+   "useBackend": true,
+   "backendType": "lua"
+ }
+diff --git a/enhanced-notifications/tests/theme.test.ts b/enhanced-notifications/tests/theme.test.ts
+index 8de571a..87dcca8 100644
+--- a/enhanced-notifications/tests/theme.test.ts
++++ b/enhanced-notifications/tests/theme.test.ts
+@@ -44,6 +44,16 @@ test("every bundled theme's assets exist, relative to themes/", () => {
+     }
+ });
+ 
++test('bundled themes: steam_midnight styles achievements like every toast; ps5, steam_tiers and theme draw the banner', () => {
++    assert.equal(resolveTheme(load('steam_midnight.json')).achievements, null);
++    for (const file of ['ps5.jsonc', 'steam_tiers.json', 'theme.jsonc']) {
++        const banner = resolveTheme(load(file)).achievements;
++        assert.ok(banner, file);
++        assert.deepEqual(Object.keys(banner.tiers), ['normal', 'magic', 'rare', 'exceptional'], file);
++        assert.equal(banner.position, 'top_right', `${file}: inherited from the theme's settings`);
++    }
++});
++
+ test('one style for every notification; the old per-type blocks warn and are ignored', () => {
+     const theme = resolveTheme({
+         popup: { background: ['#111111'] },
+diff --git a/enhanced-notifications/themes.md b/enhanced-notifications/themes.md
+index 69e95d6..7558059 100644
+--- a/enhanced-notifications/themes.md
++++ b/enhanced-notifications/themes.md
+@@ -2,11 +2,20 @@
+ 
+ A theme restyles Steam's own toasts. **One style for every notification**, so
+ toasts stay consistent. Every key is optional; anything unset stays Steam's own.
+-Example: [themes/steam_midnight.json](themes/steam_midnight.json).
++An optional [`achievements`](#achievements) block replaces achievement toasts
++with a themed banner per rarity tier; without it, achievement toasts get the
++same style as every other toast.
++
++**[themes/theme.jsonc](themes/theme.jsonc) is the commented version of this
++page**: every option, in a working theme you can copy and trim. Also bundled:
++[steam_midnight](themes/steam_midnight.json) (no achievement banner),
++[ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json)
++(colour-coded tiers). Fuller, asset-based examples are in
++[examples/](examples/).
+ 
+ **File format:** `.jsonc` or `.json`. Both accept JSONC: `//` and `/* */`
+ comments and trailing commas. If a folder has both `name.jsonc` and
+-`name.json`, the `.jsonc` is used (same rules as Enhanced Achievements).
++`name.json`, the `.jsonc` is used.
+ 
+ ```jsonc
+ {
+@@ -14,16 +23,24 @@ comments and trailing commas. If a folder has both `name.jsonc` and
+   "popup":    { "background": ["#0e141b", "#1b2838"], "border": [1, "#66c0f455", 6], "margin": 10, "padding": [8, 12] },
+   "text":     { "title": ["#66c0f4", 100, "bold"] },
+   "logo":     { "radius": 6 },
+-  "sound":    false
++  "sound":    false,
++  "achievements": {
++    "settings": { "layout": "ps5" },
++    "tiers": { "normal": { "icons": { "rarity": "assets/trophy_bronze.svg" } }, "rare": { "threshold": 10 } }
++  }
+ }
+ ```
+ 
+ The older `default`, `categories` and `types` blocks are gone; a theme that
+ still has them loads with a warning and they are ignored.
+ 
++A theme only describes how toasts look and sound. What the plugin does (which
++theme is active, the achievement queue, captures on unlock) is a plugin
++setting, in the settings panel: see [Plugin settings](#plugin-settings).
++
+ ## Settings
+ 
+-In a top-level `settings` object. Same names and values as Enhanced Achievements' `settings`.
++In a top-level `settings` object.
+ 
+ | Key | Format | Notes |
+ | --- | --- | --- |
+@@ -35,10 +52,9 @@ Position and animation apply on desktop, in the in-game overlay and in Big
+ Picture. With an `animation`, the toast does not travel with Steam's slide: it
+ appears at its place, and the exit ends when Steam closes the toast.
+ 
+-Achievement toasts drawn by Enhanced Achievements keep that plugin's style,
+-sound, animation and (on desktop) position. In Big Picture there is one toast
+-place for every toast, so a `position` here moves its achievement toasts too,
+-unless Enhanced Achievements' "Force achievement position in Big Picture" is on.
++Big Picture has one toast place, which follows the toast on screen: the
++theme's `position` and `popup.margin`, or, while an achievement banner shows,
++the banner's position and its tier's `margin`.
+ 
+ ## Style keys
+ 
+@@ -59,19 +75,195 @@ At the top level of the theme.
+ | `logo.visible` | `true` / `false` | The game's logo on the left of the toast |
+ | `logo.radius` | px | Rounds the corners of that logo (Steam's is square) |
+ | `header_icon` | `true` / `false` | Small icon before the title |
+-| `sound` | `["path", volume_pct]` or `false` | Every notification's sound; `false` mutes them; see File paths; `.mp3`, `.wav`, `.ogg` |
++| `sound` | `["path", volume_pct]` or `false` | Every notification's sound (achievements too, unless their tier has its own); `false` mutes them; see File paths; `.mp3`, `.wav`, `.ogg` |
+ 
+-`margin` and `padding` take CSS's clockwise order, like Enhanced Achievements:
+-`[10, 5, 4, 7]` is 10 top, 5 right, 4 bottom, 7 left.
++`margin` and `padding` take CSS's clockwise order: `[10, 5, 4, 7]` is 10 top,
++5 right, 4 bottom, 7 left.
+ 
+ Colours accept `#rgb`, `#rrggbb`, `#rrggbbaa`. Invalid values are ignored
+ (logged as warnings) and that part stays stock.
+ 
++## achievements
++
++Optional. Replaces Steam's achievement toast with a themed banner: your
++layout, colours, icons and sound for each of four rarity tiers. Leave it out
++and achievement toasts look like every other toast. A block that cannot be
++used (no `tiers.normal`) is a warning, and achievement toasts then get the
++notification style.
++
++```jsonc
++"achievements": {
++  "settings": { "layout": "custom", "text_align": "left" },  // + position / animation / display_time_ms to override the theme's
++  "layout":   { "achievement": "left", "system": "right", "rarity": "title_left" },
++  "tiers": {
++    "normal":      { "banner": { ... }, "text": { ... }, "icons": { ... }, "sound": ["assets/bronze.mp3", 80] },
++    "magic":       { "threshold": 25.0, ... },
++    "rare":        { "threshold": 10.0, ... },
++    "exceptional": { "text": { "title": "100% Complete", "desc": "You've unlocked all achievements!" } }
++  }
++}
++```
++
++An Enhanced Achievements theme file (the plugin merged into this one) works
++as an `achievements` block as it is: paste its `settings`, `layout` and
++`themes` inside `"achievements": { ... }`. `themes` is read as `tiers`.
++
++### achievements.settings
++
++- **`layout`**: How the banner's parts are arranged.
++    - `"ps5"`: Authentic PlayStation 5 trophy layout (achievement icon on the left, tier trophy icon anchored left of the title, description below, system/PlayStation icon pinned on the right).
++    - `"default_steam"` (default): Achievement icon on the left, title and description stacked on the right.
++    - `"default_system_right"`: Achievement icon on the left, text in the middle, system icon pinned to the right edge.
++    - `"compact_pill"`: Slim horizontal bar with icon and title.
++    - `"custom"`: Flexible anchor-based layout defined via the `layout` mapping object.
++- **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
++- **`position`**, **`animation`**, **`display_time_ms`**: the same values as the
++  theme's [settings](#settings), which the banner uses unless these are set
++  here. Without either: `bottom_right`, slide in and fade out, Steam's own
++  duration. The banner is placed by the plugin, at its `position` offset inward
++  by its tier's `margin`; `display_time_ms` is how long it stays fully visible,
++  between the end of its entrance and the start of its exit.
++
++### achievements.layout
++
++Used with `"layout": "custom"`. Places each icon (`achievement`, `system`,
++`rarity`); the text is always the middle column:
++
++```json
++"layout": {
++    "achievement": "left",
++    "system": "right",
++    "rarity": "title_left"
++}
++```
++
++- **Outer zones**: `"left"`, `"right"` (also `"achievement_left"`, `"achievement_right"`: the same zones, placed after a `left`/`right` icon).
++- **Sub-Element Anchors**: `"title_left"`, `"title_right"`, `"desc_left"`, `"desc_right"`.
++- `"center"` and a `"text"` key are accepted for older themes but place nothing.
++  When an element is anchored to another (such as `"rarity": "title_left"`), its height is automatically matched to the reference element's size (e.g. font line-height).
++
++### achievements.tiers
++
++One visual and audio profile per rarity tier (`themes` is accepted as an older
++name).
++
++- **`normal`** (Bronze): the base tier, required. Every key defined here is the fallback for the other tiers.
++- **`magic`** (Silver): used when the achievement's global unlock rate is ≤ `magic.threshold`.
++- **`rare`** (Gold): used when the global unlock rate is ≤ `rare.threshold`.
++- **`exceptional`** (Platinum): synthesized 100% completion banner triggered right after the final achievement in a game is unlocked (acting as a "fake platinum trophy", since Steam has no native 100% completion achievement).
++
++Tier selection for real unlocks: `rare` → `magic` → `normal`. When the unlock
++completes the game, the real unlock fires first with its own rarity tier,
++followed 1.5 s later by the synthetic `exceptional` banner. When Steam gives
++no global unlock rate (common for non-Steam games), the tier is `normal`.
++
++> **Inheritance:** `magic`, `rare` and `exceptional` only list what differs from
++> `normal`. Objects merge key by key; tuples and arrays are replaced whole.
++
++### Tier keys
++
++#### `threshold` (number)
++
++Global unlock percentage cutoff for `magic` and `rare`.
++
++- `"threshold": 10.0` matches when 10% or fewer of players have the achievement.
++- Recommended: `magic` = `25.0`, `rare` = `10.0`. Never inherited from `normal`.
++
++#### `banner` (formerly `box`)
++
++Geometry, colours, border, glow, margin, padding, and gap of the banner. (The key `box` is maintained as a backward-compatible alias).
++
++- **`scale`**: `[width_pct, height_pct]` or scalar `pct`: size of the banner **box** relative to the default (`[100, 100]` = standard size). Text and icons keep their own sizes (`text.*` size %, icon `scale_pct`); they do not grow or shrink with the box.
++- **`width`**: *(optional)* Base banner width in px (defaults to 400 for `ps5` and `custom`, 283 for standard Steam).
++- **`height`**: *(optional)* Base banner height in px (defaults to 70 for normal cards, 48 for `compact_pill`).
++- **`margin`**: CSS shorthand, clockwise, as `popup.margin`: distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. Only the sides the banner is anchored to count; the horizontal margins are ignored for `top_center`/`bottom_center`.
++- **`padding`**: CSS shorthand, clockwise (e.g. `[10, 5, 4, 7]`: 10 top, 5 right, 4 bottom, 7 left): internal breathing room pushing banner content inward.
++- **`gap`**: `[col_gap_px, row_gap_px]` or scalar `px`: flexbox spacing between layout zones, columns, and text rows (e.g. `[10, 2]`).
++- **`background_color`**: `["#hex", ...]`: one colour is solid; two or more make a smooth gradient.
++- **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
++- **`border`**: `[width_px, "#hex", radius_px]`: `width_px` `0` disables stroke; `radius_px` `0` is square, `15` is rounded, `25` is capsule.
++- **`glow`**: *(parsed, currently has no visual effect: the outline-glow
++  render was removed; kept in the schema so existing theme files do not warn
++  or break)*.
++
++#### `text`
++
++- **`title`** and **`desc`**: `["#hex", size_pct, style]` or custom string overrides.
++    - `size_pct`: relative to the base font size (`100` = base, `120` = 20% larger).
++    - `style`: `"bold"`, `"regular"` or `"italic"`.
++    - Custom strings (`exceptional` only; other tiers always show the achievement's own name and description): `"title": "100% Complete"` and `"desc": "You've unlocked all achievements!"` set the words, while the style is still inherited from `normal`. `title_text` / `desc_text` are the same thing, spelled out.
++- **`align`**: overrides `achievements.settings.text_align` for this tier.
++
++#### `icons`
++
++Every slot takes `[source, scale_pct, ripple_ms]`, `[source, ripple_ms]`, or bare `source` as shorthand for `[source, 100, 0]`.
++
++- **`source`**
++    - `true`: show Steam's own asset (the achievement art, or Steam's logo for `system`).
++    - `false`: hide the slot.
++    - `"path"`: a custom `.png` or `.svg`.
++- **`scale_pct`**: icon scaling relative to standard bounds (`100` = 100%, `50` = half size).
++- **`ripple_ms`**: `0` is static; `> 0` loops an expanding water-ripple ring behind the icon at that period (e.g. `2000` = 2-second pulse).
++
++Slots:
++
++- **`achievement`**: the achievement's own artwork. In `exceptional`, can specify a custom game completion badge/icon image.
++- **`system`**: platform logo (Steam, PlayStation, …).
++- **`rarity`**: tier emblem (bronze, silver, gold, or the Platinum 100% completion badge).
++
++#### `sound`
++
++`["path", volume_pct]`: `.mp3`, `.wav` or `.ogg`; volume `0`–`100`. Omit it
++(or `null`) to use the theme's notification `sound`, or Steam's own chime
++without one. A file that is missing or fails to load falls back the same way,
++never to silence.
++
+ ## File paths
+ 
+ - A relative path resolves against the theme file's own folder, so a theme and
+-  its sound can be shared as one directory.
++  its `assets/` folder can be shared as one directory.
+ - An absolute path (`C:/…`) is allowed for personal themes, but makes the theme
+   non-portable.
+-- The backend loads the sound once when the theme is (re)loaded, never per toast.
+-  A missing, oversized (> 8 MB) or disallowed file keeps Steam's sound.
++- The backend loads each asset once when the theme is (re)loaded, never per
++  toast. Allowed types: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`,
++  `.mp3`, `.wav`, `.ogg`, up to 8 MB each. A missing, oversized or disallowed
++  file keeps Steam's own (or, for an icon, hides it).
++
++## Plugin settings
++
++Not part of a theme. Configured in the plugin's settings panel (Millennium
++sidebar) and stored by Millennium. [settings.json](settings.json) holds the
++shipped defaults; you never need to edit it.
++
++- **`theme`**: file name (without `.jsonc`/`.json`) of the active theme.
++- **`style.enabled`** / **`sound.enabled`** / **`duration.enabled`**: "Themed
++  style", "Themed sounds", "Themed display time". Off: Steam's own look
++  (achievement banners included), sounds or display time.
++- **`queue.enabled`**: one achievement banner at a time, off by default. A
++  burst of unlocks is shown one after another in arrival order, each with its
++  own sound when its banner appears, at the same spot. Up to 5 can wait; past
++  that a new one shows at once rather than being dropped. Applies to banners on
++  desktop and in the in-game overlay (Big Picture already shows one toast at a
++  time).
++- **`screenshot`** / **`recording`**: captures on unlock, off by default (they
++  write files into your library). Never set by a theme.
++
++Themes load from two folders; a user theme with the same name wins:
++
++- `<Steam>/millennium/config/enhanced-notifications/themes/` (yours; survives updates)
++- `<plugin>/themes/` (bundled; replaced on update)
++
++## Sharing themes
++
++A theme is one `.jsonc`/`.json` file plus the assets it references. Put them in
++one folder with relative paths (`assets/gold.png`) and share that folder. To
++install, drop it into the themes folder and pick it in the settings panel.
++
++## Known limitations
++
++- **Big Picture** uses Steam's own 300×80 toast frame for the banner too:
++  `scale` does not apply there.
++- **Achievement queue and other toasts.** Steam shows at most 3 desktop toasts
++  at once, and a queued achievement keeps its (invisible) toast open until its
++  turn. While a burst of 3+ unlocks drains, a friend or download toast can
++  wait for a free spot (about one banner's display time).
+diff --git a/enhanced-notifications/themes/assets/trophy_bronze.svg b/enhanced-notifications/themes/assets/trophy_bronze.svg
+new file mode 100644
+index 0000000..5f84193
+--- /dev/null
++++ b/enhanced-notifications/themes/assets/trophy_bronze.svg
+@@ -0,0 +1,3 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#cd7f32">
++  <path d="M20 6h24v4h6a2 2 0 0 1 2 2v4c0 7-5 13-12 14.6-1.3 3.7-4.3 6.5-8 7.7V44h6a4 4 0 0 1 4 4v2H22v-2a4 4 0 0 1 4-4h6v-5.7c-3.7-1.2-6.7-4-8-7.7C17 29.3 12 23 12 16v-4a2 2 0 0 1 2-2h6V6zm0 8h-4v2c0 4 2.6 7.4 6.3 8.7A18.7 18.7 0 0 1 20 18v-4zm24 0v4c0 2.4-.3 4.7-.9 6.7 3.7-1.3 6.3-4.7 6.3-8.7v-2h-5.4z"/>
++</svg>
+diff --git a/enhanced-notifications/themes/assets/trophy_gold.svg b/enhanced-notifications/themes/assets/trophy_gold.svg
+new file mode 100644
+index 0000000..842aabf
+--- /dev/null
++++ b/enhanced-notifications/themes/assets/trophy_gold.svg
+@@ -0,0 +1,3 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#e5a93c">
++  <path d="M20 6h24v4h6a2 2 0 0 1 2 2v4c0 7-5 13-12 14.6-1.3 3.7-4.3 6.5-8 7.7V44h6a4 4 0 0 1 4 4v2H22v-2a4 4 0 0 1 4-4h6v-5.7c-3.7-1.2-6.7-4-8-7.7C17 29.3 12 23 12 16v-4a2 2 0 0 1 2-2h6V6zm0 8h-4v2c0 4 2.6 7.4 6.3 8.7A18.7 18.7 0 0 1 20 18v-4zm24 0v4c0 2.4-.3 4.7-.9 6.7 3.7-1.3 6.3-4.7 6.3-8.7v-2h-5.4z"/>
++</svg>
+diff --git a/enhanced-notifications/themes/assets/trophy_platinum.svg b/enhanced-notifications/themes/assets/trophy_platinum.svg
+new file mode 100644
+index 0000000..1326578
+--- /dev/null
++++ b/enhanced-notifications/themes/assets/trophy_platinum.svg
+@@ -0,0 +1,3 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#40c4ff">
++  <path d="M20 6h24v4h6a2 2 0 0 1 2 2v4c0 7-5 13-12 14.6-1.3 3.7-4.3 6.5-8 7.7V44h6a4 4 0 0 1 4 4v2H22v-2a4 4 0 0 1 4-4h6v-5.7c-3.7-1.2-6.7-4-8-7.7C17 29.3 12 23 12 16v-4a2 2 0 0 1 2-2h6V6zm0 8h-4v2c0 4 2.6 7.4 6.3 8.7A18.7 18.7 0 0 1 20 18v-4zm24 0v4c0 2.4-.3 4.7-.9 6.7 3.7-1.3 6.3-4.7 6.3-8.7v-2h-5.4z"/>
++</svg>
+diff --git a/enhanced-notifications/themes/assets/trophy_silver.svg b/enhanced-notifications/themes/assets/trophy_silver.svg
+new file mode 100644
+index 0000000..3528add
+--- /dev/null
++++ b/enhanced-notifications/themes/assets/trophy_silver.svg
+@@ -0,0 +1,3 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#c0c0c0">
++  <path d="M20 6h24v4h6a2 2 0 0 1 2 2v4c0 7-5 13-12 14.6-1.3 3.7-4.3 6.5-8 7.7V44h6a4 4 0 0 1 4 4v2H22v-2a4 4 0 0 1 4-4h6v-5.7c-3.7-1.2-6.7-4-8-7.7C17 29.3 12 23 12 16v-4a2 2 0 0 1 2-2h6V6zm0 8h-4v2c0 4 2.6 7.4 6.3 8.7A18.7 18.7 0 0 1 20 18v-4zm24 0v4c0 2.4-.3 4.7-.9 6.7 3.7-1.3 6.3-4.7 6.3-8.7v-2h-5.4z"/>
++</svg>
+diff --git a/enhanced-notifications/themes/ps5.jsonc b/enhanced-notifications/themes/ps5.jsonc
+new file mode 100644
+index 0000000..54223af
+--- /dev/null
++++ b/enhanced-notifications/themes/ps5.jsonc
+@@ -0,0 +1,90 @@
++// PS5-style: every notification a dark card in the top-right corner that slides in
++// from the edge, and achievements as PS5 trophies: the achievement art on the left,
++// a trophy before the title, and Steam's logo pulsing on the right. Bronze /
++// silver / gold by rarity, platinum for 100%. Every option is explained in theme.jsonc.
++{
++    "settings": {
++        "position": "top_right",
++        "display_time_ms": 4000,
++        "animation": "ps5", // slide + fade in from the anchored edge (right here), and back out the same way
++    },
++
++    // Every notification but achievements.
++    "popup": {
++        "background": ["#1F1F1F", "#0F0F0F"],
++        "gradient_angle": 90,
++        "border": [0, "#8a2be2", 8], // no stroke, rounded 8 px corners
++        "watermark": false,
++        "margin": 5, // 5 px in from the top and right edges
++    },
++    "text": {
++        "title": ["#ffffff", 100, "regular"],
++        "body": ["#ffffff", 100, "regular"],
++        "subtext": ["#c7c7c7", 100, "regular"],
++    },
++    "logo": { "radius": 4 },
++
++    // Achievements: the PS5 trophy banner (same corner, animation and display time).
++    "achievements": {
++        "settings": {
++            "layout": "custom",
++            "text_align": "left",
++        },
++
++        // Icon placement for the custom layout.
++        "layout": {
++            "achievement": "left",
++            "system": "right",
++            "rarity": "title_left", // trophy inline, before the title
++        },
++
++        "tiers": {
++            // Bronze: every unlock not rare enough for silver or gold.
++            "normal": {
++                "banner": {
++                    "scale": [100, 100],
++                    "background_color": ["#1F1F1F", "#0F0F0F"],
++                    "gradient_angle": 90,
++                    "border": [0, "#8a2be2", 8], // no stroke, rounded 8 px corners
++                    "margin": [5], // 5 px in from the top and right edges ([5] = every side)
++                    "padding": [5],
++                    "gap": [10, 5],
++                },
++                "text": {
++                    "title": ["#ffffff", 120, "regular"],
++                    "desc": ["#ffffff", 100, "regular"],
++                },
++                "icons": {
++                    "achievement": [true, 100, 0], // the achievement's own art
++                    "system": [true, 120, 2000], // Steam logo at 120%, ripple every 2 s
++                    "rarity": ["assets/trophy_bronze.svg", 100, 0],
++                },
++                "sound": null, // the notification sound: Steam's own chime here
++            },
++
++            // Silver: 25% of players or fewer.
++            "magic": {
++                "threshold": 25.0,
++                "icons": { "rarity": ["assets/trophy_silver.svg", 100, 0] },
++            },
++
++            // Gold: 10% of players or fewer.
++            "rare": {
++                "threshold": 10.0,
++                "icons": { "rarity": ["assets/trophy_gold.svg", 150, 0] },
++            },
++
++            // Platinum: the "100% complete" toast after the game's last achievement.
++            "exceptional": {
++                "icons": {
++                    "rarity": ["assets/trophy_platinum.svg", 100, 0],
++                    "achievement": ["assets/trophy_platinum.svg", 100, 0],
++                },
++                "text": {
++                    "title": "100% Complete",
++                    "desc": "You've unlocked all achievements!",
++                },
++            },
++        },
++    },
++}
+diff --git a/enhanced-notifications/themes/steam_tiers.json b/enhanced-notifications/themes/steam_tiers.json
+new file mode 100644
+index 0000000..b48f9e9
+--- /dev/null
++++ b/enhanced-notifications/themes/steam_tiers.json
+@@ -0,0 +1,64 @@
++{
++    "settings": {
++        "position": "top_right",
++        "display_time_ms": 4000,
++        "animation": "slide"
++    },
++    "achievements": {
++        "settings": {
++            "layout": "default_system_right"
++        },
++        "tiers": {
++            "normal": {
++                "banner": {
++                    "scale": [100, 100],
++                    "background_color": ["#2f2f2f", "#1f1f1f"],
++                    "gradient_angle": 90,
++                    "border": [2, "#cd7f32", 8],
++                    "glow": ["#cd7f32", 40, 0],
++                    "margin": [0, 0],
++                    "padding": [6, 10],
++                    "gap": [10, 2]
++                },
++                "text": {
++                    "title": ["#ffffff", 100, "bold"],
++                    "desc": ["#ffffff", 100, "regular"]
++                },
++                "icons": {
++                    "achievement": true,
++                    "system": false,
++                    "rarity": "assets/trophy_bronze.svg"
++                }
++            },
++            "magic": {
++                "threshold": 25.0,
++                "banner": {
++                    "border": [2, "#c0c0c0", 8],
++                    "glow": ["#c0c0c0", 60, 0]
++                },
++                "icons": {
++                    "rarity": "assets/trophy_silver.svg"
++                }
++            },
++            "rare": {
++                "threshold": 10.0,
++                "banner": {
++                    "border": [2, "#e5a93c", 8],
++                    "glow": ["#e5a93c", 80, 0]
++                },
++                "icons": {
++                    "rarity": "assets/trophy_gold.svg"
++                }
++            },
++            "exceptional": {
++                "banner": {
++                    "border": [2, "#40c4ff", 16],
++                    "glow": ["#40c4ff", 90, 800]
++                },
++                "icons": {
++                    "rarity": "assets/trophy_platinum.svg"
++                }
++            }
++        }
++    }
++}
+diff --git a/enhanced-notifications/themes/theme.jsonc b/enhanced-notifications/themes/theme.jsonc
+new file mode 100644
+index 0000000..b0c9292
+--- /dev/null
++++ b/enhanced-notifications/themes/theme.jsonc
+@@ -0,0 +1,255 @@
++// =============================================================================
++// Enhanced Notifications: theme reference
++//
++// Every option a theme can set, with what each value means. This file is also a
++// working theme: pick "theme" in the plugin's settings panel to see it.
++//
++// To make your own: copy this file into your themes folder (settings panel >
++// Themes folder > Open), rename it, delete what you don't need, and press
++// Reload. Anything you leave out stays Steam's own (or uses the default noted
++// next to it, inside "achievements").
++//
++// Format: JSONC (JSON with // and /* */ comments and trailing commas).
++// Files may be .jsonc or .json; both accept comments.
++//
++// Colours are "#rgb", "#rrggbb" or "#rrggbbaa" (last pair = opacity, 00-ff).
++// A value that is out of range is clamped; a value of the wrong type is ignored
++// and logged as a warning. A broken "achievements" block is a warning too:
++// achievement toasts then get the notification style.
++// =============================================================================
++{
++    // -------------------------------------------------------------------------
++    // settings: where every toast shows, how it comes and goes, and for how long
++    // -------------------------------------------------------------------------
++    "settings": {
++        // Screen corner or edge. Unset: Steam's own corner.
++        //   "top_left" | "top_center" | "top_right" | "bottom_left" | "bottom_center" | "bottom_right"
++        "position": "top_right",
++
++        // Entrance and exit. Unset: Steam's own slide.
++        // One name for both ("fade") or an object for each: { "in": ..., "out": ... }
++        // (an unset side of the object is "slide" in, "fade" out).
++        //   "slide"  slide + fade from the anchored side edge (right for *_right, left for *_left)
++        //   "fade" | "up" | "down" | "none"
++        //   "ps5"    a short slide + fade from the anchored edge; *_center slides vertically
++        "animation": { "in": "ps5", "out": "ps5" },
++
++        // How long every toast stays, in ms, 1000-60000. Unset: Steam's own per type.
++        "display_time_ms": 4000,
++    },
++
++    // -------------------------------------------------------------------------
++    // The notification style: one look for every toast (downloads, friends,
++    // clips, battery, updates, and achievements unless "achievements" below
++    // draws them). Steam's own icons, logos and text are kept.
++    // -------------------------------------------------------------------------
++    "popup": {
++        // One colour = solid; two or more = a gradient, in order.
++        "background": ["#0e141b", "#1b2838"],
++        // Gradient direction in degrees: 90 = left to right, 180 = top to bottom. Default 135.
++        "gradient_angle": 135,
++        // [stroke width px 0-20, colour, corner radius px 0-100]. Width 0 = no stroke.
++        "border": [1, "#66c0f455", 6],
++        // [colour, spread px, pulse ms]: an inner glow; pulse 0 = steady.
++        "glow": ["#66c0f433", 18, 0],
++        // false hides the Steam logo behind desktop toasts.
++        "watermark": false,
++        // Distance from the screen corner, CSS shorthand, clockwise: one number for every side,
++        // [vertical, horizontal], [top, horizontal, bottom] or [top, right, bottom, left].
++        // Only the sides the toast is anchored to count (top_right: top and right).
++        "margin": 8,
++        // Space inside the toast around the logo and text, same shorthand. Steam's is 10 on desktop.
++        // "padding": [8, 12],
++        // [logo to text px, between text rows px], or one number for both. Steam's is [12, 0].
++        // "gap": [12, 2],
++    },
++    // Plain font names only, with fallbacks.
++    // "font_family": "Motiva Sans, Arial, sans-serif",
++    "text": {
++        // [colour, size %, style]. Size 25-400 (100 = Steam's size). Style "bold" | "regular" | "italic".
++        "title": ["#66c0f4", 100, "bold"],
++        "body": ["#ffffff", 100, "regular"],
++        "subtext": ["#8f98a0", 100, "regular"],
++    },
++    // The game's logo on the left of the toast: "visible" true/false, "radius" rounds its corners (px).
++    "logo": { "radius": 6 },
++    // false hides the small icon before the title.
++    // "header_icon": false,
++    // Every notification's sound: ["path", volume %] (.mp3, .wav, .ogg, relative to this
++    // theme's folder), or false to mute. Unset: Steam's own sounds.
++    // "sound": ["assets/notify.mp3", 80],
++
++    // =========================================================================
++    // achievements (optional): replaces Steam's achievement toast with a themed
++    // banner, one profile per rarity tier. Leave the whole block out and
++    // achievement toasts get the notification style above, like every toast.
++    // =========================================================================
++    "achievements": {
++        // ---------------------------------------------------------------------
++        // settings: for every tier. "position", "animation" and
++        // "display_time_ms" are the theme's own (above) unless set here.
++        // ---------------------------------------------------------------------
++        "settings": {
++            // Banner arrangement. Default "default_steam".
++            //   "default_steam"        achievement art, text, rarity icon (283 px wide)
++            //   "default_system_right" same, plus the system icon on the right (400 px)
++            //   "compact_pill"         slim capsule: art, title and rarity icon, no description (48 px tall)
++            //   "ps5"                  art left, rarity icon before the title, system icon right (400 px)
++            //   "custom"               you place each icon: see "layout" below (400 px)
++            "layout": "custom",
++
++            // Text alignment for every tier (a tier's text.align overrides it).
++            //   "left" | "center" | "right". Default "left".
++            "text_align": "left",
++
++            // Only for achievement banners, overriding the theme's settings above:
++            // "position": "bottom_center",
++            // "animation": "fade",
++            // "display_time_ms": 6000,
++        },
++
++        // ---------------------------------------------------------------------
++        // layout: only used with "layout": "custom". Where each icon sits.
++        //   "left" | "right"                          outer zones of the banner
++        //   "achievement_left" | "achievement_right"  the same zones (after any "left"/"right" icon)
++        //   "title_left" | "title_right"              inline with the title line
++        //   "desc_left"  | "desc_right"               inline with the description line
++        // The text is always the middle column. Two icons may share a slot.
++        // Defaults: achievement "left", system "right", rarity "title_left".
++        // ---------------------------------------------------------------------
++        "layout": {
++            "achievement": "left",
++            "system": "right",
++            "rarity": "title_left",
++        },
++
++        // ---------------------------------------------------------------------
++        // tiers: one style per rarity tier. Only "normal" is required.
++        // ("themes" is accepted as an older name for "tiers".)
++        //
++        // Tier chosen per unlock, first match wins:
++        //   exceptional  the synthetic "100% complete" toast shown after the unlock
++        //                that completes a game
++        //   rare         global unlock % <= rare.threshold
++        //   magic        global unlock % <= magic.threshold
++        //   normal       everything else, and games without rarity data
++        //
++        // Inheritance: magic, rare and exceptional start from "normal" and override
++        // only what they set. Objects merge key by key; arrays and plain values
++        // replace whole (set "border" and you set all three of its values).
++        // ---------------------------------------------------------------------
++        "tiers": {
++            "normal": {
++                // ---- banner: the box itself ------------------------------------
++                // ("box" is accepted as an older name for "banner".)
++                "banner": {
++                    // [width %, height %] of the box, 25-400. One number (5 or [5]) = both. Default [100, 100].
++                    // Only the box grows or shrinks; text and icons keep their own sizes.
++                    "scale": [100, 100],
++
++                    // Base size in px before "scale". Default: the layout's own size.
++                    // "width": 400,   // 100-2000
++                    // "height": 70,   // 30-1000
++
++                    // One colour = solid; two or more = a gradient, in order. Default ["#1b2838", "#2a475e"].
++                    "background_color": ["#1b2838", "#2a475e"],
++
++                    // Gradient direction in degrees, -360-360: 90 = left to right,
++                    // 180 = top to bottom, 135 = diagonal. Default 90.
++                    "gradient_angle": 90,
++
++                    // [stroke width px 0-20, colour, corner radius px 0-100]. Default [0, "#ffffff", 4].
++                    // Width 0 = no stroke. Radius 0 = square, 15 = rounded, 35 = capsule.
++                    "border": [1, "#66c0f455", 6],
++
++                    // [colour, spread, pulse ms]. Parsed but currently has no visual
++                    // effect (kept so older themes load without warnings).
++                    "glow": ["#000000", 0, 0],
++
++                    // Distance from the anchored corner, CSS shorthand, clockwise, -100-200:
++                    // one number, [vertical, horizontal], [top, horizontal, bottom] or
++                    // [top, right, bottom, left]. Default 0. Only the anchored sides count;
++                    // the horizontal ones are ignored for "top_center" / "bottom_center".
++                    "margin": 8,
++
++                    // Space inside the box, the same shorthand, 0-100. Default [6, 10].
++                    "padding": [6, 10],
++
++                    // [between columns px, between text rows px], 0-100. One number (5 or [5]) = both. Default [10, 2].
++                    "gap": [10, 2],
++                },
++
++                // ---- text --------------------------------------------------------
++                "text": {
++                    // Overrides settings.text_align for this tier: "left" | "center" | "right".
++                    // "align": "left",
++
++                    // [colour, size %, style]. Size 25-400 (100 = Steam's size).
++                    // Style "bold" | "regular" | "italic".
++                    // Defaults: title ["#ffffff", 100, "bold"], desc ["#c7d5e0", 100, "regular"].
++                    "title": ["#ffffff", 100, "bold"],
++                    "desc": ["#c7d5e0", 100, "regular"],
++                },
++
++                // ---- icons -------------------------------------------------------
++                // Each slot: [source, scale %, ripple ms], or a bare source.
++                //   source    true  = Steam's own image (the achievement's art;
++                //                     Steam's logo for "system"; nothing for "rarity")
++                //             false = hidden
++                //             "assets/file.svg" = your own .png/.jpg/.gif/.webp/.svg, relative
++                //                     to this theme's folder (an absolute path also works)
++                //   scale %   10-300, 100 = the slot's standard size
++                //   ripple ms 0 = still; > 0 = an expanding ring pulses from the icon every N ms
++                // Two-value form [source, n]: n > 100 is read as ripple ms, otherwise as scale %.
++                // Defaults: achievement true, system false, rarity false.
++                "icons": {
++                    "achievement": [true, 100, 0],
++                    "system": [true, 60, 0],
++                    "rarity": ["assets/trophy_bronze.svg", 100, 0],
++                },
++
++                // ---- sound -------------------------------------------------------
++                // ["path", volume %]: .mp3, .wav or .ogg, volume 0-100, relative to
++                // this theme's folder. null (or leaving it out) uses the notification
++                // "sound" above, or Steam's own chime without one. A file that is
++                // missing or fails to decode falls back the same way.
++                // "sound": ["assets/unlock.mp3", 80],
++                "sound": null,
++            },
++
++            "magic": {
++                // Global unlock % at or below which an unlock is "magic", 0-100.
++                // Leave it out and this tier is never chosen. Not inherited.
++                "threshold": 25.0,
++                "banner": { "border": [1, "#c0c0c0aa", 6] },
++                "icons": { "rarity": ["assets/trophy_silver.svg", 100, 0] },
++            },
++
++            "rare": {
++                // Checked before magic, so keep it lower than magic's threshold.
++                "threshold": 10.0,
++                "banner": { "border": [2, "#e5a93c", 6] },
++                "text": { "title": ["#ffd56b", 100, "bold"] },
++                "icons": { "rarity": ["assets/trophy_gold.svg", 110, 1500] },
++            },
++
++            "exceptional": {
++                // No threshold: this tier is only the "100% complete" toast.
++                "banner": {
++                    "background_color": ["#0e141b", "#1b2838", "#2a475e"],
++                    "border": [2, "#40c4ff", 12],
++                },
++                "text": {
++                    // Steam lacks a built-in 100% completion achievement, so define
++                    // the custom title and description here.
++                    "title": "100% Complete",
++                    "desc": "You've unlocked all achievements!",
++                },
++                "icons": {
++                    "achievement": ["assets/trophy_platinum.svg", 100, 0],
++                    "rarity": ["assets/trophy_platinum.svg", 100, 2000],
++                },
++            },
++        },
++    },
++}
