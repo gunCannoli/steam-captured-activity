@@ -37,7 +37,7 @@ The user's decisions (asked 2026-10-01, all four the recommended option):
 | Both read the achievement eType differently: EA by the config's protobuf class (`CClientNotificationAchievement`), EN by the SDK name `Achievement` | both `steam/notification-store.ts` |
 | User state on this machine: `enhanced-achievements-dev` and `enhanced-notifications-dev` deployed and enabled; EA-dev settings `{"queue.enabled":true,"recording.add_timeline_marker":true,"recording.enabled":true,"screenshot.enabled":true,"theme":"ps5"}`; EN-dev settings `{}`; the user's theme `config/enhanced-achievements/themes/ps5.json` with `ps5_assets/` (tier sounds and icons) | `C:\game\steam\millennium\config\config.json` (read only), the config folder |
 | steam-cartridges imports EA's test helper: `steam-cartridges/tests/buckets.mjs` and `tests/steam-store.mjs` import `../../enhanced-achievements/tests/cdp.mjs` | grep |
-| Baseline tests: EN 68, EA 128, steam-cartridges 240, all pass; `tsc` clean in all three | § 3 |
+| Baseline tests: EN 68, EA 128, steam-cartridges 253 (240 at `080b5d4`; F2c added 13 in `bc1f172`), all pass; `tsc` clean in all three | § 3 |
 
 ### 1.3 Ruled out
 
@@ -106,7 +106,7 @@ Run from `c:\game\millennium` in PowerShell. Every line must hold before step 1.
 | P3 | `cd enhanced-notifications; npm run check; $LASTEXITCODE; cd ..` | after the banner and `> tsc --noEmit`: nothing, then `0` |
 | P4 | `cd enhanced-notifications; npm test 2>&1 \| Select-String '^ℹ (pass\|fail)'; cd ..` | `ℹ pass 68`, `ℹ fail 0` |
 | P5 | `cd enhanced-achievements; npm test 2>&1 \| Select-String '^ℹ (pass\|fail)'; cd ..` | `ℹ pass 128`, `ℹ fail 0` |
-| P6 | `cd steam-cartridges; npm test 2>&1 \| Select-String '^ℹ (pass\|fail)'; cd ..` | `ℹ pass 240`, `ℹ fail 0` |
+| P6 | `cd steam-cartridges; npm test 2>&1 \| Select-String '^ℹ (pass\|fail)'; cd ..` | `ℹ pass 253`, `ℹ fail 0` |
 | P7 | `git apply --check docs/plans/enhanced-notifications-achievements-merge/p1-pure-domain.patch; $LASTEXITCODE` | `0` (a `new blank line at EOF` warning may print; it is expected) |
 | P8 | `node steam-lock.mjs status` | anything; you will not touch Steam (§ 5), this is only so you know whether a live run is in progress |
 
@@ -347,7 +347,7 @@ junction: if it says `Junction`, stop, § 10, and do not delete); the last print
 
 Checks: check; **EN 162** (169 minus the seven drift checks against enhanced-achievements);
 `cd steam-cartridges; npm run check; $LASTEXITCODE; npm test 2>&1 | Select-String '^ℹ (pass|fail)'; node --check tests/buckets.mjs; node --check tests/steam-store.mjs; cd ..`
-prints `0`, `ℹ pass 240`, `ℹ fail 0`, nothing else; `git grep -n "enhanced-achievements" -- enhanced-notifications/frontend steam-cartridges/frontend steam-cartridges/tests`
+prints `0`, `ℹ pass 253`, `ℹ fail 0`, nothing else; `git grep -n "enhanced-achievements" -- enhanced-notifications/frontend steam-cartridges/frontend steam-cartridges/tests`
 prints exactly 6 lines, all comments naming the merge (`index.tsx:44`, `safety/features.ts:17`, `settings/settings-panel.tsx:15`,
 `steam/notification-store.ts:88`, `surfaces/style/injector.ts:30`, `theme/achievements.ts:373`).
 
@@ -464,7 +464,7 @@ If the Goal sentence is worded differently from the text above, leave it and onl
   handshake; one sound and one duration surface; a random preview never posts `TestAchievement` (the unlock sensor would
   capture it). The `enhanced-achievements` folder and its doc are deleted (git keeps them; base `080b5d4`); its live
   checks are `enhanced-notifications/tests/achievements-*.mjs`. Tests: enhanced-notifications 68 → 162, steam-cartridges
-  240 unchanged. Plan: docs/plans/enhanced-notifications-achievements-merge-plan.md (dry-run); live verification pending.
+  unchanged. Plan: docs/plans/enhanced-notifications-achievements-merge-plan.md (dry-run); live verification pending.
 ```
 
 Checks: `git diff --stat` lists the 14 files of step 6 plus `TASK.md` and `CHANGELOG.md`;
@@ -504,12 +504,12 @@ After step 7's commit, re-read each guardrail in [plugins.md](../plugins.md) and
 
 | After | EN `npm test` | EA `npm test` | steam-cartridges | Also |
 | --- | --- | --- | --- | --- |
-| P | 68 | 128 | 240 | |
+| P | 68 | 128 | 253 | |
 | 1 | 156 (+ achievements theme, hook and sensor, queue, timing, geometry, capture, kernel) | 128 | — | allowlist `[]` |
 | 2 | 168 (+ merged sound and duration, completion, reset, the MoveTo-writers check, jsx-hook drift) | 128 | — | build Succeeded |
 | 3 | 169 (+ bundled banner themes) | 128 | — | |
 | 4 | 169 | 128 | — | every `.mjs` passes `node --check` |
-| 5 | 162 (−7 drift checks against EA) | gone | 240 | 6 history comments left |
+| 5 | 162 (−7 drift checks against EA) | gone | 253 | 6 history comments left |
 | 6, 7 | — | — | — | docs only |
 
 ## 9. Live verification (the user, or a verifier the user names)
@@ -608,6 +608,9 @@ retry, edit a patch, edit around the failure or skip ahead. A `git apply` that f
   | 3 | 10 | 0 | 169/0 | 128/0 | |
   | 4 | 15 | 0 | 169/0 | 128/0 | `node --check` of all 25 scripts: none bad |
   | 5 | 117 | 0 | 162/0 | — | steam-cartridges check 0, 240/0; 6 history comments |
+
+  Re-checked on `bc1f172` (after F2c landed): all six patches apply in order; steam-cartridges is 253/0 there (F2c's
+  tests), and the patches do not change that count.
   | 6 | 14 | — | — | — | |
 
   The final tree is identical to the scratch tree (`git diff --stat` empty, `docs/plans` aside). Step 7's hand edits
