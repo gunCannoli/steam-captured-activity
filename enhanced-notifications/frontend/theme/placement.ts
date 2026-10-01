@@ -42,7 +42,7 @@ export function stackOffset(corner: Corner, y: number, height: number, avail: Re
 
 /**
  * The popup's place for one of Steam's moves. `margin` pushes it inward from the theme's corner, only on the sides the
- * corner is anchored to (enhanced-achievements' rule); the horizontal margins are ignored for the centred positions.
+ * corner is anchored to (the achievement banner's rule); the horizontal margins are ignored for the centred positions.
  * Not clamped to the screen: the slide in starts past the edge on purpose.
  */
 export function placeToast(

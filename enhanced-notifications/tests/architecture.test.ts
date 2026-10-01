@@ -40,10 +40,10 @@ function walk(dir: string): string[] {
 
 const rel = (file: string) => relative(FRONTEND, file).split(sep).join('/');
 
-/** Folders whose children are separate areas: one surface each. */
-const GROUPED = new Set(['surfaces']);
+/** Folders whose children are separate areas: one surface or sensor each. */
+const GROUPED = new Set(['sensors', 'surfaces']);
 
-/** "steam", "theme", "surfaces/sound", or a root file name ("index", "rpc"). */
+/** "steam", "theme", "banner", "surfaces/sound", "sensors/unlock", or a root file name ("index", "rpc"). */
 export function areaOf(file: string): string {
     const parts = rel(file).split('/');
     const stem = (s: string) => s.replace(/\.(ts|tsx)$/, '');
@@ -57,9 +57,11 @@ const LAYER_RULES: [RegExp, RegExp][] = [
     [/^index$/, /./], // the composition root wires everything
     [/^(?!safety$|kernel$)/, /^safety$/], // every layer may use the kill switches; safety and kernel import nothing of ours
     [/^(?!kernel$|safety$)/, /^kernel$/], // every layer may use the kernel contracts
+    [/^(banner|capture)$/, /^theme$/], // pure domain: the achievement banner's and the captures' types and pure functions of the theme
     [/^theme$/, /^(rpc|settings)$/], // active-theme.ts loads through RPC and follows the theme setting
-    [/^settings$/, /^(rpc|theme|steam)$/], // previews are injected as a prop; steam is the read-only toasts-off flag and claims()
-    [/^surfaces\//, /^(steam|theme|settings)$/],
+    [/^settings$/, /^(rpc|theme|capture|steam)$/], // previews are injected as a prop; capture holds the sliders' ranges; steam is the read-only toasts-off flag
+    [/^sensors\//, /^(steam|theme)$/],
+    [/^surfaces\//, /^(steam|theme|banner|capture|settings)$/],
 ];
 
 export function ruleAllows(edge: string): boolean {
@@ -124,27 +126,54 @@ test('architecture: no new cross-area import (ratchet)', () => {
 
 /** Files `npm test` runs under node: no Steam, SDK, React or logger. */
 export const PURE = [
+    'banner/geometry.ts',
+    'banner/queue.ts',
+    'banner/styles.ts',
+    'banner/timing.ts',
+    'capture/plan.ts',
+    'kernel/events.ts',
     'kernel/notification.ts',
+    'kernel/reset.ts',
     'kernel/surface.ts',
     'kernel/toast-selectors.ts',
     'safety/boot.ts',
     'safety/features.ts',
     'safety/runtime.ts',
+    'sensors/unlock/unlock.ts',
     'steam/notification-hook.ts',
     'steam/toast-pop.ts',
     'surfaces/duration/duration.ts',
     'surfaces/preview/pick.ts',
     'surfaces/sound/sound.ts',
     'surfaces/style/type-source.ts',
+    'theme/achievements.ts',
     'theme/jsonc.ts',
     'theme/placement.ts',
+    'theme/schema.ts',
     'theme/theme.ts',
 ];
 
 test('architecture: layer rules allow the intended edges and nothing they forbid', () => {
-    const allowed = ['index -> surfaces/style', 'surfaces/sound -> steam', 'surfaces/duration -> theme', 'settings -> steam', 'theme -> rpc', 'steam -> kernel', 'theme -> kernel'];
+    const allowed = [
+        'index -> surfaces/style',
+        'surfaces/sound -> steam',
+        'surfaces/sound -> banner',
+        'surfaces/duration -> theme',
+        'sensors/unlock -> steam',
+        'settings -> steam',
+        'settings -> capture',
+        'theme -> rpc',
+        'steam -> kernel',
+        'theme -> kernel',
+    ];
     const forbidden = [
         'surfaces/style -> surfaces/sound',
+        'surfaces/banner -> surfaces/style',
+        'surfaces/sound -> sensors/unlock',
+        'sensors/unlock -> surfaces/sound',
+        'sensors/unlock -> settings',
+        'banner -> steam',
+        'capture -> steam',
         'steam -> surfaces/style',
         'steam -> theme',
         'steam -> settings',

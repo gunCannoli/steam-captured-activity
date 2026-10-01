@@ -76,7 +76,7 @@ function discoverConfigs(p: NotificationStoreHandle['proto']): NotificationStore
     for (let eType = 1; eType <= last; eType++) {
         captured = undefined;
         try {
-            p.PlayNotificationSound.call(standIn, { eType });
+            p.PlayNotificationSound.call(standIn, { eType } as SteamNotification);
         } catch {
             continue;
         }

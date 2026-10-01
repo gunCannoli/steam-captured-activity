@@ -1,4 +1,4 @@
-// Safety unit tests (same design as enhanced-achievements, ADR-0043): kill switches, error budget, safe mode, boot sentinel.
+// Safety unit tests (ADR-0043, ADR-0047): kill switches, error budget, safe mode, boot sentinel.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFeatureSwitches, FEATURE_IDS, parseDisabled, SAFE_MODE_FEATURES } from '../frontend/safety/features.ts';
@@ -11,7 +11,7 @@ function memory() {
 }
 
 test('features: the ids users type never change (append only)', () => {
-    assert.deepEqual([...FEATURE_IDS], ['style', 'sound', 'duration', 'preview', 'placement']);
+    assert.deepEqual([...FEATURE_IDS], ['style', 'sound', 'duration', 'preview', 'placement', 'banner', 'completion', 'captures', 'toasts', 'reset']);
 });
 
 test('features: parseDisabled trims and ignores empties', () => {

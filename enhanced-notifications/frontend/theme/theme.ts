@@ -9,35 +9,25 @@
  * level. Anything a theme does not set stays Steam's own: a resolved field of
  * `null` means "leave it stock", so the generated CSS only touches what the
  * theme asks for. Icons, logos and text content are never replaced.
+ *
+ * The optional `achievements` block (./achievements.ts) replaces achievement
+ * toasts with a themed banner per rarity tier. Without it, achievement toasts
+ * get this same style, like every other toast.
  */
 
 import type { ToastSelectors } from '../kernel/toast-selectors.ts';
+import { ANIMATIONS, POSITIONS, type Animation, type AnimationPair, type Edges, type FontStyle, type SoundSpec, type ToastPosition } from './schema.ts';
+import { resolveAchievementTheme, type AchievementTheme } from './achievements.ts';
 
 /** Re-exported: theme.test.ts and active-theme.ts read it from here. */
 export type { ToastSelectors };
+/** Re-exported: placement.ts and the surfaces read them from here. */
+export { ANIMATIONS, POSITIONS };
+export type { Animation, AnimationPair, Edges, FontStyle, SoundSpec, ToastPosition };
 
-// --- placement and animation (same names and values as enhanced-achievements) ---------
+// --- placement and animation (the same names and values as the achievement banner's) ---------
 
-export const POSITIONS = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'top_center', 'bottom_center'] as const;
-export type ToastPosition = (typeof POSITIONS)[number];
-
-export const ANIMATIONS = ['slide', 'fade', 'up', 'down', 'ps5', 'none'] as const;
-export type Animation = (typeof ANIMATIONS)[number];
-
-export interface AnimationPair {
-    in: Animation;
-    out: Animation;
-}
-
-/** One px value per side, for `margin` and `padding`. */
-export interface Edges {
-    top: number;
-    bottom: number;
-    left: number;
-    right: number;
-}
-
-/** [entrance, exit] ms, enhanced-achievements' lengths (its banner/timing.ts). */
+/** [entrance, exit] ms, the achievement banner's lengths (banner/timing.ts). */
 export const ANIMATION_MS: Record<Animation, [number, number]> = {
     fade: [400, 300],
     slide: [350, 300],
@@ -57,17 +47,10 @@ export const STEAM_OUT_MS = 300;
 
 // --- resolved style ---------------------------------------------------------------
 
-export type FontStyle = 'bold' | 'regular' | 'italic';
-
 export interface TextStyle {
     color: string | null;
     sizePct: number | null;
     style: FontStyle | null;
-}
-
-export interface SoundSpec {
-    path: string;
-    volumePct: number;
 }
 
 /** Every field `null` = keep Steam's own. */
@@ -100,7 +83,9 @@ export interface ResolvedTheme {
     displayTimeMs: number | null;
     /** The one style every notification gets. */
     style: ResolvedStyle;
-    /** Every custom asset path the theme references (the sound), for the backend to load. */
+    /** The achievement banner (the `achievements` block), or `null`: achievement toasts get `style` like every other toast. */
+    achievements: AchievementTheme | null;
+    /** Every custom asset path the theme references (sounds and the banner's icons), for the backend to load. */
     assetPaths: string[];
     warnings: string[];
 }
@@ -127,7 +112,7 @@ function oneOf<T extends string>(v: unknown, list: readonly T[]): T | undefined 
 }
 
 /**
- * `margin` / `padding`, in CSS's shorthand order (clockwise, same in enhanced-achievements): a bare `v` or `[v]` sets
+ * `margin` / `padding`, in CSS's shorthand order (clockwise, the same in the achievement banner): a bare `v` or `[v]` sets
  * all four sides; `[vertical, horizontal]`; `[top, horizontal, bottom]`; `[top, right, bottom, left]`.
  * A side that is missing or out of range takes `fallback`. Unset: `null` (Steam's own).
  */
@@ -152,7 +137,7 @@ function gapPair(raw: unknown): [number | null, number | null] {
 
 /**
  * `settings.animation` is a bare string (both states use it) or `{ "in": ..., "out": ... }`; an unset side of the
- * object keeps enhanced-achievements' default (slide in, fade out). Unset or invalid as a whole: `null`, Steam's slide.
+ * object keeps the achievement banner's default (slide in, fade out). Unset or invalid as a whole: `null`, Steam's slide.
  */
 function resolveAnimation(raw: unknown, warnings: string[]): AnimationPair | null {
     if (raw === undefined || raw === null) return null;
@@ -245,8 +230,40 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     if (raw.display_time_ms !== undefined) warnings.push('display_time_ms moved into "settings"; ignored here.');
 
     const style = resolveStyle(raw, warnings);
-    const assetPaths = style.sound ? [style.sound.path] : [];
-    return { position, animation, displayTimeMs, style, assetPaths, warnings };
+    const achievements = resolveAchievements(raw.achievements, { position, animation: animation ? settings.animation : undefined, displayTimeMs }, warnings);
+    const assetPaths = new Set<string>(style.sound ? [style.sound.path] : []);
+    for (const path of achievements?.assetPaths ?? []) assetPaths.add(path);
+    return { position, animation, displayTimeMs, style, achievements, assetPaths: [...assetPaths], warnings };
+}
+
+/**
+ * The optional `achievements` block. Its `settings` inherit the theme's `position`, `animation` and `display_time_ms`
+ * (each one it does not set itself), so one theme reads as one look. A block that cannot be used is a warning, never a
+ * failed theme: achievement toasts then get the notification style.
+ */
+function resolveAchievements(
+    raw: unknown,
+    inherited: { position: ToastPosition | null; animation: unknown; displayTimeMs: number | null },
+    warnings: string[],
+): AchievementTheme | null {
+    if (raw === undefined || raw === null) return null;
+    if (!isObject(raw)) {
+        warnings.push('"achievements" is not an object; achievement toasts get the notification style.');
+        return null;
+    }
+    const own = isObject(raw.settings) ? raw.settings : {};
+    const settings: Json = {};
+    if (inherited.position) settings.position = inherited.position;
+    if (inherited.animation !== undefined) settings.animation = inherited.animation;
+    if (inherited.displayTimeMs !== null) settings.display_time_ms = inherited.displayTimeMs;
+    try {
+        const theme = resolveAchievementTheme({ ...raw, settings: { ...settings, ...own } });
+        for (const warning of theme.warnings) warnings.push(`achievements: ${warning}`);
+        return theme;
+    } catch (error) {
+        warnings.push(`achievements: ${error instanceof Error ? error.message : String(error)} Achievement toasts get the notification style.`);
+        return null;
+    }
 }
 
 // --- CSS generation -------------------------------------------------------------------
@@ -269,7 +286,7 @@ function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: n
  * The theme's CSS, the same for every notification. Every rule starts with
  * `body[data-en-type]`, the attribute the injector sets on a toast window while
  * it shows a toast this plugin styles (surfaces/style/injector.ts; never an
- * achievement toast enhanced-achievements draws), so nothing can match any other
+ * achievement toast the banner draws), so nothing can match any other
  * window. Returns '' when the style is all stock.
  */
 export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
@@ -349,7 +366,7 @@ const KEYFRAMES: Record<string, string> = {
     'en-out-down': 'from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-100%); }',
 };
 
-/** The keyframe for one state; slide and ps5 take their direction from the corner, as in enhanced-achievements. */
+/** The keyframe for one state; slide and ps5 take their direction from the corner, as in the achievement banner. */
 export function keyframeName(state: 'in' | 'out', a: Animation, position: ToastPosition): string | null {
     if (a === 'none') return null;
     const left = position.endsWith('_left');
@@ -397,8 +414,8 @@ export function buildAnimationCss(theme: Pick<ResolvedTheme, 'animation' | 'posi
 /**
  * Big Picture's toast position (verified live 2026-10-01): its one toast view follows a `position: fixed` placeholder
  * div Steam renders into the Big Picture window (bottom right by default), re-measured when a toast shows. So the
- * theme's corner and margin are CSS on that placeholder. One place for every toast there, achievements included
- * (enhanced-achievements has no Big Picture position). `null` position with a margin: Steam's bottom-right corner.
+ * theme's corner and margin are CSS on that placeholder; while the achievement banner shows, its own corner and its
+ * tier's margin (surfaces/style/injector.ts). `null` position with a margin: Steam's bottom-right corner.
  * '' when the theme sets neither.
  */
 export function buildPlaceholderCss(position: ToastPosition | null, margin: Edges | null, placeholder: string | undefined): string {

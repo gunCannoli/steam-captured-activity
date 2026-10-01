@@ -12,8 +12,12 @@
  * Pure: no Steam, SDK or logger import (tests/safety.test.ts).
  */
 
-/** Stable ids: users type them. Never rename one; add new ones at the end. */
-export const FEATURE_IDS = ['style', 'sound', 'duration', 'preview', 'placement'] as const;
+/**
+ * Stable ids: users type them. Never rename one; add new ones at the end. From `banner` on they came with the achievement
+ * banner (enhanced-achievements, merged into this plugin; ADR-0050): the same ids that plugin had, its `placement`
+ * being this one's.
+ */
+export const FEATURE_IDS = ['style', 'sound', 'duration', 'preview', 'placement', 'banner', 'completion', 'captures', 'toasts', 'reset'] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Safe mode keeps nothing: every toast is Steam's own. */
