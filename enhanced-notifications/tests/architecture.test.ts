@@ -1,4 +1,4 @@
-// Architecture guard (ADR-0047, same checks as enhanced-achievements' ADR-0043). Runs under `npm test`, no Steam needed.
+// Architecture guard (ADR-0043, ADR-0047, ADR-0050). Runs under `npm test`, no Steam needed.
 //
 // 1. Import ratchet: every import between two different areas of frontend/ must be
 //    allowed by LAYER_RULES or listed in tests/architecture-allowlist.json. A new
@@ -12,10 +12,8 @@
 //    achievement banner's pin on top of it (ADR-0050; its own test below).
 // 4. Every RPC the frontend calls is registered in backend/main.lua (an
 //    unregistered method crashes the backend host; knowledgebase.md).
-// 5. Shared copies have not drifted from enhanced-achievements: steam/notification-hook.ts
-//    (both plugins wrap the same Steam method with it, so they must compose),
-//    kernel/surface.ts, theme/jsonc.ts, settings/rows.tsx, pristineDuration and backend/main.lua (name swapped).
-//    Skipped when the sibling plugin is not next to this one.
+// 5. The shared copy has not drifted: steam/jsx-hook.ts (steam-cartridges). Skipped when
+//    that plugin is not next to this one.
 // 6. Every live script in tests/ is run by tests/run-live.mjs (or listed as a helper).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +23,6 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = join(ROOT, 'frontend');
-const SIBLING = join(ROOT, '..', 'enhanced-achievements', 'frontend');
 const ALLOWLIST = join(ROOT, 'tests', 'architecture-allowlist.json');
 /** Imports of these areas are never counted (shared utilities every area may use). */
 const ALWAYS_ALLOWED = new Set(['logger']);
@@ -275,31 +272,6 @@ test('architecture: steam/jsx-hook.ts is identical to the steam-cartridges copy'
     const sibling = join(ROOT, '..', 'steam-cartridges', 'frontend', 'steam', 'jsx-hook.ts');
     if (!existsSync(sibling)) return t.skip('steam-cartridges is not next to this plugin');
     assert.equal(readFileSync(join(FRONTEND, 'steam', 'jsx-hook.ts'), 'utf8'), readFileSync(sibling, 'utf8'));
-});
-
-for (const file of ['steam/notification-hook.ts', 'steam/toast-pop.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {
-    test(`architecture: ${file} is identical to the enhanced-achievements copy`, (t) => {
-        const sibling = join(SIBLING, file);
-        if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');
-        assert.equal(readFileSync(join(FRONTEND, file), 'utf8'), readFileSync(sibling, 'utf8'));
-    });
-}
-
-test('architecture: pristineDuration is identical to the enhanced-achievements copy', (t) => {
-    if (!existsSync(SIBLING)) return t.skip('enhanced-achievements is not next to this plugin');
-    const fn = (src: string) => src.match(/function pristineDuration[\s\S]*?\n}\n/)?.[0];
-    const ours = walk(FRONTEND).map((f) => fn(readFileSync(f, 'utf8'))).filter(Boolean);
-    const theirs = walk(SIBLING).map((f) => fn(readFileSync(f, 'utf8'))).filter(Boolean);
-    assert.equal(ours.length, 1, 'expected exactly one pristineDuration in frontend/');
-    assert.equal(theirs.length, 1, 'expected exactly one pristineDuration in enhanced-achievements/frontend/');
-    assert.equal(ours[0], theirs[0]);
-});
-
-test('architecture: backend/main.lua is the enhanced-achievements copy with the plugin name swapped', (t) => {
-    const sibling = join(ROOT, '..', 'enhanced-achievements', 'backend', 'main.lua');
-    if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');
-    const theirs = readFileSync(sibling, 'utf8').split('enhanced-achievements').join('enhanced-notifications');
-    assert.equal(readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8'), theirs);
 });
 
 /** Live scripts that are helpers, not checks. */

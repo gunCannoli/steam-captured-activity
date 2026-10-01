@@ -4,7 +4,7 @@
 // Usage: node tests/steam-store.mjs
 // Env: STEAM_COLL / RETRO_COLL (collection names), SC_STEAM_OWNED_NATIVE (native appid of the
 // owned fixture, default 435150), SC_STEAM_UNOWNED_NATIVE (default 2820820).
-import { connect } from '../../enhanced-achievements/tests/cdp.mjs';
+import { connect } from '../../enhanced-notifications/tests/cdp.mjs';
 
 const cdp = await connect();
 const ev = (x) => cdp.evaluate(x);

@@ -145,7 +145,7 @@ test('jsonc: a comma inside a string before } is not treated as trailing', () =>
     assert.deepEqual(parseJsonc('{"a": ",", "b": [","]}'), { a: ',', b: [','] });
 });
 
-test('settings.position and settings.animation: unset keeps Steam, enhanced-achievements values accepted', () => {
+test('settings.position and settings.animation: unset keeps Steam, the achievement banner values accepted', () => {
     const stock = resolveTheme({});
     assert.equal(stock.position, null);
     assert.equal(stock.animation, null);

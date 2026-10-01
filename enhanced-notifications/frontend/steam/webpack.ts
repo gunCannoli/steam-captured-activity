@@ -4,7 +4,7 @@ import { logger } from '../logger';
  * Steam's webpack module cache, for resolving exports that
  * `@steambrew/client` cannot reach (it only sees already-evaluated modules).
  *
- * Same technique as non-steam-games-activity/frontend/steam/modules.ts (and enhanced-achievements), kept
+ * Same technique as steam-cartridges/frontend/steam/modules.ts, kept
  * separate because plugins may not import each other (docs/plugins.md § Layout).
  *
  * NOTHING here resolves by numeric module id: ids reshuffle between Steam

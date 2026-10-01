@@ -4,8 +4,8 @@ import { beforePatch, callOriginal, replacePatch } from '@steambrew/client';
  * A self-healing patch on Steam's shared `react/jsx-runtime` (`jsx` / `jsxs`),
  * safe to use from several plugins at once.
  *
- * SAME FILE in every plugin that hooks jsx (non-steam-games-activity,
- * enhanced-achievements); plugins may not import each other, so keep the copies
+ * SAME FILE in every plugin that hooks jsx (steam-cartridges,
+ * enhanced-notifications); plugins may not import each other, so keep the copies
  * identical. Design: docs/plugins.md, "Sharing the jsx runtime between plugins".
  *
  * Why: each plugin used to re-patch whenever `runtime.jsx` was not its own

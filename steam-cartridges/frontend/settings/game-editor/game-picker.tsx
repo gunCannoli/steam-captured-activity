@@ -1,5 +1,5 @@
 // Game Data editor: the text filter and the dropdown of every non-Steam shortcut (features plan F1).
-// One card, like Reset Achievements in enhanced-achievements: the controls stack, each across the full row.
+// One card, like Reset Achievements in enhanced-notifications: the controls stack, each across the full row.
 import { Dropdown, TextField } from "@steambrew/client";
 import { usePanelContext } from "../context";
 import { CONTROL_GAP, STEAM_TRAILING } from "../components";

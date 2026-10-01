@@ -8,9 +8,9 @@
  * prototype wrapper still runs) and returns its value unchanged. `onPop` sees only real toasts (a non-null object)
  * and cannot break Steam's pop: its error goes to `reportError`. Pure (no imports), so `npm test` checks it.
  *
- * Shared, identical, by enhanced-notifications (the type of the toast on screen) and enhanced-achievements (its
- * forced Big Picture position): each architecture test fails when the copies differ. Whichever plugin installs second
- * wraps the first one's own property, so both listeners run on every pop, in either load order.
+ * Written to compose, like the notification hook: whichever install comes second (another plugin, or the released
+ * and the -dev copy loaded together) wraps the first one's own property, so both listeners run on every pop, in
+ * either load order (tests/bigpicture-type.test.ts).
  */
 type PopFn = (this: unknown, ...args: unknown[]) => unknown;
 

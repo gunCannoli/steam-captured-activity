@@ -4,9 +4,8 @@ import { toastsEnabled } from "../steam/notification-settings";
 import { DEFAULTS, RANGES, useSetting, type SettingKey } from "./settings";
 
 /**
- * Settings panel rows and the spacing system (docs/plugins.md guardrail 18). SAME FILE in
- * enhanced-achievements and enhanced-notifications (plugins may not import each other):
- * each plugin's tests/architecture.test.ts fails when the copies differ. Change both in one commit.
+ * Settings panel rows and the spacing system (docs/plugins.md guardrail 18): the reference
+ * every plugin's settings panel copies (steam-cartridges' settings/components.tsx follows it).
  */
 
 // Compact row wrapper to reduce inter-item vertical spacing and

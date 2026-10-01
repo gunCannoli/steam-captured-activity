@@ -2,7 +2,7 @@
 // run it only with the user's OK). Needs Steam with DevTools and two fixture
 // collections. Usage: node tests/buckets.mjs
 // Assumes the plugin's exports are reachable as PLUGIN_LIST[name] (dev copy first).
-import { connect } from '../../enhanced-achievements/tests/cdp.mjs';
+import { connect } from '../../enhanced-notifications/tests/cdp.mjs';
 
 const cdp = await connect();
 const ev = (x) => cdp.evaluate(x);

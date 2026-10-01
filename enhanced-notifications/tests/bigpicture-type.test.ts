@@ -1,5 +1,5 @@
 // Which signal sets the type of the toast on screen (surfaces/style/type-source.ts) and the
-// PopNextToastNotification wrapper that provides the `pop` signal (steam/toast-pop.ts, shared with enhanced-achievements).
+// PopNextToastNotification wrapper that provides the `pop` signal (steam/toast-pop.ts).
 // Regression guard for the Big Picture flicker: a toast that ARRIVES while another is on screen
 // must never restyle it (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
 import test from 'node:test';
@@ -103,7 +103,7 @@ test('toast pop: no method, no wrapper', () => {
     assert.equal(installToastPop({}, () => {}, () => {}), null);
 });
 
-test('toast pop: both toast plugins install it, in either order, and both hear every pop', () => {
+test('toast pop: two installs (another plugin, or the released and the -dev copy), in either order, both hear every pop', () => {
     for (const order of [['en', 'ea'], ['ea', 'en']]) {
         const { proto, store } = fakeStore([{ eType: 1 }, { eType: 5 }]);
         const original = proto.PopNextToastNotification;

@@ -1,5 +1,5 @@
 // Shared building blocks of the settings panels (migration plan M8c). The spacing system and row kinds are the ones of
-// enhanced-achievements (its settings-panel.tsx), the reference; the rules are in docs/plugins.md § Settings panel layout.
+// enhanced-notifications (its settings/rows.tsx), the reference; the rules are in docs/plugins.md § Settings panel layout.
 import { Children, useEffect } from "react";
 import { DialogButton, Field, PanelSectionRow, Toggle as SteamToggle } from "@steambrew/client";
 
