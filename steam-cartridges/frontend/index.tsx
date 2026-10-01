@@ -196,7 +196,11 @@ const media = createMedia({
     titleOf: (appid) => shortcutTitle(appid),
     allowWeb: (appid) => setting("services").igdbEnabled !== false && routing.serviceAllowed("igdb", appid),
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.mediaServiceAllowed("screenscraper", appid),
-    toggles: () => ({ trailers: setting("communityShowTrailers") !== false, artworks: setting("communityShowArtworks") !== false }),
+    toggles: () => ({
+        trailers: setting("communityShowTrailers") !== false,
+        artworks: setting("communityShowArtworks") !== false,
+        manuals: setting("communityShowManuals") !== false,
+    }),
     objectUrl,
 });
 

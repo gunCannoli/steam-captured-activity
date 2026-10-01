@@ -44,3 +44,13 @@ test('community media: ScreenScraper images keep their place when IGDB has more 
     assert.deepEqual(out.slice(0, 3), [video(), ssShot, ssArt], 'trailers, then ScreenScraper, before any IGDB image');
     assert.equal(out.findIndex((i) => i.source === 'igdb' && i.kind === 'artwork') > 2, true);
 });
+
+test('community media: a ScreenScraper manual is the first card, behind its own toggle (features plan F2c)', () => {
+    const manual = { kind: 'manual', source: 'screenscraper', key: 'manuel(us)', width: 1280, height: 720 } as any;
+    assert.ok(isShowable(manual));
+    assert.ok(!isShowable({ kind: 'manual', source: 'screenscraper' } as any), 'a manual needs its key');
+    const media = { items: [video(), shot(1), ssArt, manual] };
+    assert.deepEqual(visibleMedia(media, { ...ON, manuals: true }), [manual, video(), ssArt, shot(1)]);
+    assert.deepEqual(visibleMedia(media, { ...ON, manuals: false }), [video(), ssArt, shot(1)]);
+    assert.deepEqual(visibleMedia(media, { trailers: false, artworks: false, manuals: true }), [manual]);
+});

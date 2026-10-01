@@ -104,6 +104,15 @@ export interface MediaImageResponse {
     error?: string;
 }
 
+/** One chunk of a ScreenScraper manual (features plan F2c): 1 MiB of the PDF as base64, never the URL. */
+export interface ManualChunkResponse {
+    base64?: string;
+    index?: number;
+    chunks?: number;
+    size?: number;
+    error?: string;
+}
+
 export interface RecordResponse {
     appid: number;
     parts: Partial<Record<RecordPart, Part<unknown>>>;
@@ -152,6 +161,10 @@ export const backend = {
     /** Community media (features plan F2b): one ScreenScraper image, downloaded by the backend into memory. */
     getMediaImage(appid: number, key: string, title?: string): Promise<MediaImageResponse> {
         return call<MediaImageResponse>("GetMediaImage", { appid, key, title });
+    },
+    /** Manuals (features plan F2c): chunk `index` (0-based) of a ScreenScraper PDF; chunk 0 downloads it in the backend. */
+    getManualChunk(appid: number, key: string, index: number, title?: string): Promise<ManualChunkResponse> {
+        return call<ManualChunkResponse>("GetManualChunk", { appid, key, index, title });
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

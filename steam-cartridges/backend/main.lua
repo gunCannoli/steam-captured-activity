@@ -58,6 +58,8 @@ GetNewShortcuts = RECORD_RPC.GetNewShortcuts
 MarkKnown      = RECORD_RPC.MarkKnown
 -- Community media (features plan F2): ScreenScraper image bytes; the rest of the media part comes through EnsureFresh.
 GetMediaImage  = RECORD_RPC.GetMediaImage
+-- Manuals (features plan F2c): a ScreenScraper PDF, read in 1 MiB chunks.
+GetManualChunk = RECORD_RPC.GetManualChunk
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

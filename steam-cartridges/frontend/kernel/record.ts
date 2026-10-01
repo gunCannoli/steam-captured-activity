@@ -130,7 +130,8 @@ export interface AchievementSet {
 }
 /** One card of Steam's Community Content section (features plan F2, backend media_service.lua). */
 export interface MediaItem {
-    kind: "video" | "screenshot" | "artwork";
+    /** "manual": a ScreenScraper PDF (features plan F2c), shown as a cover card and opened page by page. */
+    kind: "video" | "screenshot" | "artwork" | "manual";
     source: "igdb" | "screenscraper";
     /** A video's YouTube id. */
     youtube?: string;

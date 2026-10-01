@@ -37,6 +37,8 @@ export interface Events {
         icon?: { path: string; previous: string };
     };
     "settings.changed": { key: string };
+    /** The community surface showed Steam's viewer for a manual card (features plan F2c): app/manuals renders its pages. */
+    "community.manual-opened": { appid: ShortcutId; key: string };
 }
 
 /** One new unlock, as the surfaces show it (name, description and icon from the record's schema). */

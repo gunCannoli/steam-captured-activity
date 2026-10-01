@@ -32,7 +32,7 @@ export interface MediaResolver {
 export function createMedia(deps: MediaDeps): MediaResolver {
     /** The item if its image is (or now gets) in the bin; undefined when ScreenScraper could not deliver it. */
     async function withImage(appid: ShortcutId, item: MediaItem): Promise<MediaItem | undefined> {
-        if (item.source !== "screenscraper") return item;
+        if (item.source !== "screenscraper" || item.kind === "manual") return item; // a manual is fetched when opened (app/manuals)
         const key = item.key!;
         const cached = deps.bin.get(appid, key);
         if (cached) return { ...item, width: cached.width ?? item.width, height: cached.height ?? item.height };
