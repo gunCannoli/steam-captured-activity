@@ -89,6 +89,20 @@ function M.fetch_jeu(appid, rom_path, system_id, crc, md5, name)
   return jeu_cache[appid]
 end
 
+--- ScreenScraper's `systemeid` for a RetroAchievements console id (retroachievements.detect_console_id). The two
+--- numberings differ: RetroAchievements' 3 is the SNES, ScreenScraper's 3 is the NES (features plan F2c, phase 0).
+M.SS_SYSTEM = {
+  [1] = 1,    -- Sega Genesis / Mega Drive
+  [2] = 14,   -- Nintendo 64
+  [3] = 4,    -- SNES
+  [5] = 12,   -- Game Boy Advance
+  [7] = 3,    -- NES
+  [12] = 57,  -- PlayStation
+  [16] = 13,  -- GameCube
+  [27] = 75,  -- Arcade (MAME)
+  [41] = 61,  -- PSP
+}
+
 --- The `jeu` for a shortcut: the ROM file name, console and MD5 read from its shortcuts.vdf entry (the
 --- RetroAchievements readers), else the title. Returns what fetch_jeu returns.
 ---@param appid number
@@ -99,12 +113,13 @@ function M.jeu_for(appid, title, info)
   local rom_path = info and ra.extract_rom_path(info.exe, info.launch_options) or nil
   local md5 = rom_path and ra.compute_rom_md5(rom_path) or nil
   local console_id = info and ra.detect_console_id(info.exe, info.launch_options) or nil
-  local by_name = not rom_path and type(title) == "string" and title ~= ""
+  local system_id = console_id and M.SS_SYSTEM[console_id] or nil
+  local has_title = type(title) == "string" and title ~= ""
   -- No ROM and no console (a PC game, a fan game): jeuInfos has nothing to match on, so look the game up by name.
-  if by_name and not console_id then return M.search_jeu(appid, title, nil) end
-  local jeu, err = M.fetch_jeu(appid, rom_path, console_id, nil, md5, title)
-  -- A console but no ROM file: the title may not be a ROM name; look it up by name on that console.
-  if not jeu and by_name and err ~= "no-credentials" then return M.search_jeu(appid, title, console_id) end
+  if not rom_path and has_title and not system_id then return M.search_jeu(appid, title, nil) end
+  local jeu, err = M.fetch_jeu(appid, rom_path, system_id, nil, md5, title)
+  -- No ROM match (a ROM name or dump ScreenScraper does not know), or no ROM file: look the title up on that console.
+  if not jeu and has_title and err ~= "no-credentials" then return M.search_jeu(appid, title, system_id) end
   return jeu, err
 end
 

@@ -407,5 +407,23 @@ check("a part never matches a different game of the same series",
   ss.best_match("Metroid - Zero Mission", { { id = "9", noms = { { text = "Metroid" } }, systeme = { id = "3", text = "NES" } } }, nil) == nil)
 check("the part after the dash can match too", ss.best_match("Fan - Another Metroid 2 Remake", { { id = "8", noms = { { text = "Another Metroid 2 Remake" } }, systeme = { text = "PC Windows" } } }, nil) ~= nil)
 
+-- ---------- ScreenScraper system ids (features plan F2c, phase 0) ----------
+print("system ids")
+local real_fetch, real_search = ss.fetch_jeu, ss.search_jeu
+local asked = {}
+ss.fetch_jeu = function(_, _, system_id) asked[#asked + 1] = { "fetch", system_id }; return nil, "request-failed" end
+ss.search_jeu = function(_, _, system_id) asked[#asked + 1] = { "search", system_id }; return { id = "9" } end
+package.loaded["retroachievements"] = {
+  extract_rom_path = function() return "C:/roms/snes/Captain Commando (USA).zip" end,
+  compute_rom_md5 = function() return "md5" end,
+  detect_console_id = function() return 3 end, -- RetroAchievements' SNES
+}
+local found = ss.jeu_for(SC, "Captain Commando", { exe = "retroarch.exe", launch_options = "" })
+check("an SNES ROM asks ScreenScraper for system 4 (its SNES), not 3 (its NES)", asked[1] and asked[1][2] == 4, asked[1] and asked[1][2])
+check("a ROM ScreenScraper does not know falls back to the title on that system",
+  asked[2] and asked[2][1] == "search" and asked[2][2] == 4 and found and found.id == "9")
+check("the console ids map to ScreenScraper's", ss.SS_SYSTEM[1] == 1 and ss.SS_SYSTEM[3] == 4 and ss.SS_SYSTEM[7] == 3 and ss.SS_SYSTEM[12] == 57)
+ss.fetch_jeu, ss.search_jeu = real_fetch, real_search
+package.loaded["retroachievements"] = nil
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

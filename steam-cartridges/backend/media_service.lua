@@ -154,8 +154,8 @@ end
 function M.image(appid, key, title)
   if type(key) ~= "string" or key == "" then return nil, "missing key" end
   local media = require("screenscraper_media")
-  local ok, jeu = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
-  if not ok or type(jeu) ~= "table" then return nil, "not-found" end
+  local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
+  if not ok or type(jeu) ~= "table" then return nil, ok and tostring(err or "not-found") or "not-found" end
   local url = media.media_url(jeu, key)
   if not url then return nil, "unknown key" end
   local body, ext, width, height = (M.deps.download or media.download)(url)
