@@ -20,6 +20,14 @@ It does **not** write to Steam (the `community` surface does, [surfaces.md](surf
 (it asks for the game Game Info already shows, `ctx.igdb_id`), and does not decide routing (ADR-0040): `allowWeb` and
 `allowScreenscraper` arrive as context, like metadata's.
 
+## ScreenScraper size minimum
+
+`app/media` shows a ScreenScraper image only when its downloaded bytes are at least `MIN_SCREENSCRAPER_BYTES` (150 KB,
+`domain/community-media.ts`; measured from the base64 text). Its title screens and console screenshots are tiny (a title
+screen here: 5 KB at 256x224; a screenshot: 62 KB at 640x480) and look poor beside IGDB's 1080p images; its fanart is large
+(429 KB at 1280x720). An image under the minimum is dropped and remembered for the session (no second download); nothing is
+stored. So in practice ScreenScraper contributes its fanart.
+
 ## Contract
 
 ```lua

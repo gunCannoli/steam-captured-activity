@@ -24,6 +24,7 @@ import {
     CREATOR_STEAMIDS,
     isContentSection,
     isCreatedByLabel,
+    loaderIsStale,
     isDateRow,
     isPlaceholderAppIcon,
     isViewerImage,
@@ -50,6 +51,7 @@ let lastJsx: JsxHookDiagnostics[] = [];
 let learnScheduled = false;
 let unpatchLoader: (() => void) | undefined;
 let firstPageLoads = 0;
+let loaderRebuilds = 0;
 
 /** What the image viewer needs to show "Created by" and a date for one of our images (by the URL the card opens). */
 interface ViewerMeta {
@@ -63,6 +65,37 @@ let cardsHidden = 0;
 /** How many of our image viewers are open: the viewer-only tweaks (label, date, image height) apply only then. */
 let openViewers = 0;
 let served = 0;
+
+interface SectionInstance {
+    props?: { appid?: unknown };
+    m_loader?: { m_unAppID?: unknown; CancelRequests?: () => void; OnBind?: (width: number) => void; constructor: new (appid: number) => unknown };
+    m_elInnerContainer?: HTMLElement;
+    m_bOnScreen?: boolean;
+    forceUpdate?: () => void;
+}
+
+/**
+ * The section's props changed to another app but its loader is the previous one's: build a fresh loader for the new app,
+ * bind it at the container's width, and set Steam's on-screen flag from the element's real position, because Steam's own
+ * `componentDidUpdate` just cleared it and its observer only reports a change (so nothing would ever load).
+ */
+function rebuildStaleLoader(section: SectionInstance, previousAppid: unknown): void {
+    const old = section.m_loader;
+    if (!old || !loaderIsStale(section, previousAppid, old)) return;
+    const appid = section.props!.appid as number;
+    old.CancelRequests?.();
+    const fresh = new old.constructor(appid) as NonNullable<SectionInstance["m_loader"]>;
+    const el = section.m_elInnerContainer;
+    if (el) {
+        fresh.OnBind?.(el.clientWidth); // also loads our feed at once (loadFirstPage)
+        const rect = el.getBoundingClientRect();
+        const height = el.ownerDocument.defaultView?.innerHeight ?? 0;
+        section.m_bOnScreen = rect.bottom > 0 && rect.top < height;
+    }
+    section.m_loader = fresh;
+    loaderRebuilds++;
+    section.forceUpdate?.();
+}
 
 function patchLoader(section: new (props: unknown) => { m_loader?: object }): void {
     if (unpatchLoader) return;
@@ -99,8 +132,21 @@ function patchLoader(section: new (props: unknown) => { m_loader?: object }): vo
     };
     const bindPatch = typeof proto.OnBind === "function" ? afterPatch(proto, "OnBind", loadFirstPage) : undefined;
     const resizePatch = typeof proto.OnResize === "function" ? afterPatch(proto, "OnResize", loadFirstPage) : undefined;
+    // Steam reuses the section for the next app but keeps the old loader (core.loaderIsStale): give it a fresh one.
+    const sectionProto = (section as unknown as { prototype: Record<string, unknown> }).prototype;
+    const updatePatch =
+        typeof sectionProto.componentDidUpdate === "function"
+            ? afterPatch(sectionProto, "componentDidUpdate", function (this: SectionInstance, args: unknown[], ret: unknown): unknown {
+                  try {
+                      if (deps.isEnabled("community")) rebuildStaleLoader(this, (args[0] as { appid?: unknown } | undefined)?.appid);
+                  } catch (err) {
+                      deps.reportError("community", err); // fail-open: Steam's own (stale) loader
+                  }
+                  return ret;
+              })
+            : undefined;
     unpatchLoader = () => {
-        for (const p of [resizePatch, bindPatch, patch]) p?.unpatch();
+        for (const p of [updatePatch, resizePatch, bindPatch, patch]) p?.unpatch();
     };
     lastJsx = hook?.diagnostics() ?? [];
     hook?.dispose(); // learned: the jsx observer is not needed any more
@@ -280,13 +326,14 @@ export function communityDiagnostics(): {
     feeds: Record<number, number>;
     served: number;
     firstPageLoads: number;
+    loaderRebuilds: number;
     cardsHidden: number;
     cardsHook: boolean;
     jsx: JsxHookDiagnostics[];
 } {
     const counts: Record<number, number> = {};
     feeds.forEach((feed, appid) => (counts[appid] = feed.length));
-    return { patched: !!unpatchLoader, feeds: counts, served, firstPageLoads, cardsHidden, cardsHook: !!cardsHook, jsx: hook?.diagnostics() ?? lastJsx };
+    return { patched: !!unpatchLoader, feeds: counts, served, firstPageLoads, loaderRebuilds, cardsHidden, cardsHook: !!cardsHook, jsx: hook?.diagnostics() ?? lastJsx };
 }
 
 export function createCommunitySurface(d: CommunityDeps): Surface {

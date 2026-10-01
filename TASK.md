@@ -33,7 +33,10 @@ order (the user, or an agent with the user's go-ahead):
 3. **Right-click "Save screenshot"** on one IGDB image and one ScreenScraper `blob:` image (a `blob:` download may fail: note it).
 4. **Author row click** (opens Steam's profile page for a made-up account: expected an error page; decide whether to hide the click).
 5. **A long first page / "no more content"** on a shortcut with a 20+ item feed (Super Mario World) in Big Picture.
-6. **F2c** (ScreenScraper videos, manuals, IGDB links) is not started; ScreenScraper stays limited to title screen, screenshot
+6. **Section reuse between games:** the stale-loader repair is proven on a simulated stale section only; navigation alone
+   remounted the section every time here. Open a few shortcuts one after another in Big Picture (and on a controller) and
+   confirm each COMMUNITY tab shows its own game's cards, never another game's or an empty section.
+7. **F2c** (ScreenScraper videos, manuals, IGDB links) is not started; ScreenScraper stays limited to title screen, screenshot
    and fanart by the user's decision (2026-09-30).
 Vote, award, comment and Report controls are hidden on our cards, so the plan's § 9.3 rows for them are moot.
 

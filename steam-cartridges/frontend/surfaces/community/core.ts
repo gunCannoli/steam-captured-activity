@@ -258,3 +258,19 @@ export function isCreatedByLabel(type: unknown, props: unknown): boolean {
     const p = props as { className?: unknown; children?: unknown } | null | undefined;
     return !!p && typeof p.children === "string" && typeof p.className === "string" && p.className.includes("Label") && /^created by$/i.test(p.children.trim());
 }
+
+/**
+ * Steam reuses the Community Content section for the next app and only resets its placeholder rows: the loader keeps the
+ * previous app's id, page counter, cards and "out of content" state (seen live 2026-09-30: a section for one game holding
+ * another game's 17 cards, never loading its own). True when the section now shows `appid` but its loader is still the
+ * previous one's: the section must get a fresh loader.
+ */
+export function loaderIsStale(
+    section: { props?: { appid?: unknown } } | null | undefined,
+    previousAppid: unknown,
+    loader: { m_unAppID?: unknown } | null | undefined,
+): boolean {
+    const appid = section?.props?.appid;
+    if (typeof appid !== "number" || !loader || previousAppid === appid) return false;
+    return loader.m_unAppID !== appid;
+}

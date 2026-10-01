@@ -9,6 +9,8 @@ const SC = 4263274102 as any;
 const ROUTE = { bucket: 'web-scraping', via: 'default' } as any;
 const VIDEO = { kind: 'video', source: 'igdb', youtube: 'yt1' };
 const SHOT = { kind: 'screenshot', source: 'igdb', url: 'https://i/1.jpg', width: 1280, height: 720 };
+/** A 180 KB payload: above the ScreenScraper minimum (150 KB) that decides whether an image is shown. */
+const BIG = 'QUJD'.repeat(60000);
 const FANART = { kind: 'artwork', source: 'screenscraper', key: 'fanart()', width: 1920, height: 1080 };
 
 function setup(over: Partial<Record<string, any>> = {}) {
@@ -27,7 +29,7 @@ function setup(over: Partial<Record<string, any>> = {}) {
             async getMediaImage(appid: number, key: string, title?: string) {
                 images.push({ appid, key, title });
                 if (over.imageThrows) throw new Error('transport');
-                return over.image ?? { base64: 'QUJD', ext: 'jpg', width: 800, height: 450 };
+                return over.image ?? { base64: BIG, ext: 'jpg', width: 800, height: 450 };
             },
         } as any,
         records,
@@ -36,7 +38,7 @@ function setup(over: Partial<Record<string, any>> = {}) {
         allowWeb: () => over.allowWeb ?? true,
         allowScreenscraper: () => true,
         toggles: () => over.toggles ?? { trailers: true, artworks: true },
-        objectUrl: (b64: string, ext: string) => (over.noUrl ? null : `blob:${b64}.${ext}`),
+        objectUrl: (_b64: string, ext: string) => (over.noUrl ? null : `blob:img.${ext}`),
     });
     return { media, records, calls, images, bin };
 }
@@ -64,7 +66,7 @@ test('app/media: ScreenScraper images are fetched into the bin before the record
     const s = setup();
     const part = await s.media.ensure(SC, ROUTE, undefined);
     assert.deepEqual(s.images, [{ appid: SC, key: 'fanart()', title: 'Game' }]);
-    assert.deepEqual(s.bin.get(SC, 'fanart()'), { url: 'blob:QUJD.jpg', width: 800, height: 450 });
+    assert.deepEqual(s.bin.get(SC, 'fanart()'), { url: 'blob:img.jpg', width: 800, height: 450 });
     const items = s.records.get(SC)!.media!.data!.items;
     assert.equal(items.length, 3);
     assert.deepEqual([items[1]!.width, items[1]!.height], [800, 450]);
@@ -102,4 +104,22 @@ test('app/media: a backend error is recorded as an error part', async () => {
     const part = await s.media.ensure(SC, ROUTE, undefined);
     assert.equal(part.status, 'error');
     assert.equal(s.records.get(SC)!.media!.status, 'error');
+});
+
+test('app/media: a ScreenScraper image under the size minimum is dropped, and not downloaded again this session', async () => {
+    const SMALL = 'QUJD'.repeat(1000); // 3 KB
+    const s = setup({ image: { base64: SMALL, ext: 'png', width: 256, height: 224 } });
+    const part = await s.media.ensure(SC, ROUTE, undefined);
+    assert.equal(part.status, 'ok');
+    assert.deepEqual(s.records.get(SC)!.media!.data!.items.map((i) => i.source), ['igdb', 'igdb'], 'the low-resolution capture is not a card');
+    assert.equal(s.bin.get(SC, 'fanart()'), undefined, 'nothing is kept in the bin');
+    await s.media.ensure(SC, ROUTE, undefined);
+    assert.equal(s.images.length, 1, 'the second look does not download it again');
+});
+
+test('app/media: an image at the size minimum is kept', async () => {
+    const JUST = 'QUJD'.repeat(51200); // 153,600 bytes = 150 KB
+    const s = setup({ image: { base64: JUST, ext: 'jpg', width: 800, height: 450 } });
+    await s.media.ensure(SC, ROUTE, undefined);
+    assert.equal(s.records.get(SC)!.media!.data!.items.some((i) => i.source === 'screenscraper'), true);
 });

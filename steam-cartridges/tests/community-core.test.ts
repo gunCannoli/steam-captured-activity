@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -167,4 +167,14 @@ test('community core: the viewer tweaks pick our big image, the date row and the
     assert.equal(isCreatedByLabel('div', { className: '_2b Label', children: 'Added by' }), false, 'our own label: no loop');
     assert.equal(isCreatedByLabel('div', { className: 'Title', children: 'Created by' }), false);
     assert.equal(isCreatedByLabel('div', { className: 'Label', children: ['Created by'] }), false);
+});
+
+test('community core: a loader left over from the previous app is stale, a matching one is not', () => {
+    const section = (appid: unknown) => ({ props: { appid } });
+    assert.equal(loaderIsStale(section(SC), 435150, { m_unAppID: 435150 }), true, 'the section moved to SC, the loader still has the old app');
+    assert.equal(loaderIsStale(section(SC), 435150, { m_unAppID: SC }), false, 'already rebuilt');
+    assert.equal(loaderIsStale(section(SC), SC, { m_unAppID: 435150 }), false, 'the appid did not change');
+    assert.equal(loaderIsStale(section(undefined), 435150, { m_unAppID: 435150 }), false);
+    assert.equal(loaderIsStale(section(SC), 435150, undefined), false);
+    assert.equal(loaderIsStale(null, 435150, { m_unAppID: 1 }), false);
 });

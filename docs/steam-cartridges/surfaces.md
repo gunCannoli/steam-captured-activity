@@ -462,6 +462,14 @@ so the user's "disable community content" setting still applies). `LoadAdditiona
 Native apps keep Steam's timing. Each card's author icon is an inline SVG data URI per source (`CREATOR_AVATARS`), not
 Steam's "?" avatar.
 
+**Stale loader (2026-09-30).** Steam reuses the section for the next app but its `componentDidUpdate` only resets the
+placeholder rows: the loader keeps the previous app's id, page counter, cards and "out of content" state (seen live: a section for
+one game holding another's 17 cards and never loading its own). An after-patch on the section's `componentDidUpdate`
+(`rebuildStaleLoader`, decided by `core.loaderIsStale`) builds a fresh loader for the new app, binds it (which loads our feed at
+once) and sets `m_bOnScreen` from the element's real position, because Steam's own code clears it and its observer only reports
+a change. Fail-open. Not reproduced by navigation alone (each navigation remounted); proven by giving a mounted section a stale
+loader and calling its `componentDidUpdate`. `communityDiagnostics().loaderRebuilds` counts it.
+
 **Cards and viewer (2026-09-30, ADR-0046).** For our cards only (published file id from 9e14): Steam's vote, award, comment
 and Report components render nothing and the card's gamepad menu is removed; the viewer Steam opens on an image click gets a
 creator and a date (`file_details`), no comment thread and no appid (an appid makes Steam look up app info for a non-Steam
