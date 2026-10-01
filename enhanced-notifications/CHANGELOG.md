@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Big Picture: a toast no longer flickers when another one arrives behind it.** The style followed the newest toast to arrive, not the one on screen, so a queued toast changed the showing one's look and restarted Steam's slide-in, and an achievement drawn by Enhanced Achievements could get this theme's look. The style now follows the toast Steam actually puts on screen, and is in place before it is drawn.
+
 ### Changed
 
 - **One style for every notification.** A theme is `settings` plus the style keys at the top level; `default`, `categories` and `types` are gone (a theme that still has them loads with a warning and they are ignored), and `display_time_ms` moved into `settings`. The bundled `steam_midnight` theme is one style now.

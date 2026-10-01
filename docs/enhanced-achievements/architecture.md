@@ -76,7 +76,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | --- | --- |
 | `npm test` | Pure modules: themes, tiers, queue, geometry, capture plan, safety (`tests/safety.test.ts`) |
 | `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, now empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` matches steam-cartridges' copy, and `pristineDuration`, `steam/notification-hook.ts`, `kernel/surface.ts`, `theme/jsonc.ts`, `settings/rows.tsx` and `backend/main.lua` (plugin name swapped) match enhanced-notifications' copies (both plugins wrap `PlayNotificationSound` with the same hook, ADR-0047); every live script is in `tests/run-live.mjs` |
-| `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `smoke`, `tiers`, `safety`, `queue-stress`, `captures`, `settings-sound`, `bigpicture` (SKIP unless Big Picture is open) |
+| `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `smoke`, `tiers`, `safety`, `queue-stress`, `captures`, `settings-sound`, `bigpicture` (the banner, its exit, and a toast queued behind it never restyling it, which needs enhanced-notifications loaded to mean anything; SKIP unless Big Picture is open, run it with Big Picture in front) |
 | `node tests/safety.mjs` (live) | A clean start is not in safe mode; `disabledFeatures` hands the banner back and restores it |
 
 ## How to add a feature

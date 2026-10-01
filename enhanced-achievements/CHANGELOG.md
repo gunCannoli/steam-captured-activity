@@ -9,6 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- The Big Picture live check also checks that a toast queued behind an achievement banner does not restyle it (the Enhanced Notifications flicker fix).
+
 - **`margin` and `padding` use CSS's clockwise order** (same as Enhanced Notifications): `[top, right, bottom, left]`, `[top, horizontal, bottom]`, `[vertical, horizontal]` or one number. Four values used to mean top, bottom, left, right: `[10, 5, 4, 7]` now puts 5 on the right and 7 on the left. One and two values are unchanged.
 - A theme with errors, picked or reloaded in the settings panel, opens a popup listing each one (the fields that fell back to their defaults, missing assets, sounds that would not decode, or why the theme could not load). The panel no longer shows a line under the theme picker pointing to the log. The load at Steam's start shows no popup.
 - Internal: the settings rows and spacing system moved to `settings/rows.tsx`, a copy shared with Enhanced Notifications (no visible change); more shared copies drift-checked (ADR-0047).

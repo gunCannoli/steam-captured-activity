@@ -1445,6 +1445,9 @@ Investigation and fix: [enhanced-notifications-bigpicture-toast-fix-plan.md](pla
   `cubic-bezier(0, 0.73, 0.48, 1)`) and `toastExit` (opacity 1 → 0, 300 ms, delay `var(--toast-duration)`), both
   `forwards`. Swapping that element's animation mid-toast restarts it: the toast jumps 300 px sideways (out of its
   frame) and slides back. The view is hidden `nToastDurationMS + 600` ms after it showed.
+- **Our use.** enhanced-notifications takes the type of the toast on screen from the pop
+  (`enhanced-notifications/frontend/surfaces/style/toast-pop.ts`, an own property on the store instance), never from
+  the current-toast value.
 - **Hidden window.** While the Big Picture window is not in front (`document.visibilityState === "hidden"`), the
   placeholder does not call `SetVisible(true)` itself, its rAF stops, and CSS animations in the toast view never get
   a start time (enhanced-achievements' banner stays at opacity 0). Live checks of toast visuals need Big Picture in
