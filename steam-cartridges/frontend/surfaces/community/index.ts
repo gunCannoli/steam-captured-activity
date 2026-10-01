@@ -23,11 +23,15 @@ import {
     CREATOR_NAMES,
     CREATOR_STEAMIDS,
     isContentSection,
+    isCreatedByLabel,
+    isDateRow,
     isPlaceholderAppIcon,
+    isViewerImage,
     loaderAnswer,
     shouldLoadFirstPage,
     sourceOfAccount,
     toFeedItems,
+    VIEWER_IMAGE_MAX_HEIGHT,
     type FeedItem,
 } from "./core";
 
@@ -56,6 +60,8 @@ const viewerMeta = new Map<string, ViewerMeta>();
 const viewerUrlsByApp = new Map<number, string[]>();
 let cardsHook: ReturnType<typeof keepJsxPatched> | undefined;
 let cardsHidden = 0;
+/** How many of our image viewers are open: the viewer-only tweaks (label, date, image height) apply only then. */
+let openViewers = 0;
 let served = 0;
 
 function patchLoader(section: new (props: unknown) => { m_loader?: object }): void {
@@ -115,6 +121,25 @@ function wrapped(type: object, make: (type: any) => Wrapper): Wrapper {
     return w;
 }
 
+/** Keys for the wrappers of Steam's plain `div` and `img` elements (a string type cannot key the WeakMap). */
+const LABEL_KEY = {};
+const IMAGE_KEY = {};
+
+/**
+ * Called while one of our viewers renders: counts it open until it unmounts. A hook, so it needs Steam's own React
+ * (`SP_REACT`); without it the viewer-only tweaks stay off and Steam's viewer shows as it is.
+ */
+function trackOpenViewer(): void {
+    const R = Reflect.get(globalThis, "SP_REACT") as { useRef?: (v: unknown) => { current: boolean }; useEffect?: (f: () => () => void, d: unknown[]) => void } | undefined;
+    if (!R?.useRef || !R.useEffect) return;
+    const counted = R.useRef(false);
+    if (!counted.current) {
+        counted.current = true;
+        openViewers++;
+    }
+    R.useEffect(() => () => void (openViewers = Math.max(0, openViewers - 1)), []);
+}
+
 function accountOfPersona(persona: any): number | undefined {
     const id = persona?.m_steamid;
     return typeof id?.GetAccountID === "function" ? id.GetAccountID() : undefined;
@@ -139,7 +164,18 @@ function installCards(): void {
             try {
                 const p = props as Record<string, any> | null | undefined;
                 if (!p || typeof p !== "object") return undefined;
-                if (typeof type === "string") return isPlaceholderAppIcon(type, p) && deps.isEnabled("community") ? "span" : undefined;
+                if (typeof type === "string") {
+                    if (!deps.isEnabled("community")) return undefined;
+                    if (isPlaceholderAppIcon(type, p)) return "span";
+                    if (openViewers > 0) {
+                        if (isDateRow(type, p)) return Nothing;
+                        if (isCreatedByLabel(type, p)) return wrapped(LABEL_KEY, () => (q) => jsx("div", { ...q, children: "Added by" }));
+                        if (isViewerImage(type, p, (url) => viewerMeta.has(url))) {
+                            return wrapped(IMAGE_KEY, () => (q) => jsx("img", { ...q, style: { ...q.style, maxHeight: VIEWER_IMAGE_MAX_HEIGHT } }));
+                        }
+                    }
+                    return undefined;
+                }
                 // 1. our cards' controls and gamepad menu
                 const card = cardElement(p);
                 if (card === "hide") {
@@ -156,6 +192,7 @@ function installCards(): void {
                 if (typeof p.artworkURL === "string" && p.file_details === undefined && viewerMeta.has(p.artworkURL)) {
                     if (!deps.isEnabled("community")) return undefined;
                     return wrapped(type as object, (T) => (q) => {
+                        trackOpenViewer();
                         const meta = viewerMeta.get(q.artworkURL);
                         if (!meta) return jsx(T, q);
                         return jsx(T, {
@@ -287,6 +324,7 @@ export function createCommunitySurface(d: CommunityDeps): Surface {
             feeds.clear();
             viewerMeta.clear();
             viewerUrlsByApp.clear();
+            openViewers = 0;
         },
     };
 }

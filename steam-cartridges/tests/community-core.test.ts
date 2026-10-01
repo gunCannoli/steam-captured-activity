@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isOurFeedId, isPlaceholderAppIcon, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -148,4 +148,23 @@ test('community core: only the viewer placeholder game icon is replaced', () => 
     assert.equal(isPlaceholderAppIcon('img', {}), false);
     assert.equal(isPlaceholderAppIcon('div', { className: 'AppIcon' }), false);
     assert.equal(isPlaceholderAppIcon('img', null), false);
+});
+
+test('community core: the viewer tweaks pick our big image, the date row and the Created by label, nothing else', () => {
+    const ours = (u: string) => u === 'https://x/ours.jpg';
+    const steamStyle = { maxWidth: '100%', maxHeight: '600px' };
+    assert.equal(isViewerImage('img', { src: 'https://x/ours.jpg', style: steamStyle }, ours), true);
+    assert.equal(isViewerImage('img', { src: 'https://x/other.jpg', style: steamStyle }, ours), false, 'not one of ours');
+    assert.equal(isViewerImage('img', { src: 'https://x/ours.jpg', style: { maxHeight: VIEWER_IMAGE_MAX_HEIGHT } }, ours), false, 'already capped: no loop');
+    assert.equal(isViewerImage('img', { src: 'https://x/ours.jpg' }, ours), false, 'a card image has no pixel cap');
+    assert.equal(isViewerImage('div', { src: 'https://x/ours.jpg', style: steamStyle }, ours), false);
+    assert.match(VIEWER_IMAGE_MAX_HEIGHT, /100vh/);
+    assert.equal(isDateRow('div', { className: '_1a IconAndDate' }), true);
+    assert.equal(isDateRow('div', { className: 'Fields' }), false);
+    assert.equal(isDateRow('span', { className: 'IconAndDate' }), false);
+    assert.equal(isCreatedByLabel('div', { className: '_2b Label', children: 'Created by' }), true);
+    assert.equal(isCreatedByLabel('div', { className: '_2b Label', children: 'CREATED BY' }), true);
+    assert.equal(isCreatedByLabel('div', { className: '_2b Label', children: 'Added by' }), false, 'our own label: no loop');
+    assert.equal(isCreatedByLabel('div', { className: 'Title', children: 'Created by' }), false);
+    assert.equal(isCreatedByLabel('div', { className: 'Label', children: ['Created by'] }), false);
 });

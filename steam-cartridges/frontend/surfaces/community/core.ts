@@ -229,3 +229,32 @@ export function isPlaceholderAppIcon(type: unknown, props: unknown): boolean {
     if (!p || typeof p.className !== "string" || !p.className.includes("AppIcon")) return false;
     return p.src === undefined || (typeof p.src === "string" && p.src.includes("avatars.steamstatic.com/"));
 }
+
+/**
+ * Our image viewer's layout (Big Picture, verified live 2026-09-30): the image is capped at 600 px, which on a shorter
+ * window pushes the Close button under Steam's footer bar. The cap follows the window instead: the 330 px is the space the
+ * details row, the Close button, the header and Steam's footer need.
+ */
+export const VIEWER_IMAGE_MAX_HEIGHT = "max(260px, min(600px, calc(100vh - 330px)))";
+
+/** Is this `img` the viewer's big image of one of ours, still carrying Steam's own pixel cap? O(1). */
+export function isViewerImage(type: unknown, props: unknown, isOurUrl: (url: string) => boolean): boolean {
+    if (type !== "img") return false;
+    const p = props as { src?: unknown; style?: { maxHeight?: unknown } } | null | undefined;
+    if (!p || typeof p.src !== "string" || typeof p.style?.maxHeight !== "string") return false;
+    return p.style.maxHeight.endsWith("px") && isOurUrl(p.src);
+}
+
+/** The viewer's date and game-icon row. The date is when we fetched the media, not when it was made, so it is dropped. O(1). */
+export function isDateRow(type: unknown, props: unknown): boolean {
+    if (type !== "div") return false;
+    const p = props as { className?: unknown } | null | undefined;
+    return !!p && typeof p.className === "string" && p.className.includes("IconAndDate");
+}
+
+/** The viewer's "Created by" label (English text only; another language keeps Steam's own word). O(1). */
+export function isCreatedByLabel(type: unknown, props: unknown): boolean {
+    if (type !== "div") return false;
+    const p = props as { className?: unknown; children?: unknown } | null | undefined;
+    return !!p && typeof p.children === "string" && typeof p.className === "string" && p.className.includes("Label") && /^created by$/i.test(p.children.trim());
+}

@@ -32,9 +32,8 @@ order (the user, or an agent with the user's go-ahead):
    is this Steam build or this machine, and that our cards open it where native ones do.
 3. **Right-click "Save screenshot"** on one IGDB image and one ScreenScraper `blob:` image (a `blob:` download may fail: note it).
 4. **Author row click** (opens Steam's profile page for a made-up account: expected an error page; decide whether to hide the click).
-5. **Date shown in the viewer** is the fetch time of the media (no source gives an upload date): confirm that is acceptable.
-6. **A long first page / "no more content"** on a shortcut with a 20+ item feed (Super Mario World) in Big Picture.
-7. **F2c** (ScreenScraper videos, manuals, IGDB links) is not started; ScreenScraper stays limited to title screen, screenshot
+5. **A long first page / "no more content"** on a shortcut with a 20+ item feed (Super Mario World) in Big Picture.
+6. **F2c** (ScreenScraper videos, manuals, IGDB links) is not started; ScreenScraper stays limited to title screen, screenshot
    and fanart by the user's decision (2026-09-30).
 Vote, award, comment and Report controls are hidden on our cards, so the plan's § 9.3 rows for them are moot.
 

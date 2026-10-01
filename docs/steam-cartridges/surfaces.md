@@ -468,7 +468,11 @@ creator and a date (`file_details`), no comment thread and no appid (an appid ma
 app and assert); Steam's "Created by" avatar and name render the source's inline icon and name for the made-up accounts
 (IGDB 2147483101, ScreenScraper 2147483102, below 2^31: above it Steam's signed conversion fails a protobuf uint32 assert
 when it opens the comment thread); the viewer's placeholder game icon (`AppIcon` with the default avatar as `src`) renders as
-an empty span. The date is when the media was fetched (`record.media.checkedAt`).
+an empty span. While one of our viewers is open (`openViewers`, counted by the viewer wrapper with Steam's own React hooks
+through `SP_REACT`) three more tweaks apply, so a native item's viewer is never touched: the label reads "Added by" instead of
+"Created by" (English text only), the date row is dropped (the only date we have is when the media was fetched, not when it was
+made), and the big image's height cap follows the window (`max(260px, min(600px, 100vh - 330px))`) instead of Steam's fixed
+600 px, so the Close button is not pushed under Steam's footer bar on a shorter window.
 
 **API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `firstPageLoads`, `cardsHidden`, `cardsHook`, `jsx`), exported by `index.tsx` for the live probe.
 
