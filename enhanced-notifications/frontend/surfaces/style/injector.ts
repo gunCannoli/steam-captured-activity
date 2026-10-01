@@ -1,7 +1,10 @@
-import { logger } from '../logger';
-import { setting, onSettingChange } from '../settings/settings';
-import { handles, knownTypeNames, onToastShown, typeName } from '../steam/notifications';
-import { activeTheme, cssFor, onThemeChange } from '../theme/active-theme';
+import { logger } from '../../logger';
+import { setting, onSettingChange } from '../../settings/settings';
+import { knownTypeNames, typeName } from '../../steam/notification-store';
+import { handles } from '../../steam/coexistence';
+import type { NotificationHook } from '../../steam/notification-hook';
+import { activeTheme, cssFor, onThemeChange } from '../../theme/active-theme';
+import { isEnabled, reportError } from '../../safety/runtime';
 
 /**
  * Styles Steam's toast windows without touching React.
@@ -10,8 +13,8 @@ import { activeTheme, cssFor, onThemeChange } from '../theme/active-theme';
  *   Each rule is scoped to `body[data-en-type="<Type>"]`.
  * - While a toast shows, its window's `<body>` carries `data-en-type` = the
  *   notification's Steam type name. The type comes from two Steam signals: the
- *   "toast shown" call every toast container makes (steam/notifications.ts,
- *   onToastShown; desktop popups only have this one) and NotificationStore's
+ *   "toast shown" call every toast container makes (the shared hook's
+ *   `onShown`, steam/notification-hook.ts; desktop popups only have this one) and NotificationStore's
  *   current-toast value (Big Picture). No attribute means no rule matches, so
  *   the toast stays stock.
  *
@@ -31,6 +34,11 @@ import { activeTheme, cssFor, onThemeChange } from '../theme/active-theme';
  * enhanced-achievements does? Verified live 2026-09-24: for these toasts the
  * wrapped element was not the one React committed. This approach needs no
  * React interception at all, which is also less risky.
+ *
+ * Kill switch `style` (safety/features.ts): switched off, no toast gets the
+ * attribute (so no rule matches) and uninstall removes what was written.
+ * `Millennium.AddWindowCreateHook` cannot be removed, so its callback checks
+ * `installed` first.
  */
 
 interface Popup {
@@ -70,6 +78,10 @@ const toastWindows = new Set<Window>();
 let themeCss = '';
 let currentType: string | null = null;
 let placeholderSelector: string | undefined;
+let installed = false;
+/** Registered once: Millennium has no way to remove a window-create hook. */
+let windowHookAdded = false;
+let offs: (() => void)[] = [];
 
 /** Every styled type's CSS, built once per theme load (cssFor caches per type). */
 function buildThemeCss(): string {
@@ -105,7 +117,7 @@ function forEachToastWindow(fn: (win: Window) => void): void {
         try {
             fn(win);
         } catch (error) {
-            logger.warn('Could not update a toast window:', error);
+            reportError('style', error);
         }
     }
 }
@@ -120,6 +132,7 @@ function track(win: Window | undefined | null): void {
 }
 
 function onPopup(popup: Popup): void {
+    if (!installed) return;
     const win = popup?.window;
     if (!win || !/notificationtoasts/i.test(popup.m_strName ?? '')) return;
     track(win);
@@ -164,16 +177,17 @@ function scanBigPictureToastWindows(): void {
             }
         }
     } catch (error) {
-        logger.warn('Could not scan for Big Picture toast windows:', error);
+        reportError('style', error);
     }
 }
 
 /** Decide which type (if any) the current toast should be styled as. */
 function onCurrentToast(toast: CurrentToast | null | undefined): void {
+    if (!installed) return;
     const eType = toast?.eType;
     const name = typeName(eType);
     currentType =
-        name && setting('style.enabled') && activeTheme() && handles(eType!, 'banner') && cssFor(name) !== '' ? name : null;
+        name && isEnabled('style') && setting('style.enabled') && activeTheme() && handles(eType!, 'banner') && cssFor(name) !== '' ? name : null;
     scanBigPictureToastWindows();
     forEachToastWindow(applyType);
 }
@@ -187,7 +201,8 @@ function refresh(): void {
     onCurrentToast(value?.Value ?? value?.m_currentValue ?? null);
 }
 
-export function initInjector(placeholder?: string): boolean {
+/** false: Steam lacks the current-toast value or Millennium the window hook; toasts stay stock. */
+export function installInjector(placeholder: string | undefined, onShown: NotificationHook['onShown']): boolean {
     const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
     const current = store?.CurrentToastSubscribableValue;
     const millennium = Reflect.get(globalThis, 'Millennium') as { AddWindowCreateHook?: (cb: (popup: Popup) => void) => void } | undefined;
@@ -196,14 +211,49 @@ export function initInjector(placeholder?: string): boolean {
         return false;
     }
 
+    installed = true;
     placeholderSelector = placeholder;
     themeCss = buildThemeCss();
-    current.Subscribe((toast) => toast && onCurrentToast(toast));
-    onToastShown((eType) => onCurrentToast({ eType }));
-    millennium.AddWindowCreateHook(onPopup); // existing popups now, and every new one
+    const subscription = current.Subscribe((toast) => toast && onCurrentToast(toast));
+    offs = [
+        () => subscription.Unsubscribe(),
+        onShown((n) => {
+            if (typeof n?.eType === 'number') onCurrentToast(n);
+        }),
+        onThemeChange(refresh),
+        onSettingChange((key) => {
+            if (key === 'style.enabled') refresh();
+        }),
+    ];
+    if (!windowHookAdded) {
+        windowHookAdded = true;
+        millennium.AddWindowCreateHook(onPopup); // existing popups now, and every new one
+    }
     scanBigPictureToastWindows(); // style already in place before the first Big Picture toast
-    onThemeChange(refresh);
-    onSettingChange((key) => key === 'style.enabled' && refresh());
     logger.info('Toast styling installed.');
     return true;
+}
+
+/** Stop styling and remove our `<style>` and attribute from every toast window. Idempotent. */
+export function uninstallInjector(): void {
+    installed = false;
+    for (const off of offs) {
+        try {
+            off();
+        } catch {
+            /* one failed unsubscribe must not keep the rest */
+        }
+    }
+    offs = [];
+    currentType = null;
+    for (const win of toastWindows) {
+        try {
+            if (win.closed) continue;
+            win.document?.getElementById(STYLE_ID)?.remove();
+            win.document?.body?.removeAttribute('data-en-type');
+        } catch {
+            /* a window going away mid-cleanup is fine */
+        }
+    }
+    toastWindows.clear();
 }

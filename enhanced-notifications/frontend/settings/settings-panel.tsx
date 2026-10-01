@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ButtonItem, DialogControlsSection, DialogControlsSectionHeader, DropdownItem, ToggleField } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
-import { achievementsClaims, previewCategory } from '../steam/notifications';
+import { achievementsClaims } from '../steam/coexistence';
 import { toastWarning } from '../steam/notification-settings';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
 import { CATEGORIES, type Category } from '../theme/theme';
@@ -79,7 +79,7 @@ function ThemeSection() {
     );
 }
 
-function PreviewSection() {
+function PreviewSection({ onPreview }: { onPreview: (category: Category) => Promise<void> }) {
     return (
         <DialogControlsSection>
             <DialogControlsSectionHeader>Preview a notification</DialogControlsSectionHeader>
@@ -87,7 +87,7 @@ function PreviewSection() {
                 const [label, description] = CATEGORY_LABELS[category];
                 const note = category === 'achievement' && achievementsClaims('banner') ? ' Currently handled by Enhanced Achievements.' : '';
                 return (
-                    <ButtonItem key={category} label={label} description={description + note} onClick={() => void previewCategory(category)}>
+                    <ButtonItem key={category} label={label} description={description + note} onClick={() => void onPreview(category)}>
                         Preview
                     </ButtonItem>
                 );
@@ -96,13 +96,14 @@ function PreviewSection() {
     );
 }
 
-export function SettingsPanel() {
+/** `onPreview` is injected by index.tsx: the panel never imports a surface. */
+export function SettingsPanel({ onPreview }: { onPreview: (category: Category) => Promise<void> }) {
     const warning = toastWarning();
     return (
         <>
             <ThemeSection />
             {warning && <div>{warning}</div>}
-            <PreviewSection />
+            <PreviewSection onPreview={onPreview} />
             <Toggle k="style.enabled" label="Themed style" description="Off: Steam's own look for every notification." />
             <Toggle k="sound.enabled" label="Themed sounds" description="Off: Steam's own sounds. Steam's notification sound setting is always respected." />
             <Toggle k="duration.enabled" label="Themed display time" description="Off: Steam's own display time per notification." />

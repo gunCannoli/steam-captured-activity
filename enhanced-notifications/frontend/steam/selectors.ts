@@ -1,5 +1,5 @@
 import { logger } from '../logger';
-import type { ToastSelectors } from '../theme/theme';
+import type { ToastSelectors } from '../kernel/toast-selectors';
 import { findModules } from './webpack';
 
 /**

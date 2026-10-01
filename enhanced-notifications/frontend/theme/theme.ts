@@ -9,6 +9,11 @@
  * theme asks for. Icons, logos and text content are never replaced.
  */
 
+import type { ToastSelectors } from '../kernel/toast-selectors.ts';
+
+/** Re-exported: theme.test.ts and active-theme.ts read it from here. */
+export type { ToastSelectors };
+
 // --- notification types ---------------------------------------------------------
 
 export const CATEGORIES = ['friends', 'messages', 'downloads', 'recording', 'achievement', 'system'] as const;
@@ -211,21 +216,6 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
 
 // --- CSS generation -------------------------------------------------------------------
 
-/** Selectors for Steam's toast parts, each an `:is(...)` over every module's hashed class. */
-export interface ToastSelectors {
-    desktopPopup?: string;
-    gamepadPopup?: string;
-    watermark?: string;
-    templates?: string; // StandardTemplateContainer, ShortTemplate, DesktopToastTemplate
-    shortTemplate?: string;
-    title?: string;
-    body?: string; // Body + StandardNotificationDescription
-    subtext?: string;
-    logoBox?: string; // StandardLogoDimensions + ShortLogoDimensions
-    appLogo?: string;
-    headerIcon?: string;
-}
-
 /** Steam's default font sizes for the three text parts (px), which size_pct scales. */
 const BASE_PX = { title: 11, body: 12, subtext: 11 };
 
@@ -243,7 +233,7 @@ function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: n
 /**
  * Scoped CSS for one notification type. Every rule starts with
  * `body[data-en-type="<type>"]`, the attribute the injector sets on a toast
- * window while it shows that type (style/injector.ts), so nothing can match
+ * window while it shows that type (surfaces/style/injector.ts), so nothing can match
  * any other toast or any non-toast window. Returns '' when the style is all stock.
  */
 export function buildCss(typeName: string, s: ResolvedStyle, sel: ToastSelectors): string {

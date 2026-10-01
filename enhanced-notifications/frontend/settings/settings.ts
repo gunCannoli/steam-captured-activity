@@ -31,6 +31,8 @@ export interface Settings {
     'style.enabled': boolean;
     'sound.enabled': boolean;
     'duration.enabled': boolean;
+    /** Comma-separated FeatureIds switched off (safety/features.ts); no panel control. */
+    disabledFeatures: string;
 }
 
 export type SettingKey = keyof Settings;
@@ -41,6 +43,7 @@ export const DEFAULTS: Settings = {
     'style.enabled': defaults.style.enabled,
     'sound.enabled': defaults.sound.enabled,
     'duration.enabled': defaults.duration.enabled,
+    disabledFeatures: defaults.disabledFeatures,
 };
 
 /** Numeric ranges (none yet; kept for parity with validate()). */
