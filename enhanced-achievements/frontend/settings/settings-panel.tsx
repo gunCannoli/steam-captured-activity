@@ -10,11 +10,11 @@ import {
 } from "@steambrew/client";
 import { logger } from "../logger";
 import { rpc, type ThemeEntry } from "../rpc";
-import { activeTheme, onThemeChange, reloadTheme } from "../theme/active-theme";
+import { activeTheme, onThemeChange, reloadTheme, themeIssues, type ThemeIssues } from "../theme/active-theme";
 import { TIERS, type Tier } from "../theme/theme";
 import { filterCandidates, type AchievementResetApi, type ResetCandidate, type ResetResult } from "../kernel/reset";
 import { showDialog } from "../steam/modal";
-import { resetSettings, setting, useSetting } from "./settings";
+import { resetSettings, useSetting } from "./settings";
 import { Blocks, ButtonRow, CARD_BACKGROUND, CONTROL_GAP, ItemRow, SliderRow, STEAM_TRAILING, ToggleRow, usePanelDisabled } from "./rows";
 
 // Rows and the spacing system (Blocks, BLOCK_GAP, ItemRow trailing) live in ./rows.tsx, shared with enhanced-notifications.
@@ -22,7 +22,8 @@ import { Blocks, ButtonRow, CARD_BACKGROUND, CONTROL_GAP, ItemRow, SliderRow, ST
 function ThemeSection({ disabled }: { disabled: boolean }) {
     const [theme, setTheme] = useSetting("theme");
     const [themes, setThemes] = useState<ThemeEntry[]>([]);
-    const [problem, setProblem] = useState(themeProblem());
+    // Set by a load the user started here (theme picked, Reload); the next finished load then reports its problems.
+    const awaitingLoad = useRef(false);
 
     const refresh = async () => {
         try {
@@ -35,7 +36,12 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
 
     useEffect(() => {
         void refresh();
-        return onThemeChange(() => setProblem(themeProblem()));
+        return onThemeChange(() => {
+            if (!awaitingLoad.current) return;
+            awaitingLoad.current = false;
+            const found = themeIssues();
+            if (found) showThemeIssues(found);
+        });
     }, []);
 
     const options: { data: string; label: string }[] = [
@@ -72,15 +78,14 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                             selectedOption={theme}
                             disabled={disabled}
                             contextMenuPositionOptions={{ bMatchWidth: true }}
-                            onChange={(o) => setTheme(o.data as string)}
+                            onChange={(o) => {
+                                const next = o.data as string;
+                                if (next !== theme) awaitingLoad.current = true;
+                                setTheme(next);
+                            }}
                         />
                     </Field>
                 </ItemRow>
-                {problem && (
-                    <ItemRow>
-                        <DialogBodyText>{problem}</DialogBodyText>
-                    </ItemRow>
-                )}
                 </>
                 <>
                 <ButtonRow
@@ -91,6 +96,7 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                     onClick={() => {
                         void (async () => {
                             await refresh();
+                            awaitingLoad.current = true;
                             await reloadTheme();
                         })();
                     }}
@@ -158,19 +164,34 @@ function PreviewSection({ disabled, onPreview }: { disabled: boolean; onPreview:
 }
 
 /** A problem with the selected theme worth showing under the dropdown, or null when all is well. */
-function themeProblem(): string | null {
-    const loaded = activeTheme();
-
-    if (!loaded) {
-        return setting("theme")
-            ? "Could not load this theme (see the log): using Steam's stock toast and chime."
-            : null;
-    }
-
-    const warnings = loaded.theme.warnings.length;
-    return warnings
-        ? `Loaded with ${warnings} warning${warnings === 1 ? "" : "s"} (see the log): the affected fields use their defaults.`
-        : null;
+/**
+ * A theme's load problems, in a dialog the user closes rather than a line that stays in the panel. Shown only after a
+ * load the user started (picking a theme, Reload), never for the load at Steam's start.
+ */
+function showThemeIssues(found: ThemeIssues) {
+    const title = found.error ? `Theme "${found.name}" could not be loaded` : `Theme "${found.name}" loaded with warnings`;
+    const lead = found.error
+        ? "Using Steam's stock toast and chime instead."
+        : `${found.warnings.length} field${found.warnings.length === 1 ? "" : "s"} could not be used and fell back to the default:`;
+    const lines = found.error ? [found.error] : found.warnings;
+    showDialog(
+        <ConfirmModal
+            strTitle={title}
+            strDescription={
+                <>
+                    <div>{lead}</div>
+                    <ul style={{ margin: "8px 0 0", paddingLeft: "20px", maxHeight: "160px", overflowY: "auto", userSelect: "text" }}>
+                        {lines.map((line, i) => (
+                            <li key={i}>{line}</li>
+                        ))}
+                    </ul>
+                </>
+            }
+            strOKButtonText="Close"
+            bAlertDialog
+        />,
+        { strTitle: "Theme problems", popupWidth: 560, popupHeight: 360 },
+    );
 }
 
 function CapturesSection({ disabled }: { disabled: boolean }) {

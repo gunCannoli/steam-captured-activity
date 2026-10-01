@@ -45,7 +45,8 @@ Vote, award, comment and Report controls are hidden on our cards, so the plan's 
 
 **enhanced-achievements Reset dialog, 4-value margin/padding, ps5 fade, ripple (2026-09-30, `39919c2`): deployed, not restarted.**
 After a Steam restart, check on desktop: Reset keeps one dialog open (Resetting..., then the outcome, Close) and its window
-(480 x 250) is not clipped; in Big Picture the same flow; a toast with `"padding": [10, 5, 4, 7]`, the ps5 fade and the ripple.
+(480 x 250) is not clipped; in Big Picture the same flow; a toast with `"padding": [10, 5, 4, 7]`, the ps5 fade and the ripple;
+a theme with a typo, picked and then reloaded, opens the theme-problems popup (560 x 360) listing it, and none opens at Steam's start.
 
 **F1 Game Data editor: the user did a live check (2026-09-30); follow-ups are coded, waiting for a second live check.** Settings now use
 enhanced-achievements' spacing ([plugins.md guardrail 18](docs/plugins.md#18-settings-panel-layout-reference-enhanced-achievements)),

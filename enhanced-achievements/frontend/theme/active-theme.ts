@@ -22,7 +22,15 @@ export interface LoadedTheme {
     sounds: Map<Tier, { buffer: AudioBuffer; volume: number }>;
 }
 
+/** What went wrong in the last load: `error` when the theme could not be used at all, else the fields that fell back. */
+export interface ThemeIssues {
+    name: string;
+    error: string | null;
+    warnings: string[];
+}
+
 let loaded: LoadedTheme | null = null;
+let issues: ThemeIssues | null = null;
 let loading: Promise<void> | null = null;
 let audioContext: AudioContext | null = null;
 
@@ -30,6 +38,11 @@ const listeners = new Set<() => void>();
 
 export function activeTheme(): LoadedTheme | null {
     return loaded;
+}
+
+/** The last load's problems; null when it had none or no theme is selected. */
+export function themeIssues(): ThemeIssues | null {
+    return issues;
 }
 
 /** Tier memo keyed by the notification's data object: computed once, read by sound, banner and captures. */
@@ -70,20 +83,28 @@ async function load(name: string): Promise<void> {
     if (!name) {
         // Deliberate "Steam default": no theme selected, not a load failure.
         loaded = null;
+        issues = null;
         for (const listener of listeners) listener();
         return;
     }
+    const warnings: string[] = [];
+    const warn = (text: string, error?: unknown) => {
+        warnings.push(text);
+        if (error === undefined) logger.warn(`Theme "${name}": ${text}`);
+        else logger.warn(`Theme "${name}": ${text}`, error);
+    };
+    let failure: string | null = null;
     try {
         const file = await rpc.loadTheme(name);
         const theme = resolveTheme(parseJsonc(file.text));
-        for (const warning of theme.warnings) logger.warn(`Theme "${name}": ${warning}`);
+        for (const warning of theme.warnings) warn(warning);
 
         const assets = new Map<string, string>();
         if (theme.assetPaths.length) {
             const urls = await rpc.loadAssets(file.dir, theme.assetPaths);
             for (const [path, url] of Object.entries(urls)) {
                 if (url) assets.set(path, url);
-                else logger.warn(`Theme "${name}": asset unavailable, falling back: ${path}`);
+                else warn(`Asset unavailable, falling back: ${path}`);
             }
         }
 
@@ -100,7 +121,7 @@ async function load(name: string): Promise<void> {
                     try {
                         buffer = await audio().decodeAudioData(dataUrlToArrayBuffer(url));
                     } catch (error) {
-                        logger.warn(`Theme "${name}": could not decode ${spec.path}; using Steam's chime.`, error);
+                        warn(`Could not decode ${spec.path}; using Steam's chime.`, error);
                     }
                 }
                 decoded.set(spec.path, buffer);
@@ -114,8 +135,10 @@ async function load(name: string): Promise<void> {
     } catch (error) {
         // An unusable theme means stock Steam, never a half-styled banner.
         loaded = null;
+        failure = error instanceof Error ? error.message : String(error);
         logger.error(`Theme "${name}" could not be loaded; using Steam's stock toast and chime.`, error);
     }
+    issues = failure || warnings.length ? { name, error: failure, warnings } : null;
     for (const listener of listeners) listener();
 }
 

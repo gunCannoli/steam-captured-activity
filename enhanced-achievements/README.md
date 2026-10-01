@@ -42,7 +42,7 @@ Open Millennium's sidebar and select **Enhanced Achievements**:
 | Setting | What it does |
 | --- | --- |
 | Theme | Which theme to use, or "Steam default" (the shipped default) for Steam's own stock toast and chime |
-| Reload themes | Pick up edits to a theme file without restarting Steam |
+| Reload themes | Pick up edits to a theme file without restarting Steam. If the theme has errors, a popup lists them (a field that falls back to its default, a missing asset, or why the theme could not load) |
 | Open themes folder | Opens the folder for your own themes |
 | Preview | Fires a test achievement for each tier |
 | Achievement queue | One themed banner at a time instead of Steam's own stacking |

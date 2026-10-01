@@ -141,7 +141,7 @@ export const BANNER_CSS = `
 @keyframes ea-ripple {
     0%   { transform: scale(0.92); opacity: 0.9; }
     15%  { opacity: 0.7; }
-    100% { transform: scale(1.35); opacity: 0; }
+    100% { transform: scale(1.2); opacity: 0; }
 }
 
 /* 3-Zone Flexbox Architecture */

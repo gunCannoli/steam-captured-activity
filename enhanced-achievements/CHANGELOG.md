@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- A theme with errors, picked or reloaded in the settings panel, opens a popup listing each one (the fields that fell back to their defaults, missing assets, sounds that would not decode, or why the theme could not load). The panel no longer shows a line under the theme picker pointing to the log. The load at Steam's start shows no popup.
 - Internal: the settings rows and spacing system moved to `settings/rows.tsx`, a copy shared with Enhanced Notifications (no visible change); more shared copies drift-checked (ADR-0047).
 - Reset Achievements is one dialog from start to end: **Reset** keeps it open, it shows "Resetting..." and then the outcome with a Close button. The earlier version opened the outcome in a second popup that never appeared on desktop, because Steam drops a popup opened while the confirm popup is closing. On desktop the dialog's window is now 480 x 250 px instead of Steam's default popup size: it opens with Steam's own `showModal`, which takes a size, rather than Millennium's, which does not.
 - `ps5` animation: a quarter-width slide with a fade you can see, in and out. It used the full-width slide, whose fade ended while the banner was still mostly outside the toast window.
