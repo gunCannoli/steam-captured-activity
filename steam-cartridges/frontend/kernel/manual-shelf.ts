@@ -2,7 +2,8 @@
 // surface's viewer. Kept out of GameRecord like the media bin (kernel/media-bin.ts): the pages live only in memory,
 // behind blob URLs, and nothing is written to disk. Bounded to the last MAX_MANUALS manuals; an evicted or replaced
 // page URL is given to `release` (ports/image releaseObjectUrl). Listeners are told of every change, so the viewer
-// shows each page as soon as it is rendered.
+// shows each page as soon as it is rendered. Each manual's first page is also kept as a card cover (MAX_COVERS), apart
+// from the page sets, so the Community card can show it before the manual is opened.
 
 export interface ManualPage {
     /** An object URL (blob:) of the rendered page, or undefined while it is not rendered yet. */
@@ -20,16 +21,31 @@ export interface ManualView {
 export interface ManualShelf {
     get(appid: number, key: string): ManualView | undefined;
     set(appid: number, key: string, view: ManualView): void;
+    /** The manual's first page as a 16:9 card cover (an object URL), when it has been rendered. */
+    cover(appid: number, key: string): string | undefined;
+    setCover(appid: number, key: string, url: string): void;
     /** Called after every set; returns the unsubscribe function. */
     subscribe(listener: () => void): () => void;
 }
 
 export const MAX_MANUALS = 2;
+/** Covers are one image each and the card shows them without the manual being opened: more are kept than page sets. */
+export const MAX_COVERS = 8;
 
 export function createManualShelf(release: (url: string) => void): ManualShelf {
     const map = new Map<string, ManualView>();
+    const covers = new Map<string, string>();
     const listeners = new Set<() => void>();
     const id = (appid: number, key: string) => `${appid}:${key}`;
+    const notify = () => {
+        for (const listener of [...listeners]) {
+            try {
+                listener();
+            } catch {
+                /* a listener must never break the shelf */
+            }
+        }
+    };
     const urls = (view: ManualView | undefined) => new Set((view?.pages ?? []).map((p) => p.url).filter((u): u is string => !!u));
     return {
         get: (appid, key) => map.get(id(appid, key)),
@@ -44,13 +60,21 @@ export function createManualShelf(release: (url: string) => void): ManualShelf {
                 urls(map.get(oldest)).forEach(release);
                 map.delete(oldest);
             }
-            for (const listener of [...listeners]) {
-                try {
-                    listener();
-                } catch {
-                    /* a listener must never break the shelf */
-                }
+            notify();
+        },
+        cover: (appid, key) => covers.get(id(appid, key)),
+        setCover(appid, key, url) {
+            const k = id(appid, key);
+            const old = covers.get(k);
+            if (old && old !== url) release(old);
+            covers.delete(k);
+            covers.set(k, url);
+            while (covers.size > MAX_COVERS) {
+                const oldest = covers.keys().next().value as string;
+                release(covers.get(oldest)!);
+                covers.delete(oldest);
             }
+            notify();
         },
         subscribe(listener) {
             listeners.add(listener);

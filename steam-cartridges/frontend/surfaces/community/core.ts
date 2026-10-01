@@ -84,7 +84,16 @@ const MANUAL_COVER_SVG =
     '<text x="640" y="590" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700" letter-spacing="8" fill="#c7d5e0">MANUAL</text>' +
     "</svg>";
 
-/** The manual card's cover (features plan F2c): inline, so showing it makes no request; 16:9 like the card's size. */
+/**
+ * The size the manual card reports to Steam, whatever the cover image is. Steam picks a card's cell from these numbers
+ * (module 77163, `pe()`): 16:9 is the "wide" aspect (32), and a width of 513 to 1023 is the small width (2), giving cell
+ * class 34, the ordinary small cell of IGDB screenshots. 1280 wide (class 36, the large width) is a tall cell that Steam's
+ * row layout dropped as the first card (live 2026-10-01).
+ */
+export const MANUAL_CARD_WIDTH = 960;
+export const MANUAL_CARD_HEIGHT = 540;
+
+/** The manual card's placeholder cover (features plan F2c): inline, so showing it makes no request; 16:9. */
 export const MANUAL_COVER = `data:image/svg+xml;utf8,${encodeURIComponent(MANUAL_COVER_SVG)}`;
 const MANUAL_MARK = "#manual-";
 
@@ -106,9 +115,15 @@ export function manualOfUrl(url: unknown): { appid: number; key: string } | unde
 
 /**
  * The feed for one shortcut, in the record's order. A ScreenScraper item shows only when `imageOf(key)` has its
- * object URL (app/media fetched it); an item that cannot be shown is left out.
+ * object URL (app/media fetched it); an item that cannot be shown is left out. A manual shows its first page
+ * (`coverOf(key)`, app/manuals) and the placeholder cover until that is rendered.
  */
-export function toFeedItems(appid: number, items: readonly MediaItem[], imageOf: (key: string) => MediaImage | undefined): FeedItem[] {
+export function toFeedItems(
+    appid: number,
+    items: readonly MediaItem[],
+    imageOf: (key: string) => MediaImage | undefined,
+    coverOf: (key: string) => string | undefined = () => undefined,
+): FeedItem[] {
     const out: FeedItem[] = [];
     items.forEach((item, index) => {
         if (index >= MAX_ITEMS) return;
@@ -121,9 +136,9 @@ export function toFeedItems(appid: number, items: readonly MediaItem[], imageOf:
         if (item.kind === "manual") {
             if (!item.key) return;
             type = FILE_TYPE.artwork;
-            preview = full = manualCoverUrl(appid, item.key);
-            width = item.width ?? 1280;
-            height = item.height ?? 720;
+            preview = full = coverOf(item.key) ?? manualCoverUrl(appid, item.key);
+            width = MANUAL_CARD_WIDTH;
+            height = MANUAL_CARD_HEIGHT;
         } else if (item.kind === "video") {
             if (!item.youtube) return;
             type = FILE_TYPE.video;
@@ -281,6 +296,25 @@ export function isDateRow(type: unknown, props: unknown): boolean {
     const p = props as { className?: unknown } | null | undefined;
     return !!p && typeof p.className === "string" && p.className.includes("IconAndDate");
 }
+
+/**
+ * The viewer's "Scroll down for comments" line (the `ArtworkModal_ScrollForMore` token; English text only). Steam draws it
+ * only when the viewer has children, and ours has them only for a manual. O(1) for any element but that line.
+ */
+export function isScrollLabel(type: unknown, props: unknown): boolean {
+    if (type !== "div") return false;
+    const p = props as { className?: unknown; children?: unknown } | null | undefined;
+    return (
+        !!p &&
+        typeof p.className === "string" &&
+        p.className.includes("ScrollForMore") &&
+        Array.isArray(p.children) &&
+        p.children.some((child) => typeof child === "string" && /^scroll down for comments$/i.test(child.trim()))
+    );
+}
+
+/** The line that replaces it. */
+export const MANUAL_SCROLL_TEXT = "Scroll down to view the manual";
 
 /** The viewer's "Created by" label (English text only; another language keeps Steam's own word). O(1). */
 export function isCreatedByLabel(type: unknown, props: unknown): boolean {

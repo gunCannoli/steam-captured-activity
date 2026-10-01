@@ -28,9 +28,11 @@ import {
     isCreatedByLabel,
     loaderIsStale,
     isDateRow,
+    isScrollLabel,
     isPlaceholderAppIcon,
     isViewerImage,
     loaderAnswer,
+    MANUAL_SCROLL_TEXT,
     manualOfUrl,
     shouldLoadFirstPage,
     sourceOfAccount,
@@ -45,6 +47,8 @@ export interface CommunityDeps extends SurfaceDeps {
     imageOf(appid: number, key: string): MediaImage | undefined;
     /** The pages app/manuals rendered for a manual (kernel/manual-shelf; a pure read). */
     manualOf(appid: number, key: string): ManualView | undefined;
+    /** The manual's first page as a card cover (kernel/manual-shelf), once rendered. */
+    coverOf(appid: number, key: string): string | undefined;
     /** Be told when the manual shelf changes. */
     onManuals(listener: () => void): () => void;
     /** To emit this surface's own result event, `community.manual-opened`. */
@@ -57,6 +61,7 @@ let deps: CommunityDeps = {
     reportError: () => {},
     imageOf: () => undefined,
     manualOf: () => undefined,
+    coverOf: () => undefined,
     onManuals: () => () => {},
     bus: { emit: () => {} },
 };
@@ -191,6 +196,7 @@ function wrapped(type: object, make: (type: any) => Wrapper): Wrapper {
 /** Keys for the wrappers of Steam's plain `div` and `img` elements (a string type cannot key the WeakMap). */
 const LABEL_KEY = {};
 const IMAGE_KEY = {};
+const SCROLL_KEY = {};
 
 /**
  * Called while one of our viewers renders: counts it open until it unmounts. A hook, so it needs Steam's own React
@@ -241,6 +247,11 @@ function installCards(): void {
                     if (isPlaceholderAppIcon(type, p)) return "span";
                     if (openViewers > 0) {
                         if (isDateRow(type, p)) return Nothing;
+                        if (isScrollLabel(type, p)) {
+                            return wrapped(SCROLL_KEY, () => (q) =>
+                                jsx("div", { ...q, children: (q.children as unknown[]).map((child) => (typeof child === "string" ? MANUAL_SCROLL_TEXT : child)) }),
+                            );
+                        }
                         if (isCreatedByLabel(type, p)) return wrapped(LABEL_KEY, () => (q) => jsx("div", { ...q, children: "Added by" }));
                         if (isViewerImage(type, p, (url) => viewerMeta.has(url))) {
                             return wrapped(IMAGE_KEY, () => (q) => jsx("img", { ...q, style: { ...q.style, maxHeight: VIEWER_IMAGE_MAX_HEIGHT } }));
@@ -305,7 +316,7 @@ function forgetViewerMeta(appid: number): void {
 }
 
 /** The viewer opens the image a card shows: remember which source and date belong to that URL. Videos open YouTube instead. */
-function rememberViewerMeta(appid: number, feed: FeedItem[], checkedAtMs: number): void {
+function rememberViewerMeta(appid: number, feed: FeedItem[], checkedAtMs: number, manualsByUrl: ReadonlyMap<string, { appid: number; key: string }>): void {
     forgetViewerMeta(appid);
     const urls: string[] = [];
     const seconds = Math.floor(checkedAtMs / 1000);
@@ -313,7 +324,7 @@ function rememberViewerMeta(appid: number, feed: FeedItem[], checkedAtMs: number
         if (card.type === 4) continue;
         const source = (Object.keys(CREATOR_STEAMIDS) as MediaItem["source"][]).find((s) => CREATOR_STEAMIDS[s] === card.creator.steamid);
         if (!source) continue;
-        viewerMeta.set(card.full_image_url, { source, seconds, manual: manualOfUrl(card.full_image_url) });
+        viewerMeta.set(card.full_image_url, { source, seconds, manual: manualsByUrl.get(card.full_image_url) ?? manualOfUrl(card.full_image_url) });
         urls.push(card.full_image_url);
     }
     viewerUrlsByApp.set(appid, urls);
@@ -378,9 +389,15 @@ export function createCommunitySurface(d: CommunityDeps): Surface {
                 feeds.delete(appid);
                 return;
             }
-            const feed = toFeedItems(appid, items, (key) => deps.imageOf(appid, key));
+            const feed = toFeedItems(appid, items, (key) => deps.imageOf(appid, key), (key) => deps.coverOf(appid, key));
             feeds.set(appid, feed);
-            rememberViewerMeta(appid, feed, typeof media?.checkedAt === "number" ? media.checkedAt : Date.now());
+            // A manual's cover is its first page (a blob: URL): the viewer finds the manual by that URL.
+            const manualsByUrl = new Map<string, { appid: number; key: string }>();
+            for (const item of items) {
+                const cover = item.kind === "manual" && item.key ? deps.coverOf(appid, item.key) : undefined;
+                if (cover) manualsByUrl.set(cover, { appid, key: item.key! });
+            }
+            rememberViewerMeta(appid, feed, typeof media?.checkedAt === "number" ? media.checkedAt : Date.now(), manualsByUrl);
             installCards();
         },
         clear: (appid) => {

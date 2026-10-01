@@ -376,8 +376,8 @@ end
 
 --- ScreenScraper's media type for a game manual (a PDF), one per region.
 M.MANUAL_TYPE = "manuel"
---- The cover card's layout size: 16:9, the size IGDB screenshots already lay out as one ordinary cell.
-M.MANUAL_COVER = { 1280, 720 }
+--- The card's layout size: 16:9 and 513-1023 wide is Steam's ordinary small cell (class 34, as IGDB screenshots); 1280 wide is a tall cell Steam dropped.
+M.MANUAL_COVER = { 960, 540 }
 --- A manual larger than this is not downloaded (the WinINet reader holds it in memory).
 M.MAX_MANUAL_BYTES = 48 * 1024 * 1024
 

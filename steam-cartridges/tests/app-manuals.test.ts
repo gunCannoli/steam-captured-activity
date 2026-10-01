@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createManuals, MAX_MANUAL_CHUNKS, MAX_MANUAL_PAGES, PAGE_WIDTH } from '../frontend/app/manuals.ts';
+import { COVER_HEIGHT, COVER_WIDTH, createManuals, MAX_MANUAL_CHUNKS, MAX_MANUAL_PAGES, PAGE_WIDTH } from '../frontend/app/manuals.ts';
 import { createEventBus } from '../frontend/kernel/events.ts';
 import { createManualShelf } from '../frontend/kernel/manual-shelf.ts';
 
@@ -13,6 +13,7 @@ function setup(over: Partial<Record<string, any>> = {}) {
     const asked: any[] = [];
     const rendered: any[] = [];
     let destroyed = 0;
+    const covers: any[] = [];
     const chunks = over.chunks ?? 2;
     const manuals = createManuals({
         backend: {
@@ -33,6 +34,10 @@ function setup(over: Partial<Record<string, any>> = {}) {
                     pageCount: over.pages ?? 3,
                     pageWidth: 420,
                     pageHeight: 595,
+                    async renderCover(width: number, height: number) {
+                        covers.push([width, height]);
+                        return over.noCover ? null : 'blob:cover';
+                    },
                     async renderPage(n: number, width: number) {
                         rendered.push({ n, width });
                         return over.blankPage === n ? null : `blob:p${n}`;
@@ -42,8 +47,9 @@ function setup(over: Partial<Record<string, any>> = {}) {
             },
         },
         titleOf: () => 'Captain Commando',
+        manualKeyOf: (appid: number) => (over.noManual || appid !== SC ? undefined : KEY),
     });
-    return { bus, shelf, manuals, asked, rendered, destroyed: () => destroyed };
+    return { bus, shelf, manuals, asked, rendered, covers, destroyed: () => destroyed };
 }
 
 test('app/manuals: reads every chunk in order, renders every page at PAGE_WIDTH, ends ready', async () => {
@@ -105,4 +111,54 @@ test('app/manuals: a page that does not render stays a placeholder; at most MAX_
     const big = setup({ pages: MAX_MANUAL_PAGES + 50 });
     await big.manuals.open(SC, KEY);
     assert.equal(big.shelf.get(SC, KEY)!.pages.length, MAX_MANUAL_PAGES);
+});
+
+test('app/manuals: a shortcut whose media names a manual gets its first page as a cover, once, and the record is announced', async () => {
+    const s = setup();
+    const updates: any[] = [];
+    s.bus.on('record.updated', (e) => updates.push(e));
+    s.manuals.install();
+    s.bus.emit('record.updated', { appid: SC, parts: ['media'] });
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(s.shelf.cover(SC, KEY), 'blob:cover');
+    assert.deepEqual(s.covers, [[COVER_WIDTH, COVER_HEIGHT]]);
+    assert.equal(s.destroyed(), 1, 'the document is freed after the cover');
+    assert.ok(updates.length >= 2, 'the surface is told to re-read the media part');
+    s.bus.emit('record.updated', { appid: SC, parts: ['media'] }); // the announcement itself, and every later update
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(s.asked.filter((a) => a.index === 0).length, 1, 'read once');
+});
+
+test('app/manuals: no cover for another part, another shortcut, a hidden manual, or a PDF that does not render; a failure is not retried', async () => {
+    for (const [over, part, appid] of [[{}, 'metadata', SC], [{}, 'media', 1], [{ noManual: true }, 'media', SC]] as const) {
+        const s = setup(over);
+        s.manuals.install();
+        s.bus.emit('record.updated', { appid: appid as any, parts: [part] as any });
+        await new Promise((r) => setTimeout(r, 0));
+        assert.equal(s.asked.length, 0, JSON.stringify([over, part, appid]));
+    }
+    for (const over of [{ noCover: true }, { noDoc: true }, { chunkError: true }]) {
+        const s = setup(over);
+        s.manuals.install();
+        s.bus.emit('record.updated', { appid: SC, parts: ['media'] });
+        for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0));
+        assert.equal(s.shelf.cover(SC, KEY), undefined, JSON.stringify(over));
+        const reads = s.asked.length;
+        s.bus.emit('record.updated', { appid: SC, parts: ['media'] });
+        for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0));
+        assert.equal(s.asked.length, reads, 'not tried again: ' + JSON.stringify(over));
+    }
+});
+
+test('app/manuals: the pages and the cover are never read at the same time', async () => {
+    const s = setup();
+    const order: string[] = [];
+    const real = s.manuals;
+    const a = real.cover(SC, KEY).then(() => order.push('cover'));
+    const b = real.open(SC, KEY).then(() => order.push('open'));
+    await Promise.all([a, b]);
+    assert.deepEqual(order, ['cover', 'open']);
+    assert.deepEqual(s.asked.map((x) => x.index), [0, 1, 0, 1], 'two reads, one after the other');
 });

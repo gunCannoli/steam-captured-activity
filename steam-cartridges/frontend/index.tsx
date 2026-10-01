@@ -211,7 +211,15 @@ const media = createMedia({
 const manualShelf = createManualShelf(releaseObjectUrl);
 
 /** Manuals (app/manuals.ts, features plan F2c): renders a ScreenScraper manual when the community viewer shows its cover. */
-const manuals = createManuals({ backend, bus, shelf: manualShelf, renderer: pdfRenderer, titleOf: (appid) => shortcutTitle(appid) });
+const manuals = createManuals({
+    backend,
+    bus,
+    shelf: manualShelf,
+    renderer: pdfRenderer,
+    titleOf: (appid) => shortcutTitle(appid),
+    manualKeyOf: (appid) =>
+        setting("communityShowManuals") === false ? undefined : records.store.get(appid as ShortcutId)?.media?.data?.items?.find((item) => item.kind === "manual")?.key,
+});
 
 /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
 const view = createView({ routing, identity, metadata, artwork, achievements, media });
@@ -425,6 +433,7 @@ async function init() {
             ...surfaceDeps,
             imageOf: (appid, key) => mediaBin.get(appid, key),
             manualOf: (appid, key) => manualShelf.get(appid, key),
+            coverOf: (appid, key) => manualShelf.cover(appid, key),
             onManuals: (listener) => manualShelf.subscribe(listener),
             bus,
         }),

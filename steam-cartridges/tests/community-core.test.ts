@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { IGDB_PURPLE, IGDB_ICON, SCREENSCRAPER_ICON } from '../frontend/surfaces/community/icons.ts';
-import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, MANUAL_COVER, manualCoverUrl, manualOfUrl, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, MANUAL_CARD_HEIGHT, MANUAL_CARD_WIDTH, MANUAL_COVER, MANUAL_SCROLL_TEXT, isScrollLabel, manualCoverUrl, manualOfUrl, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -197,7 +197,7 @@ test('community core: a manual becomes an artwork card with its inline cover, 16
     assert.equal(card!.full_image_url, manualCoverUrl(SC, 'manuel(us)'));
     assert.equal(card!.preview_image_url, card!.full_image_url);
     assert.ok(card!.full_image_url.startsWith('data:image/svg+xml;utf8,'), 'no request, no file');
-    assert.deepEqual([card!.image_width, card!.image_height], [1280, 720]);
+    assert.deepEqual([card!.image_width, card!.image_height], [960, 540]);
     assert.equal(card!.title, 'Manual');
     assert.deepEqual(toFeedItems(SC, [{ kind: 'manual', source: 'screenscraper' } as any], none), [], 'no key, no card');
 });
@@ -209,4 +209,24 @@ test('community core: a cover URL names its own shortcut and key; any other URL 
     assert.equal(manualOfUrl('blob:https://steamloopback.host/x'), undefined);
     assert.equal(manualOfUrl('https://images.igdb.com/a.jpg'), undefined);
     assert.equal(manualOfUrl(undefined), undefined);
+});
+
+test('community core: a manual card shows its first page once rendered, and is sized as Steam\'s ordinary small cell', () => {
+    const item = { kind: 'manual', source: 'screenscraper', key: 'manuel(us)' } as any;
+    const [card] = toFeedItems(SC, [item], none, (key) => (key === 'manuel(us)' ? 'blob:https://steamloopback.host/page1' : undefined));
+    assert.equal(card!.full_image_url, 'blob:https://steamloopback.host/page1');
+    assert.equal(card!.preview_image_url, card!.full_image_url);
+    // Steam's pe() (module 77163): aspect > 1.4 is 32; width 513..1023 is 2; the sum 34 is the ordinary small cell.
+    const aspect = MANUAL_CARD_WIDTH / MANUAL_CARD_HEIGHT;
+    const cell = (aspect > 2.5 ? 16 : aspect > 1.4 ? 32 : 64) | (MANUAL_CARD_WIDTH >= 1024 ? 4 : MANUAL_CARD_WIDTH > 512 ? 2 : 1);
+    assert.equal(cell, 34);
+});
+
+test('community core: the viewer\'s "Scroll down for comments" line is found, and nothing else is', () => {
+    assert.ok(isScrollLabel('div', { className: 'x_ScrollForMore_y', children: [{}, 'Scroll down for comments', {}] }));
+    assert.ok(!isScrollLabel('div', { className: 'x_ScrollForMore_y', children: [{}, 'Scroll down for details', {}] }));
+    assert.ok(!isScrollLabel('div', { className: 'Other', children: ['Scroll down for comments'] }));
+    assert.ok(!isScrollLabel('span', { className: 'ScrollForMore', children: ['Scroll down for comments'] }));
+    assert.ok(!isScrollLabel('div', null));
+    assert.equal(MANUAL_SCROLL_TEXT, 'Scroll down to view the manual');
 });

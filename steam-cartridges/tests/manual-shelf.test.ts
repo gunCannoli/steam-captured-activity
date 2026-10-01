@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createManualShelf, MAX_MANUALS } from '../frontend/kernel/manual-shelf.ts';
+import { createManualShelf, MAX_COVERS, MAX_MANUALS } from '../frontend/kernel/manual-shelf.ts';
 
 const page = (url?: string) => ({ url, width: 420, height: 595 });
 
@@ -45,4 +45,22 @@ test('manual shelf: a listener that throws does not stop the others', () => {
     shelf.subscribe(() => told++);
     shelf.set(1, 'm', { status: 'loading', pages: [] });
     assert.equal(told, 1);
+});
+
+test('manual shelf: a cover is kept apart from the pages, replaced covers are released, at most MAX_COVERS', () => {
+    const released: string[] = [];
+    const shelf = createManualShelf((url) => released.push(url));
+    let told = 0;
+    shelf.subscribe(() => told++);
+    shelf.setCover(1, 'm', 'blob:c1');
+    assert.equal(shelf.cover(1, 'm'), 'blob:c1');
+    shelf.set(1, 'm', { status: 'ready', pages: [page('blob:p')] });
+    shelf.set(1, 'm', { status: 'failed', pages: [] });
+    assert.equal(shelf.cover(1, 'm'), 'blob:c1', 'the pages coming and going leave the cover');
+    shelf.setCover(1, 'm', 'blob:c2');
+    assert.deepEqual(released, ['blob:p', 'blob:c1']);
+    assert.equal(told, 4);
+    for (let i = 2; i < 2 + MAX_COVERS; i++) shelf.setCover(i, 'm', `blob:c${i + 10}`);
+    assert.equal(shelf.cover(1, 'm'), undefined, 'the oldest cover is evicted');
+    assert.ok(released.includes('blob:c2'));
 });

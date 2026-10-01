@@ -434,7 +434,7 @@ local MAN = { id = "5", medias = {
 } }
 local man = ss.manual_item(MAN)
 check("manual_item: the US manual beats the Japanese one", man and man.key == "manuel(us)" and man.kind == "manual" and man.source == "screenscraper")
-check("the manual card is laid out 16:9 and carries no URL", man.width == 1280 and man.height == 720 and man.url == nil and man.thumb == nil)
+check("the manual card is laid out 16:9 and carries no URL", man.width == 960 and man.height == 540 and man.url == nil and man.thumb == nil)
 check("no manual: nil", ss.manual_item(JEU) == nil and ss.manual_item(nil) == nil)
 check("media_items still leaves the manual out", #ss.media_items(MAN) == 1)
 
