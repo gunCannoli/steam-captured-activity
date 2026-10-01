@@ -41,10 +41,10 @@ order (the user, or an agent with the user's go-ahead):
    remounted the section every time here. Open a few shortcuts one after another in Big Picture (and on a controller) and
    confirm each COMMUNITY tab shows its own game's cards, never another game's or an empty section.
 7. **F2c manuals** (ScreenScraper manual as the first card of the Community section, opened and scrolled in Steam's own viewer):
-   skeleton plan [steam-cartridges-f2c-manuals-plan.md](docs/plans/steam-cartridges-f2c-manuals-plan.md), not ready to execute.
-   First step: probe a game whose ScreenScraper page has a manual (neither AM2R nor Super Mario World has one) for the media type
-   name, size and format. ScreenScraper videos and IGDB links are not started; ScreenScraper stays limited to its image types
-   (title screen, screenshot, fanart, boxes, mixes, cartridge, flyer, HyperSpin theme) by the user's decisions (2026-09-30).
+   [steam-cartridges-f2c-manuals-plan.md](docs/plans/steam-cartridges-f2c-manuals-plan.md) is ready to execute (dry-run
+   2026-10-01). Its phase 0 fixes the ScreenScraper system ids, without which no ROM game matches ScreenScraper. ScreenScraper
+   videos and IGDB links are not started; ScreenScraper stays limited to its image types and the manual (title screen,
+   screenshot, fanart, boxes, mixes, cartridge, flyer, HyperSpin theme) by the user's decisions (2026-09-30).
 Vote, award, comment and Report controls are hidden on our cards, so the plan's § 9.3 rows for them are moot.
 
 **enhanced-achievements Reset dialog, 4-value margin/padding, ps5 fade, ripple (2026-09-30, `39919c2`): deployed, not restarted.**
