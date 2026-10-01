@@ -44,6 +44,16 @@ test("every bundled theme's assets exist, relative to themes/", () => {
     }
 });
 
+test('bundled themes: steam_midnight styles achievements like every toast; ps5, steam_tiers and theme draw the banner', () => {
+    assert.equal(resolveTheme(load('steam_midnight.json')).achievements, null);
+    for (const file of ['ps5.jsonc', 'steam_tiers.json', 'theme.jsonc']) {
+        const banner = resolveTheme(load(file)).achievements;
+        assert.ok(banner, file);
+        assert.deepEqual(Object.keys(banner.tiers), ['normal', 'magic', 'rare', 'exceptional'], file);
+        assert.equal(banner.position, 'top_right', `${file}: inherited from the theme's settings`);
+    }
+});
+
 test('one style for every notification; the old per-type blocks warn and are ignored', () => {
     const theme = resolveTheme({
         popup: { background: ['#111111'] },

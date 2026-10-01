@@ -1,0 +1,90 @@
+// PS5-style: every notification a dark card in the top-right corner that slides in
+// from the edge, and achievements as PS5 trophies: the achievement art on the left,
+// a trophy before the title, and Steam's logo pulsing on the right. Bronze /
+// silver / gold by rarity, platinum for 100%. Every option is explained in theme.jsonc.
+{
+    "settings": {
+        "position": "top_right",
+        "display_time_ms": 4000,
+        "animation": "ps5", // slide + fade in from the anchored edge (right here), and back out the same way
+    },
+
+    // Every notification but achievements.
+    "popup": {
+        "background": ["#1F1F1F", "#0F0F0F"],
+        "gradient_angle": 90,
+        "border": [0, "#8a2be2", 8], // no stroke, rounded 8 px corners
+        "watermark": false,
+        "margin": 5, // 5 px in from the top and right edges
+    },
+    "text": {
+        "title": ["#ffffff", 100, "regular"],
+        "body": ["#ffffff", 100, "regular"],
+        "subtext": ["#c7c7c7", 100, "regular"],
+    },
+    "logo": { "radius": 4 },
+
+    // Achievements: the PS5 trophy banner (same corner, animation and display time).
+    "achievements": {
+        "settings": {
+            "layout": "custom",
+            "text_align": "left",
+        },
+
+        // Icon placement for the custom layout.
+        "layout": {
+            "achievement": "left",
+            "system": "right",
+            "rarity": "title_left", // trophy inline, before the title
+        },
+
+        "tiers": {
+            // Bronze: every unlock not rare enough for silver or gold.
+            "normal": {
+                "banner": {
+                    "scale": [100, 100],
+                    "background_color": ["#1F1F1F", "#0F0F0F"],
+                    "gradient_angle": 90,
+                    "border": [0, "#8a2be2", 8], // no stroke, rounded 8 px corners
+                    "margin": [5], // 5 px in from the top and right edges ([5] = every side)
+                    "padding": [5],
+                    "gap": [10, 5],
+                },
+                "text": {
+                    "title": ["#ffffff", 120, "regular"],
+                    "desc": ["#ffffff", 100, "regular"],
+                },
+                "icons": {
+                    "achievement": [true, 100, 0], // the achievement's own art
+                    "system": [true, 120, 2000], // Steam logo at 120%, ripple every 2 s
+                    "rarity": ["assets/trophy_bronze.svg", 100, 0],
+                },
+                "sound": null, // the notification sound: Steam's own chime here
+            },
+
+            // Silver: 25% of players or fewer.
+            "magic": {
+                "threshold": 25.0,
+                "icons": { "rarity": ["assets/trophy_silver.svg", 100, 0] },
+            },
+
+            // Gold: 10% of players or fewer.
+            "rare": {
+                "threshold": 10.0,
+                "icons": { "rarity": ["assets/trophy_gold.svg", 150, 0] },
+            },
+
+            // Platinum: the "100% complete" toast after the game's last achievement.
+            "exceptional": {
+                "icons": {
+                    "rarity": ["assets/trophy_platinum.svg", 100, 0],
+                    "achievement": ["assets/trophy_platinum.svg", 100, 0],
+                },
+                "text": {
+                    "title": "100% Complete",
+                    "desc": "You've unlocked all achievements!",
+                },
+            },
+        },
+    },
+}

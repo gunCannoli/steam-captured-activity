@@ -1,0 +1,255 @@
+// =============================================================================
+// Enhanced Notifications: theme reference
+//
+// Every option a theme can set, with what each value means. This file is also a
+// working theme: pick "theme" in the plugin's settings panel to see it.
+//
+// To make your own: copy this file into your themes folder (settings panel >
+// Themes folder > Open), rename it, delete what you don't need, and press
+// Reload. Anything you leave out stays Steam's own (or uses the default noted
+// next to it, inside "achievements").
+//
+// Format: JSONC (JSON with // and /* */ comments and trailing commas).
+// Files may be .jsonc or .json; both accept comments.
+//
+// Colours are "#rgb", "#rrggbb" or "#rrggbbaa" (last pair = opacity, 00-ff).
+// A value that is out of range is clamped; a value of the wrong type is ignored
+// and logged as a warning. A broken "achievements" block is a warning too:
+// achievement toasts then get the notification style.
+// =============================================================================
+{
+    // -------------------------------------------------------------------------
+    // settings: where every toast shows, how it comes and goes, and for how long
+    // -------------------------------------------------------------------------
+    "settings": {
+        // Screen corner or edge. Unset: Steam's own corner.
+        //   "top_left" | "top_center" | "top_right" | "bottom_left" | "bottom_center" | "bottom_right"
+        "position": "top_right",
+
+        // Entrance and exit. Unset: Steam's own slide.
+        // One name for both ("fade") or an object for each: { "in": ..., "out": ... }
+        // (an unset side of the object is "slide" in, "fade" out).
+        //   "slide"  slide + fade from the anchored side edge (right for *_right, left for *_left)
+        //   "fade" | "up" | "down" | "none"
+        //   "ps5"    a short slide + fade from the anchored edge; *_center slides vertically
+        "animation": { "in": "ps5", "out": "ps5" },
+
+        // How long every toast stays, in ms, 1000-60000. Unset: Steam's own per type.
+        "display_time_ms": 4000,
+    },
+
+    // -------------------------------------------------------------------------
+    // The notification style: one look for every toast (downloads, friends,
+    // clips, battery, updates, and achievements unless "achievements" below
+    // draws them). Steam's own icons, logos and text are kept.
+    // -------------------------------------------------------------------------
+    "popup": {
+        // One colour = solid; two or more = a gradient, in order.
+        "background": ["#0e141b", "#1b2838"],
+        // Gradient direction in degrees: 90 = left to right, 180 = top to bottom. Default 135.
+        "gradient_angle": 135,
+        // [stroke width px 0-20, colour, corner radius px 0-100]. Width 0 = no stroke.
+        "border": [1, "#66c0f455", 6],
+        // [colour, spread px, pulse ms]: an inner glow; pulse 0 = steady.
+        "glow": ["#66c0f433", 18, 0],
+        // false hides the Steam logo behind desktop toasts.
+        "watermark": false,
+        // Distance from the screen corner, CSS shorthand, clockwise: one number for every side,
+        // [vertical, horizontal], [top, horizontal, bottom] or [top, right, bottom, left].
+        // Only the sides the toast is anchored to count (top_right: top and right).
+        "margin": 8,
+        // Space inside the toast around the logo and text, same shorthand. Steam's is 10 on desktop.
+        // "padding": [8, 12],
+        // [logo to text px, between text rows px], or one number for both. Steam's is [12, 0].
+        // "gap": [12, 2],
+    },
+    // Plain font names only, with fallbacks.
+    // "font_family": "Motiva Sans, Arial, sans-serif",
+    "text": {
+        // [colour, size %, style]. Size 25-400 (100 = Steam's size). Style "bold" | "regular" | "italic".
+        "title": ["#66c0f4", 100, "bold"],
+        "body": ["#ffffff", 100, "regular"],
+        "subtext": ["#8f98a0", 100, "regular"],
+    },
+    // The game's logo on the left of the toast: "visible" true/false, "radius" rounds its corners (px).
+    "logo": { "radius": 6 },
+    // false hides the small icon before the title.
+    // "header_icon": false,
+    // Every notification's sound: ["path", volume %] (.mp3, .wav, .ogg, relative to this
+    // theme's folder), or false to mute. Unset: Steam's own sounds.
+    // "sound": ["assets/notify.mp3", 80],
+
+    // =========================================================================
+    // achievements (optional): replaces Steam's achievement toast with a themed
+    // banner, one profile per rarity tier. Leave the whole block out and
+    // achievement toasts get the notification style above, like every toast.
+    // =========================================================================
+    "achievements": {
+        // ---------------------------------------------------------------------
+        // settings: for every tier. "position", "animation" and
+        // "display_time_ms" are the theme's own (above) unless set here.
+        // ---------------------------------------------------------------------
+        "settings": {
+            // Banner arrangement. Default "default_steam".
+            //   "default_steam"        achievement art, text, rarity icon (283 px wide)
+            //   "default_system_right" same, plus the system icon on the right (400 px)
+            //   "compact_pill"         slim capsule: art, title and rarity icon, no description (48 px tall)
+            //   "ps5"                  art left, rarity icon before the title, system icon right (400 px)
+            //   "custom"               you place each icon: see "layout" below (400 px)
+            "layout": "custom",
+
+            // Text alignment for every tier (a tier's text.align overrides it).
+            //   "left" | "center" | "right". Default "left".
+            "text_align": "left",
+
+            // Only for achievement banners, overriding the theme's settings above:
+            // "position": "bottom_center",
+            // "animation": "fade",
+            // "display_time_ms": 6000,
+        },
+
+        // ---------------------------------------------------------------------
+        // layout: only used with "layout": "custom". Where each icon sits.
+        //   "left" | "right"                          outer zones of the banner
+        //   "achievement_left" | "achievement_right"  the same zones (after any "left"/"right" icon)
+        //   "title_left" | "title_right"              inline with the title line
+        //   "desc_left"  | "desc_right"               inline with the description line
+        // The text is always the middle column. Two icons may share a slot.
+        // Defaults: achievement "left", system "right", rarity "title_left".
+        // ---------------------------------------------------------------------
+        "layout": {
+            "achievement": "left",
+            "system": "right",
+            "rarity": "title_left",
+        },
+
+        // ---------------------------------------------------------------------
+        // tiers: one style per rarity tier. Only "normal" is required.
+        // ("themes" is accepted as an older name for "tiers".)
+        //
+        // Tier chosen per unlock, first match wins:
+        //   exceptional  the synthetic "100% complete" toast shown after the unlock
+        //                that completes a game
+        //   rare         global unlock % <= rare.threshold
+        //   magic        global unlock % <= magic.threshold
+        //   normal       everything else, and games without rarity data
+        //
+        // Inheritance: magic, rare and exceptional start from "normal" and override
+        // only what they set. Objects merge key by key; arrays and plain values
+        // replace whole (set "border" and you set all three of its values).
+        // ---------------------------------------------------------------------
+        "tiers": {
+            "normal": {
+                // ---- banner: the box itself ------------------------------------
+                // ("box" is accepted as an older name for "banner".)
+                "banner": {
+                    // [width %, height %] of the box, 25-400. One number (5 or [5]) = both. Default [100, 100].
+                    // Only the box grows or shrinks; text and icons keep their own sizes.
+                    "scale": [100, 100],
+
+                    // Base size in px before "scale". Default: the layout's own size.
+                    // "width": 400,   // 100-2000
+                    // "height": 70,   // 30-1000
+
+                    // One colour = solid; two or more = a gradient, in order. Default ["#1b2838", "#2a475e"].
+                    "background_color": ["#1b2838", "#2a475e"],
+
+                    // Gradient direction in degrees, -360-360: 90 = left to right,
+                    // 180 = top to bottom, 135 = diagonal. Default 90.
+                    "gradient_angle": 90,
+
+                    // [stroke width px 0-20, colour, corner radius px 0-100]. Default [0, "#ffffff", 4].
+                    // Width 0 = no stroke. Radius 0 = square, 15 = rounded, 35 = capsule.
+                    "border": [1, "#66c0f455", 6],
+
+                    // [colour, spread, pulse ms]. Parsed but currently has no visual
+                    // effect (kept so older themes load without warnings).
+                    "glow": ["#000000", 0, 0],
+
+                    // Distance from the anchored corner, CSS shorthand, clockwise, -100-200:
+                    // one number, [vertical, horizontal], [top, horizontal, bottom] or
+                    // [top, right, bottom, left]. Default 0. Only the anchored sides count;
+                    // the horizontal ones are ignored for "top_center" / "bottom_center".
+                    "margin": 8,
+
+                    // Space inside the box, the same shorthand, 0-100. Default [6, 10].
+                    "padding": [6, 10],
+
+                    // [between columns px, between text rows px], 0-100. One number (5 or [5]) = both. Default [10, 2].
+                    "gap": [10, 2],
+                },
+
+                // ---- text --------------------------------------------------------
+                "text": {
+                    // Overrides settings.text_align for this tier: "left" | "center" | "right".
+                    // "align": "left",
+
+                    // [colour, size %, style]. Size 25-400 (100 = Steam's size).
+                    // Style "bold" | "regular" | "italic".
+                    // Defaults: title ["#ffffff", 100, "bold"], desc ["#c7d5e0", 100, "regular"].
+                    "title": ["#ffffff", 100, "bold"],
+                    "desc": ["#c7d5e0", 100, "regular"],
+                },
+
+                // ---- icons -------------------------------------------------------
+                // Each slot: [source, scale %, ripple ms], or a bare source.
+                //   source    true  = Steam's own image (the achievement's art;
+                //                     Steam's logo for "system"; nothing for "rarity")
+                //             false = hidden
+                //             "assets/file.svg" = your own .png/.jpg/.gif/.webp/.svg, relative
+                //                     to this theme's folder (an absolute path also works)
+                //   scale %   10-300, 100 = the slot's standard size
+                //   ripple ms 0 = still; > 0 = an expanding ring pulses from the icon every N ms
+                // Two-value form [source, n]: n > 100 is read as ripple ms, otherwise as scale %.
+                // Defaults: achievement true, system false, rarity false.
+                "icons": {
+                    "achievement": [true, 100, 0],
+                    "system": [true, 60, 0],
+                    "rarity": ["assets/trophy_bronze.svg", 100, 0],
+                },
+
+                // ---- sound -------------------------------------------------------
+                // ["path", volume %]: .mp3, .wav or .ogg, volume 0-100, relative to
+                // this theme's folder. null (or leaving it out) uses the notification
+                // "sound" above, or Steam's own chime without one. A file that is
+                // missing or fails to decode falls back the same way.
+                // "sound": ["assets/unlock.mp3", 80],
+                "sound": null,
+            },
+
+            "magic": {
+                // Global unlock % at or below which an unlock is "magic", 0-100.
+                // Leave it out and this tier is never chosen. Not inherited.
+                "threshold": 25.0,
+                "banner": { "border": [1, "#c0c0c0aa", 6] },
+                "icons": { "rarity": ["assets/trophy_silver.svg", 100, 0] },
+            },
+
+            "rare": {
+                // Checked before magic, so keep it lower than magic's threshold.
+                "threshold": 10.0,
+                "banner": { "border": [2, "#e5a93c", 6] },
+                "text": { "title": ["#ffd56b", 100, "bold"] },
+                "icons": { "rarity": ["assets/trophy_gold.svg", 110, 1500] },
+            },
+
+            "exceptional": {
+                // No threshold: this tier is only the "100% complete" toast.
+                "banner": {
+                    "background_color": ["#0e141b", "#1b2838", "#2a475e"],
+                    "border": [2, "#40c4ff", 12],
+                },
+                "text": {
+                    // Steam lacks a built-in 100% completion achievement, so define
+                    // the custom title and description here.
+                    "title": "100% Complete",
+                    "desc": "You've unlocked all achievements!",
+                },
+                "icons": {
+                    "achievement": ["assets/trophy_platinum.svg", 100, 0],
+                    "rarity": ["assets/trophy_platinum.svg", 100, 2000],
+                },
+            },
+        },
+    },
+}
