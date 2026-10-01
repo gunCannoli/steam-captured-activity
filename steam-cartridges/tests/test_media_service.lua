@@ -425,5 +425,59 @@ check("a ROM ScreenScraper does not know falls back to the title on that system"
 check("the console ids map to ScreenScraper's", ss.SS_SYSTEM[1] == 1 and ss.SS_SYSTEM[3] == 4 and ss.SS_SYSTEM[7] == 3 and ss.SS_SYSTEM[12] == 57)
 ss.fetch_jeu, ss.search_jeu = real_fetch, real_search
 package.loaded["retroachievements"] = nil
+-- ---------- manuals (features plan F2c) ----------
+print("manuals")
+local MAN = { id = "5", medias = {
+  { type = "manuel", region = "jp", url = SS_URL .. "&media=manuel(jp)" },
+  { type = "manuel", region = "us", url = SS_URL .. "&media=manuel(us)" },
+  { type = "ss", region = "wor", url = SS_URL .. "&media=ss(wor)" },
+} }
+local man = ss.manual_item(MAN)
+check("manual_item: the US manual beats the Japanese one", man and man.key == "manuel(us)" and man.kind == "manual" and man.source == "screenscraper")
+check("the manual card is laid out 16:9 and carries no URL", man.width == 1280 and man.height == 720 and man.url == nil and man.thumb == nil)
+check("no manual: nil", ss.manual_item(JEU) == nil and ss.manual_item(nil) == nil)
+check("media_items still leaves the manual out", #ss.media_items(MAN) == 1)
+
+wipe()
+jeu_answer = MAN
+r = media.ensure(SC, { title = "G", route = ROUTE_WEB, allowScreenscraper = true })
+check("ensure: the manual is one more ScreenScraper item, after the images", r.status == "ok" and #r.data.items == 2 and r.data.items[2].kind == "manual",
+  r.data and #r.data.items)
+
+local PDF = "%PDF-1.4\n" .. string.rep("x", 2 * media.MANUAL_CHUNK_BYTES + 10)
+local doc_calls = {}
+net.deps.binary = { get = function(url, opts) doc_calls[#doc_calls + 1] = { url = url, opts = opts }; return { status = 200, body = PDF } end }
+local pdf_body = ss.download_document(SS_URL)
+check("download_document: the PDF body, no maxwidth, the manual size cap", pdf_body == PDF and not doc_calls[1].url:find("maxwidth", 1, true)
+  and doc_calls[1].opts.max_bytes == ss.MAX_MANUAL_BYTES)
+net.deps.binary = { get = function() return { status = 200, body = "Erreur de login" } end }
+local nb, nerr = ss.download_document(SS_URL)
+check("an answer that is not a PDF is an error", nb == nil and nerr == "not a pdf")
+net.deps.binary = nil
+net._reset()
+
+local downloads = 0
+media.deps.download_document = function() downloads = downloads + 1; return PDF end
+local c0 = media.manual_chunk(SC, "manuel(us)", "G", 0)
+check("chunk 0: downloads once, 3 chunks of 1 MiB, the size", downloads == 1 and c0.chunks == 3 and c0.size == #PDF and c0.index == 0)
+local c1 = media.manual_chunk(SC, "manuel(us)", "G", 1)
+local c2 = media.manual_chunk(SC, "manuel(us)", "G", 2)
+check("chunks 1 and 2 read the same copy", downloads == 1 and c1.index == 1 and c2.index == 2)
+check("the chunks are the PDF's bytes in order", c0.base64 == utils.base64_encode(PDF:sub(1, media.MANUAL_CHUNK_BYTES))
+  and c2.base64 == utils.base64_encode(PDF:sub(2 * media.MANUAL_CHUNK_BYTES + 1)))
+media.manual_chunk(SC, "manuel(us)", "G", 1)
+check("after the last chunk the copy is freed: a later chunk downloads again", downloads == 2)
+local _, bad = media.manual_chunk(SC, "manuel(us)", "G", 9)
+check("an index past the end is an error", bad == "bad index")
+local _, unk = media.manual_chunk(SC, "manuel(fr)", "G", 0)
+check("an unknown key is an error", unk == "unknown key")
+res = json.decode(record_rpc.GetManualChunk(json.encode({ appid = SC, key = "manuel(us)", title = "G", index = 0 })))
+check("GetManualChunk returns base64 and the chunk count, and no url field", type(res.base64) == "string" and res.chunks == 3 and res.url == nil)
+res = json.decode(record_rpc.GetManualChunk(json.encode({ appid = 435150, key = "manuel(us)", index = 0 })))
+check("GetManualChunk refuses a native appid", res.error == "not a shortcut")
+media.deps.download_document = nil
+jeu_answer = JEU
+wipe()
+os.remove(media_store._path); os.remove(fresh_policy._path)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

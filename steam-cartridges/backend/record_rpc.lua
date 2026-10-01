@@ -194,4 +194,12 @@ RPC.GetMediaImage = method("GetMediaImage", function(data)
   return image
 end)
 
+RPC.GetManualChunk = method("GetManualChunk", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local chunk, err = media_service.manual_chunk(tonumber(appid), need(data, "key"), data.title, data.index)
+  if not chunk then return { error = err } end
+  return chunk
+end)
+
 return RPC

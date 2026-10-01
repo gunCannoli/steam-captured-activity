@@ -372,6 +372,45 @@ function M.media_items(jeu)
   return items
 end
 
+-- ---------- Manuals (features plan F2c) ----------
+
+--- ScreenScraper's media type for a game manual (a PDF), one per region.
+M.MANUAL_TYPE = "manuel"
+--- The cover card's layout size: 16:9, the size IGDB screenshots already lay out as one ordinary cell.
+M.MANUAL_COVER = { 1280, 720 }
+--- A manual larger than this is not downloaded (the WinINet reader holds it in memory).
+M.MAX_MANUAL_BYTES = 48 * 1024 * 1024
+
+--- The manual card of a `jeu`, best region first (REGION_RANK), or nil: { kind = "manual", source, key, title,
+--- width, height }. Never a URL.
+function M.manual_item(jeu)
+  local best
+  for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do
+    if type(m) == "table" and m.type == M.MANUAL_TYPE and type(m.url) == "string" and m.url ~= "" then
+      local rank = REGION_RANK[m.region or "wor"] or 9
+      local key = key_of(m)
+      if not best or rank < best.rank or (rank == best.rank and key < best.key) then best = { rank = rank, key = key } end
+    end
+  end
+  if not best then return nil end
+  return { kind = "manual", source = "screenscraper", key = best.key, title = "Manual",
+    width = M.MANUAL_COVER[1], height = M.MANUAL_COVER[2] }
+end
+
+--- The bytes of one manual URL, in memory (net.get_binary, no `maxwidth`: a PDF is not scaled). Never logs the URL.
+---@return string|nil body, string|nil err
+function M.download_document(url)
+  local res, err = net.get_binary(url, {
+    source = "screenscraper",
+    user_agent = "steam-cartridges/1.0",
+    max_bytes = M.MAX_MANUAL_BYTES,
+  })
+  if not res then return nil, tostring(err) end
+  if res.status ~= 200 then return nil, "status " .. tostring(res.status) end
+  if type(res.body) ~= "string" or res.body:sub(1, 5) ~= "%PDF-" then return nil, "not a pdf" end
+  return res.body
+end
+
 --- The URL of the media item `key` in `jeu`, or nil. Stays in the backend (it carries the accounts).
 function M.media_url(jeu, key)
   for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do

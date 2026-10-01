@@ -22,6 +22,7 @@ M.deps = {
   ss_jeu = nil,        -- nil = screenscraper_media.jeu_for(appid, title, info) -> jeu | nil, err
   shortcut_info = nil, -- nil = registry.shortcut (the shortcuts.vdf entry)
   download = nil,      -- nil = screenscraper_media.download(url) -> body, ext, width, height
+  download_document = nil, -- nil = screenscraper_media.download_document(url) -> body | nil, err
   fresh = nil,         -- nil = fresh_policy
   now = function() return os.time() end,
 }
@@ -122,7 +123,10 @@ function M.ensure(appid, ctx)
       answered = true
       data.ss_id = tonumber(jeu.id)
       sources[#sources + 1] = "screenscraper"
-      for _, it in ipairs(require("screenscraper_media").media_items(jeu)) do items[#items + 1] = it end
+      local media = require("screenscraper_media")
+      for _, it in ipairs(media.media_items(jeu)) do items[#items + 1] = it end
+      local manual = media.manual_item(jeu)
+      if manual then items[#items + 1] = manual end
     elseif ok and err == "not-found" then
       answered = true -- a definite "no such game": no media, not a failure
     elseif ok and err == "no-credentials" then
@@ -161,6 +165,37 @@ function M.image(appid, key, title)
   local body, ext, width, height = (M.deps.download or media.download)(url)
   if not body then return nil, ext end
   return { base64 = require("utils").base64_encode(body), ext = ext, width = width, height = height }
+end
+
+--- One downloaded manual, kept while the frontend reads it in chunks: { appid, key, body }. One at a time.
+local manual_doc = nil
+--- Bytes per GetManualChunk answer (base64 makes it 4/3 larger on the RPC).
+M.MANUAL_CHUNK_BYTES = 1024 * 1024
+
+--- Chunk `index` (0-based) of a ScreenScraper manual as base64 (GetManualChunk): { base64, index, chunks, size }, or nil
+--- and an error. Chunk 0 downloads the PDF into memory; the other chunks read that copy. The URL never leaves here.
+function M.manual_chunk(appid, key, title, index)
+  if type(key) ~= "string" or key == "" then return nil, "missing key" end
+  index = math.floor(tonumber(index) or 0)
+  if index < 0 then return nil, "bad index" end
+  if index == 0 or not (manual_doc and manual_doc.appid == appid and manual_doc.key == key) then
+    manual_doc = nil
+    local media = require("screenscraper_media")
+    local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
+    if not ok or type(jeu) ~= "table" then return nil, ok and tostring(err or "not-found") or "not-found" end
+    local url = media.media_url(jeu, key)
+    if not url then return nil, "unknown key" end
+    local body, derr = (M.deps.download_document or media.download_document)(url)
+    if not body then return nil, derr end
+    manual_doc = { appid = appid, key = key, body = body }
+  end
+  local body = manual_doc.body
+  local chunks = math.max(1, math.ceil(#body / M.MANUAL_CHUNK_BYTES))
+  if index >= chunks then return nil, "bad index" end
+  local from = index * M.MANUAL_CHUNK_BYTES + 1
+  local piece = body:sub(from, from + M.MANUAL_CHUNK_BYTES - 1)
+  if index == chunks - 1 then manual_doc = nil end -- the last chunk read: free the copy
+  return { base64 = require("utils").base64_encode(piece), index = index, chunks = chunks, size = #body }
 end
 
 return M
