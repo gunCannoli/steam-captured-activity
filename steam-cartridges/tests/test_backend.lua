@@ -2,9 +2,15 @@
 --
 --   lua tests\test_backend.lua
 --
--- Steam root comes from NSGA_STEAM_ROOT (see harness.lua). The FIXTURE block
--- below records the dev machine's library; on any other install those counts
--- will differ, so set NSGA_SKIP_FIXTURES=1 to run only the invariant checks.
+-- Steam root comes from NSGA_STEAM_ROOT (see harness.lua).
+--
+-- The library changes all the time, so counts are never hardcoded. A CENSUS
+-- runs first: it counts shortcuts and screenshots straight from the raw files
+-- with a deliberately naive scan (no parser under test), prints the numbers,
+-- and the parsers are then checked against it. It also prints how the library
+-- changed since the last run (information, never a failure). Only a few stable
+-- identities (AM2R's appid and name, ...) are hardcoded in FIXTURE; on another
+-- install set NSGA_SKIP_FIXTURES=1 to skip those.
 --
 -- Lua is not bundled with Millennium; get a standalone interpreter from
 -- https://luabinaries.sourceforge.net/ to run this.
@@ -13,21 +19,11 @@ package.path = (debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."
   .. "\\?.lua;" .. package.path
 require("harness")
 
--- Expected values for the development machine's library.
+-- Stable facts about the development machine's library: identities, never counts.
 local FIXTURE = {
-  shortcuts        = 220,
-  retroarch        = 215,
-  games_with_media = 6,
-  screenshots      = 213,
   am2r_appid       = 4263274102,
   am2r_name        = "AM2R - Another Metroid 2 Remake",
-  am2r_shots       = 4,
   vitality_appid   = 4218550559,
-  vitality_shots   = 3,
-  -- A 14.144s clip recorded on AM2R; see docs/knowledgebase.md "Recordings".
-  am2r_clips       = 1,
-  am2r_clip_ms     = 14144,
-  am2r_clip_at     = 1789835832,
   -- A native Steam game (Divinity: Original Sin 2) recorded in the same store,
   -- to prove native vs non-Steam id handling.
   native_appid     = 435150,
@@ -47,6 +43,77 @@ local function fixture(label, cond, detail)
     return
   end
   check(label, cond, detail)
+end
+
+-- ============ census helpers ============
+-- Naive counts from the raw files, independent of shortcuts.lua / captures.lua.
+
+--- Count the plain-text occurrences of `needle` in `hay`.
+local function occurrences(hay, needle)
+  local n, i = 0, 1
+  while true do
+    local at = hay:find(needle, i, true)
+    if not at then return n end
+    n, i = n + 1, at + 1
+  end
+end
+
+--- shortcuts.vdf is binary VDF: every entry has the string fields "appname" and
+--- "exe" (type byte 0x01, key, NUL, value, NUL). Keys are "AppName" / "appname"
+--- and "Exe" / "exe" depending on the Steam version, so scan a lowercased copy.
+local function census_shortcuts(file)
+  local raw = (require("utils").read_file(file) or ""):lower()
+  local retroarch, i = 0, 1
+  local key = "\1exe\0"
+  while true do
+    local at = raw:find(key, i, true)
+    if not at then break end
+    local value_end = raw:find("\0", at + #key, true) or #raw + 1
+    if raw:sub(at + #key, value_end - 1):find("retroarch.exe", 1, true) then retroarch = retroarch + 1 end
+    i = at + 1
+  end
+  return occurrences(raw, "\1appname\0"), retroarch
+end
+
+--- screenshots.vdf is text VDF indented with tabs: a game is a bare key at one
+--- tab, each of its screenshots has a "filename" line below it. A non-Steam
+--- gameid is the composed 64-bit id (more than 10 digits; a native appid fits in
+--- 10). The "shortcutnames" block at the end is not numeric, so it is skipped.
+local function census_screenshots(file)
+  local per_game, current = {}, nil
+  for line in (require("utils").read_file(file) or ""):gmatch("[^\r\n]+") do
+    local key = line:match('^\t"([^"]+)"%s*$')
+    if key then
+      current = (key:match("^%d+$") and #key > 10) and key or nil
+    elseif current and line:find('"filename"', 1, true) then
+      per_game[current] = (per_game[current] or 0) + 1
+    end
+  end
+  local games, shots = 0, 0
+  for _, n in pairs(per_game) do games, shots = games + 1, shots + n end
+  return { games = games, shots = shots, per_game = per_game }
+end
+
+--- The last run's census, kept outside the repo, so a run says what changed.
+local CENSUS_KEYS = { "shortcuts", "retroarch", "games_with_media", "screenshots" }
+local CENSUS_FILE = (os.getenv("TEMP") or os.getenv("TMPDIR") or ".") .. "/steam-cartridges-census.txt"
+local function census_drift(now)
+  local before, changed = {}, {}
+  local f = io.open(CENSUS_FILE, "r")
+  if f then
+    for k, v in f:read("*a"):gmatch("([%w_]+)=(%d+)") do before[k] = tonumber(v) end
+    f:close()
+  end
+  for _, k in ipairs(CENSUS_KEYS) do
+    if before[k] and before[k] ~= now[k] then changed[#changed + 1] = k .. " " .. before[k] .. " -> " .. now[k] end
+  end
+  print("  INFO  library since the last run: "
+    .. (next(before) == nil and "first run" or #changed == 0 and "unchanged" or table.concat(changed, ", ")))
+  f = io.open(CENSUS_FILE, "w")
+  if f then
+    for _, k in ipairs(CENSUS_KEYS) do f:write(k, "=", now[k], "\n") end
+    f:close()
+  end
 end
 
 -- ============ gameid ============
@@ -82,12 +149,27 @@ if paths then
   check("screenshots.vdf exists", require("fs").is_file(paths.screenshots_vdf))
 end
 
+-- ============ census ============
+print("\n=== census (expected values, counted from the raw files) ===")
+local CENSUS = {}
+CENSUS.shortcuts, CENSUS.retroarch = census_shortcuts(paths.shortcuts)
+local shots_census = census_screenshots(paths.screenshots_vdf)
+CENSUS.games_with_media, CENSUS.screenshots = shots_census.games, shots_census.shots
+print(string.format("  INFO  shortcuts=%d retroarch=%d games_with_media=%d screenshots=%d",
+  CENSUS.shortcuts, CENSUS.retroarch, CENSUS.games_with_media, CENSUS.screenshots))
+-- A census of zero would let a parser that finds nothing pass.
+check("census found shortcuts", CENSUS.shortcuts > 0, tostring(CENSUS.shortcuts))
+check("census found screenshots", CENSUS.screenshots > 0, tostring(CENSUS.screenshots))
+census_drift(CENSUS)
+--- Screenshots the census saw for one appid (nil when it has none).
+local function census_shots(appid) return shots_census.per_game[gameid.from_appid(appid)] end
+
 -- ============ shortcuts ============
 print("\n=== shortcuts ===")
 local shortcuts = require("shortcuts")
 local entries = shortcuts.parse(paths.shortcuts)
 check("parsed entries", entries ~= nil and #entries > 0, "#" .. tostring(entries and #entries))
-fixture("shortcut count", #entries == FIXTURE.shortcuts, "#" .. #entries)
+check("shortcut count matches census", #entries == CENSUS.shortcuts, #entries .. " vs " .. CENSUS.shortcuts)
 
 local retroarch, named, with_exe = 0, 0, 0
 for _, e in ipairs(entries) do
@@ -97,7 +179,7 @@ for _, e in ipairs(entries) do
 end
 check("all entries named", named == #entries, named .. "/" .. #entries)
 check("all entries have exe", with_exe == #entries, with_exe .. "/" .. #entries)
-fixture("retroarch shortcut count", retroarch == FIXTURE.retroarch, tostring(retroarch))
+check("retroarch shortcut count matches census", retroarch == CENSUS.retroarch, retroarch .. " vs " .. CENSUS.retroarch)
 
 local by_appid = shortcuts.by_appid(entries)
 local am2r = by_appid[FIXTURE.am2r_appid]
@@ -116,14 +198,15 @@ local captures = require("captures")
 local counts = captures.non_steam_counts(paths)
 local games, total = 0, 0
 for _, n in pairs(counts) do games = games + 1; total = total + n end
-fixture("non-steam games with media", games == FIXTURE.games_with_media, tostring(games))
-fixture("screenshots indexed", total == FIXTURE.screenshots, tostring(total))
+check("non-steam games with media matches census", games == CENSUS.games_with_media,
+      games .. " vs " .. CENSUS.games_with_media)
+check("screenshots indexed matches census", total == CENSUS.screenshots, total .. " vs " .. CENSUS.screenshots)
 
-fixture("AM2R screenshot count", counts[FIXTURE.am2r_appid] == FIXTURE.am2r_shots,
-        tostring(counts[FIXTURE.am2r_appid]))
-fixture("Super Metroid Vitality screenshot count",
-        counts[FIXTURE.vitality_appid] == FIXTURE.vitality_shots,
-        tostring(counts[FIXTURE.vitality_appid]))
+fixture("AM2R screenshot count matches census", counts[FIXTURE.am2r_appid] == census_shots(FIXTURE.am2r_appid),
+        tostring(counts[FIXTURE.am2r_appid]) .. " vs " .. tostring(census_shots(FIXTURE.am2r_appid)))
+fixture("Super Metroid Vitality screenshot count matches census",
+        counts[FIXTURE.vitality_appid] == census_shots(FIXTURE.vitality_appid),
+        tostring(counts[FIXTURE.vitality_appid]) .. " vs " .. tostring(census_shots(FIXTURE.vitality_appid)))
 
 check("unknown appid is not counted", counts[12345] == nil)
 check("native Steam appid is not counted", counts[FIXTURE.native_appid] == nil)
@@ -132,14 +215,14 @@ check("native Steam appid is not counted", counts[FIXTURE.native_appid] == nil)
 local lib = captures.library_stats(paths)
 local lib_games = 0
 for _ in pairs(lib) do lib_games = lib_games + 1 end
-fixture("library_stats covers every media game", lib_games == FIXTURE.games_with_media,
-        tostring(lib_games))
+check("library_stats covers every media game", lib_games == CENSUS.games_with_media,
+      lib_games .. " vs " .. CENSUS.games_with_media)
 
 local stat = lib[FIXTURE.am2r_appid]
 check("library_stats has AM2R", stat ~= nil)
 if stat then
-  fixture("library_stats screenshot count", stat.screenshots == FIXTURE.am2r_shots,
-          tostring(stat.screenshots))
+  check("library_stats screenshot count", stat.screenshots == counts[FIXTURE.am2r_appid],
+        tostring(stat.screenshots))
   check("library_stats newest is a real timestamp", stat.newest > 1600000000,
         tostring(stat.newest))
 end

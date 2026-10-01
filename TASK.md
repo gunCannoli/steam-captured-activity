@@ -122,9 +122,8 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Active failures & blockers
 
-- `steam-cartridges` `test_backend.lua` fails 3 fixture checks against the live library (2026-10-01): `games_with_media` is 7,
-  and WUCHANG (`3135033888`) is counted with no screenshots. Check whether the library changed (update `FIXTURE`) or the
-  count includes games with zero captures (a bug).
+- `steam-cartridges` backend: the empty-screenshot-block fix (2026-10-01) is committed, not deployed. It goes live with the
+  next `dev.ps1`; `GetDiagnostics.games_with_media` should then read 6, not 7.
 
 ---
 

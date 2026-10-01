@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: a game whose screenshots were all deleted no longer counts as a game with media (2026-10-01)**: Steam keeps an empty entry for it in `screenshots.vdf`; the library stats and diagnostics counted it (with no capture date).
+
 - **Changed: a non-Steam game's achievement progress is in Steam from start-up (ADR-0045, 2026-09-30)**: Big Picture's play bar and other plugins see it without opening the game's page first. Removed the public `storedAchievementSummaries()` (enhanced-achievements no longer needs it).
 - M10: internal cleanup (no user-visible change) — see the workspace CHANGELOG.
 - **Changed: the background job now only fetches new games (M7b, 2026-09-29)**: at start-up the plugin fetches data only for shortcuts added since the last run (the first run after this update treats your existing library as already seen, so nothing is fetched in one go). Every other game refreshes when you open its page and its data is more than 24 hours old (a Steam match and your own manual edits are never refreshed). If a provider rate-limits or keeps failing, the job stops and picks up again later. "Sync" in settings still walks the whole library.

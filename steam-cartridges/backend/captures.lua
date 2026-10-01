@@ -140,14 +140,15 @@ end
 
 --- Every gameid in the screenshot index that belongs to a non-Steam game.
 --- Includes ids whose shortcut has since been deleted - callers decide whether
---- to show those.
+--- to show those. Skips empty blocks: Steam keeps `"<gameid>" { }` after its
+--- screenshots are deleted (WUCHANG, 2026-09-30), and that game has no media.
 ---@param paths steam_paths.Paths
 ---@return table<integer, integer> counts  appid -> screenshot count
 function captures.non_steam_counts(paths)
   local games = load_index(paths)
   local counts = {}
   for id, list in pairs(games) do
-    if gameid.is_non_steam(id) then
+    if #list > 0 and gameid.is_non_steam(id) then
       local appid = gameid.to_appid(id)
       if appid then counts[appid] = #list end
     end
@@ -170,7 +171,7 @@ function captures.library_stats(paths)
   local out = {}
 
   for id, list in pairs(games) do
-    if gameid.is_non_steam(id) then
+    if #list > 0 and gameid.is_non_steam(id) then
       local appid = gameid.to_appid(id)
       if appid then
         local newest = 0

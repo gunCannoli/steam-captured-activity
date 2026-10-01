@@ -776,9 +776,20 @@ backend modules run against a **real** Steam install — no mock data.
 NSGA_STEAM_ROOT="C:\game\steam" lua tests/test_backend.lua
 ```
 
-Keep machine-specific expectations in one `FIXTURE` table with a skip flag, so
-the suite still runs on another install. This caught three real bugs that would
-have been hard to spot as wrong-looking output inside Steam.
+**Never hardcode a count of the live library** (shortcuts, screenshots, games with
+media): it changes every time the user plays, and a stale number fails for no reason
+or gets "fixed" by editing it to whatever the code returned. Instead, run a **census**
+first: count the expected value straight from the raw file with a deliberately naive
+scan that shares no code with the parser under test (`test_backend.lua`: a byte search
+for `\1appname\0` in `shortcuts.vdf`, a tab-indent line scan of `screenshots.vdf`),
+print it, require it to be above zero, then check the parser against it. The census
+also prints what changed since the last run (kept in `%TEMP%`), as information only.
+Hardcode only stable identities (an appid and its name) in a `FIXTURE` table with a
+skip flag, so the suite still runs on another install. When a census check fails, the
+two counts disagree on the same file: that is a parser bug or a file shape the census
+does not know, never "the library changed" (found this way 2026-10-01: Steam keeps an
+empty `"<gameid>" { }` block after screenshots are deleted, and the parser counted it
+as a game with media).
 
 Frontend plugins run pure-logic tests with `npm test`
 (`node --experimental-strip-types --test tests/*.test.ts`) and live checks as
