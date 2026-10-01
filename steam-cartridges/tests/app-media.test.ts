@@ -67,7 +67,7 @@ test('app/media: ScreenScraper images are fetched into the bin before the record
     assert.deepEqual(s.bin.get(SC, 'fanart()'), { url: 'blob:QUJD.jpg', width: 800, height: 450 });
     const items = s.records.get(SC)!.media!.data!.items;
     assert.equal(items.length, 3);
-    assert.deepEqual([items[2]!.width, items[2]!.height], [800, 450]);
+    assert.deepEqual([items[1]!.width, items[1]!.height], [800, 450]);
     assert.equal(part, s.records.get(SC)!.media);
 });
 
@@ -90,7 +90,7 @@ test('app/media: a failed ScreenScraper image drops that card only', async () =>
 test('app/media: the toggles decide what the record keeps (and what is fetched)', async () => {
     const s = setup({ toggles: { trailers: false, artworks: true } });
     await s.media.ensure(SC, ROUTE, undefined);
-    assert.deepEqual(s.records.get(SC)!.media!.data!.items.map((i) => i.kind), ['screenshot', 'artwork']);
+    assert.deepEqual(s.records.get(SC)!.media!.data!.items.map((i) => i.kind), ['artwork', 'screenshot']);
     const t = setup({ toggles: { trailers: true, artworks: false } });
     await t.media.ensure(SC, ROUTE, undefined);
     assert.deepEqual(t.records.get(SC)!.media!.data!.items.map((i) => i.kind), ['video']);

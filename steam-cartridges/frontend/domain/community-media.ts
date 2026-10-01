@@ -21,13 +21,23 @@ export function isShowable(item: MediaItem | undefined): item is MediaItem {
     return typeof item.url === "string" && item.url !== "";
 }
 
-/** The items to show, in the backend's order: allowed by the toggles, complete, at most MAX_PER_KIND per kind. */
+/**
+ * The items to show: allowed by the toggles, complete, at most MAX_PER_KIND per kind. Order: trailers, then the images
+ * ScreenScraper has for this exact game (chosen by ROM and console, so the most specific), then IGDB's. The ScreenScraper
+ * images go first so IGDB's larger sets can neither crowd them out of the cap nor leave them at the end of the grid, where
+ * Steam's row layout drops a card that fits no row.
+ */
 export function visibleMedia(media: CommunityMedia | undefined, toggles: MediaToggles): MediaItem[] {
     const counts: Record<string, number> = {};
+    const rank = (item: MediaItem) => (item.kind === "video" ? 0 : item.source === "screenscraper" ? 1 : 2);
+    const wanted = asList<MediaItem>(media?.items)
+        .filter(isShowable)
+        .filter((item) => (item.kind === "video" ? toggles.trailers : toggles.artworks))
+        .map((item, index) => ({ item, index }))
+        .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
+        .map((entry) => entry.item);
     const out: MediaItem[] = [];
-    for (const item of asList<MediaItem>(media?.items)) {
-        if (!isShowable(item)) continue;
-        if (item.kind === "video" ? !toggles.trailers : !toggles.artworks) continue;
+    for (const item of wanted) {
         counts[item.kind] = (counts[item.kind] ?? 0) + 1;
         if (counts[item.kind]! > MAX_PER_KIND) continue;
         out.push(item);

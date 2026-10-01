@@ -15,10 +15,10 @@ test('community media: complete items are showable, incomplete ones are not', ()
     assert.ok(!isShowable({ kind: 'manual', source: 'igdb', url: 'x' } as any), 'unknown kinds are not cards');
 });
 
-test('community media: the toggles pick videos and images, in the backend order', () => {
+test('community media: the toggles pick videos and images; trailers first, then ScreenScraper, then IGDB', () => {
     const media = { items: [video(), shot(1), ssArt] };
-    assert.deepEqual(visibleMedia(media, ON), [video(), shot(1), ssArt]);
-    assert.deepEqual(visibleMedia(media, { trailers: false, artworks: true }), [shot(1), ssArt]);
+    assert.deepEqual(visibleMedia(media, ON), [video(), ssArt, shot(1)]);
+    assert.deepEqual(visibleMedia(media, { trailers: false, artworks: true }), [ssArt, shot(1)]);
     assert.deepEqual(visibleMedia(media, { trailers: true, artworks: false }), [video()]);
 });
 
@@ -32,4 +32,15 @@ test('community media: at most MAX_PER_KIND of each kind', () => {
 test('community media: the backend\'s empty list `{}` and a missing part are no items (K1)', () => {
     assert.deepEqual(visibleMedia({ items: {} as any }, ON), []);
     assert.deepEqual(visibleMedia(undefined, ON), []);
+});
+
+test('community media: ScreenScraper images keep their place when IGDB has more than the cap', () => {
+    const igdbArt = (n: number) => ({ kind: 'artwork', source: 'igdb', url: `https://x/a${n}.jpg`, width: 1920, height: 1080 }) as any;
+    const ssShot = { kind: 'screenshot', source: 'screenscraper', key: 'ss(wor)' } as any;
+    const items = [video(), ...Array.from({ length: MAX_PER_KIND + 3 }, (_, i) => igdbArt(i)), ssShot, ssArt];
+    const out = visibleMedia({ items }, ON);
+    assert.equal(out.filter((i) => i.kind === 'artwork').length, MAX_PER_KIND);
+    assert.ok(out.includes(ssArt), 'the ScreenScraper fanart survives the cap');
+    assert.deepEqual(out.slice(0, 3), [video(), ssShot, ssArt], 'trailers, then ScreenScraper, before any IGDB image');
+    assert.equal(out.findIndex((i) => i.source === 'igdb' && i.kind === 'artwork') > 2, true);
 });

@@ -66,7 +66,7 @@ function M.download(url) end                 -- body, ext, width, height (maxwid
 | `backend/web_igdb.lua` | `igdb.query`: the one IGDB client (Twitch token) |
 | `backend/record_rpc.lua` | `EnsureFresh` `media` branch; `GetMediaImage` |
 | `frontend/app/media.ts` | The use case: one `EnsureFresh(["media"])`, the toggles, the ScreenScraper images into the bin |
-| `frontend/domain/community-media.ts` | `visibleMedia`: toggles and at most 12 cards per kind |
+| `frontend/domain/community-media.ts` | `visibleMedia`: toggles, at most 12 cards per kind, ScreenScraper images ahead of IGDB's (so a larger IGDB set cannot crowd them out of the cap, and Steam's row layout drops an IGDB card, not theirs) |
 | `frontend/kernel/media-bin.ts` | Object URLs of ScreenScraper images, 8 shortcuts |
 
 ## Steam targets touched
