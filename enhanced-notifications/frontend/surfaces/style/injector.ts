@@ -8,6 +8,8 @@ import { buildPlaceholderCss } from '../../theme/theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
 import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
+import { installToastPop } from './toast-pop';
+import { takesSignal, type TypeSignal } from './type-source';
 
 /**
  * Styles Steam's toast windows without touching React.
@@ -15,11 +17,13 @@ import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
  * - One `<style>` per toast window holds the CSS for every type the theme styles.
  *   Each rule is scoped to `body[data-en-type="<Type>"]`.
  * - While a toast shows, its window's `<body>` carries `data-en-type` = the
- *   notification's Steam type name. The type comes from two Steam signals: the
- *   "toast shown" call every toast container makes (the shared hook's
- *   `onShown`, steam/notification-hook.ts; desktop popups only have this one) and NotificationStore's
- *   current-toast value (Big Picture). No attribute means no rule matches, so
- *   the toast stays stock.
+ *   notification's Steam type name. The type comes from the moment Steam hands
+ *   the toast to a toast view (`PopNextToastNotification`, ./toast-pop.ts),
+ *   before it renders; without that method, from the shared hook's `onShown`
+ *   (steam/notification-hook.ts), a frame late. Never from NotificationStore's
+ *   current-toast value: it changes when a toast arrives, so a queued toast
+ *   restyled the one on screen (./type-source.ts). No attribute means no rule
+ *   matches, so the toast stays stock.
  *
  * Toast windows come from two different sources, per mode
  * (fixed and verified live 2026-09-24, see docs/steam-components.md § Toast windows):
@@ -96,6 +100,8 @@ let currentType: string | null = null;
 let currentEType: number | undefined;
 let placeholderSelector: string | undefined;
 let installed = false;
+/** Steam has `PopNextToastNotification` and it is wrapped (./toast-pop.ts); false: the type follows `onShown`. */
+let popAvailable = false;
 /** Registered once: Millennium has no way to remove a window-create hook. */
 let windowHookAdded = false;
 let offs: (() => void)[] = [];
@@ -263,12 +269,11 @@ function scanBigPictureToastWindows(): void {
 }
 
 /** Decide which type (if any) the current toast should be styled as. */
-function onCurrentToast(toast: CurrentToast | null | undefined, signal: 'arrival' | 'shown' | 'manual' | 'refresh' = 'refresh'): void {
+function onCurrentToast(toast: CurrentToast | null | undefined, signal: TypeSignal = 'refresh'): void {
     if (!installed) return;
-    const src = typeSource();
-    bpLog(signal, { eType: toast?.eType ?? null, used: signal === 'refresh' || signal === src || (src === 'arrival' && signal === 'shown') });
-    // Debug type sources (./bp-debug.ts): `arrival` (today) takes both signals; `shown` drops arrivals; `manual` takes neither.
-    if (signal !== 'refresh' && signal !== src && !(src === 'arrival' && signal === 'shown')) return;
+    const used = takesSignal(typeSource(), signal, popAvailable);
+    bpLog(signal, { eType: toast?.eType ?? null, used });
+    if (!used) return;
     currentEType = toast?.eType;
     currentType = styledName(toast?.eType);
     scanBigPictureToastWindows();
@@ -285,23 +290,27 @@ function refresh(): void {
     else onCurrentToast(currentEType === undefined ? null : { eType: currentEType });
 }
 
-/** false: Steam lacks the current-toast value or Millennium the window hook; toasts stay stock. */
+/** false: Steam lacks the NotificationStore or Millennium the window hook; toasts stay stock. */
 export function installInjector(placeholder: string | undefined, onShown: NotificationHook['onShown']): boolean {
-    const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
-    const current = store?.CurrentToastSubscribableValue;
+    const store = Reflect.get(globalThis, 'NotificationStore') as (object & { CurrentToastSubscribableValue?: Subscribable<CurrentToast> }) | undefined;
     const millennium = Reflect.get(globalThis, 'Millennium') as { AddWindowCreateHook?: (cb: (popup: Popup) => void) => void } | undefined;
-    if (!current?.Subscribe || typeof millennium?.AddWindowCreateHook !== 'function') {
-        logger.warn('Current-toast value or window hook unavailable; styling disabled.');
+    if (!store || typeof millennium?.AddWindowCreateHook !== 'function') {
+        logger.warn('NotificationStore or window hook unavailable; styling disabled.');
         return false;
     }
 
     installed = true;
     placeholderSelector = placeholder;
     windowCss = buildThemeCss();
-    const subscription = current.Subscribe((toast) => toast && onCurrentToast(toast, 'arrival'));
+    const unpop = installToastPop(store, (n) => onCurrentToast(n, 'pop'), (error) => reportError('style', error));
+    popAvailable = unpop !== null;
+    if (!popAvailable) logger.warn('PopNextToastNotification unavailable; the toast type follows onShown, a frame late.');
+    // Arrivals are read only for the debug trace and the `arrival` debug source (./type-source.ts).
+    const subscription = store.CurrentToastSubscribableValue?.Subscribe?.((toast) => toast && onCurrentToast(toast, 'arrival'));
     setManualTypeSink((eType) => onCurrentToast(eType === null ? null : { eType }, 'manual'));
     offs = [
-        () => subscription.Unsubscribe(),
+        () => unpop?.(),
+        () => subscription?.Unsubscribe(),
         onShown((n) => {
             if (typeof n?.eType === 'number') onCurrentToast(n, 'shown');
         }),
@@ -331,6 +340,7 @@ export function uninstallInjector(): void {
     }
     offs = [];
     setManualTypeSink(null);
+    popAvailable = false;
     currentType = null;
     currentEType = undefined;
     detachToastWindows();

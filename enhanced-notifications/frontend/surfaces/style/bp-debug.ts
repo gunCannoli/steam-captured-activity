@@ -1,4 +1,5 @@
 import { logger } from '../../logger';
+import { TYPE_SOURCES, type TypeSource } from './type-source';
 
 /**
  * Big Picture toast debugging (off by default, never persisted): a trace of what the style surface saw and did for
@@ -12,15 +13,8 @@ import { logger } from '../../logger';
  *   PLUGIN_LIST['enhanced-notifications-dev'].bigPictureTrace()          // entries, `t` is performance.now()
  *   PLUGIN_LIST['enhanced-notifications-dev'].debugBigPicture({ typeSource: 'shown' })
  *
- * Type sources (which Steam signal sets the type used for Big Picture's window and a desktop popup not yet typed):
- * - `arrival` (today): NotificationStore's current toast, which changes when a toast ARRIVES, even while another one is
- *   still on screen (queued), plus the shared hook's `onShown`.
- * - `shown`: only `onShown` (Steam's toast component asking for its sound, in an effect after the toast is committed).
- * - `manual`: neither; the type is set by `debugBigPictureType(eType)`, so a probe can drive it from any signal
- *   (the probe's `--source pop` wraps `NotificationStore.PopNextToastNotification` from CDP).
+ * Type sources (`pop`, the default, `shown`, `arrival`, `manual`): ./type-source.ts.
  */
-
-export type TypeSource = 'arrival' | 'shown' | 'manual';
 
 export interface TraceEntry {
     t: number;
@@ -31,7 +25,7 @@ export interface TraceEntry {
 const MAX_ENTRIES = 1000;
 let enabled = false;
 let echo = false;
-let source: TypeSource = 'arrival';
+let source: TypeSource = 'pop';
 let entries: TraceEntry[] = [];
 let manualSink: ((eType: number | null) => void) | null = null;
 
@@ -61,7 +55,7 @@ export function setManualTypeSink(sink: ((eType: number | null) => void) | null)
 export function debugBigPicture(opts: { enabled?: boolean; echo?: boolean; typeSource?: TypeSource } = {}): { enabled: boolean; echo: boolean; typeSource: TypeSource } {
     if (opts.enabled !== undefined) enabled = opts.enabled;
     if (opts.echo !== undefined) echo = opts.echo;
-    if (opts.typeSource && ['arrival', 'shown', 'manual'].includes(opts.typeSource)) {
+    if (opts.typeSource && TYPE_SOURCES.includes(opts.typeSource)) {
         source = opts.typeSource;
         bpLog('typeSource', { source });
     }

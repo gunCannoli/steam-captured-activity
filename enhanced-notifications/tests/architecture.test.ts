@@ -134,6 +134,8 @@ export const PURE = [
     'surfaces/duration/duration.ts',
     'surfaces/preview/pick.ts',
     'surfaces/sound/sound.ts',
+    'surfaces/style/toast-pop.ts',
+    'surfaces/style/type-source.ts',
     'theme/jsonc.ts',
     'theme/placement.ts',
     'theme/theme.ts',
@@ -176,6 +178,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['toast popup SteamClient.Window.MoveTo', /\.MoveTo\s*=(?!=)/, 'surfaces/style/toast-window.ts'],
     ['toast window body[data-en-type]', /\.setAttribute\(\s*'data-en-type'/, 'surfaces/style/injector.ts'],
     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
+    ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'surfaces/style/toast-pop.ts'],
     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],
 ];
 

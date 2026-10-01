@@ -9,7 +9,12 @@ import { installInjector, uninstallInjector } from './injector';
 export function createStyleSurface(hook: NotificationHook, placeholder: string | undefined): Surface {
     return {
         id: 'style',
-        touches: ['toastWindow <style id=enhanced-notifications-theme>', 'toastWindow body data-en-type', 'toastPopup SteamClient.Window.MoveTo'],
+        touches: [
+            'toastWindow <style id=enhanced-notifications-theme>',
+            'toastWindow body data-en-type',
+            'toastPopup SteamClient.Window.MoveTo',
+            'NotificationStore PopNextToastNotification (own property)',
+        ],
         install: () => installInjector(placeholder, hook.onShown),
         uninstall: uninstallInjector,
     };
