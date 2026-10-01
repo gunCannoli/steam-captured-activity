@@ -12,7 +12,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { connect, resolvePluginName } from './cdp.mjs';
 
 const THEME = process.env.THEME ?? 'ps5';
@@ -27,6 +27,21 @@ const checks = [
     { file: 'reset.mjs', must: /^PASS {2}switched off: unavailable/m },
     { file: 'bigpicture.mjs', theme: true, must: /^PASS {2}themed banner in Big Picture/m, skipWhen: /is Big Picture open\?/ },
 ];
+
+
+// Hold the Steam lock for the whole run, so no other agent restarts or drives Steam
+// meanwhile (AGENTS.md, "Sharing the live Steam client"). Re-entrant through
+// STEAM_LOCK_OWNER; released on exit only if taken here. Absent in a public repo.
+const lockLib = join(here, '..', '..', 'steam-lock.mjs');
+const steamLock = existsSync(lockLib) ? await import(pathToFileURL(lockLib).href) : null;
+const lockOwner = process.env.STEAM_LOCK_OWNER ?? 'test-live-enhanced-achievements-' + process.pid;
+const lockState = steamLock ? await steamLock.acquire({ owner: lockOwner, purpose: 'enhanced-achievements npm run test:live', wait: 900, ttl: 3600 }) : 'none';
+if (lockState === 'timeout') {
+    console.log('FAIL  steam-lock: Steam is still in use by another agent after 15 min (node steam-lock.mjs status)');
+    process.exit(1);
+}
+process.on('exit', () => lockState === 'acquired' && steamLock.release({ owner: lockOwner }));
+process.on('SIGINT', () => process.exit(130));
 
 // Boot health first (workspace-only script, absent in a public repo): no point running checks on a broken client.
 const health = join(here, '..', '..', 'steam-health.mjs');

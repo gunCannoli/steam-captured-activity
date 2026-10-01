@@ -75,6 +75,11 @@ function checkLogs(dir) {
 
     for (const l of js.filter((l) => l.includes("exceeded its error budget"))) say("FAIL", `error budget: ${short(l)}`);
 
+    // The frontend loaded but its backend is not reachable under that name: every RPC fails
+    // (a bundle built for another name, e.g. "<name>-dev-dev" after an interrupted dev.ps1, 2026-10-01).
+    const notRunning = [...new Set(js.map((l) => l.match(/plugin not running: ([\w-]+)/)?.[1]).filter(Boolean))];
+    for (const p of notRunning) say("FAIL", `a frontend calls backend "${p}", which is not running (bundle and plugin.json name disagree, or the backend crashed)`);
+
     const pluginErrors = js.filter((l) => /SteamUI: ERROR: %c [A-Z][\w -]+ %c/.test(l));
     for (const l of pluginErrors.slice(0, 5)) say("WARN", `plugin error: ${short(l)}`);
     if (pluginErrors.length > 5) say("WARN", `... and ${pluginErrors.length - 5} more plugin errors`);
@@ -188,7 +193,9 @@ if (proc.steam) {
     if (!r.problems.length) say("PASS", "Steam UI is up and every enabled plugin loaded");
 }
 
-// After the live wait, so a fresh start has had time to log its plugin start-up.
+// After the live wait, so a fresh start has had time to log its plugin start-up
+// (start-up RPCs fail a few seconds after the window renders).
+if (waitSeconds > 0) await new Promise((ok) => setTimeout(ok, 8000));
 checkLogs(dir);
 
 // exitCode, not exit(): exiting while a WebSocket is closing trips a libuv assert on Windows.

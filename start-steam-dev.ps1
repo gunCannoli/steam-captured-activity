@@ -151,6 +151,24 @@ Write-Host "Steam Path: $steamExe" -ForegroundColor DarkGray
 $running = Get-Process -Name 'steam', 'steamwebhelper' -ErrorAction SilentlyContinue
 $portResponding = Test-CefDebugging -DebugPort $Port
 
+# Steam lock: one agent at a time stops, restarts or starts Steam (AGENTS.md, "Sharing
+# the live Steam client"). Not needed when Steam is already up with DevTools and we only
+# look. Re-entrant through STEAM_LOCK_OWNER; only a lock taken here is released here.
+$lockScript = Join-Path $PSScriptRoot 'steam-lock.mjs'
+$lockOwner = if ($env:STEAM_LOCK_OWNER) { $env:STEAM_LOCK_OWNER } else { "start-steam-dev-$PID" }
+$ownLock = $false
+$changesSteam = $KillOnly -or $Restart -or -not ($running -and $portResponding)
+if ($changesSteam -and (Test-Path $lockScript) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+  node $lockScript acquire --owner $lockOwner --purpose 'start-steam-dev.ps1 (stop/start Steam)' --wait 900
+  if ($LASTEXITCODE -eq 1) { throw 'Steam is in use by another agent (steam-lock above); try again when it is free.' }
+  $ownLock = ($LASTEXITCODE -eq 0)
+  # Another agent may have restarted Steam while we waited: look again.
+  $running = Get-Process -Name 'steam', 'steamwebhelper' -ErrorAction SilentlyContinue
+  $portResponding = Test-CefDebugging -DebugPort $Port
+}
+trap { if ($ownLock) { node $lockScript release --owner $lockOwner | Out-Null }; break }
+function Unlock-Steam { if ($script:ownLock) { node $lockScript release --owner $lockOwner | Out-Null; $script:ownLock = $false } }
+
 if ($KillOnly) {
   if ($running) {
     Stop-Steam -SteamExe $steamExe
@@ -159,6 +177,7 @@ if ($KillOnly) {
   else {
     Write-Host 'Steam is not running.' -ForegroundColor Gray
   }
+  Unlock-Steam
   return
 }
 
@@ -207,6 +226,7 @@ Write-Host ''
 if (-not $ready) {
   Write-Warning "CEF debugging did not become responsive on port $Port within 60 seconds."
   Write-Host 'Check if Steam launched properly or if a firewall is blocking port 8080.' -ForegroundColor Red
+  Unlock-Steam
   return
 }
 
@@ -250,3 +270,5 @@ if ($OpenBrowser) {
   Start-Process "http://localhost:$Port/"
 }
 
+
+Unlock-Steam

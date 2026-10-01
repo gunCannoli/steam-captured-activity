@@ -133,7 +133,42 @@ it as a parameter.
 
 Follow these standardized routines during all development sessions:
 
-### Routine 1: Multi-Tab Smoke Verification
+### Routine 0: Sharing the live Steam client — take the Steam lock
+
+Several agents work in this repo at once, but there is **one** Steam client. Two agents
+restarting it, or one restarting it during the other's live test, kill each other's work.
+`steam-lock.mjs` (workspace root) is a lock with an owner, a purpose and an expiry, shared
+by every agent and worktree on this machine.
+
+**Needs the lock:** anything that stops, starts or restarts Steam; a deploy (`dev.ps1`);
+anything that drives the client: live tests and probes that navigate, open pages, switch
+UI mode, change plugin settings or show toasts. **Does not:** reading a value over CDP,
+`node steam-health.mjs`, reading Steam's logs, offline tests (`npm test`, Lua tests), builds.
+
+1. **Check first:** `node steam-lock.mjs status`.
+2. **Hold it for the whole sequence** (deploy, then verify), not per command, or another
+   agent can restart Steam between your deploy and your tests. Pick a unique owner id
+   (plugin + task + time) and pass it to every command so the scripts re-enter instead
+   of waiting for you:
+   ```bash
+   node steam-lock.mjs acquire --owner sc-f2c-1015 --purpose "steam-cartridges: deploy + test:live"
+   STEAM_LOCK_OWNER=sc-f2c-1015 powershell -ExecutionPolicy Bypass -File dev.ps1        # bash
+   $env:STEAM_LOCK_OWNER='sc-f2c-1015'; npm run test:live                                # PowerShell
+   node steam-lock.mjs release --owner sc-f2c-1015
+   ```
+   Or wrap one command: `node steam-lock.mjs run --owner <id> --purpose "<what>" -- <command>`.
+   The lock expires after 30 min (`--ttl`); `node steam-lock.mjs renew --owner <id>` during longer work.
+3. **The scripts take it themselves when you don't hold it:** `dev.ps1` (all plugins),
+   `start-steam-dev.ps1` (when it stops or starts Steam) and every `npm run test:live` wait
+   up to 15 min, print who holds it and why, and release it when they finish or fail.
+   A 15-min wait outlasts a 10-min foreground tool call: run them in the background.
+4. **When it is busy, do offline work and retry.** Never kill Steam, a script, or another
+   agent's process to get in, and never delete the lock file. `release --force` only when
+   the holder is gone (its lock expired, or the user says so). Always release your own,
+   also after a failure.
+5. **Never stop Steam outside these scripts** (no `taskkill`, no raw `steam.exe -shutdown`).
+
+
 
 Before declaring any UI or store modification complete, verify ALL four core views for a non-Steam shortcut:
 

@@ -758,6 +758,19 @@ Killing just `steam.exe` left webhelper windows running into the next start.
 Start Steam with DevTools (`http://127.0.0.1:8080`) via `.\start-steam-dev.ps1`;
 see [steam-debug.md](steam-debug.md).
 
+**Several agents, one Steam.** `dev.ps1`, `start-steam-dev.ps1` and every `test:live`
+take the shared Steam lock (`steam-lock.mjs`) and wait while another agent holds it;
+hold it yourself across deploy + verify ([AGENTS.md Routine 0](../AGENTS.md#routine-0-sharing-the-live-steam-client--take-the-steam-lock)).
+
+**Never force-kill a running `dev.ps1`.** A force-kill skips its `finally`, which puts
+the real `plugin.json` back, so the source keeps `"<name>-dev"` and the next run deploys
+`<name>-dev-dev`, whose frontend calls a backend that does not exist (`plugin not running`;
+seen 2026-10-01). `dev.ps1` now refuses a manifest name ending in `-dev`
+(`git checkout -- plugin.json` fixes it). If the build hangs (it did once: `millennium-ttc
+--build dev` wrote `Dist/index.js`, then sat idle for 10 min; the next run took 3 s), kill
+only the `node ... ttc` child: `dev.ps1` then fails normally, restores the manifest and
+frees the Steam lock.
+
 ---
 
 ## 5. Test

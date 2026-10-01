@@ -2,10 +2,25 @@
 // A check may SKIP when the client is in a mode it cannot test (parity in Big Picture).
 // Each check must exit 0 and print no FAIL line; check_all_tabs is retried once (its card count is timing-sensitive).
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+// Hold the Steam lock for the whole run, so no other agent restarts or drives Steam
+// meanwhile (AGENTS.md, "Sharing the live Steam client"). Re-entrant through
+// STEAM_LOCK_OWNER; released on exit only if taken here. Absent in a public repo.
+const lockLib = join(here, "..", "..", "..", "steam-lock.mjs");
+const steamLock = existsSync(lockLib) ? await import(pathToFileURL(lockLib).href) : null;
+const lockOwner = process.env.STEAM_LOCK_OWNER ?? "test-live-steam-cartridges-" + process.pid;
+const lockState = steamLock ? await steamLock.acquire({ owner: lockOwner, purpose: "steam-cartridges npm run test:live", wait: 900, ttl: 3600 }) : "none";
+if (lockState === "timeout") {
+    console.log("FAIL  steam-lock: Steam is still in use by another agent after 15 min (node steam-lock.mjs status)");
+    process.exit(1);
+}
+process.on("exit", () => lockState === "acquired" && steamLock.release({ owner: lockOwner }));
+process.on("SIGINT", () => process.exit(130));
 const checks = [
     // first: is Steam's UI up and every enabled plugin loaded? Workspace-only script, skipped in a public repo.
     { name: "boot health (UI rendered, plugins loaded)", file: "../../../steam-health.mjs", args: [], must: /^PASS/m, skipWhen: /Cannot find module/ },

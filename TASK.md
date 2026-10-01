@@ -122,8 +122,7 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Active failures & blockers
 
-- `steam-cartridges` backend: the empty-screenshot-block fix (2026-10-01) is committed, not deployed. It goes live with the
-  next `dev.ps1`; `GetDiagnostics.games_with_media` should then read 6, not 7.
+None.
 
 ---
 

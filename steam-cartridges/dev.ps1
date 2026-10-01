@@ -122,7 +122,28 @@ $pluginsDir = Join-Path $steam 'millennium\plugins'
 
 $manifest = Get-Content -Path "$PSScriptRoot\plugin.json" -Raw | ConvertFrom-Json
 $name = $manifest.name
+# A force-killed run skips the finally block that restores plugin.json and leaves the
+# dev name in it; building again would deploy "<name>-dev-dev" (seen 2026-10-01).
+if ($name -like '*-dev') {
+  throw "plugin.json name is '$name': an interrupted dev.ps1 left the dev name in it. Run: git checkout -- plugin.json"
+}
 $devName = "$name-dev"
+
+# --- steam lock ----------------------------------------------------------------
+# One agent at a time deploys or restarts Steam (AGENTS.md, "Sharing the live Steam
+# client"). Waits up to 15 min for another holder. Re-entrant: when the caller already
+# holds the lock (STEAM_LOCK_OWNER, or inside `steam-lock.mjs run`) it does not wait,
+# and only a lock taken here is released here. Absent in a plugin's public repo.
+$lockScript = Join-Path $PSScriptRoot '..\steam-lock.mjs'
+$lockOwner = if ($env:STEAM_LOCK_OWNER) { $env:STEAM_LOCK_OWNER } else { "dev.ps1-$devName-$PID" }
+$ownLock = $false
+if ((Test-Path $lockScript) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+  node $lockScript acquire --owner $lockOwner --purpose "deploy $devName (dev.ps1)" --wait 900
+  if ($LASTEXITCODE -eq 1) { throw 'Steam is in use by another agent (steam-lock above); try again when it is free.' }
+  $ownLock = ($LASTEXITCODE -eq 0)
+}
+# A failure anywhere below still frees the lock (a force-kill does not: the lock expires).
+trap { if ($ownLock) { node $lockScript release --owner $lockOwner | Out-Null }; break }
 $target = Join-Path $pluginsDir $devName
 
 Write-Host "Steam:  $steam"
@@ -243,7 +264,10 @@ if (-not $NoRestart) {
     node $health --wait 120 --steam $steam
     if ($LASTEXITCODE -ne 0) {
       Write-Warning 'Steam boot health check failed after this deploy (FAIL lines above).'
+      if ($ownLock) { node $lockScript release --owner $lockOwner | Out-Null }
       exit 1
     }
   }
 }
+
+if ($ownLock) { node $lockScript release --owner $lockOwner | Out-Null }
