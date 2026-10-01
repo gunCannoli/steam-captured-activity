@@ -53,6 +53,7 @@ refer to [docs/plugins.md](docs/plugins.md).
 | Create a plugin, or add a feature to one | [docs/plugins.md § Playbook](docs/plugins.md#playbook-creating-a-plugin-or-a-feature), then its guardrails |
 | Add a feature to `steam-cartridges` | [docs/steam-cartridges.md § 4](docs/steam-cartridges.md#4-adding-a-feature), then the layer docs it names |
 | Add a feature to `enhanced-achievements` | [docs/enhanced-achievements/architecture.md](docs/enhanced-achievements/architecture.md) |
+| Add a feature to `enhanced-notifications` | [docs/enhanced-notifications/architecture.md](docs/enhanced-notifications/architecture.md) |
 | Touch anything in Steam's UI | [docs/steam-components.md](docs/steam-components.md) (the map first), [docs/steam-architecture.md](docs/steam-architecture.md) for the overview |
 | Debug or inspect the live client | [docs/steam-debug.md](docs/steam-debug.md) (cheapest probe first) |
 | Need a fact outside Steam's UI (SDK, config API, file formats, providers) | [docs/knowledgebase.md](docs/knowledgebase.md) |

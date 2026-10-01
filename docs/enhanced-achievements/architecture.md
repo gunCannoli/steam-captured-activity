@@ -75,7 +75,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | Command | What it proves |
 | --- | --- |
 | `npm test` | Pure modules: themes, tiers, queue, geometry, capture plan, safety (`tests/safety.test.ts`) |
-| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, now empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` and `pristineDuration` match the sibling plugins' copies; every live script is in `tests/run-live.mjs` |
+| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, now empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` matches steam-cartridges' copy, and `pristineDuration`, `steam/notification-hook.ts`, `kernel/surface.ts`, `theme/jsonc.ts`, `settings/rows.tsx` and `backend/main.lua` (plugin name swapped) match enhanced-notifications' copies (both plugins wrap `PlayNotificationSound` with the same hook, ADR-0047); every live script is in `tests/run-live.mjs` |
 | `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `smoke`, `tiers`, `safety`, `queue-stress`, `captures`, `settings-sound`, `bigpicture` (SKIP unless Big Picture is open) |
 | `node tests/safety.mjs` (live) | A clean start is not in safe mode; `disabledFeatures` hands the banner back and restores it |
 
@@ -88,7 +88,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 
 ## Settings panel spacing
 
-One system in `frontend/settings/settings-panel.tsx`: a **block** is a group of options that read as one card, and its rows touch (gap 0).
+One system, in `frontend/settings/rows.tsx` (identical copy in enhanced-notifications, drift-checked; the sections are in `settings-panel.tsx`): a **block** is a group of options that read as one card, and its rows touch (gap 0).
 Blocks in a section are `BLOCK_GAP` (22 px) apart, set only by `<Blocks>`: pass each block as one child (a fragment of rows). Steam's
 `SliderField` and `TextField` end with 22 px of blank space of their own, which `ItemRow trailing` cancels, so a block's spacing never
 depends on its last control. The gap is padding, not margin: margins collapse into that trailing space. A new option goes inside an
@@ -96,6 +96,7 @@ existing block or becomes a new child of `<Blocks>`; never add spacing on a row.
 
 ## History
 
+- 2026-09-30 ADR-0047: enhanced-notifications uses this plugin's architecture and the same `steam/notification-hook.ts`; the settings rows and spacing moved to `settings/rows.tsx` (no visible change); the drift tests now cover the hook, `kernel/surface.ts`, `theme/jsonc.ts`, `settings/rows.tsx` and `backend/main.lua` too, and read enhanced-notifications' whole `frontend/` for `pristineDuration` instead of one file path.
 - 2026-09-30 ADR-0045: Reset Achievements lists every game, Steam's or not, from Steam's `appAchievementProgressCache`
   (steam-cartridges fills it for its shortcuts after Steam's own load at start-up); a shortcut is offered only when
   steam-cartridges' `resetAchievements` is present. The call to `storedAchievementSummaries()` is gone.

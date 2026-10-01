@@ -7,6 +7,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- Internals rebuilt on Enhanced Achievements' architecture (ADR-0047, docs/enhanced-notifications/architecture.md): one surface per thing written into Steam (`style`, `sound`, `duration`, `preview`), the same notification hook file as Enhanced Achievements (checked by a test, and proven to work with it in either load order), and an architecture test. No change to themes or settings.
+- Settings panel laid out like Enhanced Achievements' (same rows and spacing): Theme, Preview notifications, General and Reset sections; the theme dropdown takes the full row; a theme problem shows under it instead of a status line. The controls are disabled while Steam's toasts are off.
+
+### Added
+
+- **Safety net:** each feature can be switched off without uninstalling (`disabledFeatures` setting, e.g. `style,sound`; no panel control), a feature that fails 5 times in a session switches itself off until Steam restarts, and two unclean starts in a row start the plugin in safe mode (Steam's own toasts). `safetyDiagnostics()` and `surfaceStatus()` exports.
+- `npm run test:live` runs every live check with settings snapshotted and restored; new live check `tests/safety.mjs`.
+- **JSONC themes:** themes can be `.jsonc` (or `.json`) with `//` and `/* */` comments and trailing commas; `name.jsonc` wins over `name.json` in the same folder. Same rules as Enhanced Achievements.
+- Sound paths may be absolute (`C:/...`) for personal themes; this worked before and is now documented in themes.md.
+- README: Troubleshooting (kill switches, safe mode).
+
 ### Fixed
 
 - Toast durations are restored to Steam's own value even when enhanced-achievements wrote a type's duration first: both plugins record the pristine value in one shared place (`pristineDuration`, same helper in each).

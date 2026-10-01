@@ -579,7 +579,7 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   registered. For an unregistered BrowserView popup, find a handle in a registered window's React
   tree (e.g. the `GamepadToastPlaceholder` element) and walk its fiber to a hook holding the popup
   object, duck-typed on its methods (`GetViewWindow()`) — never a minified name. Reference:
-  `enhanced-notifications/frontend/style/injector.ts` (fixed and verified live 2026-09-24; see
+  `enhanced-notifications/frontend/surfaces/style/injector.ts` (fixed and verified live 2026-09-24; see
   CHANGELOG.md). Check the UI mode before trusting a live test
   ([steam-debug.md § 4](steam-debug.md#4-big-picture-mode-gamepad-ui-quirks--traps)).
 
@@ -666,8 +666,8 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   hand-written `fontSize: "12px"` notes looks thin and uneven: rows cramped against each
   other, a lone button floating under a list, a checkbox strip or a dropdown squeezed
   into the right half of a row, notes that do not line up with Steam's own labels.
-  `enhanced-achievements/frontend/settings/settings-panel.tsx` has the setup to copy
-  (steam-cartridges' copy is `frontend/settings/components.tsx`).
+  `enhanced-achievements/frontend/settings/rows.tsx` has the setup to copy (enhanced-notifications
+  has an identical copy; steam-cartridges' copy is `frontend/settings/components.tsx`).
 - **The Mandatory Guardrails:**
   1. **Use Steam's components.** `PanelSection`, `Field` (label + description, optional
      control), `Toggle`, `DialogButton`, `Dropdown`, `TextField`, `SliderField`. No

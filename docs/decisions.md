@@ -2846,3 +2846,46 @@ fetch them (no CORS), and Millennium's Lua `http.get` cuts binary bodies.
 - Steam's own first-page trigger can miss (its on-screen signal may arrive after its 1 s timer), so for a shortcut with a
   feed the surface also loads the first page when the loader is bound or resized (found live 2026-09-30). The probe
   `community_media.mjs` switches to desktop mode and brings Steam's window forward first: a hidden window never loads it.
+
+---
+
+## ADR-0047: enhanced-notifications uses enhanced-achievements' architecture and shares its notification hook
+
+**Status:** Accepted · 2026-09-30 · Plan: [enhanced-notifications-architecture-port-plan.md](plans/enhanced-notifications-architecture-port-plan.md) · Applies [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) to a second plugin
+
+### Context
+
+`enhanced-notifications` was copied from `enhanced-achievements` before that plugin's migration (E0a-E3, ADR-0043).
+It still had the old shape: one `steam/notifications.ts` that discovers Steam's types, wraps
+`PlayNotificationSound`, decides every sound and writes every duration, a styling module wired straight from
+`init()`, no kill switch, no error budget, no safe mode and no architecture test. Both plugins wrap the same Steam
+method, each with its own code: nothing checked that the two wrappers compose, and the migration left
+`enhanced-achievements` depending on a file path inside this plugin (its `pristineDuration` drift test).
+
+### Decision
+
+1. **Same safety net** as ADR-0043 decision 1, with this plugin's ids (`style`, `sound`, `duration`, `preview`),
+   its own boot key and the same `disabledFeatures` setting. A tripped feature's surface is uninstalled.
+2. **Same layers and checks** as ADR-0043 decisions 2 and 4: safety, kernel, pure domain, Steam access, surfaces,
+   composition root; `tests/architecture.test.ts` with an import ratchet that starts empty, a pure-file list, one
+   owner per Steam write, disjoint surface targets, registered RPCs and a live-runner check.
+3. **One hook file for both plugins.** `steam/notification-hook.ts` and `kernel/surface.ts` are identical copies in
+   both plugins, and each plugin's architecture test fails when they differ. The hook composes: calls on any object
+   but the store pass through, each wrapper's listeners run once per toast, a handler that does not want a type calls
+   `playSteam()`, which reaches the other plugin's wrapper. Achievement sounds are decided by exactly one plugin
+   through `claims('sound')`. A unit test drives two copies on one fake store in both load orders.
+4. **Siblings, not only neighbours.** Everything the two plugins do the same way is one shared copy: besides the hook
+   and `kernel/surface.ts`, `theme/jsonc.ts` (both read `.jsonc` and `.json` themes as JSONC), `settings/rows.tsx` (the
+   settings rows and spacing system of [guardrail 18](plugins.md#18-settings-panel-layout-reference-enhanced-achievements)),
+   `pristineDuration`, and `backend/main.lua` (identical but for the plugin name: theme lookup, relative or absolute
+   asset paths). Each plugin's architecture test checks every copy.
+5. **Not adopted:** the event bus and sensors, the banner scheduler and the jsx runtime hook (nothing here needs them;
+   the jsx route was ruled out live on 2026-09-24 for these toasts). Previews go through a `preview` surface and are
+   injected into the settings panel, which never imports a surface.
+
+### Consequences
+
+- A change to a shared file is a change to both plugins, in one commit, with both test suites green.
+- A failing styling, sound or duration path switches off alone and gives Steam's stock behaviour back for it; the
+  others keep working.
+- New features follow [enhanced-notifications/architecture.md](enhanced-notifications/architecture.md) § How to add a feature.

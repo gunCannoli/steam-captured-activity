@@ -44,7 +44,7 @@ and display time, or reset.
 | --- | --- |
 | Theme | Which theme to use |
 | Reload themes | Pick up edits to a theme file without restarting Steam |
-| Open themes folder | Opens the folder for your own themes |
+| Themes folder | Opens the folder for your own themes |
 | Preview | Fires a real Steam test toast for each category |
 | Themed style | Off: Steam's own look for every notification |
 | Themed sounds | Off: Steam's own sounds. Steam's mute setting is always respected |
@@ -68,7 +68,7 @@ Five minutes, no game required:
 
 ## Themes
 
-Themes are JSON files. Put your own in
+Themes are `.jsonc` (or `.json`) files: JSON with `//` comments and trailing commas allowed. Put your own in
 `<Steam>/millennium/config/enhanced-notifications/themes/`. That folder
 survives updates, and a theme there replaces a bundled one with the same name.
 See [themes.md](themes.md) for the format and
@@ -90,6 +90,17 @@ Resolution order: `default` → category (`friends`, `messages`, `downloads`,
 - On Millennium v3.4.1 the Configuration API only partly works (settings save,
   but Millennium may log an error). The plugin works around it; you should
   never see a broken save.
+
+## Troubleshooting
+
+- **Styling, a sound or the display time misbehaves.** Each part can be switched off on its own: in the SharedJSContext console run
+  `PLUGIN_LIST['enhanced-notifications'].setSetting('disabledFeatures', 'style,sound')`. Ids: `style`, `sound`, `duration`,
+  `preview`. Steam's own look, sound or duration comes back for that part. Empty string switches everything back on.
+- **A part switched itself off.** After 5 errors in one session a part is switched off until Steam restarts.
+  `PLUGIN_LIST['enhanced-notifications'].safetyDiagnostics()` shows what tripped and the error counts;
+  `surfaceStatus()` shows which parts installed.
+- **Safe mode.** If two starts in a row did not end cleanly, the next start hooks nothing (Steam's own toasts) and leaves safe
+  mode after a clean run.
 
 ## Uninstall
 

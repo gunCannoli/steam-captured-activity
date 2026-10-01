@@ -1,0 +1,120 @@
+# enhanced-notifications architecture
+
+**This doc's job:** how `enhanced-notifications` is built today: its layers, who owns each Steam target, its safety
+net, how it shares Steam's notification hook with `enhanced-achievements`, and how to add a feature without breaking
+another. Decision: [ADR-0047](../decisions.md#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook)
+(the architecture of [ADR-0043](../decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net),
+without the parts only achievements need). Sibling doc: [enhanced-achievements/architecture.md](../enhanced-achievements/architecture.md).
+
+## Layers
+
+| Layer | Folder | Job |
+| --- | --- | --- |
+| Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode (copies of enhanced-achievements', this plugin's ids and key) |
+| Kernel | `frontend/kernel/` | The `Surface` contract (identical copy), the notification shape, the toast selector type |
+| Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `surfaces/*/{sound,duration}.ts` | Themes, inheritance, CSS; the sound decision; the duration plan. No Steam, SDK, React or logger |
+| Steam access | `frontend/steam/` | Finding Steam's objects (`notification-store.ts`, `selectors.ts`, `webpack.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`, identical copy), the read-only enhanced-achievements `claims()` reader (`coexistence.ts`), the toasts-off flag |
+| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `style`, `sound`, `duration`, `preview`. `surfaceStatus()` shows which installed |
+| Composition root | `frontend/index.tsx` | Start-up order, wiring, the public exports |
+| Settings panel | `frontend/settings/` | `settings-panel.tsx` (this plugin's sections), `rows.tsx` (rows and spacing, identical copy) |
+
+Not adopted from enhanced-achievements: the event bus and sensors (nothing here reacts to a toast after the fact), the
+banner scheduler (Steam draws every toast; we only restyle it) and the jsx runtime hook (verified 2026-09-24: for these
+toasts the wrapped element was not the one React committed).
+
+## Safety net
+
+| Id | What it switches | Off means |
+| --- | --- | --- |
+| `style` | The scoped `<style>` and `body[data-en-type]` in toast windows | No toast gets the attribute, so no rule matches: Steam's look. Uninstall also removes the `<style>` |
+| `sound` | The theme's sound or mute per type | Steam's chime |
+| `duration` | Writing each type's toast duration | Nothing written (a value already written stays until the next theme change or restart); uninstall restores Steam's value for the types it wrote |
+| `preview` | The settings panel's per-category preview (Steam's test toasts) | The buttons do nothing |
+
+- **User switch:** `disabledFeatures` setting, comma-separated ids, no panel control. From the SharedJSContext console:
+  `PLUGIN_LIST['enhanced-notifications-dev'].setSetting('disabledFeatures', 'style,sound')`. Read live.
+- **Error budget:** 5 errors in one session switch a feature off until Steam restarts, and its surface is uninstalled.
+  Counted by: the shared hook's sound-handler catch (`sound`), the injector's per-window and Big Picture scan catches
+  (`style`), `apply()` in the duration surface (`duration`), `previewCategory` (`preview`), and an install that throws.
+- **Safe mode:** the boot sentinel (`enhanced-notifications.boot` in SharedJSContext `localStorage`) counts starts that did
+  not end cleanly. Two in a row: the next start hooks nothing, and 60 error-free seconds clear it.
+- **Diagnostics:** `PLUGIN_LIST['enhanced-notifications-dev'].safetyDiagnostics()` → `{ safeMode, disabled, tripped, errors }`;
+  `surfaceStatus()` → which surfaces installed and why one did not.
+
+## Sharing Steam's notification hook with enhanced-achievements
+
+Both plugins wrap `NotificationStore.prototype.PlayNotificationSound`, in whichever order Millennium loads them. They do
+it with the **same file**, `steam/notification-hook.ts` (a test fails in either plugin when the copies differ), and that
+file is written to compose:
+
+- Each wrapper passes a call on any object but the store straight through, so either plugin's stand-in calls (type
+  discovery) reach Steam untouched.
+- Each wrapper runs its own `onShown` listeners once per toast, then its one sound handler. A handler that does not want
+  a type calls `playSteam()`, which calls whatever it wrapped: the other plugin's wrapper, or Steam's.
+- Achievement toasts: this plugin's handler hands them over while `claims('sound')` is true (`steam/coexistence.ts`,
+  O(1)), so exactly one plugin decides their sound. `tests/notifications.test.ts` proves both load orders.
+- `uninstall()` restores Steam's method only when its wrapper is on top; otherwise it stays in the chain with no sound
+  handler and passes everything through.
+
+The toast duration uses the shared `pristineDuration` helper (identical in both plugins) so whichever plugin loads
+second still restores Steam's value.
+
+## Shared with enhanced-achievements (sibling plugins)
+
+Plugins may not import each other, so shared code is a copy, and each plugin's `tests/architecture.test.ts` fails when
+a copy drifts. Change a shared file in both plugins in one commit.
+
+| Shared | What it is |
+| --- | --- |
+| `steam/notification-hook.ts` | The one `PlayNotificationSound` wrapper (above) |
+| `kernel/surface.ts` | The `Surface` contract and its install runner |
+| `theme/jsonc.ts` | JSONC parsing: `.jsonc` and `.json` themes accept comments and trailing commas |
+| `settings/rows.tsx` | Settings rows and the spacing system ([guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-achievements)) |
+| `pristineDuration` (in `steam/notification-store.ts`) | Steam's own toast duration, recorded once for both plugins |
+| `backend/main.lua` | Theme lookup (`.jsonc` before `.json`, user folder before bundled) and asset loading (relative or absolute paths); identical but for the plugin name |
+| `backend/_lib/**` | Millennium stubs (already identical; not drift-checked) |
+
+## Settings panel spacing
+
+The same system as enhanced-achievements ([its doc](../enhanced-achievements/architecture.md#settings-panel-spacing)):
+a **block** is a group of rows that read as one card; blocks in a section are `BLOCK_GAP` (22 px) apart, set only by
+`<Blocks>`; a dropdown gets the full row (label, description, control). Rows come from `settings/rows.tsx`. A new option
+goes inside an existing block or becomes a new child of `<Blocks>`; never add spacing on a row.
+
+## Steam targets and their one owner
+
+| Steam target | Owner (file) | Guardrail |
+| --- | --- | --- |
+| `NotificationStore.prototype.PlayNotificationSound` (wrapper) | `steam/notification-hook.ts` | [2](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) |
+| `NotificationStore` instance `ChooseSound` (for one call) | `steam/notification-hook.ts` | 2 |
+| The hook's sound slot | `surfaces/sound/index.ts` | 2 |
+| Each type config's `toastDurationMS` (not the one enhanced-achievements claims) | `surfaces/duration/index.ts` | — |
+| Toast windows: `<style id=enhanced-notifications-theme>` and `body[data-en-type]`; `Millennium.AddWindowCreateHook` | `surfaces/style/injector.ts` | [12](../plugins.md#12-popup-hooks-do-not-see-every-window) |
+| `NotificationStore.Test*` (previews) | `surfaces/preview/index.ts` | — |
+
+## Tests
+
+| Command | What it proves |
+| --- | --- |
+| `npm test` | Pure modules: themes, JSONC and CSS (`theme.test.ts`), safety (`safety.test.ts`), the hook, its composition with a second copy in both orders, the sound decision, the duration plan, the surface runner (`notifications.test.ts`) |
+| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; the shared files (table above) match enhanced-achievements' copies; every live script is in `tests/run-live.mjs` |
+| `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `safety`, `categories`, `sound-duration` |
+
+## How to add a feature
+
+1. If it writes into Steam, give it a feature id (append to `FEATURE_IDS`; never rename one), put it in a surface with
+   its `touches`, check `isEnabled(id)` before every write and `reportError(id, err)` in its catch.
+2. Put its decisions in a pure module with a unit test.
+3. Add a row to "Steam targets and their one owner" and to `OWNERS`. A target already owned by another row is not
+   yours: extend that owner.
+4. Never edit a shared file (see "Shared with enhanced-achievements") in one plugin only: change both copies in one commit.
+
+## History
+
+- 2026-09-30 ADR-0047: ported enhanced-achievements' architecture. `steam/notifications.ts` split into
+  `steam/notification-store.ts` (discovery), `steam/notification-hook.ts` (the shared wrapper), `steam/coexistence.ts`
+  and surfaces `sound`, `duration`, `preview`; `style/injector.ts` became the `style` surface; safety net and
+  architecture test added; `ToastSelectors` moved to the kernel so the Steam layer never imports the theme.
+- 2026-09-30 ADR-0047 (siblings): JSONC themes (`theme/jsonc.ts`, `.jsonc` lookup in the backend), absolute sound paths
+  documented (the backend already allowed them), the settings panel rebuilt on enhanced-achievements' rows and spacing
+  (`settings/rows.tsx`, shared); the unused `toastWarning()` removed.

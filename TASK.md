@@ -17,6 +17,10 @@ theme Steam's toasts and sounds.
 
 ## Now
 
+**enhanced-notifications sibling port (ADR-0047): code committed (2026-09-30), waiting for the live verification in
+[its plan § 9](docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
+`npm run test:live` in both, then the by-hand checks.
+
 **F2 Community media: done and pushed (2026-09-30); a few live checks are still pending.** Live-verified by the agent: § 9.1
 (feed, loader, cards, ScreenScraper `blob:` images, no URL or credential on disk), Routine 2 in desktop and Big Picture
 (native game, AM2R, mapped game), `npm run test:live` 12/12 in desktop, trailer plays inline, image viewer in Big Picture
@@ -78,10 +82,6 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
-- **enhanced-notifications architecture port (ADR-0047): planned and dry-run (2026-09-30), ready for an implementer.** Hand over
-  [the plan](docs/plans/enhanced-notifications-architecture-port-plan.md): six patches on `feb2cef` (safety net, the notification hook shared
-  with enhanced-achievements, one surface per Steam write, architecture test, JSONC themes, the settings panel on EA's rows, docs);
-  EN `npm test` 10 → 49, EA 116 → 121. The live check (plan § 9, both plugins redeployed) is the user's.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.

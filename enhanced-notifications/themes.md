@@ -3,6 +3,10 @@
 A theme restyles Steam's own toasts. Every key is optional; anything unset
 stays Steam's own. Example: [themes/steam_midnight.json](themes/steam_midnight.json).
 
+**File format:** `.jsonc` or `.json`. Both accept JSONC: `//` and `/* */`
+comments and trailing commas. If a folder has both `name.jsonc` and
+`name.json`, the `.jsonc` is used (same rules as Enhanced Achievements).
+
 ```json
 {
   "default":    { ...style },
@@ -31,8 +35,17 @@ key; arrays and tuples are replaced whole. Type names are Steam's
 | `logo.visible` | `true` / `false` | App logo |
 | `logo.radius` | px | App logo corners |
 | `header_icon` | `true` / `false` | Small icon before the title |
-| `sound` | `["path", volume_pct]` or `false` | `false` mutes the type; paths relative to the theme folder; `.mp3`, `.wav`, `.ogg` |
+| `sound` | `["path", volume_pct]` or `false` | `false` mutes the type; see File paths; `.mp3`, `.wav`, `.ogg` |
 | `display_time_ms` | ms | How long the toast stays |
 
 Colours accept `#rgb`, `#rrggbb`, `#rrggbbaa`. Invalid values are ignored
 (logged as warnings) and that part stays stock.
+
+## File paths
+
+- A relative path resolves against the theme file's own folder, so a theme and
+  its sounds can be shared as one directory.
+- An absolute path (`C:/…`) is allowed for personal themes, but makes the theme
+  non-portable.
+- The backend loads each sound once when the theme is (re)loaded, never per toast.
+  A missing, oversized (> 8 MB) or disallowed file keeps Steam's sound for that type.
