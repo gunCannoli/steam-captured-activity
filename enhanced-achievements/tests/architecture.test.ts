@@ -13,7 +13,7 @@
 // 4. Every RPC the frontend calls is registered in backend/main.lua (an
 //    unregistered method crashes the backend host; knowledgebase.md).
 // 5. Shared copies have not drifted: steam/jsx-hook.ts (steam-cartridges);
-//    pristineDuration, steam/notification-hook.ts and kernel/surface.ts (enhanced-notifications). Skipped when the sibling plugin
+//    pristineDuration, steam/notification-hook.ts, kernel/surface.ts, theme/jsonc.ts and backend/main.lua (enhanced-notifications). Skipped when the sibling plugin
 //    is not next to this one.
 // 6. Every live script in tests/ is run by tests/run-live.mjs (or listed as a helper).
 import test from 'node:test';
@@ -255,13 +255,20 @@ test('architecture: pristineDuration is identical to the enhanced-notifications 
 });
 
 // Both plugins wrap PlayNotificationSound with this same hook, so they compose (ADR-0047).
-for (const file of ['steam/notification-hook.ts', 'kernel/surface.ts']) {
+for (const file of ['steam/notification-hook.ts', 'kernel/surface.ts', 'theme/jsonc.ts']) {
     test(`architecture: ${file} is identical to the enhanced-notifications copy`, (t) => {
         const sibling = join(NOTIFICATIONS, file);
         if (!existsSync(sibling)) return t.skip('enhanced-notifications is not next to this plugin');
         assert.equal(readFileSync(join(FRONTEND, file), 'utf8'), readFileSync(sibling, 'utf8'));
     });
 }
+
+test('architecture: backend/main.lua is the enhanced-notifications copy with the plugin name swapped', (t) => {
+    const sibling = join(ROOT, '..', 'enhanced-notifications', 'backend', 'main.lua');
+    if (!existsSync(sibling)) return t.skip('enhanced-notifications is not next to this plugin');
+    const theirs = readFileSync(sibling, 'utf8').split('enhanced-notifications').join('enhanced-achievements');
+    assert.equal(readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8'), theirs);
+});
 
 /** Live scripts that are helpers, not checks. */
 const LIVE_HELPERS = ['cdp.mjs', 'reload.mjs', 'run-live.mjs'];

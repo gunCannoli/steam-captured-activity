@@ -1,6 +1,7 @@
 import { logger } from '../logger';
 import { rpc } from '../rpc';
 import { setting, onSettingChange } from '../settings/settings';
+import { parseJsonc } from './jsonc';
 import { buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
 
 /**
@@ -79,7 +80,7 @@ function dataUrlToArrayBuffer(url: string): ArrayBuffer {
 async function load(name: string): Promise<void> {
     try {
         const file = await rpc.loadTheme(name);
-        const theme = resolveTheme(JSON.parse(file.text));
+        const theme = resolveTheme(parseJsonc(file.text));
         const decoded = new Map<string, AudioBuffer>();
         if (theme.assetPaths.length) {
             const urls = await rpc.loadAssets(file.dir, theme.assetPaths);

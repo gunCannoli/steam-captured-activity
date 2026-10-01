@@ -4,9 +4,12 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { buildCss, categoryOf, merge, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
+import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
-const load = (name: string) => JSON.parse(readFileSync(new URL(name, themesDir), 'utf8'));
+const load = (name: string) => parseJsonc(readFileSync(new URL(name, themesDir), 'utf8'));
+/** Theme files are .jsonc or .json; both parse as JSONC. */
+const isTheme = (f: string) => f.endsWith('.json') || f.endsWith('.jsonc');
 
 const SEL: ToastSelectors = {
     desktopPopup: ':is(.dp)',
@@ -23,7 +26,7 @@ const SEL: ToastSelectors = {
 };
 
 test('every bundled theme resolves for every category', () => {
-    for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
+    for (const file of readdirSync(themesDir).filter(isTheme)) {
         const theme = resolveTheme(load(file));
         for (const type of ['FriendOnline', 'FriendMessage', 'DownloadComplete', 'GameRecordingInstantClip', 'Achievement', 'LowBattery']) {
             assert.ok(theme.styleFor(type), `${file}: ${type}`);
@@ -32,7 +35,7 @@ test('every bundled theme resolves for every category', () => {
 });
 
 test("every bundled theme's assets exist, relative to themes/", () => {
-    for (const file of readdirSync(themesDir).filter((f) => f.endsWith('.json'))) {
+    for (const file of readdirSync(themesDir).filter(isTheme)) {
         const theme = resolveTheme(load(file));
         for (const rel of theme.assetPaths) {
             assert.ok(!/^[a-zA-Z]:[\\/]/.test(rel) && !rel.startsWith('/'), `${file}: asset path must be relative, got "${rel}"`);
@@ -119,4 +122,30 @@ test('CSS is scoped to the styled toast window only', () => {
 test('asset paths collect every referenced sound once', () => {
     const theme = resolveTheme({ default: { sound: ['a.mp3', 50] }, categories: { friends: { sound: ['b.mp3', 50] } }, types: { X: { sound: ['a.mp3', 10] } } });
     assert.deepEqual(theme.assetPaths.sort(), ['a.mp3', 'b.mp3']);
+});
+
+// --- JSONC --------------------------------------------------------------------
+
+test('jsonc: line and block comments and trailing commas are ignored', () => {
+    const text = '{\n  // a comment\n  "a": [1, 2,], /* block\n spanning */ "b": { "c": true, },\n}\n';
+    assert.deepEqual(parseJsonc(text), { a: [1, 2], b: { c: true } });
+});
+
+test('jsonc: comment-like text inside strings is kept', () => {
+    const text = '{ "url": "https://x.test/a//b", "s": "/* not a comment */", "q": "say \\"hi\\" // still string" }';
+    assert.deepEqual(parseJsonc(text), { url: 'https://x.test/a//b', s: '/* not a comment */', q: 'say "hi" // still string' });
+});
+
+test('jsonc: a leading BOM is accepted', () => {
+    assert.deepEqual(parseJsonc('﻿{"a":1}'), { a: 1 });
+});
+
+test('jsonc: stripping keeps line structure, so parse errors point at the real line', () => {
+    const text = '{\n  // c\n  "a": 1 /* x */\n}';
+    assert.equal(stripJsonc(text).split('\n').length, text.split('\n').length);
+    assert.equal(stripJsonc(text).length, text.length);
+});
+
+test('jsonc: a comma inside a string before } is not treated as trailing', () => {
+    assert.deepEqual(parseJsonc('{"a": ",", "b": [","]}'), { a: ',', b: [','] });
 });

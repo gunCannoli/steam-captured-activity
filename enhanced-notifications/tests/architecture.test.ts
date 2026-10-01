@@ -12,7 +12,8 @@
 //    unregistered method crashes the backend host; knowledgebase.md).
 // 5. Shared copies have not drifted from enhanced-achievements: steam/notification-hook.ts
 //    (both plugins wrap the same Steam method with it, so they must compose),
-//    kernel/surface.ts and pristineDuration. Skipped when the sibling plugin is not next to this one.
+//    kernel/surface.ts, theme/jsonc.ts, pristineDuration and backend/main.lua (name swapped).
+//    Skipped when the sibling plugin is not next to this one.
 // 6. Every live script in tests/ is run by tests/run-live.mjs (or listed as a helper).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -132,6 +133,7 @@ export const PURE = [
     'steam/notification-hook.ts',
     'surfaces/duration/duration.ts',
     'surfaces/sound/sound.ts',
+    'theme/jsonc.ts',
     'theme/theme.ts',
 ];
 
@@ -214,7 +216,7 @@ test('architecture: every RPC the frontend calls is registered in backend/main.l
     assert.deepEqual([...called].filter((n) => !registered.has(n)), []);
 });
 
-for (const file of ['steam/notification-hook.ts', 'kernel/surface.ts']) {
+for (const file of ['steam/notification-hook.ts', 'kernel/surface.ts', 'theme/jsonc.ts']) {
     test(`architecture: ${file} is identical to the enhanced-achievements copy`, (t) => {
         const sibling = join(SIBLING, file);
         if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');
@@ -230,6 +232,13 @@ test('architecture: pristineDuration is identical to the enhanced-achievements c
     assert.equal(ours.length, 1, 'expected exactly one pristineDuration in frontend/');
     assert.equal(theirs.length, 1, 'expected exactly one pristineDuration in enhanced-achievements/frontend/');
     assert.equal(ours[0], theirs[0]);
+});
+
+test('architecture: backend/main.lua is the enhanced-achievements copy with the plugin name swapped', (t) => {
+    const sibling = join(ROOT, '..', 'enhanced-achievements', 'backend', 'main.lua');
+    if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');
+    const theirs = readFileSync(sibling, 'utf8').split('enhanced-achievements').join('enhanced-notifications');
+    assert.equal(readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8'), theirs);
 });
 
 /** Live scripts that are helpers, not checks. */
