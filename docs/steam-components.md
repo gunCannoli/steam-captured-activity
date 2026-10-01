@@ -1657,6 +1657,25 @@ plan and was never true: the section does not read `CWorkshopStore`.
     not `null` (`comment_count`, `votes_for`, sum of `reactions`).
 - **Card size.** `pe(item)`: video → 8 (VideoAspect), guides → 65; an image by aspect and width from `image_width` /
   `image_height`. An image **without** a size gets 0, matches no row template and is dropped (`No matching template`).
+  The rule (module `77163`, verified 2026-10-01): `aspect = w / h`; shape = `aspect > 2.5 ? 16 : aspect > 1.4 ? 32 : 64`
+  (`<= 0.8` → 128, a **tall** card); width = `w >= 1024 ? 4 : w > 512 ? 2 : 1`; size = shape | width. So a 16:9 image is
+  **34** from 513 to 1023 px wide (IGDB screenshots at 1000 x 583: the ordinary small cell, about 317 x 262 to 373 on a
+  1920-wide window) but **36** from 1024 px (1280 x 720, 1920 x 1080: a large cell, 317 x 426 to 618). A card's cell is
+  fixed by these two numbers, **not** by the image: the card shows the image whatever its real dimensions, so a card can
+  report a size that differs from its picture (the manual card reports 960 x 540 for a 1280 x 720 cover).
+- **Row layout: the order of the cards is not the order of the feed** (verified 2026-10-01). `ae.AddCommunityContent`
+  turns each item into a card `{ eSize, nWidth, item }` (`nWidth` from `Ae()`: 0 for a tall card, 3 for shape 16, 2 for
+  size 8, else 1), then places the cards in one of two ways. (1) While `m_bHasEmptyRows` is true (Steam built
+  placeholder rows when the section was bound) every placeholder cell takes the **first card of exactly the same `eSize`
+  and `nWidth`**; a row with a cell no card fills is deleted (`No match for item`, in `webhelper_js.txt`). (2) Otherwise
+  `BuildRowsForCards` takes the first card, keeps the row templates (`me()`: `Singles` eMatch 31 and several `OneTall`,
+  eMatch 135, each with a tall card) whose `eMatch` shares a bit with it, **shuffles them with `Math.random`** (`o.fW`),
+  and fills the first template that `he()` can complete from the rest of the list (an `nItemSpace` cell takes the first
+  card whose weight fits; an `eFixedCard` cell takes the first card with that bit). A card no template can start is
+  removed from the list (`splice(0, 1)`). Consequences: the same feed can lay out differently on every load, the first
+  feed item is **not** guaranteed the top-left cell, and a card whose size no template can start may be dropped.
+  Observed 2026-10-01: with the manual card reported at 1280 x 720 (size 36) it was dropped; at 960 x 540 (size 34) it
+  shows, but in the third row of the first layout seen.
 - **Fields the card code reads** (live sample): `published_file_id` (string), `type`, `title`, `description`,
   `preview_image_url`, `full_image_url`, `image_width`, `image_height`, `youtube_video_id`, `comment_count`,
   `votes_for`, `content_descriptorids` (**must be an array**: filtered with `indexOf` against the user's content
@@ -1823,6 +1842,18 @@ comment thread, appid, file_details })`. The viewer (`I` in `94715`) shows the "
 set (`{ creator: steamid string, time_created, file_description }`; the row looks the creator up in the friends store and renders
 its persona); an appid in it makes Steam load app info (asserts for a non-Steam app). Desktop mode on this machine failed to
 open the viewer with `CVRPathHelpers not found` (a Steam-internal native call, native cards too); Big Picture opens it.
+
+**The viewer's text and layout** (`I` in `94715`, verified 2026-10-01): props `{ children, closeModal, appid, file_details,
+title, artworkURL, window, nMaxScreenPercentage, screenshot, ... }`. The image is `ArtworkImage` (capped at
+`maxHeight: 600px` in Big Picture); under it `ArtworkModalDetails` holds the header (the Close button
+`ModalArtCloseButton`, then, **only when `children` is set**, a `ScrollForMore` div:
+`jsxs("div", { className: "…ScrollForMore…", children: [arrow, text, arrow] })`) and a `ChildrenContainer` that renders
+`children`. The text is the localisation token `#ArtworkModal_ScrollForMore` ("Scroll down for comments") when
+`file_details` is set, else `#ArtworkModal_ScrollForDetails`; it is a plain string child of a string-typed `div`, so a
+jsx hook can swap it (we do, for a manual: "Scroll down to view the manual"). The container scrolls on the D-pad (100 px
+per press, smooth) and the mouse wheel. Right-click on the image: "Save screenshot" (`StartDownload(artworkURL)`).
+Desktop mode opened the viewer on 2026-10-01 for the manual card (earlier notes of `CVRPathHelpers not found` did not
+reproduce for it).
 
 - `wb({ appid })` → class `oe` → loader `ae(appid)` (`m_unAppID`); it loads pages when
   on screen (unless `library_disable_community_content` is set, which shows a Load

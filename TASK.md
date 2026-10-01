@@ -48,8 +48,12 @@ order (the user, or an agent with the user's go-ahead):
 6. **Section reuse between games:** the stale-loader repair is proven on a simulated stale section only; navigation alone
    remounted the section every time here. Open a few shortcuts one after another in Big Picture (and on a controller) and
    confirm each COMMUNITY tab shows its own game's cards, never another game's or an empty section.
-7. **F2c manuals** (ADR-0048): code committed (2026-10-01), waiting for the live verification in
-   [its plan § 11](docs/plans/steam-cartridges-f2c-manuals-plan.md) (deploy, then Captain Commando in Big Picture).
+7. **F2c manuals** (ADR-0048): live-checked in desktop 2026-10-01 (backend, first-page cover, viewer with 20 pages,
+   "Scroll down to view the manual", fonts released, `test:live` 13/13); still open: **Steam places cards with a
+   `Math.random` template shuffle, so the manual is not guaranteed the top-left cell** (decide: leave it, or wrap the
+   loader's `AddCommunityContent` to move its cell first); a game whose media was cached before manuals has none for
+   7 days (`media_ok`; decide whether to bump the cache); and the rest of [the plan § 11](docs/plans/steam-cartridges-f2c-manuals-plan.md)
+   in Big Picture (D-pad scrolling, Routine 2).
    ScreenScraper videos and IGDB links are not started; ScreenScraper stays limited to its image types and the manual
    (title screen, screenshot, fanart, boxes, mixes, cartridge, flyer, HyperSpin theme) by the user's decisions (2026-09-30).
 Vote, award, comment and Report controls are hidden on our cards, so the plan's § 9.3 rows for them are moot.

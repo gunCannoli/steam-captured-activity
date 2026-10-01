@@ -107,7 +107,7 @@ export type AchievementSet = Record<string, unknown>;
 export interface MediaItem { kind: "video" | "screenshot" | "artwork" | "manual"; source: "igdb" | "screenscraper"; youtube?; url?; thumb?; key?; width?; height?; title? }  // F2; "manual" F2c
 export interface CommunityMedia { items: MediaItem[]; igdb_id?: number; ss_id?: number }   // F2; items may arrive as {} (asList)
 // kernel/media-bin.ts (F2): createMediaBin(release) -> { put(appid, key, { url, width?, height? }), get(appid, key) }; 8 shortcuts
-// kernel/manual-shelf.ts (F2c): createManualShelf(release) -> { get(appid, key), set(appid, key, { status, pages }), subscribe(listener) }; 2 manuals
+// kernel/manual-shelf.ts (F2c): createManualShelf(release) -> { get(appid, key), set(appid, key, { status, pages }), cover(appid, key), setCover(appid, key, url), subscribe(listener) }; 2 manuals, 8 covers
 // Events gains "community.manual-opened": { appid, key } (F2c: the community surface's result event; app/manuals renders the pages)
 export type ArtworkPlan = Record<string, unknown>;
 export interface GameRecord {

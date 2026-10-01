@@ -20,6 +20,15 @@ sections Steam hides from shortcuts by app type and feeds Steam's own stores wit
 data the plugin resolves: screenshots, recordings, metadata, artwork, achievements.
 It is the core of the suite and never depends on a provider plugin.
 
+What it shows for a game with no Steam data, from what it resolves itself: Game Info, artwork, achievements, the
+screenshots and recordings Steam captured, and Steam's own **Community Content** cards (IGDB trailers and images,
+ScreenScraper images, and the game's **ScreenScraper manual**: its first page is a card, and opening it shows every page
+in Steam's own viewer, scrolled by the D-pad or mouse wheel). The Community cards are Steam's: the plugin feeds Steam's
+loader and tweaks the viewer, it does not build a page. What Steam's layout allows (card sizes, the shuffled row
+templates, the viewer's text) is in [steam-components.md](steam-components.md#community-media--workshop-store); the
+manual's design is [ADR-0048](decisions.md) and [steam-cartridges/service-media.md](steam-cartridges/service-media.md);
+pdf.js, ScreenScraper and build facts are in [knowledgebase.md](knowledgebase.md).
+
 Two halves, one boundary:
 
 - **Frontend** (TypeScript, in Steam's React): watches what the user does, decides,

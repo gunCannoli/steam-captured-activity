@@ -57,12 +57,17 @@ and before IGDB's (`domain/community-media.visibleMedia`); Steam's own row layou
 ## Manuals (features plan F2c, ADR-0048)
 
 `screenscraper_media.manual_item(jeu)` gives one `{ kind = "manual", source = "screenscraper", key = "manuel(<region>)",
-title = "Manual", width = 1280, height = 720 }` item, best region first (wor, us, eu, ss, jp); `media_service.ensure` adds it
+title = "Manual", width = 960, height = 540 }` item, best region first (wor, us, eu, ss, jp); `media_service.ensure` adds it
 after the images. Its bytes are not fetched with the part: `GetManualChunk(appid, key, index, title)` answers
 `{ base64, index, chunks, size }` for 1 MiB of the PDF; chunk 0 downloads it (`download_document`: no `maxwidth`, the body
 must start `%PDF-`, 48 MiB cap), the last chunk frees the copy, one document at a time. `app/manuals` reads the chunks in
 order when the community viewer shows the manual's cover, renders the pages through `ports/pdf` (pdf.js 4.10.38) and puts
-them on `kernel/manual-shelf`. The toggle is `communityShowManuals` ("Game Manuals").
+them on `kernel/manual-shelf`. The toggle is `communityShowManuals` ("Game Manuals"). The card's cover is page 1: when a
+record update names a manual, `app/manuals.cover` reads the PDF once per session (queued so the backend's single copy is
+never shared), renders page 1 on a 16:9 canvas (`renderCover`, 1280 x 720) and shelves it as the cover (8 kept), then
+announces `record.updated` (`media`) so the community surface re-reads. The size the card reports (960 x 540) is a
+layout choice, not the picture's size. An item cached before a manual existed has no manual item until its 7-day
+freshness (`media_ok`) ends.
 
 ScreenScraper lookups send ScreenScraper's own system id (`SS_SYSTEM`, from the RetroAchievements console id), and a ROM
 ScreenScraper does not know falls back to the title search on that console (F2c phase 0).
@@ -129,7 +134,8 @@ None. The `community` surface writes Steam ([surfaces.md § community](surfaces.
 breakers of `get_binary`, the RPC facade, no URL or account in the store or a log line), `tests/app-media.test.ts` (7),
 `tests/community-media.test.ts` (4), `tests/media-bin.test.ts` (3). Live: `tests/live/probes/community_media.mjs`.
 F2c: `test_media_service.lua` 64 → 82 checks (system ids, manual item, document download, chunks, `GetManualChunk`),
-`tests/app-manuals.test.ts` (6), `tests/manual-shelf.test.ts` (4), one more in `community-media.test.ts`.
+`tests/app-manuals.test.ts` (9), `tests/manual-shelf.test.ts` (5), one more in `community-media.test.ts`, two more in
+`community-core.test.ts` (cover, card size class, scroll label).
 
 ## History
 

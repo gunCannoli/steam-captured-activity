@@ -484,9 +484,14 @@ through `SP_REACT`) three more tweaks apply, so a native item's viewer is never 
 made), and the big image's height cap follows the window (`max(260px, min(600px, 100vh - 330px))`) instead of Steam's fixed
 600 px, so the Close button is not pushed under Steam's footer bar on a shorter window.
 
-**Manuals (F2c, ADR-0048):** a `manual` item becomes an Artwork card whose image is an inline SVG cover
-(`core.manualCoverUrl`: one image, a `#manual-<appid>-<key>` fragment per shortcut, so `viewerMeta` matches each cover to
-its own manual). When Steam's viewer opens on a cover, the viewer wrapper passes `children` = the page column
+**Manuals (F2c, ADR-0048):** a `manual` item becomes an Artwork card that always reports `MANUAL_CARD_WIDTH` x
+`MANUAL_CARD_HEIGHT` (960 x 540: Steam's ordinary small cell, class 34; see steam-components.md). Its image is the
+manual's first page (`deps.coverOf`, a `blob:` URL from `kernel/manual-shelf`, rendered by `app/manuals`) and, until that
+exists, an inline SVG placeholder (`core.manualCoverUrl`: one image, a `#manual-<appid>-<key>` fragment per shortcut).
+`render` maps each cover URL back to its manual (`manualsByUrl`, else `manualOfUrl` for the placeholder), so `viewerMeta`
+matches each cover to its own manual. `isScrollLabel` finds the viewer's "Scroll down for comments" line and the hook
+swaps in `MANUAL_SCROLL_TEXT` ("Scroll down to view the manual"; only a manual viewer has children, so only it shows the
+line). When Steam's viewer opens on a cover, the viewer wrapper passes `children` = the page column
 (`manual.ts`, `createManualPages`) instead of `undefined`; Steam scrolls it on the D-pad and the mouse wheel. The column
 reads `kernel/manual-shelf` (`manualOf`, `onManuals`) and, from an effect, emits the surface's own result event
 `community.manual-opened` (`bus`), which `app/manuals` handles. No new Steam target: it is a branch of the existing

@@ -287,6 +287,13 @@ ScreenScraper's `jeuInfos.php` media URLs carry the developer and user accounts 
 `Erreur de login : Vérifier vos identifiants développeur !`), so check the first bytes before treating a body as an
 image. `mediaJeu.php` takes `maxwidth` to scale an image down.
 
+### Millennium RPC: a call that runs longer than 30 s is abandoned by the caller, not by the backend
+
+**✅ Verified 2026-10-01.** `Millennium.callServerMethod` rejects with `RPC timeout for child: <plugin>` after **30 s**; the Lua
+call keeps running and finishes later. Calls that overlap this way can write in the wrong order (a forced `EnsureFresh` for
+media that had timed out overwrote a newer result when it ended). A call that can take that long (IGDB plus ScreenScraper
+lookups in one `EnsureFresh`) should not be forced twice; read the stored result afterwards instead of repeating it.
+
 ### Backend RPC crash trap: Unregistered methods & unhandled errors
 
 **✅ Verified.** In Millennium v3.4–v3.5:
@@ -717,6 +724,56 @@ Steam updates its CEF.
   either. How to diagnose it anyway: [steam-debug.md Trap 10](steam-debug.md#trap-10-diagnosing-a-hung-sharedjscontext-restart-the-ui-dialog).
 
 ---
+
+### ScreenScraper: system ids are not RetroAchievements ids, and a manual is the media type `manuel`
+
+**✅ Verified 2026-10-01** (a live lookup for an SNES ROM). `systemeid` is ScreenScraper's own numbering. The ids the plugin
+gets from `retroachievements.detect_console_id` are RetroAchievements ids and differ:
+
+| Console | RetroAchievements | ScreenScraper `systemeid` |
+| --- | --- | --- |
+| Sega Genesis / Mega Drive | 1 | 1 |
+| Nintendo 64 | 2 | 14 |
+| **SNES** | **3** | **4** (ScreenScraper's 3 is the NES) |
+| Game Boy Advance | 5 | 12 |
+| NES | 7 | 3 |
+| PlayStation | 12 | 57 |
+| GameCube | 16 | 13 |
+| Arcade | 27 | 75 (MAME) |
+| PSP | 41 | 61 |
+
+Passing a RetroAchievements id ran the lookup on the wrong system, so a ROM matched nothing and every media key answered
+`not-found`. The SNES row is proven live (Captain Commando, `ss_id` 2449); the others are ScreenScraper's list as known
+when written. A game's manuals are `medias[]` entries of `type: "manuel"` with a `region` (`manuel(us)`, `manuel(eu)`, ...;
+Captain Commando has `us` and `eu`, no `wor`). The body is a PDF (`%PDF-` first bytes; a login error is text with HTTP 200,
+as for images). `mediaJeu.php` serves it without `maxwidth` (a PDF is not scaled). Sizes seen: the US manual fits in
+2 MiB, the EU one needs 8. One image download takes about 1.3 s and a lookup about 2 s (ScreenScraper throttles; see the
+30 s RPC limit above).
+
+### pdf.js inside Steam's client (Chromium 126)
+
+**✅ Verified live 2026-10-01** (SharedJSContext, `https://steamloopback.host`, no CSP, `devicePixelRatio` 2):
+
+- A **module worker from a `blob:` URL** works (`new Worker(blobUrl, { type: "module" })`), `import(blobUrl)` of a module
+  works, and `OffscreenCanvas` + `convertToBlob('image/jpeg')` work on the main thread. Chromium's `application/pdf` plugin is
+  listed in `navigator.mimeTypes`, but an embedded PDF takes the D-pad (no controller scrolling).
+- **Versions:** `pdfjs-dist` **4.10.38** parses and renders (a 2-page test PDF, page 2 at 800 px in 136 ms, correct
+  pixels). **5.4.624 and 6.3.289 hang** in `getDocument` (the promise never resolves). Pin 4.10.38; an upgrade needs a live
+  render test. The legacy build is not needed on Chromium 126. A hung worker stays in SharedJSContext until Steam restarts.
+- **Fonts:** with `disableFontFace: true` text in a non-embedded font is **not drawn** (0 dark pixels); with the default it
+  is (4249), and pdf.js adds a `FontFace` to `document.fonts` (14 → 15) that `doc.destroy()` removes (back to 14). Destroy
+  every document after rendering. A real 20-page manual left `document.fonts.size` at 14 after its viewer closed.
+- pdf.js fills a page's canvas white by default, so a JPEG of a rendered page is correct.
+
+### `millennium-ttc` and `constSysfsExpr`: a relative path embeds nothing, and the build still succeeds
+
+**✅ Verified 2026-10-01.** `constSysfsExpr("../../node_modules/pdfjs-dist/build/pdf.min.mjs", ...)` embeds **nothing**
+(`Embedded 0 file(s)`; ttc resolves the relative part twice and falls into pattern mode) and the build prints `Succeeded`.
+The working form is `constSysfsExpr("pdf.min.mjs", { basePath: "../../node_modules/pdfjs-dist/build", encoding: "utf8" })`,
+which prints `Embedded 1 specific file`; check for that line after every build that embeds a file. The embedded text is
+**not** a module: rollup leaves `import(<variable>)` alone, so the plugin evaluates it from a `blob:` URL at run time. A
+`node_modules` managed by pnpm (`.pnpm`, `.modules.yaml`) is updated with `pnpm add`; then
+`npm install --package-lock-only --ignore-scripts` keeps `package-lock.json` in step. Plain `npm install` would rebuild it.
 
 ## Part 3 — RetroAchievements
 

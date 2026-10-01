@@ -2954,8 +2954,17 @@ so a ROM shortcut never matched (the test game, Captain Commando, answered `not-
 
 ### Decision
 
-- **Card:** an Artwork card with an inline SVG cover, 1280 x 720 (the size IGDB screenshot cards already lay out as one
-  ordinary cell), first in `domain/community-media.visibleMedia`, behind the existing `communityShowManuals` setting.
+- **Card:** an Artwork card, first in `domain/community-media.visibleMedia`, behind the existing `communityShowManuals`
+  setting. *Amended 2026-10-01 (live):* it reports **960 x 540** to Steam (cell class 34, the ordinary small cell of IGDB
+  screenshots; Steam sizes a card from the reported numbers, not the picture, and 1280 x 720 is class 36, which Steam's row
+  layout dropped), and its image is the manual's **first page** on a 16:9 cover (1280 x 720, page fitted on the dark
+  gradient), rendered by `app/manuals` once per session when the shortcut's media names a manual (`record.updated`, then
+  `record.updated` again so the surface re-reads); the inline SVG "MANUAL" cover stays as the placeholder until then and
+  when rendering fails. The cover and the pages never read the PDF at the same time (one document in the backend).
+  Steam places cards by a `Math.random` template shuffle, so the manual is **not guaranteed the top-left cell** (see
+  [steam-components.md](steam-components.md#community-media--workshop-store)).
+- **Viewer text:** the viewer's "Scroll down for comments" line (shown because the viewer has `children`) reads "Scroll down
+  to view the manual", replaced by a jsx hook like the "Added by" label.
 - **Backend:** `screenscraper_media.manual_item` names the best-region `manuel(<region>)` key; `GetManualChunk` returns
   the PDF in 1 MiB base64 chunks: chunk 0 downloads it into memory (48 MiB cap, `net.get_binary`), the last chunk frees it,
   one document at a time. No URL leaves the backend; nothing is written to disk.
