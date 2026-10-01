@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- **Force achievement position in Big Picture** (setting, off by default). Big Picture has one toast position, which Enhanced Notifications' theme sets; turn this on and achievement toasts go to this theme's `position` and `margin` instead, over anything else that moves Steam's toast (ADR-0049). New kill switch `placement`.
+
 ### Changed
 
 - The Big Picture live check also checks that a toast queued behind an achievement banner does not restyle it (the Enhanced Notifications flicker fix).

@@ -1,6 +1,6 @@
 # Plan: Big Picture toast flicker (enhanced-notifications, with enhanced-achievements)
 
-**Status:** ready to execute; dry-run done 2026-10-01 (§ 12). **Base:** `e74dee9` (the investigation commit: debug trace,
+**Status:** **executed 2026-10-01** (`657fa63`, `d9814d1`, `f291b02`); the scripted part of § 11 passed; the by-hand checks H1-H4 are the user's. § 13 was answered by ADR-0049 (built the same day). Earlier status: ready to execute; dry-run done 2026-10-01 (§ 12). **Base:** `e74dee9` (the investigation commit: debug trace,
 probe, Steam facts in the docs). **Decision:** none needed for phases 1 to 3 (a bug fix inside ADR-0047's
 architecture); § 13 asks the user one question for a later phase.
 **Implementer:** apply three patches, run the checks after each, commit. No code is written by hand. Delete this plan
@@ -337,6 +337,10 @@ to `e74dee9` and `git apply --check` passed for all three in order.
   (`bigpicture` SKIP).
 
 ## 13. Out of scope, and one question for the user
+
+**Answered 2026-10-01 ([ADR-0049](../decisions.md)):** option 1 by default (enhanced-notifications' theme decides), plus a
+new enhanced-achievements toggle, "Force achievement position in Big Picture", that puts achievement toasts at its own
+theme's position over anything else. The text below is the question as asked.
 
 **Where should achievement toasts go in Big Picture?** Big Picture has one toast place, so today enhanced-notifications'
 `position` / `margin` moves achievement toasts too, and enhanced-achievements' own `position` does nothing there

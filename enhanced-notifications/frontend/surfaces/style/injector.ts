@@ -8,7 +8,7 @@ import { buildPlaceholderCss } from '../../theme/theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
 import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
-import { installToastPop } from './toast-pop';
+import { installToastPop } from '../../steam/toast-pop';
 import { takesSignal, type TypeSignal } from './type-source';
 
 /**
@@ -18,7 +18,7 @@ import { takesSignal, type TypeSignal } from './type-source';
  *   Each rule is scoped to `body[data-en-type="<Type>"]`.
  * - While a toast shows, its window's `<body>` carries `data-en-type` = the
  *   notification's Steam type name. The type comes from the moment Steam hands
- *   the toast to a toast view (`PopNextToastNotification`, ./toast-pop.ts),
+ *   the toast to a toast view (`PopNextToastNotification`, steam/toast-pop.ts),
  *   before it renders; without that method, from the shared hook's `onShown`
  *   (steam/notification-hook.ts), a frame late. Never from NotificationStore's
  *   current-toast value: it changes when a toast arrives, so a queued toast
@@ -100,7 +100,7 @@ let currentType: string | null = null;
 let currentEType: number | undefined;
 let placeholderSelector: string | undefined;
 let installed = false;
-/** Steam has `PopNextToastNotification` and it is wrapped (./toast-pop.ts); false: the type follows `onShown`. */
+/** Steam has `PopNextToastNotification` and it is wrapped (steam/toast-pop.ts); false: the type follows `onShown`. */
 let popAvailable = false;
 /** Registered once: Millennium has no way to remove a window-create hook. */
 let windowHookAdded = false;

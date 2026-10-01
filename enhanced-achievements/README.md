@@ -46,6 +46,7 @@ Open Millennium's sidebar and select **Enhanced Achievements**:
 | Open themes folder | Opens the folder for your own themes |
 | Preview | Fires a test achievement for each tier |
 | Achievement queue | One themed banner at a time instead of Steam's own stacking |
+| Force achievement position in Big Picture | Big Picture has one toast position, set by Enhanced Notifications' theme; on, achievement toasts use this theme's position and margin instead |
 | Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
 | Save clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
 | Timeline marker | Adds an achievement marker on non-Steam games' timelines |

@@ -2889,3 +2889,49 @@ method, each with its own code: nothing checked that the two wrappers compose, a
 - A failing styling, sound or duration path switches off alone and gives Steam's stock behaviour back for it; the
   others keep working.
 - New features follow [enhanced-notifications/architecture.md](enhanced-notifications/architecture.md) § How to add a feature.
+
+## ADR-0049: Big Picture has one toast position: enhanced-notifications' theme by default, enhanced-achievements' when forced
+
+**Status:** Accepted · 2026-10-01 · Investigation: [enhanced-notifications-bigpicture-toast-fix-plan.md](plans/enhanced-notifications-bigpicture-toast-fix-plan.md) · Extends [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook) (ADR-0048 is reserved by the F2c manuals plan)
+
+### Context
+
+On desktop each toast has its own popup, so each plugin places its own toasts (enhanced-achievements pins its banner
+popups; enhanced-notifications passes those moves through). Big Picture has **one** toast view, which Steam places
+by measuring one `position: fixed` placeholder div each time a toast renders
+([steam-components.md § Big Picture toast view](steam-components.md#big-picture-toast-view-how-steam-places-and-shows-it)).
+enhanced-notifications moves that div with its theme's `position` / `margin`, so in Big Picture it also placed
+achievement toasts, and enhanced-achievements' own `position` did nothing there. The user's call (2026-10-01): one
+place, like the One Ring; enhanced-notifications' theme decides it by default, and enhanced-achievements gets a
+toggle that forces its own position for achievement toasts, over anything else that sets it.
+
+### Decision
+
+1. **Default:** enhanced-notifications' theme decides Big Picture's one toast place, for every toast, achievements
+   included (unchanged).
+2. **Force:** enhanced-achievements setting `bigpicture.force_position` (off by default; "Force achievement position in
+   Big Picture"). On, while an achievement toast shows, enhanced-achievements writes its own `<style
+   id=enhanced-achievements-placement>` in the Big Picture window with its theme's `position` and the toast tier's
+   banner `margin`. Its selector repeats Steam's readable class three times (`.GamepadToastPlaceholder` ×3) and every
+   declaration is `!important`, so it outranks enhanced-notifications' rule and Steam's own position classes whatever
+   the order in `<head>`. Each plugin writes only its own `<style>`; precedence is by specificity, not by one plugin
+   removing the other's.
+3. **When:** both plugins act at `NotificationStore.PopNextToastNotification`, which Steam calls before the toast renders
+   and so before it measures the placeholder. The wrapper is one shared file, `steam/toast-pop.ts`, identical in both
+   plugins (drift-checked), an own property on the store instance; the second plugin to load wraps the first, so both
+   hear every pop in either load order. enhanced-achievements writes its style at an achievement's pop and clears it at
+   the next non-achievement pop.
+4. **Desktop is unchanged:** enhanced-achievements already places its own popups there.
+5. **Kill switch** `placement` in enhanced-achievements (appended to its feature ids): off, nothing is written and the
+   next pop clears what was.
+
+### Consequences
+
+- Without enhanced-notifications, achievement toasts in Big Picture stay at Steam's place unless the toggle is on.
+- Another plugin that moves the placeholder with fewer than three classes, or without `!important`, loses to the toggle;
+  one that goes further wins. Steam builds without the readable `GamepadToastPlaceholder` class would need the hashed
+  class, as enhanced-notifications resolves it.
+- Tests: enhanced-achievements `tests/bigpicture.test.ts` (the CSS and its specificity), both plugins'
+  `tests/architecture.test.ts` (shared file, owners), enhanced-notifications `tests/bigpicture-type.test.ts` (two installs,
+  both orders), enhanced-achievements `tests/bigpicture.mjs` (force off: enhanced-notifications' corner; force on: this
+  theme's corner; the next download back).

@@ -74,6 +74,7 @@ a copy drifts. Change a shared file in both plugins in one commit.
 | Shared | What it is |
 | --- | --- |
 | `steam/notification-hook.ts` | The one `PlayNotificationSound` wrapper (above) |
+| `steam/toast-pop.ts` | The `PopNextToastNotification` wrapper: this plugin's toast-on-screen type, enhanced-achievements' forced Big Picture position (ADR-0049) |
 | `kernel/surface.ts` | The `Surface` contract and its install runner |
 | `theme/jsonc.ts` | JSONC parsing: `.jsonc` and `.json` themes accept comments and trailing commas |
 | `settings/rows.tsx` | Settings rows and the spacing system ([guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-achievements)) |
@@ -113,11 +114,12 @@ global:
 toast view that follows a `position: fixed` `GamepadToastPlaceholder` div in the Big Picture window, re-measured
 when a toast shows. The injector puts `<style id=enhanced-notifications-placement>` (`buildPlaceholderCss`) in each
 window holding a placeholder, found by the same scan that finds the toast view. One place for every toast there,
-achievement toasts included (enhanced-achievements has no Big Picture position).
+achievement toasts included, unless enhanced-achievements' "Force achievement position in Big Picture" is on: its own
+`<style>` then outranks ours while an achievement shows (ADR-0049).
 
 **The type of the toast on screen** (Big Picture's one window, and a desktop popup before its own type is read)
 comes from `NotificationStore.PopNextToastNotification`, wrapped as an own property of the store instance
-(`surfaces/style/toast-pop.ts`): Steam calls it when it hands a toast to a toast view, inside a React state
+(`steam/toast-pop.ts`): Steam calls it when it hands a toast to a toast view, inside a React state
 updater, so the type and the placement `<style>` are in place before that toast renders and before Steam measures
 the placeholder. Without that method the type follows `onShown`, a frame late. Never the store's current-toast
 value: it changes when a toast **arrives**, so a toast queued behind the one on screen restyled it, Steam's 300 px
@@ -142,7 +144,7 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 | Each type config's `toastDurationMS` (not the one enhanced-achievements claims) | `surfaces/duration/index.ts` | — |
 | Toast windows: `<style id=enhanced-notifications-theme>` and `body[data-en-type]`; `Millennium.AddWindowCreateHook` | `surfaces/style/injector.ts` | [12](../plugins.md#12-popup-hooks-do-not-see-every-window) |
 | Big Picture window: `<style id=enhanced-notifications-placement>` (the toast placeholder's position) | `surfaces/style/injector.ts` | — |
-| `NotificationStore` instance `PopNextToastNotification` (own property; the toast-on-screen signal) | `surfaces/style/toast-pop.ts` | 2 |
+| `NotificationStore` instance `PopNextToastNotification` (own property; the toast-on-screen signal) | `steam/toast-pop.ts` | 2 |
 | Each desktop / overlay toast popup's own `SteamClient.Window.MoveTo` (wrapped per popup) | `surfaces/style/toast-window.ts` | 2 |
 | `NotificationStore.Test*` (previews) | `surfaces/preview/index.ts` | — |
 
@@ -167,7 +169,7 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 
 ## History
 
-- 2026-10-01 Big Picture flicker fixed: the toast type comes from `PopNextToastNotification` (`surfaces/style/toast-pop.ts`,
+- 2026-10-01 Big Picture flicker fixed: the toast type comes from `PopNextToastNotification` (`steam/toast-pop.ts`,
   decision in `surfaces/style/type-source.ts`), not the store's current-toast value; regression checks in
   `tests/bigpicture-type.test.ts`, `tests/bigpicture.mjs` and enhanced-achievements' `tests/bigpicture.mjs`. Debug trace
   `debugBigPicture()` / `bigPictureTrace()` and `tests/probes/bp-toast-trace.mjs`.

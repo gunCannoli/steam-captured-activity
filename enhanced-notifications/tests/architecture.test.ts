@@ -131,10 +131,10 @@ export const PURE = [
     'safety/features.ts',
     'safety/runtime.ts',
     'steam/notification-hook.ts',
+    'steam/toast-pop.ts',
     'surfaces/duration/duration.ts',
     'surfaces/preview/pick.ts',
     'surfaces/sound/sound.ts',
-    'surfaces/style/toast-pop.ts',
     'surfaces/style/type-source.ts',
     'theme/jsonc.ts',
     'theme/placement.ts',
@@ -178,7 +178,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['toast popup SteamClient.Window.MoveTo', /\.MoveTo\s*=(?!=)/, 'surfaces/style/toast-window.ts'],
     ['toast window body[data-en-type]', /\.setAttribute\(\s*'data-en-type'/, 'surfaces/style/injector.ts'],
     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
-    ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'surfaces/style/toast-pop.ts'],
+    ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'steam/toast-pop.ts'],
     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],
 ];
 
@@ -222,7 +222,7 @@ test('architecture: every RPC the frontend calls is registered in backend/main.l
     assert.deepEqual([...called].filter((n) => !registered.has(n)), []);
 });
 
-for (const file of ['steam/notification-hook.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {
+for (const file of ['steam/notification-hook.ts', 'steam/toast-pop.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {
     test(`architecture: ${file} is identical to the enhanced-achievements copy`, (t) => {
         const sibling = join(SIBLING, file);
         if (!existsSync(sibling)) return t.skip('enhanced-achievements is not next to this plugin');

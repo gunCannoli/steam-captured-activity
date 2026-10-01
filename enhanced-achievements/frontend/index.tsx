@@ -29,6 +29,7 @@ import { createDurationSurface } from './surfaces/duration';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
 import { previewTier } from './surfaces/toasts/post';
 import { createBannerSurface } from './surfaces/banner';
+import { createPlacementSurface } from './surfaces/placement';
 import { achievementReset, createResetSurface } from './surfaces/reset';
 import { capturesHandler, createCapturesSurface } from './surfaces/captures';
 import { initNotificationSettingsDetection } from './steam/notification-settings';
@@ -83,7 +84,7 @@ async function init(): Promise<void> {
     initNotificationSettingsDetection(); // its failure only disables the settings-panel warning
     await initActiveTheme();
 
-    const surfaces = [createSoundSurface(hook), createDurationSurface(handle), createToastsSurface(handle), createBannerSurface(), createCapturesSurface(), createResetSurface()];
+    const surfaces = [createSoundSurface(hook), createDurationSurface(handle), createToastsSurface(handle), createBannerSurface(), createPlacementSurface(), createCapturesSurface(), createResetSurface()];
     for (const s of surfaces) uninstallers[s.id as FeatureId] = () => s.uninstall();
     surfaceReport = installSurfaces(surfaces, {
         isEnabled: (id) => isEnabled(id as FeatureId),

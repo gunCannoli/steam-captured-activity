@@ -418,12 +418,20 @@ export function SettingsPanel({ onPreview, achievementReset }: { onPreview: (tie
             <PreviewSection disabled={disabled} onPreview={onPreview} />
 
             <PanelSection title="General">
-                <ToggleRow
-                    k="queue.enabled"
-                    label="Achievement queue"
-                    description="One banner at a time instead of Steam's stacking"
-                    disabled={disabled}
-                />
+                <Blocks>
+                    <ToggleRow
+                        k="queue.enabled"
+                        label="Achievement queue"
+                        description="One banner at a time instead of Steam's stacking"
+                        disabled={disabled}
+                    />
+                    <ToggleRow
+                        k="bigpicture.force_position"
+                        label="Force achievement position in Big Picture"
+                        description="Big Picture has one toast position, set by Enhanced Notifications' theme. On: achievement toasts use this theme's position and margin instead"
+                        disabled={disabled}
+                    />
+                </Blocks>
             </PanelSection>
 
             <CapturesSection disabled={disabled} />

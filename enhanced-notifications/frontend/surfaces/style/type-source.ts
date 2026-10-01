@@ -3,7 +3,7 @@
  * whose own type is not known yet (./injector.ts). Pure, so `npm test` checks it.
  *
  * - `pop` (the default): `NotificationStore.PopNextToastNotification` handed this toast to a toast view
- *   (./toast-pop.ts). Steam calls it before the toast renders, so the type is in place for its first frame.
+ *   (steam/toast-pop.ts). Steam calls it before the toast renders, so the type is in place for its first frame.
  * - `shown`: the shared hook's `onShown`, from Steam's effect after the toast is committed (a frame late). The
  *   fallback when Steam has no `PopNextToastNotification`.
  * - `arrival`: NotificationStore's current toast, which changes when a toast ARRIVES, also while another one is on

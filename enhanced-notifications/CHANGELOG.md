@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- **Big Picture position and Enhanced Achievements.** This theme's `position` still decides Big Picture's one toast place, achievements included, unless Enhanced Achievements' new "Force achievement position in Big Picture" is on (ADR-0049).
 - **Big Picture: a toast no longer flickers when another one arrives behind it.** The style followed the newest toast to arrive, not the one on screen, so a queued toast changed the showing one's look and restarted Steam's slide-in, and an achievement drawn by Enhanced Achievements could get this theme's look. The style now follows the toast Steam actually puts on screen, and is in place before it is drawn.
 
 ### Changed

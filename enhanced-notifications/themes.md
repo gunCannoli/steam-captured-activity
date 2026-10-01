@@ -37,7 +37,8 @@ appears at its place, and the exit ends when Steam closes the toast.
 
 Achievement toasts drawn by Enhanced Achievements keep that plugin's style,
 sound, animation and (on desktop) position. In Big Picture there is one toast
-place for every toast, so a `position` here moves its achievement toasts too.
+place for every toast, so a `position` here moves its achievement toasts too,
+unless Enhanced Achievements' "Force achievement position in Big Picture" is on.
 
 ## Style keys
 

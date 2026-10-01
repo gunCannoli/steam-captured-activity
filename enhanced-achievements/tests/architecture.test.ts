@@ -143,6 +143,8 @@ export const PURE = [
     'sensors/unlock/unlock.ts',
     'steam/notification-hook.ts',
     'banner/styles.ts',
+    'banner/bigpicture.ts',
+    'steam/toast-pop.ts',
     'surfaces/duration/duration.ts',
     'surfaces/reset/reset.ts',
     'surfaces/sound/sound.ts',
@@ -192,6 +194,8 @@ export const OWNERS: [string, RegExp, string][] = [
     ['achievement type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'surfaces/duration/index.ts'],
     ['notification fnNotificationResolved (popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'surfaces/banner/themed-toast.tsx'],
     ['toast popup SteamClient.Window.MoveTo (pin)', /\.MoveTo\s*=(?!=)/, 'surfaces/banner/window-pin.ts'],
+    ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'steam/toast-pop.ts'],
+    ['Big Picture <style id=enhanced-achievements-placement>', /'enhanced-achievements-placement'/, 'surfaces/placement/index.ts'],
     ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'surfaces/banner/toast-patch.ts'],
     ['Steam console commands (reset achievements)', /\.ExecCommand\s*\(/, 'surfaces/reset/index.ts'],
     ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip|UserAddTimelineEntry)\s*\(/, 'surfaces/captures/recording.ts'],
@@ -222,7 +226,7 @@ test('architecture: no two surfaces declare the same Steam target', () => {
             }
         }
     }
-    assert.equal(dirs.length, 6, 'expected the six surfaces');
+    assert.equal(dirs.length, 7, 'expected the seven surfaces');
     assert.ok(owner.size >= 9, `expected to read the surfaces' touches, found ${owner.size}`);
     assert.deepEqual(clashes, []);
 });
@@ -255,7 +259,7 @@ test('architecture: pristineDuration is identical to the enhanced-notifications 
 });
 
 // Both plugins wrap PlayNotificationSound with this same hook, so they compose (ADR-0047).
-for (const file of ['steam/notification-hook.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {
+for (const file of ['steam/notification-hook.ts', 'steam/toast-pop.ts', 'kernel/surface.ts', 'theme/jsonc.ts', 'settings/rows.tsx']) {
     test(`architecture: ${file} is identical to the enhanced-notifications copy`, (t) => {
         const sibling = join(NOTIFICATIONS, file);
         if (!existsSync(sibling)) return t.skip('enhanced-notifications is not next to this plugin');

@@ -7,6 +7,10 @@
  * before it (an own property someone else set, or else the prototype's method looked up at call time, so a later
  * prototype wrapper still runs) and returns its value unchanged. `onPop` sees only real toasts (a non-null object)
  * and cannot break Steam's pop: its error goes to `reportError`. Pure (no imports), so `npm test` checks it.
+ *
+ * Shared, identical, by enhanced-notifications (the type of the toast on screen) and enhanced-achievements (its
+ * forced Big Picture position): each architecture test fails when the copies differ. Whichever plugin installs second
+ * wraps the first one's own property, so both listeners run on every pop, in either load order.
  */
 type PopFn = (this: unknown, ...args: unknown[]) => unknown;
 

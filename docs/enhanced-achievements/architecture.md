@@ -12,10 +12,10 @@ Every migration step updates this doc; the **Status** column says what is built.
 | --- | --- | --- | --- |
 | Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode | current (E0a) |
 | Kernel | `frontend/kernel/` | Notification types and synthetic ids, the event bus, the `Surface` contract | current (E1a) |
-| Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
+| Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `banner/{geometry,timing,queue,styles,bigpicture}.ts`, `capture/plan.ts` | Themes, tiers, timing, geometry, the toast scheduler, capture planning. No Steam, SDK, React or logger | current (enforced from E0b) |
 | Steam access | `frontend/steam/` | Finding Steam's objects (webpack, `NotificationStore`, Steam's own `showModal` in `modal.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`, infrastructure), the shared jsx-runtime hook | current (E1c) |
 | Sensor | `frontend/sensors/unlock/` | Sees an achievement toast shown and emits `achievement.unlocked` once, one macrotask later | current (E1b) |
-| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `sound`, `duration`, `toasts` (E1b); `banner`, `captures` (E1c). `surfaceStatus()` shows which installed | current (E1c) |
+| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `sound`, `duration`, `toasts` (E1b); `banner`, `captures` (E1c); `reset`; `placement` (ADR-0049). `surfaceStatus()` shows which installed | current |
 | Composition root | `frontend/index.tsx`, `frontend/claims.ts` | Start-up order, wiring, the public exports and `claims()` | current |
 
 ## Safety net (E0a)
@@ -30,6 +30,7 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | `completion` | The synthetic 100% toast after a game-completing unlock | No 100% toast |
 | `captures` | Screenshot, clip and marker on unlock | No captures |
 | `reset` | The settings panel's Reset Achievements (clears a game's achievements) | The section is disabled and `reset()` refuses |
+| `placement` | "Force achievement position in Big Picture" (ADR-0049): this theme's corner for achievement toasts in Big Picture | Big Picture's one toast place stays enhanced-notifications' (or Steam's); the next pop clears our style |
 
 - **User switch:** `disabledFeatures` setting, comma-separated ids, no panel control. From the SharedJSContext console:
   `PLUGIN_LIST['enhanced-achievements-dev'].setSetting('disabledFeatures', 'banner,sound')`. Read live; `duration` takes effect at the next theme change or restart.
@@ -67,6 +68,8 @@ Every part that writes into Steam has a **feature id** (`safety/features.ts`):
 | `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `surfaces/banner/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](../plugins.md#sharing-the-jsx-runtime-between-plugins) |
 | Notification `fnNotificationResolved` (popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
 | Toast popup `SteamClient.Window.MoveTo` (pin) | `surfaces/banner/window-pin.ts` | — |
+| `NotificationStore` instance `PopNextToastNotification` (own property, shared with enhanced-notifications) | `steam/toast-pop.ts` | 2 |
+| Big Picture window `<style id=enhanced-achievements-placement>` (forced position) | `surfaces/placement/index.ts` | — |
 | Game Recording RPCs | `surfaces/captures/recording.ts` | — |
 | `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` | `surfaces/reset/index.ts` | — |
 
@@ -95,6 +98,9 @@ depends on its last control. The gap is padding, not margin: margins collapse in
 existing block or becomes a new child of `<Blocks>`; never add spacing on a row.
 
 ## History
+
+- 2026-10-01 ADR-0049: "Force achievement position in Big Picture" (`bigpicture.force_position`, surface and kill switch
+  `placement`, pure `banner/bigpicture.ts`); `steam/toast-pop.ts` shared with enhanced-notifications and drift-checked.
 
 - 2026-09-30 ADR-0047: enhanced-notifications uses this plugin's architecture and the same `steam/notification-hook.ts`; the settings rows and spacing moved to `settings/rows.tsx` (no visible change); the drift tests now cover the hook, `kernel/surface.ts`, `theme/jsonc.ts`, `settings/rows.tsx` and `backend/main.lua` too, and read enhanced-notifications' whole `frontend/` for `pristineDuration` instead of one file path.
 - 2026-09-30 ADR-0045: Reset Achievements lists every game, Steam's or not, from Steam's `appAchievementProgressCache`

@@ -212,11 +212,11 @@ drop it into the themes folder and pick it in the settings panel.
 
 ## Known limitations
 
-- **Big Picture** uses Steam's own 300×80 toast frame and placement. `scale`
-  and `position` do not apply there; only the desktop and in-game overlay
-  toast windows are resized and repositioned. (Big Picture's place can be
-  moved: Enhanced Notifications does it through Steam's toast placeholder,
-  see docs/steam-components.md § Toast windows. Not done here yet.)
+- **Big Picture** uses Steam's own 300×80 toast frame, and has one toast
+  place for every toast. `scale` does not apply there. By default the place is
+  Enhanced Notifications' theme `position` (or Steam's, without it). Turn on
+  **Force achievement position in Big Picture** to put achievement toasts at
+  this theme's `position` and `margin` instead.
 - **Achievement queue and other toasts.** Steam shows at most 3 desktop toasts
   at once, and a queued achievement keeps its (invisible) toast open until its
   turn. While a burst of 3+ unlocks drains, a friend or download toast can

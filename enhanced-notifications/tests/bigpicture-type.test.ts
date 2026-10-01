@@ -1,11 +1,11 @@
 // Which signal sets the type of the toast on screen (surfaces/style/type-source.ts) and the
-// PopNextToastNotification wrapper that provides the `pop` signal (surfaces/style/toast-pop.ts).
+// PopNextToastNotification wrapper that provides the `pop` signal (steam/toast-pop.ts, shared with enhanced-achievements).
 // Regression guard for the Big Picture flicker: a toast that ARRIVES while another is on screen
 // must never restyle it (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { takesSignal, TYPE_SOURCES } from '../frontend/surfaces/style/type-source.ts';
-import { installToastPop } from '../frontend/surfaces/style/toast-pop.ts';
+import { installToastPop } from '../frontend/steam/toast-pop.ts';
 
 test('type source: by default an arriving toast never sets the type, the pop does', () => {
     assert.equal(takesSignal('pop', 'arrival', true), false);
@@ -101,4 +101,19 @@ test('toast pop: wrapped on top of us, uninstall leaves the chain and stops repo
 
 test('toast pop: no method, no wrapper', () => {
     assert.equal(installToastPop({}, () => {}, () => {}), null);
+});
+
+test('toast pop: both toast plugins install it, in either order, and both hear every pop', () => {
+    for (const order of [['en', 'ea'], ['ea', 'en']]) {
+        const { proto, store } = fakeStore([{ eType: 1 }, { eType: 5 }]);
+        const original = proto.PopNextToastNotification;
+        const heard: string[] = [];
+        const offs = order.map((who) => installToastPop(store, (n) => heard.push(`${who}:${n.eType}`), () => {})!);
+        store.PopNextToastNotification(0);
+        store.PopNextToastNotification(0);
+        assert.deepEqual(heard.sort(), [`${order[0]}:1`, `${order[0]}:5`, `${order[1]}:1`, `${order[1]}:5`].sort());
+        offs.reverse().forEach((off) => off()); // last installed first: everything restored
+        assert.equal(Object.prototype.hasOwnProperty.call(store, 'PopNextToastNotification'), false);
+        assert.equal(proto.PopNextToastNotification, original);
+    }
 });
