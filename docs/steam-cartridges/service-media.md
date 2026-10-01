@@ -49,10 +49,23 @@ the community media alone that exclusion is lifted (`domain/routing/policy.isMed
 `media_items` takes, per type, the best region (wor, us, eu, ss, jp): `sstitle` (title screen) and `ss` (screenshot) as
 screenshot cards; `fanart`, `mixrbv2` and `mixrbv1` (Recalbox mixes), `box-2D` (box: front), `box-3D`, `support-2D`
 (cartridge / disc), `flyer` and `themehs` (HyperSpin theme) as artwork cards, the box, support, flyer, mix and theme ones
-with a caption (`MEDIA_TITLES`). A video and a manual are not taken. Only images can be shown: a type whose bytes are not an
+with a caption (`MEDIA_TITLES`). A video is not taken; a manual is its own item (§ Manuals). Only images can be shown: a type whose bytes are not an
 image (the HyperSpin theme may be an archive) is dropped when downloaded (`image_type`), like any failed download. No size
 filter: a 150 KB minimum was tried and removed at the user's request (2026-09-30). The cards are ordered after the trailers
 and before IGDB's (`domain/community-media.visibleMedia`); Steam's own row layout may leave out a card that fits no row.
+
+## Manuals (features plan F2c, ADR-0048)
+
+`screenscraper_media.manual_item(jeu)` gives one `{ kind = "manual", source = "screenscraper", key = "manuel(<region>)",
+title = "Manual", width = 1280, height = 720 }` item, best region first (wor, us, eu, ss, jp); `media_service.ensure` adds it
+after the images. Its bytes are not fetched with the part: `GetManualChunk(appid, key, index, title)` answers
+`{ base64, index, chunks, size }` for 1 MiB of the PDF; chunk 0 downloads it (`download_document`: no `maxwidth`, the body
+must start `%PDF-`, 48 MiB cap), the last chunk frees the copy, one document at a time. `app/manuals` reads the chunks in
+order when the community viewer shows the manual's cover, renders the pages through `ports/pdf` (pdf.js 4.10.38) and puts
+them on `kernel/manual-shelf`. The toggle is `communityShowManuals` ("Game Manuals").
+
+ScreenScraper lookups send ScreenScraper's own system id (`SS_SYSTEM`, from the RetroAchievements console id), and a ROM
+ScreenScraper does not know falls back to the title search on that console (F2c phase 0).
 
 ## Contract
 
@@ -98,7 +111,10 @@ function M.download(url) end                 -- body, ext, width, height (maxwid
 | `backend/bin_http.lua` | Binary GET into memory (WinINet via FFI); only `net.get_binary` calls it |
 | `backend/net.lua` | `get_binary`: the same per-source breakers as `get`/`post` |
 | `backend/web_igdb.lua` | `igdb.query`: the one IGDB client (Twitch token) |
-| `backend/record_rpc.lua` | `EnsureFresh` `media` branch; `GetMediaImage` |
+| `backend/record_rpc.lua` | `EnsureFresh` `media` branch; `GetMediaImage`; `GetManualChunk` (F2c) |
+| `frontend/app/manuals.ts` | F2c: reads a manual's chunks, renders its pages through `ports/pdf`, fills the manual shelf |
+| `frontend/ports/pdf.ts` | F2c: the only pdf.js user (4.10.38, embedded, loaded on the first manual) |
+| `frontend/kernel/manual-shelf.ts` | F2c: rendered manual pages as object URLs, 2 manuals |
 | `frontend/app/media.ts` | The use case: one `EnsureFresh(["media"])`, the toggles, the ScreenScraper images into the bin |
 | `frontend/domain/community-media.ts` | `visibleMedia`: toggles, at most 12 cards per kind, ScreenScraper images ahead of IGDB's (so a larger IGDB set cannot crowd them out of the cap, and Steam's row layout drops an IGDB card, not theirs) |
 | `frontend/kernel/media-bin.ts` | Object URLs of ScreenScraper images, 8 shortcuts |
@@ -112,6 +128,8 @@ None. The `community` surface writes Steam ([surfaces.md § community](surfaces.
 `tests/test_media_service.lua` (45: mapping, selection order, the ScreenScraper keys, image size parsing, the
 breakers of `get_binary`, the RPC facade, no URL or account in the store or a log line), `tests/app-media.test.ts` (7),
 `tests/community-media.test.ts` (4), `tests/media-bin.test.ts` (3). Live: `tests/live/probes/community_media.mjs`.
+F2c: `test_media_service.lua` 64 → 82 checks (system ids, manual item, document download, chunks, `GetManualChunk`),
+`tests/app-manuals.test.ts` (6), `tests/manual-shelf.test.ts` (4), one more in `community-media.test.ts`.
 
 ## History
 

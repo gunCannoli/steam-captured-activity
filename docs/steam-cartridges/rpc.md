@@ -53,6 +53,7 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `CartridgesAchievementsUnlock` | `achievements_rpc.lua` | live | manual unlock |
 | `CartridgesAchievementsReset` | `achievements_rpc.lua` | live | reset local achievements |
 | `CartridgesAchievementsGetRetroStatus` | `achievements_rpc.lua` | live | RetroAchievements connection status |
+| `GetManualChunk` | `record_rpc.lua` (→ `media_service.manual_chunk`) | live | F2c: `app/manuals.ts` reads a ScreenScraper manual in 1 MiB base64 chunks (never the URL) |
 | `GetMediaImage` | `record_rpc.lua` (→ `media_service.image`) | live | F2: `app/media.ts` fetches one ScreenScraper image as base64 (never the URL). Replaced the unwired `GetGameMedia`, `GetGameManual`, `GetGameTrailers`, `GetGameCommunityLinks` (deleted) |
 | `EnsureFresh` | `record_rpc.lua` | live | M4c: `app/identity.ts`'s `ensure()` calls it for `["identity"]`, once per appid per session; M5a extends it with `metadata`, wired by `app/metadata.ts`'s `ensure()` in M5b; F2 adds `media` (`app/media.ts`, context `igdb_id`) |
 | `GetNewShortcuts` | `record_rpc.lua` | live | M7a: shortcuts not seen before (first call seeds and returns none); M7b: `app/ingest.ts` calls it at start-up |
@@ -254,3 +255,4 @@ All stay public; other plugins and the CDP scripts reach them through `PLUGIN_LI
 | `jsxDiagnostics`, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks |
 - M10 (2026-09-30): four RPCs deleted (above); `tests/architecture-unwired-rpcs.json` replaces the manual classification of the unwired ones.
 - F2 (features plan): `GetMediaImage` added; `GetGameMedia`, `GetGameManual`, `GetGameTrailers`, `GetGameCommunityLinks` deleted with `igdb_community.lua`.
+- F2c (2026-10-01): `GetManualChunk` added (ADR-0048).

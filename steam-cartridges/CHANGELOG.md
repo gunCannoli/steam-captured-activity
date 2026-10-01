@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Added: game manuals in the Community section (F2c, 2026-10-01)**: with a ScreenScraper account, a game's manual is the first card of its Community section; open it to read every page, on a controller too. Setting: Community & Media → Game Manuals.
+- **Fixed: ScreenScraper could not find ROM games (F2c, 2026-10-01)**: lookups asked for the wrong console (for example NES for an SNES game). Screenshots, artwork and Game Info from ScreenScraper can now appear for those games.
+
 - **Fixed: a game whose screenshots were all deleted no longer counts as a game with media (2026-10-01)**: Steam keeps an empty entry for it in `screenshots.vdf`; the library stats and diagnostics counted it (with no capture date).
 
 - **Changed: a non-Steam game's achievement progress is in Steam from start-up (ADR-0045, 2026-09-30)**: Big Picture's play bar and other plugins see it without opening the game's page first. Removed the public `storedAchievementSummaries()` (enhanced-achievements no longer needs it).

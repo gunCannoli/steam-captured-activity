@@ -104,9 +104,11 @@ export interface SyncProgress { isSyncing; total; current; currentGame; phase } 
 export const PORTABLE_CATEGORY_IDS, STEAM_ONLY_CATEGORY_IDS, MANAGED_CATEGORY_IDS: readonly number[];  // M10 (ADR-0038)
 // GameMetadata gains badge_category_ids?: number[] (decided by app/metadata, written by game-info; M10)
 export type AchievementSet = Record<string, unknown>;
-export interface MediaItem { kind: "video" | "screenshot" | "artwork"; source: "igdb" | "screenscraper"; youtube?; url?; thumb?; key?; width?; height?; title? }  // F2
+export interface MediaItem { kind: "video" | "screenshot" | "artwork" | "manual"; source: "igdb" | "screenscraper"; youtube?; url?; thumb?; key?; width?; height?; title? }  // F2; "manual" F2c
 export interface CommunityMedia { items: MediaItem[]; igdb_id?: number; ss_id?: number }   // F2; items may arrive as {} (asList)
 // kernel/media-bin.ts (F2): createMediaBin(release) -> { put(appid, key, { url, width?, height? }), get(appid, key) }; 8 shortcuts
+// kernel/manual-shelf.ts (F2c): createManualShelf(release) -> { get(appid, key), set(appid, key, { status, pages }), subscribe(listener) }; 2 manuals
+// Events gains "community.manual-opened": { appid, key } (F2c: the community surface's result event; app/manuals renders the pages)
 export type ArtworkPlan = Record<string, unknown>;
 export interface GameRecord {
     appid: ShortcutId; gameid: string; title: string; exe: string;
@@ -168,6 +170,7 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/kernel/record.ts` | `GameRecord`, `Part<T>`, `RecordStore`, `createRecordStore` |
 | `frontend/kernel/surface.ts` | `Surface` contract, `SurfaceRunner`, `createSurfaceRunner`, `assertDisjointTouches` |
 | `frontend/kernel/image-bin.ts` | M10: the slot bytes app/artwork fetched, waiting for the artwork surface (bounded to 8 shortcuts, reads do not remove; not in `GameRecord`: ~585 KB per mapped game) |
+| `frontend/kernel/manual-shelf.ts` | F2c: a manual's rendered pages (`blob:` URLs), waiting for the community viewer; 2 manuals, listeners told of every change (ADR-0048) |
 | `tests/kernel.test.ts` | Unit tests for all four files |
 
 ## Steam targets touched

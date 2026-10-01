@@ -2935,3 +2935,54 @@ toggle that forces its own position for achievement toasts, over anything else t
   `tests/architecture.test.ts` (shared file, owners), enhanced-notifications `tests/bigpicture-type.test.ts` (two installs,
   both orders), enhanced-achievements `tests/bigpicture.mjs` (force off: enhanced-notifications' corner; force on: this
   theme's corner; the next download back).
+
+---
+
+## ADR-0048: A manual is a cover card that opens Steam's own viewer; pdf.js renders its pages on demand, behind a port
+
+**Status:** Accepted · 2026-10-01 (user decisions 2026-09-30, features plan F2c) · Builds on [ADR-0046](#adr-0046-community-media-feeds-steams-own-community-content-loader-screenscraper-bytes-stay-in-memory)
+
+### Context
+
+The user wants a game's ScreenScraper manual (a PDF) as the first card of the Community section, at the size of an
+ordinary card, opened and scrolled on a controller too. Steam's Community Content cards are Artwork (3), Video (4),
+Screenshot (5) and Guide (9, 10); a Guide opens a Valve page. Steam's image viewer (module 94715) renders its `children`
+in a scrolling area that the D-pad scrolls. ScreenScraper's URLs carry the user's account. Steam's CEF lists an
+`application/pdf` plugin, but an embedded PDF takes the D-pad. Found while planning: ScreenScraper lookups sent
+RetroAchievements console ids as ScreenScraper `systemeid` (RetroAchievements' 3 is the SNES, ScreenScraper's 3 the NES),
+so a ROM shortcut never matched (the test game, Captain Commando, answered `not-found` for every key).
+
+### Decision
+
+- **Card:** an Artwork card with an inline SVG cover, 1280 x 720 (the size IGDB screenshot cards already lay out as one
+  ordinary cell), first in `domain/community-media.visibleMedia`, behind the existing `communityShowManuals` setting.
+- **Backend:** `screenscraper_media.manual_item` names the best-region `manuel(<region>)` key; `GetManualChunk` returns
+  the PDF in 1 MiB base64 chunks: chunk 0 downloads it into memory (48 MiB cap, `net.get_binary`), the last chunk frees it,
+  one document at a time. No URL leaves the backend; nothing is written to disk.
+- **Placement (ADR-0039, ADR-0044):** the community surface emits its own result event `community.manual-opened` from an
+  effect of the page column it renders as the viewer's `children`; `app/manuals` (subscribed by `install()`) reads the
+  chunks through `ports/backend`, renders the pages through `ports/pdf` and puts them on `kernel/manual-shelf` (2 manuals,
+  page URLs released on eviction); the surface reads the shelf. No surface is given a function that reaches the backend.
+- **pdf.js 4.10.38, pinned:** 5.4.624 and 6.3.289 hang in `getDocument` in Steam's Chromium 126 (verified live
+  2026-10-01; 4.10.38 rendered a test PDF in 136 ms). `ports/pdf.ts` is the only file that uses it: the library and its
+  worker are embedded as text (`constSysfsExpr` with `basePath`) and evaluated from `blob:` URLs when the first manual
+  opens; the worker is a module worker given as `workerPort`; pages are drawn on an `OffscreenCanvas` and kept as JPEG
+  `blob:` URLs, 1400 px wide, at most 200 pages.
+- **Phase 0:** `screenscraper_media.SS_SYSTEM` maps the console ids, and a ROM that ScreenScraper does not know falls back
+  to the title search on that console.
+
+### Consequences
+
+- The production bundle grows from about 0.18 MB to about 1.9 MB, almost all of it two string literals that are not
+  evaluated until a manual opens.
+- While a manual renders, pdf.js adds its fonts to SharedJSContext's `document.fonts`; `destroy()` removes them (verified
+  live). `disableFontFace` would leave the document alone but drops text set in non-embedded fonts (verified live), so it is
+  not used.
+- Reading a large manual blocks the Lua backend for the download, as an image download already does.
+- `constSysfsExpr` with a `../..` path embeds nothing and the build still says Succeeded; the plan's build check looks for
+  `Embedded 1 specific file`.
+- Upgrading pdf.js needs a live render test in Steam's Chromium first.
+- Phase 0 also changes which ScreenScraper record Game Info's ScreenScraper source gets for a ROM shortcut (it can now match).
+- Rejected: Chromium's PDF embed (takes the D-pad), opening the PDF outside Steam (the URL carries the account; a temp
+  file is against the no-disk rule), a Guide card (opens a Valve page), fetching the PDF with the media part (quota and
+  memory on every page view), the surface calling `app/manuals` directly (ADR-0044), pdf.js's legacy build (larger, not needed).

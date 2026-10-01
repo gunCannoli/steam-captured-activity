@@ -484,6 +484,14 @@ through `SP_REACT`) three more tweaks apply, so a native item's viewer is never 
 made), and the big image's height cap follows the window (`max(260px, min(600px, 100vh - 330px))`) instead of Steam's fixed
 600 px, so the Close button is not pushed under Steam's footer bar on a shorter window.
 
+**Manuals (F2c, ADR-0048):** a `manual` item becomes an Artwork card whose image is an inline SVG cover
+(`core.manualCoverUrl`: one image, a `#manual-<appid>-<key>` fragment per shortcut, so `viewerMeta` matches each cover to
+its own manual). When Steam's viewer opens on a cover, the viewer wrapper passes `children` = the page column
+(`manual.ts`, `createManualPages`) instead of `undefined`; Steam scrolls it on the D-pad and the mouse wheel. The column
+reads `kernel/manual-shelf` (`manualOf`, `onManuals`) and, from an effect, emits the surface's own result event
+`community.manual-opened` (`bus`), which `app/manuals` handles. No new Steam target: it is a branch of the existing
+`jsx:community-cards` hook.
+
 **API:** `communityDiagnostics()` (`patched`, `feeds`, `served`, `firstPageLoads`, `cardsHidden`, `cardsHook`, `jsx`), exported by `index.tsx` for the live probe.
 
 **Record-driven in:** F2.

@@ -7,6 +7,8 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: F2c manuals: a ScreenScraper manual is the first Community card and opens page by page (2026-10-01, ADR-0048)**: the manual is an Artwork card with an inline cover (1280 x 720, an ordinary cell); opening it shows Steam's own image viewer with the pages under the cover, scrolled by the D-pad and the mouse wheel. The backend reads the PDF into memory and hands it over in 1 MiB chunks (`GetManualChunk`); `app/manuals` renders the pages with pdf.js 4.10.38 (`ports/pdf.ts`; 5.4 and 6.3 hang in Steam's Chromium 126, found live) and keeps them on `kernel/manual-shelf`. The community surface reports `community.manual-opened` from an effect, so no surface reaches the backend (ADR-0044). Found while planning: ScreenScraper lookups sent RetroAchievements console ids as `systemeid` (SNES 3 is NES on ScreenScraper), so ROM shortcuts never matched; fixed with `SS_SYSTEM` and a title fallback. Also found: `constSysfsExpr("../../...")` embeds nothing while the build still succeeds; the `basePath` form works. `test_media_service` 64 → 82, `test:ts` 240 → 253, production bundle about 0.18 → 1.9 MB. Live verification pending (plan § 11).
+
 - **docs(plans): merge enhanced-achievements into enhanced-notifications, plan written and dry-run (2026-10-01)**: at
   the user's request (one plugin for every toast; enhanced-notifications as the baseline; achievements as an optional
   `achievements` block of the theme; queue, captures and Reset Achievements stay settings; the folder deleted; Big

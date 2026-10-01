@@ -18,7 +18,7 @@ for the authoritative, up-to-date state):
 | Domain: pure routing policy (ADR-0040) | current (M4a) — this doc |
 | Sensors: view (and window lifecycle), lifecycle, collections, owned-apps, store-item, shortcuts | done (M2, M4c, M5b, M10) — [sensors.md](sensors.md) |
 | App: use cases (routing M4a; records, render-queue, identity M4c; metadata M5b; artwork M5c; achievements M6b; ingest and view M7b; steam-store, controller, library-stats, session-memo as factories M10) | done (M10) |
-| Ports: the backend RPC client (`transport.ts`, `backend.ts`) and the image fetch (`image.ts`, icon plan) | current (M4c, M5b) — [rpc.md](rpc.md) |
+| Ports: the backend RPC client (`transport.ts`, `backend.ts`), the image fetch (`image.ts`, icon plan) and the PDF renderer (`pdf.ts`, the only pdf.js user, F2c) | current (M4c, M5b, F2c) — [rpc.md](rpc.md) |
 | Surfaces: the only code that writes to Steam (8; `playbar` is a part of `game-info` since M10) | done (M3.1–M3.10, M10) — [surfaces.md](surfaces.md) |
 | Resolver service + RPC facade | done (M4b–M4c) — [service-resolver.md](service-resolver.md), [rpc.md](rpc.md) |
 | Metadata service + RPC facade | done (M5a–M5b) — [service-metadata.md](service-metadata.md), [rpc.md](rpc.md) |

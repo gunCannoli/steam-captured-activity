@@ -1,6 +1,6 @@
 # Plan: F2c ScreenScraper manuals as the first card of the Community section
 
-**Status:** Ready to execute.
+**Status:** Executed (phases 0-5 committed); live verification (§ 11) pending.
 
 Written 2026-09-30 as a skeleton, made executable 2026-10-01. Every before/after block, command and expected output
 below was applied and run in order on a scratch copy of `steam-cartridges` at workspace commit `a283037`, and the open
