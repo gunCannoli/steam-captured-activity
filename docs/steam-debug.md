@@ -300,7 +300,7 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
   bug read `document.getAnimations()` (`playState`, `startTime`, `currentTime`) next to
   `document.timeline.currentTime` and `performance.now()`; `startTime: 0` with `timeline ≫ 0` is the
   signature. Reproduce with a **fresh** Big Picture session (exit and re-enter), since only the first
-  toast fails. `enhanced-achievements/tests/bigpicture.mjs` asserts the maximum opacity for this reason.
+  toast fails. `enhanced-notifications/tests/achievements-bigpicture.mjs` asserts the maximum opacity for this reason.
   Fix pattern: restart animations that started on the frozen clock after two real frames
   (`restartFrozenAnimations` in `banner/themed-toast.tsx`).
 
@@ -343,8 +343,7 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
 ## 5. Automated CDP Inspection via PowerShell / Node.js
 
 You can inspect the client programmatically without opening Chrome. Plugins keep
-a reusable helper in `tests/cdp.mjs` (`enhanced-achievements`,
-`enhanced-notifications`); prefer it over a new one-off.
+a reusable helper in `tests/cdp.mjs` (`enhanced-notifications`); prefer it over a new one-off.
 
 ### Quick HTTP Target Query
 
@@ -401,8 +400,8 @@ with the cheapest method that actually answers it, in this order:
    `.slice()` any string before returning it.
 2. **Reuse existing scripts before writing new ones.** `steam-cartridges/tests/live/test_nav_cycle.js`
    and `steam-cartridges/tests/live/check_all_tabs.js` (Routine 3 in [AGENTS.md](../AGENTS.md)), plus
-   plugin `tests/`, e.g. `enhanced-notifications/tests/categories.mjs`,
-   `enhanced-achievements/tests/smoke.mjs`. Run them and report only PASS/FAIL,
+   plugin `tests/`, e.g. `enhanced-notifications/tests/previews.mjs`,
+   `enhanced-notifications/tests/achievements-smoke.mjs`. Run them and report only PASS/FAIL,
    not their raw output.
 3. **Structural checks over pixels.** `getBoundingClientRect()` for sizes/position,
    a short `textContent` snippet, a `classList.contains(...)` check — these answer

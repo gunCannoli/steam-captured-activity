@@ -2655,7 +2655,7 @@ A non-zero `viaRender` means the trigger missed a rebuild: find the missing path
 
 ## ADR-0043: enhanced-achievements has one owner per Steam target and a safety net
 
-**Status:** Accepted · 2026-09-29 · Plan: executed and deleted (see the CHANGELOG) · Same principles as [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam), applied in a lighter form
+**Status:** Accepted · 2026-09-29 · Plan: executed and deleted (see the CHANGELOG) · The plugin was merged into enhanced-notifications by [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications); its decisions hold there · Same principles as [ADR-0039](#adr-0039-steam-cartridges-is-a-ports-and-adapters-modular-monolith-only-surfaces-write-to-steam), applied in a lighter form
 
 ### Context
 
@@ -2851,7 +2851,7 @@ fetch them (no CORS), and Millennium's Lua `http.get` cuts binary bodies.
 
 ## ADR-0047: enhanced-notifications uses enhanced-achievements' architecture and shares its notification hook
 
-**Status:** Accepted · 2026-09-30 · Plan: [enhanced-notifications-architecture-port-plan.md](plans/enhanced-notifications-architecture-port-plan.md) · Applies [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) to a second plugin
+**Status:** Accepted · 2026-09-30 · Plan: [enhanced-notifications-architecture-port-plan.md](plans/enhanced-notifications-architecture-port-plan.md) · Decisions 3 and 4 (copies shared between the two toast plugins) ended with [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) · Applies [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) to a second plugin
 
 ### Context
 
@@ -2876,7 +2876,7 @@ method, each with its own code: nothing checked that the two wrappers compose, a
    through `claims('sound')`. A unit test drives two copies on one fake store in both load orders.
 4. **Siblings, not only neighbours.** Everything the two plugins do the same way is one shared copy: besides the hook
    and `kernel/surface.ts`, `theme/jsonc.ts` (both read `.jsonc` and `.json` themes as JSONC), `settings/rows.tsx` (the
-   settings rows and spacing system of [guardrail 18](plugins.md#18-settings-panel-layout-reference-enhanced-achievements)),
+   settings rows and spacing system of [guardrail 18](plugins.md#18-settings-panel-layout-reference-enhanced-notifications)),
    `pristineDuration`, and `backend/main.lua` (identical but for the plugin name: theme lookup, relative or absolute
    asset paths). Each plugin's architecture test checks every copy.
 5. **Not adopted:** the event bus and sensors, the banner scheduler and the jsx runtime hook (nothing here needs them;
@@ -2892,7 +2892,7 @@ method, each with its own code: nothing checked that the two wrappers compose, a
 
 ## ADR-0049: Big Picture has one toast position: enhanced-notifications' theme by default, enhanced-achievements' when forced
 
-**Status:** Accepted · 2026-10-01 · Investigation: [enhanced-notifications-bigpicture-toast-fix-plan.md](plans/enhanced-notifications-bigpicture-toast-fix-plan.md) · Extends [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook) (ADR-0048 is reserved by the F2c manuals plan)
+**Status:** Superseded by [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) (2026-10-01: one plugin, the theme decides) · Investigation: [enhanced-notifications-bigpicture-toast-fix-plan.md](plans/enhanced-notifications-bigpicture-toast-fix-plan.md) · Extends [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook) (ADR-0048 is reserved by the F2c manuals plan)
 
 ### Context
 
@@ -2999,3 +2999,45 @@ so a ROM shortcut never matched (the test game, Captain Commando, answered `not-
 - Rejected: Chromium's PDF embed (takes the D-pad), opening the PDF outside Steam (the URL carries the account; a temp
   file is against the no-disk rule), a Guide card (opens a Valve page), fetching the PDF with the media part (quota and
   memory on every page view), the surface calling `app/manuals` directly (ADR-0044), pdf.js's legacy build (larger, not needed).
+
+---
+
+## ADR-0050: enhanced-achievements merges into enhanced-notifications
+
+**Status:** Accepted · 2026-10-01 · Plan: [enhanced-notifications-achievements-merge-plan.md](plans/enhanced-notifications-achievements-merge-plan.md) · Supersedes [ADR-0049](#adr-0049-big-picture-has-one-toast-position-enhanced-notifications-theme-by-default-enhanced-achievements-when-forced); ends decisions 3 and 4 of [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook); [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) holds in the merged plugin
+
+### Context
+
+Two plugins themed Steam's toasts: enhanced-notifications every type with one style, enhanced-achievements the
+achievement toast with a banner per rarity tier. Restyling every notification but achievements in a second plugin was
+inconsistent, and keeping them apart cost a coordination layer (`claims()` / `coexistence.ts`), seven drift-checked
+copies, a cross-plugin Big Picture position toggle (ADR-0049) and two install steps. The user's call (2026-10-01): one
+plugin, enhanced-notifications as the baseline, the achievement features as optional extras of the theme file.
+
+### Decision
+
+1. **One plugin, `enhanced-notifications`.** enhanced-achievements' code moves in (banner, unlock sensor, event bus,
+   captures, the 100% toast, Reset Achievements); its folder is deleted (it was never published).
+2. **The theme decides.** An optional `achievements` block (EA's theme: `settings`, `layout`, `tiers`, with `themes`
+   still read) replaces achievement toasts with the banner. Its `settings` inherit the theme's `position`, `animation`
+   and `display_time_ms`. Without the block, or with one that cannot be used (a warning), achievement toasts get the
+   theme's style like every toast. A tier without a sound gets the theme's `sound`.
+3. **Behaviour stays in settings:** achievement queue, captures on unlock, Reset Achievements. "Themed style",
+   "Themed sounds" and "Themed display time" apply to achievement toasts too. `bigpicture.force_position` is gone: in
+   Big Picture the one toast place follows the toast on screen (the banner's corner and tier margin while it shows).
+4. **Ownership inside one plugin:** `bannerDraws(eType)` in the composition root, injected into the style surface,
+   replaces `claims()`. One sound surface and one duration surface for every type. Each toast popup's `MoveTo` keeps
+   two writers in a fixed order, the style surface's remap (at window creation) and the banner's pin on top (its own
+   popups only, passed through by the remap): the one documented exception to one owner per target, checked by
+   `tests/architecture.test.ts`.
+5. **No `TestAchievement` in previews:** a random preview's achievement is the banner's synthetic preview, whose ids
+   the unlock sensor skips; `TestAchievement` posts a real achievement id and would trigger captures.
+
+### Consequences
+
+- One theme describes every toast; an Enhanced Achievements theme works pasted inside `"achievements": { ... }`.
+- Running enhanced-achievements next to it would draw two banners: `npm run test:live` fails while it is loaded, and
+  the README says to disable it.
+- Shared copies left: `steam/jsx-hook.ts` with steam-cartridges. Feature ids appended: `banner`, `completion`,
+  `captures`, `toasts`, `reset`. The plugin's settings namespace is enhanced-notifications'; the user sets the
+  achievement settings again once.

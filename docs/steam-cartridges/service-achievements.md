@@ -165,7 +165,7 @@ For a new emulator family or engine log reader see the Reference section "How to
                         │ 2. Windows Notification Listen│ ────────────► │ 2. Desktop Sidebar Section    │
                         │ 3. Multi-Engine Log Tailers   │     Unlock    │ 3. Post-Game Summary Banner   │
                         │ 4. Local Emulator Saves       │     Event     │ 4. Big Picture Play Bar       │
-                        │ 5. Local Test Mock RPC        │               │ 5. enhanced-achievements Hook │
+                        │ 5. Local Test Mock RPC        │               │ 5. enhanced-notifications Hook│
                         └───────────────────────────────┘               └───────────────────────────────┘
 ```
 
@@ -261,7 +261,7 @@ Once an unlock event is detected, `steam-cartridges` feeds Steam's native subsys
 Dispatched via `window.NotificationStore.OnNotification(id, eType, binaryPayload)`:
 - Steam opens its native desktop popup (`notificationtoasts_<n>_desktop`) or Big Picture portal.
 - Steam plays navigation sound 5 (the achievement chime).
-- If `enhanced-achievements` is active, it intercepts the toast, selects the theme tier (Bronze/Silver/Gold/Platinum), and renders the styled banner.
+- If `enhanced-notifications` is active with a theme that has an `achievements` block, it intercepts the toast, selects the theme tier (Bronze/Silver/Gold/Platinum), and renders the styled banner.
 - If Steam Game Recording is active, Steam places an `Achievement` marker on the timeline.
 
 ### 2. Desktop Right-Column "Achievements" Section

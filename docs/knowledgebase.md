@@ -201,7 +201,7 @@ Facts confirmed in the installed binaries and core bundle:
 > `window.__millennium_plugin_config_changed__` for frontend-origin writes, so
 > `subscribePluginConfig` only sees changes made by the Lua backend.
 >
-> Workaround in `enhanced-achievements/frontend/settings/settings.ts`: read via
+> Workaround in `enhanced-notifications/frontend/settings/settings.ts`: read via
 > `getAll`, falling back to that FFI; write with `set`/`delete`, tolerating that
 > exact error and confirming by reading back; keep an in-memory copy and notify
 > listeners ourselves; do not use `usePluginConfig`. Re-test when #903 is fixed.

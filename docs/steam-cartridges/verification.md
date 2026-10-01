@@ -41,7 +41,7 @@ Then AGENTS.md Routines 1 and 2 by hand (AM2R, WUCHANG, Jotunnslayer). Per-area 
   Achievements tab shows its achievements; Troubleshooting lists 8 surfaces.
 - Achievements in Steam from start-up (ADR-0045): right after a Steam restart, before opening any game page,
   `node tests/live/probes/ach_preload.mjs` prints no `FAIL` (progress cache holds > 100 shortcuts in Steam's shape, no
-  signed `m_mapAppData` keys, no server request for a shortcut). Then `node ../enhanced-achievements/tests/reset.mjs`.
+  signed `m_mapAppData` keys, no server request for a shortcut). Then `node ../enhanced-notifications/tests/achievements-reset.mjs`.
 
 Any FAIL, or Steam's "restart the UI" dialog: stop and roll back (below). Diagnosing a hang: [steam-debug.md Trap 10](../steam-debug.md#trap-10-diagnosing-a-hung-sharedjscontext-restart-the-ui-dialog).
 

@@ -15,7 +15,7 @@
   `steam-cartridges:rule-updated` window event is gone).
 - **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Achievements, Notifications, Activity Feed,
   Community & Media, Routing Rules, Library Audit (which holds the Game Data block); then the sticky `sync-progress.tsx` bar.
-  Shared rows and the spacing system (`Blocks`, `ItemRow`, `ButtonRow`, `ToggleRow`, `FullWidthRows`) are in `components.tsx`; the layout rules are [plugins.md guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-achievements).
+  Shared rows and the spacing system (`Blocks`, `ItemRow`, `ButtonRow`, `ToggleRow`, `FullWidthRows`) are in `components.tsx`; the layout rules are [plugins.md guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications).
 - **Community & Media** (`panels/community.tsx`, F2): two toggles, `communityShowTrailers` and `communityShowArtworks`;
   `communityShowManuals` and `communityShowExternalLinks` keep their keys and defaults with no row until F2c.
 - **Library Audit** (`panels/audit.tsx`): two blocks. The first is the counts and **Review**; the second is **Game Data**, three rows (label, description, a full-width **Manual Edit** button) that open the editor popup (`game-editor/`). The popup edits the description, credits and dates (saved as a manual edit), the player tags (toggle rows) and the **controller support**, which is stored in the `controllerOverrides` setting (the same one the audit modal writes) and applied at once: `ctx.controller.refresh` calls `metadata.rebadge`, and the override beats every badge source, Steam Store data included (`domain/category-policy.ts`).

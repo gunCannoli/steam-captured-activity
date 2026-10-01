@@ -10,12 +10,19 @@ don't duplicate them here. ADRs are in [docs/decisions.md](docs/decisions.md).
 **Goal:** a non-Steam game's app detail page looks like a native one, on both
 desktop and Big Picture, by restoring Steam's own sections and feeding Steam's
 own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
-`enhanced-achievements` and `enhanced-notifications` are separate plugins that
-theme Steam's toasts and sounds.
+`enhanced-notifications` themes Steam's toasts and sounds, achievements included (enhanced-achievements merged into it, ADR-0050).
 
 ---
 
 ## Now
+
+**enhanced-achievements merged into enhanced-notifications (ADR-0050, 2026-10-01): code committed, waiting for the live
+verification in [its plan § 9](docs/plans/enhanced-notifications-achievements-merge-plan.md)** (the user: disable
+enhanced-achievements, move the ps5 theme and settings, deploy, `npm run test:live`, the by-hand checks). It supersedes
+the live steps of the architecture-port and Big Picture fix plans that use enhanced-achievements as a separate plugin;
+their by-hand checks are folded into § 9. When § 9 passes, delete all three plans and their patch folders. Entries
+below that name enhanced-achievements now mean enhanced-notifications' achievement banner; "Force achievement position
+in Big Picture" no longer exists.
 
 **Merge enhanced-achievements into enhanced-notifications (ADR-0050, the user's decisions 2026-10-01): plan ready to
 execute, dry-run on `080b5d4`:** [enhanced-notifications-achievements-merge-plan.md](docs/plans/enhanced-notifications-achievements-merge-plan.md)

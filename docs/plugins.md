@@ -32,13 +32,13 @@ the rest. Index of everything: [README.md](README.md).
 
 1. Scaffold and layout: [§ Layout](#layout), [§ 1 Scaffold](#1-scaffold), [§ 2 Backend](#2-backend-luajit), [§ 3 Frontend](#3-frontend-typescript--steams-react).
 2. Decide its place in the suite: core or provider, and what it may depend on ([millennium-architecture.md](millennium-architecture.md); a provider returns data, the core renders it: [ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it), [ADR-0014](decisions.md#adr-0014-providers-are-isolated-and-fail-silently)). The core never depends on a provider.
-3. Copy the shape of a migrated plugin, don't invent one: a safety net, one owner per Steam target, an architecture test with an empty allowlist. References: [enhanced-achievements/architecture.md](enhanced-achievements/architecture.md) (smaller) and [steam-cartridges.md](steam-cartridges.md).
+3. Copy the shape of a migrated plugin, don't invent one: a safety net, one owner per Steam target, an architecture test with an empty allowlist. References: [enhanced-notifications/architecture.md](enhanced-notifications/architecture.md) (smaller) and [steam-cartridges.md](steam-cartridges.md).
 4. Develop, deploy and test with `dev.ps1` ([§ 4](#4-develop), [§ 5](#5-test)). Close with the [checklist for a new plugin](#checklist-for-a-new-plugin).
 
 ### C. A new feature in an existing plugin
 
 1. `steam-cartridges`: [steam-cartridges.md § 4 Adding a feature](steam-cartridges.md#4-adding-a-feature). Place each piece on its layer (surface, service or source, sensor, domain, app, port) and stay inside its "what changes, what does not" row.
-2. `enhanced-achievements`: [How to add a feature](enhanced-achievements/architecture.md#how-to-add-a-feature).
+2. `enhanced-notifications`: [How to add a feature](enhanced-notifications/architecture.md#how-to-add-a-feature).
 3. Open the layer doc of each module you touch ([steam-cartridges.md § 3](steam-cartridges.md#3-layer-docs)) and update it in the same change.
 4. The architecture tests are the judge. Never widen an allowlist to go green; an entry needs a plan step and a reason.
 
@@ -83,7 +83,7 @@ millennium-plugins/                 <- this repo (private)
 Inside the frontend, a plugin that writes into Steam follows the same shape: pure decisions, one
 `Surface` per Steam target with a kill switch, and an architecture test that enforces it. The worked
 examples are [steam-cartridges](steam-cartridges/) (layer docs) and
-[enhanced-achievements](enhanced-achievements/architecture.md) (one architecture doc).
+[enhanced-notifications](enhanced-notifications/architecture.md) (one architecture doc).
 
 ---
 
@@ -375,7 +375,7 @@ have been reused instead.
 
 Several of our plugins hook Steam's shared `react/jsx-runtime` (`jsx`/`jsxs`):
 `steam-cartridges` (Big Picture appid detection) and
-`enhanced-achievements` (achievement banner). Rules:
+`enhanced-notifications` (achievement banner). Rules:
 
 - **Use `steam/jsx-hook.ts` (`keepJsxPatched`)**, a file copied identically into each
   plugin. It patches through the SDK patcher (`beforePatch` / `replacePatch`), so
@@ -660,14 +660,16 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      and `node steam-cartridges/tests/live/test_props.mjs <appid> --page` (must print `OK`)
      for any change to Game Info, sections or store feeding.
 
-### 18. Settings panel layout (reference: `enhanced-achievements`)
+<a id="18-settings-panel-layout-reference-enhanced-achievements"></a>
+
+### 18. Settings panel layout (reference: `enhanced-notifications`)
 
 - **The Trap:** a settings panel built from bare `PanelSectionRow`s, loose buttons and
   hand-written `fontSize: "12px"` notes looks thin and uneven: rows cramped against each
   other, a lone button floating under a list, a checkbox strip or a dropdown squeezed
   into the right half of a row, notes that do not line up with Steam's own labels.
-  `enhanced-achievements/frontend/settings/rows.tsx` has the setup to copy (enhanced-notifications
-  has an identical copy; steam-cartridges' copy is `frontend/settings/components.tsx`).
+  `enhanced-notifications/frontend/settings/rows.tsx` has the setup to copy (steam-cartridges'
+  copy is `frontend/settings/components.tsx`).
 - **The Mandatory Guardrails:**
   1. **Use Steam's components.** `PanelSection`, `Field` (label + description, optional
      control), `Toggle`, `DialogButton`, `Dropdown`, `TextField`, `SliderField`. No

@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- **Enhanced Achievements is now part of this plugin** (ADR-0050). A theme can add an `achievements` block: the themed banner per rarity tier, with its own layout, icons and sounds (themes.md § achievements). Without it, achievement toasts get the theme's style like every other toast. The block inherits the theme's `position`, `animation` and `display_time_ms` unless it sets its own; an Enhanced Achievements theme file works inside the block as it is (`themes` is read as `tiers`). A tier without a sound gets the theme's notification sound.
+- New settings, moved from Enhanced Achievements: Achievement queue, Screenshot on unlock, Record clip on unlock, Timeline marker, Reset Achievements. "Themed style" off also turns the banner off.
+- **Big Picture**: the one toast place follows the toast on screen: the banner's corner and its tier's margin while an achievement banner shows, the theme's otherwise. "Force achievement position in Big Picture" is gone.
+- Preview: one row per achievement tier besides the random preview; a random achievement preview is the banner's own (it never triggers captures). Theme problems show in a popup after you pick or reload a theme.
+- New bundled themes `ps5`, `steam_tiers` and the commented reference `theme.jsonc`; `examples/`. Kill switches `banner`, `completion`, `captures`, `toasts`, `reset`.
+- Do not run Enhanced Achievements alongside this version: disable it in Millennium.
+
 ### Fixed
 
 - **Big Picture position and Enhanced Achievements.** This theme's `position` still decides Big Picture's one toast place, achievements included, unless Enhanced Achievements' new "Force achievement position in Big Picture" is on (ADR-0049).

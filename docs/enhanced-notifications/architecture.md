@@ -1,162 +1,184 @@
 # enhanced-notifications architecture
 
 **This doc's job:** how `enhanced-notifications` is built today: its layers, who owns each Steam target, its safety
-net, how it shares Steam's notification hook with `enhanced-achievements`, and how to add a feature without breaking
-another. Decision: [ADR-0047](../decisions.md#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook)
-(the architecture of [ADR-0043](../decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net),
-without the parts only achievements need). Sibling doc: [enhanced-achievements/architecture.md](../enhanced-achievements/architecture.md).
+net, the achievement banner it carries, and how to add a feature without breaking another. Decisions:
+[ADR-0043](../decisions.md#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) (the
+architecture), [ADR-0047](../decisions.md#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook)
+(applied here) and [ADR-0050](../decisions.md#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) (enhanced-achievements
+merged into this plugin; its history is in git, `git log -- enhanced-achievements`).
 
 ## Layers
 
 | Layer | Folder | Job |
 | --- | --- | --- |
-| Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode (copies of enhanced-achievements', this plugin's ids and key) |
-| Kernel | `frontend/kernel/` | The `Surface` contract (identical copy), the notification shape, the toast selector type |
-| Pure domain | `theme/theme.ts`, `theme/jsonc.ts`, `theme/placement.ts`, `surfaces/*/{sound,duration}.ts`, `surfaces/preview/pick.ts` | Themes (one style for every notification) and their CSS (with the entrance/exit animation and Big Picture's placeholder); where a desktop toast goes; the sound decision; the duration plan; the random preview pick. No Steam, SDK, React or logger |
-| Steam access | `frontend/steam/` | Finding Steam's objects (`notification-store.ts`, `selectors.ts`, `webpack.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`, identical copy), the read-only enhanced-achievements `claims()` reader (`coexistence.ts`), the toasts-off flag |
-| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `style` (with `style/toast-window.ts`, each desktop toast popup's type and place), `sound`, `duration`, `preview`. `surfaceStatus()` shows which installed |
-| Composition root | `frontend/index.tsx` | Start-up order, wiring, the public exports |
-| Settings panel | `frontend/settings/` | `settings-panel.tsx` (this plugin's sections), `rows.tsx` (rows and spacing, identical copy) |
+| Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode |
+| Kernel | `frontend/kernel/` | The `Surface` contract, the notification shape and the synthetic achievement ids, the event bus, the toast selector type, the Reset Achievements types |
+| Pure domain | `theme/{theme,achievements,schema,placement,jsonc}.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts`, `surfaces/*/{sound,duration}.ts`, `surfaces/preview/pick.ts`, `surfaces/style/type-source.ts`, `surfaces/toasts/completion.ts`, `surfaces/reset/reset.ts`, `sensors/unlock/unlock.ts` | Themes (one style for every notification, plus the optional `achievements` block) and their CSS; where a desktop toast goes; the banner's geometry, timing and scheduler; capture planning; the sound decision; the duration plan; the random preview pick. No Steam, SDK, React or logger |
+| Steam access | `frontend/steam/` | Finding Steam's objects (`notification-store.ts`, `selectors.ts`, `webpack.ts`, `modal.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`), the `PopNextToastNotification` wrapper (`toast-pop.ts`), the jsx runtime hook shared with steam-cartridges (`jsx-hook.ts`), the toasts-off flag |
+| Sensor | `frontend/sensors/unlock/` | Sees an achievement toast shown and emits `achievement.unlocked` once, one macrotask later |
+| Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `style` (with `style/toast-window.ts`), `sound`, `duration`, `preview`, `banner`, `toasts`, `captures`, `reset`. `surfaceStatus()` shows which installed |
+| Composition root | `frontend/index.tsx` | Start-up order, wiring, `bannerDraws`, the public exports |
+| Settings panel | `frontend/settings/` | `settings-panel.tsx` (the sections), `rows.tsx` (rows and spacing, [guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications)) |
 
-Not adopted from enhanced-achievements: the event bus and sensors (nothing here reacts to a toast after the fact), the
-banner scheduler (Steam draws every toast; we only restyle it) and the jsx runtime hook (verified 2026-09-24: for these
-toasts the wrapped element was not the one React committed).
+## One theme, two looks
+
+A theme is the notification style (`settings`, `popup`, `text`, `logo`, `sound`, ...; `theme/theme.ts`) and an optional
+`achievements` block (`theme/achievements.ts`, the former enhanced-achievements theme). `resolveTheme` resolves both:
+the block's `settings` inherit the theme's `position`, `animation` and `display_time_ms` unless the block sets its own,
+and a block that cannot be used is a warning (achievement toasts then get the notification style), never a failed theme.
+`theme/schema.ts` holds the names both halves share (positions, animations, edges).
+
+`theme/active-theme.ts` loads the theme once per change: `activeTheme()` (the whole theme, its CSS cached),
+`achievementTheme()` (the block, with its icons as data URLs and each tier's decoded sound; null without the block),
+`tierFor(n)` (memoised per notification) and `themeIssues()` (shown in a popup after a load the user started).
+
+**Who draws an achievement toast.** `bannerDraws(eType)` in `index.tsx` is true when the eType is the achievement type,
+the theme has an `achievements` block, the jsx patch is live, the `banner` switch is on and "Themed style" is on. Then
+the banner draws it (`surfaces/banner`); the style surface gives its window no `data-en-type`, its desktop remap passes
+the popup through, and in Big Picture the placeholder takes the banner's corner. Otherwise the achievement toast is
+styled like every other toast. The surfaces get `bannerDraws` injected: a surface never imports another.
 
 ## Safety net
 
 | Id | What it switches | Off means |
 | --- | --- | --- |
 | `style` | The scoped `<style>` and `body[data-en-type]` in toast windows | No toast gets the attribute, so no rule matches: Steam's look. Uninstall also removes the `<style>` |
-| `sound` | The theme's sound or mute, for every type it handles | Steam's chime |
-| `duration` | Writing each type's toast duration | Nothing written (a value already written stays until the next theme change or restart); uninstall restores Steam's value for the types it wrote |
-| `preview` | The settings panel's Preview: a random one of Steam's test toasts each press | The button does nothing |
-| `placement` | Moving toasts to the theme's `position` / `margin` (desktop and overlay popups; Big Picture's placeholder), and holding desktop popups still during a theme `animation` | Steam places every toast (desktop: checked on each of Steam's moves; Big Picture: the placeholder style is removed on the change). Part of the `style` surface: `style` off also turns it off |
+| `sound` | The theme's sounds (a tier's for an unlock) or mute, and a queued banner's sound timing | Steam's chime |
+| `duration` | Writing each type's toast duration (the achievement type's from the banner's lifetime) | Nothing written (a value already written stays until the next theme change or restart); uninstall restores Steam's value for the types it wrote |
+| `preview` | The settings panel's random Preview | The button does nothing |
+| `placement` | Moving toasts to the theme's place (desktop and overlay popups; Big Picture's placeholder, the banner's corner while it shows), and holding desktop popups still during a theme `animation` | Steam places every toast that is not a banner. Part of the `style` surface: `style` off also turns it off |
+| `banner` | The themed achievement banner (jsx replacement of Steam's toast dispatcher, popup hold and pin) | Steam's achievement toast, with the notification style |
+| `completion` | The synthetic 100% toast after a game-completing unlock | No 100% toast |
+| `captures` | Screenshot, clip and marker on unlock | No captures |
+| `toasts` | Posting synthetic achievement toasts (tier previews, the 100% toast, the capture test) | None posted |
+| `reset` | The settings panel's Reset Achievements | The section is disabled and `reset()` refuses |
 
 - **User switch:** `disabledFeatures` setting, comma-separated ids, no panel control. From the SharedJSContext console:
   `PLUGIN_LIST['enhanced-notifications-dev'].setSetting('disabledFeatures', 'style,sound')`. Read live.
 - **Error budget:** 5 errors in one session switch a feature off until Steam restarts, and its surface is uninstalled.
-  Counted by: the shared hook's sound-handler catch (`sound`), the injector's per-window and Big Picture scan catches
-  (`style`), the per-popup `MoveTo` wrapper (`placement`), `apply()` in the duration surface (`duration`), `preview` (`preview`), and an install that throws.
+  Counted by the fail-open catch blocks: the hook's sound-handler catch (`sound`), the injector's per-window and Big
+  Picture scan catches (`style`, `placement`), the per-popup `MoveTo` wrapper (`placement`), `apply()` in the duration
+  surface (`duration`), `preview`, the jsx handler and the banner's error boundary (`banner`), the completion check,
+  `onUnlock` (`captures`), Reset Achievements (`reset`), and an install that throws.
 - **Safe mode:** the boot sentinel (`enhanced-notifications.boot` in SharedJSContext `localStorage`) counts starts that did
   not end cleanly. Two in a row: the next start hooks nothing, and 60 error-free seconds clear it.
 - **Big Picture debug trace** (`surfaces/style/bp-debug.ts`, off by default, not persisted):
   `debugBigPicture({ enabled: true, echo: true })` records what the style surface saw and did for Big Picture's toast
-  view (each type signal and whether it was used, every `data-en-type` change, the placement `<style>` added, changed
-  or removed, each placeholder scan); `bigPictureTrace()` reads it. `debugBigPicture({ typeSource })` switches where the
-  Big Picture toast type comes from, to compare alternatives live; `tests/probes/bp-toast-trace.mjs` drives both and
-  merges them with what Steam does ([steam-debug.md Trap 13](../steam-debug.md)).
+  view; `bigPictureTrace()` reads it; `debugBigPicture({ typeSource })` switches where the toast type comes from;
+  `tests/probes/bp-toast-trace.mjs` drives both ([steam-debug.md Trap 13](../steam-debug.md)).
 - **Diagnostics:** `PLUGIN_LIST['enhanced-notifications-dev'].safetyDiagnostics()` → `{ safeMode, disabled, tripped, errors }`;
   `surfaceStatus()` → which surfaces installed and why one did not.
 
-## Sharing Steam's notification hook with enhanced-achievements
+## The notification hook and the unlock event
 
-Both plugins wrap `NotificationStore.prototype.PlayNotificationSound`, in whichever order Millennium loads them. They do
-it with the **same file**, `steam/notification-hook.ts` (a test fails in either plugin when the copies differ), and that
-file is written to compose:
+`steam/notification-hook.ts` is the one wrapper of `NotificationStore.prototype.PlayNotificationSound`. It decides
+nothing: it tells `onShown` listeners that Steam showed a toast and hands the sound to the one sound handler
+(`surfaces/sound`). It composes with a second copy of itself (another plugin, or the released and the `-dev` copy
+loaded together): calls on any object but the store pass straight through, a handler that does not want a toast calls
+`playSteam()`, which reaches whatever it wrapped, and `uninstall()` restores Steam's method only when it is on top
+(`tests/notifications.test.ts`).
 
-- Each wrapper passes a call on any object but the store straight through, so either plugin's stand-in calls (type
-  discovery) reach Steam untouched.
-- Each wrapper runs its own `onShown` listeners once per toast, then its one sound handler. A handler that does not want
-  a type calls `playSteam()`, which calls whatever it wrapped: the other plugin's wrapper, or Steam's.
-- Achievement toasts: this plugin's handler hands them over while `claims('sound')` is true (`steam/coexistence.ts`,
-  O(1)), so exactly one plugin decides their sound. `tests/notifications.test.ts` proves both load orders.
-- `uninstall()` restores Steam's method only when its wrapper is on top; otherwise it stays in the chain with no sound
-  handler and passes everything through.
+The unlock sensor (`sensors/unlock`) is an `onShown` listener: one `achievement.unlocked` per real (or test) unlock,
+emitted one macrotask after Steam's call, never for a tier preview or the 100% toast. The 100% toast
+(`surfaces/toasts`) and captures (`surfaces/captures`) subscribe to it; nothing else runs inside Steam's call.
 
-The toast duration uses the shared `pristineDuration` helper (identical in both plugins) so whichever plugin loads
-second still restores Steam's value.
+**Sound.** One decision (`surfaces/sound/sound.ts`): an unlock whose banner is queued is silent until its turn; an
+unlock plays its tier's clip; otherwise the theme's notification sound (`false` mutes), else Steam's chime.
 
-## Shared with enhanced-achievements (sibling plugins)
+## Banner lifetime
 
-Plugins may not import each other, so shared code is a copy, and each plugin's `tests/architecture.test.ts` fails when
-a copy drifts. Change a shared file in both plugins in one commit.
+`banner/queue.ts` (pure) is the only owner of when a banner starts, waits, shows and ends.
 
-| Shared | What it is |
-| --- | --- |
-| `steam/notification-hook.ts` | The one `PlayNotificationSound` wrapper (above) |
-| `steam/toast-pop.ts` | The `PopNextToastNotification` wrapper: this plugin's toast-on-screen type, enhanced-achievements' forced Big Picture position (ADR-0049) |
-| `kernel/surface.ts` | The `Surface` contract and its install runner |
-| `theme/jsonc.ts` | JSONC parsing: `.jsonc` and `.json` themes accept comments and trailing commas |
-| `settings/rows.tsx` | Settings rows and the spacing system ([guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-achievements)) |
-| `pristineDuration` (in `steam/notification-store.ts`) | Steam's own toast duration, recorded once for both plugins |
-| `backend/main.lua` | Theme lookup (`.jsonc` before `.json`, user folder before bundled) and asset loading (relative or absolute paths); identical but for the plugin name |
-| `backend/_lib/**` | Millennium stubs (already identical; not drift-checked) |
-
-## Settings panel spacing
-
-The same system as enhanced-achievements ([its doc](../enhanced-achievements/architecture.md#settings-panel-spacing)):
-a **block** is a group of rows that read as one card; blocks in a section are `BLOCK_GAP` (22 px) apart, set only by
-`<Blocks>`; a dropdown gets the full row (label, description, control). Rows come from `settings/rows.tsx`. A new option
-goes inside an existing block or becomes a new child of `<Blocks>`; never add spacing on a row.
+- **Start:** `ThemedBanner` renders an invisible shell (`peek(key) ?? 'waiting'`) and admits the toast in its mount
+  `useLayoutEffect`. A render never starts work ([guardrail 17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components)).
+- **Turn:** with the queue on, one banner shows at a time; the next starts 100 ms after the previous ends.
+- **Sound:** the sound surface asks the scheduler: `peek`, then `whenShowing(key, onShow)`.
+- **End:** the scheduler's own timer, a click, or the banner unmounting; the popup is held open until then
+  (`fnNotificationResolved`, desktop only). The achievement type's `toastDurationMS` is the banner's whole lifetime, so
+  where Steam times the toast (Big Picture) the exit is never cut short.
 
 ## Toast position and animation
 
 Desktop and the in-game overlay open one popup per toast; Steam's stack moves each one every frame of its slide
 in, slide out and restack through the popup's own `SteamClient.Window.MoveTo` ([steam-components.md § Desktop
-toast stack](../steam-components.md)). `surfaces/style/toast-window.ts` wraps that property on each popup, nothing
-global:
+toast stack](../steam-components.md)). Two writers wrap that property, in a fixed order (ADR-0050):
 
-- **Type per window.** At Steam's first move the popup has rendered its toast; the notification is read once from
-  a fiber above its content, and the window gets its own `data-en-type` and `--en-display-ms` (its type's toast
-  duration). Several toasts show at once, so one shared current type would restyle the older ones. Until then,
-  and for Big Picture's one window, the current toast's type is used, as before.
-- **Place.** Steam's move is turned into an offset from Steam's corner and applied from the theme's corner
-  (`theme/placement.ts`), so Steam keeps its timing and stacking. With a theme `animation`, the offset never goes
-  past the slot (no slide), and is held once Steam's slide out starts.
-- **Animation.** One CSS block for every type (`buildAnimationCss`, cached as `animationCss()`), on the popup's
-  wrapper so a pulsing glow on the popup keeps running. The exit is timed from `--en-display-ms` to end when
-  Steam closes the popup (300 ms in + duration + 300 ms out, verified live 2026-10-01).
-- **enhanced-achievements.** Its banner pins achievement popups by wrapping the same property after ours; its pin
-  calls our wrapper with its own position, which we pass through while `claims('banner')` is true. Verified live:
-  an achievement toast stays at enhanced-achievements' place with an enhanced-notifications `position` set.
+1. **The remap** (`surfaces/style/toast-window.ts`) wraps it when the popup opens. At Steam's first move it reads the
+   popup's notification type from a fiber, gives the window its own `data-en-type` and `--en-display-ms`, and turns
+   each of Steam's moves into an offset from Steam's corner applied from the theme's corner (`theme/placement.ts`).
+   With a theme `animation` the offset never goes past the slot and is held once Steam's slide out starts.
+2. **The banner's pin** (`surfaces/banner/window-pin.ts`) wraps on top of it, for the banner's own popups only, when
+   the banner mounts: every move lands on the banner's computed place. The remap passes those popups through
+   (`bannerDraws`), so the pin's calls reach Steam unchanged.
+
+`tests/architecture.test.ts` checks that these two files, and no others, assign a popup's `MoveTo`.
 
 **Big Picture** (verified live 2026-10-01, [steam-components.md § Toast windows](../steam-components.md)) has one
 toast view that follows a `position: fixed` `GamepadToastPlaceholder` div in the Big Picture window, re-measured
 when a toast shows. The injector puts `<style id=enhanced-notifications-placement>` (`buildPlaceholderCss`) in each
-window holding a placeholder, found by the same scan that finds the toast view. One place for every toast there,
-achievement toasts included, unless enhanced-achievements' "Force achievement position in Big Picture" is on: its own
-`<style>` then outranks ours while an achievement shows (ADR-0049).
+window holding a placeholder: the theme's `position` and `popup.margin`, or, while the banner draws the toast on
+screen, the banner theme's position and the tier's banner `margin`. It is rewritten at each pop, before Steam measures.
 
 **The type of the toast on screen** (Big Picture's one window, and a desktop popup before its own type is read)
 comes from `NotificationStore.PopNextToastNotification`, wrapped as an own property of the store instance
-(`steam/toast-pop.ts`): Steam calls it when it hands a toast to a toast view, inside a React state
-updater, so the type and the placement `<style>` are in place before that toast renders and before Steam measures
-the placeholder. Without that method the type follows `onShown`, a frame late. Never the store's current-toast
-value: it changes when a toast **arrives**, so a toast queued behind the one on screen restyled it, Steam's 300 px
-slide-in restarted, and enhanced-achievements' banner got this plugin's type and animation (found live 2026-10-01;
-[steam-components.md § Big Picture toast view](../steam-components.md#big-picture-toast-view-how-steam-places-and-shows-it)).
-Which signal is taken is a pure decision (`surfaces/style/type-source.ts`); `arrival` survives only as a debug
-switch that reproduces the flicker. Steam animates
-`.GamepadToastPopup > *` (rebuilt per toast; 300 ms slide in, 300 ms fade out from its own `--toast-duration`); the
-theme animation replaces both on that element, timed from the same variable.
+(`steam/toast-pop.ts`): Steam calls it when it hands a toast to a toast view, inside a React state updater, so the
+type and the placement `<style>` are in place before that toast renders. Without that method the type follows
+`onShown`, a frame late. Never the store's current-toast value: it changes when a toast **arrives**, so a toast queued
+behind the one on screen restyled it ([steam-components.md § Big Picture toast view](../steam-components.md#big-picture-toast-view-how-steam-places-and-shows-it)).
+Which signal is taken is a pure decision (`surfaces/style/type-source.ts`); `arrival` survives only as a debug switch.
 
 **Unnamed types.** Steam has toast types the SDK's `EClientNotificationType` lacks (the firmware update toast is
 eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past the enum's end and names those
-`Type<n>`, so they get the style, sound and display time like any other.
+`Type<n>`. The achievement type is found among the configs by its protobuf class (`CClientNotificationAchievement`).
 
 ## Steam targets and their one owner
 
 | Steam target | Owner (file) | Guardrail |
 | --- | --- | --- |
-| `NotificationStore.prototype.PlayNotificationSound` (wrapper) | `steam/notification-hook.ts` | [2](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) |
+| `NotificationStore.prototype.PlayNotificationSound` (wrapper) | `steam/notification-hook.ts` | [2](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced), [17](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components) |
 | `NotificationStore` instance `ChooseSound` (for one call) | `steam/notification-hook.ts` | 2 |
 | The hook's sound slot | `surfaces/sound/index.ts` | 2 |
-| Each type config's `toastDurationMS` (not the one enhanced-achievements claims) | `surfaces/duration/index.ts` | — |
+| `NotificationStore.OnNotification` (synthetic achievement toasts) | `surfaces/toasts/post.ts` | — |
+| Each type config's `toastDurationMS` | `surfaces/duration/index.ts` | — |
 | Toast windows: `<style id=enhanced-notifications-theme>` and `body[data-en-type]`; `Millennium.AddWindowCreateHook` | `surfaces/style/injector.ts` | [12](../plugins.md#12-popup-hooks-do-not-see-every-window) |
-| Big Picture window: `<style id=enhanced-notifications-placement>` (the toast placeholder's position) | `surfaces/style/injector.ts` | — |
-| `NotificationStore` instance `PopNextToastNotification` (own property; the toast-on-screen signal) | `steam/toast-pop.ts` | 2 |
-| Each desktop / overlay toast popup's own `SteamClient.Window.MoveTo` (wrapped per popup) | `surfaces/style/toast-window.ts` | 2 |
+| Big Picture window: `<style id=enhanced-notifications-placement>` | `surfaces/style/injector.ts` | — |
+| `NotificationStore` instance `PopNextToastNotification` (own property) | `steam/toast-pop.ts` | 2 |
+| Each desktop / overlay toast popup's own `SteamClient.Window.MoveTo`: the remap | `surfaces/style/toast-window.ts` | 2 |
+| The same, for a banner popup: the pin (wraps the remap) | `surfaces/banner/window-pin.ts` | — |
+| `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `surfaces/banner/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](../plugins.md#sharing-the-jsx-runtime-between-plugins) |
+| Notification `fnNotificationResolved` (banner popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
 | `NotificationStore.Test*` (previews) | `surfaces/preview/index.ts` | — |
+| Game Recording RPCs | `surfaces/captures/recording.ts` | — |
+| `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` | `surfaces/reset/index.ts` | — |
+
+## Settings panel
+
+Sections: Theme (dropdown across the full row, Reload, Themes folder; load problems in a popup), Preview (a random
+notification; one row per achievement tier), General ("Themed style", "Themed sounds", "Themed display time"),
+Achievements (queue, screenshot, clip, timeline marker), Reset (defaults, Reset Achievements). `onPreview`,
+`onPreviewTier` and `achievementReset` are injected by `index.tsx`. A random preview's achievement is the banner's own
+synthetic preview (`previewTier`), never Steam's `TestAchievement`, whose real achievement id the sensor would take
+for an unlock.
+
+Spacing: a **block** is a group of rows that read as one card; blocks in a section are `BLOCK_GAP` (22 px) apart, set
+only by `<Blocks>`. Steam's `SliderField` and `TextField` end with 22 px of blank space of their own, which `ItemRow
+trailing` cancels. A new option goes inside an existing block or becomes a new child of `<Blocks>`; never add spacing
+on a row.
+
+## Shared with other plugins
+
+| Shared | With | What it is |
+| --- | --- | --- |
+| `steam/jsx-hook.ts` | steam-cartridges | The self-healing jsx runtime patch (`tests/architecture.test.ts` fails when the copies differ) |
+| `backend/_lib/**` | every plugin | Millennium stubs (not drift-checked) |
 
 ## Tests
 
 | Command | What it proves |
 | --- | --- |
-| `npm test` | Pure modules: themes, JSONC and CSS (`theme.test.ts`), safety (`safety.test.ts`), the hook, its composition with a second copy in both orders, the sound decision, the duration plan, the surface runner (`notifications.test.ts`) |
-| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`); no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; the shared files (table above) match enhanced-achievements' copies; every live script is in `tests/run-live.mjs` |
-| `npm test` → `tests/placement.test.ts` | Where a toast goes: Steam's corner, the stack offset, the theme's corner and margin, the animated offset |
-| `npm test` → `tests/bigpicture-type.test.ts` | An arriving toast never sets the type of the one on screen; the pop does (`onShown` without it); the `PopNextToastNotification` wrapper returns Steam's value, survives a listener error, writes only the instance, composes with a later prototype wrapper and with one on top of it |
-| `npm run test:live` | Every live check against the running client, settings snapshotted and restored: `safety`, `previews` (random previews, each a new type, all restyled), `sound-duration`, `placement` (desktop: position, stacking, padding, gap, animation names, the `placement` kill switch), `bigpicture` (Big Picture: position, animation, padding, kill switch; a toast queued behind the one on screen never restyles it, in both orders with enhanced-achievements' banner; every `SetBounds` goes to the theme's place; the placement style is in place before Steam measures a fresh window; SKIP unless Big Picture is open, run it with Big Picture in front) |
+| `npm test` | Pure modules: themes, JSONC and CSS (`theme.test.ts`), the `achievements` block and its inheritance (`achievements-theme.test.ts`), safety, the hook and its composition with a second copy, the sound decision, the duration plan, the surface runner (`notifications.test.ts`), the unlock sensor, queued banner sounds, the 100% toast and the banner lifetime (`achievements.test.ts`), the scheduler, timing, geometry, capture plan, kernel, Reset Achievements, placement, the Big Picture type source |
+| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`), and a popup's `MoveTo` has exactly its two writers; no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` matches steam-cartridges' copy; every live script is in `tests/run-live.mjs` |
+| `npm run test:live` | Every live check against the running client, settings snapshotted and restored; fails at once if enhanced-achievements is still loaded. Notification style: `safety`, `previews`, `sound-duration`, `placement`, `bigpicture`. Achievement banner (theme `ps5`): `achievements-smoke`, `-tiers`, `-safety`, `-queue`, `-captures`, `-settings` (SKIP without a theme with tier sounds), `-reset`, `-bigpicture`. The Big Picture checks SKIP unless Big Picture is open; run them with Big Picture in front |
 
 ## How to add a feature
 
@@ -165,29 +187,24 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 2. Put its decisions in a pure module with a unit test.
 3. Add a row to "Steam targets and their one owner" and to `OWNERS`. A target already owned by another row is not
    yours: extend that owner.
-4. Never edit a shared file (see "Shared with enhanced-achievements") in one plugin only: change both copies in one commit.
+4. Something that should happen after an achievement toast: subscribe to `achievement.unlocked`, never add work to the hook.
+5. A new theme key: `theme/theme.ts` (or `theme/achievements.ts` inside the block), `themes.md` and `themes/theme.jsonc`
+   in the same change.
 
 ## History
 
+- 2026-10-01 ADR-0050: enhanced-achievements merged into this plugin. Its theme became the optional `achievements`
+  block (`theme/achievements.ts`, inheriting the theme's position, animation and display time); its banner, sensor,
+  captures, 100% toast and Reset Achievements moved in as they were; one sound surface and one duration surface for
+  every toast; `bannerDraws` replaced the `claims()` / `steam/coexistence.ts` handshake; Big Picture's achievement
+  position follows the theme (the "Force achievement position in Big Picture" setting is gone, ADR-0049 superseded);
+  the drift checks against enhanced-achievements are gone.
 - 2026-10-01 Big Picture flicker fixed: the toast type comes from `PopNextToastNotification` (`steam/toast-pop.ts`,
-  decision in `surfaces/style/type-source.ts`), not the store's current-toast value; regression checks in
-  `tests/bigpicture-type.test.ts`, `tests/bigpicture.mjs` and enhanced-achievements' `tests/bigpicture.mjs`. Debug trace
-  `debugBigPicture()` / `bigPictureTrace()` and `tests/probes/bp-toast-trace.mjs`.
-
+  decision in `surfaces/style/type-source.ts`), not the store's current-toast value.
 - 2026-10-01 One style for every notification: `default`, `categories` and `types` removed (warned and ignored),
-  `display_time_ms` moved to `settings`; `ResolvedTheme.style` replaces `styleFor(type)`, one cached CSS scoped to
-  `body[data-en-type]`. Preview is one button showing a random test toast (`surfaces/preview/pick.ts`); `previewCategory`
-  replaced by `preview(id?)` and `previewIds()`. `margin` / `padding` use CSS's clockwise order (both plugins). Big
-  Picture position and animation (placeholder style; `.GamepadToastPopup > *`). Types beyond the SDK enum named `Type<n>`.
-
-- 2026-10-01 Theme `settings.position` and `settings.animation`, `popup.margin`, `popup.padding`, `popup.gap`, with
-  enhanced-achievements' names and values: `theme/placement.ts` (pure), `surfaces/style/toast-window.ts` (per-popup
-  `MoveTo`), feature id `placement`; desktop toast windows now carry their own type instead of the current toast's.
-
-- 2026-09-30 ADR-0047: ported enhanced-achievements' architecture. `steam/notifications.ts` split into
-  `steam/notification-store.ts` (discovery), `steam/notification-hook.ts` (the shared wrapper), `steam/coexistence.ts`
-  and surfaces `sound`, `duration`, `preview`; `style/injector.ts` became the `style` surface; safety net and
-  architecture test added; `ToastSelectors` moved to the kernel so the Steam layer never imports the theme.
-- 2026-09-30 ADR-0047 (siblings): JSONC themes (`theme/jsonc.ts`, `.jsonc` lookup in the backend), absolute sound paths
-  documented (the backend already allowed them), the settings panel rebuilt on enhanced-achievements' rows and spacing
-  (`settings/rows.tsx`, shared); the unused `toastWarning()` removed.
+  `display_time_ms` moved to `settings`; random Preview; `margin` / `padding` in CSS's clockwise order; Big Picture
+  position and animation; types beyond the SDK enum named `Type<n>`.
+- 2026-10-01 Theme `settings.position` and `settings.animation`, `popup.margin`, `popup.padding`, `popup.gap`:
+  `theme/placement.ts`, `surfaces/style/toast-window.ts`, feature id `placement`.
+- 2026-09-30 ADR-0047: enhanced-achievements' architecture ported (safety net, surfaces, architecture test), JSONC
+  themes, the settings panel on its rows and spacing.
