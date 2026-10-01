@@ -12,6 +12,8 @@
 import { afterPatch, callOriginal, replacePatch } from "@steambrew/client";
 import { logger } from "../../logger";
 import type { ShortcutId } from "../../kernel/appid";
+import type { EventBus } from "../../kernel/events";
+import type { ManualView } from "../../kernel/manual-shelf";
 import type { MediaImage } from "../../kernel/media-bin";
 import type { MediaItem } from "../../kernel/record";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
@@ -29,20 +31,35 @@ import {
     isPlaceholderAppIcon,
     isViewerImage,
     loaderAnswer,
+    manualOfUrl,
     shouldLoadFirstPage,
     sourceOfAccount,
     toFeedItems,
     VIEWER_IMAGE_MAX_HEIGHT,
     type FeedItem,
 } from "./core";
+import { createManualPages } from "./manual";
 
 export interface CommunityDeps extends SurfaceDeps {
     /** The object URL app/media put in the media bin for a ScreenScraper item (a pure read). */
     imageOf(appid: number, key: string): MediaImage | undefined;
+    /** The pages app/manuals rendered for a manual (kernel/manual-shelf; a pure read). */
+    manualOf(appid: number, key: string): ManualView | undefined;
+    /** Be told when the manual shelf changes. */
+    onManuals(listener: () => void): () => void;
+    /** To emit this surface's own result event, `community.manual-opened`. */
+    bus: Pick<EventBus, "emit">;
 }
 
 /** Set by createCommunitySurface; open defaults until then. */
-let deps: CommunityDeps = { isEnabled: () => true, reportError: () => {}, imageOf: () => undefined };
+let deps: CommunityDeps = {
+    isEnabled: () => true,
+    reportError: () => {},
+    imageOf: () => undefined,
+    manualOf: () => undefined,
+    onManuals: () => () => {},
+    bus: { emit: () => {} },
+};
 
 /** Shortcut appid -> its feed, from record.media (render). */
 const feeds = new Map<number, FeedItem[]>();
@@ -57,11 +74,15 @@ let loaderRebuilds = 0;
 interface ViewerMeta {
     source: MediaItem["source"];
     seconds: number;
+    /** Set for a manual's cover: the viewer shows its pages under the cover (features plan F2c). */
+    manual?: { appid: number; key: string };
 }
 const viewerMeta = new Map<string, ViewerMeta>();
 const viewerUrlsByApp = new Map<number, string[]>();
 let cardsHook: ReturnType<typeof keepJsxPatched> | undefined;
 let cardsHidden = 0;
+/** The manual page column (surfaces/community/manual.ts), made once the jsx runtime is found. */
+let ManualPages: ((props: { appid: number; manualKey: string }) => unknown) | undefined;
 /** How many of our image viewers are open: the viewer-only tweaks (label, date, image height) apply only then. */
 let openViewers = 0;
 let served = 0;
@@ -203,7 +224,12 @@ function installCards(): void {
         logger.warn("react/jsx-runtime not found; Steam's card controls stay on our cards.");
         return;
     }
-    const jsx = (type: unknown, props: Record<string, unknown>) => (runtime.jsx as (t: unknown, p: unknown) => unknown)(type, props);
+    const jsx = (type: unknown, props: Record<string, unknown>, key?: string) => (runtime.jsx as (t: unknown, p: unknown, k?: string) => unknown)(type, props, key);
+    ManualPages = createManualPages(jsx, {
+        manualOf: (appid, key) => deps.manualOf(appid, key),
+        subscribe: (listener) => deps.onManuals(listener),
+        opened: (appid, key) => deps.bus.emit("community.manual-opened", { appid: appid as ShortcutId, key }),
+    });
     cardsHook = keepJsxPatched(runtime, {
         label: "steam-cartridges.community-cards",
         replaceType: (type, props) => {
@@ -243,7 +269,8 @@ function installCards(): void {
                         if (!meta) return jsx(T, q);
                         return jsx(T, {
                             ...q,
-                            children: undefined,
+                            // A manual's pages scroll under its cover; anything else gets no comment thread.
+                            children: meta.manual && ManualPages ? jsx(ManualPages, { appid: meta.manual.appid, manualKey: meta.manual.key }) : undefined,
                             // No appid: Steam would look up app info for a non-Steam app and assert (verified live 2026-09-30).
                             appid: undefined,
                             file_details: { creator: CREATOR_STEAMIDS[meta.source], time_created: meta.seconds, file_description: "" },
@@ -286,7 +313,7 @@ function rememberViewerMeta(appid: number, feed: FeedItem[], checkedAtMs: number
         if (card.type === 4) continue;
         const source = (Object.keys(CREATOR_STEAMIDS) as MediaItem["source"][]).find((s) => CREATOR_STEAMIDS[s] === card.creator.steamid);
         if (!source) continue;
-        viewerMeta.set(card.full_image_url, { source, seconds });
+        viewerMeta.set(card.full_image_url, { source, seconds, manual: manualOfUrl(card.full_image_url) });
         urls.push(card.full_image_url);
     }
     viewerUrlsByApp.set(appid, urls);

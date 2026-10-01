@@ -34,8 +34,10 @@ import { createIdentity } from "./app/identity";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
 import { createMedia } from "./app/media";
+import { createManuals } from "./app/manuals";
 import { createLibraryStats } from "./app/library-stats";
 import { fetchImage, objectUrl, releaseObjectUrl } from "./ports/image";
+import { pdfRenderer } from "./ports/pdf";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
@@ -44,6 +46,7 @@ import { beginBoot, watchBoot } from "./safety/boot";
 import { lookupStored, toShortcutId, type ShortcutId } from "./kernel/appid";
 import { createImageBin } from "./kernel/image-bin";
 import { createMediaBin } from "./kernel/media-bin";
+import { createManualShelf } from "./kernel/manual-shelf";
 import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
@@ -203,6 +206,12 @@ const media = createMedia({
     }),
     objectUrl,
 });
+
+/** Manual pages as object URLs (kernel/manual-shelf, features plan F2c): app/manuals puts, surfaces/community reads. */
+const manualShelf = createManualShelf(releaseObjectUrl);
+
+/** Manuals (app/manuals.ts, features plan F2c): renders a ScreenScraper manual when the community viewer shows its cover. */
+const manuals = createManuals({ backend, bus, shelf: manualShelf, renderer: pdfRenderer, titleOf: (appid) => shortcutTitle(appid) });
 
 /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
 const view = createView({ routing, identity, metadata, artwork, achievements, media });
@@ -412,7 +421,13 @@ async function init() {
     runner.register(createNativeLinksSurface(surfaceDeps));
     // Community media in Steam's own Community section for shortcuts with no Steam match (surfaces/community, features plan F2).
     runner.register(
-        createCommunitySurface({ ...surfaceDeps, imageOf: (appid, key) => mediaBin.get(appid, key) }),
+        createCommunitySurface({
+            ...surfaceDeps,
+            imageOf: (appid, key) => mediaBin.get(appid, key),
+            manualOf: (appid, key) => manualShelf.get(appid, key),
+            onManuals: (listener) => manualShelf.subscribe(listener),
+            bus,
+        }),
     );
     // Custom artwork slots and logo position for mapped games (surfaces/artwork, plan M3.9).
     runner.register(
@@ -420,6 +435,7 @@ async function init() {
     );
     runner.installAll();
     artwork.install();
+    manuals.install();
 
     // ===== Native Achievements Subsystem =====
     // Steam's achievement stores (surfaces/achievements, plan M3.5); the loader below feeds them.

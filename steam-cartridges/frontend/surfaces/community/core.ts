@@ -74,6 +74,36 @@ export interface FeedItem {
 
 const youtubeThumb = (id: string) => `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
 
+const MANUAL_COVER_SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a475e"/><stop offset="1" stop-color="#171a21"/></linearGradient></defs>' +
+    '<rect width="1280" height="720" fill="url(#g)"/>' +
+    '<g fill="none" stroke="#c7d5e0" stroke-width="14" stroke-linejoin="round">' +
+    '<path d="M640 250 C580 215 500 205 430 215 V455 C500 445 580 455 640 490 C700 455 780 445 850 455 V215 C780 205 700 215 640 250 Z"/>' +
+    '<path d="M640 250 V490"/></g>' +
+    '<text x="640" y="590" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="700" letter-spacing="8" fill="#c7d5e0">MANUAL</text>' +
+    "</svg>";
+
+/** The manual card's cover (features plan F2c): inline, so showing it makes no request; 16:9 like the card's size. */
+export const MANUAL_COVER = `data:image/svg+xml;utf8,${encodeURIComponent(MANUAL_COVER_SVG)}`;
+const MANUAL_MARK = "#manual-";
+
+/**
+ * The cover URL of one shortcut's manual: the same image, told apart by a fragment, because the image viewer is matched to
+ * its card by this URL (viewerMeta) and each shortcut's manual must open its own pages.
+ */
+export function manualCoverUrl(appid: number, key: string): string {
+    return `${MANUAL_COVER}${MANUAL_MARK}${appid}-${encodeURIComponent(key)}`;
+}
+
+/** The manual a cover URL names, or undefined for any other URL. O(1) for a URL that is not a cover. */
+export function manualOfUrl(url: unknown): { appid: number; key: string } | undefined {
+    if (typeof url !== "string" || !url.startsWith(MANUAL_COVER)) return undefined;
+    const match = /^(\d+)-(.+)$/.exec(url.slice(MANUAL_COVER.length + MANUAL_MARK.length));
+    if (!match || url.slice(MANUAL_COVER.length, MANUAL_COVER.length + MANUAL_MARK.length) !== MANUAL_MARK) return undefined;
+    return { appid: Number(match[1]), key: decodeURIComponent(match[2]!) };
+}
+
 /**
  * The feed for one shortcut, in the record's order. A ScreenScraper item shows only when `imageOf(key)` has its
  * object URL (app/media fetched it); an item that cannot be shown is left out.
@@ -88,7 +118,13 @@ export function toFeedItems(appid: number, items: readonly MediaItem[], imageOf:
         let width = 0;
         let height = 0;
         let youtube: string | null = null;
-        if (item.kind === "video") {
+        if (item.kind === "manual") {
+            if (!item.key) return;
+            type = FILE_TYPE.artwork;
+            preview = full = manualCoverUrl(appid, item.key);
+            width = item.width ?? 1280;
+            height = item.height ?? 720;
+        } else if (item.kind === "video") {
             if (!item.youtube) return;
             type = FILE_TYPE.video;
             youtube = item.youtube;

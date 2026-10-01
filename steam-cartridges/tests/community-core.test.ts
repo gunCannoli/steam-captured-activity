@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { IGDB_PURPLE, IGDB_ICON, SCREENSCRAPER_ICON } from '../frontend/surfaces/community/icons.ts';
-import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, MANUAL_COVER, manualCoverUrl, manualOfUrl, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -189,4 +189,24 @@ test('community core: the author icons are the source logos, inline', () => {
     assert.equal((igdb.match(/<path/g) ?? []).length, 5, "the five paths of IGDB's logo");
     assert.match(SCREENSCRAPER_ICON, /^data:image\/png;base64,iVBORw0KGgo/, 'a PNG');
     assert.ok(SCREENSCRAPER_ICON.length < 12000, 'a small inline image');
+});
+
+test('community core: a manual becomes an artwork card with its inline cover, 16:9 (features plan F2c)', () => {
+    const [card] = toFeedItems(SC, [{ kind: 'manual', source: 'screenscraper', key: 'manuel(us)', title: 'Manual', width: 1280, height: 720 }], none);
+    assert.equal(card!.type, FILE_TYPE.artwork);
+    assert.equal(card!.full_image_url, manualCoverUrl(SC, 'manuel(us)'));
+    assert.equal(card!.preview_image_url, card!.full_image_url);
+    assert.ok(card!.full_image_url.startsWith('data:image/svg+xml;utf8,'), 'no request, no file');
+    assert.deepEqual([card!.image_width, card!.image_height], [1280, 720]);
+    assert.equal(card!.title, 'Manual');
+    assert.deepEqual(toFeedItems(SC, [{ kind: 'manual', source: 'screenscraper' } as any], none), [], 'no key, no card');
+});
+
+test('community core: a cover URL names its own shortcut and key; any other URL names none', () => {
+    assert.deepEqual(manualOfUrl(manualCoverUrl(SC, 'manuel(us)')), { appid: SC, key: 'manuel(us)' });
+    assert.notEqual(manualCoverUrl(SC, 'manuel(us)'), manualCoverUrl(SC + 1, 'manuel(us)'));
+    assert.equal(manualOfUrl(MANUAL_COVER), undefined);
+    assert.equal(manualOfUrl('blob:https://steamloopback.host/x'), undefined);
+    assert.equal(manualOfUrl('https://images.igdb.com/a.jpg'), undefined);
+    assert.equal(manualOfUrl(undefined), undefined);
 });
