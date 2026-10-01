@@ -39,6 +39,12 @@ toasts the wrapped element was not the one React committed).
   (`style`), the per-popup `MoveTo` wrapper (`placement`), `apply()` in the duration surface (`duration`), `preview` (`preview`), and an install that throws.
 - **Safe mode:** the boot sentinel (`enhanced-notifications.boot` in SharedJSContext `localStorage`) counts starts that did
   not end cleanly. Two in a row: the next start hooks nothing, and 60 error-free seconds clear it.
+- **Big Picture debug trace** (`surfaces/style/bp-debug.ts`, off by default, not persisted):
+  `debugBigPicture({ enabled: true, echo: true })` records what the style surface saw and did for Big Picture's toast
+  view (each type signal and whether it was used, every `data-en-type` change, the placement `<style>` added, changed
+  or removed, each placeholder scan); `bigPictureTrace()` reads it. `debugBigPicture({ typeSource })` switches where the
+  Big Picture toast type comes from, to compare alternatives live; `tests/probes/bp-toast-trace.mjs` drives both and
+  merges them with what Steam does ([steam-debug.md Trap 13](../steam-debug.md)).
 - **Diagnostics:** `PLUGIN_LIST['enhanced-notifications-dev'].safetyDiagnostics()` → `{ safeMode, disabled, tripped, errors }`;
   `surfaceStatus()` → which surfaces installed and why one did not.
 

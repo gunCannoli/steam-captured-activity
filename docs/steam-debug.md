@@ -321,6 +321,23 @@ debugging during earlier investigations (see ADR-0023 through ADR-0030):
   restart with `start-steam-dev.ps1 -Restart` and run it again; only a FAIL that survives a clean
   restart points at the code. Check `git log` too: the suspected change may not even be deployed.
 
+### Trap 13: A Big Picture toast flickers or jumps, but every DOM read looks right
+
+- **Symptom:** in Big Picture a themed toast flickers, slides in twice, or shows at one place and then Steam's,
+  while a one-off read of the placeholder and the toast view finds the theme's place and look.
+- **Reality (2026-10-01):** three clocks are involved and a single read sees none of them. Steam moves the toast
+  view only when its placeholder component re-renders (`SetBounds`), not when CSS moves the placeholder; the view
+  reports its new place about 25 ms after `SetBounds`; and the store's current-toast value changes when a toast
+  **arrives**, not when it shows, so anything keyed on it restyles the toast already on screen when the next one
+  is queued ([steam-components.md § Big Picture toast view](steam-components.md#big-picture-toast-view-how-steam-places-and-shows-it)).
+- **Rule:** trace over time, with Big Picture **in front** (a hidden window paints nothing and its animations
+  never start), holding the Steam lock (Routine 0):
+  `node enhanced-notifications/tests/probes/bp-toast-trace.mjs --theme top_left:ps5 --pattern queue`. It logs every
+  `SetBounds` / `SetVisible`, the placeholder rect, our placement `<style>`, the toast template and its animation,
+  merged with the plugin's own trace (`debugBigPicture()` / `bigPictureTrace()`). Patterns: `one`, `burst`, `queue`,
+  `mixed` (a Warning-size toast), `first`, `fresh`, `theme-switch`; `--source` switches where the plugin takes the
+  Big Picture toast type from, to compare alternatives without a rebuild.
+
 ---
 
 ## 5. Automated CDP Inspection via PowerShell / Node.js

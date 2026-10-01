@@ -23,6 +23,7 @@ export { preview, previewIds } from './surfaces/preview';
 export { activeTheme, themeCss } from './theme/active-theme';
 export { toastsEnabled } from './steam/notification-settings';
 export { safetyDiagnostics } from './safety/runtime';
+export { debugBigPicture, bigPictureTrace, debugBigPictureType } from './surfaces/style/bp-debug';
 
 /**
  * enhanced-notifications: restyles every Steam notification toast in place.

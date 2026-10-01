@@ -7,6 +7,7 @@ import { activeTheme, animationCss, onThemeChange, themeCss, themeStyle } from '
 import { buildPlaceholderCss } from '../../theme/theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
+import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
 
 /**
  * Styles Steam's toast windows without touching React.
@@ -91,6 +92,8 @@ const toastWindows = new Set<Window>();
 const ownTypes = new Map<Window, number>();
 let windowCss = '';
 let currentType: string | null = null;
+/** The eType behind `currentType`, so a theme or setting refresh keeps a debug type source's choice (./bp-debug.ts). */
+let currentEType: number | undefined;
 let placeholderSelector: string | undefined;
 let installed = false;
 /** Registered once: Millennium has no way to remove a window-create hook. */
@@ -127,6 +130,9 @@ function applyType(win: Window): void {
     if (!body) return;
     const own = ownTypes.get(win);
     const type = own === undefined ? currentType : styledName(own);
+    if (bpTracing() && own === undefined && body.getAttribute('data-en-type') !== type) {
+        bpLog('attr', { win: win.name, from: body.getAttribute('data-en-type'), to: type });
+    }
     if (type) body.setAttribute('data-en-type', type);
     else body.removeAttribute('data-en-type');
     if (own !== undefined) body.style.setProperty('--en-display-ms', `${displayMsFor(own)}ms`);
@@ -215,6 +221,7 @@ function applyPlacement(doc: Document): void {
     const css = placementCss();
     let el = doc.getElementById(PLACEMENT_ID) as HTMLStyleElement | null;
     if (!css) {
+        if (el) bpLog('placement', { action: 'removed' });
         el?.remove();
         return;
     }
@@ -223,7 +230,10 @@ function applyPlacement(doc: Document): void {
         el.id = PLACEMENT_ID;
         doc.head.appendChild(el);
     }
-    if (el.textContent !== css) el.textContent = css;
+    if (el.textContent !== css) {
+        bpLog('placement', { action: el.textContent ? 'changed' : 'added', css });
+        el.textContent = css;
+    }
 }
 
 function scanBigPictureToastWindows(): void {
@@ -243,6 +253,7 @@ function scanBigPictureToastWindows(): void {
             }
             for (const el of placeholders) {
                 const win = viewWindowFromFiber(el);
+                if (bpTracing()) bpLog('scan', { doc: doc.title, view: win?.name ?? null, placeholderDisplay: popup.window?.getComputedStyle(el).display });
                 if (win && !win.closed && /^notificationtoasts/i.test(win.name)) track(win);
             }
         }
@@ -252,8 +263,13 @@ function scanBigPictureToastWindows(): void {
 }
 
 /** Decide which type (if any) the current toast should be styled as. */
-function onCurrentToast(toast: CurrentToast | null | undefined): void {
+function onCurrentToast(toast: CurrentToast | null | undefined, signal: 'arrival' | 'shown' | 'manual' | 'refresh' = 'refresh'): void {
     if (!installed) return;
+    const src = typeSource();
+    bpLog(signal, { eType: toast?.eType ?? null, used: signal === 'refresh' || signal === src || (src === 'arrival' && signal === 'shown') });
+    // Debug type sources (./bp-debug.ts): `arrival` (today) takes both signals; `shown` drops arrivals; `manual` takes neither.
+    if (signal !== 'refresh' && signal !== src && !(src === 'arrival' && signal === 'shown')) return;
+    currentEType = toast?.eType;
     currentType = styledName(toast?.eType);
     scanBigPictureToastWindows();
     forEachToastWindow(applyType);
@@ -265,7 +281,8 @@ function refresh(): void {
     scanBigPictureToastWindows();
     const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
     const value = store?.CurrentToastSubscribableValue;
-    onCurrentToast(value?.Value ?? value?.m_currentValue ?? null);
+    if (typeSource() === 'arrival') onCurrentToast(value?.Value ?? value?.m_currentValue ?? null);
+    else onCurrentToast(currentEType === undefined ? null : { eType: currentEType });
 }
 
 /** false: Steam lacks the current-toast value or Millennium the window hook; toasts stay stock. */
@@ -281,11 +298,12 @@ export function installInjector(placeholder: string | undefined, onShown: Notifi
     installed = true;
     placeholderSelector = placeholder;
     windowCss = buildThemeCss();
-    const subscription = current.Subscribe((toast) => toast && onCurrentToast(toast));
+    const subscription = current.Subscribe((toast) => toast && onCurrentToast(toast, 'arrival'));
+    setManualTypeSink((eType) => onCurrentToast(eType === null ? null : { eType }, 'manual'));
     offs = [
         () => subscription.Unsubscribe(),
         onShown((n) => {
-            if (typeof n?.eType === 'number') onCurrentToast(n);
+            if (typeof n?.eType === 'number') onCurrentToast(n, 'shown');
         }),
         onThemeChange(refresh),
         onSettingChange((key) => {
@@ -312,7 +330,9 @@ export function uninstallInjector(): void {
         }
     }
     offs = [];
+    setManualTypeSink(null);
     currentType = null;
+    currentEType = undefined;
     detachToastWindows();
     ownTypes.clear();
     for (const doc of placeholderDocs) {

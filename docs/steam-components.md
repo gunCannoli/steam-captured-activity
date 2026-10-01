@@ -1415,6 +1415,41 @@ handles `enhanced-achievements` resolves by. Probes: `enhanced-achievements/test
 | Desktop toast stack | The stack manager owning per-toast popups (module breadcrumb `48197`, function `Q`) | **Verified live 2026-09-25** (see `enhanced-achievements/CHANGELOG.md`). Runs a `requestAnimationFrame` loop that repositions **every** toast popup on **every frame** of a 300ms fade-in and a 300ms fade-out (`W=U=300`), anchored at Steam's own corner with a **fixed 283px width** (`H=283`) regardless of the popup's real size. It calls `toast.m_popup.SteamClient.Window.MoveTo(x, y, m_flDPI)` — `(x, y)` in the popup's `screen.avail*` CSS-px space, third arg the **DPI**, not a boolean — but only when its own cached `m_nLastX/m_nLastY` differ from the new value; it never reads the window's real position, so an external `MoveTo` is silently overwritten on the next frame. On the toast popup itself, `SteamClient.Window.MoveTo` is an **own, writable, configurable** property (not a shared prototype method), so a plugin can replace it for one popup without touching any other window — this is how `enhanced-achievements` pins its themed banner's position (`frontend/surfaces/banner/window-pin.ts`). **More, verified live 2026-10-01** (`enhanced-notifications/tests/probes/toast-placement.mjs`, 1920x1032 avail, bottom-right): Steam's "fade" is the window **sliding**, not opacity: the first `MoveTo` puts the toast past the anchored edge (y 1102), it slides to rest (y 962 = availHeight − 70) over ~300 ms, and slides back past the edge to leave; the stack step is the toast height (70), the **newest toast sits at the corner** and older ones move inward (962 → 892 when a second one arrives); lifetime is ~300 ms in + the type's `toastDurationMS` + ~300 ms out, then the popup closes. By the **first** `MoveTo` the popup has rendered its toast: `notification.eType` is readable from a fiber's `memoizedProps.notification` above its content. `enhanced-notifications` remaps each move to its theme corner (`frontend/surfaces/style/toast-window.ts`). |
 | `SetNotificationPosition` | `ActiveWindowInstance.SetNotificationPosition(posEnum, horizontalInset, verticalInset)` (module breadcrumb `78506`) | **Do not use for per-toast placement.** It sets `m_notificationPosition` on the **window instance**, global to every toast in that window (friends, downloads, other plugins), not scoped to one popup. It is not read by the desktop toast stack's own `MoveTo` loop above — writing it live and then reading `ActiveWindowInstance.NotificationPosition` back showed no effect on where toasts actually rendered. Steam's own position enum has only four values: `TopLeft=0, TopRight=1, BottomLeft=2, BottomRight=3` (module breadcrumb `44846`); it has no centered positions. |
 
+#### Big Picture toast view: how Steam places and shows it
+
+**✅ Verified live 2026-10-01** (Steam build of Sep 5 2026; source read from modules `48197` toast containers,
+`73375` BrowserView placeholder, `26711` class map; traced with `enhanced-notifications/tests/probes/bp-toast-trace.mjs`).
+Investigation and fix: [enhanced-notifications-bigpicture-toast-fix-plan.md](plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
+
+- **Which toast is on screen.** Big Picture's container (`pe` in `48197`) keeps its own display list (`Ce`, max 1)
+  and fills it in an effect with `NotificationStore.PopNextToastNotification(context)` (context `0`; an appid for
+  in-game overlay toasts). The pop runs inside a React state updater, so **before** the next toast renders. A
+  writable prototype method. `NotificationStore.CurrentToastSubscribableValue` is a different signal: it fires
+  when a toast **arrives**, also while another toast is still on screen (queued), and drops back to `null` within
+  a few ms. Steam's toast component (`M`) calls `PlayNotificationSound` in a `useEffect` on its `notification`
+  prop, so `onShown` (the shared hook) fires once per displayed toast, after commit.
+- **Where it goes.** The placeholder (`m4` in `73375`, class `GamepadToastPlaceholder`) re-measures itself with
+  `getBoundingClientRect()` in a `useLayoutEffect` **with no deps**, and calls `browserView.SetBounds(x, y, w, h)`
+  only when the rect differs from the last one it sent. So the view moves only when that component re-renders
+  (a toast shown or hidden, a class change, the Big Picture window's visibility changing): **CSS that moves the
+  placeholder mid-toast does not move the view** until the next re-render. Per toast: `SetBounds(rect)`, then
+  `SetVisible(true)`; on hide `SetVisible(false)` and `SetBounds(0, 0, 0, 0)` (the view keeps its last on-screen
+  place). `window.screenX/Y` of the view lags `SetBounds` by about 25 ms (one or two frames).
+- **Placeholder CSS (stock).** `position: fixed; bottom: 30px; right: 0; width: 300px; height: 40px; padding: 20px 0 20px 20px`
+  (a 320×80 rect). `PositionTop`: `top: 50px; bottom: unset`. `PositionLeft`: `left: 0; right: unset; padding: 0 20px 0 0`.
+  `InGame`: `bottom: -10px` (`top: 10px` with `PositionTop`). `Warning` (eTypes 6 LowBattery, 22 LowDiskSpace, 62):
+  `width: 150px; height: 28px` (a 170×68 rect, so a right- or bottom-anchored toast changes place between a Warning
+  toast and the next one). `TinyToast` is never set on this build (its test returns false). Inline: `margin` from
+  `NotificationPosition`'s insets, `display: none` while hidden.
+- **Motion.** `.GamepadToastPopup > *` runs `toastEnter` (`translateX(300px)` → `0`, 300 ms,
+  `cubic-bezier(0, 0.73, 0.48, 1)`) and `toastExit` (opacity 1 → 0, 300 ms, delay `var(--toast-duration)`), both
+  `forwards`. Swapping that element's animation mid-toast restarts it: the toast jumps 300 px sideways (out of its
+  frame) and slides back. The view is hidden `nToastDurationMS + 600` ms after it showed.
+- **Hidden window.** While the Big Picture window is not in front (`document.visibilityState === "hidden"`), the
+  placeholder does not call `SetVisible(true)` itself, its rAF stops, and CSS animations in the toast view never get
+  a start time (enhanced-achievements' banner stays at opacity 0). Live checks of toast visuals need Big Picture in
+  front.
+
 ### Game Recording RPCs & timeline markers
 
 Steam's 2024 Game Recording system exposes structured RPCs through Steam's CM
