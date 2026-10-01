@@ -1,6 +1,6 @@
 # Plan: make enhanced-notifications a sibling of enhanced-achievements
 
-**Status:** planned and dry-run (2026-09-30), not executed. **Base:** `feb2cef`. **Decision:** ADR-0047 (written by step 6).
+**Status:** **code executed and committed 2026-09-30** (six commits `7495614` to `0eefe3f`, one per patch; ADR-0047 written); **live verification (§ 9) is pending** and is the user's. Delete this plan, and its patch folder, once § 9 passes. **Base:** `feb2cef`. **Decision:** ADR-0047.
 **Implementer:** apply six patches, run the checks, commit. No code is written by hand except two short TASK/CHANGELOG
 entries in step 6. **Verifier:** the user (§ 9).
 
