@@ -241,9 +241,10 @@ check("noNetwork without stored media is pending", r.status == "pending" and #qu
 -- ---------- ScreenScraper ----------
 print("screenscraper")
 local ss_items = ss.media_items(JEU)
-check("media_items: title screen, screenshot, fanart (no box, no video)", #ss_items == 3
-  and ss_items[1].key == "sstitle(us)" and ss_items[2].key == "ss(wor)" and ss_items[3].key == "fanart()", #ss_items)
+check("media_items: title screen, screenshot, fanart and the front box (no video)", #ss_items == 4
+  and ss_items[1].key == "sstitle(us)" and ss_items[2].key == "ss(wor)" and ss_items[3].key == "fanart()" and ss_items[4].key == "box-2D(wor)", #ss_items)
 check("the world screenshot beats the Japanese one", ss_items[2].key == "ss(wor)")
+check("a box gets its caption", ss_items[4].title == "Box: front" and ss_items[4].kind == "artwork")
 check("screens are laid out 4:3 and fanart 16:9", ss_items[2].width == 640 and ss_items[2].height == 480 and ss_items[3].width == 1920)
 local no_url = true
 for _, it in ipairs(ss_items) do if it.url or it.thumb then no_url = false end end
@@ -253,8 +254,8 @@ check("media_url finds the URL of a key and nothing for an unknown one",
 
 wipe()
 r = media.ensure(SC, { title = "G", route = ROUTE_WEB, allowWeb = true, igdb_id = 1234, allowScreenscraper = true })
-check("both sources: 3 IGDB + 3 ScreenScraper items, source igdb+screenscraper",
-  r.status == "ok" and #r.data.items == 6 and r.source == "igdb+screenscraper" and r.data.ss_id == 3, r.source)
+check("both sources: 3 IGDB + 4 ScreenScraper items, source igdb+screenscraper",
+  r.status == "ok" and #r.data.items == 7 and r.source == "igdb+screenscraper" and r.data.ss_id == 3, r.source)
 local disk = utils.read_file(media_store._path) or ""
 check("the stored file holds no ScreenScraper URL or account",
   #disk > 0 and not disk:find("screenscraper.fr", 1, true) and not disk:find("SECRET", 1, true) and not disk:find("USER", 1, true))
@@ -349,3 +350,21 @@ wipe()
 os.remove(media_store._path); os.remove(fresh_policy._path)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)
+
+-- every extra type the user asked for maps to an artwork card with a caption; regions rank wor, us, eu, ss, jp
+local MORE = {
+  medias = {
+    { type = "box-3D", region = "ss", url = "u1" }, { type = "box-3D", region = "jp", url = "u2" },
+    { type = "support-2D", region = "jp", url = "u3" }, { type = "flyer", region = "eu", url = "u4" },
+    { type = "mixrbv1", region = "wor", url = "u5" }, { type = "mixrbv2", region = "us", url = "u6" },
+    { type = "themehs", url = "u7" }, { type = "video-normalized", url = "u8" }, { type = "manuel", region = "wor", url = "u9" },
+  },
+}
+local more = ss.media_items(MORE)
+local seen = {}
+for _, it in ipairs(more) do seen[it.key] = it end
+check("media_items: every requested extra type becomes an artwork card, a video and a manual do not", #more == 7
+  and seen["mixrbv2(us)"] and seen["mixrbv1(wor)"] and seen["box-3D(ss)"] and seen["support-2D(jp)"] and seen["flyer(eu)"] and seen["themehs()"], #more)
+check("the extra types have their captions", seen["mixrbv2(us)"].title == "Recalbox mix" and seen["mixrbv1(wor)"].title == "Recalbox mix (v1)"
+  and seen["support-2D(jp)"].title == "Cartridge / disc" and seen["flyer(eu)"].title == "Flyer" and seen["themehs()"].title == "HyperSpin theme")
+check("box-3D takes the ScreenScraper copy over the Japanese one (rank ss before jp)", seen["box-3D(ss)"] ~= nil and seen["box-3D(jp)"] == nil)

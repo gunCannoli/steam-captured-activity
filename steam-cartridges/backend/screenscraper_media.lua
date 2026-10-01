@@ -104,9 +104,19 @@ end
 
 -- ---------- Community media (features plan F2b) ----------
 
---- ScreenScraper media types Steam's Community Content section can show, and the card each becomes.
-M.MEDIA_KINDS = { sstitle = "screenshot", ss = "screenshot", fanart = "artwork" }
-local MEDIA_ORDER = { "sstitle", "ss", "fanart" }
+--- ScreenScraper media types Steam's Community Content section can show, and the card each becomes. Image types
+--- only: a type whose bytes are not an image (the HyperSpin theme may be an archive) is dropped when it is downloaded.
+M.MEDIA_KINDS = {
+  sstitle = "screenshot", ss = "screenshot", fanart = "artwork",
+  mixrbv2 = "artwork", mixrbv1 = "artwork", ["box-2D"] = "artwork", ["box-3D"] = "artwork",
+  ["support-2D"] = "artwork", flyer = "artwork", themehs = "artwork",
+}
+local MEDIA_ORDER = { "sstitle", "ss", "fanart", "mixrbv2", "mixrbv1", "box-2D", "box-3D", "support-2D", "flyer", "themehs" }
+--- The caption under a card for the types that are not a plain screenshot or fanart.
+M.MEDIA_TITLES = {
+  mixrbv2 = "Recalbox mix", mixrbv1 = "Recalbox mix (v1)", ["box-2D"] = "Box: front", ["box-3D"] = "3D box",
+  ["support-2D"] = "Cartridge / disc", flyer = "Flyer", themehs = "HyperSpin theme",
+}
 --- Region preference when a type exists for several regions (world first).
 local REGION_RANK = { wor = 1, us = 2, eu = 3, ss = 4, jp = 5 }
 --- The size a card is laid out with until the bytes are read (GetMediaImage returns the real one).
@@ -118,23 +128,26 @@ local function key_of(m)
   return tostring(m.type) .. "(" .. tostring(m.region or "") .. ")"
 end
 
---- The images a `jeu` offers for the Community section, one per type (best region), as keys only:
---- { kind, source = "screenscraper", key = "ss(wor)", width, height }. Never a URL.
+--- The images a `jeu` offers for the Community section, one item per type (best region), as keys only:
+--- { kind, source = "screenscraper", key = "ss(wor)", title?, width, height }. Never a URL.
 function M.media_items(jeu)
-  local best = {}
+  local by_type = {}
   for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do
     if type(m) == "table" and M.MEDIA_KINDS[m.type] and type(m.url) == "string" and m.url ~= "" then
-      local rank = REGION_RANK[m.region or "wor"] or 9
-      if not best[m.type] or rank < best[m.type].rank then best[m.type] = { rank = rank, media = m } end
+      local list = by_type[m.type] or {}
+      list[#list + 1] = { rank = REGION_RANK[m.region or "wor"] or 9, key = key_of(m) }
+      by_type[m.type] = list
     end
   end
   local items = {}
   for _, t in ipairs(MEDIA_ORDER) do
-    local b = best[t]
-    if b then
+    local list = by_type[t]
+    if list then
+      table.sort(list, function(a, b) if a.rank ~= b.rank then return a.rank < b.rank end return a.key < b.key end)
       local kind = M.MEDIA_KINDS[t]
       local size = M.DEFAULT_SIZE[kind]
-      items[#items + 1] = { kind = kind, source = "screenscraper", key = key_of(b.media), width = size[1], height = size[2] }
+      local item = { kind = kind, source = "screenscraper", key = list[1].key, width = size[1], height = size[2], title = M.MEDIA_TITLES[t] }
+      items[#items + 1] = item
     end
   end
   return items

@@ -7,7 +7,7 @@ import type { ShortcutId } from "../kernel/appid";
 import type { CommunityMedia, Identity, MediaItem, Part, RecordStore, Route } from "../kernel/record";
 import type { MediaBin } from "../kernel/media-bin";
 import type { backend as Backend } from "../ports/backend";
-import { base64Bytes, isLargeEnough, visibleMedia, type MediaToggles } from "../domain/community-media.ts";
+import { visibleMedia, type MediaToggles } from "../domain/community-media.ts";
 
 export interface MediaDeps {
     backend: Pick<typeof Backend, "ensureFresh" | "getMediaImage">;
@@ -30,14 +30,10 @@ export interface MediaResolver {
 }
 
 export function createMedia(deps: MediaDeps): MediaResolver {
-    /** Images this session found too small to show (domain/community-media.isLargeEnough): not downloaded again. */
-    const tooSmall = new Set<string>();
-
     /** The item if its image is (or now gets) in the bin; undefined when ScreenScraper could not deliver it. */
     async function withImage(appid: ShortcutId, item: MediaItem): Promise<MediaItem | undefined> {
         if (item.source !== "screenscraper") return item;
         const key = item.key!;
-        if (tooSmall.has(`${appid}:${key}`)) return undefined;
         const cached = deps.bin.get(appid, key);
         if (cached) return { ...item, width: cached.width ?? item.width, height: cached.height ?? item.height };
         let res;
@@ -47,10 +43,6 @@ export function createMedia(deps: MediaDeps): MediaResolver {
             return undefined; // a failed download drops the card, never the part (ADR-0014)
         }
         if (!res.base64 || !res.ext) return undefined;
-        if (!isLargeEnough(base64Bytes(res.base64))) {
-            tooSmall.add(`${appid}:${key}`); // a low-resolution capture: IGDB's images look better beside it
-            return undefined;
-        }
         const url = deps.objectUrl(res.base64, res.ext);
         if (!url) return undefined;
         deps.bin.put(appid, key, { url, width: res.width, height: res.height });

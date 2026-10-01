@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { IGDB_PURPLE, IGDB_ICON, SCREENSCRAPER_ICON } from '../frontend/surfaces/community/icons.ts';
 import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
@@ -177,4 +178,15 @@ test('community core: a loader left over from the previous app is stale, a match
     assert.equal(loaderIsStale(section(undefined), 435150, { m_unAppID: 435150 }), false);
     assert.equal(loaderIsStale(section(SC), 435150, undefined), false);
     assert.equal(loaderIsStale(null, 435150, { m_unAppID: 1 }), false);
+});
+
+test('community core: the author icons are the source logos, inline', () => {
+    assert.equal(CREATOR_AVATARS.igdb, IGDB_ICON);
+    assert.equal(CREATOR_AVATARS.screenscraper, SCREENSCRAPER_ICON);
+    const igdb = decodeURIComponent(IGDB_ICON.replace('data:image/svg+xml;utf8,', ''));
+    assert.equal(IGDB_PURPLE, '#9147ff', 'rgb(145, 71, 255)');
+    assert.ok(igdb.includes('fill="#9147ff"') && igdb.includes('fill="#fff"'), 'white logo on the brand purple');
+    assert.equal((igdb.match(/<path/g) ?? []).length, 5, "the five paths of IGDB's logo");
+    assert.match(SCREENSCRAPER_ICON, /^data:image\/png;base64,iVBORw0KGgo/, 'a PNG');
+    assert.ok(SCREENSCRAPER_ICON.length < 12000, 'a small inline image');
 });

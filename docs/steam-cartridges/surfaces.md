@@ -459,7 +459,8 @@ page open) neither fires and the section stays empty until remounted, which user
 For a shortcut with a feed the load needs no network, so the `OnBind`/`OnResize` after-patches call the loader's
 `LoadAdditionalContent()` once (`core.shouldLoadFirstPage`: nothing requested yet, `m_nNextPage` 1, placeholder rows built
 so the user's "disable community content" setting still applies). `LoadAdditionalContent` is guarded by Steam's own state.
-Native apps keep Steam's timing. Each card's author icon is an inline SVG data URI per source (`CREATOR_AVATARS`), not
+Native apps keep Steam's timing. Each card's author icon is the source's own logo, inline (`icons.ts`): IGDB's published
+SVG logo in white on its brand purple rgb(145, 71, 255), and ScreenScraper's logo as a 96 px palette PNG (7 KB); not
 Steam's "?" avatar.
 
 **Stale loader (2026-09-30).** Steam reuses the section for the next app but its `componentDidUpdate` only resets the

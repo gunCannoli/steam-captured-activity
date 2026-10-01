@@ -10,6 +10,7 @@
 import type { MediaItem } from "../../kernel/record";
 import type { MediaImage } from "../../kernel/media-bin";
 import { toShortcutId } from "../../kernel/appid.ts";
+import { IGDB_ICON, SCREENSCRAPER_ICON } from "./icons.ts";
 
 export const FILE_TYPE = { artwork: 3, video: 4, screenshot: 5 } as const;
 
@@ -41,17 +42,10 @@ export function sourceOfAccount(accountId: unknown): MediaItem["source"] | undef
     return typeof accountId === "number" ? ACCOUNT_SOURCE[accountId] : undefined;
 }
 
-/** A card's author icon: a small inline SVG per source, so Steam shows a logo instead of its "?" avatar (no request, no file). */
-function sourceIcon(label: string, fill: string, size: number): string {
-    const svg =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="${fill}"/>` +
-        `<text x="32" y="32" dy=".35em" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="${size}" fill="#fff">${label}</text></svg>`;
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
+/** A card's author icon: each source's own logo, inline (icons.ts), instead of Steam's "?" avatar. */
 export const CREATOR_AVATARS: Record<MediaItem["source"], string> = {
-    igdb: sourceIcon("IGDB", "#6d3fc0", 20),
-    screenscraper: sourceIcon("SS", "#d9622b", 28),
+    igdb: IGDB_ICON,
+    screenscraper: SCREENSCRAPER_ICON,
 };
 
 /** One item of Steam's community feed, as its card components read it. */

@@ -20,13 +20,15 @@ It does **not** write to Steam (the `community` surface does, [surfaces.md](surf
 (it asks for the game Game Info already shows, `ctx.igdb_id`), and does not decide routing (ADR-0040): `allowWeb` and
 `allowScreenscraper` arrive as context, like metadata's.
 
-## ScreenScraper size minimum
+## ScreenScraper image types
 
-`app/media` shows a ScreenScraper image only when its downloaded bytes are at least `MIN_SCREENSCRAPER_BYTES` (150 KB,
-`domain/community-media.ts`; measured from the base64 text). Its title screens and console screenshots are tiny (a title
-screen here: 5 KB at 256x224; a screenshot: 62 KB at 640x480) and look poor beside IGDB's 1080p images; its fanart is large
-(429 KB at 1280x720). An image under the minimum is dropped and remembered for the session (no second download); nothing is
-stored. So in practice ScreenScraper contributes its fanart.
+`media_items` takes, per type, the best region (wor, us, eu, ss, jp): `sstitle` (title screen) and `ss` (screenshot) as
+screenshot cards; `fanart`, `mixrbv2` and `mixrbv1` (Recalbox mixes), `box-2D` (box: front), `box-3D`, `support-2D`
+(cartridge / disc), `flyer` and `themehs` (HyperSpin theme) as artwork cards, the box, support, flyer, mix and theme ones
+with a caption (`MEDIA_TITLES`). A video and a manual are not taken. Only images can be shown: a type whose bytes are not an
+image (the HyperSpin theme may be an archive) is dropped when downloaded (`image_type`), like any failed download. No size
+filter: a 150 KB minimum was tried and removed at the user's request (2026-09-30). The cards are ordered after the trailers
+and before IGDB's (`domain/community-media.visibleMedia`); Steam's own row layout may leave out a card that fits no row.
 
 ## Contract
 
@@ -44,7 +46,7 @@ function M.image(appid, key, title) end
 -- backend/screenscraper_media.lua (the ScreenScraper client, shared with the metadata source)
 function M.fetch_jeu(appid, rom_path, system_id, crc, md5, name) end   -- unchanged (M5d)
 function M.jeu_for(appid, title, info) end   -- ROM name, console, MD5 from the shortcuts.vdf entry, then fetch_jeu
-function M.media_items(jeu) end              -- sstitle, ss, fanart; best region; keys only
+function M.media_items(jeu) end              -- one item per type, best region, keys only (below)
 function M.media_url(jeu, key) end
 function M.download(url) end                 -- body, ext, width, height (maxwidth=1280, image bytes checked)
 ```

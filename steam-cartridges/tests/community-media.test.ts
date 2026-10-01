@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { base64Bytes, isLargeEnough, isShowable, MAX_PER_KIND, MIN_SCREENSCRAPER_BYTES, visibleMedia } from '../frontend/domain/community-media.ts';
+import { isShowable, MAX_PER_KIND, visibleMedia } from '../frontend/domain/community-media.ts';
 
 const ON = { trailers: true, artworks: true };
 const video = (id = 'yt1') => ({ kind: 'video', source: 'igdb', youtube: id }) as any;
@@ -43,17 +43,4 @@ test('community media: ScreenScraper images keep their place when IGDB has more 
     assert.ok(out.includes(ssArt), 'the ScreenScraper fanart survives the cap');
     assert.deepEqual(out.slice(0, 3), [video(), ssShot, ssArt], 'trailers, then ScreenScraper, before any IGDB image');
     assert.equal(out.findIndex((i) => i.source === 'igdb' && i.kind === 'artwork') > 2, true);
-});
-
-test('community media: the ScreenScraper size minimum is about 150 KB, measured from the base64 text', () => {
-    assert.equal(MIN_SCREENSCRAPER_BYTES, 150 * 1024);
-    assert.equal(base64Bytes('QUJD'), 3);
-    assert.equal(base64Bytes('QUI='), 2);
-    assert.equal(base64Bytes('QQ=='), 1);
-    assert.equal(base64Bytes(''), 0);
-    assert.equal(isLargeEnough(MIN_SCREENSCRAPER_BYTES - 1), false);
-    assert.equal(isLargeEnough(MIN_SCREENSCRAPER_BYTES), true);
-    assert.equal(isLargeEnough(5 * 1024), false, 'a 256x224 title screen');
-    assert.equal(isLargeEnough(62 * 1024), false, 'a 640x480 screenshot');
-    assert.equal(isLargeEnough(429 * 1024), true, 'a 1280x720 fanart');
 });
