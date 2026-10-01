@@ -17,10 +17,22 @@ theme Steam's toasts and sounds.
 
 ## Now
 
-**F2 Community media:** code committed (2026-09-30), waiting for the live verification in
-[the F2 plan § 9](docs/plans/steam-cartridges-f2-community-media-plan.md). Deploy with `dev.ps1`, then § 9.1 scripts, § 9.2
-Routines 1 and 2 (desktop and Big Picture), § 9.3 the card interaction audit (it decides whether Steam's native cards stay).
-F1's live check (below) is still owed.
+**F2 Community media: done and pushed (2026-09-30); a few live checks are still pending.** Live-verified by the agent: § 9.1
+(feed, loader, cards, ScreenScraper `blob:` images, no URL or credential on disk), Routine 2 in desktop and Big Picture
+(native game, AM2R, mapped game), `npm run test:live` 12/12 in desktop, trailer plays inline, image viewer in Big Picture
+shows "Created by", the date and Close, controls hidden on our cards ([ADR-0046](docs/decisions.md), amended). Pending, in
+order (the user, or an agent with the user's go-ahead):
+1. **Big Picture by hand:** the viewer layout (tall images, the Close button position), the COMMUNITY tab with trailers, and that
+   the author row and icons look right on a controller; also the first view of a shortcut after a Steam restart.
+2. **Desktop image viewer:** it does not open on this machine (`CVRPathHelpers not found`, native cards too). Check whether that
+   is this Steam build or this machine, and that our cards open it where native ones do.
+3. **Right-click "Save screenshot"** on one IGDB image and one ScreenScraper `blob:` image (a `blob:` download may fail: note it).
+4. **Author row click** (opens Steam's profile page for a made-up account: expected an error page; decide whether to hide the click).
+5. **Date shown in the viewer** is the fetch time of the media (no source gives an upload date): confirm that is acceptable.
+6. **A long first page / "no more content"** on a shortcut with a 20+ item feed (Super Mario World) in Big Picture.
+7. **F2c** (ScreenScraper videos, manuals, IGDB links) is not started; ScreenScraper stays limited to title screen, screenshot
+   and fanart by the user's decision (2026-09-30).
+Vote, award, comment and Report controls are hidden on our cards, so the plan's § 9.3 rows for them are moot.
 
 **F1 Game Data editor: the user did a live check (2026-09-30); follow-ups are coded, waiting for a second live check.** Settings now use
 enhanced-achievements' spacing ([plugins.md guardrail 18](docs/plugins.md#18-settings-panel-layout-reference-enhanced-achievements)),
@@ -28,10 +40,6 @@ Troubleshooting is gone, Game Data is the **Manual Edit** block in Library Audit
 `controllerOverrides` setting now reaches Game Info). Deploy with `dev.ps1`, then look at every section and the popup (desktop and Big Picture),
 set Multi-player, Co-op and a controller option on a game whose data is wrong and check its Game Info, then run `check_settings_panel.mjs`,
 `click_settings_panel.mjs` and `npm run test:live`. Then mark F1 done in the [features plan](docs/plans/steam-cartridges-features-plan.md).
-
-**Not pushed yet (2026-09-30).** The local commits `a6c7676` (Reset Achievements cleanup), the TASK handoff commit (`ae46043`) and the
-seven F2 commits are ahead of `origin/main`. Push with `git push origin main` (AGENTS.md Routine 5) after the user's F2 live
-verification; never add AI attribution to a commit.
 
 **Lesson carried from the achievements preload (ADR-0045):** a dry run that never restarts Steam cannot see start-up order
 (it failed live three times: `appStore` empty at boot, `{}` for an empty list (K1), Steam replacing its progress cache after
