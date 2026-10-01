@@ -2,7 +2,7 @@ import type { Surface } from '../../kernel/surface';
 import { typeName, type NotificationStoreHandle } from '../../steam/notification-store';
 import { handles } from '../../steam/coexistence';
 import { onSettingChange, setting } from '../../settings/settings';
-import { activeTheme, onThemeChange, styleFor } from '../../theme/active-theme';
+import { activeTheme, onThemeChange } from '../../theme/active-theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { planDurations, type DurationEntry } from './duration';
 
@@ -32,7 +32,7 @@ export function createDurationSurface(handle: NotificationStoreHandle): Surface 
             const plan = planDurations(entries(), {
                 themed: setting('duration.enabled') && activeTheme() !== null,
                 handles: (eType) => handles(eType, 'duration'),
-                themedMs: (name) => styleFor(name)?.displayTimeMs,
+                themedMs: () => activeTheme()?.theme.displayTimeMs,
             });
             for (const [eType, ms] of plan) {
                 handle.configs.get(eType)!.config.toastDurationMS = ms;

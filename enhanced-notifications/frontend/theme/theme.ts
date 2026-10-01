@@ -1,11 +1,13 @@
 /**
- * Theme schema, inheritance, and CSS generation for enhanced-notifications.
+ * Theme schema and CSS generation for enhanced-notifications.
  *
  * Pure logic with no Steam or SDK imports, so tests/theme.test.ts runs it under
  * plain Node. The user-facing schema is themes.md; keep the two in step.
  *
- * Principle: anything a theme does not set stays Steam's own. A resolved field
- * of `null` means "leave it stock", so the generated CSS only touches what the
+ * One style for every notification, so toasts stay consistent: a theme is
+ * `settings` (position, animation, display time) plus the style keys at the top
+ * level. Anything a theme does not set stays Steam's own: a resolved field of
+ * `null` means "leave it stock", so the generated CSS only touches what the
  * theme asks for. Icons, logos and text content are never replaced.
  */
 
@@ -13,44 +15,6 @@ import type { ToastSelectors } from '../kernel/toast-selectors.ts';
 
 /** Re-exported: theme.test.ts and active-theme.ts read it from here. */
 export type { ToastSelectors };
-
-// --- notification types ---------------------------------------------------------
-
-export const CATEGORIES = ['friends', 'messages', 'downloads', 'recording', 'achievement', 'system'] as const;
-export type Category = (typeof CATEGORIES)[number];
-
-/**
- * Steam's EClientNotificationType names (from the SDK enum, verified 1:1 with
- * `notification.eType`) grouped into categories. Anything unlisted is `system`.
- */
-const CATEGORY_OF: Record<string, Category> = {
-    FriendOnline: 'friends',
-    FriendInGame: 'friends',
-    FriendInvite: 'friends',
-    FriendInviteRollup: 'friends',
-    IncomingVoiceChat: 'friends',
-    FamilyInvite: 'friends',
-    FriendMessage: 'messages',
-    GroupChatMessage: 'messages',
-    Comment: 'messages',
-    TradeOffer: 'messages',
-    AsyncGame: 'messages',
-    DownloadComplete: 'downloads',
-    ClipDownloaded: 'downloads',
-    RequestedGameAdded: 'downloads',
-    GiftReceived: 'downloads',
-    Screenshot: 'recording',
-    GameRecordingStart: 'recording',
-    GameRecordingStop: 'recording',
-    GameRecordingUserMarkerAdded: 'recording',
-    GameRecordingInstantClip: 'recording',
-    GameRecordingError: 'recording',
-    Achievement: 'achievement',
-};
-
-export function categoryOf(typeName: string): Category {
-    return CATEGORY_OF[typeName] ?? 'system';
-}
 
 // --- placement and animation (same names and values as enhanced-achievements) ---------
 
@@ -117,9 +81,8 @@ export interface ResolvedStyle {
     text: { title: TextStyle; body: TextStyle; subtext: TextStyle };
     logo: { visible: boolean | null; radius: number | null };
     headerIcon: boolean | null;
-    /** `false` mutes the type; `null` keeps Steam's sound. */
+    /** `false` mutes every notification; `null` keeps Steam's sound. */
     sound: SoundSpec | false | null;
-    displayTimeMs: number | null;
     /** Distance from the anchor corner; only the sides the toast is anchored to count. `null` = Steam's place. */
     margin: Edges | null;
     /** Space inside the toast, around its logo and text. `null` = Steam's 10 px. */
@@ -133,9 +96,11 @@ export interface ResolvedTheme {
     position: ToastPosition | null;
     /** Entrance and exit. `null` = Steam's own slide. */
     animation: AnimationPair | null;
-    /** Style for a type name; resolved lazily per type and cached. */
-    styleFor(typeName: string): ResolvedStyle;
-    /** Every custom asset path the theme references (sounds), for the backend to load. */
+    /** How long every toast shows. `null` = Steam's own duration per type. */
+    displayTimeMs: number | null;
+    /** The one style every notification gets. */
+    style: ResolvedStyle;
+    /** Every custom asset path the theme references (the sound), for the backend to load. */
     assetPaths: string[];
     warnings: string[];
 }
@@ -162,27 +127,16 @@ function oneOf<T extends string>(v: unknown, list: readonly T[]): T | undefined 
 }
 
 /**
- * `margin` / `padding`: a bare `v` or `[v]` sets all four sides; `[vertical, horizontal]` sets top and bottom, then left
- * and right; `[top, bottom, left, right]` sets each (the order is top, bottom, left, right, not CSS's clockwise order).
- * A side that is missing or out of range takes `fallback` (enhanced-achievements' rule).
+ * `margin` / `padding`, in CSS's shorthand order (clockwise, same in enhanced-achievements): a bare `v` or `[v]` sets
+ * all four sides; `[vertical, horizontal]`; `[top, horizontal, bottom]`; `[top, right, bottom, left]`.
+ * A side that is missing or out of range takes `fallback`. Unset: `null` (Steam's own).
  */
 function edges(raw: unknown, fallback: number, min: number, max: number): Edges | null {
+    const list = typeof raw === 'number' ? [raw] : raw;
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const [top, right = top, bottom = top, left = right] = list as unknown[];
     const side = (v: unknown) => num(v, min, max) ?? fallback;
-    if (typeof raw === 'number') {
-        const v = side(raw);
-        return { top: v, bottom: v, left: v, right: v };
-    }
-    if (!Array.isArray(raw) || raw.length === 0) return null;
-    if (raw.length === 1) {
-        const v = side(raw[0]);
-        return { top: v, bottom: v, left: v, right: v };
-    }
-    if (raw.length < 4) {
-        const v = side(raw[0]);
-        const h = side(raw[1]);
-        return { top: v, bottom: v, left: h, right: h };
-    }
-    return { top: side(raw[0]), bottom: side(raw[1]), left: side(raw[2]), right: side(raw[3]) };
+    return { top: side(top), right: side(right), bottom: side(bottom), left: side(left) };
 }
 
 /** `gap`: a bare `v` or `[v]` sets both; `[x, y]` sets each. */
@@ -218,16 +172,6 @@ function resolveAnimation(raw: unknown, warnings: string[]): AnimationPair | nul
     return null;
 }
 
-/** Objects merge key by key; arrays and scalars replace whole (same rule as enhanced-achievements). */
-export function merge(base: Json, override: Json): Json {
-    const out: Json = { ...base };
-    for (const [key, value] of Object.entries(override)) {
-        const prev = out[key];
-        out[key] = isObject(prev) && isObject(value) ? merge(prev, value) : value;
-    }
-    return out;
-}
-
 function textStyle(raw: unknown): TextStyle {
     if (!Array.isArray(raw)) return { color: null, sizePct: null, style: null };
     const style = raw[2] === 'bold' || raw[2] === 'regular' || raw[2] === 'italic' ? raw[2] : null;
@@ -239,7 +183,7 @@ function fontFamily(v: unknown): string | null {
     return typeof v === 'string' && /^[\w\s,"'-]{1,120}$/.test(v) ? v : null;
 }
 
-function resolveStyle(raw: Json, where: string, warnings: string[]): ResolvedStyle {
+function resolveStyle(raw: Json, warnings: string[]): ResolvedStyle {
     const popup = isObject(raw.popup) ? raw.popup : {};
     const text = isObject(raw.text) ? raw.text : {};
     const logo = isObject(raw.logo) ? raw.logo : {};
@@ -255,11 +199,11 @@ function resolveStyle(raw: Json, where: string, warnings: string[]): ResolvedSty
     else if (Array.isArray(raw.sound) && typeof raw.sound[0] === 'string' && raw.sound[0]) {
         sound = { path: raw.sound[0], volumePct: num(raw.sound[1], 0, 100) ?? 100 };
     } else if (raw.sound !== undefined && raw.sound !== null) {
-        warnings.push(`${where}.sound must be ["path", volume] or false; keeping Steam's sound.`);
+        warnings.push(`sound must be ["path", volume] or false; keeping Steam's sound.`);
     }
 
     if (raw.font_family !== undefined && fontFamily(raw.font_family) === null) {
-        warnings.push(`${where}.font_family is not a plain font name; ignored.`);
+        warnings.push(`font_family is not a plain font name; ignored.`);
     }
 
     return {
@@ -275,7 +219,6 @@ function resolveStyle(raw: Json, where: string, warnings: string[]): ResolvedSty
         logo: { visible: bool(logo.visible), radius: num(logo.radius, 0, 100) ?? null },
         headerIcon: bool(raw.header_icon),
         sound,
-        displayTimeMs: num(raw.display_time_ms, 1000, 60_000) ?? null,
         margin: edges(popup.margin, 0, -100, 200),
         padding: edges(popup.padding, 10, 0, 100),
         gap: gapPair(popup.gap),
@@ -295,41 +238,15 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
         warnings.push(`settings.position "${String(settings.position)}" is not one of ${POSITIONS.join(', ')}; keeping Steam's corner.`);
     }
     const animation = resolveAnimation(settings.animation, warnings);
-    const base = isObject(raw.default) ? raw.default : {};
-    const categories = isObject(raw.categories) ? raw.categories : {};
-    const types = isObject(raw.types) ? raw.types : {};
-
-    for (const name of Object.keys(categories)) {
-        if (!(CATEGORIES as readonly string[]).includes(name)) warnings.push(`categories.${name} is not a category (${CATEGORIES.join(', ')}); ignored.`);
+    const displayTimeMs = num(settings.display_time_ms, 1000, 60_000) ?? null;
+    for (const key of ['default', 'categories', 'types']) {
+        if (raw[key] !== undefined) warnings.push(`"${key}" is gone: one style for every notification, with its keys at the top level; ignored.`);
     }
+    if (raw.display_time_ms !== undefined) warnings.push('display_time_ms moved into "settings"; ignored here.');
 
-    const cache = new Map<string, ResolvedStyle>();
-    const styleFor = (typeName: string): ResolvedStyle => {
-        let style = cache.get(typeName);
-        if (!style) {
-            const cat = categories[categoryOf(typeName)];
-            const own = types[typeName];
-            const merged = merge(merge(base, isObject(cat) ? cat : {}), isObject(own) ? own : {});
-            style = resolveStyle(merged, `types.${typeName}`, quiet); // already validated above
-            cache.set(typeName, style);
-        }
-        return style;
-    };
-
-    // Validate every block once now, so all warnings exist at load time (the
-    // per-type styles below resolve lazily and would otherwise warn late).
-    resolveStyle(base, 'default', warnings);
-    for (const [name, block] of Object.entries(categories)) if (isObject(block)) resolveStyle(block, `categories.${name}`, warnings);
-    for (const [name, block] of Object.entries(types)) if (isObject(block)) resolveStyle(block, `types.${name}`, warnings);
-    const quiet: string[] = [];
-
-    // Sounds referenced anywhere, so the backend can load them up front.
-    const assetPaths = new Set<string>();
-    for (const block of [base, ...Object.values(categories), ...Object.values(types)]) {
-        if (isObject(block) && Array.isArray(block.sound) && typeof block.sound[0] === 'string' && block.sound[0]) assetPaths.add(block.sound[0]);
-    }
-
-    return { position, animation, styleFor, assetPaths: [...assetPaths], warnings };
+    const style = resolveStyle(raw, warnings);
+    const assetPaths = style.sound ? [style.sound.path] : [];
+    return { position, animation, displayTimeMs, style, assetPaths, warnings };
 }
 
 // --- CSS generation -------------------------------------------------------------------
@@ -349,13 +266,14 @@ function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: n
 }
 
 /**
- * Scoped CSS for one notification type. Every rule starts with
- * `body[data-en-type="<type>"]`, the attribute the injector sets on a toast
- * window while it shows that type (surfaces/style/injector.ts), so nothing can match
- * any other toast or any non-toast window. Returns '' when the style is all stock.
+ * The theme's CSS, the same for every notification. Every rule starts with
+ * `body[data-en-type]`, the attribute the injector sets on a toast window while
+ * it shows a toast this plugin styles (surfaces/style/injector.ts; never an
+ * achievement toast enhanced-achievements draws), so nothing can match any other
+ * window. Returns '' when the style is all stock.
  */
-export function buildCss(typeName: string, s: ResolvedStyle, sel: ToastSelectors): string {
-    const root = `body[data-en-type="${typeName.replace(/[^\w-]/g, '')}"]`;
+export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
+    const root = 'body[data-en-type]';
     const popup = [sel.desktopPopup, sel.gamepadPopup].filter(Boolean).map((p) => `${root} ${p}`).join(', ');
     let css = '';
 
@@ -376,7 +294,7 @@ export function buildCss(typeName: string, s: ResolvedStyle, sel: ToastSelectors
     if (s.glow && s.glow.spread > 0) {
         popupDecls.push(`box-shadow: inset 0 0 ${s.glow.spread}px ${s.glow.color} !important;`);
         if (s.glow.pulseMs > 0) {
-            const name = `en-pulse-${typeName.replace(/[^\w-]/g, '')}`;
+            const name = 'en-pulse';
             css += `@keyframes ${name} { from { box-shadow: inset 0 0 0 ${s.glow.color}; } to { box-shadow: inset 0 0 ${s.glow.spread}px ${s.glow.color}; } }\n`;
             popupDecls.push(`animation: ${name} ${s.glow.pulseMs}ms ease-in-out infinite alternate;`);
         }
@@ -444,7 +362,7 @@ export function keyframeName(state: 'in' | 'out', a: Animation, position: ToastP
 }
 
 /**
- * The theme's entrance and exit, for desktop and overlay toast windows (Big Picture keeps Steam's). Runs on the popup's
+ * The theme's entrance and exit, for every toast window. On desktop and in the overlay it runs on the popup's
  * wrapper, not the popup, so a pulsing glow (an animation on the popup) keeps running. The exit is timed to end when
  * Steam closes the popup: Steam's slide in, then `--en-display-ms` (the type's own toast duration, set on the toast
  * window's body by the style surface), then Steam's slide out. '' when the theme sets no animation.
@@ -460,14 +378,40 @@ export function buildAnimationCss(theme: Pick<ResolvedTheme, 'animation' | 'posi
     const inEase = anim.in === 'ps5' ? 'cubic-bezier(0.25, 0.6, 0.3, 1)' : 'cubic-bezier(0.16, 1, 0.3, 1)';
     const outEase = anim.out === 'ps5' ? 'ease-in-out' : 'ease-in';
     const lead = STEAM_IN_MS + STEAM_OUT_MS - outMs;
-    let css = '';
-    for (const name of [inName, outName]) if (name) css += `@keyframes ${name} { ${KEYFRAMES[name]} }\n`;
-    css +=
-        `body[data-en-type] > :has(> ${sel.desktopPopup}) {` +
+    const rule = (selector: string, exitDelay: string) =>
+        `${selector} {` +
         ` animation-name: ${inName ?? 'none'}, ${outName ?? 'none'};` +
         ` animation-duration: ${inMs}ms, ${outMs}ms;` +
         ` animation-timing-function: ${inEase}, ${outEase};` +
-        ` animation-delay: 0ms, calc(var(--en-display-ms, 5000ms) + ${lead}ms);` +
+        ` animation-delay: 0ms, ${exitDelay};` +
         ' animation-fill-mode: both, forwards; }\n';
+    let css = '';
+    for (const name of [inName, outName]) if (name) css += `@keyframes ${name} { ${KEYFRAMES[name]} }\n`;
+    css += rule(`body[data-en-type] > :has(> ${sel.desktopPopup})`, `calc(var(--en-display-ms, 5000ms) + ${lead}ms)`);
+    // Big Picture (verified live 2026-10-01): Steam animates `.GamepadToastPopup > *`, rebuilt for each toast, with a
+    // 300 ms slide in and a 300 ms fade out starting at its own `--toast-duration`; ours replaces both and ends when it would.
+    if (sel.gamepadPopup) css += rule(`body[data-en-type] ${sel.gamepadPopup} > *`, `calc(var(--toast-duration, 5000ms) + ${STEAM_OUT_MS - outMs}ms)`);
     return css;
+}
+
+/**
+ * Big Picture's toast position (verified live 2026-10-01): its one toast view follows a `position: fixed` placeholder
+ * div Steam renders into the Big Picture window (bottom right by default), re-measured when a toast shows. So the
+ * theme's corner and margin are CSS on that placeholder. One place for every toast there, achievements included
+ * (enhanced-achievements has no Big Picture position). `null` position with a margin: Steam's bottom-right corner.
+ * '' when the theme sets neither.
+ */
+export function buildPlaceholderCss(position: ToastPosition | null, margin: Edges | null, placeholder: string | undefined): string {
+    if (!placeholder || (!position && !margin)) return '';
+    const corner = position ?? 'bottom_right';
+    const m = margin ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const decls = [
+        corner.startsWith('top_') ? `top: ${m.top}px !important; bottom: auto !important;` : `bottom: ${m.bottom}px !important; top: auto !important;`,
+        corner.endsWith('_left')
+            ? `left: ${m.left}px !important; right: auto !important;`
+            : corner.endsWith('_right')
+              ? `right: ${m.right}px !important; left: auto !important;`
+              : 'left: 0 !important; right: 0 !important; margin-left: auto !important; margin-right: auto !important;',
+    ];
+    return `${placeholder} { ${decls.join(' ')} }\n`;
 }

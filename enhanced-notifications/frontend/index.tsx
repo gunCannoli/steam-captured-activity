@@ -14,13 +14,13 @@ import { initActiveTheme, setSelectors } from './theme/active-theme';
 import { createSoundSurface } from './surfaces/sound';
 import { createDurationSurface } from './surfaces/duration';
 import { createStyleSurface } from './surfaces/style';
-import { createPreviewSurface, previewCategory } from './surfaces/preview';
+import { createPreviewSurface, preview } from './surfaces/preview';
 
 // Named exports are published by Millennium on window.PLUGIN_LIST[<plugin>],
 // which is how tests/*.mjs drive the same code paths as the settings panel.
 export { resetSettings, setSetting } from './settings/settings';
-export { previewCategory } from './surfaces/preview';
-export { activeTheme, cssFor } from './theme/active-theme';
+export { preview, previewIds } from './surfaces/preview';
+export { activeTheme, themeCss } from './theme/active-theme';
 export { toastsEnabled } from './steam/notification-settings';
 export { safetyDiagnostics } from './safety/runtime';
 
@@ -81,13 +81,13 @@ async function init(): Promise<void> {
 }
 
 /** The settings panel as a component, so live tests can mount it without opening Steam's settings window. */
-export const SettingsPanelView = () => <SettingsPanel onPreview={previewCategory} />;
+export const SettingsPanelView = () => <SettingsPanel onPreview={() => preview()} />;
 
 export default definePlugin(() => {
     init().catch((error) => logger.error('Initialisation failed; Steam is left stock.', error));
     return {
         title: 'Enhanced Notifications',
         icon: <IconsModule.Settings />,
-        content: <SettingsPanel onPreview={previewCategory} />,
+        content: <SettingsPanel onPreview={() => preview()} />,
     };
 });

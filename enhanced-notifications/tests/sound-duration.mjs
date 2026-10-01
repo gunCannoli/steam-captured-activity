@@ -52,18 +52,18 @@ const generatedSound = process.env.EN_TEST_SOUND ? null : generateTestWav();
 const SOUND = process.env.EN_TEST_SOUND ?? generatedSound;
 
 const userDir = JSON.parse(await cdp.evaluate(`window.Millennium.callServerMethod('${PLUGIN}', 'ListThemes', { payload: '{}' })`)).userDir;
+// Two temp themes (one style for every notification): one mutes and sets the display time, one replaces the sound.
 const themePath = `${userDir}/en_test.json`;
+const soundThemePath = `${userDir}/en_test_sound.json`;
 const haveSound = existsSync(SOUND);
-writeFileSync(
-    themePath,
-    JSON.stringify({
-        default: { popup: { background: ['#101010', '#202020'] } },
-        types: {
-            DownloadComplete: { sound: false, display_time_ms: 2500 },
-            ...(haveSound ? { CloudSyncFailure: { sound: [SOUND, 50] } } : {}),
-        },
-    }),
-);
+writeFileSync(themePath, JSON.stringify({ settings: { display_time_ms: 2500 }, popup: { background: ['#101010', '#202020'] }, sound: false }));
+if (haveSound) writeFileSync(soundThemePath, JSON.stringify({ popup: { background: ['#101010'] }, sound: [SOUND, 50] }));
+
+async function selectTheme(name) {
+    await plugin(`setSetting('theme', '${name}')`);
+    for (let i = 0; i < 20 && (await plugin(`activeTheme()?.name`)) !== name; i++) await wait(250);
+    return (await plugin(`activeTheme()?.name`)) === name;
+}
 
 // Record our WebAudio plays and Steam's own sound requests (PlayNavSound).
 await cdp.evaluate(`(() => {
@@ -103,19 +103,20 @@ async function fire(call) {
 
 try {
     const stockDuration = await durationOf('DownloadComplete');
-    await plugin(`setSetting('theme', 'en_test')`);
-    for (let i = 0; i < 20 && (await plugin(`activeTheme()?.name`)) !== 'en_test'; i++) await wait(250);
-    check('temp theme loaded', (await plugin(`activeTheme()?.name`)) === 'en_test');
+    check('temp theme loaded', await selectTheme('en_test'));
 
-    check('display_time_ms applied per type', (await durationOf('DownloadComplete')) === 2500, `DownloadComplete=${await durationOf('DownloadComplete')}`);
+    const shown = [await durationOf('DownloadComplete'), await durationOf('CloudSyncFailure')];
+    check('settings.display_time_ms applied to every type', shown.every((ms) => ms === 2500), JSON.stringify(shown));
 
     await fire('TestCloudSyncFailure(435150)'); // warm up the AudioContext
     let s = await fire('TestDownloadComplete(435150)');
-    check('sound false mutes the type (no Steam sound, no themed sound)', s.length === 0, JSON.stringify(s));
+    check('sound false mutes notifications (no Steam sound, no themed sound)', s.length === 0, JSON.stringify(s));
 
     if (haveSound) {
+        check('sound theme loaded', await selectTheme('en_test_sound'));
         s = await fire('TestCloudSyncFailure(435150)');
         check('theme sound replaces Steam sound', s.includes('themed') && !s.includes('steam'), JSON.stringify(s));
+        await selectTheme('en_test');
     } else console.log(`SKIP  sound replacement (no ${SOUND})`);
 
     await plugin(`setSetting('sound.enabled', false)`);
@@ -128,6 +129,7 @@ try {
 } finally {
     await plugin(`resetSettings()`);
     rmSync(themePath, { force: true });
+    rmSync(soundThemePath, { force: true });
     if (generatedSound) rmSync(join(generatedSound, '..'), { recursive: true, force: true });
     const left = await cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
     check('settings reset, temp theme removed', Object.keys(left ?? {}).length === 0 && !existsSync(themePath), JSON.stringify(left));

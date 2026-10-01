@@ -9,12 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- **One style for every notification.** A theme is `settings` plus the style keys at the top level; `default`, `categories` and `types` are gone (a theme that still has them loads with a warning and they are ignored), and `display_time_ms` moved into `settings`. The bundled `steam_midnight` theme is one style now.
+- **Preview is one button** that shows a random one of Steam's test toasts, a different type each press (downloads, clips, recording, cloud sync, battery, firmware update, playtime; achievements too when Enhanced Achievements does not draw them). Exports `preview(id?)` and `previewIds()` replace `previewCategory`.
+- **`margin` and `padding` use CSS's clockwise order** (same as Enhanced Achievements): `[10, 5, 4, 7]` is 10 top, 5 right, 4 bottom, 7 left.
+
 - Internals rebuilt on Enhanced Achievements' architecture (ADR-0047, docs/enhanced-notifications/architecture.md): one surface per thing written into Steam (`style`, `sound`, `duration`, `preview`), the same notification hook file as Enhanced Achievements (checked by a test, and proven to work with it in either load order), and an architecture test. No change to themes or settings.
 - Settings panel laid out like Enhanced Achievements' (same rows and spacing): Theme, Preview notifications, General and Reset sections; the theme dropdown takes the full row; a theme problem shows under it instead of a status line. The controls are disabled while Steam's toasts are off.
 
 ### Added
 
-- **Toast position, animation and spacing**, with Enhanced Achievements' names and values (themes.md): `settings.position` (`top_right`, `top_left`, `bottom_right`, `bottom_left`, `top_center`, `bottom_center`), `settings.animation` (`slide`, `fade`, `up`, `down`, `ps5`, `none`, or `{ "in", "out" }`), and per style `popup.margin`, `popup.padding`, `popup.gap`. Position and animation apply to desktop and in-game overlay toasts and keep Steam's stacking; Big Picture keeps Steam's place and motion; achievement toasts drawn by Enhanced Achievements keep that plugin's. New kill switch `placement`. Live check `tests/placement.mjs`.
+- **Toast position, animation and spacing**, with Enhanced Achievements' names and values (themes.md): `settings.position` (`top_right`, `top_left`, `bottom_right`, `bottom_left`, `top_center`, `bottom_center`), `settings.animation` (`slide`, `fade`, `up`, `down`, `ps5`, `none`, or `{ "in", "out" }`), and `popup.margin`, `popup.padding`, `popup.gap`. On desktop and in the in-game overlay Steam's stacking is kept; in Big Picture the toast moves through Steam's own toast placeholder and the animation replaces Steam's. Achievement toasts drawn by Enhanced Achievements keep that plugin's style (and, on desktop, its position). New kill switch `placement`. Live checks `tests/placement.mjs` (desktop) and `tests/bigpicture.mjs`.
 - **Safety net:** each feature can be switched off without uninstalling (`disabledFeatures` setting, e.g. `style,sound`; no panel control), a feature that fails 5 times in a session switches itself off until Steam restarts, and two unclean starts in a row start the plugin in safe mode (Steam's own toasts). `safetyDiagnostics()` and `surfaceStatus()` exports.
 - `npm run test:live` runs every live check with settings snapshotted and restored; new live check `tests/safety.mjs`.
 - **JSONC themes:** themes can be `.jsonc` (or `.json`) with `//` and `/* */` comments and trailing commas; `name.jsonc` wins over `name.json` in the same folder. Same rules as Enhanced Achievements.
@@ -23,6 +27,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Toast types Steam has but the SDK does not name (the firmware update toast, type 61) were left unstyled; they get the theme now.
 - With several desktop toasts on screen, each keeps its own type's style: every toast window now carries its own notification type instead of the newest toast's (an older toast used to be restyled, or lose its style, when a new one arrived).
 - Toast durations are restored to Steam's own value even when enhanced-achievements wrote a type's duration first: both plugins record the pristine value in one shared place (`pristineDuration`, same helper in each).
 

@@ -8,8 +8,11 @@ changes only how they look and sound:
 - popup background (solid or gradient), border, glow, Steam-logo watermark
 - font, title, body and subtext colours, sizes and weights
 - app-logo corner radius and visibility, header icon
-- sound per type or category (custom file, or `false` to mute)
-- display time per type
+- position on screen, entrance and exit animation, margin, padding and gap
+  (same options as Enhanced Achievements)
+- sound (custom file, or `false` to mute) and display time
+
+One style applies to every notification, so they all look alike.
 
 Anything a theme doesn't set stays exactly as Steam draws it.
 
@@ -37,7 +40,7 @@ copy) and enables it. Steam restarts automatically unless you pass
 ## Settings
 
 Open Millennium's sidebar and select **Enhanced Notifications**: pick a theme,
-reload or open the themes folder, preview each category, toggle style, sounds
+reload or open the themes folder, preview a notification, toggle style, sounds
 and display time, or reset.
 
 | Setting | What it does |
@@ -45,7 +48,7 @@ and display time, or reset.
 | Theme | Which theme to use |
 | Reload themes | Pick up edits to a theme file without restarting Steam |
 | Themes folder | Opens the folder for your own themes |
-| Preview | Fires a real Steam test toast for each category |
+| Preview | Shows one of Steam's own test toasts, a different type each press |
 | Themed style | Off: Steam's own look for every notification |
 | Themed sounds | Off: Steam's own sounds. Steam's mute setting is always respected |
 | Themed display time | Off: Steam's own display time per notification |
@@ -55,16 +58,15 @@ and display time, or reset.
 
 Five minutes, no game required:
 
-1. Open the settings panel and press **Preview** for each category
-   (friends, messages, downloads, recording, achievements, system) — a
-   restyled toast should appear (friends/messages only if Steam's Friends
-   notification settings allow those toasts).
+1. Open the settings panel and press **Preview** a few times: each press
+   shows a different notification type (downloads, clips, cloud sync,
+   battery, updates), all restyled the same way.
 2. Toggle **Themed style**, **Themed sounds** and **Themed display time** off
    and on; confirm Steam's own look/sound/timing comes back when off.
 3. Edit `themes/steam_midnight.json` (or a copy in your themes folder), press
    **Reload themes**, then **Preview** again to see the change.
-4. Switch between the desktop client and Big Picture Mode and preview a
-   category in each — both should show the themed toast.
+4. Switch between the desktop client and Big Picture Mode and preview in
+   each: both should show the themed toast, in the theme's position.
 
 ## Themes
 
@@ -73,10 +75,6 @@ Themes are `.jsonc` (or `.json`) files: JSON with `//` comments and trailing com
 survives updates, and a theme there replaces a bundled one with the same name.
 See [themes.md](themes.md) for the format and
 [themes/steam_midnight.json](themes/steam_midnight.json) for an example.
-
-Resolution order: `default` → category (`friends`, `messages`, `downloads`,
-`recording`, `achievement`, `system`) → type (Steam's own names, e.g.
-`FriendOnline`, `DownloadComplete`, `CloudSyncFailure`).
 
 ## Known limitations
 

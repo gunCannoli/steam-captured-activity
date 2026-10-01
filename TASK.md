@@ -21,9 +21,10 @@ theme Steam's toasts and sounds.
 [its plan § 9](docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
 `npm run test:live` in both, then the by-hand checks.
 
-**enhanced-notifications toast position / animation / margin / padding / gap (2026-10-01): done, live-verified on desktop** with test
-toasts (`test:live` 4/4). Left for a human: look at it (a theme with `"settings": { "position": "top_left", "animation": "ps5" }`),
-an in-game overlay toast, and Big Picture (padding and gap should apply there; position and animation stay Steam's by design).
+**enhanced-notifications: one style for every notification, random Preview, position / animation in Big Picture too (2026-10-01): done,
+live-verified** on desktop and in Big Picture with test toasts (`test:live` 5/5 in each). Left for a human: look at it (a theme with
+`"settings": { "position": "top_left", "animation": "ps5" }`, Preview pressed a few times), and an in-game overlay toast. Both toast
+plugins now read `margin` / `padding` in CSS's clockwise order; the user's own `ps5.json` padding was converted (`[10, 15, 10, 10]`).
 
 **F2 Community media: done and pushed (2026-09-30); a few live checks are still pending.** Live-verified by the agent: § 9.1
 (feed, loader, cards, ScreenScraper `blob:` images, no URL or credential on disk), Routine 2 in desktop and Big Picture
@@ -49,7 +50,7 @@ Vote, award, comment and Report controls are hidden on our cards, so the plan's 
 
 **enhanced-achievements Reset dialog, 4-value margin/padding, ps5 fade, ripple (2026-09-30, `39919c2`): deployed, not restarted.**
 After a Steam restart, check on desktop: Reset keeps one dialog open (Resetting..., then the outcome, Close) and its window
-(480 x 250) is not clipped; in Big Picture the same flow; a toast with `"padding": [10, 5, 4, 7]`, the ps5 fade and the ripple;
+(480 x 250) is not clipped; in Big Picture the same flow; a toast with `"padding": [10, 5, 4, 7]` (clockwise since 2026-10-01: 10 top, 5 right, 4 bottom, 7 left), the ps5 fade and the ripple;
 a theme with a typo, picked and then reloaded, opens the theme-problems popup (560 x 360) listing it, and none opens at Steam's start.
 
 **F1 Game Data editor: the user did a live check (2026-09-30); follow-ups are coded, waiting for a second live check.** Settings now use

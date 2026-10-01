@@ -1,40 +1,15 @@
 {
-    "default": {
-        "popup": {
-            "background": ["#0e141b", "#1b2838"],
-            "gradient_angle": 135,
-            "border": [1, "#66c0f455", 6],
-            "glow": ["#66c0f433", 18, 0],
-            "watermark": false
-        },
-        "text": {
-            "title": ["#66c0f4", 100, "bold"],
-            "body": ["#ffffff", 100, "regular"],
-            "subtext": ["#8f98a0", 100, "regular"]
-        },
-        "logo": { "radius": 6 }
+    "popup": {
+        "background": ["#0e141b", "#1b2838"],
+        "gradient_angle": 135,
+        "border": [1, "#66c0f455", 6],
+        "glow": ["#66c0f433", 18, 0],
+        "watermark": false
     },
-    "categories": {
-        "friends": {
-            "popup": { "border": [1, "#90ba3c88", 6], "glow": ["#90ba3c33", 18, 0] },
-            "text": { "title": ["#90ba3c", 100, "bold"] }
-        },
-        "messages": {
-            "text": { "title": ["#c7d5e0", 100, "bold"] }
-        },
-        "recording": {
-            "popup": { "border": [1, "#e0423788", 6] },
-            "text": { "title": ["#ff6b5e", 100, "bold"] }
-        },
-        "achievement": {
-            "popup": { "border": [1, "#e5a93c88", 6], "glow": ["#e5a93c44", 22, 1600] },
-            "text": { "title": ["#ffd56b", 100, "bold"] }
-        }
+    "text": {
+        "title": ["#66c0f4", 100, "bold"],
+        "body": ["#ffffff", 100, "regular"],
+        "subtext": ["#8f98a0", 100, "regular"]
     },
-    "types": {
-        "LowBattery": {
-            "popup": { "border": [2, "#e04237", 6] },
-            "text": { "title": ["#ff6b5e", 100, "bold"] }
-        }
-    }
+    "logo": { "radius": 6 }
 }

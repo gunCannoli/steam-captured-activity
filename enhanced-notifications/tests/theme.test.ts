@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildAnimationCss, buildCss, categoryOf, keyframeName, merge, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
+import { buildAnimationCss, buildCss, buildPlaceholderCss, keyframeName, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
 import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
@@ -25,12 +25,11 @@ const SEL: ToastSelectors = {
     headerIcon: ':is(.icon)',
 };
 
-test('every bundled theme resolves for every category', () => {
+test('every bundled theme resolves without warnings', () => {
     for (const file of readdirSync(themesDir).filter(isTheme)) {
         const theme = resolveTheme(load(file));
-        for (const type of ['FriendOnline', 'FriendMessage', 'DownloadComplete', 'GameRecordingInstantClip', 'Achievement', 'LowBattery']) {
-            assert.ok(theme.styleFor(type), `${file}: ${type}`);
-        }
+        assert.ok(theme.style, file);
+        assert.deepEqual(theme.warnings, [], file);
     }
 });
 
@@ -45,51 +44,38 @@ test("every bundled theme's assets exist, relative to themes/", () => {
     }
 });
 
-test('types map to categories; unknown types are system', () => {
-    assert.equal(categoryOf('FriendOnline'), 'friends');
-    assert.equal(categoryOf('GroupChatMessage'), 'messages');
-    assert.equal(categoryOf('DownloadComplete'), 'downloads');
-    assert.equal(categoryOf('GameRecordingInstantClip'), 'recording');
-    assert.equal(categoryOf('Achievement'), 'achievement');
-    assert.equal(categoryOf('LowBattery'), 'system');
-    assert.equal(categoryOf('SomethingNew'), 'system');
-});
-
-test('resolution order: default -> category -> type', () => {
+test('one style for every notification; the old per-type blocks warn and are ignored', () => {
     const theme = resolveTheme({
-        default: { popup: { background: ['#111111'] }, text: { title: ['#aaaaaa', 100, 'bold'] } },
-        categories: { friends: { popup: { background: ['#222222'] } } },
-        types: { FriendOnline: { text: { title: ['#ffffff', 110, 'bold'] } } },
+        popup: { background: ['#111111'] },
+        default: { popup: { background: ['#222222'] } },
+        categories: { friends: {} },
+        types: { FriendOnline: {} },
+        display_time_ms: 3000,
     });
-    const online = theme.styleFor('FriendOnline');
-    assert.deepEqual(online.background, ['#222222']); // category
-    assert.equal(online.text.title.color, '#ffffff'); // type
-    assert.deepEqual(theme.styleFor('FriendInGame').text.title.color, '#aaaaaa'); // default
-    assert.deepEqual(theme.styleFor('DownloadComplete').background, ['#111111']); // default
-});
-
-test('merge: objects key by key, arrays whole', () => {
-    assert.deepEqual(merge({ a: { x: [1, 2], y: 1 } }, { a: { x: [3] } }), { a: { x: [3], y: 1 } });
+    assert.deepEqual(theme.style.background, ['#111111']);
+    assert.equal(theme.displayTimeMs, null, 'display_time_ms lives in settings now');
+    assert.equal(theme.warnings.length, 4);
+    assert.equal(resolveTheme({ settings: { display_time_ms: 3000 } }).displayTimeMs, 3000);
 });
 
 test('unset fields stay Steam stock (null) and produce no CSS', () => {
-    const style = resolveTheme({}).styleFor('FriendOnline');
-    assert.equal(style.background, null);
-    assert.equal(style.sound, null);
-    assert.equal(buildCss('FriendOnline', style, SEL), '');
+    const theme = resolveTheme({});
+    assert.equal(theme.style.background, null);
+    assert.equal(theme.style.sound, null);
+    assert.equal(theme.displayTimeMs, null);
+    assert.equal(buildCss(theme.style, SEL), '');
 });
 
 test('sound false mutes; bad sound warns and keeps Steam', () => {
-    const theme = resolveTheme({ types: { FriendOnline: { sound: false }, FriendInGame: { sound: 'x.mp3' } } });
-    assert.equal(theme.styleFor('FriendOnline').sound, false);
-    assert.equal(theme.styleFor('FriendInGame').sound, null);
-    assert.ok(theme.warnings.some((w) => w.includes('sound')));
+    assert.equal(resolveTheme({ sound: false }).style.sound, false);
+    const bad = resolveTheme({ sound: 'x.mp3' });
+    assert.equal(bad.style.sound, null);
+    assert.ok(bad.warnings.some((w) => w.includes('sound')));
 });
 
 test('font_family rejects CSS injection', () => {
-    const theme = resolveTheme({ default: { font_family: 'Arial; } body { display:none' } });
-    assert.equal(theme.styleFor('FriendOnline').fontFamily, null);
-    assert.equal(resolveTheme({ default: { font_family: '"Motiva Sans", Arial' } }).styleFor('X').fontFamily, '"Motiva Sans", Arial');
+    assert.equal(resolveTheme({ font_family: 'Arial; } body { display:none' }).style.fontFamily, null);
+    assert.equal(resolveTheme({ font_family: '"Motiva Sans", Arial' }).style.fontFamily, '"Motiva Sans", Arial');
 });
 
 /** Split a selector list on top-level commas only (not those inside `:is(...)`). */
@@ -109,19 +95,18 @@ function selectorList(list: string): string[] {
 }
 
 test('CSS is scoped to the styled toast window only', () => {
-    const style = resolveTheme(load('steam_midnight.json')).styleFor('FriendOnline');
-    const css = buildCss('FriendOnline', style, SEL);
+    const css = buildCss(resolveTheme(load('steam_midnight.json')).style, SEL);
     assert.ok(css.length > 0);
     for (const rule of css.split('\n').filter((l) => l.includes('{') && !l.startsWith('@keyframes'))) {
         for (const selector of selectorList(rule.slice(0, rule.indexOf('{')))) {
-            assert.ok(selector.trim().startsWith('body[data-en-type="FriendOnline"]'), `unscoped selector: ${selector}`);
+            assert.ok(selector.trim().startsWith('body[data-en-type]'), `unscoped selector: ${selector}`);
         }
     }
 });
 
-test('asset paths collect every referenced sound once', () => {
-    const theme = resolveTheme({ default: { sound: ['a.mp3', 50] }, categories: { friends: { sound: ['b.mp3', 50] } }, types: { X: { sound: ['a.mp3', 10] } } });
-    assert.deepEqual(theme.assetPaths.sort(), ['a.mp3', 'b.mp3']);
+test('asset paths: the one sound', () => {
+    assert.deepEqual(resolveTheme({ sound: ['a.mp3', 50] }).assetPaths, ['a.mp3']);
+    assert.deepEqual(resolveTheme({}).assetPaths, []);
 });
 
 // --- JSONC --------------------------------------------------------------------
@@ -165,32 +150,27 @@ test('settings.position and settings.animation: unset keeps Steam, enhanced-achi
     assert.equal(bad.warnings.length, 2);
 });
 
-test('popup.margin / padding / gap: enhanced-achievements shorthand, inherited like any style', () => {
-    const t = resolveTheme({
-        default: { popup: { margin: 5, padding: [6, 12], gap: [8, 2] } },
-        types: { FriendOnline: { popup: { padding: [10, 5, 4, 7], gap: 3 } } },
-    });
-    const d = t.styleFor('DownloadComplete');
-    assert.deepEqual(d.margin, { top: 5, bottom: 5, left: 5, right: 5 });
-    assert.deepEqual(d.padding, { top: 6, bottom: 6, left: 12, right: 12 });
-    assert.deepEqual(d.gap, [8, 2]);
-    const f = t.styleFor('FriendOnline');
-    assert.deepEqual(f.padding, { top: 10, bottom: 5, left: 4, right: 7 }, 'order is top, bottom, left, right');
-    assert.deepEqual(f.gap, [3, 3]);
-    assert.deepEqual(f.margin, d.margin, 'margin inherited from default');
-    const stock = resolveTheme({}).styleFor('DownloadComplete');
+test("popup.margin / padding: CSS's clockwise shorthand; gap: [x, y] or one number", () => {
+    const style = (popup: unknown) => resolveTheme({ popup }).style;
+    assert.deepEqual(style({ padding: [10, 5, 4, 7] }).padding, { top: 10, right: 5, bottom: 4, left: 7 });
+    assert.deepEqual(style({ padding: [10, 5, 4] }).padding, { top: 10, right: 5, bottom: 4, left: 5 });
+    assert.deepEqual(style({ padding: [6, 12] }).padding, { top: 6, right: 12, bottom: 6, left: 12 });
+    assert.deepEqual(style({ margin: 5 }).margin, { top: 5, right: 5, bottom: 5, left: 5 });
+    assert.deepEqual(style({ margin: [1, 2, 'x', 4] }).margin, { top: 1, right: 2, bottom: 0, left: 4 }, 'a bad side takes the default');
+    assert.deepEqual(style({ gap: [8, 2] }).gap, [8, 2]);
+    assert.deepEqual(style({ gap: 3 }).gap, [3, 3]);
+    const stock = resolveTheme({}).style;
     assert.equal(stock.margin, null);
     assert.equal(stock.padding, null);
     assert.deepEqual(stock.gap, [null, null]);
 });
 
-test('padding and gap CSS target the toast template and the text column, scoped to the type', () => {
+test('padding and gap CSS target the toast template and the text column', () => {
     const sel: ToastSelectors = { ...SEL, toastTemplate: ':is(.tt)', content: ':is(.ct)' };
-    const t = resolveTheme({ default: { popup: { padding: [10, 5, 4, 7], gap: [6, 2] } } });
-    const css = buildCss('DownloadComplete', t.styleFor('DownloadComplete'), sel);
-    assert.match(css, /body\[data-en-type="DownloadComplete"\] :is\(\.tt\) \{ padding: 10px 7px 5px 4px !important;/);
-    assert.match(css, /body\[data-en-type="DownloadComplete"\] :is\(\.ct\) \{ margin-left: 6px !important; gap: 2px !important; \}/);
-    const onlyY = buildCss('X', resolveTheme({ default: { popup: { gap: [null, 4] } } }).styleFor('X'), sel);
+    const css = buildCss(resolveTheme({ popup: { padding: [10, 5, 4, 7], gap: [6, 2] } }).style, sel);
+    assert.match(css, /body\[data-en-type\] :is\(\.tt\) \{ padding: 10px 5px 4px 7px !important;/);
+    assert.match(css, /body\[data-en-type\] :is\(\.ct\) \{ margin-left: 6px !important; gap: 2px !important; \}/);
+    const onlyY = buildCss(resolveTheme({ popup: { gap: [null, 4] } }).style, sel);
     assert.match(onlyY, /:is\(\.ct\) \{ gap: 4px !important; \}/);
 });
 
@@ -209,4 +189,16 @@ test('animation CSS: direction follows the corner, exit ends when Steam closes t
     assert.equal(keyframeName('out', 'slide', 'top_center'), 'en-out-slide');
     assert.equal(keyframeName('in', 'ps5', 'bottom_center'), 'en-in-ps5-bottom');
     assert.equal(keyframeName('in', 'none', 'top_right'), null);
+});
+
+test('Big Picture: placeholder CSS from the corner and margin; animation replaces Steam on its toast template', () => {
+    const P = ':is(.ph)';
+    assert.equal(buildPlaceholderCss(null, null, P), '', "nothing set: Steam's place");
+    assert.equal(buildPlaceholderCss('top_left', null, undefined), '', 'no placeholder resolved');
+    const tl = buildPlaceholderCss('top_left', { top: 20, right: 0, bottom: 0, left: 30 }, P);
+    assert.match(tl, /^:is\(\.ph\) \{ top: 20px !important; bottom: auto !important; left: 30px !important; right: auto !important; \}/);
+    assert.match(buildPlaceholderCss('bottom_center', null, P), /bottom: 0px !important; top: auto !important; left: 0 !important; right: 0 !important; margin-left: auto/);
+    assert.match(buildPlaceholderCss(null, { top: 0, right: 8, bottom: 12, left: 0 }, P), /bottom: 12px !important;.* right: 8px !important;/, "margin alone: Steam's bottom-right");
+    const anim = buildAnimationCss(resolveTheme({ settings: { position: 'top_right', animation: 'fade' } }), SEL);
+    assert.match(anim, /body\[data-en-type\] :is\(\.gp\) > \* \{ animation-name: en-in-fade, en-out-fade;.* animation-delay: 0ms, calc\(var\(--toast-duration, 5000ms\) \+ 0ms\);/);
 });

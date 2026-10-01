@@ -27,14 +27,11 @@ export interface NotificationStoreHandle {
     configs: Map<number, { config: TypeConfig; pristineMs: number | undefined }>;
 }
 
-/** eType -> name, built once from the SDK enum. */
+/** eType -> name, built once from the SDK enum, plus `Type<n>` for types Steam has and the enum lacks. */
 const names = new Map<number, string>();
+/** How far past the SDK enum's last value start-up asks Steam for a type config. */
+const UNNAMED_TYPES_PAST_SDK = 32;
 let handle: NotificationStoreHandle | null = null;
-
-/** Every known type name (for building the whole theme's CSS once). */
-export function knownTypeNames(): string[] {
-    return [...names.values()];
-}
 
 /** O(1): Steam's name for a notification type, or null if unknown. */
 export function typeName(eType: number | undefined): string | null {
@@ -73,7 +70,10 @@ function discoverConfigs(p: NotificationStoreHandle['proto']): NotificationStore
             return null;
         },
     };
-    for (const eType of names.keys()) {
+    // Steam has types the SDK enum lacks (verified live 2026-10-01: the firmware update toast is eType 61, the enum
+    // ends at 58), so ask past its end too; a type Steam has a config for but the SDK cannot name is `Type<n>`.
+    const last = Math.max(0, ...names.keys()) + UNNAMED_TYPES_PAST_SDK;
+    for (let eType = 1; eType <= last; eType++) {
         captured = undefined;
         try {
             p.PlayNotificationSound.call(standIn, { eType });
@@ -81,7 +81,9 @@ function discoverConfigs(p: NotificationStoreHandle['proto']): NotificationStore
             continue;
         }
         const config = captured as TypeConfig | undefined; // assigned in standIn
-        if (config && typeof config === 'object') configs.set(eType, { config, pristineMs: pristineDuration(config) });
+        if (!config || typeof config !== 'object') continue;
+        configs.set(eType, { config, pristineMs: pristineDuration(config) });
+        if (!names.has(eType)) names.set(eType, `Type${eType}`);
     }
     return configs;
 }

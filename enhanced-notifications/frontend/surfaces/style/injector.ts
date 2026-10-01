@@ -1,9 +1,10 @@
 import { logger } from '../../logger';
 import { setting, onSettingChange } from '../../settings/settings';
-import { knownTypeNames, typeName } from '../../steam/notification-store';
+import { typeName } from '../../steam/notification-store';
 import { handles } from '../../steam/coexistence';
 import type { NotificationHook } from '../../steam/notification-hook';
-import { activeTheme, animationCss, cssFor, onThemeChange } from '../../theme/active-theme';
+import { activeTheme, animationCss, onThemeChange, themeCss, themeStyle } from '../../theme/active-theme';
+import { buildPlaceholderCss } from '../../theme/theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
 
@@ -81,10 +82,14 @@ interface BrowserViewPopup {
 }
 
 const STYLE_ID = 'enhanced-notifications-theme';
+/** In the Big Picture window: the toast placeholder's position (theme `position` / `popup.margin`). */
+const PLACEMENT_ID = 'enhanced-notifications-placement';
+/** Big Picture windows holding a toast placeholder, for the placement `<style>`. */
+const placeholderDocs = new Set<Document>();
 const toastWindows = new Set<Window>();
 /** Per-toast popups whose own notification type is known (./toast-window.ts). */
 const ownTypes = new Map<Window, number>();
-let themeCss = '';
+let windowCss = '';
 let currentType: string | null = null;
 let placeholderSelector: string | undefined;
 let installed = false;
@@ -92,10 +97,10 @@ let installed = false;
 let windowHookAdded = false;
 let offs: (() => void)[] = [];
 
-/** Every styled type's CSS, built once per theme load (cssFor caches per type). */
+/** The theme's CSS and its animation, each built once per theme load. */
 function buildThemeCss(): string {
     if (!activeTheme()) return '';
-    return [animationCss(), ...knownTypeNames().map(cssFor)].filter(Boolean).join('\n');
+    return [animationCss(), themeCss()].filter(Boolean).join('\n');
 }
 
 function applyStyle(win: Window): void {
@@ -107,14 +112,14 @@ function applyStyle(win: Window): void {
         el.id = STYLE_ID;
         doc.head.appendChild(el);
     }
-    if (el.textContent !== themeCss) el.textContent = themeCss;
+    if (el.textContent !== windowCss) el.textContent = windowCss;
 }
 
-/** The type name to style a toast of `eType` as, or null to leave it stock. O(1) (cssFor is cached per theme). */
+/** The type name to mark a toast of `eType` with, or null to leave it stock. O(1) (the CSS is cached per theme). */
 function styledName(eType: number | undefined): string | null {
     const name = typeName(eType);
     if (!name || !isEnabled('style') || !setting('style.enabled') || !activeTheme() || !handles(eType!, 'banner')) return null;
-    return cssFor(name) !== '' || animationCss() !== '' ? name : null;
+    return themeCss() !== '' || animationCss() !== '' ? name : null;
 }
 
 function applyType(win: Window): void {
@@ -197,6 +202,30 @@ function viewWindowFromFiber(el: Element): Window | null {
  * windows that ARE in the popup manager (the Big Picture main window). Runs
  * once per toast shown, no new timers.
  */
+/** The placeholder CSS for the current theme and switches ('' = Steam's place). */
+function placementCss(): string {
+    const theme = activeTheme()?.theme;
+    if (!theme || !isEnabled('placement') || !isEnabled('style') || !setting('style.enabled')) return '';
+    return buildPlaceholderCss(theme.position, themeStyle()?.margin ?? null, placeholderSelector);
+}
+
+/** Big Picture's toast position: one `<style>` in the window that holds the placeholder (theme/theme.ts buildPlaceholderCss). */
+function applyPlacement(doc: Document): void {
+    placeholderDocs.add(doc);
+    const css = placementCss();
+    let el = doc.getElementById(PLACEMENT_ID) as HTMLStyleElement | null;
+    if (!css) {
+        el?.remove();
+        return;
+    }
+    if (!el) {
+        el = doc.createElement('style');
+        el.id = PLACEMENT_ID;
+        doc.head.appendChild(el);
+    }
+    if (el.textContent !== css) el.textContent = css;
+}
+
 function scanBigPictureToastWindows(): void {
     if (!placeholderSelector) return;
     const manager = Reflect.get(globalThis, 'g_PopupManager') as { GetPopups?: () => Iterable<Popup> } | undefined;
@@ -204,7 +233,15 @@ function scanBigPictureToastWindows(): void {
         for (const popup of manager?.GetPopups?.() ?? []) {
             const doc = popup.window?.document;
             if (!doc) continue;
-            for (const el of doc.querySelectorAll(placeholderSelector)) {
+            const placeholders = doc.querySelectorAll(placeholderSelector);
+            if (placeholders.length && doc.head) {
+                try {
+                    applyPlacement(doc);
+                } catch (error) {
+                    reportError('placement', error);
+                }
+            }
+            for (const el of placeholders) {
                 const win = viewWindowFromFiber(el);
                 if (win && !win.closed && /^notificationtoasts/i.test(win.name)) track(win);
             }
@@ -223,7 +260,7 @@ function onCurrentToast(toast: CurrentToast | null | undefined): void {
 }
 
 function refresh(): void {
-    themeCss = buildThemeCss();
+    windowCss = buildThemeCss();
     forEachToastWindow(applyStyle);
     scanBigPictureToastWindows();
     const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
@@ -243,7 +280,7 @@ export function installInjector(placeholder: string | undefined, onShown: Notifi
 
     installed = true;
     placeholderSelector = placeholder;
-    themeCss = buildThemeCss();
+    windowCss = buildThemeCss();
     const subscription = current.Subscribe((toast) => toast && onCurrentToast(toast));
     offs = [
         () => subscription.Unsubscribe(),
@@ -252,7 +289,7 @@ export function installInjector(placeholder: string | undefined, onShown: Notifi
         }),
         onThemeChange(refresh),
         onSettingChange((key) => {
-            if (key === 'style.enabled') refresh();
+            if (key === 'style.enabled' || key === 'disabledFeatures') refresh();
         }),
     ];
     if (!windowHookAdded) {
@@ -278,6 +315,14 @@ export function uninstallInjector(): void {
     currentType = null;
     detachToastWindows();
     ownTypes.clear();
+    for (const doc of placeholderDocs) {
+        try {
+            doc.getElementById(PLACEMENT_ID)?.remove();
+        } catch {
+            /* a window going away mid-cleanup is fine */
+        }
+    }
+    placeholderDocs.clear();
     for (const win of toastWindows) {
         try {
             if (win.closed) continue;

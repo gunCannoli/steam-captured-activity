@@ -1,7 +1,7 @@
 import { setting } from '../../settings/settings';
 import { handles } from '../../steam/coexistence';
 import { notificationStore, typeName } from '../../steam/notification-store';
-import { activeTheme, styleFor } from '../../theme/active-theme';
+import { activeTheme, themeStyle } from '../../theme/active-theme';
 import { animatedOffset, placeToast, stackOffset, steamCorner, STEAM_TOAST_HEIGHT, STEAM_TOAST_WIDTH, type Corner } from '../../theme/placement';
 import { isEnabled, reportError } from '../../safety/runtime';
 
@@ -17,7 +17,7 @@ import { isEnabled, reportError } from '../../safety/runtime';
  *   above its content (verified live: `eType` readable at the first call). Read once, bounded, then cached; the
  *   style surface then gives this window its own `data-en-type` (desktop shows several toasts at once, so one shared
  *   "current toast" would restyle the older ones).
- * - **Place.** With the theme's `position`, a type's `popup.margin` or a theme `animation`, each of Steam's moves is
+ * - **Place.** With the theme's `position`, `popup.margin` or `animation`, each of Steam's moves is
  *   remapped from Steam's corner to the theme's (theme/placement.ts), so Steam keeps its timing and stacking.
  *
  * Passed through untouched: an achievement toast enhanced-achievements claims (it pins that popup itself, and its pin
@@ -93,9 +93,8 @@ export function attachToastWindow(win: Window, onType: (win: Window, eType: numb
     const place = (x: number, y: number): { x: number; y: number } | null => {
         if (eType === null || !isEnabled('placement') || !setting('style.enabled') || !handles(eType, 'banner')) return null;
         const theme = activeTheme()?.theme;
-        const name = typeName(eType);
-        if (!theme || !name) return null;
-        const margin = styleFor(name)?.margin ?? null;
+        if (!theme || !typeName(eType)) return null;
+        const margin = themeStyle()?.margin ?? null;
         if (!theme.position && !margin && !theme.animation) return null;
 
         const screen = win.screen as Screen & { availLeft?: number; availTop?: number };

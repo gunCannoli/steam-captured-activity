@@ -3,11 +3,11 @@ import type { NotificationHook } from '../../steam/notification-hook';
 import { typeName } from '../../steam/notification-store';
 import { handles } from '../../steam/coexistence';
 import { setting } from '../../settings/settings';
-import { audio, soundFor } from '../../theme/active-theme';
+import { audio, themeSound } from '../../theme/active-theme';
 import { isEnabled } from '../../safety/runtime';
 import { createSoundHandler } from './sound';
 
-/** The theme's sound per type instead of Steam's chime: owns the hook's one sound slot. */
+/** The theme's sound instead of Steam's chime, for every notification it handles: owns the hook's one sound slot. */
 export function createSoundSurface(hook: NotificationHook): Surface {
     return {
         id: 'sound',
@@ -18,7 +18,7 @@ export function createSoundSurface(hook: NotificationHook): Surface {
                     isEnabled: () => isEnabled('sound') && setting('sound.enabled'),
                     nameOf: typeName,
                     handles: (eType) => handles(eType, 'sound'),
-                    clipFor: soundFor,
+                    clipFor: themeSound,
                     audioState: () => audio().state,
                     resumeAudio: () => void audio().resume(),
                     playClip(clip) {

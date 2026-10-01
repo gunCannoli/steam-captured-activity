@@ -98,8 +98,8 @@ Geometry, colours, border, glow, margin, padding, and gap of the banner. (The ke
 - **`scale`**: `[width_pct, height_pct]` or scalar `pct` — size of the banner **box** relative to the default (`[100, 100]` = standard size). Text and icons keep their own sizes (`text.*` size %, icon `scale_pct`); they do not grow or shrink with the box.
 - **`width`**: *(optional)* Base banner width in px (defaults to 400 for `ps5` and `custom`, 283 for standard Steam).
 - **`height`**: *(optional)* Base banner height in px (defaults to 70 for normal cards, 48 for `compact_pill`).
-- **`margin`**: one number, `[vertical_px, horizontal_px]`, or `[top, bottom, left, right]` — distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. Only the sides the banner is anchored to count: `top_right` uses `top` and `right`. The horizontal margins are ignored for `top_center`/`bottom_center`.
-- **`padding`**: one number, `[vert_px, horiz_px]` (e.g. `[6, 12]`), or `[top, bottom, left, right]` (e.g. `[10, 5, 4, 7]`) — internal breathing room pushing banner content inward. Note the four-value order is top, bottom, left, right, not CSS's clockwise order.
+- **`margin`**: CSS shorthand, clockwise: one number, `[vertical_px, horizontal_px]`, `[top, horizontal, bottom]` or `[top, right, bottom, left]` — distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. Only the sides the banner is anchored to count: `top_right` uses `top` and `right`. The horizontal margins are ignored for `top_center`/`bottom_center`.
+- **`padding`**: CSS shorthand, clockwise: one number, `[vert_px, horiz_px]` (e.g. `[6, 12]`), `[top, horizontal, bottom]` or `[top, right, bottom, left]` (e.g. `[10, 5, 4, 7]`: 10 top, 5 right, 4 bottom, 7 left) — internal breathing room pushing banner content inward.
 - **`gap`**: `[col_gap_px, row_gap_px]` or scalar `px` — flexbox spacing between layout zones, columns, and text rows (e.g. `[10, 2]`).
 - **`background_color`**: `["#hex", ...]` — one colour is solid; two or more make a smooth gradient.
 - **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
@@ -214,7 +214,9 @@ drop it into the themes folder and pick it in the settings panel.
 
 - **Big Picture** uses Steam's own 300×80 toast frame and placement. `scale`
   and `position` do not apply there; only the desktop and in-game overlay
-  toast windows are resized and repositioned.
+  toast windows are resized and repositioned. (Big Picture's place can be
+  moved: Enhanced Notifications does it through Steam's toast placeholder,
+  see docs/steam-components.md § Toast windows. Not done here yet.)
 - **Achievement queue and other toasts.** Steam shows at most 3 desktop toasts
   at once, and a queued achievement keeps its (invisible) toast open until its
   turn. While a burst of 3+ unlocks drains, a friend or download toast can

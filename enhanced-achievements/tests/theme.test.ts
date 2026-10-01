@@ -315,10 +315,15 @@ test('pairs: a bare number or a one-element array sets both values; two elements
     assert.deepEqual(t.tiers.normal.banner.gap, [10, 5]);
 });
 
-test('edges: four values are top, bottom, left, right; a bad side keeps its default', () => {
-    const t = resolveTheme({ themes: { normal: { banner: { padding: [10, 5, 4, 7], margin: [1, 2, 'x', 4] } } } });
-    assert.deepEqual(t.tiers.normal.banner.padding, { top: 10, bottom: 5, left: 4, right: 7 });
-    assert.deepEqual(t.tiers.normal.banner.margin, { top: 1, bottom: 2, left: 0, right: 4 });
+test("edges: CSS's clockwise shorthand (top, right, bottom, left); a bad side keeps its default", () => {
+    const pad = (padding: unknown) => resolveTheme({ themes: { normal: { banner: { padding } } } }).tiers.normal.banner.padding;
+    assert.deepEqual(pad([10, 5, 4, 7]), { top: 10, right: 5, bottom: 4, left: 7 });
+    assert.deepEqual(pad([10, 5, 4]), { top: 10, right: 5, bottom: 4, left: 5 });
+    assert.deepEqual(pad([10, 5]), { top: 10, right: 5, bottom: 10, left: 5 });
+    assert.deepEqual(pad([3]), { top: 3, right: 3, bottom: 3, left: 3 });
+    assert.deepEqual(pad(3), { top: 3, right: 3, bottom: 3, left: 3 });
+    const t = resolveTheme({ themes: { normal: { banner: { margin: [1, 2, 'x', 4] } } } });
+    assert.deepEqual(t.tiers.normal.banner.margin, { top: 1, right: 2, bottom: 0, left: 4 });
 });
 
 test('tier: a preview id carries its own tier, whatever the thresholds', () => {

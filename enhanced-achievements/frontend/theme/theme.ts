@@ -196,32 +196,16 @@ function pair(raw: unknown, fallback: [number, number], min: number, max: number
 }
 
 /**
- * `margin` / `padding`: a bare `v` or `[v]` sets all four sides; `[vertical, horizontal]` sets top and bottom, then left
- * and right; `[top, bottom, left, right]` sets each (the order is top, bottom, left, right, not CSS's clockwise order).
+ * `margin` / `padding`, in CSS's shorthand order (clockwise, same in enhanced-notifications): a bare `v` or `[v]` sets
+ * all four sides; `[vertical, horizontal]`; `[top, horizontal, bottom]`; `[top, right, bottom, left]`.
  * A side that is missing or out of range keeps its default.
  */
 function edges(raw: unknown, fallback: Edges, min: number, max: number): Edges {
+    const list = typeof raw === 'number' ? [raw] : raw;
+    if (!Array.isArray(list) || list.length === 0) return fallback;
+    const [top, right = top, bottom = top, left = right] = list as unknown[];
     const side = (v: unknown, d: number) => num(v, min, max) ?? d;
-    if (typeof raw === 'number') {
-        const v = side(raw, fallback.top);
-        return { top: v, bottom: v, left: v, right: v };
-    }
-    if (!Array.isArray(raw)) return fallback;
-    if (raw.length === 1) {
-        const v = side(raw[0], fallback.top);
-        return { top: v, bottom: v, left: v, right: v };
-    }
-    if (raw.length < 4) {
-        const v = side(raw[0], fallback.top);
-        const h = side(raw[1], fallback.left);
-        return { top: v, bottom: v, left: h, right: h };
-    }
-    return {
-        top: side(raw[0], fallback.top),
-        bottom: side(raw[1], fallback.bottom),
-        left: side(raw[2], fallback.left),
-        right: side(raw[3], fallback.right),
-    };
+    return { top: side(top, fallback.top), right: side(right, fallback.right), bottom: side(bottom, fallback.bottom), left: side(left, fallback.left) };
 }
 
 /**

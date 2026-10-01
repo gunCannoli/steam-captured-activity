@@ -16,9 +16,10 @@ const THEME = process.env.THEME ?? 'steam_midnight';
 const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
     { file: 'safety.mjs', must: /^PASS {2}style on again: the preview is restyled/m },
-    { file: 'categories.mjs', theme: true, must: /^PASS {2}downloads: restyled in place/m },
+    { file: 'previews.mjs', theme: true, must: /^PASS {2}DownloadComplete: restyled in place/m },
     { file: 'sound-duration.mjs', must: /^PASS {2}settings reset, temp theme removed/m },
-    { file: 'placement.mjs', must: /^PASS {2}placement off: Steam places the toast/m },
+    { file: 'placement.mjs', must: /^(PASS {2}placement off: Steam places the toast|SKIP {2}desktop only)/m },
+    { file: 'bigpicture.mjs', must: /^(PASS {2}Big Picture: settings reset|SKIP {2}Big Picture is not open)/m },
 ];
 
 const cdp = await connect();

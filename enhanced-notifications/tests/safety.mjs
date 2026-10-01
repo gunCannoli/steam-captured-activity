@@ -36,7 +36,7 @@ async function toastWindow() {
 
 /** Preview a download toast and read its window's data-en-type (undefined: no toast shown). */
 async function previewType() {
-    await plugin(`previewCategory('downloads')`);
+    await plugin(`preview('DownloadComplete')`);
     const win = await toastWindow();
     if (!win) return undefined;
     await wait(700);

@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react';
 import { DialogBodyText, Dropdown, Field, PanelSection } from '@steambrew/client';
 import { logger } from '../logger';
 import { rpc, type ThemeEntry } from '../rpc';
-import { achievementsClaims } from '../steam/coexistence';
 import { activeTheme, onThemeChange, reloadTheme } from '../theme/active-theme';
-import { CATEGORIES, type Category } from '../theme/theme';
 import { resetSettings, setting, useSetting } from './settings';
 import { Blocks, ButtonRow, ItemRow, ToggleRow, usePanelDisabled } from './rows';
 
@@ -14,15 +12,6 @@ import { Blocks, ButtonRow, ItemRow, ToggleRow, usePanelDisabled } from './rows'
  * rows and spacing system of ./rows.tsx (a copy shared with that plugin). Themes are
  * hand-edited JSONC (shareable); the panel's job is picking one and previewing it quickly.
  */
-
-const CATEGORY_LABELS: Record<Category, [string, string]> = {
-    friends: ['Friends', "Friend online, in game, invites, voice chat. Shown only if Steam's Friends notification settings allow it"],
-    messages: ['Messages', "Chat messages, comments, trade offers. Shown only if Steam's Friends notification settings allow it"],
-    downloads: ['Downloads', 'Download complete, clip downloaded, gifts'],
-    recording: ['Recording', 'Clips, screenshots, recording start and stop'],
-    achievement: ['Achievements', 'Achievement unlocks (unless Enhanced Achievements handles them)'],
-    system: ['System', 'Everything else: cloud sync, updates, battery, controllers'],
-};
 
 /** A problem with the selected theme worth showing under the dropdown, or null when all is well. */
 function themeProblem(): string | null {
@@ -107,20 +96,22 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
     );
 }
 
-function PreviewSection({ disabled, onPreview }: { disabled: boolean; onPreview: (category: Category) => Promise<void> }) {
+/** Shows a random notification on each press. `onPreview` is injected by index.tsx: the panel never imports a surface. */
+function PreviewSection({ disabled, onPreview }: { disabled: boolean; onPreview: () => Promise<unknown> }) {
     return (
-        <PanelSection title="Preview notifications">
-            {CATEGORIES.map((category) => {
-                const [label, description] = CATEGORY_LABELS[category];
-                const note = category === 'achievement' && achievementsClaims('banner') ? '. Currently handled by Enhanced Achievements' : '';
-                return <ButtonRow key={category} label={label} description={description + note} buttonLabel="Preview" disabled={disabled} onClick={() => void onPreview(category)} />;
-            })}
+        <PanelSection title="Preview">
+            <ButtonRow
+                label="Preview a notification"
+                description="Shows a random notification with this theme: downloads, clips, cloud sync, battery, updates. Press again for another"
+                buttonLabel="Preview"
+                disabled={disabled}
+                onClick={() => void onPreview()}
+            />
         </PanelSection>
     );
 }
 
-/** `onPreview` is injected by index.tsx: the panel never imports a surface. */
-export function SettingsPanel({ onPreview }: { onPreview: (category: Category) => Promise<void> }) {
+export function SettingsPanel({ onPreview }: { onPreview: () => Promise<unknown> }) {
     const disabled = usePanelDisabled();
 
     return (

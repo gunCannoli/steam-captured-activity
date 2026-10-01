@@ -54,7 +54,11 @@ async function fire(count, ms) {
     return out.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 
-const bigPicture = await cdp.evaluate(`!!document.querySelector('[class*="GamepadMode"]') || /bigpicture/i.test(location.href)`).catch(() => false);
+if ((await cdp.evaluate(`SteamClient.UI.GetUIMode?.()`)) === 4) {
+    console.log('SKIP  desktop only: Big Picture is open (tests/bigpicture.mjs covers it)');
+    cdp.close();
+    process.exit(0);
+}
 const userDir = JSON.parse(await cdp.evaluate(`window.Millennium.callServerMethod('${PLUGIN}', 'ListThemes', { payload: '{}' })`)).userDir;
 const themePath = `${userDir}/en_place_test.jsonc`;
 writeFileSync(
@@ -62,7 +66,7 @@ writeFileSync(
     `// temporary: tests/placement.mjs
     {
         "settings": { "position": "top_left", "animation": "ps5" },
-        "default": { "popup": { "background": ["#101010"], "margin": [20, 30], "padding": [12, 6, 3, 9], "gap": [20, 4] } },
+        "popup": { "background": ["#101010"], "margin": [20, 30], "padding": [12, 6, 3, 9], "gap": [20, 4] },
     }`,
 );
 
@@ -72,7 +76,6 @@ try {
     await plugin(`setSetting('theme', 'en_place_test')`);
     for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== 'en_place_test'; i++) await wait(250);
     check('temp theme loaded', (await plugin('activeTheme()?.name')) === 'en_place_test');
-    if (bigPicture) console.log('SKIP  Big Picture open: position and animation apply to desktop toasts only');
 
     const [older, newer] = await fire(2, 1500);
     check('two desktop toast windows', !!older && !!newer, `${(await toastTargets()).length} open`);
@@ -82,7 +85,7 @@ try {
         check('newest toast at the theme corner plus margin', Math.abs(newer.x - x0) <= 2 && Math.abs(newer.y - y0) <= 2, `at ${newer.x},${newer.y}, want ${x0},${y0}`);
         check("older toast one slot inward (Steam's stacking kept)", Math.abs(older.x - x0) <= 2 && older.y - newer.y >= 60 && older.y - newer.y <= 80, `at ${older.x},${older.y}`);
         check('each window carries its own type and display time', newer.type === 'DownloadComplete' && /^\d+ms$/.test(newer.displayMs), `${newer.type} ${newer.displayMs}`);
-        check('padding [12, 6, 3, 9] on the toast template', newer.padding === '12px 9px 6px 3px', newer.padding);
+        check('padding [12, 6, 3, 9] on the toast template', newer.padding === '12px 6px 3px 9px', newer.padding);
         check('gap [20, 4]: logo to text, between rows', newer.gapX === '20px' && newer.gapY === '4px', `${newer.gapX} / ${newer.gapY}`);
         check('ps5 entrance and exit from the left', newer.animations.join() === 'en-in-ps5-left,en-out-ps5-left', newer.animations.join());
     }
@@ -92,7 +95,7 @@ try {
     await wait(300);
     const [stock] = await fire(1, 1500);
     check('placement off: Steam places the toast', !!stock && !(Math.abs(stock.x - (stock.availLeft + 30)) <= 2 && Math.abs(stock.y - (stock.availTop + 20)) <= 2), stock && `at ${stock.x},${stock.y}`);
-    check('placement off: still styled', stock?.padding === '12px 9px 6px 3px', stock?.padding);
+    check('placement off: still styled', stock?.padding === '12px 6px 3px 9px', stock?.padding);
     await wait(6000);
 } finally {
     await plugin(`resetSettings()`);

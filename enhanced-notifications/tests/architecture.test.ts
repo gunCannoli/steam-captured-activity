@@ -132,6 +132,7 @@ export const PURE = [
     'safety/runtime.ts',
     'steam/notification-hook.ts',
     'surfaces/duration/duration.ts',
+    'surfaces/preview/pick.ts',
     'surfaces/sound/sound.ts',
     'theme/jsonc.ts',
     'theme/placement.ts',

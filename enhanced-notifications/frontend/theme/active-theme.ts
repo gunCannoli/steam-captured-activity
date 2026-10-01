@@ -5,10 +5,11 @@ import { parseJsonc } from './jsonc';
 import { buildAnimationCss, buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
 
 /**
- * The active theme, with sounds pre-decoded and per-type CSS cached.
+ * The active theme, with its sound pre-decoded and its CSS cached.
  *
- * Loading happens once per theme change. Toast-time reads (`styleFor`,
- * `cssFor`, `soundFor`) are map lookups: no disk, RPC or network work per toast.
+ * Loading happens once per theme change. Toast-time reads (`themeStyle`,
+ * `themeCss`, `animationCss`, `themeSound`) are cached values: no disk, RPC or
+ * network work per toast.
  */
 
 export interface LoadedTheme {
@@ -22,7 +23,8 @@ let loaded: LoadedTheme | null = null;
 let loading: Promise<void> | null = null;
 let audioContext: AudioContext | null = null;
 let selectors: ToastSelectors = {};
-const cssCache = new Map<string, string>();
+/** The theme's CSS, built once per theme load; undefined = not built yet. */
+let cssCache: string | undefined;
 /** The theme's entrance/exit CSS, built once per theme load; undefined = not built yet. */
 let animationCache: string | undefined;
 const listeners = new Set<() => void>();
@@ -44,24 +46,20 @@ export function audio(): AudioContext {
 /** Set once at startup, before the first toast. */
 export function setSelectors(value: ToastSelectors): void {
     selectors = value;
-    cssCache.clear();
+    cssCache = undefined;
     animationCache = undefined;
 }
 
-export function styleFor(typeName: string): ResolvedStyle | null {
-    return loaded?.theme.styleFor(typeName) ?? null;
+/** The one style every notification gets, or null with no theme loaded. */
+export function themeStyle(): ResolvedStyle | null {
+    return loaded?.theme.style ?? null;
 }
 
-/** Scoped CSS for a type, generated once per theme and cached. '' = leave stock. */
-export function cssFor(typeName: string): string {
-    const style = styleFor(typeName);
-    if (!style) return '';
-    let css = cssCache.get(typeName);
-    if (css === undefined) {
-        css = buildCss(typeName, style, selectors);
-        cssCache.set(typeName, css);
-    }
-    return css;
+/** The theme's CSS (the same for every notification), generated once per theme and cached. '' = leave stock. */
+export function themeCss(): string {
+    if (!loaded) return '';
+    cssCache ??= buildCss(loaded.theme.style, selectors);
+    return cssCache;
 }
 
 /** The theme's entrance and exit CSS (one block for every type), cached. '' = Steam's own slide. */
@@ -71,9 +69,9 @@ export function animationCss(): string {
     return animationCache;
 }
 
-/** Theme sound for a type: a decoded clip, `false` to mute, or `null` for Steam's own. */
-export function soundFor(typeName: string): { buffer: AudioBuffer; volume: number } | false | null {
-    const spec = styleFor(typeName)?.sound;
+/** The theme's sound: a decoded clip, `false` to mute, or `null` for Steam's own. */
+export function themeSound(): { buffer: AudioBuffer; volume: number } | false | null {
+    const spec = themeStyle()?.sound;
     if (spec === false) return false;
     if (!spec) return null;
     const buffer = loaded?.audio.get(spec.path);
@@ -107,13 +105,13 @@ async function load(name: string): Promise<void> {
             }
         }
         loaded = { name, theme, audio: decoded };
-        cssCache.clear();
+        cssCache = undefined;
         animationCache = undefined;
         for (const warning of theme.warnings) logger.warn(`Theme "${name}": ${warning}`);
         logger.info(`Theme "${name}" loaded (${decoded.size} sounds).`);
     } catch (error) {
         loaded = null;
-        cssCache.clear();
+        cssCache = undefined;
         animationCache = undefined;
         logger.error(`Theme "${name}" could not be loaded; toasts stay stock.`, error);
     }

@@ -1,5 +1,6 @@
 // Notification hook, its composition with enhanced-achievements' identical hook, the sound decision,
 // the duration plan and the surface runner. Fake `proto` and `owner` objects: nothing here needs Steam.
+import { pickPreview } from '../frontend/surfaces/preview/pick.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installNotificationHook, type SoundHandler } from '../frontend/steam/notification-hook.ts';
@@ -217,4 +218,21 @@ test('surface: a shared target throws before anything installs; a failing instal
         status.map((s) => s.skipped),
         ['disabled', 'failed', null],
     );
+});
+
+test('preview: a random type, never the same twice in a row when there is a choice', () => {
+    const ids = ['A', 'B', 'C'];
+    assert.equal(pickPreview(ids, null, () => 0), 'A');
+    assert.equal(pickPreview(ids, 'A', () => 0), 'B', 'the last one is skipped');
+    assert.equal(pickPreview(ids, 'A', () => 0.999), 'C');
+    assert.equal(pickPreview(['A'], 'A', () => 0.5), 'A', 'one choice: repeats');
+    assert.equal(pickPreview([], null), null);
+    const seen = new Set<string>();
+    let last: string | null = null;
+    for (let i = 0; i < 50; i++) {
+        const next = pickPreview(ids, last)!;
+        assert.notEqual(next, last);
+        seen.add((last = next));
+    }
+    assert.equal(seen.size, 3);
 });
