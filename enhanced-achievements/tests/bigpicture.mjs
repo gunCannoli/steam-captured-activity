@@ -1,7 +1,11 @@
 // Live Big Picture check. Run with Big Picture open
 // (SteamClient.URL.ExecuteSteamURL('steam://open/bigpicture')).
 // Fires Steam's test achievement and asserts the themed banner renders in Big
-// Picture's toast window. SCREENSHOT=out.png captures it.
+// Picture's toast window. SCREENSHOT=out.png captures it. Then a download toast
+// queued behind a second banner must not restyle it while it shows (the Big
+// Picture flicker, docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md;
+// meaningful when enhanced-notifications is loaded too). Run it with Big Picture
+// in front: a hidden window does not paint, so its animations never start.
 import { connect } from './cdp.mjs';
 
 const cdp = await connect();
@@ -48,6 +52,23 @@ try {
         const ok = last !== null && last < 0.1 && max > 0.9;
         console.log(`${ok ? 'PASS' : 'FAIL'}  exit animation finished before Steam removed the banner  (last opacity ${last}, max opacity ${max})`);
         if (!ok) failed = true;
+
+        // A queued toast must not restyle the banner on screen: until the banner is done, its animation stays ours
+        // and its window carries no enhanced-notifications type.
+        await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
+        await new Promise((r) => setTimeout(r, 1500));
+        await cdp.evaluate(`(window.NotificationStore.TestDownloadComplete(435150), true)`);
+        const states = [];
+        for (let t = 0; t < 8_000; t += 50) {
+            const s = await win.evaluate(`(() => { const b = document.querySelector('.ea-banner:not(.ea-done)'); return b ? (document.body.getAttribute('data-en-type') ?? '-') + ' | ' + getComputedStyle(b).animationName : null; })()`);
+            if (s === null && states.length) break;
+            if (s !== null && states[states.length - 1] !== s) states.push(s);
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        const kept = states.length === 1 && states[0].startsWith('- | ea-');
+        console.log(`${kept ? 'PASS' : 'FAIL'}  a queued toast does not restyle the banner on screen  ${JSON.stringify(states)}`);
+        if (!kept) failed = true;
+        await new Promise((r) => setTimeout(r, 7000)); // let the queued download finish
     }
     win.close();
 } finally {

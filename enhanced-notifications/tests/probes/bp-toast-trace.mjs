@@ -21,10 +21,10 @@
 //                            shows whether the showing toast's styling changes when the next one arrives
 //   --pattern fresh          remove our placement <style> from the Big Picture window first (as in a Big Picture
 //                            window opened after start-up), then one toast: is the style back before Steam measures?
-//   --source arrival|shown|pop   where the plugin takes Big Picture's toast type from (frontend/surfaces/style/bp-debug.ts):
-//                            arrival = today's behaviour; shown = only the shared hook's onShown; pop = this probe wraps
-//                            NotificationStore.PopNextToastNotification (the moment Steam hands a toast to the view,
-//                            before it renders) and feeds the plugin's `manual` type. Reset to arrival afterwards.
+//   --source pop|shown|arrival|manual   where the plugin takes the toast type from (frontend/surfaces/style/type-source.ts):
+//                            pop = the default (Steam hands the toast to the view, before it renders); shown = the
+//                            shared hook's onShown (a frame late); arrival = the old behaviour that caused the flicker;
+//                            manual = none (set it with debugBigPictureType). Reset to pop afterwards.
 //   --ms 15000               how long to record
 import { rmSync, writeFileSync } from 'node:fs';
 import { connect, resolvePluginName } from '../cdp.mjs';
@@ -45,7 +45,7 @@ if ((await s.evaluate(`SteamClient.UI.GetUIMode?.()`)) !== 4) {
 }
 
 const spec = arg('theme', null);
-const source = arg('source', 'arrival');
+const source = arg('source', 'pop');
 const pattern = arg('pattern', 'one');
 const ms = Number(arg('ms', pattern === 'one' ? 9000 : pattern === 'mixed' || pattern === 'queue' ? 2000 : 18000));
 let themePath = null;
@@ -66,7 +66,7 @@ if (spec) {
     if (pattern !== 'first') await useTheme('en_bp_trace');
 }
 
-await plugin(`debugBigPicture({ enabled: true, typeSource: '${source === 'pop' ? 'manual' : source}' })`);
+await plugin(`debugBigPicture({ enabled: true, typeSource: '${source}' })`);
 await plugin('bigPictureTrace(true)');
 const installed = await s.evaluate(`(() => {
     const log = (window.__bpTrace = []);
@@ -91,16 +91,6 @@ const installed = await s.evaluate(`(() => {
         const own = Object.prototype.hasOwnProperty.call(bv, m);
         bv[m] = function (...a) { log.push({ t: at(), ev: m, a, stack: m === 'SetBounds' ? (new Error().stack || '').split('\\n').slice(2, 5).map((x) => x.trim()).join(' | ') : undefined }); return orig.apply(this, a); };
         undo.push(() => { if (own) bv[m] = orig; else delete bv[m]; });
-    }
-    if (${JSON.stringify(source)} === 'pop') {
-        const ns = NotificationStore;
-        const orig = ns.PopNextToastNotification;
-        ns.PopNextToastNotification = function (...a) {
-            const n = orig.apply(this, a);
-            if (n) { log.push({ t: at(), ev: 'pop', ctx: a[0], eType: n.eType, id: n.notificationID }); window.PLUGIN_LIST['${PLUGIN}'].debugBigPictureType(n.eType); }
-            return n;
-        };
-        undo.push(() => { delete ns.PopNextToastNotification; });
     }
     const store = NotificationStore.CurrentToastSubscribableValue;
     const sub = store.Subscribe((n) => log.push({ t: at(), ev: 'currentToast', eType: n?.eType ?? null, id: n?.notificationID ?? null }));
@@ -197,7 +187,7 @@ try {
     await s.evaluate(`(window.__bpTraceStop?.(), true)`);
     const t0 = await s.evaluate('window.__bpT0');
     const own = (await plugin('bigPictureTrace(true)')) ?? [];
-    await plugin(`debugBigPicture({ enabled: false, typeSource: 'arrival' })`);
+    await plugin(`debugBigPicture({ enabled: false, typeSource: 'pop' })`);
     for (const e of own) log.push({ ...e, t: Math.round(e.t - t0), ev: `plugin:${e.ev}` });
     log.sort((a, b) => a.t - b.t);
     if (log.some((e) => e.ev === 'visibility' && e.v === 'hidden')) console.log('WARN  Big Picture was not in front: animations do not start in a hidden window');

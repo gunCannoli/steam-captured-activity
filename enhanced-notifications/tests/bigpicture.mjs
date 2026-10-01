@@ -2,7 +2,11 @@
 // a temporary theme with position, margin, padding and animation (deleted afterwards). Checks that Big Picture's toast
 // view moves to the theme corner (it follows the placeholder in the Big Picture window), that the theme animation
 // replaces Steam's on the toast template, that the restyle applies, and that the `placement` kill switch gives
-// Steam's place back.
+// Steam's place back. Then the flicker regressions (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md):
+// a toast queued behind the one on screen never restyles it, in both orders (with enhanced-achievements drawing the
+// achievement, its banner never gets our type or animation), every place Steam sends the view is the theme's, and the
+// placement style is in place before Steam measures, even in a window that did not have it yet.
+// Run it with Big Picture in front: a hidden window does not paint, so its animations never start.
 import { rmSync, writeFileSync } from 'node:fs';
 import { connect, resolvePluginName } from './cdp.mjs';
 
@@ -52,6 +56,86 @@ async function fire() {
     return r;
 }
 
+/**
+ * Fire `first`, then `second` 1.5 s later (queued behind it), and record, for each toast template while the toast
+ * is on screen (the placeholder is displayed): `data-en-type | animation-name` each time it changes, and every
+ * non-empty SetBounds Steam sends the view. Sampled every 40 ms from SharedJSContext.
+ */
+async function queued(first, second) {
+    return JSON.parse(
+        await cdp.evaluate(`(async () => {
+            let main = null, ph = null, popup = null;
+            for (const p of g_PopupManager.GetPopups()) {
+                const el = p.window?.document?.querySelector('[class*="GamepadToastPlaceholder"]');
+                if (!el) continue;
+                const k = Object.keys(el).find((x) => x.startsWith('__reactFiber'));
+                for (let f = el[k], d = 0; f && d < 4 && !popup; f = f.return, d++)
+                    for (let h = f.memoizedState, i = 0; h && i < 16; h = h.next, i++) if (h.memoizedState?.GetViewWindow) { popup = h.memoizedState; break; }
+                main = p.window; ph = el;
+                break;
+            }
+            if (!popup) return 'null';
+            const view = popup.GetViewWindow(), bv = popup.GetBrowserView();
+            const bounds = [];
+            const own = Object.prototype.hasOwnProperty.call(bv, 'SetBounds'), orig = bv.SetBounds;
+            bv.SetBounds = function (x, y, w, h) { if (w > 0) bounds.push([Math.round(x), Math.round(y)]); return orig.apply(this, arguments); };
+            const seen = [];
+            const timer = setInterval(() => {
+                if (main.getComputedStyle(ph).display === 'none') return;
+                const el = view.document.querySelector('[class*="GamepadToastPopup"] > *');
+                if (!el) return;
+                if (!el.__enQueued) seen.push((el.__enQueued = { banner: String(el.className).includes('ea-banner'), states: [] }));
+                const state = (view.document.body.getAttribute('data-en-type') ?? '-') + ' | ' + view.getComputedStyle(el).animationName;
+                const states = el.__enQueued.states;
+                if (states[states.length - 1] !== state) states.push(state);
+            }, 40);
+            NotificationStore.${first};
+            await new Promise((r) => setTimeout(r, 1500));
+            NotificationStore.${second};
+            await new Promise((r) => setTimeout(r, 13000));
+            clearInterval(timer);
+            if (own) bv.SetBounds = orig; else delete bv.SetBounds;
+            return JSON.stringify({ seen, bounds });
+        })()`),
+    );
+}
+
+/** Each queued run: two toasts seen, each with one state for its whole time on screen, the banner never ours. */
+function checkQueued(label, r) {
+    check(`${label}: both toasts shown`, r?.seen?.length === 2, JSON.stringify(r?.seen));
+    for (const [i, t] of (r?.seen ?? []).entries()) {
+        check(`${label}: toast ${i + 1} keeps one style while on screen`, t.states.length === 1, JSON.stringify(t.states));
+        if (t.banner) check(`${label}: enhanced-achievements' banner never gets our type or animation`, t.states.every((s) => s.startsWith('- | ') && !/\ben-/.test(s)), JSON.stringify(t.states));
+        else check(`${label}: toast ${i + 1} has the theme's animation`, t.states.every((s) => s.endsWith('en-in-fade, en-out-fade')), JSON.stringify(t.states));
+    }
+    check(`${label}: Steam always sends the view to the theme's place`, (r?.bounds?.length ?? 0) >= 2 && r.bounds.every(([x, y]) => Math.abs(x - 30) <= 2 && Math.abs(y - 20) <= 2), JSON.stringify(r?.bounds));
+}
+
+/** Remove our placement style (as in a Big Picture window opened after start-up), fire a toast: Steam's first SetBounds is already the theme's. */
+async function fresh() {
+    return JSON.parse(
+        await cdp.evaluate(`(async () => {
+            let bv = null;
+            for (const p of g_PopupManager.GetPopups()) {
+                const el = p.window?.document?.querySelector('[class*="GamepadToastPlaceholder"]');
+                if (!el) continue;
+                p.window.document.getElementById('enhanced-notifications-placement')?.remove();
+                const k = Object.keys(el).find((x) => x.startsWith('__reactFiber'));
+                for (let f = el[k], d = 0; f && d < 4 && !bv; f = f.return, d++)
+                    for (let h = f.memoizedState, i = 0; h && i < 16; h = h.next, i++) if (h.memoizedState?.GetBrowserView) { bv = h.memoizedState.GetBrowserView(); break; }
+            }
+            if (!bv) return 'null';
+            const bounds = [];
+            const own = Object.prototype.hasOwnProperty.call(bv, 'SetBounds'), orig = bv.SetBounds;
+            bv.SetBounds = function (x, y, w, h) { if (w > 0) bounds.push([Math.round(x), Math.round(y)]); return orig.apply(this, arguments); };
+            NotificationStore.TestDownloadComplete(435150);
+            await new Promise((r) => setTimeout(r, 7000));
+            if (own) bv.SetBounds = orig; else delete bv.SetBounds;
+            return JSON.stringify(bounds);
+        })()`),
+    );
+}
+
 const userDir = JSON.parse(await cdp.evaluate(`window.Millennium.callServerMethod('${PLUGIN}', 'ListThemes', { payload: '{}' })`)).userDir;
 const themePath = `${userDir}/en_bp_test.json`;
 writeFileSync(themePath, JSON.stringify({ settings: { position: 'top_left', animation: 'fade' }, popup: { background: ['#101010'], margin: [20, 30], padding: [4, 8] } }));
@@ -67,6 +151,11 @@ try {
     check('restyled', themed?.type === 'DownloadComplete', themed?.type);
     check("theme animation replaces Steam's", themed?.animations === 'en-in-fade, en-out-fade', themed?.animations);
     check('padding [4, 8] on the toast template', themed?.padding === '4px 8px', themed?.padding);
+
+    checkQueued('achievement queued behind a download', await queued('TestDownloadComplete(435150)', 'TestAchievement(435150)'));
+    checkQueued('download queued behind an achievement', await queued('TestAchievement(435150)', 'TestDownloadComplete(435150)'));
+    const first = await fresh();
+    check('fresh window: placement in place before Steam measures', first?.[0] && Math.abs(first[0][0] - 30) <= 2 && Math.abs(first[0][1] - 20) <= 2, JSON.stringify(first));
 
     await plugin(`setSetting('disabledFeatures', 'placement')`);
     await wait(300);

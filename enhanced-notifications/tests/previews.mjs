@@ -1,6 +1,8 @@
 // Live test: press the settings panel's Preview (the plugin's own preview()) several times and check each toast is a
 // different type from the one before and is restyled in place (body data-en-type + popup paint), with Steam's
 // content kept; then preview DownloadComplete by id. SHOTS_DIR=<dir> saves a screenshot per toast.
+// Big Picture shows one toast at a time and queues the rest (a Warning toast such as LowBattery stays about 15 s), and
+// the restyle follows the toast on screen, not the last one fired: each preview waits until nothing shows or waits.
 import { connect, resolvePluginName } from './cdp.mjs';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -32,8 +34,25 @@ async function toastWindow() {
     return null;
 }
 
+/** Until no toast shows (Big Picture's placeholder hidden) and none waits in Steam's queue; at most 30 s. */
+async function idle() {
+    for (let i = 0; i < 60; i++) {
+        const busy = await cdp.evaluate(`(() => {
+            if ((NotificationStore.m_rgNotificationToasts?.length ?? 0) > 0) return true;
+            for (const p of g_PopupManager.GetPopups()) {
+                const el = p.window?.document?.querySelector('[class*="GamepadToastPlaceholder"]');
+                if (el && p.window.getComputedStyle(el).display !== 'none') return true;
+            }
+            return false;
+        })()`);
+        if (!busy) return;
+        await wait(500);
+    }
+}
+
 /** Preview (random, or `id`), then read the toast window. */
 async function show(id) {
+    await idle();
     const shown = await cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].preview(${id ? JSON.stringify(id) : ''})`);
     const win = await toastWindow();
     if (!win) return { shown, r: null };
