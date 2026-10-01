@@ -118,6 +118,9 @@ export function manualOfUrl(url: unknown): { appid: number; key: string } | unde
  * object URL (app/media fetched it); an item that cannot be shown is left out. A manual shows its first page
  * (`coverOf(key)`, app/manuals) and the placeholder cover until that is rendered.
  */
+/** The caption of a card whose item has none (IGDB images, items cached before captions existed). */
+const DEFAULT_TITLES: Record<MediaItem["kind"], string> = { video: "Video", screenshot: "Screenshot", artwork: "Artwork", manual: "Manual" };
+
 export function toFeedItems(
     appid: number,
     items: readonly MediaItem[],
@@ -167,7 +170,7 @@ export function toFeedItems(
         out.push({
             published_file_id: feedId(appid, index),
             type,
-            title: item.title ?? "",
+            title: item.title || DEFAULT_TITLES[item.kind],
             description: "",
             preview_image_url: preview,
             full_image_url: full,
@@ -234,6 +237,63 @@ export function shouldLoadFirstPage(
     if (!loader || loader.m_nNextPage !== 1 || loader.m_bHasEmptyRows !== true) return false;
     const appid = toShortcutId(loader.m_unAppID);
     return appid !== undefined && hasFeed(appid);
+}
+
+/** A page-1 answer with no cards: Steam shows its own "no more content" line. */
+export const EMPTY_ANSWER = (): { vecContent: FeedItem[]; mapVotes: Map<string, unknown> } => ({ vecContent: [], mapVotes: new Map() });
+
+/** How long a feed whose manual has no first-page cover yet waits for it before it is served with the placeholder (ms). */
+export const COVER_WAIT_MS = 8_000;
+
+/** How long a shortcut's first page waits for its media before Steam is told there is nothing (ms). */
+export const FIRST_PAGE_HOLD_MS = 120_000;
+
+export interface FirstPageHold {
+    /** A promise Steam's loader awaits: its answer once `release(appid)` runs, or after the time limit. */
+    hold(appid: number): Promise<unknown>;
+    /** The shortcut's feed is ready, or no feed will come: answer everything held for it. */
+    release(appid: number): void;
+    releaseAll(): void;
+}
+
+/**
+ * Steam keeps its placeholder rows (and their loading animation) while the loader's call is pending. For a shortcut whose
+ * media is still being fetched the first page is held instead of answered empty, so the section shows Steam's own loading
+ * state and then the real cards. `answerFor` builds the answer at release time (the feed, else an empty page).
+ */
+export function createFirstPageHold(
+    answerFor: (appid: number) => unknown,
+    ms: number = FIRST_PAGE_HOLD_MS,
+    timers: { set: (fn: () => void, ms: number) => unknown; clear: (id: unknown) => void } = {
+        set: (fn, delay) => setTimeout(fn, delay),
+        clear: (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
+    },
+): FirstPageHold {
+    const held = new Map<number, Array<() => void>>();
+    const release = (appid: number): void => {
+        const waiting = held.get(appid);
+        held.delete(appid);
+        waiting?.forEach((done) => done());
+    };
+    return {
+        hold(appid) {
+            return new Promise((resolve) => {
+                let timer: unknown;
+                const done = () => {
+                    timers.clear(timer);
+                    resolve(answerFor(appid));
+                };
+                timer = timers.set(done, ms);
+                const list = held.get(appid) ?? [];
+                list.push(done);
+                held.set(appid, list);
+            });
+        },
+        release,
+        releaseAll() {
+            for (const appid of [...held.keys()]) release(appid);
+        },
+    };
 }
 
 /** Is this a published file id of ours (15 digits from FEED_ID_BASE)? O(1). */

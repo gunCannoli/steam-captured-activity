@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { IGDB_PURPLE, IGDB_ICON, SCREENSCRAPER_ICON } from '../frontend/surfaces/community/icons.ts';
-import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, MANUAL_CARD_HEIGHT, MANUAL_CARD_WIDTH, MANUAL_COVER, MANUAL_SCROLL_TEXT, isScrollLabel, manualCoverUrl, manualOfUrl, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
+import { cardElement, CREATOR_AVATARS, CREATOR_STEAMIDS, feedId, FEED_ID_BASE, FILE_TYPE, isContentSection, isCreatedByLabel, loaderIsStale, isDateRow, isOurFeedId, isPlaceholderAppIcon, isViewerImage, VIEWER_IMAGE_MAX_HEIGHT, loaderAnswer, createFirstPageHold, EMPTY_ANSWER, MANUAL_CARD_HEIGHT, MANUAL_CARD_WIDTH, MANUAL_COVER, MANUAL_SCROLL_TEXT, isScrollLabel, manualCoverUrl, manualOfUrl, shouldLoadFirstPage, sourceOfAccount, toFeedItems } from '../frontend/surfaces/community/core.ts';
 
 const SC = 4263274102;
 const none = () => undefined;
@@ -229,4 +229,36 @@ test('community core: the viewer\'s "Scroll down for comments" line is found, an
     assert.ok(!isScrollLabel('span', { className: 'ScrollForMore', children: ['Scroll down for comments'] }));
     assert.ok(!isScrollLabel('div', null));
     assert.equal(MANUAL_SCROLL_TEXT, 'Scroll down to view the manual');
+});
+
+test('community core: every card has a caption; an item without one gets its kind\'s', () => {
+    const items = [
+        { kind: 'screenshot', source: 'igdb', url: 'https://i/a.jpg', width: 1000, height: 583 },
+        { kind: 'artwork', source: 'igdb', url: 'https://i/b.jpg', width: 1000, height: 583 },
+        { kind: 'video', source: 'igdb', youtube: 'abc' },
+        { kind: 'artwork', source: 'igdb', url: 'https://i/c.jpg', width: 1000, height: 583, title: 'Own caption' },
+    ] as any;
+    assert.deepEqual(toFeedItems(SC, items, none).map((c) => c.title), ['Screenshot', 'Artwork', 'Video', 'Own caption']);
+});
+
+test('community core: a first page is held until released (or the limit), then answered with the feed or an empty page', async () => {
+    const timers: Array<() => void> = [];
+    const hold = createFirstPageHold((appid) => ({ appid }), 1000, { set: (fn) => (timers.push(fn), timers.length - 1), clear: () => {} });
+    let answer: unknown;
+    const pending = hold.hold(7).then((a) => (answer = a));
+    await Promise.resolve();
+    assert.equal(answer, undefined, 'still waiting');
+    hold.release(8);
+    await Promise.resolve();
+    assert.equal(answer, undefined, 'another shortcut does not release it');
+    hold.release(7);
+    await pending;
+    assert.deepEqual(answer, { appid: 7 });
+    const second = hold.hold(9);
+    timers[timers.length - 1]!();
+    assert.deepEqual(await second, { appid: 9 }, 'the time limit answers too');
+    const third = hold.hold(3);
+    hold.releaseAll();
+    assert.deepEqual(await third, { appid: 3 });
+    assert.deepEqual(EMPTY_ANSWER().vecContent, []);
 });

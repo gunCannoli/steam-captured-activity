@@ -11,7 +11,7 @@
 // prototype. The first page loads >= 1 s after the section mounts, so the patch is in place before it.
 import { afterPatch, callOriginal, replacePatch } from "@steambrew/client";
 import { logger } from "../../logger";
-import type { ShortcutId } from "../../kernel/appid";
+import { toShortcutId, type ShortcutId } from "../../kernel/appid";
 import type { EventBus } from "../../kernel/events";
 import type { ManualView } from "../../kernel/manual-shelf";
 import type { MediaImage } from "../../kernel/media-bin";
@@ -27,12 +27,16 @@ import {
     isContentSection,
     isCreatedByLabel,
     loaderIsStale,
+    COVER_WAIT_MS,
+    createFirstPageHold,
+    EMPTY_ANSWER,
     isDateRow,
     isScrollLabel,
     isPlaceholderAppIcon,
     isViewerImage,
     loaderAnswer,
     MANUAL_SCROLL_TEXT,
+    manualCoverUrl,
     manualOfUrl,
     shouldLoadFirstPage,
     sourceOfAccount,
@@ -86,6 +90,12 @@ const viewerMeta = new Map<string, ViewerMeta>();
 const viewerUrlsByApp = new Map<number, string[]>();
 let cardsHook: ReturnType<typeof keepJsxPatched> | undefined;
 let cardsHidden = 0;
+/** First-page loads held while a shortcut's media is being fetched (core.createFirstPageHold). */
+const firstPageHold = createFirstPageHold((appid) => loaderAnswer(appid, 1, (id) => feeds.get(id)) ?? EMPTY_ANSWER());
+/** Shortcuts whose media part is final here: a feed exists, or none will (so nothing is held for them). */
+const settled = new Set<number>();
+/** Shortcuts whose feed waits for the manual's first-page cover: 'waiting' until it arrives or COVER_WAIT_MS passes, then 'done' (once per session). */
+const coverWait = new Map<number, "waiting" | "done">();
 /** The manual page column (surfaces/community/manual.ts), made once the jsx runtime is found. */
 let ManualPages: ((props: { appid: number; manualKey: string }) => unknown) | undefined;
 /** How many of our image viewers are open: the viewer-only tweaks (label, date, image height) apply only then. */
@@ -134,7 +144,16 @@ function patchLoader(section: new (props: unknown) => { m_loader?: object }): vo
         if (!deps.isEnabled("community")) return callOriginal;
         try {
             const answer = loaderAnswer(args[0], args[1], (appid) => feeds.get(appid));
-            if (!answer) return callOriginal;
+            if (!answer) {
+                // A shortcut whose media is still being fetched: keep Steam's placeholder rows loading (they animate
+                // while this call is pending) and answer when the feed is ready.
+                const appid = toShortcutId(args[0]);
+                if (appid !== undefined && Number(args[1]) <= 1 && !settled.has(appid)) {
+                    served++;
+                    return firstPageHold.hold(appid);
+                }
+                return callOriginal;
+            }
             served++;
             return Promise.resolve(answer);
         } catch (err) {
@@ -147,7 +166,7 @@ function patchLoader(section: new (props: unknown) => { m_loader?: object }): vo
     const loadFirstPage = function (this: unknown, _args: unknown[], ret: unknown): unknown {
         try {
             const loader = this as { LoadAdditionalContent?: () => void; m_nNextPage?: unknown; m_bHasEmptyRows?: unknown; m_unAppID?: unknown };
-            if (deps.isEnabled("community") && typeof loader.LoadAdditionalContent === "function" && shouldLoadFirstPage(loader, (appid) => feeds.has(appid))) {
+            if (deps.isEnabled("community") && typeof loader.LoadAdditionalContent === "function" && shouldLoadFirstPage(loader, (appid) => feeds.has(appid) || !settled.has(appid))) {
                 firstPageLoads++;
                 loader.LoadAdditionalContent();
             }
@@ -316,7 +335,13 @@ function forgetViewerMeta(appid: number): void {
 }
 
 /** The viewer opens the image a card shows: remember which source and date belong to that URL. Videos open YouTube instead. */
-function rememberViewerMeta(appid: number, feed: FeedItem[], checkedAtMs: number, manualsByUrl: ReadonlyMap<string, { appid: number; key: string }>): void {
+function rememberViewerMeta(
+    appid: number,
+    feed: FeedItem[],
+    checkedAtMs: number,
+    manualsByUrl: ReadonlyMap<string, { appid: number; key: string }>,
+    manualKeys: readonly string[],
+): void {
     forgetViewerMeta(appid);
     const urls: string[] = [];
     const seconds = Math.floor(checkedAtMs / 1000);
@@ -326,6 +351,14 @@ function rememberViewerMeta(appid: number, feed: FeedItem[], checkedAtMs: number
         if (!source) continue;
         viewerMeta.set(card.full_image_url, { source, seconds, manual: manualsByUrl.get(card.full_image_url) ?? manualOfUrl(card.full_image_url) });
         urls.push(card.full_image_url);
+    }
+    // A manual's card can hold either cover (Steam keeps the feed it was served, which may predate the first-page cover):
+    // both URLs open the manual's pages.
+    for (const key of manualKeys) {
+        const placeholder = manualCoverUrl(appid, key);
+        if (viewerMeta.has(placeholder)) continue;
+        viewerMeta.set(placeholder, { source: "screenscraper", seconds, manual: { appid, key } });
+        urls.push(placeholder);
     }
     viewerUrlsByApp.set(appid, urls);
 }
@@ -387,6 +420,10 @@ export function createCommunitySurface(d: CommunityDeps): Surface {
             if (items.length === 0) {
                 forgetViewerMeta(appid);
                 feeds.delete(appid);
+                if (media && media.status !== "pending") {
+                    settled.add(appid); // nothing will come: Steam is told there is no content
+                    firstPageHold.release(appid);
+                }
                 return;
             }
             const feed = toFeedItems(appid, items, (key) => deps.imageOf(appid, key), (key) => deps.coverOf(appid, key));
@@ -397,12 +434,32 @@ export function createCommunitySurface(d: CommunityDeps): Surface {
                 const cover = item.kind === "manual" && item.key ? deps.coverOf(appid, item.key) : undefined;
                 if (cover) manualsByUrl.set(cover, { appid, key: item.key! });
             }
-            rememberViewerMeta(appid, feed, typeof media?.checkedAt === "number" ? media.checkedAt : Date.now(), manualsByUrl);
+            const manualKeys = items.filter((item) => item.kind === "manual" && item.key).map((item) => item.key!);
+            rememberViewerMeta(appid, feed, typeof media?.checkedAt === "number" ? media.checkedAt : Date.now(), manualsByUrl, manualKeys);
             installCards();
+            // Serve the feed once its manual has the first-page cover, or after COVER_WAIT_MS (the cover job reads a PDF).
+            const coverMissing = manualKeys.some((key) => !deps.coverOf(appid, key));
+            if (coverMissing && coverWait.get(appid) !== "done") {
+                if (!coverWait.has(appid)) {
+                    coverWait.set(appid, "waiting");
+                    setTimeout(() => {
+                        coverWait.set(appid, "done");
+                        settled.add(appid);
+                        firstPageHold.release(appid);
+                    }, COVER_WAIT_MS);
+                }
+                return;
+            }
+            coverWait.set(appid, "done");
+            settled.add(appid);
+            firstPageHold.release(appid);
         },
         clear: (appid) => {
             forgetViewerMeta(appid);
             feeds.delete(appid);
+            settled.delete(appid);
+            coverWait.delete(appid);
+            firstPageHold.release(appid);
         },
         uninstall() {
             unpatchLoader?.();
@@ -412,6 +469,9 @@ export function createCommunitySurface(d: CommunityDeps): Surface {
             cardsHook?.dispose();
             cardsHook = undefined;
             learnScheduled = false;
+            firstPageHold.releaseAll();
+            settled.clear();
+            coverWait.clear();
             feeds.clear();
             viewerMeta.clear();
             viewerUrlsByApp.clear();

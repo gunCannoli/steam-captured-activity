@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isShowable, MAX_PER_KIND, visibleMedia } from '../frontend/domain/community-media.ts';
+import { wantsCommunitySection } from '../frontend/surfaces/sections/community.ts';
 
 const ON = { trailers: true, artworks: true };
 const video = (id = 'yt1') => ({ kind: 'video', source: 'igdb', youtube: id }) as any;
@@ -53,4 +54,14 @@ test('community media: a ScreenScraper manual is the first card, behind its own 
     assert.deepEqual(visibleMedia(media, { ...ON, manuals: true }), [manual, video(), ssArt, shot(1)]);
     assert.deepEqual(visibleMedia(media, { ...ON, manuals: false }), [video(), ssArt, shot(1)]);
     assert.deepEqual(visibleMedia(media, { trailers: false, artworks: false, manuals: true }), [manual]);
+});
+
+test('community media: the section shows with cards, and while the media is being fetched, never for a settled part with none', () => {
+    assert.ok(wantsCommunitySection(undefined), 'no part yet: being fetched');
+    assert.ok(wantsCommunitySection({ status: 'pending' }));
+    assert.ok(wantsCommunitySection({ status: 'ok', data: { items: [{}] } }));
+    assert.ok(!wantsCommunitySection({ status: 'ok', data: { items: [] } }));
+    assert.ok(!wantsCommunitySection({ status: 'error' }));
+    assert.ok(!wantsCommunitySection({ status: 'unsupported' }));
+    assert.ok(!wantsCommunitySection({ status: 'needs-setup' }));
 });

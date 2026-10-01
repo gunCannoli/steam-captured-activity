@@ -460,6 +460,8 @@ local downloads = 0
 media.deps.download_document = function() downloads = downloads + 1; return PDF end
 local c0 = media.manual_chunk(SC, "manuel(us)", "G", 0)
 check("chunk 0: downloads once, 3 chunks of 1 MiB, the size", downloads == 1 and c0.chunks == 3 and c0.size == #PDF and c0.index == 0)
+local again = media.manual_chunk(SC, "manuel(us)", "G", 0)
+check("chunk 0 again (a retry after a timeout) reuses the copy: no second download", downloads == 1 and again.index == 0 and again.base64 == c0.base64)
 local c1 = media.manual_chunk(SC, "manuel(us)", "G", 1)
 local c2 = media.manual_chunk(SC, "manuel(us)", "G", 2)
 check("chunks 1 and 2 read the same copy", downloads == 1 and c1.index == 1 and c2.index == 2)
@@ -479,5 +481,20 @@ media.deps.download_document = nil
 jeu_answer = JEU
 wipe()
 os.remove(media_store._path); os.remove(fresh_policy._path)
+-- ---------- more image types and a caption for each (2026-10-01) ----------
+print("types and captions")
+local MORE = { id = "6", medias = {
+  { type = "box-2D-back", region = "us", url = SS_URL .. "&media=box-2D-back(us)" },
+  { type = "figurine", region = "wor", url = SS_URL .. "&media=figurine(wor)" },
+  { type = "ss", region = "wor", url = SS_URL .. "&media=ss(wor)" },
+  { type = "sstitle", region = "wor", url = SS_URL .. "&media=sstitle(wor)" },
+  { type = "fanart", region = "", url = SS_URL .. "&media=fanart()" },
+} }
+local more = ss.media_items(MORE)
+local titles = {}
+for _, it in ipairs(more) do titles[it.key] = it.title end
+check("Box: back and Figurine are artwork cards", titles["box-2D-back(us)"] == "Box: back" and titles["figurine(wor)"] == "Figurine" and #more == 5)
+check("every ScreenScraper card has a caption", titles["ss(wor)"] == "Screenshot" and titles["sstitle(wor)"] == "Title screen" and titles["fanart()"] == "Fan art")
+for t, kind in pairs(ss.MEDIA_KINDS) do check("a caption for " .. t, ss.MEDIA_TITLES[t] ~= nil and kind ~= nil) end
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

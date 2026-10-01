@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COVER_HEIGHT, COVER_WIDTH, createManuals, MAX_MANUAL_CHUNKS, MAX_MANUAL_PAGES, PAGE_WIDTH } from '../frontend/app/manuals.ts';
+import { COVER_HEIGHT, COVER_WIDTH, createManuals, MAX_MANUAL_CHUNKS, MAX_MANUAL_PAGES, PAGE_WIDTH, RPC_RETRIES } from '../frontend/app/manuals.ts';
 import { createEventBus } from '../frontend/kernel/events.ts';
 import { createManualShelf } from '../frontend/kernel/manual-shelf.ts';
 
@@ -20,6 +20,7 @@ function setup(over: Partial<Record<string, any>> = {}) {
             async getManualChunk(appid: number, key: string, index: number, title?: string) {
                 asked.push({ appid, key, index, title });
                 if (over.chunkThrows) throw new Error('transport');
+                if (over.throwTimes && asked.length <= over.throwTimes) throw new Error('RPC timeout');
                 if (over.chunkError) return { error: 'unknown key' };
                 return { base64: `c${index}`, index, chunks, size: chunks * 10 };
             },
@@ -160,5 +161,25 @@ test('app/manuals: the pages and the cover are never read at the same time', asy
     const b = real.open(SC, KEY).then(() => order.push('open'));
     await Promise.all([a, b]);
     assert.deepEqual(order, ['cover', 'open']);
-    assert.deepEqual(s.asked.map((x) => x.index), [0, 1, 0, 1], 'two reads, one after the other');
+    assert.deepEqual(s.asked.map((x) => x.index), [0, 1], 'one read: the pages reuse what the cover read, after it');
+});
+
+test('app/manuals: a chunk read that times out is tried again (the backend finishes the download), and gives up after RPC_RETRIES', async () => {
+    const ok = setup({ throwTimes: RPC_RETRIES });
+    await ok.manuals.open(SC, KEY);
+    assert.equal(ok.shelf.get(SC, KEY)!.status, 'ready');
+    const bad = setup({ throwTimes: RPC_RETRIES + 1 });
+    await bad.manuals.open(SC, KEY);
+    assert.equal(bad.shelf.get(SC, KEY)!.status, 'failed');
+    assert.equal(bad.asked.length, RPC_RETRIES + 1);
+});
+
+test('app/manuals: the cover and the pages of one manual read the PDF once', async () => {
+    const s = setup();
+    await s.manuals.cover(SC, KEY);
+    const reads = s.asked.length;
+    await s.manuals.open(SC, KEY);
+    assert.equal(s.asked.length, reads, 'the pages reuse the chunks the cover read');
+    assert.equal(s.shelf.get(SC, KEY)!.status, 'ready');
+    assert.equal(s.shelf.cover(SC, KEY), 'blob:cover');
 });

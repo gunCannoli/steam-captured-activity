@@ -2,22 +2,17 @@
 // app detail section registry. Moved from steam/sections.ts.
 import { logger } from "../../logger";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
-import type { GameRecord } from "../../kernel/record";
 import { appDetailsSections } from "../../steam/stores";
 import { isShortcutAppId } from "../../kernel/appid";
+import { wantsCommunitySection } from "./community.ts";
 
 /** Steam sections a mapped shortcut gets back (parity plan C3; data comes from the native app). */
 const NATIVE_SECTIONS = ["friends", "community", "achievements"] as const;
 
-/** Steam's own Community Content section for a shortcut with no Steam match that has community media (features plan F2;
- *  the community surface feeds its loader). */
+/** Steam's own Community Content section for a shortcut with no Steam match that has community media, or whose media is
+ *  still being fetched (community.ts wantsCommunitySection; features plan F2; the community surface feeds its loader). */
 const COMMUNITY_SECTIONS = ["community"] as const;
 
-/** Does the record carry community media cards (app/media keeps only showable items)? */
-function hasCommunityMedia(record: GameRecord | undefined): boolean {
-    const media = record?.media;
-    return media?.status === "ok" && Array.isArray(media.data?.items) && media.data!.items.length > 0;
-}
 
 /** Kill switch and error counter, set by createSectionsSurface (D6). Open until then. */
 let deps: SurfaceDeps = { isEnabled: () => true, reportError: () => {} };
@@ -319,7 +314,7 @@ export function createSectionsSurface(d: SurfaceDeps): Surface {
                 appid,
                 record?.identity?.data?.native
                     ? NATIVE_SECTIONS
-                    : deps.isEnabled("community") && hasCommunityMedia(record)
+                    : deps.isEnabled("community") && wantsCommunitySection(record?.media)
                       ? COMMUNITY_SECTIONS
                       : undefined,
             );

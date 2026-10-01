@@ -22,6 +22,16 @@ export const PAGE_WIDTH = 1400;
 /** The card cover's size in pixels: 16:9, drawn at twice the card's layout size (core.MANUAL_CARD_WIDTH). */
 export const COVER_WIDTH = 1280;
 export const COVER_HEIGHT = 720;
+/** A chunk read is tried again this many times after its RPC fails: the backend's 30 s limit can end the call that downloads the PDF while the download still completes there. */
+export const RPC_RETRIES = 2;
+/** pdf.js never waits longer than this for one step; a hung document must not hold the queue (ms). */
+export const RENDER_TIMEOUT = 90_000;
+
+function withTimeout<T>(task: Promise<T>, ms: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error("timeout")), ms)));
+    return Promise.race([task, limit]).finally(() => clearTimeout(timer));
+}
 
 export interface ManualsDeps {
     backend: Pick<typeof Backend, "getManualChunk">;
@@ -54,16 +64,32 @@ export function createManuals(deps: ManualsDeps): Manuals {
         return next;
     };
 
+    /** The last manual read, so the pages after the cover (or the cover after the pages) do not download it again. */
+    let held: { id: string; chunks: string[] } | undefined;
+
+    async function readChunk(appid: ShortcutId, key: string, index: number) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await deps.backend.getManualChunk(appid, key, index, deps.titleOf(appid));
+            } catch (err) {
+                if (attempt >= RPC_RETRIES) throw err;
+            }
+        }
+    }
+
     /** The PDF as base64 chunks in order, or null (an error answer, a gap, or more than MAX_MANUAL_CHUNKS). */
     async function download(appid: ShortcutId, key: string): Promise<string[] | null> {
+        const id = `${appid}:${key}`;
+        if (held?.id === id) return held.chunks;
         const chunks: string[] = [];
         let total = 1;
         for (let index = 0; index < total; index++) {
-            const res = await deps.backend.getManualChunk(appid, key, index, deps.titleOf(appid));
+            const res = await readChunk(appid, key, index);
             if (!res.base64 || res.index !== index || typeof res.chunks !== "number" || res.chunks > MAX_MANUAL_CHUNKS) return null;
             total = res.chunks;
             chunks.push(res.base64);
         }
+        held = { id, chunks };
         return chunks;
     }
 
@@ -75,7 +101,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
         try {
             deps.shelf.set(appid, key, { status: "loading", pages: [] });
             const chunks = await download(appid, key);
-            doc = chunks ? await deps.renderer.open(chunks) : null;
+            doc = chunks ? await withTimeout(deps.renderer.open(chunks), RENDER_TIMEOUT) : null;
             if (!doc || doc.pageCount < 1) {
                 deps.shelf.set(appid, key, { status: "failed", pages: [] });
                 return;
@@ -85,7 +111,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
             deps.shelf.set(appid, key, { status: "loading", pages });
             // One page at a time, in reading order: the viewer shows each as soon as it is ready.
             for (let n = 1; n <= count; n++) {
-                const url = await doc.renderPage(n, PAGE_WIDTH);
+                const url = await withTimeout(doc.renderPage(n, PAGE_WIDTH), RENDER_TIMEOUT);
                 if (!url) continue;
                 pages = pages.slice();
                 pages[n - 1] = { ...pages[n - 1]!, url };
@@ -114,8 +140,8 @@ export function createManuals(deps: ManualsDeps): Manuals {
         let doc: PdfDocument | null = null;
         try {
             const chunks = await download(appid, key);
-            doc = chunks ? await deps.renderer.open(chunks) : null;
-            const url = doc ? await doc.renderCover(COVER_WIDTH, COVER_HEIGHT) : null;
+            doc = chunks ? await withTimeout(deps.renderer.open(chunks), RENDER_TIMEOUT) : null;
+            const url = doc ? await withTimeout(doc.renderCover(COVER_WIDTH, COVER_HEIGHT), RENDER_TIMEOUT) : null;
             if (!url) return; // the placeholder cover stays (ADR-0014)
             deps.shelf.setCover(appid, key, url);
             deps.bus.emit("record.updated", { appid, parts: ["media"] as RecordPart[] }); // the community surface re-reads the cover

@@ -327,14 +327,15 @@ end
 --- only: a type whose bytes are not an image (the HyperSpin theme may be an archive) is dropped when it is downloaded.
 M.MEDIA_KINDS = {
   sstitle = "screenshot", ss = "screenshot", fanart = "artwork",
-  mixrbv2 = "artwork", mixrbv1 = "artwork", ["box-2D"] = "artwork", ["box-3D"] = "artwork",
-  ["support-2D"] = "artwork", flyer = "artwork", themehs = "artwork",
+  mixrbv2 = "artwork", mixrbv1 = "artwork", ["box-2D"] = "artwork", ["box-2D-back"] = "artwork", ["box-3D"] = "artwork",
+  ["support-2D"] = "artwork", figurine = "artwork", flyer = "artwork", themehs = "artwork",
 }
-local MEDIA_ORDER = { "sstitle", "ss", "fanart", "mixrbv2", "mixrbv1", "box-2D", "box-3D", "support-2D", "flyer", "themehs" }
---- The caption under a card for the types that are not a plain screenshot or fanart.
+local MEDIA_ORDER = { "sstitle", "ss", "fanart", "mixrbv2", "mixrbv1", "box-2D", "box-2D-back", "box-3D", "support-2D", "figurine", "flyer", "themehs" }
+--- The caption under every card.
 M.MEDIA_TITLES = {
-  mixrbv2 = "Recalbox mix", mixrbv1 = "Recalbox mix (v1)", ["box-2D"] = "Box: front", ["box-3D"] = "3D box",
-  ["support-2D"] = "Cartridge / disc", flyer = "Flyer", themehs = "HyperSpin theme",
+  sstitle = "Title screen", ss = "Screenshot", fanart = "Fan art",
+  mixrbv2 = "Recalbox mix", mixrbv1 = "Recalbox mix (v1)", ["box-2D"] = "Box: front", ["box-2D-back"] = "Box: back", ["box-3D"] = "3D box",
+  ["support-2D"] = "Cartridge / disc", figurine = "Figurine", flyer = "Flyer", themehs = "HyperSpin theme",
 }
 --- Region preference when a type exists for several regions (world first).
 local REGION_RANK = { wor = 1, us = 2, eu = 3, ss = 4, jp = 5 }

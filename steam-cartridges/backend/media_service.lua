@@ -167,18 +167,23 @@ function M.image(appid, key, title)
   return { base64 = require("utils").base64_encode(body), ext = ext, width = width, height = height }
 end
 
---- One downloaded manual, kept while the frontend reads it in chunks: { appid, key, body }. One at a time.
+--- One downloaded manual, kept while the frontend reads it in chunks: { appid, key, body, at }. One at a time.
 local manual_doc = nil
+--- A copy younger than this is reused by chunk 0: a download that outlasts the caller's 30 s RPC limit still completes here,
+--- and the caller's retry must find it instead of downloading again (a 7.5 MiB manual took 30+ s live, 2026-10-01).
+M.MANUAL_DOC_TTL = 600
 --- Bytes per GetManualChunk answer (base64 makes it 4/3 larger on the RPC).
 M.MANUAL_CHUNK_BYTES = 1024 * 1024
 
 --- Chunk `index` (0-based) of a ScreenScraper manual as base64 (GetManualChunk): { base64, index, chunks, size }, or nil
---- and an error. Chunk 0 downloads the PDF into memory; the other chunks read that copy. The URL never leaves here.
+--- and an error. Chunk 0 downloads the PDF into memory (or reuses a copy under MANUAL_DOC_TTL old); the other chunks read
+--- that copy. The URL never leaves here.
 function M.manual_chunk(appid, key, title, index)
   if type(key) ~= "string" or key == "" then return nil, "missing key" end
   index = math.floor(tonumber(index) or 0)
   if index < 0 then return nil, "bad index" end
-  if index == 0 or not (manual_doc and manual_doc.appid == appid and manual_doc.key == key) then
+  local held = manual_doc and manual_doc.appid == appid and manual_doc.key == key and os.time() - manual_doc.at < M.MANUAL_DOC_TTL
+  if not held then
     manual_doc = nil
     local media = require("screenscraper_media")
     local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
@@ -187,7 +192,7 @@ function M.manual_chunk(appid, key, title, index)
     if not url then return nil, "unknown key" end
     local body, derr = (M.deps.download_document or media.download_document)(url)
     if not body then return nil, derr end
-    manual_doc = { appid = appid, key = key, body = body }
+    manual_doc = { appid = appid, key = key, body = body, at = os.time() }
   end
   local body = manual_doc.body
   local chunks = math.max(1, math.ceil(#body / M.MANUAL_CHUNK_BYTES))
