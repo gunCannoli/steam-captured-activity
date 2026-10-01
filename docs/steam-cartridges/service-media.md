@@ -20,6 +20,30 @@ It does **not** write to Steam (the `community` surface does, [surfaces.md](surf
 (it asks for the game Game Info already shows, `ctx.igdb_id`), and does not decide routing (ADR-0040): `allowWeb` and
 `allowScreenscraper` arrive as context, like metadata's.
 
+## Finding the game on ScreenScraper without a ROM
+
+A shortcut with a ROM file is looked up by its file name and checksum (`jeuInfos.php`). A shortcut with no ROM (a PC game, a fan
+game) has nothing to match on, so `jeu_for` goes to a name search (`screenscraper_media.search_jeu`, `jeuRecherche.php`):
+
+1. Queries, simplest last: the title as plain words (`am2r another metroid 2 remake`), then the part before a dash or colon
+   (`am2r`). ScreenScraper's search wants plain words and returned nothing for the title with its dash.
+2. Every candidate list is scored against the full title (`name_score`: shared words over the longer title's words; 1 for the
+   same words; leading "the", brackets and punctuation ignored). A score of at least `MIN_NAME_SCORE` (0.8) matches.
+3. A part of the title (before or after the dash) equal to the candidate's name or a part of it matches at `PART_SCORE`
+   (0.85), **only** for a candidate on the shortcut's console or, with no console, on a PC platform. That is how
+   "AM2R - Another Metroid 2 Remake" finds ScreenScraper's PC entry "AM2R - Return of Samus" (game 273188) and not the
+   Android port "AM2R", and why "Metroid - Zero Mission" never matches the NES "Metroid".
+4. The game's record is fetched by id (`jeuInfos.php?gameid=`). No match is remembered for the session (no repeated search);
+   the media is stored for 7 days like any other.
+
+`GetDiagnostics` carries `ss_search`: the last search's title, HTTP statuses, each query with its candidate count, the first
+three candidates (names and system) and the match with its score. No account, no address. A shortcut with a console but no ROM
+file tries its ROM-name lookup first and falls back to the search on any failure but missing credentials.
+
+**Routing.** Auto Mode keeps ScreenScraper off a PC game for Game Info (its metadata comes from the Steam store and IGDB). For
+the community media alone that exclusion is lifted (`domain/routing/policy.isMediaServiceAllowed`, wired as the media's
+`allowScreenscraper`); the user's own routing rules are still evaluated first and win.
+
 ## ScreenScraper image types
 
 `media_items` takes, per type, the best region (wor, us, eu, ss, jp): `sstitle` (title screen) and `ss` (screenshot) as

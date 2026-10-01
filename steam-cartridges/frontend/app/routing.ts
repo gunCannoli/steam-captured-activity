@@ -2,6 +2,7 @@ import {
     findConflicts,
     resolveBucket,
     isServiceAllowed,
+    isMediaServiceAllowed,
     type AutoRoutingProfile,
     type Bucket,
     type BucketsConfig,
@@ -181,6 +182,22 @@ export function createRouting(inputs: RoutingInputs) {
         };
     }
 
+    /** The Community media sources' check: as `serviceAllowed`, but Auto Mode no longer keeps ScreenScraper off a PC game. */
+    function mediaServiceAllowed(service: ServiceTarget, appid: number): boolean {
+        const collNames = listCollections()
+            .filter((c) => membersOf(c.id)?.has(appid))
+            .map((c) => c.name);
+        return isMediaServiceAllowed(
+            service,
+            appid,
+            inputs.titleOf(appid) ?? "",
+            collNames,
+            inputs.rules(),
+            inputs.autoMode(),
+            getAutoRoutingProfile(appid),
+        );
+    }
+
     /** Do the routing rules and Auto Mode allow `service` for this shortcut? (was index.tsx and the audit panel) */
     function serviceAllowed(service: ServiceTarget, appid: number): boolean {
         const collNames = listCollections()
@@ -200,6 +217,7 @@ export function createRouting(inputs: RoutingInputs) {
     return {
         getBucket,
         serviceAllowed,
+        mediaServiceAllowed,
         onBucketsChanged,
         bucketReport,
         listCollections,

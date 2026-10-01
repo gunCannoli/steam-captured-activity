@@ -4,6 +4,7 @@ import {
     matchesRegex,
     isServiceAllowed,
     isServiceAllowedByAutoMode,
+    isMediaServiceAllowed,
     type RoutingRule,
     type AutoRoutingProfile,
 } from '../frontend/domain/routing/policy.ts';
@@ -177,3 +178,19 @@ test('isServiceAllowed: auto mode integration and custom rule precedence', () =>
     assert.equal(isServiceAllowed('steam_store', 1001, '1944: The Loop Master', [], customRules, true, retroProfile), true);
 });
 
+test('isMediaServiceAllowed: Auto Mode no longer keeps ScreenScraper off a PC game for media, every other answer is unchanged', () => {
+    const pc = { category: 'pc' } as any;
+    assert.equal(isServiceAllowed('screenscraper', 1, 'AM2R', [], [], true, pc), false, 'Game Info routing is unchanged');
+    assert.equal(isMediaServiceAllowed('screenscraper', 1, 'AM2R', [], [], true, pc), true);
+    assert.equal(isMediaServiceAllowed('retroachievements', 1, 'AM2R', [], [], true, pc), false, 'only ScreenScraper is lifted');
+    assert.equal(isMediaServiceAllowed('screenscraper', 1, 'Sonic', [], [], true, { category: 'retroarch' } as any), true);
+    assert.equal(isMediaServiceAllowed('screenscraper', 1, 'AM2R', [], [], false, pc), true, 'Auto Mode off: allowed as before');
+});
+
+test('isMediaServiceAllowed: the user own rules still decide first', () => {
+    const pc = { category: 'pc' } as any;
+    const exclude = [{ id: 'r', enabled: true, service: 'screenscraper', conditionType: 'game_name', pattern: 'AM2R', action: 'exclude' }] as any;
+    assert.equal(isMediaServiceAllowed('screenscraper', 1, 'AM2R', [], exclude, true, pc), false, 'an exclude rule wins');
+    const include = [{ id: 'r', enabled: true, service: 'screenscraper', conditionType: 'game_name', pattern: 'Other', action: 'include' }] as any;
+    assert.equal(isMediaServiceAllowed('screenscraper', 1, 'AM2R', [], include, true, pc), true, 'no rule matched: the media rule applies');
+});

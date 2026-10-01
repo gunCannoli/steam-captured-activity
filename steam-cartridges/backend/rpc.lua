@@ -105,6 +105,8 @@ RPC.GetDiagnostics = method("GetDiagnostics", function(_)
     -- M7a: outgoing requests per source since the backend started, and sources currently paused.
     http_calls       = require("net").stats().http_calls,
     paused           = require("net").stats().paused,
+    -- F2: what the last ScreenScraper name search did (no account, no address).
+    ss_search        = require("screenscraper_media").last_search,
   }
 end)
 

@@ -99,7 +99,211 @@ function M.jeu_for(appid, title, info)
   local rom_path = info and ra.extract_rom_path(info.exe, info.launch_options) or nil
   local md5 = rom_path and ra.compute_rom_md5(rom_path) or nil
   local console_id = info and ra.detect_console_id(info.exe, info.launch_options) or nil
-  return M.fetch_jeu(appid, rom_path, console_id, nil, md5, title)
+  local by_name = not rom_path and type(title) == "string" and title ~= ""
+  -- No ROM and no console (a PC game, a fan game): jeuInfos has nothing to match on, so look the game up by name.
+  if by_name and not console_id then return M.search_jeu(appid, title, nil) end
+  local jeu, err = M.fetch_jeu(appid, rom_path, console_id, nil, md5, title)
+  -- A console but no ROM file: the title may not be a ROM name; look it up by name on that console.
+  if not jeu and by_name and err ~= "no-credentials" then return M.search_jeu(appid, title, console_id) end
+  return jeu, err
+end
+
+-- ---------- Name matching (a game with no ROM file) ----------
+
+--- A title reduced to comparable words: lower case, punctuation and bracketed tags dropped, a leading "the" dropped.
+function M.normalize_name(name)
+  if type(name) ~= "string" then return "" end
+  local s = name:lower()
+  s = s:gsub("%b()", " "):gsub("%b[]", " ")
+  s = s:gsub("[^%w]+", " ")
+  s = s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("^the%s+", "")
+  return s
+end
+
+local function words(s)
+  local set, n = {}, 0
+  for w in s:gmatch("%S+") do
+    if not set[w] then set[w] = true; n = n + 1 end
+  end
+  return set, n
+end
+
+--- How alike two titles are, 0..1: 1 for the same words, else shared words over the longer title's words.
+function M.name_score(a, b)
+  local na, nb = M.normalize_name(a), M.normalize_name(b)
+  if na == "" or nb == "" then return 0 end
+  if na == nb then return 1 end
+  local wa, ca = words(na)
+  local wb, cb = words(nb)
+  local shared = 0
+  for w in pairs(wa) do if wb[w] then shared = shared + 1 end end
+  return shared / math.max(ca, cb)
+end
+
+--- Every name a search result carries (`noms`: { region, text } entries, or a plain `nom`).
+local function names_of(game)
+  local out = {}
+  if type(game.noms) == "table" then
+    for _, n in ipairs(game.noms) do
+      if type(n) == "table" and type(n.text) == "string" then out[#out + 1] = n.text end
+    end
+  end
+  if type(game.nom) == "string" then out[#out + 1] = game.nom end
+  return out
+end
+
+local function system_text(game)
+  local sys = game.systeme
+  if type(sys) == "table" then return tostring(sys.text or sys.nom or "") end
+  return tostring(game.systemenom or "")
+end
+
+--- A PC platform (Windows, DOS, ...): the likely home of a game with no ROM file.
+function M.is_pc_system(text)
+  local t = tostring(text or ""):lower()
+  return t:find("windows", 1, true) ~= nil or t:find("dos", 1, true) ~= nil or t:match("^pc") ~= nil or t:find(" pc", 1, true) ~= nil
+end
+
+--- The search result that is the same game as `title`, or nil: its best name must score at least MIN_NAME_SCORE; ties
+--- go to a result on the console of the shortcut, else on a PC platform. Returns game, score.
+M.MIN_NAME_SCORE = 0.8
+--- The score a result gets when only a part of the title equals its name ("AM2R" for "AM2R - Another Metroid 2 Remake"):
+--- below a full match, and only given to a result on the shortcut's console or on a PC platform, where a fan game is
+--- listed under its short name. A part alone on another platform ("Metroid" for "Metroid - Zero Mission") never matches.
+M.PART_SCORE = 0.85
+
+local function title_parts(title)
+  local parts = {}
+  local head = title:match("^(.-)%s+[%-:]%s") or title:match("^(.-):")
+  local tail = title:match("^.-%s+[%-:]%s+(.+)$")
+  if head and head ~= "" then parts[#parts + 1] = head end
+  if tail and tail ~= "" then parts[#parts + 1] = tail end
+  return parts
+end
+
+function M.best_match(title, games, console_id)
+  local best, best_score
+  local parts = title_parts(title)
+  for _, g in ipairs(type(games) == "table" and games or {}) do
+    if type(g) == "table" and g.id ~= nil then
+      local sys_id = type(g.systeme) == "table" and tonumber(g.systeme.id) or tonumber(g.systemeid)
+      local home = (console_id and sys_id == console_id) or (not console_id and M.is_pc_system(system_text(g)))
+      local score = 0
+      for _, name in ipairs(names_of(g)) do
+        local s = M.name_score(title, name)
+        if s > score then score = s end
+        if home then
+          -- a part of the title equals the name or a part of the name (the head "AM2R" of "AM2R - Return of Samus")
+          local name_parts = title_parts(name)
+          name_parts[#name_parts + 1] = name
+          for _, part in ipairs(parts) do
+            for _, np in ipairs(name_parts) do
+              if M.name_score(part, np) == 1 and M.PART_SCORE > score then score = M.PART_SCORE end
+            end
+          end
+        end
+      end
+      if score >= M.MIN_NAME_SCORE then
+        local bonus = 0
+        if console_id and sys_id == console_id then bonus = 0.02
+        elseif not console_id and M.is_pc_system(system_text(g)) then bonus = 0.01 end
+        if not best or score + bonus > best_score then best, best_score = g, score + bonus end
+      end
+    end
+  end
+  return best, best_score
+end
+
+--- Searches ScreenScraper by name (jeuRecherche.php), takes the matching game and fetches its record by id. The same
+--- shape fetch_jeu returns; a search with no match is "not-found" and is not repeated this session.
+local search_missed = {}
+--- What the last name search did (GetDiagnostics `ss_search`): the title, HTTP statuses, result count, the match. Holds no
+--- account and no address.
+M.last_search = nil
+function M.search_jeu(appid, title, system_id)
+  if not appid or search_missed[appid] then return nil, "not-found" end
+  if jeu_cache[appid] then return jeu_cache[appid] end
+  local creds = config.get_screenscraper_credentials()
+  if not creds or (creds.dev_user == "" and creds.user == "") then return nil, "no-credentials" end
+
+  local dev_id = creds.dev_user ~= "" and creds.dev_user or creds.user
+  local dev_pw = creds.dev_pw ~= "" and creds.dev_pw or creds.pass
+  local function api(endpoint, extra)
+    local url = string.format("https://api.screenscraper.fr/api2/%s?devid=%s&devpassword=%s&softname=steam-cartridges&output=json",
+      endpoint, utils.url_encode(dev_id), utils.url_encode(dev_pw))
+    if #creds.user > 0 and #creds.pass > 0 then
+      url = url .. string.format("&ssid=%s&sspassword=%s", utils.url_encode(creds.user), utils.url_encode(creds.pass))
+    end
+    return url .. extra
+  end
+  local trace = { title = title, system_id = system_id }
+  M.last_search = trace
+  local function get(url, stage)
+    local ok, res = pcall(net.get, url, { source = "screenscraper", user_agent = "steam-cartridges/1.0", timeout = 15 })
+    trace[stage .. "_status"] = ok and res and res.status or (ok and "no-response" or "error")
+    if ok and res and res.status ~= 200 and type(res.body) == "string" then trace[stage .. "_text"] = res.body:sub(1, 60) end
+    if not ok or not res or res.status ~= 200 or not res.body then
+      -- The request address carries the accounts: only the status is logged.
+      logger:info("ScreenScraper API request returned status " .. tostring(res and res.status))
+      return nil
+    end
+    local decoded_ok, data = pcall(json.decode, res.body)
+    if not decoded_ok or type(data) ~= "table" or type(data.response) ~= "table" then
+      trace[stage .. "_text"] = res.body:sub(1, 60)
+      return false
+    end
+    return data.response
+  end
+
+  -- ScreenScraper's search wants plain words, so try the title as words first, then the part before a dash or colon
+  -- ("AM2R - Another Metroid 2 Remake" -> "AM2R"); every candidate list is scored against the full title.
+  local queries, seen = {}, {}
+  local function add_query(q)
+    q = M.normalize_name(q)
+    if q ~= "" and not seen[q] then seen[q] = true; queries[#queries + 1] = q end
+  end
+  add_query(title)
+  add_query(title:match("^(.-)%s+[%-:]%s") or title:match("^(.-):"))
+  trace.queries = {}
+  local game, score, games
+  for _, q in ipairs(queries) do
+    local extra = "&recherche=" .. utils.url_encode(q)
+    if system_id and system_id > 0 then extra = extra .. "&systemeid=" .. tostring(system_id) end
+    local found = get(api("jeuRecherche.php", extra), "search")
+    if found == nil then return nil, "request-failed" end
+    games = found and found.jeux or nil
+    game, score = M.best_match(title, games, system_id)
+    local count = 0
+    for _, g in ipairs(type(games) == "table" and games or {}) do
+      if type(g) == "table" and g.id ~= nil then count = count + 1 end
+    end
+    local cands = {}
+    for idx = 1, math.min(3, type(games) == "table" and #games or 0) do
+      local g = games[idx]
+      if type(g) == "table" and g.id ~= nil then
+        cands[#cands + 1] = { id = tostring(g.id), names = names_of(g), system = system_text(g) }
+      end
+    end
+    trace.queries[#trace.queries + 1] = { q = q, candidates = count, first = cands, match = game and tostring(game.id) or nil, score = score }
+    if game then break end
+  end
+  trace.match = game and tostring(game.id) or nil
+  trace.score = score
+  logger:info(string.format("ScreenScraper name search for %q: %s", title,
+    game and string.format("matched game %s (%.2f)", tostring(game.id), score) or "no match"))
+  if not game then
+    search_missed[appid] = true
+    return nil, "not-found"
+  end
+
+  local info = get(api("jeuInfos.php", "&gameid=" .. utils.url_encode(tostring(game.id))), "info")
+  if info == nil then return nil, "request-failed" end
+  if not info or type(info.jeu) ~= "table" then
+    search_missed[appid] = true
+    return nil, "not-found"
+  end
+  jeu_cache[appid] = info.jeu
+  return jeu_cache[appid]
 end
 
 -- ---------- Community media (features plan F2b) ----------

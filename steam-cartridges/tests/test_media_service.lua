@@ -348,8 +348,28 @@ check("no media module logs a URL or an account", not leak)
 
 wipe()
 os.remove(media_store._path); os.remove(fresh_policy._path)
-print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
-os.exit(failures == 0 and 0 or 1)
+-- ---------- name matching (a game with no ROM file) ----------
+print("name matching")
+check("normalize_name drops case, punctuation, brackets and a leading the",
+  ss.normalize_name("The Legend of Zelda: A Link to the Past (USA) [!]") == "legend of zelda a link to the past")
+check("AM2R matches ScreenScraper's spelling of it", ss.name_score("AM2R - Another Metroid 2 Remake", "AM2R: Another Metroid 2 Remake") == 1)
+check("a different game scores low", ss.name_score("Metroid", "Super Metroid Vitality") < 0.8 and ss.name_score("Doom", "Doom II") < 0.8)
+check("a missing name scores zero", ss.name_score("", "Doom") == 0 and ss.name_score("Doom", nil) == 0)
+check("is_pc_system", ss.is_pc_system("PC Windows") and ss.is_pc_system("PC (DOS)") and ss.is_pc_system("Windows") and not ss.is_pc_system("Super Nintendo"))
+local SEARCH = {
+  { id = "1", noms = { { region = "wor", text = "AM2R: Another Metroid 2 Remake" } }, systeme = { id = "138", text = "PC Windows" } },
+  { id = "2", noms = { { region = "wor", text = "Metroid II: Return of Samus" } }, systeme = { id = "9", text = "Game Boy" } },
+  { id = "3", noms = { { region = "us", text = "AM2R - Another Metroid 2 Remake" } }, systeme = { id = "9", text = "Game Boy" } },
+}
+local m1, s1 = ss.best_match("AM2R - Another Metroid 2 Remake", SEARCH, nil)
+check("best_match takes the same game, a PC copy before another platform's when the console is unknown", m1 and m1.id == "1" and s1 > 1, m1 and m1.id)
+local m2 = ss.best_match("AM2R - Another Metroid 2 Remake", SEARCH, 9)
+check("a known console prefers its own copy", m2 and m2.id == "3", m2 and m2.id)
+check("no result reaches the minimum score: no match", ss.best_match("Something Else Entirely", SEARCH, nil) == nil)
+check("an empty or odd result list is no match", ss.best_match("AM2R", {}, nil) == nil and ss.best_match("AM2R", { {}, "x" }, nil) == nil and ss.best_match("AM2R", nil, nil) == nil)
+check("a result with a plain nom is matched too", ss.best_match("Cave Story", { { id = "7", nom = "Cave Story" } }, nil) ~= nil)
+
+
 
 -- every extra type the user asked for maps to an artwork card with a caption; regions rank wor, us, eu, ss, jp
 local MORE = {
@@ -363,8 +383,29 @@ local MORE = {
 local more = ss.media_items(MORE)
 local seen = {}
 for _, it in ipairs(more) do seen[it.key] = it end
-check("media_items: every requested extra type becomes an artwork card, a video and a manual do not", #more == 7
+check("media_items: every requested extra type becomes an artwork card, a video and a manual do not", #more == 6
   and seen["mixrbv2(us)"] and seen["mixrbv1(wor)"] and seen["box-3D(ss)"] and seen["support-2D(jp)"] and seen["flyer(eu)"] and seen["themehs()"], #more)
 check("the extra types have their captions", seen["mixrbv2(us)"].title == "Recalbox mix" and seen["mixrbv1(wor)"].title == "Recalbox mix (v1)"
   and seen["support-2D(jp)"].title == "Cartridge / disc" and seen["flyer(eu)"].title == "Flyer" and seen["themehs()"].title == "HyperSpin theme")
 check("box-3D takes the ScreenScraper copy over the Japanese one (rank ss before jp)", seen["box-3D(ss)"] ~= nil and seen["box-3D(jp)"] == nil)
+
+-- a fan game is listed under its short name: a part of the title matches only on a PC platform or the shortcut's console
+local FAN = {
+  { id = "273188", noms = { { region = "wor", text = "AM2R" } }, systeme = { id = "138", text = "PC Windows" } },
+  { id = "5", noms = { { region = "wor", text = "AM2R" } }, systeme = { id = "9", text = "Game Boy" } },
+}
+local mf = ss.best_match("AM2R - Another Metroid 2 Remake", FAN, nil)
+local REAL = {
+  { id = "501044", noms = { { text = "AM2R" } }, systeme = { id = "63", text = "Android" } },
+  { id = "273188", noms = { { text = "AM2R - Return of Samus" }, { text = "ZZZ(notgame):AM2R: Return of Samus" } }, systeme = { id = "138", text = "PC Windows" } },
+}
+local mr = ss.best_match("AM2R - Another Metroid 2 Remake", REAL, nil)
+check("the live case: the PC entry under its other subtitle wins over the Android port", mr and mr.id == "273188", mr and mr.id)
+check("a PC game is found by its short name (the part before the dash)", mf and mf.id == "273188", mf and mf.id)
+check("the same part on another platform is no match", ss.best_match("AM2R - Another Metroid 2 Remake", { FAN[2] }, nil) == nil)
+check("a part never matches a different game of the same series",
+  ss.best_match("Metroid - Zero Mission", { { id = "9", noms = { { text = "Metroid" } }, systeme = { id = "3", text = "NES" } } }, nil) == nil)
+check("the part after the dash can match too", ss.best_match("Fan - Another Metroid 2 Remake", { { id = "8", noms = { { text = "Another Metroid 2 Remake" } }, systeme = { text = "PC Windows" } } }, nil) ~= nil)
+
+print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
+os.exit(failures == 0 and 0 or 1)

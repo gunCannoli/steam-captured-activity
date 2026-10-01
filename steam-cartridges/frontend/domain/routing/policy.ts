@@ -341,3 +341,20 @@ export function isServiceAllowed(
     return true;
 }
 
+/**
+ * `isServiceAllowed` for the Community media sources. Auto Mode keeps ScreenScraper off a PC game (its Game Info comes from
+ * the Steam store and IGDB), but ScreenScraper has a PC platform and community images for PC games (AM2R, a fan game, is
+ * on it), so for media alone the PC exclusion is lifted. The user's own rules are still evaluated first and win.
+ */
+export function isMediaServiceAllowed(
+    service: ServiceTarget,
+    appid: number,
+    title: string,
+    collectionIds: string[],
+    rules: RoutingRule[] = [],
+    autoModeEnabled = false,
+    autoProfile?: AutoRoutingProfile,
+): boolean {
+    const profile = service === 'screenscraper' && autoProfile?.category === 'pc' ? undefined : autoProfile;
+    return isServiceAllowed(service, appid, title, collectionIds, rules, autoModeEnabled, profile);
+}
