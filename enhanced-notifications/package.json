@@ -9,6 +9,7 @@
     "build:dev": "millennium-ttc --build dev",
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:live": "node tests/run-live.mjs",
     "verify": "npm run check && npm test && npm run build"
   },
   "dependencies": {
