@@ -16,7 +16,7 @@
 //   --pattern theme-switch   one toast, switch theme mid-toast, one more toast
 //   --pattern first          switch to the theme right before the first toast (placement not yet applied)
 //   --pattern mixed          a Warning-class toast (LowBattery, smaller placeholder), a download, an achievement
-//                            (drawn by enhanced-achievements when it claims the banner), 7 s apart
+//                            (the achievement banner, with a theme that has an `achievements` block), 7 s apart
 //   --pattern queue          an achievement queued behind a download, then a download queued behind an achievement:
 //                            shows whether the showing toast's styling changes when the next one arrives
 //   --pattern fresh          remove our placement <style> from the Big Picture window first (as in a Big Picture

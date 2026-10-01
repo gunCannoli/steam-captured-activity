@@ -3,9 +3,10 @@
 // view moves to the theme corner (it follows the placeholder in the Big Picture window), that the theme animation
 // replaces Steam's on the toast template, that the restyle applies, and that the `placement` kill switch gives
 // Steam's place back. Then the flicker regressions (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md):
-// a toast queued behind the one on screen never restyles it, in both orders (with enhanced-achievements drawing the
-// achievement, its banner never gets our type or animation), every place Steam sends the view is the theme's, and the
-// placement style is in place before Steam measures, even in a window that did not have it yet.
+// a toast queued behind the one on screen never restyles it, in both orders (the temporary theme has no
+// `achievements` block, so the achievement is styled like every toast; tests/achievements-bigpicture.mjs covers the
+// banner), every place Steam sends the view is the theme's, and the placement style is in place before Steam
+// measures, even in a window that did not have it yet.
 // Run it with Big Picture in front: a hidden window does not paint, so its animations never start.
 import { rmSync, writeFileSync } from 'node:fs';
 import { connect, resolvePluginName } from './cdp.mjs';
@@ -105,7 +106,7 @@ function checkQueued(label, r) {
     check(`${label}: both toasts shown`, r?.seen?.length === 2, JSON.stringify(r?.seen));
     for (const [i, t] of (r?.seen ?? []).entries()) {
         check(`${label}: toast ${i + 1} keeps one style while on screen`, t.states.length === 1, JSON.stringify(t.states));
-        if (t.banner) check(`${label}: enhanced-achievements' banner never gets our type or animation`, t.states.every((s) => s.startsWith('- | ') && !/\ben-/.test(s)), JSON.stringify(t.states));
+        if (t.banner) check(`${label}: the achievement banner never gets the notification type or animation`, t.states.every((s) => s.startsWith('- | ') && !/\ben-/.test(s)), JSON.stringify(t.states));
         else check(`${label}: toast ${i + 1} has the theme's animation`, t.states.every((s) => s.endsWith('en-in-fade, en-out-fade')), JSON.stringify(t.states));
     }
     check(`${label}: Steam always sends the view to the theme's place`, (r?.bounds?.length ?? 0) >= 2 && r.bounds.every(([x, y]) => Math.abs(x - 30) <= 2 && Math.abs(y - 20) <= 2), JSON.stringify(r?.bounds));

@@ -1,28 +1,38 @@
 // npm run test:live: every live check against the running Steam client
-// (127.0.0.1:8080, enhanced-notifications or -dev deployed). Same runner as enhanced-achievements'.
+// (127.0.0.1:8080, enhanced-notifications or -dev deployed).
 //
 // Snapshots the plugin's stored settings first and restores exactly those at the
-// end, whatever the checks did. Checks marked `theme` start with THEME (default
-// steam_midnight) selected, because they assert a restyled toast. A check PASSes
-// when it exits 0, prints no FAIL line and prints its `must` line.
+// end, whatever the checks did. A check with a `theme` starts with that theme
+// selected (steam_midnight: the notification style only; ps5: with an
+// `achievements` block, for the banner checks). A check PASSes when it exits 0,
+// prints no FAIL line and prints its `must` line; it SKIPs when its output
+// matches `skipWhen` (e.g. Big Picture is not open).
 //
-// tests/architecture.test.ts fails if a live script is not listed.
+// Desktop checks run first; the Big Picture ones last (open Big Picture before
+// running them, or they SKIP). tests/architecture.test.ts fails if a live script
+// is not listed.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { connect, resolvePluginName } from './cdp.mjs';
 
-const THEME = process.env.THEME ?? 'steam_midnight';
 const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
     { file: 'safety.mjs', must: /^PASS {2}style on again: the preview is restyled/m },
-    { file: 'previews.mjs', theme: true, must: /^PASS {2}DownloadComplete: restyled in place/m },
+    { file: 'previews.mjs', theme: 'steam_midnight', must: /^PASS {2}DownloadComplete: restyled in place/m },
     { file: 'sound-duration.mjs', must: /^PASS {2}settings reset, temp theme removed/m },
     { file: 'placement.mjs', must: /^(PASS {2}placement off: Steam places the toast|SKIP {2}desktop only)/m },
+    { file: 'achievements-smoke.mjs', theme: 'ps5', must: /^PASS {2}themed banner rendered/m },
+    { file: 'achievements-tiers.mjs', theme: 'ps5', must: /^PASS {2}completes game \(50%\): then a exceptional toast/m },
+    { file: 'achievements-safety.mjs', must: /^PASS {2}settings restored/m },
+    { file: 'achievements-queue.mjs', must: /^PASS {2}queue off: never Steam fallback toast/m },
+    { file: 'achievements-captures.mjs', must: /^PASS {2}settings restored/m },
+    { file: 'achievements-settings.mjs', must: /^(PASS|SKIP) /m },
+    { file: 'achievements-reset.mjs', must: /^PASS {2}switched off: unavailable/m },
     { file: 'bigpicture.mjs', must: /^(PASS {2}Big Picture: settings reset|SKIP {2}Big Picture is not open)/m },
+    { file: 'achievements-bigpicture.mjs', theme: 'ps5', must: /^PASS {2}themed banner in Big Picture/m, skipWhen: /is Big Picture open\?/ },
 ];
-
 
 // Hold the Steam lock for the whole run, so no other agent restarts or drives Steam
 // meanwhile (AGENTS.md, "Sharing the live Steam client"). Re-entrant through
@@ -51,6 +61,13 @@ ${r.stdout}${r.stderr}`);
 }
 
 const cdp = await connect();
+// enhanced-achievements was merged into this plugin (ADR-0050): loaded too, it would draw a second banner.
+const merged = JSON.parse(await cdp.evaluate(`JSON.stringify(Object.keys(window.PLUGIN_LIST || {}).filter((n) => n.startsWith('enhanced-achievements')))`));
+if (merged.length) {
+    console.log(`FAIL  enhanced-achievements is still loaded (${merged.join(', ')}): disable it in Millennium and restart Steam`);
+    cdp.close();
+    process.exit(1);
+}
 const name = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(name)}].${expr}`);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(name)})`);
@@ -61,24 +78,39 @@ async function restore(snapshot) {
     for (const [key, value] of Object.entries(snapshot)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
 }
 
-async function selectTheme() {
-    await plugin(`setSetting('theme', ${JSON.stringify(THEME)})`);
-    for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== THEME; i++) await wait(250);
+async function selectTheme(theme) {
+    await plugin(`setSetting('theme', ${JSON.stringify(theme)})`);
+    for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== theme; i++) await wait(250);
+}
+
+/**
+ * A check must not start while the previous one's toast windows are still up (they flake the banner checks). Desktop
+ * only: Big Picture's toast window is persistent, so it never goes away.
+ */
+async function waitForNoToasts(maxMs = 60_000) {
+    if ((await cdp.evaluate(`SteamClient.UI.GetUIMode?.()`)) === 4) return;
+    for (let t = 0; t < maxMs; t += 500) {
+        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
+        if (!targets.some((x) => /notificationtoasts/i.test(x.title))) return;
+        await wait(500);
+    }
 }
 
 function run(c) {
-    const r = spawnSync(process.execPath, [join(here, c.file)], { encoding: 'utf8', timeout: 300_000, env: { ...process.env, EN_PLUGIN: name, THEME } });
+    const r = spawnSync(process.execPath, [join(here, c.file)], { encoding: 'utf8', timeout: 300_000, env: { ...process.env, EN_PLUGIN: name, THEME: c.theme ?? 'ps5' } });
     const out = (r.stdout ?? '') + (r.stderr ?? '');
-    return { ok: r.status === 0 && c.must.test(out) && !/^FAIL/m.test(out), out };
+    const skipped = c.skipWhen?.test(out) === true;
+    return { ok: skipped || (r.status === 0 && c.must.test(out) && !/^FAIL/m.test(out)), skipped, out };
 }
 
 const snapshot = (await stored()) ?? {};
 let bad = 0;
 try {
     for (const c of checks) {
-        if (c.theme) await selectTheme();
+        await waitForNoToasts();
+        if (c.theme) await selectTheme(c.theme);
         const r = run(c);
-        console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${c.file}`);
+        console.log(`${r.skipped ? 'SKIP' : r.ok ? 'PASS' : 'FAIL'}  ${c.file}`);
         if (!r.ok) {
             bad++;
             console.log(r.out.split('\n').slice(-15).join('\n'));
