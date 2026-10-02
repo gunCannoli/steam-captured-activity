@@ -35,7 +35,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - **Preview is one button** that shows a random one of Steam's test toasts, a different type each press (downloads, clips, recording, cloud sync, battery, firmware update, playtime; achievements too when Enhanced Achievements does not draw them). Exports `preview(id?)` and `previewIds()` replace `previewCategory`.
 - **`margin` and `padding` use CSS's clockwise order** (same as Enhanced Achievements): `[10, 5, 4, 7]` is 10 top, 5 right, 4 bottom, 7 left.
 
-- Internals rebuilt on Enhanced Achievements' architecture (ADR-0047, docs/enhanced-notifications/architecture.md): one surface per thing written into Steam (`style`, `sound`, `duration`, `preview`), the same notification hook file as Enhanced Achievements (checked by a test, and proven to work with it in either load order), and an architecture test. No change to themes or settings.
+- Internals rebuilt on Enhanced Achievements' architecture (ADR-0047, docs/enhanced-notifications.md): one surface per thing written into Steam (`style`, `sound`, `duration`, `preview`), the same notification hook file as Enhanced Achievements (checked by a test, and proven to work with it in either load order), and an architecture test. No change to themes or settings.
 - Settings panel laid out like Enhanced Achievements' (same rows and spacing): Theme, Preview notifications, General and Reset sections; the theme dropdown takes the full row; a theme problem shows under it instead of a status line. The controls are disabled while Steam's toasts are off.
 
 ### Added

@@ -8,7 +8,7 @@
  * `setTimeout` scheduling and Steam object reads live in
  * `capture/captures.ts` and `steam/recording.ts`.
  *
- * See docs/plans/phase7-and-alpha-plan.md § A2/A3.1 for the full spec.
+ * See docs/plans/phase7-and-alpha-plan.md (deleted; `git show 0cc6249^:docs/plans/phase7-and-alpha-plan.md`) § A2/A3.1 for the full spec.
  */
 
 export const CAPTURE_RANGES = {

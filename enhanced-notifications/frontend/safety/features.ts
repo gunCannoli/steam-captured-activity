@@ -1,5 +1,5 @@
 /**
- * Kill switches and error budget (docs/enhanced-notifications/architecture.md, safety net). Same design as steam-cartridges/frontend/safety/features.ts; plugins may not
+ * Kill switches and error budget (docs/enhanced-notifications.md, safety net). Same design as steam-cartridges/frontend/safety/features.ts; plugins may not
  * import each other, so this is a copy with this plugin's feature ids.
  *
  * Every part of the plugin that writes into Steam has a FeatureId. A feature runs only

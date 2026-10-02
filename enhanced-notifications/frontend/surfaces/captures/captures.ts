@@ -11,7 +11,7 @@ import { reportError } from '../../safety/runtime';
  * achievement unlock. The `achievement.unlocked` subscriber in `index.tsx` calls `onUnlock`
  * synchronously (O(1): dedupe, snapshot, schedule); every RPC runs later, in a
  * `setTimeout` callback, never in the hook itself (the one scoped exception to
- * guardrail 5 — see docs/plans/phase7-and-alpha-plan.md § A1.7).
+ * guardrail 5 — see docs/plans/phase7-and-alpha-plan.md (deleted; `git show 0cc6249^:docs/plans/phase7-and-alpha-plan.md`) § A1.7).
  */
 
 const seen = new WeakSet<object>();

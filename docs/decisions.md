@@ -2888,7 +2888,7 @@ method, each with its own code: nothing checked that the two wrappers compose, a
 - A change to a shared file is a change to both plugins, in one commit, with both test suites green.
 - A failing styling, sound or duration path switches off alone and gives Steam's stock behaviour back for it; the
   others keep working.
-- New features follow [enhanced-notifications/architecture.md](enhanced-notifications/architecture.md) § How to add a feature.
+- New features follow [enhanced-notifications.md](enhanced-notifications.md) § How to add a feature.
 
 ## ADR-0049: Big Picture has one toast position: enhanced-notifications' theme by default, enhanced-achievements' when forced
 

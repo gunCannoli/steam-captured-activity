@@ -1,5 +1,5 @@
 /**
- * Boot sentinel (docs/enhanced-notifications/architecture.md, safety net).
+ * Boot sentinel (docs/enhanced-notifications.md, safety net).
  * Same design as steam-cartridges/frontend/safety/boot.ts, with this plugin's key.
  *
  * A hung SharedJSContext cannot run any cleanup, so the sentinel works the other way

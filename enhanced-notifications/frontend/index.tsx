@@ -47,7 +47,7 @@ export { achievementReset } from './surfaces/reset';
  * Scope: hooks only NotificationStore (sound, durations, synthetic achievement toasts), the toast dispatcher (the
  * banner) and toast windows (a scoped <style>). It never touches AppOverview, StoreItemCache, the section registry or
  * the activity/spotlight stores, and never imports from another plugin. Layers and owners:
- * docs/enhanced-notifications/architecture.md.
+ * docs/enhanced-notifications.md.
  */
 let surfaceReport: SurfaceStatus[] = [];
 

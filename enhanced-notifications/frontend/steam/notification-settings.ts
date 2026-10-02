@@ -7,7 +7,7 @@ import { findExports } from './webpack';
  * time will never show because the user turned Steam's toasts off entirely.
  *
  * This plugin never adds a hook to work around toasts being disabled
- * (docs/plans/phase7-and-alpha-plan.md, Q5: declined). If toasts are off,
+ * (docs/plans/phase7-and-alpha-plan.md (deleted; `git show 0cc6249^:docs/plans/phase7-and-alpha-plan.md`), Q5: declined). If toasts are off,
  * Steam's own `ProcessNotification` returns early and no toast (styled or
  * not) is ever shown — that is expected, not a bug.
  *

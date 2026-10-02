@@ -69,8 +69,7 @@ ports-and-adapters modular monolith
 | [steam-cartridges.md](steam-cartridges.md) | The `steam-cartridges` architecture: the hexagon, the layer docs, how to add a feature |
 | [steam-cartridges/](steam-cartridges/README.md) | One doc per architecture layer, plus [verification.md](steam-cartridges/verification.md) (live baseline, rollback, open known issues) |
 | [millennium-architecture.md](millennium-architecture.md) | The suite: core/provider split, data flow, RPC, provider contract. Its module layout is out of date |
-| [enhanced-notifications/architecture.md](enhanced-notifications/architecture.md) | How `enhanced-notifications` is built (every toast's style, and the achievement banner merged from `enhanced-achievements`): layers, owners, the safety net, how to add a feature |
-| [plans/phase7-and-alpha-plan.md](plans/phase7-and-alpha-plan.md) | `enhanced-achievements` (now in `enhanced-notifications`) phase 7 and the user's alpha test checklist (cited by their code) |
+| [enhanced-notifications.md](enhanced-notifications.md) | How `enhanced-notifications` is built (every toast's style, and the achievement banner merged from `enhanced-achievements`): layers, owners, the safety net, how to add a feature |
 
 ---
 

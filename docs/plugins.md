@@ -32,13 +32,13 @@ the rest. Index of everything: [README.md](README.md).
 
 1. Scaffold and layout: [§ Layout](#layout), [§ 1 Scaffold](#1-scaffold), [§ 2 Backend](#2-backend-luajit), [§ 3 Frontend](#3-frontend-typescript--steams-react).
 2. Decide its place in the suite: core or provider, and what it may depend on ([millennium-architecture.md](millennium-architecture.md); a provider returns data, the core renders it: [ADR-0013](decisions.md#adr-0013-providers-return-data-the-core-renders-it), [ADR-0014](decisions.md#adr-0014-providers-are-isolated-and-fail-silently)). The core never depends on a provider.
-3. Copy the shape of a migrated plugin, don't invent one: a safety net, one owner per Steam target, an architecture test with an empty allowlist. References: [enhanced-notifications/architecture.md](enhanced-notifications/architecture.md) (smaller) and [steam-cartridges.md](steam-cartridges.md).
+3. Copy the shape of a migrated plugin, don't invent one: a safety net, one owner per Steam target, an architecture test with an empty allowlist. References: [enhanced-notifications.md](enhanced-notifications.md) (smaller) and [steam-cartridges.md](steam-cartridges.md).
 4. Develop, deploy and test with `dev.ps1` ([§ 4](#4-develop), [§ 5](#5-test)). Close with the [checklist for a new plugin](#checklist-for-a-new-plugin).
 
 ### C. A new feature in an existing plugin
 
 1. `steam-cartridges`: [steam-cartridges.md § 4 Adding a feature](steam-cartridges.md#4-adding-a-feature). Place each piece on its layer (surface, service or source, sensor, domain, app, port) and stay inside its "what changes, what does not" row.
-2. `enhanced-notifications`: [How to add a feature](enhanced-notifications/architecture.md#how-to-add-a-feature).
+2. `enhanced-notifications`: [How to add a feature](enhanced-notifications.md#how-to-add-a-feature).
 3. Open the layer doc of each module you touch ([steam-cartridges.md § 3](steam-cartridges.md#3-layer-docs)) and update it in the same change.
 4. The architecture tests are the judge. Never widen an allowlist to go green; an entry needs a plan step and a reason.
 
@@ -47,7 +47,7 @@ the rest. Index of everything: [README.md](README.md).
 1. `npm run check`, the TS tests and (backend) the Lua tests pass ([AGENTS.md Routine 4](../AGENTS.md#routine-4-build--run)).
 2. Verified live on the running client: [AGENTS.md Routines 1–3](../AGENTS.md#agent-operating-routines) (four views, Game A ➔ B ➔ A, the CDP scripts). Never weaken a check to match new behaviour (guardrail 15).
 3. Docs: the layer doc, [CHANGELOG.md](../CHANGELOG.md) (decisions and findings), an ADR if you decided something, and [TASK.md](../TASK.md) (move finished work out of *Now*).
-4. Commit and push ([Routine 5](../AGENTS.md#routine-5-end-of-session-prune-sync--auto-push)). Nothing bound for `SteamClientHomebrew/Millennium` carries AI attribution ([Routine 6](../AGENTS.md#routine-6-no-ai-attribution-on-anything-that-reaches-steamclienthomebrewmillennium)).
+4. Commit and push ([Routine 5](../AGENTS.md#routine-5-end-of-session-prune-sync--auto-push)). No commit, PR or issue carries AI attribution, in any repo ([Routine 6](../AGENTS.md#routine-6-commit-guardrail--never-add-ai-agents-as-contributors)).
 
 ---
 
@@ -83,7 +83,7 @@ millennium-plugins/                 <- this repo (private)
 Inside the frontend, a plugin that writes into Steam follows the same shape: pure decisions, one
 `Surface` per Steam target with a kill switch, and an architecture test that enforces it. The worked
 examples are [steam-cartridges](steam-cartridges/) (layer docs) and
-[enhanced-notifications](enhanced-notifications/architecture.md) (one architecture doc).
+[enhanced-notifications](enhanced-notifications.md) (one architecture doc).
 
 ---
 
