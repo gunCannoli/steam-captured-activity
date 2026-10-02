@@ -7,6 +7,13 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: outdated live tests fixed (2026-10-02)**: `probes/game_editor.mjs` (F1) aborted when its fixed
+  game (4263274102) had a manual edit; it now skips any game the user edited and takes the first shortcut with fetched
+  metadata, app details and no edit (live: 4271101655; the user's edit untouched). `click_settings_panel.mjs` looked for
+  "Scan" buttons on the Issues view; it now checks the Review popup opens and scrapes one game from a "Scrape" button,
+  or records a skip when there is nothing to scrape. Review now opens on "Not scraped" when there are no issues but
+  unscraped games. Its regexes avoid backslashes (the probe body is a template literal, which eats them). Live:
+  `test:live` 13/13, click-through all steps pass.
 - **steam-cartridges: settings panel and popups on one spacing system (2026-10-02)**: at the user's request. Every popup
   (Add service, Add source, Emulator status, Add/Edit rule, Review) is now `PanelSection` + `Blocks` + the shared rows,
   like the Game Data editor: dropdowns as `FullWidthRows`, rule services as toggle rows, one block per game in Review.
