@@ -324,7 +324,8 @@ end
 -- ---------- Community media (features plan F2b) ----------
 
 --- ScreenScraper media types Steam's Community Content section can show, and the card each becomes. Image types
---- only: a type whose bytes are not an image (the HyperSpin theme may be an archive) is dropped when it is downloaded.
+--- only: a media ScreenScraper names as another format is not offered (is_image_format), and one whose bytes are not an
+--- image is dropped when it is downloaded.
 M.MEDIA_KINDS = {
   sstitle = "screenshot", ss = "screenshot", fanart = "artwork",
   mixrbv2 = "artwork", mixrbv1 = "artwork", ["box-2D"] = "artwork", ["box-2D-back"] = "artwork", ["box-3D"] = "artwork",
@@ -348,12 +349,21 @@ local function key_of(m)
   return tostring(m.type) .. "(" .. tostring(m.region or "") .. ")"
 end
 
+--- File formats a card can show. ScreenScraper names each media's format; one it names as something else (the HyperSpin
+--- theme is a zip) is never offered, so it costs no download. A media without a format is kept: its bytes decide.
+local IMAGE_FORMATS = { png = true, jpg = true, jpeg = true }
+
+--- Whether a media's `format` (ScreenScraper's own field, nil when absent) is one a card can show.
+function M.is_image_format(format)
+  return type(format) ~= "string" or IMAGE_FORMATS[format:lower()] == true
+end
+
 --- The images a `jeu` offers for the Community section, one item per type (best region), as keys only:
 --- { kind, source = "screenscraper", key = "ss(wor)", title?, width, height }. Never a URL.
 function M.media_items(jeu)
   local by_type = {}
   for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do
-    if type(m) == "table" and M.MEDIA_KINDS[m.type] and type(m.url) == "string" and m.url ~= "" then
+    if type(m) == "table" and M.MEDIA_KINDS[m.type] and type(m.url) == "string" and m.url ~= "" and M.is_image_format(m.format) then
       local list = by_type[m.type] or {}
       list[#list + 1] = { rank = REGION_RANK[m.region or "wor"] or 9, key = key_of(m) }
       by_type[m.type] = list
@@ -412,10 +422,11 @@ function M.download_document(url)
   return res.body
 end
 
---- The URL of the media item `key` in `jeu`, or nil. Stays in the backend (it carries the accounts).
+--- The URL of the media item `key` in `jeu` and its format (nil when ScreenScraper names none), or nil. Stays in the
+--- backend (it carries the accounts).
 function M.media_url(jeu, key)
   for _, m in ipairs(type(jeu) == "table" and type(jeu.medias) == "table" and jeu.medias or {}) do
-    if type(m) == "table" and type(m.url) == "string" and key_of(m) == key then return m.url end
+    if type(m) == "table" and type(m.url) == "string" and key_of(m) == key then return m.url, m.format end
   end
   return nil
 end

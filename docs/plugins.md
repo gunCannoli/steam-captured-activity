@@ -715,6 +715,18 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   (`start-steam-dev.ps1 -Restart`) is ours; one that does not is Steam's. Never weaken its thresholds to
   get a PASS (guardrail 15). A new plugin's `dev.ps1` and live runner call it the same way.
 
+### 20. `pcall` is not a safety net for a nil index (Lua backend)
+
+- **The Trap:** in Millennium 3.5.0's Lua host, a type error raised by an operator (indexing nil, arithmetic on a table)
+  kills the whole backend **even inside `pcall`**; only `error()` and a call of nil are caught
+  ([knowledgebase.md, item 4](knowledgebase.md#backend-rpc-crash-trap-unregistered-methods--unhandled-errors)). On
+  2026-10-01 `manual_cover_store.lua` used `fs` without `require("fs")` inside a `pcall`: every COMMUNITY tab with a
+  manual took the backend down, and the code looked guarded.
+- **The Rule:** `require` every Millennium module (`fs`, `http`, `utils`, `millennium`, `logger`, `json`, ...); they
+  are preloaded, never globals. Test a value's type before indexing it instead of wrapping the index in `pcall`.
+  `steam-cartridges/tests/test_globals.lua` (in `npm test`) reads every backend file's bytecode and fails on a global
+  read that is not standard Lua; copy it into a new Lua plugin.
+
 ---
 
 ## 4. Develop

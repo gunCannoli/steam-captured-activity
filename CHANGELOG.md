@@ -7,6 +7,21 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: the community-tab backend crash is root-caused and fixed; population measured (2026-10-01)**:
+  `manual_cover_store.lua` read the global `fs` without `require("fs")`. The read sat inside `pcall`, but in Millennium
+  3.5.0's Lua host a type error raised by an operator (a nil index, arithmetic on a table) kills the backend even under
+  `pcall`; only `error()` and a call of nil are caught (proven live with one probe RPC per error kind). So the first
+  `GetManualCover` of every backend took it down, and the disk cover cache never worked. Proven by a bisect over direct
+  RPC calls (`tests/live/probes/rpc_raw.mjs`, `rpc_repro.mjs`), with the minidump read without WinDbg (a `std::bad_alloc`
+  while copying an RPC result, then a crash in nlohmann::json's destructor during the unwind; not a memory shortage).
+  Fix: one `require`; new `tests/test_globals.lua` fails on any non-standard global read (it flags the old file);
+  knowledgebase item 4, plugins.md guardrail 20, steam-debug.md Trap 9. Speed: after a restart the manual cover comes
+  from disk in 14 ms (was a PDF download plus render every start); the HyperSpin theme (a zip) is skipped by its
+  ScreenScraper `format`. Remaining cost per Steam start: `jeuInfos` (3-15 s) plus ~0.5 s per image, serial; parallel
+  calls cannot help (the Lua host serves one request at a time), so the next step is images on disk (S1, needs an ADR
+  amending ADR-0046, the user's decision). Live: Chrono Trigger 3 times plus after a restart, no crash; `test:live` all
+  PASS (parity on the re-run: its first run read the page mid-navigation after the restart). Plan § 6:
+  docs/plans/steam-cartridges-community-crash-and-speed-investigation.md.
 - **enhanced-achievements merged into enhanced-notifications (2026-10-01, ADR-0050)**: at the user's request, one
   plugin themes every toast. A theme's optional `achievements` block is the former Enhanced Achievements theme (tier
   banner, icons, sounds; it inherits the theme's position, animation and display time); without it achievement toasts

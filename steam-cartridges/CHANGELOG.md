@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: opening the Community section of a game with a manual crashed the plugin's backend (2026-10-01)**: every feature that needs the backend stopped until Steam restarted. The manual's cover is now also kept on disk, so after a restart it shows at once (14 ms) instead of downloading and rendering the whole PDF again, and ScreenScraper's HyperSpin theme (a zip archive, never shown) is no longer downloaded.
 - **Added: the Community section shows Steam's loading animation while a game's cards are fetched; every card has a caption; ScreenScraper box backs and figurines (2026-10-01)**.
 - **Fixed: a large manual (for example Chrono Trigger's) opened as a placeholder (2026-10-01)**: a slow download no longer fails the manual, and the card opens its pages whether or not its first-page cover had been rendered.
 - **Added: game manuals in the Community section (F2c, 2026-10-01)**: with a ScreenScraper account, a game's manual is a card in its Community section showing the manual's first page; open it to read every page, on a controller too ("Scroll down to view the manual"). Setting: Community & Media → Game Manuals.

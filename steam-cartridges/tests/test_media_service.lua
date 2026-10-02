@@ -496,5 +496,26 @@ for _, it in ipairs(more) do titles[it.key] = it.title end
 check("Box: back and Figurine are artwork cards", titles["box-2D-back(us)"] == "Box: back" and titles["figurine(wor)"] == "Figurine" and #more == 5)
 check("every ScreenScraper card has a caption", titles["ss(wor)"] == "Screenshot" and titles["sstitle(wor)"] == "Title screen" and titles["fanart()"] == "Fan art")
 for t, kind in pairs(ss.MEDIA_KINDS) do check("a caption for " .. t, ss.MEDIA_TITLES[t] ~= nil and kind ~= nil) end
+
+-- The HyperSpin theme is a zip (ScreenScraper's `format`, seen live 2026-10-01): never offered, never downloaded.
+local FORMATS = { id = "7", medias = {
+  { type = "ss", region = "wor", format = "png", url = SS_URL .. "&media=ss(wor)" },
+  { type = "fanart", region = "", format = "JPG", url = SS_URL .. "&media=fanart()" },
+  { type = "themehs", region = "", format = "zip", url = SS_URL .. "&media=themehs()" },
+  { type = "flyer", region = "us", url = SS_URL .. "&media=flyer(us)" },
+} }
+local keys = {}
+for _, it in ipairs(ss.media_items(FORMATS)) do keys[#keys + 1] = it.key end
+check("media_items drops a zip, keeps png, JPG and a media without a format",
+  table.concat(keys, ",") == "ss(wor),fanart(),flyer(us)", table.concat(keys, ","))
+local saved_jeu, saved_download = media.deps.ss_jeu, media.deps.download
+local fetched = 0
+media.deps.ss_jeu = function() return FORMATS end
+media.deps.download = function() fetched = fetched + 1; return JPG, "jpg", 640, 480 end
+local zip_img, zip_err = media.image(SC, "themehs()", "G")
+check("image() of a zip key (a record cached before the filter) fails without a download",
+  zip_img == nil and zip_err == "not an image" and fetched == 0, tostring(zip_err))
+check("image() of a key without a format still downloads", media.image(SC, "flyer(us)", "G") ~= nil and fetched == 1)
+media.deps.ss_jeu, media.deps.download = saved_jeu, saved_download
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

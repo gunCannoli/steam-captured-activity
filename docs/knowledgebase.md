@@ -300,8 +300,21 @@ lookups in one `EnsureFresh`) should not be forced twice; read the stored result
 1. Calling a non-existent method name via `window.Millennium.callServerMethod(plugin, "NonExistentMethod", ...)` crashes the backend process with an Access Violation (`0xC0000005`) in Millennium's native DLL.
 2. Unhandled Lua `error()` calls escaping across the C++ frame boundary terminate the child process.
 3. Once crashed, all subsequent RPC calls to that plugin reject with `"Millennium Error: failed to send RPC to child: <plugin>"`.
+4. **`pcall` does not save you from a type error raised by an operator** (v3.5.0, ✅ verified live 2026-10-01 with one
+   probe RPC per kind, each inside `pcall`): indexing a nil value (`t.x` with `t == nil`, including a module used as a
+   global without `require`) and arithmetic on the wrong type (`{} + 1`) kill the backend host
+   (`millennium.luavm64.exe`, access violation or no crash folder at all), while `error("text")`, `error({})` and calling
+   nil are caught normally. The answer of the call usually still arrives; the host dies right after it, so the *next*
+   RPC is the one that fails. Seen as: the COMMUNITY tab of every shortcut with a manual crashed the backend, because
+   `manual_cover_store.lua` read the global `fs` (Millennium's `fs` is preloaded, never a global) inside a `pcall`
+   (2026-10-01, [investigation](plans/steam-cartridges-community-crash-and-speed-investigation.md)). The one dump it
+   left shows a C++ `std::bad_alloc` thrown while the host copied an RPC result, then a crash in nlohmann::json's
+   destructor during the unwind: memory damaged by the error, not a real shortage (47 GB of commit was free).
 
 All backend RPC endpoints must be wrapped with `rpc.method()` (using `pcall`), and errors must be returned as `{ error = "..." }` rather than thrown.
+Do not rely on `pcall` to absorb a nil index: check with `type(x) == "table"` first, and `require` every Millennium module
+(`fs`, `http`, `utils`, `millennium`, `logger`, `json`, ...). `steam-cartridges/tests/test_globals.lua` fails on any
+global read that is not standard Lua.
 
 ## Part 2 — Steam's own data & runtime
 

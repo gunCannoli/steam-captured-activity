@@ -1,6 +1,6 @@
 # steam-cartridges: community tab crash on Chrono Trigger (SNES) and slow population — investigation
 
-**Status:** open, written 2026-10-01 by the agent that shipped commits `df6326d` and `9a174b6`. **Nothing is root-caused.**
+**Status:** Q1 root-caused and fixed, Q2 measured (§ 6, 2026-10-01). Written by the agent that shipped `df6326d` and `9a174b6`; findings by a second agent. Open: S1 (the user's decision), § 7 by the user.
 **Kind:** an investigation, not a mechanical patch plan: the deliverable is a *finding* (cause, evidence, recommended
 fix) the user approves, then a normal fix plan under [the plan standard](README.md). Do not skip to a fix.
 
@@ -230,13 +230,85 @@ node steam-lock.mjs status                    # expected: free (otherwise do off
   "Generated with" footer; it overrides any default).
 - No secrets in the write-up: never paste a ScreenScraper URL, `ssid`, `devpassword` or the contents of `.env`.
 
-## 6. Findings (the investigator fills this in)
+## 6. Findings (2026-10-01, second agent)
 
-_Q1 cause, evidence, minidump top frames, builds tested:_
+### Q1: root cause (H1, confirmed live): `manual_cover_store.lua` read the global `fs`, and a nil index kills the host even inside `pcall`
 
-_Q2 table (option, measured cold / warm, risk, recommendation):_
+**Cause.** `manual_cover_store.dir()` called `fs.is_directory` with no `local fs = require("fs")`. Millennium's `fs` is a
+preloaded module, never a global, so the read raised "attempt to index global 'fs' (a nil value)". It sat inside a `pcall`,
+which should have caught it, but in Millennium 3.5.0's Lua host **a type error raised by an operator kills the backend
+even under `pcall`**. Every first `GetManualCover` of a backend's life (the first call of the manual cover job, right after
+the images) took the backend down. That is why `manual_covers/` was never created. Fix: one line, `local fs = require("fs")`.
 
-_Recommended fix plan(s) to write next:_
+**Proof, in order (builds: HEAD `5d97cc5` plus temporary breadcrumbs written to `<data dir>/diag_trace.log`, then the
+named change):**
+
+| # | Build / call | Result |
+| --- | --- | --- |
+| 1 | HEAD + trace, UI: open Chrono Trigger | crash; the last trace line is `OUT GetManualCover size=2`, no later RPC entered Lua; Lua heap 41 MB, process private 63 MB |
+| 2 | HEAD + trace, fresh backend, **no images, no page**: `GetManualCover` alone (`rpc_repro.mjs`) | the answer `{}` arrives, then the backend is dead (`child disconnected`) |
+| 3 | same, `GetManualCover` with a non-shortcut appid, then with an empty key (both return before the store) | alive |
+| 4 | same, with the real appid and key (enters `manual_cover_store`) | dead |
+| 5 | **+ `local fs = require("fs")`** (V1): `GetManualCover` twice | alive, `manual_covers/` created |
+| 6 | V1 + a temporary probe RPC raising one error kind inside `pcall` per call | `error("x")`, `error({})`, calling nil: caught; **nil index and `{} + 1`: backend dead** |
+| 7 | final build (fix, no trace), UI: Chrono Trigger 3 times, then once after a restart | no crash event, no crash folder; cover rendered once (3.2 s), then **from disk in 14 ms** |
+
+**The minidump** (`steam-cartridges-dev-20261001-212855`, read with Python `minidump` + `pefile` + `capstone`, Millennium
+source at `6ab9724a`): access violation at `millennium.luavm64.exe+0x2b117`, a NULL read in nlohmann::json's
+`json_value::destroy` (object case), reached from a C++ exception unwind. The exception being unwound is
+`std::bad_alloc` (ThrowInfo `.?AVbad_alloc@std@@`), thrown while `rpc_client::run` -> `respond(id, result)` copied the
+result into the reply (`std::map` node copy). Nothing else was running (one busy thread; the other five wait), the machine had
+47 GB of commit free and Millennium sets no job memory limit: the allocation size was garbage, memory damaged by the error,
+not a shortage. Crash 1 and the build-1 crash wrote no crash folder at all. The ten older dumps (09-26..09-28) are a
+different crash (`+0x1087c`, a write in `handle_evaluate`, the RPC dispatcher: the known unregistered-method trap) and
+predate `bin_http.lua`, so **H5 is killed**.
+
+**The other hypotheses.** H2 killed: both methods are registered and answer. H3 killed: the PDF download (`GetManualChunk`
+0..7) runs cleanly on the fixed build (chunk 0 4.0 s, the other seven 0.6 s together). H4: the Lua host is **single-threaded**
+(`rpc_client::run` handles one request at a time; downloads are blocking WinINet FFI calls), so two RPCs never run at once.
+It is re-entrant only while a Lua call waits on the parent (`http.*`, `config.*`, `millennium.*` go through
+`rpc_client::call`, which serves incoming requests while it waits); the image and manual downloads do not (WinINet), so
+they cannot be interleaved.
+
+**Guards added:** `tests/test_globals.lua` (in `npm test`) reads every backend file's LuaJIT bytecode and fails on a global
+read that is not standard Lua: it reports `manual_cover_store.lua ... fs (line 15)` on HEAD's file. The trap is in
+[knowledgebase.md](../knowledgebase.md#backend-rpc-crash-trap-unregistered-methods--unhandled-errors) (item 4),
+[plugins.md guardrail 20](../plugins.md#20-pcall-is-not-a-safety-net-for-a-nil-index-lua-backend) and
+[steam-debug.md Trap 9](../steam-debug.md#trap-9-unregistered-millennium-rpc-calls-crash-the-backend-process) (how to bisect
+an RPC crash and read a dump without WinDbg). Probes kept: `tests/live/probes/rpc_raw.mjs`, `rpc_repro.mjs`.
+
+### Q2: where the time goes (Chrono Trigger, 11 ScreenScraper images + IGDB, a 7.5 MiB manual)
+
+Measured with the backend trace (wall clock) and the plugin's timing lines; "cold" = first visit after a Steam restart.
+
+| Step | Cold | Warm (same session) | Notes |
+| --- | --- | --- | --- |
+| ROM MD5 (`node ra_hasher.js`) | 0.1 s | 0 (memory cache) | not a cost |
+| ScreenScraper `jeuInfos` (first image call) | 3.2 s .. ~15 s | 0 (memory cache) | the biggest and most variable cost; network |
+| ScreenScraper images, serial | 0.4-0.6 s each, fanart 1.8 s (2.3 MB); ~7 s for 11 | 0 (memory bin) | ScreenScraper's server time per image |
+| HyperSpin theme (`themehs`, a **zip**) | 0.5 s + 2.4 MB, then dropped as "not an image" | 0 | **fixed:** skipped by its `format` before any download |
+| Images phase as logged (`Community media ... images in`) | 10.9-22.6 s | 2-7 ms | |
+| Manual cover, first time ever | 3.2-4.2 s after the images (PDF download 4 s + render) | 0 | |
+| Manual cover, after a restart | **14 ms from disk** (was a full PDF download + render every start: the disk cache never worked before the fix) | 0 | **fixed by Q1** |
+
+| # | Option | Verdict |
+| --- | --- | --- |
+| S1 | Images on disk | **Biggest remaining win** (cold ~11-23 s -> ~0 after the first visit ever, and no `jeuInfos` call is needed to show stored images). Needs a new ADR amending ADR-0046 ("no image bytes on disk"); bytes only, never a URL. **The user's decision.** |
+| S2 | Parallel backend calls | **No gain, do not retry.** The host serves one request at a time and the downloads block it; frontend parallelism only queues calls behind each other (the 3-at-a-time build measured 30.6 s for AM2R's 15 images). It did not cause the crash. |
+| S3 | Frontend downloads | No-go (ADR-0046: the URL carries the account; no CORS). |
+| S4 | Progressive feed | Possible, but Steam serves page 1 once; needs the loader wrap. Lower value than S1. |
+| S5 | Smaller images | Saves bytes, not ScreenScraper's per-image server time (the dominant part). Low value. |
+| S6 | Warm the cache in the background | Conflicts with "never a storm" and the account's threads; only worth it with S1. |
+| S7 | Range request for the cover | No longer needed: the cover is downloaded once per manual ever (disk cache works now). |
+| S8 | `COVER_WAIT_MS` (8 s) | Keep: the first-ever cover arrives 3-4 s after the images, inside the wait; a stored cover is 14 ms. |
+
+### Fix shipped with this finding
+
+`local fs = require("fs")` in `manual_cover_store.lua`; `screenscraper_media.media_items` skips a media whose `format` is
+not png/jpg (seen live: `themehs` is `zip`, every image `png`/`jpg`), and `media_service.image` refuses such a key before
+downloading (records cached before the filter still name it for up to 7 days); tests for both and `test_globals.lua`.
+
+**Next plan to write (needs the user's go-ahead):** S1, ScreenScraper images on disk, with a new ADR amending ADR-0046.
 
 ## 7. Verification of the finding
 

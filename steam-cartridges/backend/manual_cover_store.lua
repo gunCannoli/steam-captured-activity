@@ -2,6 +2,7 @@
 --- <data dir>/manual_covers/<appid>_<key>.jpg. The frontend renders it once from the PDF (the slow step: a download of up to
 --- 48 MiB); every later start reads this small file instead. A store stores; it never fetches (ADR-0044).
 
+local fs       = require("fs")
 local data_dir = require("data_dir")
 
 local M = {}

@@ -160,8 +160,10 @@ function M.image(appid, key, title)
   local media = require("screenscraper_media")
   local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
   if not ok or type(jeu) ~= "table" then return nil, ok and tostring(err or "not-found") or "not-found" end
-  local url = media.media_url(jeu, key)
+  local url, format = media.media_url(jeu, key)
   if not url then return nil, "unknown key" end
+  -- A record cached before the format filter may still name a non-image (the HyperSpin theme zip): no download for it.
+  if not media.is_image_format(format) then return nil, "not an image" end
   local body, ext, width, height = (M.deps.download or media.download)(url)
   if not body then return nil, ext end
   return { base64 = require("utils").base64_encode(body), ext = ext, width = width, height = height }
