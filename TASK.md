@@ -16,13 +16,12 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**steam-cartridges community tab: crash fixed, population measured (2026-10-01).** Cause: `manual_cover_store.lua` used `fs`
-without `require`, and a nil index kills Millennium 3.5.0's Lua host even inside `pcall` (knowledgebase item 4, plugins.md
-guardrail 20, guarded by `tests/test_globals.lua`). Live-verified by the agent (Chrono Trigger 3 times plus after a restart,
-`test:live` all PASS). Left: **the user's decision on S1** (keep ScreenScraper images on disk so a Steam restart does not
-download them again: the remaining 11-23 s per game per start; needs a new ADR amending ADR-0046), and the user's own § 7 check.
-Findings and the options table: [the investigation § 6](docs/plans/steam-cartridges-community-crash-and-speed-investigation.md#6-findings-2026-10-01-second-agent).
-Do not re-introduce parallel backend calls (no gain: the host serves one request at a time).
+**steam-cartridges community tab (2026-10-01): crash fixed, downloads kept on disk (ADR-0051).** Both live-verified by the
+agent (Chrono Trigger after a restart: images 479 ms, was 11-23 s; `test:live` 13/13). Left for the user: plan § 7 of
+[the investigation](docs/plans/steam-cartridges-community-crash-and-speed-investigation.md) (Chrono Trigger three times, then
+after a restart), and a look at the "Keep downloaded media" slider in Settings → Community & Media (desktop and Big Picture).
+When both pass, delete the investigation plan. Do not re-introduce parallel backend calls (no gain: the host serves one
+request at a time).
 
 **enhanced-achievements merged into enhanced-notifications (ADR-0050, 2026-10-01): code committed, waiting for the live
 verification in [its plan § 9](docs/plans/enhanced-notifications-achievements-merge-plan.md)** (the user: disable

@@ -1,6 +1,6 @@
 # steam-cartridges: community tab crash on Chrono Trigger (SNES) and slow population — investigation
 
-**Status:** Q1 root-caused and fixed, Q2 measured (§ 6, 2026-10-01). Written by the agent that shipped `df6326d` and `9a174b6`; findings by a second agent. Open: S1 (the user's decision), § 7 by the user.
+**Status:** Q1 root-caused and fixed, Q2 measured (§ 6, 2026-10-01). Written by the agent that shipped `df6326d` and `9a174b6`; findings by a second agent. S1 done (ADR-0051). Open: § 7 by the user.
 **Kind:** an investigation, not a mechanical patch plan: the deliverable is a *finding* (cause, evidence, recommended
 fix) the user approves, then a normal fix plan under [the plan standard](README.md). Do not skip to a fix.
 
@@ -308,7 +308,11 @@ Measured with the backend trace (wall clock) and the plugin's timing lines; "col
 not png/jpg (seen live: `themehs` is `zip`, every image `png`/`jpg`), and `media_service.image` refuses such a key before
 downloading (records cached before the filter still name it for up to 7 days); tests for both and `test_globals.lua`.
 
-**Next plan to write (needs the user's go-ahead):** S1, ScreenScraper images on disk, with a new ADR amending ADR-0046.
+**S1 done (2026-10-01, the user's decision):** everything fetched stays on disk for the "Keep downloaded media" days
+(default 7, 0-30), per game, deleted when the game has not been opened within them:
+[ADR-0051](../decisions.md#adr-0051-downloaded-media-stays-on-disk-while-its-game-is-opened-the-user-sets-the-days),
+[service-media.md § Disk cache](../steam-cartridges/service-media.md#disk-cache-adr-0051). Chrono Trigger after a restart:
+images 479 ms (was 11-23 s), cover 11 ms, PDF chunk 0 87 ms (was 4 s).
 
 ## 7. Verification of the finding
 

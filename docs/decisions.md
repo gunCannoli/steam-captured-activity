@@ -2806,7 +2806,7 @@ Steam fills that cache after login for every owned game, from its own file.
 
 ## ADR-0046: Community media feeds Steam's own Community Content loader; ScreenScraper bytes stay in memory
 
-**Status:** Accepted · 2026-09-30 (user decision, features plan F2) · **Amends [ADR-0041](#adr-0041-jsx-runtime-hooks-stay-one-per-concern)** (a fourth, learn-once jsx site)
+**Status:** Accepted · 2026-09-30 (user decision, features plan F2) · **Amends [ADR-0041](#adr-0041-jsx-runtime-hooks-stay-one-per-concern)** (a fourth, learn-once jsx site) · **Amended by [ADR-0051](#adr-0051-downloaded-media-stays-on-disk-while-its-game-is-opened-the-user-sets-the-days)** (ScreenScraper bytes may stay on disk, never a URL)
 
 ### Context
 
@@ -3041,3 +3041,37 @@ plugin, enhanced-notifications as the baseline, the achievement features as opti
 - Shared copies left: `steam/jsx-hook.ts` with steam-cartridges. Feature ids appended: `banner`, `completion`,
   `captures`, `toasts`, `reset`. The plugin's settings namespace is enhanced-notifications'; the user sets the
   achievement settings again once.
+
+## ADR-0051: Downloaded media stays on disk while its game is opened; the user sets the days
+
+**Status:** Accepted · 2026-10-01 (user decision) · **Amends [ADR-0046](#adr-0046-community-media-feeds-steams-own-community-content-loader-screenscraper-bytes-stay-in-memory)** ("No media file on disk"; the rule that no ScreenScraper URL leaves the backend stands) · Builds on [ADR-0048](#adr-0048-a-manual-is-a-cover-card-that-opens-steams-own-viewer-pdfjs-renders-its-pages-on-demand-behind-a-port) · Evidence: [the community investigation § 6](plans/steam-cartridges-community-crash-and-speed-investigation.md#6-findings-2026-10-01-second-agent)
+
+### Context
+
+ADR-0046 kept ScreenScraper image bytes in memory only, so every Steam start downloaded a game's community media again:
+measured on Chrono Trigger, 11-23 s before the first card (a 3-15 s `jeuInfos` lookup, then about 0.5 s per image, one at a
+time) plus 4 s for the manual's PDF. Parallel downloads cannot help: Millennium's Lua host serves one request at a time. The
+user's call (2026-10-01): keep everything fetched on disk, for 7 days by default; clear a game's files when it has not been
+opened in that window; a settings slider from 0 to 30 days.
+
+### Decision
+
+1. **What:** the backend keeps a game's ScreenScraper images, its manual's PDF and the manual's rendered cover in
+   `<data dir>/media_cache/<appid>/` (`media_cache.lua`), plus a marker for a key that is not an image. File names are
+   media keys; a ScreenScraper URL or account never reaches the disk. IGDB media are public URLs Steam loads itself:
+   nothing to keep.
+2. **How long:** `opened.json` records each game's last page open (the media `EnsureFresh`). `PruneMediaCache(days)` runs
+   at start-up and when the setting changes, and deletes every game folder whose last open is older than the days. A game
+   opened daily keeps its files.
+3. **The setting:** `mediaCacheDays`, "Keep downloaded media" (Community & Media), 0-30, default 7. 0 is ADR-0046's
+   memory-only behaviour and clears the folder. The frontend passes the days with every call that may read or write.
+4. A cached image or PDF is served without asking ScreenScraper; the record (`community_media.json`, 7-day freshness)
+   still decides which keys a game shows.
+
+### Consequences
+
+- A game's Community section fills from disk after a restart (Chrono Trigger: 479 ms instead of 11-23 s; the PDF's first
+  chunk 87 ms instead of 4 s). Disk use is bounded by the games opened in the window (Chrono Trigger: 12 MB, AM2R: 3.6 MB).
+- The manual covers move from `manual_covers/` (removed by the first prune) into the per-game folder, so they expire too.
+- A key whose media changed on ScreenScraper keeps its old bytes while the game stays opened; setting 0 days, then back,
+  refreshes everything.

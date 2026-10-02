@@ -26,5 +26,6 @@
   "communityShowManuals": true,
   "communityShowArtworks": true,
   "communityShowExternalLinks": true,
+  "mediaCacheDays": 7,
   "disabledFeatures": ""
 }

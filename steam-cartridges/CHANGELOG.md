@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Added: downloaded media stays on disk, "Keep downloaded media" setting (2026-10-01, ADR-0051)**: ScreenScraper screenshots, artwork and manuals a game downloaded are kept on this PC, so its Community section fills at once after Steam restarts (Chrono Trigger: under half a second instead of 11-23 s). A game's files are deleted when its page has not been opened for the chosen number of days: 7 by default, 0 to 30 in Settings → Community & Media; 0 keeps nothing on disk.
 - **Fixed: opening the Community section of a game with a manual crashed the plugin's backend (2026-10-01)**: every feature that needs the backend stopped until Steam restarted. The manual's cover is now also kept on disk, so after a restart it shows at once (14 ms) instead of downloading and rendering the whole PDF again, and ScreenScraper's HyperSpin theme (a zip archive, never shown) is no longer downloaded.
 - **Added: the Community section shows Steam's loading animation while a game's cards are fetched; every card has a caption; ScreenScraper box backs and figurines (2026-10-01)**.
 - **Fixed: a large manual (for example Chrono Trigger's) opened as a placeholder (2026-10-01)**: a slow download no longer fails the manual, and the card opens its pages whether or not its first-page cover had been rendered.

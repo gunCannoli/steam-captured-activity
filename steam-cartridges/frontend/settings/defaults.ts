@@ -55,10 +55,15 @@ export interface Settings {
     communityShowArtworks: boolean;
     /** Show external community destinations (Discord, Speedrun, Wiki). Default true. */
     communityShowExternalLinks: boolean;
+    /** Days a game's downloaded media (ScreenScraper images, manual PDF and cover) stays on disk after its page last opened (ADR-0051): 0-30, 0 = memory only. Default 7. */
+    mediaCacheDays: number;
     /** Kill switches (migration plan M0b): comma-separated feature ids skipped at start-up. Default "". */
     disabledFeatures: string;
 }
 export type SettingKey = keyof Settings;
+
+/** The "Keep downloaded media" slider (ADR-0051); the backend clamps to the same range (media_cache.MAX_DAYS). */
+export const MEDIA_CACHE_DAYS = { min: 0, max: 30, step: 1, default: 7 } as const;
 
 /** The same literal as domain/routing/policy's DEFAULT_BUCKETS (a test keeps them equal). */
 const DEFAULT_BUCKETS_LITERAL: BucketsConfig = { version: 2, default: 'steam-store', rules: [], overrides: {} };
@@ -78,5 +83,6 @@ export const DEFAULTS: Settings = {
     communityShowManuals: true,
     communityShowArtworks: true,
     communityShowExternalLinks: true,
+    mediaCacheDays: MEDIA_CACHE_DAYS.default,
     disabledFeatures: '',
 };

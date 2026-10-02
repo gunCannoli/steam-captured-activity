@@ -81,6 +81,11 @@ function fs.remove(path)
   return os.remove(path)
 end
 
+function fs.remove_all(path)
+  os.execute('rmdir /s /q "' .. path:gsub("/", "\\") .. '" >nul 2>nul')
+  return 1
+end
+
 function fs.extension(path)
   local ext = path:match("(%.[^%.\\/]+)$")
   return ext or ""

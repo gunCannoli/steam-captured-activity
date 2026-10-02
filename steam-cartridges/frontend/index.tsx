@@ -91,6 +91,13 @@ const features = createFeatureSwitches({
 onSettingChange((key) => {
     if (key === "disabledFeatures") features.reload();
 });
+/** A slider drag sends many values: prune the disk cache once it settles (ADR-0051). */
+let pruneTimer: ReturnType<typeof setTimeout> | undefined;
+onSettingChange((key) => {
+    if (key !== "mediaCacheDays") return;
+    clearTimeout(pruneTimer);
+    pruneTimer = setTimeout(() => void media.pruneCache(), 2000);
+});
 
 /** What every surface gets: the kill switches and error counter of safety/ (plan § 7.0 D6). */
 const surfaceDeps: SurfaceDeps = {
@@ -204,6 +211,7 @@ const media = createMedia({
         artworks: setting("communityShowArtworks") !== false,
         manuals: setting("communityShowManuals") !== false,
     }),
+    cacheDays: () => setting("mediaCacheDays"),
     objectUrl,
     log: (message) => logger.info(message),
 });
@@ -218,6 +226,7 @@ const manuals = createManuals({
     shelf: manualShelf,
     renderer: pdfRenderer,
     coverCache: { objectUrl, toBase64: objectUrlToBase64 },
+    cacheDays: () => setting("mediaCacheDays"),
     log: (message) => logger.info(message),
     titleOf: (appid) => shortcutTitle(appid),
     manualKeyOf: (appid) =>
@@ -365,6 +374,8 @@ async function init() {
 
     // Settings first: the Game Info gate reads them (ADR-0033).
     await initSettings();
+    // Downloaded media of games not opened within the setting's days leaves the disk (ADR-0051). Local files only.
+    void media.pruneCache();
 
     // ===== Safety (migration plan M0b) =====
     // Kill switches come from the `disabledFeatures` setting. Two starts in a row that

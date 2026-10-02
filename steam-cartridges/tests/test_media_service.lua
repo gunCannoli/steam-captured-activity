@@ -14,10 +14,23 @@ local logger = setmetatable({}, { __index = function() return function() end end
 package.loaded["logger"] = logger
 local TMP = (os.getenv("TEMP") or os.getenv("TMPDIR") or "/tmp"):gsub("\\", "/")
 package.loaded["millennium"] = { steam_path = function() return TMP end, ready = function() end }
+local function win(p) return (p:gsub("/", "\\")) end
+local function cmd_lines(c) local h = io.popen(c); local out = {}; for l in h:lines() do out[#out + 1] = l end h:close(); return out end
+local function is_dir(p) return cmd_lines('if exist "' .. win(p) .. '\\*" (echo yes)')[1] == "yes" end
 package.loaded["fs"] = {
   exists = function() return false end,
-  is_directory = function() return true end,
-  create_directories = function() return true end,
+  -- Real directories (temp paths only): media_cache (ADR-0051) writes, lists and removes them.
+  is_directory = is_dir,
+  create_directories = function(p) os.execute('mkdir "' .. win(p) .. '" >nul 2>nul'); return true end,
+  remove_all = function(p) os.execute('rmdir /s /q "' .. win(p) .. '" >nul 2>nul'); return 1 end,
+  list = function(p)
+    local out = {}
+    for _, name in ipairs(cmd_lines('dir /b "' .. win(p) .. '" 2>nul')) do
+      local full = p .. "/" .. name
+      out[#out + 1] = { name = name, path = full, is_directory = is_dir(full) }
+    end
+    return out
+  end,
   join = function(...) return table.concat({ ... }, "/") end,
   is_file = function(p) local f = io.open(p, "rb"); if f then f:close() return true end return false end,
 }
@@ -517,5 +530,110 @@ check("image() of a zip key (a record cached before the filter) fails without a 
   zip_img == nil and zip_err == "not an image" and fetched == 0, tostring(zip_err))
 check("image() of a key without a format still downloads", media.image(SC, "flyer(us)", "G") ~= nil and fetched == 1)
 media.deps.ss_jeu, media.deps.download = saved_jeu, saved_download
+
+-- ---------- Downloaded media on disk (ADR-0051) ----------
+local cache = require("media_cache")
+local fsx = require("fs")
+local CACHE_DIR = (os.getenv("TEMP") or ".") .. "/sc_media_cache_test_" .. os.time()
+local clock = 1000000
+cache.deps = { dir = CACHE_DIR, now = function() return clock end }
+cache._reset()
+local function cache_file(appid, name) return CACHE_DIR .. "/" .. appid .. "/" .. cache.safe_name(name) end
+
+check("days: 0..30 whole numbers, anything else 0", cache.days(7) == 7 and cache.days(0) == 0 and cache.days(45) == 30
+  and cache.days(-1) == 0 and cache.days("x") == 0 and cache.days(nil) == 0 and cache.days(2.7) == 2)
+check("safe_name keeps letters, digits and '-', and is reversible", cache.safe_name("image ss(wor)") == "image_20ss_28wor_29"
+  and cache.safe_name("box-2D(us)") ~= cache.safe_name("box_2D(us)"))
+
+media.deps.ss_jeu = function() return FORMATS end
+fetched = 0
+media.deps.download = function() fetched = fetched + 1; return JPG, "jpg", 640, 480 end
+local first, first_err = media.image(SC, "ss(wor)", "G", 7)
+check("image() with days downloads once and keeps the bytes on disk", first ~= nil and fetched == 1
+  and fsx.is_file(cache_file(SC, "image ss(wor)")), tostring(first_err) .. " fetched=" .. fetched .. " " .. cache_file(SC, "image ss(wor)"))
+media.deps.ss_jeu = function() error("no ScreenScraper call expected") end
+media.deps.download = function() error("no download expected") end
+local second = media.image(SC, "ss(wor)", "G", 7)
+check("the next image() reads the disk: no ScreenScraper call, same bytes and size", second ~= nil
+  and second.base64 == first.base64 and second.ext == "jpg" and second.width == 640 and second.height == 480)
+local stored_name = false
+for _, e in ipairs(fsx.list(CACHE_DIR .. "/" .. SC) or {}) do if e.name:find("http", 1, true) then stored_name = true end end
+check("no URL in a cached file name", not stored_name)
+
+media.deps.ss_jeu = function() return FORMATS end
+fetched = 0
+media.deps.download = function() fetched = fetched + 1; return JPG, "jpg", 640, 480 end
+media.image(SC, "fanart()", "G", 0)
+check("days 0: downloaded, nothing written", fetched == 1 and not fsx.is_file(cache_file(SC, "image fanart()")))
+
+media.deps.ss_jeu = function() return FORMATS end
+local _, zip_err7 = media.image(SC, "themehs()", "G", 7)
+media.deps.ss_jeu = function() error("no ScreenScraper call expected") end
+local _, zip_again = media.image(SC, "themehs()", "G", 7)
+check("a key that is not an image is remembered: the next start refuses it with no ScreenScraper lookup",
+  zip_err7 == "not an image" and zip_again == "not an image")
+media.deps.ss_jeu = function() return FORMATS end
+media.deps.download = function() return nil, "not an image" end
+media.image(SC, "flyer(us)", "G", 7)
+media.deps.ss_jeu = function() error("no ScreenScraper call expected") end
+local _, flyer_again = media.image(SC, "flyer(us)", "G", 7)
+check("bytes that are not an image are remembered too", flyer_again == "not an image")
+media.deps.ss_jeu = function() return FORMATS end
+media.deps.download = function() return nil, "request-failed" end
+media.image(SC, "box-3D(us)", "G", 7)
+local asked_again = 0
+media.deps.ss_jeu = function() asked_again = asked_again + 1; return FORMATS end
+media.image(SC, "box-3D(us)", "G", 7)
+check("a failed request is not remembered: it is tried again", asked_again == 1)
+media.deps.download = function() fetched = fetched + 1; return JPG, "jpg", 640, 480 end
+check("days 0: no cover is read or saved", next(media.manual_cover(SC, "manuel(us)", 0)) == nil
+  and media.save_manual_cover(SC, "manuel(us)", "AAAA", 0).ok == false)
+local saved_cover = media.save_manual_cover(SC, "manuel(us)", "QUJD", 7)
+check("a cover is saved and read back with days", saved_cover and saved_cover.ok == true
+  and media.manual_cover(SC, "manuel(us)", 7).base64 == utils.base64_encode("ABC"))
+
+-- Manual PDF: downloaded once, then read from disk.
+local PDF_DOC = "%PDF-1.4 cached manual"
+local MANUAL_JEU = { id = "8", medias = { { type = "manuel", region = "us", format = "pdf", url = SS_URL .. "&media=manuel(us)" } } }
+media.deps.ss_jeu = function() return MANUAL_JEU end
+local pdf_downloads = 0
+media.deps.download_document = function() pdf_downloads = pdf_downloads + 1; return PDF_DOC end
+local OTHER = 4263274103
+media.manual_chunk(OTHER, "manuel(us)", "G", 0, 7)
+check("a manual PDF is downloaded once and kept", pdf_downloads == 1 and fsx.is_file(cache_file(OTHER, "manual manuel(us)")))
+media.deps.ss_jeu = function() error("no ScreenScraper call expected") end
+media.deps.download_document = function() error("no download expected") end
+local from_disk = media.manual_chunk(OTHER, "manuel(us)", "G", 0, 7)
+check("the next read of a kept manual comes from disk", from_disk ~= nil and from_disk.base64 == utils.base64_encode(PDF_DOC)
+  and from_disk.chunks == 1)
+
+-- Prune: a game opened within the window stays, one not opened is removed, 0 removes everything.
+local STALE = 4263274104
+cache.set(STALE, "image ss(wor)", JPG)
+clock = clock + 3 * 86400
+cache.touch(SC) -- SC opened again today; OTHER and STALE were last written 3 days ago
+check("prune(7) keeps games opened within 7 days", cache.prune(7).removed == 0 and fsx.is_directory(CACHE_DIR .. "/" .. STALE))
+local res = cache.prune(2)
+check("prune(2) removes the games not opened for 3 days and keeps the one opened today", res.removed == 2 and res.kept == 1
+  and not fsx.is_directory(CACHE_DIR .. "/" .. STALE) and not fsx.is_directory(CACHE_DIR .. "/" .. OTHER)
+  and fsx.is_directory(CACHE_DIR .. "/" .. SC))
+media.ensure(SC, { route = { bucket = "none" }, cacheDays = 7 })
+check("prune(0) removes everything", cache.prune(0).removed == 1 and not fsx.is_directory(CACHE_DIR .. "/" .. SC))
+local touched_before = clock
+clock = clock + 86400
+media.deps.ss_jeu = function() return nil, "not-found" end
+media.ensure(SC, { route = { bucket = "default", via = "pending" }, cacheDays = 7 })
+cache._reset()
+cache.set(SC, "image ss(wor)", JPG)
+clock = clock + 6 * 86400
+check("opening a page (ensure with cacheDays) counts as an open", cache.prune(7).kept == 1, tostring(touched_before))
+media.ensure(SC, { route = { bucket = "default", via = "pending" }, cacheDays = 0 })
+clock = clock + 2 * 86400
+check("ensure with cacheDays 0 does not count as an open", cache.prune(7).removed == 1)
+
+fsx.remove_all(CACHE_DIR)
+cache.deps = {}
+cache._reset()
+media.deps.ss_jeu, media.deps.download, media.deps.download_document = saved_jeu, saved_download, nil
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

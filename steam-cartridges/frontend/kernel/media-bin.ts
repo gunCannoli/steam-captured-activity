@@ -1,6 +1,6 @@
 // Kernel: the ScreenScraper images app/media fetched for a shortcut (features plan F2b), as object URLs, waiting for
 // the community surface to hand them to Steam. Kept out of GameRecord like the image bin (kernel/image-bin.ts): the
-// bytes live only in memory, behind a blob URL, and nothing is written to disk. Bounded to the last MAX_MEDIA_APPIDS
+// bytes live in memory, behind a blob URL (the backend's disk copy, ADR-0051, is the backend's own). Bounded to the last MAX_MEDIA_APPIDS
 // shortcuts; an evicted or replaced URL is given to `release` (ports/image releaseObjectUrl), so memory stays bounded.
 
 export interface MediaImage {

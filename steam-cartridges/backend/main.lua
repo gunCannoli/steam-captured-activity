@@ -62,6 +62,8 @@ GetMediaImage  = RECORD_RPC.GetMediaImage
 GetManualChunk = RECORD_RPC.GetManualChunk
 GetManualCover = RECORD_RPC.GetManualCover
 SaveManualCover = RECORD_RPC.SaveManualCover
+-- Downloaded media on disk (ADR-0051): drop the games not opened within the setting's days.
+PruneMediaCache = RECORD_RPC.PruneMediaCache
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

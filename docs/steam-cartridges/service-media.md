@@ -12,9 +12,10 @@ shortcut with no Steam match, and from where. Part of the steam-cartridges archi
 - The store `<data dir>/community_media.json` (`media_store.lua`): keys and public URLs only, never image bytes and
   never a ScreenScraper URL.
 - The ScreenScraper image bytes, on demand: `GetMediaImage` downloads one image into memory (`net.get_binary` →
-  `bin_http.lua`, WinINet through LuaJIT's FFI) and answers base64. Nothing is written to disk; the frontend turns the
-  bytes into a `blob:` URL (`ports/image.ts` `objectUrl`) held in `kernel/media-bin.ts` (8 shortcuts, released on
-  eviction).
+  `bin_http.lua`, WinINet through LuaJIT's FFI) and answers base64; the frontend turns the bytes into a `blob:` URL
+  (`ports/image.ts` `objectUrl`) held in `kernel/media-bin.ts` (8 shortcuts, released on eviction).
+- The disk cache of those downloads (`media_cache.lua`, ADR-0051, § Disk cache): images, a manual's PDF and its cover,
+  per game, for the user's "Keep downloaded media" days.
 
 It does **not** write to Steam (the `community` surface does, [surfaces.md](surfaces.md)), does not search IGDB by title
 (it asks for the game Game Info already shows, `ctx.igdb_id`), and does not decide routing (ADR-0040): `allowWeb` and
@@ -49,8 +50,10 @@ the community media alone that exclusion is lifted (`domain/routing/policy.isMed
 `media_items` takes, per type, the best region (wor, us, eu, ss, jp): `sstitle` (title screen) and `ss` (screenshot) as
 screenshot cards; `fanart`, `mixrbv2` and `mixrbv1` (Recalbox mixes), `box-2D` (box: front), `box-3D`, `support-2D`
 (cartridge / disc), `flyer` and `themehs` (HyperSpin theme) as artwork cards, the box, support, flyer, mix and theme ones
-with a caption (`MEDIA_TITLES`). A video is not taken; a manual is its own item (§ Manuals). Only images can be shown: a type whose bytes are not an
-image (the HyperSpin theme may be an archive) is dropped when downloaded (`image_type`), like any failed download. No size
+with a caption (`MEDIA_TITLES`). A video is not taken; a manual is its own item (§ Manuals). Only images can be shown: a
+media whose ScreenScraper `format` is not png/jpg is not offered (`is_image_format`; the HyperSpin theme is a `zip`, seen
+live 2026-10-01), `image` refuses such a key before downloading (a record cached before the filter still names it), and
+a body that is not an image is dropped when downloaded (`image_type`), like any failed download. No size
 filter: a 150 KB minimum was tried and removed at the user's request (2026-09-30). The cards are ordered after the trailers
 and before IGDB's (`domain/community-media.visibleMedia`); Steam's own row layout may leave out a card that fits no row.
 
@@ -67,7 +70,23 @@ record update names a manual, `app/manuals.cover` reads the PDF once per session
 never shared), renders page 1 on a 16:9 canvas (`renderCover`, 1280 x 720) and shelves it as the cover (8 kept), then
 announces `record.updated` (`media`) so the community surface re-reads. The size the card reports (960 x 540) is a
 layout choice, not the picture's size. An item cached before a manual existed has no manual item until its 7-day
-freshness (`media_ok`) ends.
+freshness (`media_ok`) ends. With "Keep downloaded media" on, chunk 0 reads the PDF from disk when an earlier download kept
+it (no ScreenScraper call), and the cover is read (`GetManualCover`) and stored (`SaveManualCover`) in the same cache.
+
+## Disk cache (ADR-0051)
+
+`media_cache.lua` keeps what a game downloaded in `<data dir>/media_cache/<appid>/`: `image <key>` (the bytes),
+`manual <key>` (the PDF), `cover <key>` (the rendered first page, JPEG) and `not-image <key>` (a key that turned out not to
+be an image, so the next start refuses it without the 3-15 s `jeuInfos` lookup that finding out costs). Names are keys,
+escaped (`safe_name`); never a URL. `opened.json` holds each game's last page open (`touch`, from `EnsureFresh` media
+with `cacheDays` > 0, at most once an hour; a write counts as an open too).
+
+The frontend sends the setting `mediaCacheDays` (0-30, default 7, the "Keep downloaded media" slider in Community &
+Media) with every call that can read or write the cache (`cacheDays`); 0 means memory only. `app/media.pruneCache` calls
+`PruneMediaCache(days)` at start-up and 2 s after the slider settles: every game folder whose last open is older than the
+days goes (all of them for 0), and the pre-ADR-0051 `manual_covers/` folder with it. Measured live (Chrono Trigger,
+10 images, a 7.5 MiB manual, 12 MB on disk): after a Steam restart the images phase took 479 ms (was 11-23 s), the cover
+11 ms, chunk 0 of the PDF 87 ms (was 4 s).
 
 The image types are `MEDIA_KINDS` (title screen, screenshot, fan art, the Recalbox mixes, `box-2D` front, `box-2D-back`,
 `box-3D`, `support-2D` cartridge / disc, `figurine`, flyer, HyperSpin theme); each has a caption (`MEDIA_TITLES`), and the
@@ -83,20 +102,24 @@ ScreenScraper does not know falls back to the title search on that console (F2c 
 
 ```lua
 -- backend/media_service.lua
-M.deps = { igdb_query, ss_jeu, shortcut_info, download, fresh, now }   -- nil = the real dependency
+M.deps = { igdb_query, ss_jeu, shortcut_info, download, download_document, fresh, cache, now }   -- nil = the real dependency
 --- One IGDB game -> items (pure).
 function M.igdb_items(game) end
---- ctx = { title, route = {bucket, via}, identity?, igdb_id?, allowWeb?, allowScreenscraper?, noNetwork?, force? }
+--- ctx = { title, route = {bucket, via}, identity?, igdb_id?, allowWeb?, allowScreenscraper?, noNetwork?, force?, cacheDays? }
 --- data = { items = { {kind, source, youtube?, url?, thumb?, key?, width?, height?, title?} }, igdb_id?, ss_id? }
 function M.ensure(appid, ctx) end
---- { base64, ext, width?, height? } | nil, err. The URL never leaves this function.
-function M.image(appid, key, title) end
+--- { base64, ext, width?, height? } | nil, err. The URL never leaves this function. days > 0: disk first, then kept.
+function M.image(appid, key, title, days) end
+function M.manual_chunk(appid, key, title, index, days) end
+function M.manual_cover(appid, key, days) end            -- { base64 } | {}
+function M.save_manual_cover(appid, key, base64, days) end -- { ok }
+function M.prune_cache(days) end                          -- { removed, kept }
 
 -- backend/screenscraper_media.lua (the ScreenScraper client, shared with the metadata source)
 function M.fetch_jeu(appid, rom_path, system_id, crc, md5, name) end   -- unchanged (M5d)
 function M.jeu_for(appid, title, info) end   -- ROM name, console, MD5 from the shortcuts.vdf entry, then fetch_jeu
 function M.media_items(jeu) end              -- one item per type, best region, keys only (below)
-function M.media_url(jeu, key) end
+function M.media_url(jeu, key) end            -- url, format
 function M.download(url) end                 -- body, ext, width, height (maxwidth=1280, image bytes checked)
 ```
 
@@ -119,11 +142,12 @@ function M.download(url) end                 -- body, ext, width, height (maxwid
 | --- | --- |
 | `backend/media_service.lua` | The service: `ensure`, `image`, `igdb_items` |
 | `backend/media_store.lua` | `community_media.json` (a store: never fetches) |
+| `backend/media_cache.lua` | ADR-0051: the downloads on disk per game, `opened.json`, `prune` (a store: never fetches) |
 | `backend/screenscraper_media.lua` | The ScreenScraper client: `fetch_jeu` (metadata and media), `jeu_for`, the media half |
 | `backend/bin_http.lua` | Binary GET into memory (WinINet via FFI); only `net.get_binary` calls it |
 | `backend/net.lua` | `get_binary`: the same per-source breakers as `get`/`post` |
 | `backend/web_igdb.lua` | `igdb.query`: the one IGDB client (Twitch token) |
-| `backend/record_rpc.lua` | `EnsureFresh` `media` branch; `GetMediaImage`; `GetManualChunk` (F2c) |
+| `backend/record_rpc.lua` | `EnsureFresh` `media` branch; `GetMediaImage`; `GetManualChunk`, `GetManualCover`, `SaveManualCover` (F2c); `PruneMediaCache` (ADR-0051) |
 | `frontend/app/manuals.ts` | F2c: reads a manual's chunks, renders its pages through `ports/pdf`, fills the manual shelf |
 | `frontend/ports/pdf.ts` | F2c: the only pdf.js user (4.10.38, embedded, loaded on the first manual) |
 | `frontend/kernel/manual-shelf.ts` | F2c: rendered manual pages as object URLs, 2 manuals |
@@ -142,7 +166,9 @@ breakers of `get_binary`, the RPC facade, no URL or account in the store or a lo
 `tests/community-media.test.ts` (4), `tests/media-bin.test.ts` (3). Live: `tests/live/probes/community_media.mjs`.
 F2c: `test_media_service.lua` 64 → 82 checks (system ids, manual item, document download, chunks, `GetManualChunk`),
 `tests/app-manuals.test.ts` (9), `tests/manual-shelf.test.ts` (5), one more in `community-media.test.ts`, two more in
-`community-core.test.ts` (cover, card size class, scroll label).
+`community-core.test.ts` (cover, card size class, scroll label). ADR-0051: the format filter (3) and the disk cache (18:
+days, names, image / PDF / cover from disk, days 0, not-image memory, prune by last open) in `test_media_service.lua`; 4 in
+`app-media.test.ts`, 1 in `app-manuals.test.ts`; the slider line in `tests/live/check_settings_panel.mjs`.
 
 ## History
 

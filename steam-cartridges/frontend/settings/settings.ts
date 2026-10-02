@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { pluginConfig, subscribePluginConfig } from '@steambrew/client';
 import { logger } from '../logger';
 import { DEFAULT_BUCKETS, validateConfig, type RoutingRule } from '../domain/routing/policy';
-import { DEFAULTS, DEFAULT_SERVICES, type ControllerOverride, type SettingKey, type Settings } from './defaults';
+import { DEFAULTS, DEFAULT_SERVICES, MEDIA_CACHE_DAYS, type ControllerOverride, type SettingKey, type Settings } from './defaults';
 
-export { DEFAULTS, DEFAULT_SERVICES };
+export { DEFAULTS, DEFAULT_SERVICES, MEDIA_CACHE_DAYS };
 export type { ControllerOverride, LaunchNotifyOption, ServicesConfig, SettingKey, Settings } from './defaults';
 
 /** Progress of the background sync (app/ingest.ts), for the panel (plan § 7.0 D3: never an import of app/). */
@@ -22,6 +22,10 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     communityShowManuals: (raw) => raw !== false,
     communityShowArtworks: (raw) => raw !== false,
     communityShowExternalLinks: (raw) => raw !== false,
+    mediaCacheDays: (raw) =>
+        typeof raw === 'number' && Number.isFinite(raw)
+            ? Math.min(MEDIA_CACHE_DAYS.max, Math.max(MEDIA_CACHE_DAYS.min, Math.round(raw)))
+            : MEDIA_CACHE_DAYS.default,
     disabledFeatures: (raw) => (typeof raw === 'string' ? raw : ''),
     routingRules: (raw) => Array.isArray(raw) ? (raw as RoutingRule[]) : [],
     autoRoutingMode: (raw) => raw !== false,
@@ -57,6 +61,7 @@ const current: Settings = {
     communityShowManuals: true,
     communityShowArtworks: true,
     communityShowExternalLinks: true,
+    mediaCacheDays: MEDIA_CACHE_DAYS.default,
     disabledFeatures: '',
 };
 const listeners = new Set<(key: SettingKey) => void>();

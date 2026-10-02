@@ -184,12 +184,12 @@ RPC.MarkKnown = method("MarkKnown", function(data)
   return { ok = true }
 end)
 
---- { appid, key, title? }: one ScreenScraper image of the media part, as base64 (features plan F2b). The bytes
---- are downloaded into memory on each call; the answer never carries the URL (it holds the account).
+--- { appid, key, title?, cacheDays? }: one ScreenScraper image of the media part, as base64 (features plan F2b). The
+--- bytes come from disk when kept (cacheDays > 0, ADR-0051), else are downloaded; the answer never carries the URL.
 RPC.GetMediaImage = method("GetMediaImage", function(data)
   local appid = need(data, "appid")
   if not is_shortcut(appid) then return { error = "not a shortcut" } end
-  local image, err = media_service.image(tonumber(appid), need(data, "key"), data.title)
+  local image, err = media_service.image(tonumber(appid), need(data, "key"), data.title, data.cacheDays)
   if not image then return { error = err } end
   return image
 end)
@@ -197,7 +197,7 @@ end)
 RPC.GetManualChunk = method("GetManualChunk", function(data)
   local appid = need(data, "appid")
   if not is_shortcut(appid) then return { error = "not a shortcut" } end
-  local chunk, err = media_service.manual_chunk(tonumber(appid), need(data, "key"), data.title, data.index)
+  local chunk, err = media_service.manual_chunk(tonumber(appid), need(data, "key"), data.title, data.index, data.cacheDays)
   if not chunk then return { error = err } end
   return chunk
 end)
@@ -207,7 +207,7 @@ end)
 RPC.GetManualCover = method("GetManualCover", function(data)
   local appid = need(data, "appid")
   if not is_shortcut(appid) then return { error = "not a shortcut" } end
-  local cover, err = media_service.manual_cover(tonumber(appid), need(data, "key"))
+  local cover, err = media_service.manual_cover(tonumber(appid), need(data, "key"), data.cacheDays)
   if not cover then return { error = err } end
   return cover
 end)
@@ -216,9 +216,14 @@ end)
 RPC.SaveManualCover = method("SaveManualCover", function(data)
   local appid = need(data, "appid")
   if not is_shortcut(appid) then return { error = "not a shortcut" } end
-  local res, err = media_service.save_manual_cover(tonumber(appid), need(data, "key"), need(data, "base64"))
+  local res, err = media_service.save_manual_cover(tonumber(appid), need(data, "key"), need(data, "base64"), data.cacheDays)
   if not res then return { error = err } end
   return res
+end)
+
+--- { days }: delete the downloads of every game not opened in the last `days` days, all of them for 0 (ADR-0051).
+RPC.PruneMediaCache = method("PruneMediaCache", function(data)
+  return media_service.prune_cache(data.days)
 end)
 
 return RPC

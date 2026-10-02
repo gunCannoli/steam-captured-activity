@@ -7,6 +7,16 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: downloaded media on disk for a user-set number of days (2026-10-01, ADR-0051, amends ADR-0046)**:
+  at the user's request (S1 of the community investigation). `backend/media_cache.lua` keeps a game's ScreenScraper
+  images, manual PDF and cover in `<data dir>/media_cache/<appid>/` (names are keys, never a URL), records each page open
+  in `opened.json`, and `PruneMediaCache(days)` (start-up, and 2 s after the slider settles) deletes every game not opened
+  within the days; the old `manual_covers/` goes with the first prune. Setting `mediaCacheDays`, slider "Keep downloaded
+  media" in Community & Media, 0-30, default 7; 0 = memory only. A key that is not an image is remembered, so it no longer
+  costs a `jeuInfos` lookup each start (found live: the HyperSpin theme zip held Chrono Trigger's feed for 14 s). Live:
+  Chrono Trigger after a restart, images 479 ms (was 11-23 s), cover 11 ms, PDF chunk 0 87 ms (was 4 s); setting 0
+  cleared the folder and wrote nothing; `test:live` 13/13; the panel check now asserts the slider. Tests: Lua media
+  +21 checks, TS 266 → 271.
 - **steam-cartridges: the community-tab backend crash is root-caused and fixed; population measured (2026-10-01)**:
   `manual_cover_store.lua` read the global `fs` without `require("fs")`. The read sat inside `pcall`, but in Millennium
   3.5.0's Lua host a type error raised by an operator (a nil index, arithmetic on a table) kills the backend even under

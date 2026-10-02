@@ -93,6 +93,8 @@ export interface FreshContext {
     force?: boolean;
     /** Media only (features plan F2): the IGDB game Game Info shows; IGDB media is asked by this id, never by title. */
     igdb_id?: number;
+    /** Media only (ADR-0051): setting mediaCacheDays; more than 0 counts this page open for the disk cache. */
+    cacheDays?: number;
 }
 
 /** One ScreenScraper image of the media part (features plan F2b): the bytes, never the URL. */
@@ -164,21 +166,25 @@ export const backend = {
     clearCustomMetadata(appid: number) {
         return call<{ removed?: boolean; error?: string }>("ClearCustomMetadata", { appid });
     },
-    /** Community media (features plan F2b): one ScreenScraper image, downloaded by the backend into memory. */
-    getMediaImage(appid: number, key: string, title?: string): Promise<MediaImageResponse> {
-        return call<MediaImageResponse>("GetMediaImage", { appid, key, title });
+    /** Community media (features plan F2b): one ScreenScraper image, from the backend's disk cache (cacheDays > 0, ADR-0051) or downloaded. */
+    getMediaImage(appid: number, key: string, title?: string, cacheDays?: number): Promise<MediaImageResponse> {
+        return call<MediaImageResponse>("GetMediaImage", { appid, key, title, cacheDays });
     },
     /** Manuals (features plan F2c): chunk `index` (0-based) of a ScreenScraper PDF; chunk 0 downloads it in the backend. */
-    getManualChunk(appid: number, key: string, index: number, title?: string): Promise<ManualChunkResponse> {
-        return call<ManualChunkResponse>("GetManualChunk", { appid, key, index, title });
+    getManualChunk(appid: number, key: string, index: number, title?: string, cacheDays?: number): Promise<ManualChunkResponse> {
+        return call<ManualChunkResponse>("GetManualChunk", { appid, key, index, title, cacheDays });
     },
     /** Manuals (features plan F2c): the stored first-page cover as base64, or an answer without `base64` when none is stored. */
-    getManualCover(appid: number, key: string): Promise<ManualCoverResponse> {
-        return call<ManualCoverResponse>("GetManualCover", { appid, key });
+    getManualCover(appid: number, key: string, cacheDays?: number): Promise<ManualCoverResponse> {
+        return call<ManualCoverResponse>("GetManualCover", { appid, key, cacheDays });
     },
     /** Manuals (features plan F2c): store the rendered first page, so the next start skips the PDF. */
-    saveManualCover(appid: number, key: string, base64: string): Promise<ManualCoverResponse> {
-        return call<ManualCoverResponse>("SaveManualCover", { appid, key, base64 });
+    saveManualCover(appid: number, key: string, base64: string, cacheDays?: number): Promise<ManualCoverResponse> {
+        return call<ManualCoverResponse>("SaveManualCover", { appid, key, base64, cacheDays });
+    },
+    /** Downloaded media on disk (ADR-0051): delete the downloads of every game not opened in the last `days` days (all for 0). */
+    pruneMediaCache(days: number): Promise<{ removed?: number; kept?: number; error?: string }> {
+        return call<{ removed?: number; kept?: number; error?: string }>("PruneMediaCache", { days });
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

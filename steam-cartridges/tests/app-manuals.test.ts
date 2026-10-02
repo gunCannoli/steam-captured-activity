@@ -20,17 +20,20 @@ function setup(over: Partial<Record<string, any>> = {}) {
         backend: {
             ...(over.disk
                 ? {
-                      async getManualCover() {
+                      async getManualCover(_appid: number, _key: string, cacheDays?: number) {
+                          over.days?.push(['cover', cacheDays]);
                           return over.disk;
                       },
-                      async saveManualCover(appid: number, key: string, base64: string) {
+                      async saveManualCover(appid: number, key: string, base64: string, cacheDays?: number) {
+                          over.days?.push(['save', cacheDays]);
                           over.saved?.push({ appid, key, base64 });
                           return { ok: true };
                       },
                   }
                 : {}),
-            async getManualChunk(appid: number, key: string, index: number, title?: string) {
+            async getManualChunk(appid: number, key: string, index: number, title?: string, cacheDays?: number) {
                 asked.push({ appid, key, index, title });
+                over.days?.push(['chunk', cacheDays]);
                 if (over.chunkThrows) throw new Error('transport');
                 if (over.throwTimes && asked.length <= over.throwTimes) throw new Error('RPC timeout');
                 if (over.chunkError) return { error: 'unknown key' };
@@ -60,6 +63,7 @@ function setup(over: Partial<Record<string, any>> = {}) {
             },
         },
         titleOf: () => 'Captain Commando',
+        ...(over.cacheDays === undefined ? {} : { cacheDays: () => over.cacheDays }),
         manualKeyOf: (appid: number) => (over.noManual || appid !== SC ? undefined : KEY),
     });
     return { bus, shelf, manuals, asked, rendered, covers, destroyed: () => destroyed };
@@ -209,4 +213,17 @@ test('app/manuals: a cover stored on disk is shelved with no PDF read; a rendere
     await new Promise((r) => setTimeout(r, 0));
     assert.equal(s2.shelf.cover(SC, KEY), 'blob:cover');
     assert.deepEqual(stored, [{ appid: SC, key: KEY, base64: 'b64:blob:cover' }]);
+});
+
+test("app/manuals: the setting's days go with every chunk read and the cover read and save (ADR-0051); 0 without it", async () => {
+    const days: any[] = [];
+    const s = setup({ disk: {}, saved: [], days, cacheDays: 14 });
+    await s.manuals.cover(SC, KEY);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(days, [['cover', 14], ['chunk', 14], ['chunk', 14], ['save', 14]]);
+    const none: any[] = [];
+    const s0 = setup({ disk: {}, saved: [], days: none });
+    await s0.manuals.cover(SC, KEY);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.ok(none.length > 0 && none.every(([, d]) => d === 0), JSON.stringify(none));
 });

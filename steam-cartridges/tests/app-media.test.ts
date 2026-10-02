@@ -139,3 +139,65 @@ test('app/media: ScreenScraper images download IMAGE_CONCURRENCY at a time (one:
     assert.equal(peak, IMAGE_CONCURRENCY);
     assert.deepEqual(part.data!.items.map((i: any) => i.key), keys);
 });
+
+// ---------- Downloaded media on disk (ADR-0051) ----------
+
+function cacheSetup(over: { cacheDays?: number; prune?: (days: number) => Promise<any> } = {}) {
+    const records = createRecordStore(createEventBus());
+    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
+    const ctxs: any[] = [];
+    const days: any[] = [];
+    const logs: string[] = [];
+    const media = createMedia({
+        backend: {
+            async ensureFresh(appid: number, parts: any, ctx: any) {
+                ctxs.push(ctx);
+                return { appid, parts: { media: { status: 'ok', data: { items: [FANART] } } } };
+            },
+            async getMediaImage(_appid: number, _key: string, _title?: string, cacheDays?: number) {
+                days.push(cacheDays);
+                return { base64: 'QUJD', ext: 'jpg' };
+            },
+            ...(over.prune ? { pruneMediaCache: over.prune } : {}),
+        } as any,
+        records,
+        bin: createMediaBin(() => {}),
+        titleOf: () => 'Game',
+        allowWeb: () => true,
+        allowScreenscraper: () => true,
+        toggles: () => ({ trailers: true, artworks: true }),
+        objectUrl: (b64: string, ext: string) => `blob:${b64}.${ext}`,
+        ...(over.cacheDays === undefined ? {} : { cacheDays: () => over.cacheDays! }),
+        log: (m: string) => logs.push(m),
+    });
+    return { media, ctxs, days, logs };
+}
+
+test('app/media: the setting\'s days go with the page open (EnsureFresh) and every image download', async () => {
+    const s = cacheSetup({ cacheDays: 7 });
+    await s.media.ensure(SC, ROUTE, undefined);
+    assert.equal(s.ctxs[0].cacheDays, 7);
+    assert.deepEqual(s.days, [7]);
+});
+
+test('app/media: without the setting nothing goes to disk (days 0)', async () => {
+    const s = cacheSetup();
+    await s.media.ensure(SC, ROUTE, undefined);
+    assert.equal(s.ctxs[0].cacheDays, 0);
+    assert.deepEqual(s.days, [0]);
+});
+
+test('app/media: pruneCache asks the backend with the current days and logs what it removed', async () => {
+    const asked: number[] = [];
+    const s = cacheSetup({ cacheDays: 3, prune: async (days: number) => (asked.push(days), { removed: 2, kept: 1 }) });
+    await s.media.pruneCache();
+    assert.deepEqual(asked, [3]);
+    assert.ok(s.logs.some((l) => l.includes('removed 2')));
+});
+
+test('app/media: a failing prune is silent, and a backend without the RPC costs nothing', async () => {
+    const failing = cacheSetup({ cacheDays: 7, prune: async () => { throw new Error('child disconnected'); } });
+    await failing.media.pruneCache();
+    const none = cacheSetup({ cacheDays: 7 });
+    await none.media.pruneCache();
+});

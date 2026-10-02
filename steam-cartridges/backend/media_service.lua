@@ -6,13 +6,15 @@
 ---                  trailers, screenshots, artworks. No title search: a game without an IGDB id has no IGDB
 ---                  media, so the media never belongs to another game than the one Game Info names.
 ---   screenscraper  the `jeu` the metadata source matched (screenscraper_media.jeu_for): screenshot, title
----                  screen, fanart. Stored as keys; image() downloads the bytes on demand, into memory.
+---                  screen, fanart. Stored as keys; image() downloads the bytes on demand, into memory, and keeps
+---                  them on disk for `cacheDays` (media_cache, ADR-0051), as the manual's PDF and cover.
 --- A shortcut with a Steam match gets Steam's own community content (native-links, ADR-0038): unsupported.
 ---
 --- ADR-0014: a missing account or a failed lookup is silent (needs-setup / error), never a toast.
 --- The ScreenScraper URLs carry the account: nothing here returns, stores or logs one.
 
 local store = require("media_store")
+local cache = require("media_cache")
 
 local M = {}
 
@@ -24,6 +26,7 @@ M.deps = {
   download = nil,      -- nil = screenscraper_media.download(url) -> body, ext, width, height
   download_document = nil, -- nil = screenscraper_media.download_document(url) -> body | nil, err
   fresh = nil,         -- nil = fresh_policy
+  cache = nil,         -- nil = media_cache
   now = function() return os.time() end,
 }
 
@@ -33,6 +36,15 @@ local IGDB_FIELDS = "fields videos.video_id, videos.name, screenshots.image_id, 
 
 local function now_ms() return math.floor((M.deps.now or os.time)() * 1000) end
 local function fresh() return M.deps.fresh or require("fresh_policy") end
+local function disk() return M.deps.cache or cache end
+
+--- The names a game's downloads have in media_cache: one namespace per kind, the key after it.
+local function image_name(key) return "image " .. key end
+local function manual_name(key) return "manual " .. key end
+local function cover_name(key) return "cover " .. key end
+--- A key whose media is not an image (the HyperSpin theme zip): remembered so the next start refuses it without the
+--- ScreenScraper lookup that finding out costs (3-15 s, and the whole feed waits for it).
+local function not_image_name(key) return "not-image " .. key end
 
 local function shortcut_info(appid)
   if M.deps.shortcut_info then return M.deps.shortcut_info(appid) end
@@ -87,6 +99,8 @@ function M.ensure(appid, ctx)
   if route.bucket == "none" then return part("unsupported") end
   local identity = ctx.identity
   if identity and identity.data and identity.data.native then return part("unsupported", nil, { message = "steam" }) end
+  -- The page is open: its downloads stay on disk through the next prune (ADR-0051).
+  if cache.days(ctx.cacheDays) > 0 then pcall(disk().touch, appid) end
 
   local stored = store.get(appid)
   if route.via == "pending" then
@@ -154,18 +168,36 @@ function M.ensure(appid, ctx)
 end
 
 --- One ScreenScraper media item's bytes as base64 (GetMediaImage): { base64, ext, width?, height? }, or nil
---- and an error. The URL is looked up here and never leaves this function.
-function M.image(appid, key, title)
+--- and an error. The URL is looked up here and never leaves this function. With `days` > 0 the bytes come from disk
+--- when an earlier download kept them (no ScreenScraper call at all), and a download is kept (ADR-0051).
+function M.image(appid, key, title, days)
   if type(key) ~= "string" or key == "" then return nil, "missing key" end
   local media = require("screenscraper_media")
+  local keep = cache.days(days) > 0
+  if keep then
+    if disk().get(appid, not_image_name(key)) then return nil, "not an image" end
+    local stored = disk().get(appid, image_name(key))
+    local ext = stored and media.image_type(stored)
+    if ext then
+      local width, height = media.image_size(stored, ext)
+      return { base64 = require("utils").base64_encode(stored), ext = ext, width = width, height = height }
+    end
+  end
   local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
   if not ok or type(jeu) ~= "table" then return nil, ok and tostring(err or "not-found") or "not-found" end
   local url, format = media.media_url(jeu, key)
   if not url then return nil, "unknown key" end
   -- A record cached before the format filter may still name a non-image (the HyperSpin theme zip): no download for it.
-  if not media.is_image_format(format) then return nil, "not an image" end
+  if not media.is_image_format(format) then
+    if keep then disk().set(appid, not_image_name(key), "1") end
+    return nil, "not an image"
+  end
   local body, ext, width, height = (M.deps.download or media.download)(url)
-  if not body then return nil, ext end
+  if not body then
+    if keep and ext == "not an image" then disk().set(appid, not_image_name(key), "1") end
+    return nil, ext
+  end
+  if keep then disk().set(appid, image_name(key), body) end
   return { base64 = require("utils").base64_encode(body), ext = ext, width = width, height = height }
 end
 
@@ -180,20 +212,28 @@ M.MANUAL_CHUNK_BYTES = 1024 * 1024
 --- Chunk `index` (0-based) of a ScreenScraper manual as base64 (GetManualChunk): { base64, index, chunks, size }, or nil
 --- and an error. Chunk 0 downloads the PDF into memory (or reuses a copy under MANUAL_DOC_TTL old); the other chunks read
 --- that copy. The URL never leaves here.
-function M.manual_chunk(appid, key, title, index)
+function M.manual_chunk(appid, key, title, index, days)
   if type(key) ~= "string" or key == "" then return nil, "missing key" end
   index = math.floor(tonumber(index) or 0)
   if index < 0 then return nil, "bad index" end
   local held = manual_doc and manual_doc.appid == appid and manual_doc.key == key and os.time() - manual_doc.at < M.MANUAL_DOC_TTL
   if not held then
     manual_doc = nil
-    local media = require("screenscraper_media")
-    local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
-    if not ok or type(jeu) ~= "table" then return nil, ok and tostring(err or "not-found") or "not-found" end
-    local url = media.media_url(jeu, key)
-    if not url then return nil, "unknown key" end
-    local body, derr = (M.deps.download_document or media.download_document)(url)
-    if not body then return nil, derr end
+    local keep = cache.days(days) > 0
+    -- A PDF kept on disk by an earlier download (ADR-0051): no ScreenScraper call.
+    local body = keep and disk().get(appid, manual_name(key)) or nil
+    if body and body:sub(1, 5) ~= "%PDF-" then body = nil end
+    if not body then
+      local media = require("screenscraper_media")
+      local ok, jeu, err = pcall(ss_jeu, appid, title or "", shortcut_info(appid))
+      if not ok or type(jeu) ~= "table" then return nil, ok and tostring(err or "not-found") or "not-found" end
+      local url = media.media_url(jeu, key)
+      if not url then return nil, "unknown key" end
+      local derr
+      body, derr = (M.deps.download_document or media.download_document)(url)
+      if not body then return nil, derr end
+      if keep then disk().set(appid, manual_name(key), body) end
+    end
     manual_doc = { appid = appid, key = key, body = body, at = os.time() }
   end
   local body = manual_doc.body
@@ -206,22 +246,30 @@ function M.manual_chunk(appid, key, title, index)
 end
 
 
---- The stored first-page cover of a manual (GetManualCover): { base64 } or {} when none is stored.
-function M.manual_cover(appid, key)
+--- The stored first-page cover of a manual (GetManualCover): { base64 } or {} when none is stored (or `days` is 0).
+function M.manual_cover(appid, key, days)
   if type(key) ~= "string" or key == "" then return nil, "missing key" end
-  local body = require("manual_cover_store").get(appid, key)
+  if cache.days(days) == 0 then return {} end
+  local body = disk().get(appid, cover_name(key))
   if not body then return {} end
   return { base64 = require("utils").base64_encode(body) }
 end
 
---- Store a manual's first-page cover from base64 (SaveManualCover): { ok = true } or nil and an error.
-function M.save_manual_cover(appid, key, base64)
+--- Store a manual's first-page cover from base64 (SaveManualCover): { ok = true }, { ok = false } when `days` is 0
+--- (nothing goes to disk), or nil and an error.
+function M.save_manual_cover(appid, key, base64, days)
   if type(key) ~= "string" or key == "" then return nil, "missing key" end
+  if cache.days(days) == 0 then return { ok = false } end
   local body = require("shortcut_icon").decode_base64(base64)
   if not body then return nil, "not base64" end
-  local ok, err = require("manual_cover_store").set(appid, key, body)
+  local ok, err = disk().set(appid, cover_name(key), body)
   if not ok then return nil, err end
   return { ok = true }
+end
+
+--- Delete the downloads of every game not opened in the last `days` days (PruneMediaCache, ADR-0051).
+function M.prune_cache(days)
+  return disk().prune(days)
 end
 
 return M

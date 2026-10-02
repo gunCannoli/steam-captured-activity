@@ -1,8 +1,8 @@
 // app/manuals: a ScreenScraper manual's pages for Steam's image viewer (features plan F2c, ADR-0048). The community
 // surface reports that it showed a manual's viewer (`community.manual-opened`); this reads the PDF from the backend in
 // chunks (ports/backend GetManualChunk), renders its pages one by one through the injected renderer (ports/pdf) and puts
-// them on the manual shelf (kernel/manual-shelf), which the viewer reads. Nothing is written to disk and no URL of
-// ScreenScraper reaches the frontend. A failure marks the manual failed and nothing else (ADR-0014).
+// them on the manual shelf (kernel/manual-shelf), which the viewer reads. The frontend writes nothing to disk (the
+// backend keeps the PDF and the cover for the setting's days, ADR-0051) and no URL of ScreenScraper reaches it. A failure marks the manual failed and nothing else (ADR-0014).
 // The card's cover is the manual's first page: when a shortcut's media names a manual (`record.updated`), the first
 // page is rendered once per session onto a 16:9 cover and shelved, and the record is announced as updated so the
 // community surface shows it. Cover and pages never read the PDF at the same time (one document in the backend).
@@ -40,6 +40,8 @@ export interface ManualsDeps {
         objectUrl(base64: string, ext: string): string | null;
         toBase64(url: string): Promise<string | null>;
     };
+    /** Setting mediaCacheDays (ADR-0051): with more than 0 the backend keeps the PDF and the cover on disk. */
+    cacheDays?(): number;
     /** Timing lines for the diagnostics log. */
     log?(message: string): void;
     bus: Pick<EventBus, "on" | "emit">;
@@ -77,7 +79,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
     async function readChunk(appid: ShortcutId, key: string, index: number) {
         for (let attempt = 0; ; attempt++) {
             try {
-                return await deps.backend.getManualChunk(appid, key, index, deps.titleOf(appid));
+                return await deps.backend.getManualChunk(appid, key, index, deps.titleOf(appid), deps.cacheDays?.() ?? 0);
             } catch (err) {
                 if (attempt >= RPC_RETRIES) throw err;
             }
@@ -149,7 +151,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
     async function coverFromDisk(appid: ShortcutId, key: string): Promise<boolean> {
         if (!deps.backend.getManualCover || !deps.coverCache) return false;
         try {
-            const res = await deps.backend.getManualCover(appid, key);
+            const res = await deps.backend.getManualCover(appid, key, deps.cacheDays?.() ?? 0);
             const url = res.base64 ? deps.coverCache.objectUrl(res.base64, "jpg") : null;
             if (!url) return false;
             deps.shelf.setCover(appid, key, url);
@@ -165,7 +167,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
         if (!deps.backend.saveManualCover || !deps.coverCache) return;
         try {
             const base64 = await deps.coverCache.toBase64(url);
-            if (base64) await deps.backend.saveManualCover(appid, key, base64);
+            if (base64) await deps.backend.saveManualCover(appid, key, base64, deps.cacheDays?.() ?? 0);
         } catch {
             /* rendered again next start */
         }

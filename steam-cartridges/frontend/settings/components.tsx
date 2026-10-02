@@ -1,7 +1,7 @@
 // Shared building blocks of the settings panels (migration plan M8c). The spacing system and row kinds are the ones of
 // enhanced-notifications (its settings/rows.tsx), the reference; the rules are in docs/plugins.md § Settings panel layout.
 import { Children, useEffect } from "react";
-import { DialogButton, Field, PanelSectionRow, Toggle as SteamToggle } from "@steambrew/client";
+import { DialogButton, Field, PanelSectionRow, SliderField, Toggle as SteamToggle } from "@steambrew/client";
 
 /** Steam's settings-card background (a Field's own), measured live: rgb(35, 38, 46). */
 export const CARD_BACKGROUND = "rgb(35, 38, 46)";
@@ -60,6 +60,51 @@ export function ToggleRow({
             <Field label={label} description={description} disabled={disabled}>
                 <SteamToggle value={value} disabled={disabled} onChange={onChange} />
             </Field>
+        </ItemRow>
+    );
+}
+
+/** Steam's slider across the full row, the value shown with its suffix (enhanced-notifications' SliderRow). `ItemRow
+ *  trailing` cancels the slider's own trailing space, so the block's spacing stays the system's. */
+export function SliderRow({
+    label,
+    description,
+    value,
+    min,
+    max,
+    step,
+    suffix,
+    resetValue,
+    onChange,
+    disabled,
+}: {
+    label: string;
+    description?: string;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    suffix: string;
+    resetValue: number;
+    onChange: (val: number) => void;
+    disabled?: boolean;
+}) {
+    return (
+        <ItemRow trailing>
+            <SliderField
+                label={label}
+                description={description}
+                layout="below"
+                value={value}
+                min={min}
+                max={max}
+                step={step}
+                showValue
+                valueSuffix={suffix}
+                resetValue={resetValue}
+                disabled={disabled}
+                onChange={onChange}
+            />
         </ItemRow>
     );
 }
