@@ -158,18 +158,33 @@ def detect_onsets_and_notes(steam_audio):
     return notes
 
 
-def boost_steam_volume(x, target_rms_db=-14.0, max_peak_db=-1.0):
-    """Boosts Steam UI sounds so they are level-matched with loud PlayStation trophy chimes."""
+def boost_steam_volume(x, boost_factor=1.70, max_peak_db=-0.2):
+    """Boosts Steam UI sounds by at least 60% with musical soft saturation ceiling.
+
+    Level-matches Steam's tactile attack and chime with PlayStation's loud trophy sounds,
+    increasing Steam volume by at least +60% to +80% (+4.1 to +5.5 dB) without harsh clipping.
+    """
     pk = np.abs(x).max()
     act = x[np.abs(x).max(1) > pk * 0.05]
     cur_rms = np.sqrt((act**2).mean()) if len(act) else 1e-4
-    target_rms = 10 ** (target_rms_db / 20)
-    gain = target_rms / max(cur_rms, 1e-5)
-    max_allowed = 10 ** (max_peak_db / 20)
-    if pk * gain > max_allowed:
-        gain = max_allowed / pk
-    gain_db = 20 * np.log10(gain)
-    return x * gain, gain_db
+
+    # Previous baseline gain (-1.0 dB / pk)
+    base_gain = (10 ** (-1.0 / 20)) / max(pk, 1e-5)
+
+    # Minimum 60% boost (+60% linear gain = 1.60x, default 1.70x for +70% energetic presence)
+    gain = base_gain * boost_factor
+    boosted = x * gain
+
+    ceiling = 10 ** (max_peak_db / 20)  # 0.977 (-0.2 dBFS ceiling)
+
+    # Musical tanh soft saturation if boosted signal drives past ceiling
+    peak_boosted = np.abs(boosted).max()
+    if peak_boosted > ceiling:
+        boosted = np.tanh(boosted / ceiling * 1.1) / np.tanh(1.1) * ceiling
+
+    actual_rms = np.sqrt((boosted[np.abs(boosted).max(1) > np.abs(boosted).max() * 0.05] ** 2).mean())
+    actual_gain_db = 20 * np.log10(max(1e-5, actual_rms / cur_rms))
+    return boosted, actual_gain_db
 
 
 def isolate_transient(steam_audio, duration_ms=40, hp_freq=750):
@@ -206,7 +221,7 @@ def isolate_shimmer(ps_audio, duck_ms=25, width_factor=1.35):
     return np.stack([mid + side, mid - side], axis=1)
 
 
-def master_audio(x, target_rms_db=-17.5, max_dur=1.75, true_peak_db=-0.3):
+def master_audio(x, target_rms_db=-15.5, max_dur=1.75, true_peak_db=-0.3):
     """Applies duration trimming, RMS loudness normalization, and soft limiting ceiling."""
     max_len = int(max_dur * SR)
     if len(x) > max_len:
@@ -241,7 +256,7 @@ def master_audio(x, target_rms_db=-17.5, max_dur=1.75, true_peak_db=-0.3):
 def build_approach_a_split(steam, ps_tuned):
     """Approach A: Frequency & Envelope Split (Cleanest Hybrid).
 
-    Steam transient attack (0-40ms, highpassed at 750Hz, centered mono)
+    Steam transient attack (0-40ms, highpassed at 750Hz, centered mono, +62% boosted punch)
     transitions instantly into PlayStation crystalline shimmer and stereo tail.
     """
     st_trans = isolate_transient(steam, duration_ms=40, hp_freq=750)
@@ -249,9 +264,9 @@ def build_approach_a_split(steam, ps_tuned):
 
     out_len = max(len(st_trans), len(ps_shim))
     out = np.zeros((out_len, 2), dtype=np.float64)
-    # Gain-stage Steam transient for crisp PC punch
-    out[: len(st_trans)] += st_trans * 1.85
-    out[: len(ps_shim)] += ps_shim * 0.85
+    # Steam tactile attack boosted by +62% (3.00x) over PlayStation shimmer (0.65x)
+    out[: len(st_trans)] += st_trans * 3.00
+    out[: len(ps_shim)] += ps_shim * 0.65
     return master_audio(out)
 
 
@@ -281,9 +296,9 @@ def build_approach_b_timbre_swap(steam, ps_tuned):
     total_len = int((notes[-1][0] if notes else 0) * SR) + len(ps_tail) + int(0.1 * SR)
     out = np.zeros((total_len, 2), dtype=np.float64)
 
-    # Layer initial tactile click from Steam
+    # Layer initial tactile click from Steam (+74% boosted punch)
     st_trans = isolate_transient(steam, duration_ms=30, hp_freq=800)
-    out[: len(st_trans)] += st_trans * 0.95
+    out[: len(st_trans)] += st_trans * 1.65
 
     for t, f, amp in notes:
         semis = 12 * np.log2(f / ps_base_pitch)
@@ -295,7 +310,7 @@ def build_approach_b_timbre_swap(steam, ps_tuned):
     # Bloom with PlayStation shimmer reverb tail after the final note
     last_i = int((notes[-1][0] if notes else 0.1) * SR)
     end_tail = min(total_len, last_i + len(ps_tail))
-    out[last_i:end_tail] += ps_tail[: end_tail - last_i] * 0.75
+    out[last_i:end_tail] += ps_tail[: end_tail - last_i] * 0.70
 
     return master_audio(out)
 
@@ -303,7 +318,7 @@ def build_approach_b_timbre_swap(steam, ps_tuned):
 def build_approach_c1_convolution(steam, ps_tuned):
     """Approach C1: Impulse Response Convolution.
 
-    Steam's boosted sound is convolved with the PlayStation shimmer impulse response.
+    Steam's boosted sound (+70% dry presence) is convolved with the PlayStation shimmer IR.
     The tactile Steam click rings out through the acoustic geometry and resonance of PS.
     """
     # Extract clean IR from PS shimmer (after initial transient)
@@ -317,8 +332,8 @@ def build_approach_c1_convolution(steam, ps_tuned):
     conv = np.stack([conv_l, conv_r], axis=1)
 
     out = np.zeros((max(len(steam), len(conv)), 2), dtype=np.float64)
-    out[: len(steam)] += steam * 0.85  # dry punchy Steam click
-    out[: len(conv)] += conv * 0.40  # wet acoustic convolution
+    out[: len(steam)] += steam * 1.45  # dry punchy Steam click (+70% boost)
+    out[: len(conv)] += conv * 0.35  # wet acoustic convolution
     return master_audio(out)
 
 
@@ -343,12 +358,12 @@ def build_approach_c2_spectral(steam, ps_tuned):
     _, voc = istft(Z_cross, fs=SR, nperseg=1024, noverlap=768)
     out = voc.T.copy()
 
-    # Blend tactile pop at the onset
+    # Blend tactile pop at the onset (+78% boosted punch)
     st_trans = isolate_transient(steam, duration_ms=30, hp_freq=800)
     out_len = max(len(out), len(st_trans))
     res = np.zeros((out_len, 2), dtype=np.float64)
     res[: len(out)] += out
-    res[: len(st_trans)] += st_trans * 0.70
+    res[: len(st_trans)] += st_trans * 1.25
     return master_audio(res)
 
 
@@ -356,7 +371,7 @@ def build_approach_d_master(steam, ps_tuned):
     """Approach D: Master SteamStation Hybrid.
 
     The ultimate hybrid integrating all four methods:
-      1. Monophonic tactile Steam transient punch (t = 0-40ms)
+      1. Monophonic tactile Steam transient punch (t = 0-40ms, +63% boosted)
       2. Key-matched and harmonized PlayStation bell body
       3. Subtle convolution resonance tail from the Steam click
       4. Expansive wide stereo PlayStation shimmer reverb
@@ -376,9 +391,9 @@ def build_approach_d_master(steam, ps_tuned):
 
     max_len = max(len(st_trans), len(ps_shim), len(conv))
     out = np.zeros((max_len, 2), dtype=np.float64)
-    out[: len(st_trans)] += st_trans * 1.90  # Steam tactile pop
-    out[: len(ps_shim)] += ps_shim * 0.80  # PlayStation shimmer
-    out[: len(conv)] += conv * 0.22  # Convolution glue
+    out[: len(st_trans)] += st_trans * 3.10  # Steam tactile pop (+63% boost)
+    out[: len(ps_shim)] += ps_shim * 0.65  # PlayStation shimmer
+    out[: len(conv)] += conv * 0.20  # Convolution glue
 
     return master_audio(out)
 
@@ -429,13 +444,7 @@ def discover_sources(theme_dir=THEME_DIR):
     """Finds all eligible Steam and PlayStation audio files in SteamStation folder."""
     steam_names = [
         "deck_ui_achievement_toast.wav",
-        "desktop_toast_default.wav",
-        "desktop_toast_short.wav",
-        "deck_ui_toast.wav",
         "deck_ui_launch_game.wav",
-        "steam_os_startup.wav",
-        "pop_sound.wav",
-        "deck_ui_default_activation.wav",
     ]
     ps_names = [
         "ps5_trophy.mp3",
@@ -576,6 +585,23 @@ def save_manifest(manifest_data):
     """Saves hybrid pairs to manifest."""
     with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
         json.dump(manifest_data, f, indent=2)
+
+
+def clean_stale_hybrids(out_dir, active_steam_files):
+    """Removes obsolete audio files from out_dir that don't belong to active Steam sources."""
+    if not os.path.isdir(out_dir):
+        return
+    active_stems = [os.path.splitext(f)[0] for f in active_steam_files]
+    for fn in os.listdir(out_dir):
+        if not (fn.endswith(".mp3") or fn.endswith(".wav")):
+            continue
+        if fn.startswith("hybrid_") or fn.startswith("source_boosted_"):
+            # Exclude legacy _pair prefix or non-matching stems
+            if "_pair" in fn or not any(stem in fn for stem in active_stems):
+                try:
+                    os.remove(os.path.join(out_dir, fn))
+                except Exception:
+                    pass
 
 
 def create_zip_packs(out_dir):
@@ -1322,8 +1348,8 @@ def main():
 
     pairs_to_run = []
 
-    # By default or if requested, generate all combinations (8 Steam x 3 PS = 24 combinations)
-    if args.all_combinations or (not args.random and not args.steam and not args.ps and args.count >= 20):
+    # By default or if requested, generate all combinations (2 Steam x 3 PS = 6 combinations)
+    if args.all_combinations or (not args.random and not args.steam and not args.ps):
         for s in steam_files:
             for p in ps_files:
                 pairs_to_run.append((s, p))
@@ -1345,7 +1371,10 @@ def main():
         random.shuffle(all_possible)
         pairs_to_run = all_possible[: min(args.count, len(all_possible))]
 
-    existing_manifest = load_manifest()
+    # Clean stale audio files from out_dir that don't belong to current active Steam sources
+    clean_stale_hybrids(args.out_dir, steam_files)
+
+    existing_manifest = [p for p in load_manifest() if p.get("steam_file") in steam_files]
     manifest_map = {p["pair_id"]: p for p in existing_manifest}
 
     new_results = []

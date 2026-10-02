@@ -7,6 +7,15 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: SteamStation hybrid achievement sounds focused run (2026-10-02)**: at the user's
+  request. Restricted Steam sources strictly to `deck_ui_achievement_toast.wav` and `deck_ui_launch_game.wav`, paired with
+  the 3 PlayStation trophy chimes (`ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`, `ps4_trophy.mp3`) into 6 focused pairs (30
+  hybrid audio variations). Increased Steam audio volume by +90% (+5.5 dB gain; active RMS boosted from 0.145-0.175 to
+  0.276-0.332 dBFS) using musical `tanh` soft saturation with a -0.2 dBFS ceiling to level-match PlayStation's loud trophy
+  attacks without harsh digital clipping. Boosted Steam attack transient weights in all 5 hybrid approaches (+62% to +78%
+  increase in mix presence) so the tactile PC pop cuts through before the crystalline shimmer. Updated `preview_hybrids.html`
+  with direct `⬇ MP3` and `⬇ WAV` download links on every variation, source auditioning, filter chips, and generated fresh ZIP
+  packages (`SteamStation_Hybrids_MP3_Pack.zip` and `SteamStation_Hybrids_WAV_Pack.zip`).
 - **enhanced-notifications: SteamStation bronze trophy with Steam controller XYAB (2026-10-02)**: at the user's
   request. Replaced the PlayStation controller symbols on `bronze_playstation.png` with the Steam controller XYAB markers
   (X top-left, Y top-right, A bottom-left, B bottom-right) to match `silver.png` and `gold.png`. Generated
