@@ -1,4 +1,3 @@
-import { setting } from '../../settings/settings';
 import { notificationStore, typeName } from '../../steam/notification-store';
 import { activeTheme, themeStyle } from '../../theme/active-theme';
 import { animatedOffset, placeToast, stackOffset, steamCorner, STEAM_TOAST_HEIGHT, STEAM_TOAST_WIDTH, type Corner } from '../../theme/placement';
@@ -21,7 +20,7 @@ import { isEnabled, reportError } from '../../safety/runtime';
  *
  * Passed through untouched: a toast the achievement banner draws (`bannerDraws`: the banner pins that popup itself,
  * ../banner/window-pin.ts, wrapping this wrapper, and its pin calls it with its own position), feature `placement`
- * off, the `style.enabled` setting off, or any error.
+ * off, no theme (Steam default), or any error.
  * Every call is O(1) once the type is known: map lookups and arithmetic (docs/plugins.md guardrail 2).
  */
 
@@ -91,7 +90,7 @@ export function attachToastWindow(win: Window, onType: (win: Window, eType: numb
     let lastOffset: number | null = null;
 
     const place = (x: number, y: number): { x: number; y: number } | null => {
-        if (eType === null || !isEnabled('placement') || !setting('style.enabled') || bannerDraws(eType)) return null;
+        if (eType === null || !isEnabled('placement') || bannerDraws(eType)) return null;
         const theme = activeTheme()?.theme;
         if (!theme || !typeName(eType)) return null;
         const margin = themeStyle()?.margin ?? null;

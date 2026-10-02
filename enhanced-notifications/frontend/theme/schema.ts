@@ -4,6 +4,12 @@
  * Pure: no imports at all (tests/theme.test.ts).
  */
 
+/**
+ * The `theme` setting's value for "Steam default": no theme, every notification keeps Steam's own look, sound and
+ * display time. `<` and `>` cannot be in a Windows file name, so no theme file can take this name.
+ */
+export const STEAM_DEFAULT_THEME = '<steam>';
+
 export const POSITIONS = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'top_center', 'bottom_center'] as const;
 export type ToastPosition = (typeof POSITIONS)[number];
 

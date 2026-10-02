@@ -27,10 +27,8 @@ import { CAPTURE_RANGES } from '../capture/plan';
  */
 
 export interface Settings {
+    /** A theme id (rpc.ts ThemeEntry), or STEAM_DEFAULT_THEME. */
     theme: string;
-    'style.enabled': boolean;
-    'sound.enabled': boolean;
-    'duration.enabled': boolean;
     /** Achievement banners one at a time instead of Steam's stacking. */
     'queue.enabled': boolean;
     'screenshot.enabled': boolean;
@@ -48,9 +46,6 @@ export type SettingKey = keyof Settings;
 /** settings.json flattened into config keys. */
 export const DEFAULTS: Settings = {
     theme: defaults.theme,
-    'style.enabled': defaults.style.enabled,
-    'sound.enabled': defaults.sound.enabled,
-    'duration.enabled': defaults.duration.enabled,
     'queue.enabled': defaults.queue.enabled,
     'screenshot.enabled': defaults.screenshot.enabled,
     'screenshot.delay_ms': defaults.screenshot.delay_ms,

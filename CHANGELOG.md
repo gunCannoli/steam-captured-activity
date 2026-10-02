@@ -7,6 +7,21 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: settings panel tweaks (ADR-0053, 2026-10-02)**: at the user's request. The General
+  section's three switches are removed (`style.enabled`, `sound.enabled`, `duration.enabled`; a missing theme key is
+  Steam's own, themes.md § Defaults); "Steam default" (`theme` = `<steam>`, no theme) is the first entry and the shipped
+  default. The backend lists every theme file: a `.json` / `.jsonc` pair shows both (the `.jsonc` as `name (jsonc)`),
+  the setting storing the bare name for the file a bare name finds and the whole file name for the other. Preview
+  Notifications adds a four-row "Select Notification" card (`previewOptions()`); tier previews moved to "Achievements
+  Preview", hidden without an `achievements` block, and then a random preview leaves achievements out. Shorter tier
+  descriptions, no descriptions on Reload / Themes folder, Timeline marker after Achievement queue, `theme.jsonc`
+  renamed `theme_example.jsonc` with the defaults explained. Live tests updated (`sound-duration` checks Steam default
+  and a theme without `display_time_ms` instead of the removed switches). Live: `test:live` all pass but `achievements-bigpicture` (SKIP, Big Picture not open); `sound-duration` first failed because it read Steam's duration while the user's `ps5` (4000 ms) was active, fixed by reading it under Steam default (Steam leaves DownloadComplete's `toastDurationMS` unset, 5000 ms fallback), then 10/10.
+  **Found while checking the user's report "Achievements detected popup does not show up" (Wuchang):** steam-cartridges'
+  "Achievements Enabled" launch toast (`surfaces/toasts/launch.ts`) calls `NotificationStore.ProcessNotification(notif)`
+  with one argument; Steam's signature is `ProcessNotification(config, notification, kind)` and it returns early when
+  `kind` is not "New", so that toast has never shown (verified live: no toast window). Unlock toasts for the same
+  shortcut do show (live: a toast window opened). Not fixed: steam-cartridges needs a toast type for it (TASK.md).
 - **steam-cartridges: media cache setting without its toggle (2026-10-02)**: at the user's request. "Cache downloaded
   media" is a `Field` (label, "Days images and manuals stay on this PC. 0 keeps nothing.") then the slider with no label
   of its own (0-30 days, value shown above the track); `SliderRow`'s label is optional for this. Live: gap to Routing

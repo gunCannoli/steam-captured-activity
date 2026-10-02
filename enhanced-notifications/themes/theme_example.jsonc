@@ -2,12 +2,18 @@
 // Enhanced Notifications: theme reference
 //
 // Every option a theme can set, with what each value means. This file is also a
-// working theme: pick "theme" in the plugin's settings panel to see it.
+// working theme: pick "theme_example" in the plugin's settings panel to see it.
 //
 // To make your own: copy this file into your themes folder (settings panel >
 // Themes folder > Open), rename it, delete what you don't need, and press
-// Reload. Anything you leave out stays Steam's own (or uses the default noted
-// next to it, inside "achievements").
+// Reload.
+//
+// Every key is optional. Anything you leave out uses the default: Steam's own
+// look, sound and display time (or the default noted next to a key). A theme
+// with no "sound" keeps Steam's sounds, one with no "display_time_ms" keeps
+// Steam's display time per notification, and one with no "achievements" block
+// styles achievement toasts like every other toast. "Steam default", at the top
+// of the theme list, uses no theme at all.
 //
 // Format: JSONC (JSON with // and /* */ comments and trailing commas).
 // Files may be .jsonc or .json; both accept comments.

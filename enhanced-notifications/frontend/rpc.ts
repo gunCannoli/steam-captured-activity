@@ -27,7 +27,11 @@ async function call<R>(name: string, payload: object = {}): Promise<R> {
 }
 
 export interface ThemeEntry {
+    /** What the `theme` setting stores: the file name without extension, or with it for the other of a .json / .jsonc pair. */
+    id: string;
     name: string;
+    /** '.json' or '.jsonc'. */
+    ext: string;
     source: 'user' | 'bundled';
 }
 

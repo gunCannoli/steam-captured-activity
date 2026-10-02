@@ -1,7 +1,6 @@
 import type { Surface } from '../../kernel/surface';
 import type { NotificationHook } from '../../steam/notification-hook';
 import { isAchievementUnlock, typeName } from '../../steam/notification-store';
-import { setting } from '../../settings/settings';
 import { peek, whenShowing } from '../../banner/queue';
 import { achievementTheme, audio, themeSound, tierFor } from '../../theme/active-theme';
 import { isEnabled } from '../../safety/runtime';
@@ -15,7 +14,7 @@ export function createSoundSurface(hook: NotificationHook): Surface {
         install() {
             hook.setSoundHandler(
                 createSoundHandler({
-                    isEnabled: () => isEnabled('sound') && setting('sound.enabled'),
+                    isEnabled: () => isEnabled('sound'),
                     nameOf: typeName,
                     clipFor: themeSound,
                     isAchievementUnlock,

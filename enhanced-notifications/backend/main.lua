@@ -8,7 +8,7 @@
 --- Two theme folders, user first:
 ---   <steam>/millennium/config/enhanced-notifications/themes   (user themes, survive updates)
 ---   <plugin>/themes                                          (bundled, replaced on update)
---- A user theme with the same name as a bundled one wins.
+--- A user theme file with the same file name as a bundled one wins.
 
 local json       = require("json")
 local logger     = require("logger")
@@ -72,38 +72,61 @@ end
 local THEME_EXTENSIONS = { ".jsonc", ".json" }
 local IS_THEME_EXTENSION = { [".jsonc"] = true, [".json"] = true }
 
---- Names (without extension) of every theme, user themes shadowing bundled ones.
+--- Find a theme. `name` is a file stem ("ps5": user folder first, .jsonc before
+--- .json) or a whole file name ("ps5.json": that file, user folder first), which
+--- picks the other of a .json / .jsonc pair. Returns its path, folder and source, or nil.
+local function find_theme(name)
+  if type(name) ~= "string" or name == "" or name:find("[/\\]") or name:find("%.%.") then return nil end
+  local ext = fs.extension(name):lower()
+  if IS_THEME_EXTENSION[ext] then
+    for _, entry in ipairs(theme_dirs()) do
+      local path = fs.join(entry.dir, name)
+      if fs.is_file(path) then return path, entry.dir, entry.source end
+    end
+  end
+  for _, entry in ipairs(theme_dirs()) do
+    for _, e in ipairs(THEME_EXTENSIONS) do
+      local path = fs.join(entry.dir, name .. e)
+      if fs.is_file(path) then return path, entry.dir, entry.source end
+    end
+  end
+  return nil
+end
+
+--- Every theme file, a user file shadowing a bundled one of the same file name.
+--- `id` is what the `theme` setting stores: the stem for the file a bare stem
+--- finds (find_theme), the whole file name for the other of a .json / .jsonc
+--- pair, so both can be picked. Sorted by name, then extension.
 local function list_themes()
   local seen, out = {}, {}
   for _, entry in ipairs(theme_dirs()) do
     if fs.is_directory(entry.dir) then
       for _, item in ipairs(fs.list(entry.dir) or {}) do
         local path = type(item) == "table" and item.path or item
-        if type(path) == "string" and IS_THEME_EXTENSION[fs.extension(path):lower()] then
+        local ext = type(path) == "string" and fs.extension(path):lower() or ""
+        if IS_THEME_EXTENSION[ext] then
           local name = fs.stem(path)
-          if not seen[name] then
-            seen[name] = true
-            out[#out + 1] = { name = name, source = entry.source }
+          local key = name .. ext
+          if not seen[key] then
+            seen[key] = true
+            out[#out + 1] = { name = name, ext = ext, source = entry.source }
           end
         end
       end
     end
   end
-  table.sort(out, function(a, b) return a.name < b.name end)
+  for _, t in ipairs(out) do
+    local found, _, source = find_theme(t.name)
+    local same = found ~= nil and source == t.source and fs.extension(found):lower() == t.ext
+    t.id = same and t.name or (t.name .. t.ext)
+  end
+  table.sort(out, function(a, b)
+    if a.name ~= b.name then return a.name < b.name end
+    return a.ext < b.ext
+  end)
   return out
 end
 
---- Find a theme by name. Returns its path and folder, or nil.
-local function find_theme(name)
-  if type(name) ~= "string" or name == "" or name:find("[/\\]") or name:find("%.%.") then return nil end
-  for _, entry in ipairs(theme_dirs()) do
-    for _, ext in ipairs(THEME_EXTENSIONS) do
-      local path = fs.join(entry.dir, name .. ext)
-      if fs.is_file(path) then return path, entry.dir, entry.source end
-    end
-  end
-  return nil
-end
 ListThemes = method("ListThemes", function(_)
   return { themes = list_themes(), userDir = user_themes_dir() }
 end)

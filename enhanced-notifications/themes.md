@@ -7,7 +7,23 @@ Every key is optional; anything unset stays Steam's own. An optional
 banner per rarity tier, built from that same look; without it, achievement
 toasts are styled like every other toast.
 
-**[themes/theme.jsonc](themes/theme.jsonc) is the commented version of this
+**Defaults.** A theme sets only what it changes. A key it leaves out uses the
+default, which is Steam's own unless this page names another:
+
+| Left out | Default |
+| --- | --- |
+| `settings.position`, `settings.animation` | Steam's own corner and slide |
+| `settings.display_time_ms` | Steam's own display time, per notification type |
+| `sound` | Steam's own sounds (Steam's mute setting is always respected) |
+| `popup`, `text`, `game_icon`, ... | Steam's own look |
+| `achievements` | Achievement toasts get the notification style, like every toast |
+
+**Steam default**, the first entry of the theme list and the shipped default,
+is no theme at all: every notification keeps Steam's look, sound and display
+time. There are no on/off switches for the style, sounds or display time: pick
+a theme that leaves the key out, or Steam default.
+
+**[themes/theme_example.jsonc](themes/theme_example.jsonc) is the commented version of this
 page**: every option, in a working theme you can copy and trim. Also bundled:
 [steam_midnight](themes/steam_midnight.json) (no achievement banner),
 [ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json)
@@ -15,8 +31,8 @@ page**: every option, in a working theme you can copy and trim. Also bundled:
 [examples/](examples/).
 
 **File format:** `.jsonc` or `.json`. Both accept JSONC: `//` and `/* */`
-comments and trailing commas. If a folder has both `name.jsonc` and
-`name.json`, the `.jsonc` is used.
+comments and trailing commas. If there are both `name.jsonc` and `name.json`,
+the theme list shows both, the `.jsonc` one as `name (jsonc)`.
 
 ```jsonc
 {
@@ -233,10 +249,9 @@ Not part of a theme. Configured in the plugin's settings panel (Millennium
 sidebar) and stored by Millennium. [settings.json](settings.json) holds the
 shipped defaults; you never need to edit it.
 
-- **`theme`**: file name (without `.jsonc`/`.json`) of the active theme.
-- **`style.enabled`** / **`sound.enabled`** / **`duration.enabled`**: "Themed
-  style", "Themed sounds", "Themed display time". Off: Steam's own look
-  (achievement banners included), sounds or display time.
+- **`theme`**: the active theme's file name without `.jsonc`/`.json` (with it
+  for the second of a `.json` / `.jsonc` pair, so either can be picked), or
+  `<steam>` for Steam default (the shipped default: no theme).
 - **`queue.enabled`**: one achievement banner at a time, off by default. A
   burst of unlocks is shown one after another in arrival order, each with its
   own sound when its banner appears, at the same spot. Up to 5 can wait; past
@@ -246,7 +261,7 @@ shipped defaults; you never need to edit it.
 - **`screenshot`** / **`recording`**: captures on unlock, off by default (they
   write files into your library). Never set by a theme.
 
-Themes load from two folders; a user theme with the same name wins:
+Themes load from two folders; a user theme with the same file name wins:
 
 - `<Steam>/millennium/config/enhanced-notifications/themes/` (yours; survives updates)
 - `<plugin>/themes/` (bundled; replaced on update)

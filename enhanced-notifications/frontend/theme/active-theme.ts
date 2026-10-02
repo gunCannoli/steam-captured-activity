@@ -5,6 +5,7 @@ import { parseJsonc } from './jsonc';
 import { achievementIdOf, type SteamNotification } from '../kernel/notification';
 import { buildAnimationCss, buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
 import { tierOfNotification, type AchievementTheme, type Tier } from './achievements';
+import { STEAM_DEFAULT_THEME } from './schema';
 
 /**
  * The active theme, with every asset loaded, its sounds pre-decoded and its CSS cached.
@@ -142,7 +143,19 @@ function soundPaths(theme: ResolvedTheme): Set<string> {
     return paths;
 }
 
+/** "Steam default": no theme, so every surface leaves Steam's look, sound and display time alone. */
+function clear(): void {
+    loaded = null;
+    achievements = null;
+    issues = null;
+    cssCache = undefined;
+    animationCache = undefined;
+    logger.info('Steam default: no theme loaded.');
+    for (const listener of listeners) listener();
+}
+
 async function load(name: string): Promise<void> {
+    if (name === STEAM_DEFAULT_THEME) return clear();
     const warnings: string[] = [];
     const warn = (text: string, error?: unknown) => {
         warnings.push(text);

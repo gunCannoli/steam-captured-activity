@@ -35,7 +35,7 @@ edges, text alignments).
 `tierFor(n)` (memoised per notification) and `themeIssues()` (shown in a popup after a load the user started).
 
 **Who draws an achievement toast.** `bannerDraws(eType)` in `index.tsx` is true when the eType is the achievement type,
-the theme has an `achievements` block, the jsx patch is live, the `banner` switch is on and "Themed style" is on. Then
+the theme has an `achievements` block, the jsx patch is live and the `banner` switch is on. Then
 the banner draws it (`surfaces/banner`); the style surface gives its window no `data-en-type`, its desktop remap passes
 the popup through, and in Big Picture the placeholder takes the banner's corner. Otherwise the achievement toast is
 styled like every other toast. The surfaces get `bannerDraws` injected: a surface never imports another.
@@ -155,10 +155,14 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 
 ## Settings panel
 
-Sections: Theme (dropdown across the full row, Reload, Themes folder; load problems in a popup), Preview (a random
-notification; one row per achievement tier), General ("Themed style", "Themed sounds", "Themed display time"),
-Achievements (queue, screenshot, clip, timeline marker), Reset (defaults, Reset Achievements). `onPreview`,
-`onPreviewTier` and `achievementReset` are injected by `index.tsx`. A random preview's achievement is the banner's own
+Sections: Theme (dropdown across the full row, "Steam default" first; Reload, Themes folder; load problems in a
+popup), Preview Notifications (a random notification; "Select Notification": a dropdown of the preview types and a
+Preview button on one card), Achievements Preview (one row per tier, only with an `achievements` block; then a random
+preview leaves achievements out), Achievements (queue, timeline marker, screenshot, clip), Reset (defaults, Reset
+Achievements). There are no style, sound or display-time switches: a theme that leaves a key out gets Steam's own, and
+"Steam default" (`theme` = `STEAM_DEFAULT_THEME`, `theme/schema.ts`) loads no theme at all
+([ADR-0053](../decisions.md#adr-0053-enhanced-notifications-has-no-style-sound-or-display-time-switches-steam-default-is-a-theme)).
+`onPreview`, `previewOptions`, `onPreviewTier` and `achievementReset` are injected by `index.tsx`. A random preview's achievement is the banner's own
 synthetic preview (`previewTier`), never Steam's `TestAchievement`, whose real achievement id the sensor would take
 for an unlock.
 
@@ -190,11 +194,13 @@ on a row.
 3. Add a row to "Steam targets and their one owner" and to `OWNERS`. A target already owned by another row is not
    yours: extend that owner.
 4. Something that should happen after an achievement toast: subscribe to `achievement.unlocked`, never add work to the hook.
-5. A new theme key: `theme/theme.ts` (or `theme/achievements.ts` inside the block), `themes.md` and `themes/theme.jsonc`
+5. A new theme key: `theme/theme.ts` (or `theme/achievements.ts` inside the block), `themes.md` and `themes/theme_example.jsonc`
    in the same change.
 
 ## History
 
+- 2026-10-02 ADR-0053: the "Themed style / sounds / display time" switches removed; "Steam default" theme (the
+  default); a `.json` / `.jsonc` pair both listed; "Select Notification" and "Achievements Preview" in the panel.
 - 2026-10-01 ADR-0050: enhanced-achievements merged into this plugin. Its theme became the optional `achievements`
   block (`theme/achievements.ts`, inheriting the theme's position, animation and display time); its banner, sensor,
   captures, 100% toast and Reset Achievements moved in as they were; one sound surface and one duration surface for

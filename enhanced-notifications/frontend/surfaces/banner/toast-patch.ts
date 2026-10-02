@@ -1,7 +1,6 @@
 import { findModuleByExport } from '@steambrew/client';
 import { logger } from '../../logger';
 import { achievementTheme } from '../../theme/active-theme';
-import { setting } from '../../settings/settings';
 import { ThemedToast, setSteamToast } from './themed-toast';
 import type { SteamNotification } from '../../kernel/notification';
 import { isAchievementUnlock } from '../../steam/notification-store';
@@ -65,7 +64,7 @@ function resolveRuntime(): JsxRuntime | null {
 /** An unlock, with the theme's `achievements` block loaded and "Themed style" on (off: Steam's look for every toast). */
 function shouldTheme(props: ToastProps | undefined): boolean {
     const n = props?.group?.notifications?.[0];
-    return isAchievementUnlock(n) && achievementTheme() !== null && setting('style.enabled');
+    return isAchievementUnlock(n) && achievementTheme() !== null;
 }
 
 /**

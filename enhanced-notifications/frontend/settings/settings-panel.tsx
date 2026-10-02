@@ -1,13 +1,44 @@
-import { useEffect, useRef, useState } from 'react';
-import { ConfirmModal, DialogBodyText, DialogButton, Dropdown, Field, PanelSection, TextField } from '@steambrew/client';
-import { logger } from '../logger';
-import { rpc, type ThemeEntry } from '../rpc';
-import { achievementTheme, onThemeChange, reloadTheme, themeIssues, type ThemeIssues } from '../theme/active-theme';
-import { TIERS, type Tier } from '../theme/achievements';
-import { filterCandidates, type AchievementResetApi, type ResetCandidate, type ResetResult } from '../kernel/reset';
-import { showDialog } from '../steam/modal';
-import { resetSettings, useSetting } from './settings';
-import { Blocks, ButtonRow, CARD_BACKGROUND, CONTROL_GAP, ItemRow, SliderRow, STEAM_TRAILING, ToggleRow, usePanelDisabled } from './rows';
+import { useEffect, useRef, useState } from "react";
+import {
+    ConfirmModal,
+    DialogBodyText,
+    DialogButton,
+    Dropdown,
+    Field,
+    PanelSection,
+    TextField,
+} from "@steambrew/client";
+import { logger } from "../logger";
+import { rpc, type ThemeEntry } from "../rpc";
+import {
+    achievementTheme,
+    onThemeChange,
+    reloadTheme,
+    themeIssues,
+    type LoadedAchievementTheme,
+    type ThemeIssues,
+} from "../theme/active-theme";
+import { STEAM_DEFAULT_THEME } from "../theme/schema";
+import { TIERS, type Tier } from "../theme/achievements";
+import {
+    filterCandidates,
+    type AchievementResetApi,
+    type ResetCandidate,
+    type ResetResult,
+} from "../kernel/reset";
+import { showDialog } from "../steam/modal";
+import { resetSettings, useSetting } from "./settings";
+import {
+    Blocks,
+    ButtonRow,
+    CARD_BACKGROUND,
+    CONTROL_GAP,
+    ItemRow,
+    SliderRow,
+    STEAM_TRAILING,
+    ToggleRow,
+    usePanelDisabled,
+} from "./rows";
 
 /**
  * Settings panel in Millennium's sidebar (definePlugin `content`): Steam's components and the rows and spacing system
@@ -20,10 +51,12 @@ import { Blocks, ButtonRow, CARD_BACKGROUND, CONTROL_GAP, ItemRow, SliderRow, ST
  * load the user started (picking a theme, Reload), never for the load at Steam's start.
  */
 function showThemeIssues(found: ThemeIssues) {
-    const title = found.error ? `Theme "${found.name}" could not be loaded` : `Theme "${found.name}" loaded with warnings`;
+    const title = found.error
+        ? `Theme "${found.name}" could not be loaded`
+        : `Theme "${found.name}" loaded with warnings`;
     const lead = found.error
         ? "Notifications keep Steam's look and sound instead."
-        : `${found.warnings.length} field${found.warnings.length === 1 ? '' : 's'} could not be used and fell back to the default:`;
+        : `${found.warnings.length} field${found.warnings.length === 1 ? "" : "s"} could not be used and fell back to the default:`;
     const lines = found.error ? [found.error] : found.warnings;
     showDialog(
         <ConfirmModal
@@ -31,7 +64,15 @@ function showThemeIssues(found: ThemeIssues) {
             strDescription={
                 <>
                     <div>{lead}</div>
-                    <ul style={{ margin: '8px 0 0', paddingLeft: '20px', maxHeight: '160px', overflowY: 'auto', userSelect: 'text' }}>
+                    <ul
+                        style={{
+                            margin: "8px 0 0",
+                            paddingLeft: "20px",
+                            maxHeight: "160px",
+                            overflowY: "auto",
+                            userSelect: "text",
+                        }}
+                    >
                         {lines.map((line, i) => (
                             <li key={i}>{line}</li>
                         ))}
@@ -41,14 +82,19 @@ function showThemeIssues(found: ThemeIssues) {
             strOKButtonText="Close"
             bAlertDialog
         />,
-        { strTitle: 'Theme problems', popupWidth: 560, popupHeight: 360 },
+        { strTitle: "Theme problems", popupWidth: 560, popupHeight: 360 },
     );
 }
 
+/** A theme's name in the dropdown: "(jsonc)" marks the .jsonc one of a .json / .jsonc pair with the same name. */
+function themeLabel(t: ThemeEntry, all: ThemeEntry[]): string {
+    const paired = all.some((o) => o !== t && o.name === t.name);
+    return paired && t.ext === ".jsonc" ? `${t.name} (jsonc)` : t.name;
+}
+
 function ThemeSection({ disabled }: { disabled: boolean }) {
-    const [theme, setTheme] = useSetting('theme');
+    const [theme, setTheme] = useSetting("theme");
     const [themes, setThemes] = useState<ThemeEntry[]>([]);
-    const [userDir, setUserDir] = useState('');
     // Set by a load the user started here (theme picked, Reload); the next finished load then reports its problems.
     const awaitingLoad = useRef(false);
 
@@ -56,9 +102,8 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
         try {
             const result = await rpc.listThemes();
             setThemes(result.themes);
-            setUserDir(result.userDir);
         } catch (error) {
-            logger.warn('Could not list themes:', error);
+            logger.warn("Could not list themes:", error);
         }
     };
 
@@ -72,8 +117,12 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
         });
     }, []);
 
-    const options = themes.map((t) => ({ data: t.name, label: t.source === 'user' ? `${t.name} (yours)` : t.name }));
-    if (!themes.some((t) => t.name === theme)) options.push({ data: theme, label: `${theme} (missing)` });
+    const options = [
+        { data: STEAM_DEFAULT_THEME, label: "Steam default" },
+        ...themes.map((t) => ({ data: t.id, label: themeLabel(t, themes) })),
+    ];
+    if (theme !== STEAM_DEFAULT_THEME && !themes.some((t) => t.id === theme))
+        options.push({ data: theme, label: `${theme} (missing)` });
 
     return (
         <PanelSection title="Theme">
@@ -81,7 +130,12 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                 <>
                     {/* Three rows: label, description, then the dropdown across the full row (guardrail 18.3). */}
                     <ItemRow>
-                        <Field label="Available themes" description="Select a theme to choose the notification style" disabled={disabled} bottomSeparator="none" />
+                        <Field
+                            label="Available themes"
+                            description="Select a theme to choose the notification style"
+                            disabled={disabled}
+                            bottomSeparator="none"
+                        />
                     </ItemRow>
                     <ItemRow>
                         <Field disabled={disabled} childrenContainerWidth="max">
@@ -89,10 +143,13 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                                 rgOptions={options}
                                 selectedOption={theme}
                                 disabled={disabled}
-                                contextMenuPositionOptions={{ bMatchWidth: true }}
+                                contextMenuPositionOptions={{
+                                    bMatchWidth: true,
+                                }}
                                 onChange={(o) => {
                                     const next = o.data as string;
-                                    if (next !== theme) awaitingLoad.current = true;
+                                    if (next !== theme)
+                                        awaitingLoad.current = true;
                                     setTheme(next);
                                 }}
                             />
@@ -102,7 +159,6 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                 <>
                     <ButtonRow
                         label="Reload themes"
-                        description="Pick up theme file edits without restarting Steam"
                         buttonLabel="Reload"
                         disabled={disabled}
                         onClick={() => {
@@ -115,7 +171,6 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                     />
                     <ButtonRow
                         label="Themes folder"
-                        description={userDir || 'Your themes live here and survive plugin updates'}
                         buttonLabel="Open"
                         disabled={disabled}
                         onClick={() => void rpc.openThemesFolder()}
@@ -127,78 +182,205 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
 }
 
 const TIER_LABELS: Record<Tier, string> = {
-    normal: 'Normal',
-    magic: 'Magic',
-    rare: 'Rare',
-    exceptional: 'Exceptional',
+    normal: "Normal",
+    magic: "Magic",
+    rare: "Rare",
+    exceptional: "Exceptional",
 };
 
-function tierRule(tier: Tier): string {
-    const loaded = achievementTheme();
-    if (!loaded) return "This theme has no achievement banner: the notification style";
+function tierRule(tier: Tier, loaded: LoadedAchievementTheme): string {
     const { magic, rare } = loaded.theme.tiers;
     switch (tier) {
-        case 'exceptional':
-            return 'Triggers on all achievements unlocked';
-        case 'rare':
-            return rare.threshold !== null ? `${rare.threshold}% or less Players Rarity.` : 'Unused by this theme (no threshold set)';
-        case 'magic':
-            return magic.threshold !== null ? `${magic.threshold}% or less Players Rarity.` : 'Unused by this theme (no threshold set)';
+        case "exceptional":
+            return "All achievements unlocked";
+        case "rare":
+            return rare.threshold !== null
+                ? `${rare.threshold}% of players or fewer`
+                : "Unused (no threshold)";
+        case "magic":
+            return magic.threshold !== null
+                ? `${magic.threshold}% of players or fewer`
+                : "Unused (no threshold)";
         default:
-            return 'Anything below Magic Rarity';
+            return "Every other achievement";
     }
 }
 
-/** `onPreview` and `onPreviewTier` are injected by index.tsx: the panel never imports a surface. */
-function PreviewSection({ disabled, onPreview, onPreviewTier }: { disabled: boolean; onPreview: () => Promise<unknown>; onPreviewTier: (tier: Tier) => void }) {
-    const [, rerender] = useState(0);
-    useEffect(() => onThemeChange(() => rerender((n) => n + 1)), []);
+/** A preview id and its name (index.tsx: the preview surface's list). */
+export interface PreviewOption {
+    id: string;
+    label: string;
+}
+
+/** Four rows on one card: label, description, the notification dropdown, then the Preview button. */
+function SelectPreviewRows({
+    disabled,
+    options,
+    onPreview,
+}: {
+    disabled: boolean;
+    options: PreviewOption[];
+    onPreview: (id: string) => Promise<unknown>;
+}) {
+    const [selected, setSelected] = useState(options[0]?.id ?? "");
 
     return (
-        <PanelSection title="Preview">
+        <ItemRow>
+            {/* The card's background belongs to Steam's Field, so this wrapper paints the same colour under the controls and the two read as one card. */}
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px" }}>
+                <Field
+                    label="Select Notification"
+                    description="Preview the selected notification"
+                    disabled={disabled}
+                    bottomSeparator="none"
+                />
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: CONTROL_GAP,
+                        padding: "0 12px 12px",
+                    }}
+                >
+                    <Dropdown
+                        rgOptions={options.map((o) => ({
+                            data: o.id,
+                            label: o.label,
+                        }))}
+                        selectedOption={selected}
+                        disabled={disabled}
+                        contextMenuPositionOptions={{ bMatchWidth: true }}
+                        onChange={(o) => setSelected(o.data as string)}
+                    />
+                    <DialogButton
+                        disabled={disabled || !selected}
+                        onClick={() => void onPreview(selected)}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                            alignSelf: "flex-end",
+                        }}
+                    >
+                        Preview
+                    </DialogButton>
+                </div>
+            </div>
+        </ItemRow>
+    );
+}
+
+/** `onPreview` is injected by index.tsx: the panel never imports a surface. */
+function PreviewSection({
+    disabled,
+    onPreview,
+    previewOptions,
+}: {
+    disabled: boolean;
+    onPreview: (id?: string) => Promise<unknown>;
+    previewOptions: PreviewOption[];
+}) {
+    return (
+        <PanelSection title="Preview Notifications">
             <Blocks>
                 <ButtonRow
-                    label="Preview a notification"
-                    description="Shows a random notification with this theme: downloads, clips, cloud sync, battery, updates, achievements. Press again for another"
+                    label="Random notification"
+                    description="Shows a random notification with the selected theme"
                     buttonLabel="Preview"
                     disabled={disabled}
                     onClick={() => void onPreview()}
                 />
-                <>
-                    {TIERS.map((tier) => (
-                        <ButtonRow
-                            key={tier}
-                            label={`Achievement: ${TIER_LABELS[tier]}`}
-                            description={tierRule(tier)}
-                            buttonLabel="Preview"
-                            disabled={disabled}
-                            onClick={() => void onPreviewTier(tier)}
-                        />
-                    ))}
-                </>
+                <SelectPreviewRows
+                    disabled={disabled}
+                    options={previewOptions}
+                    onPreview={(id) => onPreview(id)}
+                />
             </Blocks>
         </PanelSection>
     );
 }
 
+/** One row per rarity tier, only when the theme has an `achievements` block. `onPreviewTier` is injected by index.tsx. */
+function AchievementsPreviewSection({
+    disabled,
+    onPreviewTier,
+}: {
+    disabled: boolean;
+    onPreviewTier: (tier: Tier) => void;
+}) {
+    const [loaded, setLoaded] = useState(() => achievementTheme());
+    useEffect(() => onThemeChange(() => setLoaded(achievementTheme())), []);
+    if (!loaded) return null;
+
+    return (
+        <PanelSection title="Achievements Preview">
+            {TIERS.map((tier) => (
+                <ButtonRow
+                    key={tier}
+                    label={TIER_LABELS[tier]}
+                    description={tierRule(tier, loaded)}
+                    buttonLabel="Preview"
+                    disabled={disabled}
+                    onClick={() => void onPreviewTier(tier)}
+                />
+            ))}
+        </PanelSection>
+    );
+}
+
 function AchievementsSection({ disabled }: { disabled: boolean }) {
-    const [screenshotOn] = useSetting('screenshot.enabled');
-    const [clipOn] = useSetting('recording.enabled');
+    const [screenshotOn] = useSetting("screenshot.enabled");
+    const [clipOn] = useSetting("recording.enabled");
 
     return (
         <PanelSection title="Achievements">
             <Blocks>
-                <ToggleRow k="queue.enabled" label="Achievement queue" description="One banner at a time instead of Steam's stacking" disabled={disabled} />
+                <ToggleRow
+                    k="queue.enabled"
+                    label="Achievement queue"
+                    description="One banner at a time instead of Steam's stacking"
+                    disabled={disabled}
+                />
+                <ToggleRow
+                    k="recording.add_timeline_marker"
+                    label="Timeline marker"
+                    description="Non-Steam games only"
+                    disabled={disabled}
+                />
                 <>
-                    <ToggleRow k="screenshot.enabled" label="Screenshot on unlock" description="Needs Game Recording on" disabled={disabled} />
-                    <SliderRow k="screenshot.delay_ms" label="Screenshot delay" suffix=" ms" disabled={disabled || !screenshotOn} />
+                    <ToggleRow
+                        k="screenshot.enabled"
+                        label="Screenshot on unlock"
+                        description="Needs Game Recording on"
+                        disabled={disabled}
+                    />
+                    <SliderRow
+                        k="screenshot.delay_ms"
+                        label="Screenshot delay"
+                        suffix=" ms"
+                        disabled={disabled || !screenshotOn}
+                    />
                 </>
                 <>
-                    <ToggleRow k="recording.enabled" label="Record clip on unlock" description="Saves the last length seconds" disabled={disabled} />
-                    <SliderRow k="recording.duration_s" label="Clip length" suffix=" s" disabled={disabled || !clipOn} />
-                    <SliderRow k="recording.delay_ms" label="Clip delay" suffix=" ms" disabled={disabled || !clipOn} />
+                    <ToggleRow
+                        k="recording.enabled"
+                        label="Record clip on unlock"
+                        description="Saves the last length seconds"
+                        disabled={disabled}
+                    />
+                    <SliderRow
+                        k="recording.duration_s"
+                        label="Clip length"
+                        suffix=" s"
+                        disabled={disabled || !clipOn}
+                    />
+                    <SliderRow
+                        k="recording.delay_ms"
+                        label="Clip delay"
+                        suffix=" ms"
+                        disabled={disabled || !clipOn}
+                    />
                 </>
-                <ToggleRow k="recording.add_timeline_marker" label="Timeline marker" description="Non-Steam games only" disabled={disabled} />
             </Blocks>
         </PanelSection>
     );
@@ -231,29 +413,33 @@ function ResetDialog({
     onFinished: () => void;
     closeModal?: () => void;
 }) {
-    const [phase, setPhase] = useState<'confirm' | 'running' | 'done'>('confirm');
-    const [outcome, setOutcome] = useState('');
+    const [phase, setPhase] = useState<"confirm" | "running" | "done">(
+        "confirm",
+    );
+    const [outcome, setOutcome] = useState("");
     const hold = useRef(false);
     const close = () => {
         if (!hold.current) closeModal?.();
     };
     const start = async () => {
         hold.current = true;
-        setPhase('running');
+        setPhase("running");
         onStart();
         const result = await api.reset(c);
         hold.current = false;
         setOutcome(resultText(c, result));
-        setPhase('done');
+        setPhase("done");
         onFinished();
     };
 
-    if (phase === 'confirm') {
+    if (phase === "confirm") {
         return (
             <ConfirmModal
                 strTitle="Reset achievements"
                 strDescription={`${c.name} will lose all its achievements (${c.unlocked} unlocked). ${
-                    c.kind === 'steam' ? 'They are cleared on your Steam account. ' : ''
+                    c.kind === "steam"
+                        ? "They are cleared on your Steam account. "
+                        : ""
                 }This cannot be undone.`}
                 strOKButtonText="Reset"
                 bDestructiveWarning
@@ -265,10 +451,10 @@ function ResetDialog({
     return (
         <ConfirmModal
             strTitle="Reset achievements"
-            strDescription={phase === 'running' ? 'Resetting...' : outcome}
+            strDescription={phase === "running" ? "Resetting..." : outcome}
             strOKButtonText="Close"
             bAlertDialog
-            bOKDisabled={phase === 'running'}
+            bOKDisabled={phase === "running"}
             closeModal={close}
         />
     );
@@ -282,13 +468,19 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     const [all, setAll] = useState<ResetCandidate[]>([]);
     const reload = () => setAll(api.candidates());
     useEffect(reload, []);
-    const [filter, setFilter] = useState('');
+    const [filter, setFilter] = useState("");
     const [selected, setSelected] = useState(0);
     const [busy, setBusy] = useState(false);
 
     const visible = filterCandidates(all, filter);
     const chosen = visible.find((c) => c.appid === selected);
-    const options = [{ data: 0, label: 'All games' }, ...visible.map((c) => ({ data: c.appid, label: `${c.name} (${c.unlocked}/${c.total})` }))];
+    const options = [
+        { data: 0, label: "All games" },
+        ...visible.map((c) => ({
+            data: c.appid,
+            label: `${c.name} (${c.unlocked}/${c.total})`,
+        })),
+    ];
     const available = api.available();
 
     const confirm = () => {
@@ -304,7 +496,11 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
                     reload();
                 }}
             />,
-            { strTitle: 'Reset achievements', popupWidth: 480, popupHeight: 250 },
+            {
+                strTitle: "Reset achievements",
+                popupWidth: 480,
+                popupHeight: 250,
+            },
         );
     };
 
@@ -312,12 +508,30 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     return (
         <ItemRow>
             {/* The card's background belongs to Steam's Field, so this wrapper paints the same colour under the controls and the two read as one card. */}
-            <div style={{ background: CARD_BACKGROUND, borderRadius: '2px' }}>
-                <Field label="Reset Achievements" description="Select a game to reset the achievements count" disabled={!available} bottomSeparator="none" />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: CONTROL_GAP, padding: '0 12px 12px' }}>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "2px" }}>
+                <Field
+                    label="Reset Achievements"
+                    description="Select a game to reset the achievements count"
+                    disabled={!available}
+                    bottomSeparator="none"
+                />
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: CONTROL_GAP,
+                        padding: "0 12px 12px",
+                    }}
+                >
                     {/* Steam's text field ends with 22 px of blank space: pull the dropdown up to 8 px below it. */}
                     <div style={{ marginBottom: -STEAM_TRAILING }}>
-                        <TextField label="Games filter" value={filter} disabled={!available} onFocus={reload} onChange={(e) => setFilter(e.target.value)} />
+                        <TextField
+                            label="Games filter"
+                            value={filter}
+                            disabled={!available}
+                            onFocus={reload}
+                            onChange={(e) => setFilter(e.target.value)}
+                        />
                     </div>
                     <Dropdown
                         rgOptions={options}
@@ -329,7 +543,12 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
                     <DialogButton
                         disabled={!available || busy || !chosen}
                         onClick={confirm}
-                        style={{ padding: '0 16px', minWidth: 0, width: 'auto', alignSelf: 'flex-end' }}
+                        style={{
+                            padding: "0 16px",
+                            minWidth: 0,
+                            width: "auto",
+                            alignSelf: "flex-end",
+                        }}
                     >
                         Reset
                     </DialogButton>
@@ -339,13 +558,15 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     );
 }
 
-/** `onPreview`, `onPreviewTier` and `achievementReset` are injected by index.tsx: this panel never imports a surface. */
+/** `onPreview`, `previewOptions`, `onPreviewTier` and `achievementReset` are injected by index.tsx: this panel never imports a surface. */
 export function SettingsPanel({
     onPreview,
+    previewOptions,
     onPreviewTier,
     achievementReset,
 }: {
-    onPreview: () => Promise<unknown>;
+    onPreview: (id?: string) => Promise<unknown>;
+    previewOptions: PreviewOption[];
     onPreviewTier: (tier: Tier) => void;
     achievementReset: AchievementResetApi;
 }) {
@@ -355,25 +576,35 @@ export function SettingsPanel({
         <>
             {disabled && (
                 <DialogBodyText>
-                    Steam's toast notifications are off, so styled toasts, achievement banners, sounds, display time and captures on unlock will not
-                    happen. Turn them on in Steam Settings -&gt; Notifications.
+                    Steam's toast notifications are off, so styled toasts,
+                    achievement banners, sounds, display time and captures on
+                    unlock will not happen. Turn them on in Steam Settings -&gt;
+                    Notifications.
                 </DialogBodyText>
             )}
 
             <ThemeSection disabled={disabled} />
-            <PreviewSection disabled={disabled} onPreview={onPreview} onPreviewTier={onPreviewTier} />
-
-            <PanelSection title="General">
-                <ToggleRow k="style.enabled" label="Themed style" description="Off: Steam's own look for every notification, achievements included" disabled={disabled} />
-                <ToggleRow k="sound.enabled" label="Themed sounds" description="Off: Steam's own sounds. Steam's notification sound setting is always respected" disabled={disabled} />
-                <ToggleRow k="duration.enabled" label="Themed display time" description="Off: Steam's own display time per notification" disabled={disabled} />
-            </PanelSection>
+            <PreviewSection
+                disabled={disabled}
+                onPreview={onPreview}
+                previewOptions={previewOptions}
+            />
+            <AchievementsPreviewSection
+                disabled={disabled}
+                onPreviewTier={onPreviewTier}
+            />
 
             <AchievementsSection disabled={disabled} />
 
             <PanelSection title="Reset">
                 <Blocks>
-                    <ButtonRow label="Reset to defaults" description="Clear every changed setting" buttonLabel="Reset" disabled={disabled} onClick={() => void resetSettings()} />
+                    <ButtonRow
+                        label="Reset to defaults"
+                        description="Clear every changed setting"
+                        buttonLabel="Reset"
+                        disabled={disabled}
+                        onClick={() => void resetSettings()}
+                    />
                     <ResetAchievementsRows api={achievementReset} />
                 </Blocks>
             </PanelSection>

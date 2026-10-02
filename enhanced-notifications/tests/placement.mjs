@@ -72,7 +72,6 @@ writeFileSync(
 
 try {
     await plugin(`setSetting('disabledFeatures', '')`);
-    await plugin(`setSetting('style.enabled', true)`);
     await plugin(`setSetting('theme', 'en_place_test')`);
     for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== 'en_place_test'; i++) await wait(250);
     check('temp theme loaded', (await plugin('activeTheme()?.name')) === 'en_place_test');

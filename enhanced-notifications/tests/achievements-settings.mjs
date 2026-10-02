@@ -134,8 +134,8 @@ try {
     await wait(1500);
 
     r = await fire();
-    // The shipped default theme is steam_midnight (settings.json): no banner, no themed sound.
-    check('defaults restored -> steam_midnight (no banner, no themed sound)', r.banner === null && !r.sounds.some((s) => s.kind === 'webaudio'));
+    // The shipped default is "Steam default" (settings.json theme '<steam>'): no theme, no banner, no themed sound.
+    check('defaults restored -> Steam default (no theme, no banner, no themed sound)', (await plugin(`activeTheme()?.name ?? null`)) === null && r.banner === null && !r.sounds.some((s) => s.kind === 'webaudio'));
     const left = await stored();
     check('setting a default / reset leaves nothing stored', left && Object.keys(left).length === 0, JSON.stringify(left));
 } catch (e) {

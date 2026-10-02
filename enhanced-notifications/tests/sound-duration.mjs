@@ -102,6 +102,9 @@ async function fire(call) {
 }
 
 try {
+    // Steam's own duration, read with no theme ("Steam default"): the user's active theme may set its own.
+    await plugin(`setSetting('theme', '<steam>')`);
+    for (let i = 0; i < 20 && (await plugin(`activeTheme()?.name ?? null`)) !== null; i++) await wait(250);
     const stockDuration = await durationOf('DownloadComplete');
     check('temp theme loaded', await selectTheme('en_test'));
 
@@ -116,16 +119,17 @@ try {
         check('sound theme loaded', await selectTheme('en_test_sound'));
         s = await fire('TestCloudSyncFailure(435150)');
         check('theme sound replaces Steam sound', s.includes('themed') && !s.includes('steam'), JSON.stringify(s));
+        check('no display_time_ms -> Steam duration', (await durationOf('DownloadComplete')) === stockDuration, `DownloadComplete=${await durationOf('DownloadComplete')}`);
         await selectTheme('en_test');
     } else console.log(`SKIP  sound replacement (no ${SOUND})`);
 
-    await plugin(`setSetting('sound.enabled', false)`);
+    // "Steam default" (the theme setting's '<steam>'): no theme, so Steam's sound and display time come back.
+    await plugin(`setSetting('theme', '<steam>')`);
+    for (let i = 0; i < 20 && (await plugin(`activeTheme()?.name ?? null`)) !== null; i++) await wait(250);
+    check('Steam default -> no theme loaded', (await plugin(`activeTheme()?.name ?? null`)) === null);
     s = await fire('TestDownloadComplete(435150)');
-    check('sound.enabled=false -> Steam sound back', s.includes('steam') && !s.includes('themed'), JSON.stringify(s));
-    await plugin(`setSetting('sound.enabled', true)`);
-
-    await plugin(`setSetting('duration.enabled', false)`);
-    check('duration.enabled=false -> Steam duration restored', (await durationOf('DownloadComplete')) === stockDuration, `DownloadComplete=${await durationOf('DownloadComplete')}`);
+    check('Steam default -> Steam sound back', s.includes('steam') && !s.includes('themed'), JSON.stringify(s));
+    check('Steam default -> Steam duration restored', (await durationOf('DownloadComplete')) === stockDuration, `DownloadComplete=${await durationOf('DownloadComplete')}`);
 } finally {
     await plugin(`resetSettings()`);
     rmSync(themePath, { force: true });

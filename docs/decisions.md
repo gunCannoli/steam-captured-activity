@@ -3111,3 +3111,32 @@ and text alignment, and per-tier text styles. The user's PS5 theme repeated ever
 - A tier can no longer recolour its title (the old reference theme's gold title on rare).
 - Making Steam's own toasts honour `popup.scale` and `popup.layout` needs live probing of their window and DOM: a
   follow-up in TASK.md.
+
+## ADR-0053: enhanced-notifications has no style, sound or display-time switches; "Steam default" is a theme
+
+**Status:** Accepted · 2026-10-02 (the user's decisions) · **Amends decision 3 of [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications)** (the "Themed style", "Themed sounds" and "Themed display time" settings are gone)
+
+### Context
+
+The settings panel had a General section with three switches that each turned part of the theme off. A theme already
+leaves Steam's own value for any key it does not set, so the switches repeated what the theme file says, and the panel
+had no way to pick "no theme".
+
+### Decision
+
+1. **The three switches are removed** (`style.enabled`, `sound.enabled`, `duration.enabled`). A theme that has no
+   `sound` keeps Steam's sounds, one without `settings.display_time_ms` keeps Steam's display time, and so on
+   ([themes.md § Defaults](../enhanced-notifications/themes.md)).
+2. **"Steam default" is the first entry of the theme list and the shipped default** (`theme` = `<steam>`, a name no
+   file can have on Windows): no theme is loaded, so every surface leaves Steam's look, sound and display time alone.
+3. **A `.json` and a `.jsonc` with the same name are both listed**; the `.jsonc` one reads `name (jsonc)`. The setting
+   stores the bare name for the file a bare name finds (user folder first, `.jsonc` first) and the whole file name
+   for the other one, so a stored bare name keeps its meaning. The "(yours)" tag is gone.
+4. **Previews:** a random preview leaves achievements out when the theme has an `achievements` block, whose tiers get
+   their own "Achievements Preview" section (hidden without the block); "Select Notification" previews one chosen type.
+
+### Consequences
+
+- Turning one part of a theme off means editing the theme (or a copy), not a switch.
+- A user who had a switch off gets the theme's value after the update (the stored key is ignored).
+- Users who never picked a theme now start on Steam default instead of `steam_midnight`.

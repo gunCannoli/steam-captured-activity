@@ -32,6 +32,19 @@ const PREVIEWS: Record<string, (store: TestStore, appid: number) => unknown> = {
     Achievement: () => previewAchievement?.(),
 };
 
+/** The settings panel's name for each preview id, in the dropdown's order. */
+const LABELS: Record<string, string> = {
+    Achievement: 'Achievement unlocked',
+    DownloadComplete: 'Download complete',
+    GameRecordingInstantClip: 'Clip saved',
+    GameRecordingStart: 'Recording started',
+    CloudSyncFailure: 'Cloud sync failed',
+    CloudSyncConflict: 'Cloud sync conflict',
+    LowBatteryNotification: 'Low battery',
+    HardwareUpdateNotification: 'Hardware update',
+    PlaytimeWarning: 'Playtime warning',
+};
+
 let last: string | null = null;
 
 /** The ids a random preview picks from right now. */
@@ -39,14 +52,23 @@ export function previewIds(): string[] {
     return Object.keys(PREVIEWS);
 }
 
+/** Every preview with its name, for the settings panel's dropdown. */
+export function previewOptions(): { id: string; label: string }[] {
+    return Object.keys(LABELS)
+        .filter((id) => id in PREVIEWS)
+        .map((id) => ({ id, label: LABELS[id]! }));
+}
+
 /**
- * Show a test toast: `id` (one of `previewIds()`), or a random one. Returns the id shown, or null when nothing was
- * (switched off: safety/features.ts `preview`, or no store).
+ * Show a test toast: `id` (one of `previewIds()`), or a random one; a random one is never an achievement when
+ * `withAchievement` is false (the panel previews those per tier when the theme has an `achievements` block). Returns
+ * the id shown, or null when nothing was (switched off: safety/features.ts `preview`, or no store).
  */
-export async function preview(id?: string): Promise<string | null> {
+export async function preview(id?: string, withAchievement = true): Promise<string | null> {
     if (!isEnabled('preview')) return null;
     const store = Reflect.get(globalThis, 'NotificationStore') as TestStore | undefined;
-    const pick = id && PREVIEWS[id] ? id : pickPreview(previewIds(), last);
+    const pool = withAchievement ? previewIds() : previewIds().filter((n) => n !== 'Achievement');
+    const pick = id && PREVIEWS[id] ? id : pickPreview(pool, last);
     if (!store || !pick) return null;
     last = pick;
     try {

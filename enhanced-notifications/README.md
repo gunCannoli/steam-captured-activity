@@ -61,18 +61,16 @@ Open Millennium's sidebar and select **Enhanced Notifications**:
 
 | Setting | What it does |
 | --- | --- |
-| Theme | Which theme to use |
+| Theme | Which theme to use. **Steam default** (the first entry, and the default) uses none: Steam's own look, sound and display time. A theme that leaves out a key (its sound, its display time) gets Steam's own for it. A `.json` and a `.jsonc` with the same name are both listed, the second as `name (jsonc)` |
 | Reload themes | Pick up edits to a theme file without restarting Steam. If the theme has errors, a popup lists them (a field that falls back to its default, a missing asset, or why the theme could not load) |
 | Themes folder | Opens the folder for your own themes |
-| Preview a notification | Shows a random notification (one of Steam's own test toasts, or an achievement), a different type each press |
-| Preview achievement tiers | Fires a test achievement for each tier (the banner, or the notification style without an `achievements` block) |
-| Themed style | Off: Steam's own look for every notification, achievements included |
-| Themed sounds | Off: Steam's own sounds. Steam's mute setting is always respected |
-| Themed display time | Off: Steam's own display time per notification |
+| Random notification | Shows a random notification (one of Steam's own test toasts; an achievement too when the theme has no `achievements` block), a different type each press |
+| Select Notification | Pick a notification type from the list and press **Preview** |
+| Achievements Preview | Only for a theme with an `achievements` block: fires a test achievement for each tier |
 | Achievement queue | One achievement banner at a time instead of Steam's own stacking |
+| Timeline marker | Adds an achievement marker on non-Steam games' timelines |
 | Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
 | Record clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
-| Timeline marker | Adds an achievement marker on non-Steam games' timelines |
 | Reset to defaults | Clears every changed setting |
 | Reset Achievements | Pick a game (type to filter the list) and press **Reset** to clear its achievements, after a warning. Steam games are cleared on your Steam account through Steam's own console command; non-Steam games need steam-cartridges to be cleared. Only games with at least one unlocked achievement are listed |
 
@@ -84,14 +82,14 @@ manual) for the game.
 
 Five minutes, no game required for the first four:
 
-1. Open the settings panel and press **Preview a notification** a few times:
-   each press shows a different notification type (downloads, clips, cloud
-   sync, battery, updates, an achievement), all restyled the same way.
-2. Switch **Theme** to `ps5` and press each **Achievement** preview: a PS5-style
-   trophy banner per tier. Back on `steam_midnight` (no `achievements` block),
-   the same previews look like every other toast.
-3. Toggle **Themed style**, **Themed sounds** and **Themed display time** off
-   and on; confirm Steam's own look/sound/timing comes back when off.
+1. Pick `steam_midnight` and press **Random notification** a few times: each
+   press shows a different notification type (downloads, clips, cloud sync,
+   battery, updates, an achievement), all restyled the same way. **Select
+   Notification** shows the one you pick.
+2. Switch **Theme** to `ps5` and press each **Achievements Preview** row: a
+   PS5-style trophy banner per tier. Back on `steam_midnight` (no
+   `achievements` block) that section is hidden.
+3. Pick **Steam default**; confirm Steam's own look, sound and timing.
 4. Edit a theme (a copy in your themes folder), press **Reload themes**, then
    preview again to see the change.
 5. Start any game with Game Recording on (Steam Settings -> In-Game ->
@@ -102,7 +100,7 @@ Five minutes, no game required for the first four:
 ## Themes
 
 Themes are `.jsonc` (or `.json`) files: JSON with `//` comments and trailing
-commas allowed. Start from [themes/theme.jsonc](themes/theme.jsonc): every
+commas allowed. Start from [themes/theme_example.jsonc](themes/theme_example.jsonc): every
 option, commented, in a working theme. The full reference is
 [themes.md](themes.md). Also bundled: [steam_midnight](themes/steam_midnight.json),
 [ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json). Fuller,

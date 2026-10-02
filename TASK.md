@@ -16,6 +16,16 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges "Achievements Enabled" launch toast never shows (found 2026-10-02, the user's Wuchang report): not
+fixed, needs a decision.** `surfaces/toasts/launch.ts` calls `NotificationStore.ProcessNotification(notif)` with one
+argument; Steam's is `ProcessNotification(config, notification, kind)` and returns before showing anything (module
+60917; server notifications go through `OnServerNotification`, batched 3 s, gated by the user's per-type toast
+preference). Options: post it through `OnNotification` with a client type that takes a title and body, or drop it.
+
+**enhanced-notifications settings tweaks (ADR-0053, 2026-10-02): deployed, `test:live` passes (Big Picture check skipped).** Left for
+the user: a look at the panel (Steam default first, Select Notification card, Achievements Preview showing only with
+the ps5 theme) on desktop and in Big Picture.
+
 **enhanced-notifications simpler theme format (ADR-0052, 2026-10-02): code, themes and docs done, not live-verified.**
 Unit tests pass except the bundled-asset check: `themes/ps5.jsonc` points at `PlayStation/*.svg` (the folder holds
 `.png`), and the user's untracked `ps5.json` / `SteamStation.json` at a missing `ps5_assets/`; the user fixes the paths.

@@ -17,7 +17,7 @@ import { installUnlockSensor } from './sensors/unlock';
 import { createSoundSurface } from './surfaces/sound';
 import { createDurationSurface } from './surfaces/duration';
 import { createStyleSurface } from './surfaces/style';
-import { createPreviewSurface, preview } from './surfaces/preview';
+import { createPreviewSurface, preview, previewOptions } from './surfaces/preview';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
 import { previewTier } from './surfaces/toasts/post';
 import { createBannerSurface } from './surfaces/banner';
@@ -28,7 +28,7 @@ import { capturesHandler, createCapturesSurface } from './surfaces/captures';
 // Named exports are published by Millennium on window.PLUGIN_LIST[<plugin>],
 // which is how tests/*.mjs drive the same code paths as the settings panel.
 export { allSettings, resetSettings, setSetting } from './settings/settings';
-export { preview, previewIds } from './surfaces/preview';
+export { preview, previewIds, previewOptions } from './surfaces/preview';
 export { previewTier, fireTestUnlock, fireExceptionalCompletionToast } from './surfaces/toasts/post';
 export { activeTheme, achievementTheme, themeCss } from './theme/active-theme';
 export { toastsEnabled } from './steam/notification-settings';
@@ -60,7 +60,7 @@ export function surfaceStatus(): SurfaceStatus[] {
  * and its Big Picture place leave them to the banner. O(1): the style surface asks on every toast.
  */
 function bannerDraws(eType: number | undefined): boolean {
-    return eType !== undefined && eType === achievementEType() && achievementTheme() !== null && toastPatchInstalled() && isEnabled('banner') && setting('style.enabled');
+    return eType !== undefined && eType === achievementEType() && achievementTheme() !== null && toastPatchInstalled() && isEnabled('banner');
 }
 
 async function init(): Promise<void> {
@@ -126,14 +126,23 @@ async function init(): Promise<void> {
     bus.on('achievement.unlocked', capturesHandler);
 }
 
+/** The settings panel's injected actions: the panel never imports a surface. */
+const panelProps = {
+    // With an `achievements` block the panel previews achievements per tier, so a random preview leaves them out.
+    onPreview: (id?: string) => preview(id, achievementTheme() === null),
+    previewOptions: previewOptions(),
+    onPreviewTier: previewTier,
+    achievementReset,
+};
+
 /** The settings panel as a component, so live tests can mount it without opening Steam's settings window. */
-export const SettingsPanelView = () => <SettingsPanel onPreview={() => preview()} onPreviewTier={previewTier} achievementReset={achievementReset} />;
+export const SettingsPanelView = () => <SettingsPanel {...panelProps} />;
 
 export default definePlugin(() => {
     init().catch((error) => logger.error('Initialisation failed; Steam is left stock.', error));
     return {
         title: 'Enhanced Notifications',
         icon: <IconsModule.Settings />,
-        content: <SettingsPanel onPreview={() => preview()} onPreviewTier={previewTier} achievementReset={achievementReset} />,
+        content: <SettingsPanel {...panelProps} />,
     };
 });

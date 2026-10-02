@@ -1,5 +1,5 @@
 import { logger } from '../../logger';
-import { setting, onSettingChange } from '../../settings/settings';
+import { onSettingChange } from '../../settings/settings';
 import { typeName } from '../../steam/notification-store';
 import type { NotificationHook } from '../../steam/notification-hook';
 import type { SteamNotification } from '../../kernel/notification';
@@ -137,7 +137,7 @@ function applyStyle(win: Window): void {
 /** The type name to mark a toast of `eType` with, or null to leave it stock. O(1) (the CSS is cached per theme). */
 function styledName(eType: number | undefined): string | null {
     const name = typeName(eType);
-    if (!name || !isEnabled('style') || !setting('style.enabled') || !activeTheme() || bannerDraws(eType)) return null;
+    if (!name || !isEnabled('style') || !activeTheme() || bannerDraws(eType)) return null;
     return themeCss() !== '' || animationCss() !== '' ? name : null;
 }
 
@@ -230,7 +230,7 @@ function viewWindowFromFiber(el: Element): Window | null {
  */
 function placementCss(): string {
     const theme = activeTheme()?.theme;
-    if (!theme || !isEnabled('placement') || !isEnabled('style') || !setting('style.enabled')) return '';
+    if (!theme || !isEnabled('placement') || !isEnabled('style')) return '';
     const banner = achievementTheme()?.theme;
     if (banner && currentToast && bannerDraws(currentToast.eType)) {
         // A debug type source (./bp-debug.ts) sets a type without the notification: its tier is unknown, so normal.
@@ -338,7 +338,7 @@ export function installInjector(placeholder: string | undefined, onShown: Notifi
         }),
         onThemeChange(refresh),
         onSettingChange((key) => {
-            if (key === 'style.enabled' || key === 'disabledFeatures') refresh();
+            if (key === 'disabledFeatures') refresh();
         }),
     ];
     if (!windowHookAdded) {
