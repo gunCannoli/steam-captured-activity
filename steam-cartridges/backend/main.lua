@@ -60,6 +60,8 @@ MarkKnown      = RECORD_RPC.MarkKnown
 GetMediaImage  = RECORD_RPC.GetMediaImage
 -- Manuals (features plan F2c): a ScreenScraper PDF, read in 1 MiB chunks.
 GetManualChunk = RECORD_RPC.GetManualChunk
+GetManualCover = RECORD_RPC.GetManualCover
+SaveManualCover = RECORD_RPC.SaveManualCover
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

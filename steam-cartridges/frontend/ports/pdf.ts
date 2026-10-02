@@ -12,8 +12,6 @@ const WORKER_SOURCE = constSysfsExpr("pdf.worker.min.mjs", { basePath: "../../no
 
 /** JPEG quality of a rendered page. */
 const PAGE_QUALITY = 0.85;
-/** The share of a cover's height the first page takes. */
-const COVER_FILL = 1;
 
 /** One open PDF. */
 export interface PdfDocument {
@@ -23,7 +21,7 @@ export interface PdfDocument {
     pageHeight: number;
     /** Page `n` (1-based) drawn `width` pixels wide, as an object URL (blob:), or null. */
     renderPage(n: number, width: number): Promise<string | null>;
-    /** Page 1 centred on a transparent `width` x `height` canvas (a card cover), as an object URL (blob:), or null. */
+    /** Page 1 alone, fitted inside `width` x `height` at its own ratio (a card cover), as an object URL (blob:), or null. */
     renderCover(width: number, height: number): Promise<string | null>;
     /** Frees the document, its worker-side data and its fonts. */
     destroy(): void;
@@ -99,17 +97,15 @@ export const pdfRenderer: PdfRenderer = {
                     try {
                         const page = await doc.getPage(1);
                         const natural = page.getViewport({ scale: 1 });
-                        const viewport = page.getViewport({ scale: (height * COVER_FILL) / natural.height });
-                        const sheet = new OffscreenCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-                        const sheetContext = sheet.getContext("2d");
-                        const canvas = new OffscreenCanvas(width, height);
+                        // The cover is the page alone, at the page's own ratio, fitted inside `width` x `height`: Steam's image viewer
+                        // draws the image at its own size, so any margin on the canvas would show as a border around the page.
+                        const viewport = page.getViewport({ scale: Math.min(height / natural.height, width / natural.width) });
+                        const canvas = new OffscreenCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
                         const context = canvas.getContext("2d");
-                        if (!sheetContext || !context) return null;
-                        await page.render({ canvasContext: sheetContext as unknown as CanvasRenderingContext2D, viewport }).promise;
+                        if (!context) return null;
+                        await page.render({ canvasContext: context as unknown as CanvasRenderingContext2D, viewport }).promise;
                         page.cleanup();
-                        // No backdrop: the canvas stays transparent around the page, so only the first page shows (WebP keeps the alpha).
-                        context.drawImage(sheet, Math.round((width - sheet.width) / 2), Math.round((height - sheet.height) / 2));
-                        const blob = await canvas.convertToBlob({ type: "image/webp", quality: PAGE_QUALITY });
+                        const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: PAGE_QUALITY });
                         return URL.createObjectURL(blob);
                     } catch {
                         return null;

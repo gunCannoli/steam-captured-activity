@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMedia } from '../frontend/app/media.ts';
+import { createMedia, IMAGE_CONCURRENCY } from '../frontend/app/media.ts';
 import { createRecordStore } from '../frontend/kernel/record.ts';
 import { createEventBus } from '../frontend/kernel/events.ts';
 import { createMediaBin } from '../frontend/kernel/media-bin.ts';
@@ -102,4 +102,41 @@ test('app/media: a backend error is recorded as an error part', async () => {
     const part = await s.media.ensure(SC, ROUTE, undefined);
     assert.equal(part.status, 'error');
     assert.equal(s.records.get(SC)!.media!.status, 'error');
+});
+
+test('app/media: ScreenScraper images download IMAGE_CONCURRENCY at a time, the cards keep the record order, and prefetch sees the visible items first', async () => {
+    const keys = ['a()', 'b()', 'c()', 'd()', 'e()'];
+    const items = keys.map((key) => ({ kind: 'artwork', source: 'screenscraper', key, width: 100, height: 100 }));
+    let active = 0;
+    let peak = 0;
+    const events: string[] = [];
+    const records = createRecordStore(createEventBus());
+    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
+    const media = createMedia({
+        backend: {
+            async ensureFresh(appid: number) {
+                events.push('ensure');
+                return { appid, parts: { media: { status: 'ok', data: { items } } } };
+            },
+            async getMediaImage(_a: number, key: string) {
+                active++;
+                peak = Math.max(peak, active);
+                await new Promise((r) => setTimeout(r, key === 'a()' ? 20 : 1)); // the first finishes last
+                active--;
+                return { base64: key, ext: 'jpg', width: 1, height: 1 };
+            },
+        } as any,
+        records,
+        bin: createMediaBin(() => {}),
+        titleOf: () => 'Game',
+        allowWeb: () => true,
+        allowScreenscraper: () => true,
+        toggles: () => ({ trailers: true, artworks: true }),
+        objectUrl: (b64: string) => `blob:${b64}`,
+        prefetch: (_appid: number, visible: readonly any[]) => events.push(`prefetch ${visible.length}`),
+    });
+    const part = await media.ensure(SC, ROUTE, undefined);
+    assert.equal(peak, IMAGE_CONCURRENCY);
+    assert.deepEqual(events, ['ensure', 'prefetch 5']);
+    assert.deepEqual(part.data!.items.map((i: any) => i.key), keys);
 });

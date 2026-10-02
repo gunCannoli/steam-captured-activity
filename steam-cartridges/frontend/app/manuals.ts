@@ -34,7 +34,14 @@ function withTimeout<T>(task: Promise<T>, ms: number): Promise<T> {
 }
 
 export interface ManualsDeps {
-    backend: Pick<typeof Backend, "getManualChunk">;
+    backend: Pick<typeof Backend, "getManualChunk"> & Partial<Pick<typeof Backend, "getManualCover" | "saveManualCover">>;
+    /** The disk cover cache's two conversions (ports/image); without it every start renders the cover from the PDF. */
+    coverCache?: {
+        objectUrl(base64: string, ext: string): string | null;
+        toBase64(url: string): Promise<string | null>;
+    };
+    /** Timing lines for the diagnostics log. */
+    log?(message: string): void;
     bus: Pick<EventBus, "on" | "emit">;
     shelf: ManualShelf;
     renderer: PdfRenderer;
@@ -136,15 +143,46 @@ export function createManuals(deps: ManualsDeps): Manuals {
         });
     };
 
+    const log = (message: string) => deps.log?.(message);
+
+    /** The cover stored on disk by an earlier start, shelved; false when there is none. */
+    async function coverFromDisk(appid: ShortcutId, key: string): Promise<boolean> {
+        if (!deps.backend.getManualCover || !deps.coverCache) return false;
+        try {
+            const res = await deps.backend.getManualCover(appid, key);
+            const url = res.base64 ? deps.coverCache.objectUrl(res.base64, "jpg") : null;
+            if (!url) return false;
+            deps.shelf.setCover(appid, key, url);
+            deps.bus.emit("record.updated", { appid, parts: ["media"] as RecordPart[] });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /** Keep a rendered cover on disk (a disk or RPC error only costs a re-render next start). */
+    async function saveCover(appid: ShortcutId, key: string, url: string): Promise<void> {
+        if (!deps.backend.saveManualCover || !deps.coverCache) return;
+        try {
+            const base64 = await deps.coverCache.toBase64(url);
+            if (base64) await deps.backend.saveManualCover(appid, key, base64);
+        } catch {
+            /* rendered again next start */
+        }
+    }
+
     async function coverNow(appid: ShortcutId, key: string): Promise<void> {
         let doc: PdfDocument | null = null;
+        const started = Date.now();
         try {
             const chunks = await download(appid, key);
             doc = chunks ? await withTimeout(deps.renderer.open(chunks), RENDER_TIMEOUT) : null;
             const url = doc ? await withTimeout(doc.renderCover(COVER_WIDTH, COVER_HEIGHT), RENDER_TIMEOUT) : null;
             if (!url) return; // the placeholder cover stays (ADR-0014)
             deps.shelf.setCover(appid, key, url);
+            log(`Manual cover ${appid}: rendered from the PDF in ${Date.now() - started} ms`);
             deps.bus.emit("record.updated", { appid, parts: ["media"] as RecordPart[] }); // the community surface re-reads the cover
+            void saveCover(appid, key, url);
         } catch {
             /* the placeholder cover stays */
         } finally {
@@ -156,7 +194,16 @@ export function createManuals(deps: ManualsDeps): Manuals {
         const id = `${appid}:${key}`;
         if (covered.has(id) || deps.shelf.cover(appid, key)) return Promise.resolve();
         covered.add(id);
-        return serial(() => coverNow(appid, key));
+        // The disk copy is a small read: it does not wait behind a PDF download in the queue.
+        if (!deps.backend.getManualCover || !deps.coverCache) return serial(() => coverNow(appid, key));
+        const started = Date.now();
+        return coverFromDisk(appid, key).then((found) => {
+            if (found) {
+                log(`Manual cover ${appid}: from disk in ${Date.now() - started} ms`);
+                return;
+            }
+            return serial(() => coverNow(appid, key));
+        });
     };
 
     return {

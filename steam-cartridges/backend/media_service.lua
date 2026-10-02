@@ -203,4 +203,23 @@ function M.manual_chunk(appid, key, title, index)
   return { base64 = require("utils").base64_encode(piece), index = index, chunks = chunks, size = #body }
 end
 
+
+--- The stored first-page cover of a manual (GetManualCover): { base64 } or {} when none is stored.
+function M.manual_cover(appid, key)
+  if type(key) ~= "string" or key == "" then return nil, "missing key" end
+  local body = require("manual_cover_store").get(appid, key)
+  if not body then return {} end
+  return { base64 = require("utils").base64_encode(body) }
+end
+
+--- Store a manual's first-page cover from base64 (SaveManualCover): { ok = true } or nil and an error.
+function M.save_manual_cover(appid, key, base64)
+  if type(key) ~= "string" or key == "" then return nil, "missing key" end
+  local body = require("shortcut_icon").decode_base64(base64)
+  if not body then return nil, "not base64" end
+  local ok, err = require("manual_cover_store").set(appid, key, body)
+  if not ok then return nil, err end
+  return { ok = true }
+end
+
 return M

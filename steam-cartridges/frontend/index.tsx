@@ -36,7 +36,7 @@ import { createArtwork } from "./app/artwork";
 import { createMedia } from "./app/media";
 import { createManuals } from "./app/manuals";
 import { createLibraryStats } from "./app/library-stats";
-import { fetchImage, objectUrl, releaseObjectUrl } from "./ports/image";
+import { fetchImage, objectUrl, objectUrlToBase64, releaseObjectUrl } from "./ports/image";
 import { pdfRenderer } from "./ports/pdf";
 import { createAchievements } from "./app/achievements";
 import { ownedCandidates } from "./sensors/owned-apps";
@@ -205,6 +205,12 @@ const media = createMedia({
         manuals: setting("communityShowManuals") !== false,
     }),
     objectUrl,
+    // The manual's first page takes the longest (a PDF download), so it starts while the images download.
+    prefetch: (appid, items) => {
+        const key = items.find((item) => item.kind === "manual")?.key;
+        if (key) void manuals.cover(appid, key);
+    },
+    log: (message) => logger.info(message),
 });
 
 /** Manual pages as object URLs (kernel/manual-shelf, features plan F2c): app/manuals puts, surfaces/community reads. */
@@ -216,6 +222,8 @@ const manuals = createManuals({
     bus,
     shelf: manualShelf,
     renderer: pdfRenderer,
+    coverCache: { objectUrl, toBase64: objectUrlToBase64 },
+    log: (message) => logger.info(message),
     titleOf: (appid) => shortcutTitle(appid),
     manualKeyOf: (appid) =>
         setting("communityShowManuals") === false ? undefined : records.store.get(appid as ShortcutId)?.media?.data?.items?.find((item) => item.kind === "manual")?.key,

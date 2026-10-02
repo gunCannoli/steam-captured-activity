@@ -16,7 +16,19 @@ function setup(over: Partial<Record<string, any>> = {}) {
     const covers: any[] = [];
     const chunks = over.chunks ?? 2;
     const manuals = createManuals({
+        coverCache: over.disk ? { objectUrl: () => 'blob:disk', toBase64: async (url: string) => 'b64:' + url } : undefined,
         backend: {
+            ...(over.disk
+                ? {
+                      async getManualCover() {
+                          return over.disk;
+                      },
+                      async saveManualCover(appid: number, key: string, base64: string) {
+                          over.saved?.push({ appid, key, base64 });
+                          return { ok: true };
+                      },
+                  }
+                : {}),
             async getManualChunk(appid: number, key: string, index: number, title?: string) {
                 asked.push({ appid, key, index, title });
                 if (over.chunkThrows) throw new Error('transport');
@@ -182,4 +194,19 @@ test('app/manuals: the cover and the pages of one manual read the PDF once', asy
     assert.equal(s.asked.length, reads, 'the pages reuse the chunks the cover read');
     assert.equal(s.shelf.get(SC, KEY)!.status, 'ready');
     assert.equal(s.shelf.cover(SC, KEY), 'blob:cover');
+});
+
+test('app/manuals: a cover stored on disk is shelved with no PDF read; a rendered cover is stored for the next start', async () => {
+    const stored: Array<{ appid: number; key: string; base64: string }> = [];
+    // disk hit: no chunk is asked
+    const s1 = setup({ disk: { base64: 'AAAA' } });
+    await s1.manuals.cover(SC, KEY);
+    assert.equal(s1.shelf.cover(SC, KEY), 'blob:disk');
+    assert.equal(s1.asked.length, 0, 'the PDF is not read');
+    // disk miss: rendered, shelved and saved
+    const s2 = setup({ disk: {}, saved: stored });
+    await s2.manuals.cover(SC, KEY);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(s2.shelf.cover(SC, KEY), 'blob:cover');
+    assert.deepEqual(stored, [{ appid: SC, key: KEY, base64: 'b64:blob:cover' }]);
 });

@@ -51,6 +51,24 @@ export function objectUrl(base64: string, ext: string): string | null {
     }
 }
 
+/** The bytes behind an object URL (blob:) as base64, or null. */
+export async function objectUrlToBase64(url: string): Promise<string | null> {
+    try {
+        const blob = await (await fetch(url)).blob();
+        return await new Promise<string | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result as string;
+                resolve(result ? result.substring(result.indexOf(',') + 1) : null);
+            };
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        return null;
+    }
+}
+
 /** Free an object URL made by objectUrl (the media bin calls it on eviction). */
 export function releaseObjectUrl(url: string): void {
     try {

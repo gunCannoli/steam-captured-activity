@@ -23,7 +23,14 @@ export interface MediaDeps {
     toggles(): MediaToggles;
     /** ports/image objectUrl: base64 bytes -> a blob: URL, or null. */
     objectUrl(base64: string, ext: string): string | null;
+    /** The items the card list will show, as soon as the lookup answered: lets a slow manual start before the images are in. */
+    prefetch?(appid: ShortcutId, items: readonly MediaItem[]): void;
+    /** Timing lines for the diagnostics log. */
+    log?(message: string): void;
 }
+
+/** ScreenScraper images downloaded at the same time (ScreenScraper's own per-account thread limit is the ceiling). */
+export const IMAGE_CONCURRENCY = 3;
 
 export interface MediaResolver {
     ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<CommunityMedia>>;
@@ -66,12 +73,21 @@ export function createMedia(deps: MediaDeps): MediaResolver {
         const raw = res.error ? undefined : (res.parts.media as Part<CommunityMedia> | undefined);
         let part: Part<CommunityMedia> = raw ?? { status: "error", message: res.error ?? "no media part" };
         if (part.status === "ok" && part.data) {
-            const items: MediaItem[] = [];
-            // One at a time: each ScreenScraper image is a blocking download in the backend.
-            for (const item of visibleMedia(part.data, deps.toggles())) {
-                const shown = await withImage(appid, item);
-                if (shown) items.push(shown);
-            }
+            const visible = visibleMedia(part.data, deps.toggles());
+            deps.prefetch?.(appid, visible);
+            const started = Date.now();
+            // A few at a time, kept in the record's order: each image is a separate download in the backend.
+            const shown: Array<MediaItem | undefined> = new Array(visible.length);
+            let next = 0;
+            const worker = async () => {
+                while (next < visible.length) {
+                    const index = next++;
+                    shown[index] = await withImage(appid, visible[index]!);
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(IMAGE_CONCURRENCY, visible.length) }, worker));
+            const items = shown.filter((item): item is MediaItem => !!item);
+            deps.log?.(`Community media ${appid}: ${items.length}/${visible.length} cards, images in ${Date.now() - started} ms`);
             part = { ...part, data: { ...part.data, items } };
         }
         deps.records.update(appid, { media: part });

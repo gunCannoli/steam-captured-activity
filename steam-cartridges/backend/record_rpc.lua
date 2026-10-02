@@ -202,4 +202,23 @@ RPC.GetManualChunk = method("GetManualChunk", function(data)
   return chunk
 end)
 
+
+--- { appid, key }: the stored first-page cover of a manual as base64, or {} (features plan F2c).
+RPC.GetManualCover = method("GetManualCover", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local cover, err = media_service.manual_cover(tonumber(appid), need(data, "key"))
+  if not cover then return { error = err } end
+  return cover
+end)
+
+--- { appid, key, base64 }: store a manual's rendered first page as its cover.
+RPC.SaveManualCover = method("SaveManualCover", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local res, err = media_service.save_manual_cover(tonumber(appid), need(data, "key"), need(data, "base64"))
+  if not res then return { error = err } end
+  return res
+end)
+
 return RPC

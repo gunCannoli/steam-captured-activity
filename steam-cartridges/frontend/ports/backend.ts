@@ -113,6 +113,12 @@ export interface ManualChunkResponse {
     error?: string;
 }
 
+export interface ManualCoverResponse {
+    base64?: string;
+    ok?: boolean;
+    error?: string;
+}
+
 export interface RecordResponse {
     appid: number;
     parts: Partial<Record<RecordPart, Part<unknown>>>;
@@ -165,6 +171,14 @@ export const backend = {
     /** Manuals (features plan F2c): chunk `index` (0-based) of a ScreenScraper PDF; chunk 0 downloads it in the backend. */
     getManualChunk(appid: number, key: string, index: number, title?: string): Promise<ManualChunkResponse> {
         return call<ManualChunkResponse>("GetManualChunk", { appid, key, index, title });
+    },
+    /** Manuals (features plan F2c): the stored first-page cover as base64, or an answer without `base64` when none is stored. */
+    getManualCover(appid: number, key: string): Promise<ManualCoverResponse> {
+        return call<ManualCoverResponse>("GetManualCover", { appid, key });
+    },
+    /** Manuals (features plan F2c): store the rendered first page, so the next start skips the PDF. */
+    saveManualCover(appid: number, key: string, base64: string): Promise<ManualCoverResponse> {
+        return call<ManualCoverResponse>("SaveManualCover", { appid, key, base64 });
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
