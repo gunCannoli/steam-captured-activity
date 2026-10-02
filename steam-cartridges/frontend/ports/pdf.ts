@@ -12,8 +12,8 @@ const WORKER_SOURCE = constSysfsExpr("pdf.worker.min.mjs", { basePath: "../../no
 
 /** JPEG quality of a rendered page. */
 const PAGE_QUALITY = 0.85;
-/** The share of a cover's height the first page takes; the rest is margin. */
-const COVER_FILL = 0.9;
+/** The share of a cover's height the first page takes. */
+const COVER_FILL = 1;
 
 /** One open PDF. */
 export interface PdfDocument {
@@ -23,7 +23,7 @@ export interface PdfDocument {
     pageHeight: number;
     /** Page `n` (1-based) drawn `width` pixels wide, as an object URL (blob:), or null. */
     renderPage(n: number, width: number): Promise<string | null>;
-    /** Page 1 fitted on a dark `width` x `height` canvas (a card cover), as an object URL (blob:), or null. */
+    /** Page 1 centred on a transparent `width` x `height` canvas (a card cover), as an object URL (blob:), or null. */
     renderCover(width: number, height: number): Promise<string | null>;
     /** Frees the document, its worker-side data and its fonts. */
     destroy(): void;
@@ -107,13 +107,9 @@ export const pdfRenderer: PdfRenderer = {
                         if (!sheetContext || !context) return null;
                         await page.render({ canvasContext: sheetContext as unknown as CanvasRenderingContext2D, viewport }).promise;
                         page.cleanup();
-                        const gradient = context.createLinearGradient(0, 0, width, height);
-                        gradient.addColorStop(0, "#2a475e");
-                        gradient.addColorStop(1, "#171a21");
-                        context.fillStyle = gradient;
-                        context.fillRect(0, 0, width, height);
+                        // No backdrop: the canvas stays transparent around the page, so only the first page shows (WebP keeps the alpha).
                         context.drawImage(sheet, Math.round((width - sheet.width) / 2), Math.round((height - sheet.height) / 2));
-                        const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: PAGE_QUALITY });
+                        const blob = await canvas.convertToBlob({ type: "image/webp", quality: PAGE_QUALITY });
                         return URL.createObjectURL(blob);
                     } catch {
                         return null;
