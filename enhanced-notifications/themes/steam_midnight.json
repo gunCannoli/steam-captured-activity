@@ -11,5 +11,5 @@
         "body": ["#ffffff", 100, "regular"],
         "subtext": ["#8f98a0", 100, "regular"]
     },
-    "logo": { "radius": 6 }
+    "game_icon": [true, 6]
 }

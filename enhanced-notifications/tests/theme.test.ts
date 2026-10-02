@@ -68,6 +68,34 @@ test('one style for every notification; the old per-type blocks warn and are ign
     assert.equal(resolveTheme({ settings: { display_time_ms: 3000 } }).displayTimeMs, 3000);
 });
 
+test('game_icon: [visible, radius] or a bare visible; the old "logo" warns and is ignored', () => {
+    assert.deepEqual(resolveTheme({ game_icon: [true, 4] }).style.gameIcon, { visible: true, radius: 4 });
+    assert.deepEqual(resolveTheme({ game_icon: false }).style.gameIcon, { visible: false, radius: null });
+    const css = buildCss(resolveTheme({ game_icon: [false, 4] }).style, SEL);
+    assert.match(css, /body\[data-en-type\] :is\(\.logo\) \{ display: none !important; \}/);
+    assert.match(css, /:is\(\.applogo\) img \{ border-radius: 4px !important;/);
+    const old = resolveTheme({ logo: { radius: 6 } });
+    assert.deepEqual(old.style.gameIcon, { visible: null, radius: null });
+    assert.ok(old.warnings.some((w) => w.includes('game_icon')), JSON.stringify(old.warnings));
+    assert.ok(resolveTheme({ game_icon: 'yes' }).warnings.some((w) => w.includes('game_icon')));
+});
+
+test('settings.text_align aligns every toast; invalid warns and keeps Steam', () => {
+    const css = buildCss(resolveTheme({ settings: { text_align: 'center' } }).style, SEL);
+    for (const sel of [':is\\(\\.title\\)', ':is\\(\\.body, \\.desc\\)', ':is\\(\\.sub\\)']) {
+        assert.match(css, new RegExp(`body\\[data-en-type\\] ${sel} \\{ text-align: center !important; \\}`));
+    }
+    const bad = resolveTheme({ settings: { text_align: 'justify' } });
+    assert.equal(bad.style.textAlign, null);
+    assert.equal(bad.warnings.length, 1);
+});
+
+test('popup keys only the banner reads (scale, width, height, layout) are no warning and no toast CSS', () => {
+    const t = resolveTheme({ popup: { scale: [120, 100], width: 400, height: 80, layout: 'ps5' } });
+    assert.deepEqual(t.warnings, []);
+    assert.equal(buildCss(t.style, SEL), '');
+});
+
 test('unset fields stay Steam stock (null) and produce no CSS', () => {
     const theme = resolveTheme({});
     assert.equal(theme.style.background, null);

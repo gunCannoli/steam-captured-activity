@@ -1,27 +1,46 @@
 /**
- * A theme's optional `achievements` block: the themed banner that replaces Steam's achievement toast, one profile per
+ * A theme's optional `achievements` block: the themed banner that replaces Steam's achievement toast, one look per
  * rarity tier. Normalisation, inheritance and tier selection.
  *
  * Pure logic, no Steam or SDK imports, so tests/achievements-theme.test.ts runs it under plain Node. The schema is
  * documented for users in themes.md § achievements; keep the two in step. ./theme.ts resolves the whole theme and
- * calls `resolveAchievementTheme` with the block, its `settings` already holding what it inherits from the theme's.
+ * calls `resolveAchievementTheme` with the block and what it inherits: the theme's (already validated) `settings`, its
+ * `popup` and its `text`.
+ *
+ * One look, layered: the banner starts from the theme's `popup`, then the block's own popup keys, then `normal`, then
+ * the tier. Text styles are the theme's `text.title` / `text.body`; a tier's `text` only sets the words.
  *
  * Everything here runs once per theme load. At toast time the hooks only pick
  * one of four pre-resolved tiers (docs/plugins.md guardrails).
  */
 
 import { COMPLETION_ID, PREVIEW_ID_PREFIX } from '../kernel/notification.ts';
-import { ANIMATIONS, POSITIONS, type Animation, type AnimationPair, type Edges, type FontStyle, type SoundSpec, type ToastPosition } from './schema.ts';
+import {
+    ANIMATIONS,
+    POSITIONS,
+    TEXT_ALIGNS,
+    type Animation,
+    type AnimationPair,
+    type Edges,
+    type FontStyle,
+    type SoundSpec,
+    type TextAlign,
+    type ToastPosition,
+} from './schema.ts';
 
 /** Re-exported: the banner modules read them from here. */
-export { ANIMATIONS, POSITIONS };
-export type { Animation, AnimationPair, Edges, FontStyle, SoundSpec, ToastPosition };
+export { ANIMATIONS, POSITIONS, TEXT_ALIGNS };
+export type { Animation, AnimationPair, Edges, FontStyle, SoundSpec, TextAlign, ToastPosition };
 
 export const TIERS = ['normal', 'magic', 'rare', 'exceptional'] as const;
 export type Tier = (typeof TIERS)[number];
 
-export const LAYOUTS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5', 'custom'] as const;
-export type Layout = (typeof LAYOUTS)[number];
+/** The named layouts a theme may pick; an object instead is a custom layout. */
+export const LAYOUT_PRESETS = ['default_steam', 'default_system_right', 'compact_pill', 'ps5'] as const;
+export type Layout = (typeof LAYOUT_PRESETS)[number] | 'custom';
+
+/** The `popup` keys the banner reads. The theme's `popup`, the block and each tier may set any of them. */
+export const BANNER_KEYS = ['background', 'gradient_angle', 'border', 'glow', 'margin', 'padding', 'gap', 'scale', 'width', 'height'] as const;
 
 /** `true` = Steam's own asset, `false` = hidden, string = custom asset path. */
 export type IconSource = boolean | string;
@@ -49,8 +68,9 @@ export type AnchorPosition =
     | 'achievement_left'
     | 'achievement_right';
 
-export const TEXT_ALIGNS = ['left', 'center', 'right'] as const;
-export type TextAlign = (typeof TEXT_ALIGNS)[number];
+const ANCHORS: readonly AnchorPosition[] = [
+    'left', 'right', 'center', 'title_left', 'title_right', 'desc_left', 'desc_right', 'achievement_left', 'achievement_right',
+];
 
 export interface CustomLayoutMap {
     achievement?: AnchorPosition;
@@ -77,9 +97,7 @@ export interface ResolvedTier {
     tier: Tier;
     threshold: number | null;
     banner: BannerStyle;
-    /** Backward compatibility alias for banner. */
-    box: BannerStyle;
-    text: { align: TextAlign; title: TextStyle; desc: TextStyle; titleText?: string; descText?: string };
+    text: { title: TextStyle; desc: TextStyle; titleText?: string; descText?: string };
     icons: { achievement: IconSlot; system: IconSlot; rarity: IconSlot };
     /** `null`: the theme's notification sound (`sound` at its top level), or Steam's chime without one. */
     sound: SoundSpec | null;
@@ -99,6 +117,18 @@ export interface AchievementTheme {
     warnings: string[];
 }
 
+/** What the block takes from the rest of the theme. Settings arrive validated: `null` = the theme does not set it. */
+export interface Inherited {
+    position?: ToastPosition | null;
+    animation?: AnimationPair | null;
+    displayTimeMs?: number | null;
+    textAlign?: TextAlign | null;
+    /** The theme's raw `popup`. */
+    popup?: unknown;
+    /** The theme's raw `text`. */
+    text?: unknown;
+}
+
 // --- defaults ----------------------------------------------------------------
 
 const DEFAULT_BANNER: BannerStyle = {
@@ -112,21 +142,19 @@ const DEFAULT_BANNER: BannerStyle = {
     gap: [10, 2],
 };
 
-const DEFAULT_TIER: Omit<ResolvedTier, 'tier' | 'threshold'> = {
-    banner: DEFAULT_BANNER,
-    box: DEFAULT_BANNER,
-    text: {
-        align: 'left',
-        title: { color: '#ffffff', sizePct: 100, style: 'bold' },
-        desc: { color: '#c7d5e0', sizePct: 100, style: 'regular' },
-    },
-    icons: {
-        achievement: { source: true, scalePct: 100, rippleMs: 0 },
-        system: { source: false, scalePct: 100, rippleMs: 0 },
-        rarity: { source: false, scalePct: 100, rippleMs: 0 },
-    },
-    sound: null,
+const DEFAULT_TEXT = {
+    title: { color: '#ffffff', sizePct: 100, style: 'bold' } as TextStyle,
+    desc: { color: '#c7d5e0', sizePct: 100, style: 'regular' } as TextStyle,
 };
+
+const DEFAULT_ICONS: ResolvedTier['icons'] = {
+    achievement: { source: true, scalePct: 100, rippleMs: 0 },
+    system: { source: false, scalePct: 100, rippleMs: 0 },
+    rarity: { source: false, scalePct: 100, rippleMs: 0 },
+};
+
+/** Banner animation without a theme `animation`. */
+const DEFAULT_ANIMATION: AnimationPair = { in: 'slide', out: 'fade' };
 
 // --- validation helpers ------------------------------------------------------
 
@@ -163,6 +191,13 @@ export function mergeTier(base: Json, override: Json): Json {
     return out;
 }
 
+/** Only the banner's popup keys of `raw` (the rest of a popup, such as `watermark`, is not the banner's). */
+function bannerKeys(raw: unknown): Json {
+    const out: Json = {};
+    if (isObject(raw)) for (const key of BANNER_KEYS) if (raw[key] !== undefined) out[key] = raw[key];
+    return out;
+}
+
 function pair(raw: unknown, fallback: [number, number], min: number, max: number): [number, number] {
     if (typeof raw === 'number') {
         const v = num(raw, min, max) ?? fallback[0];
@@ -177,7 +212,7 @@ function pair(raw: unknown, fallback: [number, number], min: number, max: number
 }
 
 /**
- * `margin` / `padding`, in CSS's shorthand order (clockwise, same in enhanced-notifications): a bare `v` or `[v]` sets
+ * `margin` / `padding`, in CSS's shorthand order (clockwise, same as the notification style): a bare `v` or `[v]` sets
  * all four sides; `[vertical, horizontal]`; `[top, horizontal, bottom]`; `[top, right, bottom, left]`.
  * A side that is missing or out of range keeps its default.
  */
@@ -187,25 +222,6 @@ function edges(raw: unknown, fallback: Edges, min: number, max: number): Edges {
     const [top, right = top, bottom = top, left = right] = list as unknown[];
     const side = (v: unknown, d: number) => num(v, min, max) ?? d;
     return { top: side(top, fallback.top), right: side(right, fallback.right), bottom: side(bottom, fallback.bottom), left: side(left, fallback.left) };
-}
-
-/**
- * `text.title` / `text.desc` may be a style array or, as a shorthand, the
- * replacement text itself. Move the text form to `title_text` / `desc_text`
- * *before* inheritance, so a tier that only overrides the words (the usual
- * `exceptional: { text: { title: "100% Complete" } }`) keeps normal's title
- * style instead of replacing the style array with a string.
- */
-function normalizeTextShorthand(raw: Json): Json {
-    if (!isObject(raw.text)) return raw;
-    const text: Json = { ...raw.text };
-    for (const part of ['title', 'desc'] as const) {
-        if (typeof text[part] === 'string') {
-            text[`${part}_text`] ??= text[part];
-            delete text[part];
-        }
-    }
-    return { ...raw, text };
 }
 
 /** `[source, scale, ripple]` or `[source, ripple]` or bare `source` shorthand. */
@@ -247,24 +263,45 @@ function textStyle(raw: unknown, fallback: TextStyle): TextStyle {
     };
 }
 
-function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: TextAlign = 'left'): ResolvedTier {
-    const d = DEFAULT_TIER;
-    const bannerRaw = isObject(raw.banner) ? raw.banner : isObject(raw.box) ? raw.box : {};
-    const text = isObject(raw.text) ? raw.text : {};
+function resolveBanner(raw: Json): BannerStyle {
+    const d = DEFAULT_BANNER;
+    const border = Array.isArray(raw.border) ? raw.border : [];
+    const glow = Array.isArray(raw.glow) ? raw.glow : [];
+    const background = Array.isArray(raw.background) ? raw.background.map(color).filter((c): c is string => !!c) : [];
+    return {
+        scale: pair(raw.scale, d.scale, 25, 400),
+        width: num(raw.width, 100, 2000),
+        height: num(raw.height, 30, 1000),
+        margin: edges(raw.margin, d.margin, -100, 200),
+        padding: edges(raw.padding, d.padding, 0, 100),
+        gap: pair(raw.gap, d.gap, 0, 100),
+        background: background.length ? background : d.background,
+        gradientAngle: num(raw.gradient_angle, -360, 360) ?? d.gradientAngle,
+        border: {
+            width: num(border[0], 0, 20) ?? d.border.width,
+            color: color(border[1]) ?? d.border.color,
+            radius: num(border[2], 0, 100) ?? d.border.radius,
+        },
+        glow: {
+            color: color(glow[0]) ?? d.glow.color,
+            spread: num(glow[1], 0, 200) ?? d.glow.spread,
+            pulseMs: num(glow[2], 0, 60_000) ?? d.glow.pulseMs,
+        },
+    };
+}
+
+/** A tier's `text.title` / `text.desc`: the words only. A style there is a warning (styles are the theme's `text`). */
+function words(raw: unknown, part: 'title' | 'desc', tier: Tier, warnings: string[]): string | undefined {
+    if (typeof raw === 'string') return raw.trim() || undefined;
+    if (raw !== undefined && raw !== null) {
+        warnings.push(`${tier}.text.${part} is the words only; its style is the theme's text.${part === 'title' ? 'title' : 'body'}.`);
+    }
+    return undefined;
+}
+
+function resolveTier(tier: Tier, raw: Json, text: ResolvedTier['text'], warnings: string[]): ResolvedTier {
+    const ownText = isObject(raw.text) ? raw.text : {};
     const icons = isObject(raw.icons) ? raw.icons : {};
-
-    const scale = pair(bannerRaw.scale, [100, 100], 25, 400);
-    const width = num(bannerRaw.width, 100, 2000) ?? undefined;
-    const height = num(bannerRaw.height, 30, 1000) ?? undefined;
-    const margin = edges(bannerRaw.margin, DEFAULT_BANNER.margin, -100, 200);
-    const padding = edges(bannerRaw.padding, DEFAULT_BANNER.padding, 0, 100);
-    const gap = pair(bannerRaw.gap, [10, 2], 0, 100);
-
-    const border = Array.isArray(bannerRaw.border) ? bannerRaw.border : [];
-    const glow = Array.isArray(bannerRaw.glow) ? bannerRaw.glow : [];
-    const background = Array.isArray(bannerRaw.background_color)
-        ? bannerRaw.background_color.map(color).filter((c): c is string => !!c)
-        : [];
 
     let sound: SoundSpec | null = null;
     if (Array.isArray(raw.sound) && typeof raw.sound[0] === 'string' && raw.sound[0]) {
@@ -274,167 +311,97 @@ function resolveTier(tier: Tier, raw: Json, warnings: string[], defaultAlign: Te
         warnings.push(`${tier}.sound is not ["path", volume]; using the notification sound.`);
     }
 
-    const resolvedBanner: BannerStyle = {
-        scale,
-        width,
-        height,
-        margin,
-        padding,
-        gap,
-        background: background.length ? background : d.banner.background,
-        gradientAngle: num(bannerRaw.gradient_angle, -360, 360) ?? d.banner.gradientAngle,
-        border: {
-            width: num(border[0], 0, 20) ?? d.banner.border.width,
-            color: color(border[1]) ?? d.banner.border.color,
-            radius: num(border[2], 0, 100) ?? d.banner.border.radius,
-        },
-        glow: {
-            color: color(glow[0]) ?? d.banner.glow.color,
-            spread: num(glow[1], 0, 200) ?? d.banner.glow.spread,
-            pulseMs: num(glow[2], 0, 60_000) ?? d.banner.glow.pulseMs,
-        },
-    };
-
-    let titleText: string | undefined = undefined;
-    let descText: string | undefined = undefined;
-
-    if (typeof text.title === 'string' && text.title.trim()) {
-        titleText = text.title.trim();
-    } else if (typeof text.title_text === 'string' && text.title_text.trim()) {
-        titleText = text.title_text.trim();
-    }
-
-    if (typeof text.desc === 'string' && text.desc.trim()) {
-        descText = text.desc.trim();
-    } else if (typeof text.desc_text === 'string' && text.desc_text.trim()) {
-        descText = text.desc_text.trim();
-    }
-
+    let titleText = words(ownText.title, 'title', tier, warnings);
+    let descText = words(ownText.desc, 'desc', tier, warnings);
     if (tier === 'exceptional') {
-        if (!titleText) titleText = '100% Complete';
-        if (!descText) descText = "You've unlocked all achievements!";
+        titleText ??= '100% Complete';
+        descText ??= "You've unlocked all achievements!";
     }
-
-    const align: TextAlign = oneOf(text.align, TEXT_ALIGNS) ?? defaultAlign;
 
     return {
         tier,
         threshold: tier === 'magic' || tier === 'rare' ? (num(raw.threshold, 0, 100) ?? null) : null,
-        banner: resolvedBanner,
-        box: resolvedBanner,
-        text: {
-            align,
-            title: textStyle(text.title, d.text.title),
-            desc: textStyle(text.desc, d.text.desc),
-            titleText,
-            descText,
-        },
+        banner: resolveBanner(raw),
+        text: { ...text, titleText, descText },
         icons: {
-            achievement: iconSlot(icons.achievement, d.icons.achievement),
-            system: iconSlot(icons.system, d.icons.system),
-            rarity: iconSlot(icons.rarity, d.icons.rarity),
+            achievement: iconSlot(icons.achievement, DEFAULT_ICONS.achievement),
+            system: iconSlot(icons.system, DEFAULT_ICONS.system),
+            rarity: iconSlot(icons.rarity, DEFAULT_ICONS.rarity),
         },
         sound,
     };
 }
 
 /**
- * `settings.animation` is a bare string (`"fade"`, both states use it), or
- * `{ "in": ..., "out": ... }` for independent control. `"ps5"` is a preset
- * (§ themes.md): entrance slides in from the anchor edge and fades, exit
- * reverses it; its direction is resolved from `position` in CSS (banner
- * geometry fix's approach of a static class name, not a runtime style), so
- * `resolveAnimation` only validates the *name*, never the direction.
+ * `layout`: a preset name, or an object placing each icon (a custom layout). The block's own wins over the theme's
+ * `popup.layout`. Unset: `default_steam`.
  */
-function resolveAnimation(raw: unknown, warnings: string[]): AnimationPair {
-    const DEFAULT: AnimationPair = { in: 'slide', out: 'fade' };
-    if (raw === undefined) return DEFAULT;
-    if (typeof raw === 'string') {
-        const a = oneOf(raw, ANIMATIONS);
-        if (!a) {
-            warnings.push(`settings.animation "${raw}" is not supported; using slide in, fade out.`);
-            return DEFAULT;
-        }
-        return { in: a, out: a };
-    }
+function resolveLayout(raw: unknown, warnings: string[]): { layout: Layout; customLayout?: CustomLayoutMap } {
+    if (raw === undefined || raw === null) return { layout: 'default_steam' };
     if (isObject(raw)) {
-        const inAnim = oneOf(raw.in, ANIMATIONS);
-        const outAnim = oneOf(raw.out, ANIMATIONS);
-        if (raw.in !== undefined && !inAnim) warnings.push(`settings.animation.in "${String(raw.in)}" is not supported; using slide.`);
-        if (raw.out !== undefined && !outAnim) warnings.push(`settings.animation.out "${String(raw.out)}" is not supported; using fade.`);
-        return { in: inAnim ?? DEFAULT.in, out: outAnim ?? DEFAULT.out };
+        return {
+            layout: 'custom',
+            customLayout: {
+                achievement: oneOf(raw.achievement, ANCHORS) ?? 'left',
+                system: oneOf(raw.system, ANCHORS) ?? 'right',
+                rarity: oneOf(raw.rarity, ANCHORS) ?? 'title_left',
+                text: oneOf(raw.text, ANCHORS) ?? 'center',
+            },
+        };
     }
-    warnings.push('settings.animation is not a string or {in, out} object; using slide in, fade out.');
-    return DEFAULT;
+    const preset = oneOf(raw, LAYOUT_PRESETS);
+    if (!preset) {
+        warnings.push(`layout "${String(raw)}" is not one of ${LAYOUT_PRESETS.join(', ')} or an object; using default_steam.`);
+        return { layout: 'default_steam' };
+    }
+    if (preset === 'ps5') return { layout: 'ps5', customLayout: { achievement: 'left', system: 'right', rarity: 'title_left', text: 'center' } };
+    return { layout: preset };
 }
 
+/** Keys of the old format, each with where its value lives now. A theme that has them loads with a warning. */
+const GONE_IN_BLOCK: Record<string, string> = {
+    settings: 'achievements.settings is gone: position, animation, display_time_ms and text_align are the theme\'s "settings", and the layout is achievements.layout; ignored.',
+    tiers: 'achievements.tiers is gone: the tiers sit directly in achievements (achievements.normal, .magic, ...); ignored.',
+    themes: 'achievements.themes is gone: the tiers sit directly in achievements (achievements.normal, .magic, ...); ignored.',
+};
+const GONE_IN_TIER: Record<string, string> = {
+    banner: 'banner is gone: put its keys on the tier itself ("background", "border", ...); ignored.',
+    box: 'box is gone: put its keys on the tier itself ("background", "border", ...); ignored.',
+    background_color: 'background_color is now "background"; ignored.',
+};
+
 /**
- * Validate a theme's `achievements` block and resolve all four tiers. The tiers are under `tiers`; `themes` (the key
- * of enhanced-achievements' theme files, merged into this plugin) is read when `tiers` is absent, so an old file pasted
- * into the block works as it is.
- *
- * Throws only when the block is unusable (no `tiers.normal`); every
- * other problem is a warning plus a default, so a typo degrades one field, not the banner.
+ * Validate a theme's `achievements` block and resolve all four tiers. Throws only when the block is not an object;
+ * every other problem is a warning plus a default, so a typo degrades one field, not the banner.
  */
-export function resolveAchievementTheme(raw: unknown): AchievementTheme {
-    const profiles = isObject(raw) ? (isObject(raw.tiers) ? raw.tiers : raw.themes) : undefined;
-    if (!isObject(raw) || !isObject(profiles) || !isObject(profiles.normal)) {
-        throw new Error('it has no "tiers.normal" object.');
-    }
-
+export function resolveAchievementTheme(raw: unknown, inherited: Inherited = {}): AchievementTheme {
+    if (!isObject(raw)) throw new Error('it is not an object.');
     const warnings: string[] = [];
-    const settings = isObject(raw.settings) ? raw.settings : {};
-    const normal = normalizeTextShorthand(profiles.normal);
+    for (const [key, message] of Object.entries(GONE_IN_BLOCK)) if (raw[key] !== undefined) warnings.push(message);
 
-    let textAlign = oneOf(settings.text_align, TEXT_ALIGNS);
-    if (settings.text_align !== undefined && !textAlign) {
-        warnings.push(`settings.text_align "${String(settings.text_align)}" is not supported; using left.`);
-        textAlign = 'left';
-    }
-    const themeTextAlign = textAlign ?? 'left';
+    const themeText = isObject(inherited.text) ? inherited.text : {};
+    const text: ResolvedTier['text'] = {
+        title: textStyle(themeText.title, DEFAULT_TEXT.title),
+        desc: textStyle(themeText.body, DEFAULT_TEXT.desc),
+    };
 
+    // One look, layered: the theme's popup, the block's own popup keys, normal, then the tier.
+    const base = { ...bannerKeys(inherited.popup), ...bannerKeys(raw) };
+    const normal = isObject(raw.normal) ? raw.normal : {};
     const tiers = {} as Record<Tier, ResolvedTier>;
     for (const tier of TIERS) {
-        const own = profiles[tier];
-        if (own !== undefined && !isObject(own)) warnings.push(`tiers.${tier} is not an object; inheriting normal.`);
-        const merged = tier === 'normal' ? { ...normal } : mergeTier(normal, isObject(own) ? normalizeTextShorthand(own) : {});
+        const own = raw[tier];
+        if (own !== undefined && !isObject(own)) warnings.push(`${tier} is not an object; inheriting normal.`);
+        const ownJson = isObject(own) ? own : {};
+        for (const [key, message] of Object.entries(GONE_IN_TIER)) if (ownJson[key] !== undefined) warnings.push(`${tier}.${message}`);
+        const merged = mergeTier(mergeTier(base, normal), tier === 'normal' ? {} : ownJson);
         // `threshold` is per tier and never inherited from normal.
-        if (tier !== 'normal') merged.threshold = isObject(own) ? own.threshold : undefined;
-        tiers[tier] = resolveTier(tier, merged, warnings, themeTextAlign);
+        merged.threshold = ownJson.threshold;
+        tiers[tier] = resolveTier(tier, merged, text, warnings);
     }
 
-    let position = oneOf(settings.position, POSITIONS);
-    if (settings.position !== undefined && !position) {
-        warnings.push(`settings.position "${String(settings.position)}" is not supported; using bottom_right.`);
-        position = 'bottom_right';
-    }
-
-    let layout = oneOf(settings.layout, LAYOUTS);
-    if (settings.layout !== undefined && !layout) {
-        warnings.push(`settings.layout "${String(settings.layout)}" is not supported; using default_steam.`);
-        layout = 'default_steam';
-    }
-
-    let customLayout: CustomLayoutMap | undefined = undefined;
-    if (layout === 'ps5') {
-        customLayout = {
-            achievement: 'left',
-            system: 'right',
-            rarity: 'title_left',
-            text: 'center',
-        };
-    } else if (layout === 'custom' || isObject(raw.layout)) {
-        const rawMap = isObject(raw.layout) ? raw.layout : {};
-        const validAnchors: readonly AnchorPosition[] = [
-            'left', 'right', 'center', 'title_left', 'title_right', 'desc_left', 'desc_right', 'achievement_left', 'achievement_right'
-        ];
-        customLayout = {
-            achievement: oneOf(rawMap.achievement, validAnchors) ?? 'left',
-            system: oneOf(rawMap.system, validAnchors) ?? 'right',
-            rarity: oneOf(rawMap.rarity, validAnchors) ?? 'title_left',
-            text: oneOf(rawMap.text, validAnchors) ?? 'center',
-        };
-    }
+    const popup = isObject(inherited.popup) ? inherited.popup : {};
+    const { layout, customLayout } = resolveLayout(raw.layout ?? popup.layout, warnings);
 
     const assetPaths = new Set<string>();
     for (const t of Object.values(tiers)) {
@@ -442,15 +409,13 @@ export function resolveAchievementTheme(raw: unknown): AchievementTheme {
         for (const slot of Object.values(t.icons)) if (typeof slot.source === 'string') assetPaths.add(slot.source);
     }
 
-    const animation = resolveAnimation(settings.animation, warnings);
-
     return {
-        position: position ?? 'bottom_right',
-        layout: layout ?? 'default_steam',
+        position: inherited.position ?? 'bottom_right',
+        layout,
         customLayout,
-        animation,
-        textAlign: themeTextAlign,
-        displayTimeMs: num(settings.display_time_ms, 1000, 60_000) ?? null,
+        animation: inherited.animation ?? DEFAULT_ANIMATION,
+        textAlign: inherited.textAlign ?? 'left',
+        displayTimeMs: inherited.displayTimeMs ?? null,
         tiers,
         assetPaths: [...assetPaths],
         warnings,

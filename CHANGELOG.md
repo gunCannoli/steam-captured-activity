@@ -7,6 +7,14 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: simpler theme format (2026-10-02, ADR-0052, amends ADR-0050 decision 2)**: the user's
+  decisions, from their draft of `themes/ps5.jsonc`. One `settings` for every toast (plus `text_align`); the banner is
+  layered from the theme's `popup`, the block's popup keys, `normal`, the tier (popup keys straight on a tier); one
+  `text` block (title and body); tiers directly in `achievements`; `layout` a preset or an object (also in `popup`);
+  `logo` becomes `game_icon: [visible, radius]`. Clean break: old keys warn and are ignored; bundled themes, examples,
+  themes.md, theme.jsonc and the Big Picture live test converted. Unit tests 160 (one fails on the user's in-progress
+  PS5 asset paths). Not live-verified.
+
 - **steam-cartridges: downloaded media on disk for a user-set number of days (2026-10-01, ADR-0051, amends ADR-0046)**:
   at the user's request (S1 of the community investigation). `backend/media_cache.lua` keeps a game's ScreenScraper
   images, manual PDF and cover in `<data dir>/media_cache/<appid>/` (names are keys, never a URL), records each page open

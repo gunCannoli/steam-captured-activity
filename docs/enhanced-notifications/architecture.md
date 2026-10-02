@@ -22,11 +22,13 @@ merged into this plugin; its history is in git, `git log -- enhanced-achievement
 
 ## One theme, two looks
 
-A theme is the notification style (`settings`, `popup`, `text`, `logo`, `sound`, ...; `theme/theme.ts`) and an optional
-`achievements` block (`theme/achievements.ts`, the former enhanced-achievements theme). `resolveTheme` resolves both:
-the block's `settings` inherit the theme's `position`, `animation` and `display_time_ms` unless the block sets its own,
-and a block that cannot be used is a warning (achievement toasts then get the notification style), never a failed theme.
-`theme/schema.ts` holds the names both halves share (positions, animations, edges).
+A theme is the notification style (`settings`, `popup`, `text`, `game_icon`, `sound`, ...; `theme/theme.ts`) and an
+optional `achievements` block (`theme/achievements.ts`). `resolveTheme` resolves both, the block inheriting the rest
+([ADR-0052](../decisions.md#adr-0052-one-theme-one-look-achievements-inherit-the-themes-settings-popup-and-text)): the
+theme's `settings` are the banner's, its card is layered (`popup`, the block's popup keys, `normal`, the tier), and its
+text styles are `text.title` / `text.body`. A block that cannot be used is a warning (achievement toasts then get the
+notification style), never a failed theme. `theme/schema.ts` holds the names both halves share (positions, animations,
+edges, text alignments).
 
 `theme/active-theme.ts` loads the theme once per change: `activeTheme()` (the whole theme, its CSS cached),
 `achievementTheme()` (the block, with its icons as data URLs and each tier's decoded sound; null without the block),
@@ -117,7 +119,7 @@ toast stack](../steam-components.md)). Two writers wrap that property, in a fixe
 toast view that follows a `position: fixed` `GamepadToastPlaceholder` div in the Big Picture window, re-measured
 when a toast shows. The injector puts `<style id=enhanced-notifications-placement>` (`buildPlaceholderCss`) in each
 window holding a placeholder: the theme's `position` and `popup.margin`, or, while the banner draws the toast on
-screen, the banner theme's position and the tier's banner `margin`. It is rewritten at each pop, before Steam measures.
+screen, the theme's position and the tier's `margin`. It is rewritten at each pop, before Steam measures.
 
 **The type of the toast on screen** (Big Picture's one window, and a desktop popup before its own type is read)
 comes from `NotificationStore.PopNextToastNotification`, wrapped as an own property of the store instance

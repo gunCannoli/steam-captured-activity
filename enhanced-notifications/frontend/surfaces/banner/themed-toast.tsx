@@ -168,7 +168,7 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedAchievementTheme
     const key = n.data;
     const { theme, assets } = loaded;
     const tier: ResolvedTier = theme.tiers[tierFor(n)];
-    const banner = tier.banner ?? tier.box;
+    const banner = tier.banner;
     const { text, icons } = tier;
     const data = n.data;
     const size = bannerSize(theme.layout, banner);
@@ -232,7 +232,7 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedAchievementTheme
             ? `linear-gradient(${banner.gradientAngle}deg, ${banner.background.join(', ')})`
             : banner.background[0];
 
-    const textAlign = text.align ?? theme.textAlign ?? 'left';
+    const textAlign = theme.textAlign;
     const textJustify = textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start';
 
     const rootStyle = {

@@ -4,60 +4,47 @@
         "display_time_ms": 4000,
         "animation": "slide"
     },
+    "text": {
+        "title": ["#ffffff", 100, "bold"],
+        "body": ["#ffffff", 100, "regular"]
+    },
     "achievements": {
-        "settings": {
-            "layout": "default_system_right"
+        "layout": "default_system_right",
+        "normal": {
+            "background": ["#2f2f2f", "#1f1f1f"],
+            "gradient_angle": 90,
+            "border": [2, "#cd7f32", 8],
+            "glow": ["#cd7f32", 40, 0],
+            "margin": [0, 0],
+            "padding": [6, 10],
+            "gap": [10, 2],
+            "icons": {
+                "achievement": true,
+                "system": false,
+                "rarity": "assets/trophy_bronze.svg"
+            }
         },
-        "tiers": {
-            "normal": {
-                "banner": {
-                    "scale": [100, 100],
-                    "background_color": ["#2f2f2f", "#1f1f1f"],
-                    "gradient_angle": 90,
-                    "border": [2, "#cd7f32", 8],
-                    "glow": ["#cd7f32", 40, 0],
-                    "margin": [0, 0],
-                    "padding": [6, 10],
-                    "gap": [10, 2]
-                },
-                "text": {
-                    "title": ["#ffffff", 100, "bold"],
-                    "desc": ["#ffffff", 100, "regular"]
-                },
-                "icons": {
-                    "achievement": true,
-                    "system": false,
-                    "rarity": "assets/trophy_bronze.svg"
-                }
-            },
-            "magic": {
-                "threshold": 25.0,
-                "banner": {
-                    "border": [2, "#c0c0c0", 8],
-                    "glow": ["#c0c0c0", 60, 0]
-                },
-                "icons": {
-                    "rarity": "assets/trophy_silver.svg"
-                }
-            },
-            "rare": {
-                "threshold": 10.0,
-                "banner": {
-                    "border": [2, "#e5a93c", 8],
-                    "glow": ["#e5a93c", 80, 0]
-                },
-                "icons": {
-                    "rarity": "assets/trophy_gold.svg"
-                }
-            },
-            "exceptional": {
-                "banner": {
-                    "border": [2, "#40c4ff", 16],
-                    "glow": ["#40c4ff", 90, 800]
-                },
-                "icons": {
-                    "rarity": "assets/trophy_platinum.svg"
-                }
+        "magic": {
+            "threshold": 25,
+            "border": [2, "#c0c0c0", 8],
+            "glow": ["#c0c0c0", 60, 0],
+            "icons": {
+                "rarity": "assets/trophy_silver.svg"
+            }
+        },
+        "rare": {
+            "threshold": 10,
+            "border": [2, "#e5a93c", 8],
+            "glow": ["#e5a93c", 80, 0],
+            "icons": {
+                "rarity": "assets/trophy_gold.svg"
+            }
+        },
+        "exceptional": {
+            "border": [2, "#40c4ff", 16],
+            "glow": ["#40c4ff", 90, 800],
+            "icons": {
+                "rarity": "assets/trophy_platinum.svg"
             }
         }
     }

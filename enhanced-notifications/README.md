@@ -7,7 +7,7 @@ changes only how they look and sound:
 
 - popup background (solid or gradient), border, glow, Steam-logo watermark
 - font, title, body and subtext colours, sizes and weights
-- app-logo corner radius and visibility, header icon
+- game icon corner radius and visibility, header icon, text alignment
 - position on screen, entrance and exit animation, margin, padding and gap
 - sound (custom file, or `false` to mute) and display time
 
@@ -15,7 +15,7 @@ One style applies to every notification, so they all look alike. Anything a
 theme doesn't set stays exactly as Steam draws it.
 
 **Achievements, optionally themed further.** A theme can add an `achievements`
-block that replaces Steam's achievement toast with a themed banner (this was
+block that replaces Steam's achievement toast with a themed banner on the same card (this was
 the Enhanced Achievements plugin, now part of this one):
 
 - **Four rarity tiers**: normal (bronze), magic (silver), rare (gold) and

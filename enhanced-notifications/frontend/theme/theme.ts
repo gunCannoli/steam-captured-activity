@@ -5,25 +5,26 @@
  * plain Node. The user-facing schema is themes.md; keep the two in step.
  *
  * One style for every notification, so toasts stay consistent: a theme is
- * `settings` (position, animation, display time) plus the style keys at the top
+ * `settings` (position, animation, display time, text alignment) plus the style keys at the top
  * level. Anything a theme does not set stays Steam's own: a resolved field of
  * `null` means "leave it stock", so the generated CSS only touches what the
  * theme asks for. Icons, logos and text content are never replaced.
  *
  * The optional `achievements` block (./achievements.ts) replaces achievement
- * toasts with a themed banner per rarity tier. Without it, achievement toasts
- * get this same style, like every other toast.
+ * toasts with a themed banner per rarity tier, built from the same `settings`,
+ * `popup` and `text`. Without it, achievement toasts get this same style, like
+ * every other toast.
  */
 
 import type { ToastSelectors } from '../kernel/toast-selectors.ts';
-import { ANIMATIONS, POSITIONS, type Animation, type AnimationPair, type Edges, type FontStyle, type SoundSpec, type ToastPosition } from './schema.ts';
-import { resolveAchievementTheme, type AchievementTheme } from './achievements.ts';
+import { ANIMATIONS, POSITIONS, TEXT_ALIGNS, type Animation, type AnimationPair, type Edges, type FontStyle, type SoundSpec, type TextAlign, type ToastPosition } from './schema.ts';
+import { resolveAchievementTheme, type AchievementTheme, type Inherited } from './achievements.ts';
 
 /** Re-exported: theme.test.ts and active-theme.ts read it from here. */
 export type { ToastSelectors };
 /** Re-exported: placement.ts and the surfaces read them from here. */
 export { ANIMATIONS, POSITIONS };
-export type { Animation, AnimationPair, Edges, FontStyle, SoundSpec, ToastPosition };
+export type { Animation, AnimationPair, Edges, FontStyle, SoundSpec, TextAlign, ToastPosition };
 
 // --- placement and animation (the same names and values as the achievement banner's) ---------
 
@@ -62,7 +63,10 @@ export interface ResolvedStyle {
     watermark: boolean | null;
     fontFamily: string | null;
     text: { title: TextStyle; body: TextStyle; subtext: TextStyle };
-    logo: { visible: boolean | null; radius: number | null };
+    /** `settings.text_align`, for the title, body and subtext. `null` = Steam's left. */
+    textAlign: TextAlign | null;
+    /** `game_icon`: the game's icon on the left of the toast. */
+    gameIcon: { visible: boolean | null; radius: number | null };
     headerIcon: boolean | null;
     /** `false` mutes every notification; `null` keeps Steam's sound. */
     sound: SoundSpec | false | null;
@@ -168,10 +172,18 @@ function fontFamily(v: unknown): string | null {
     return typeof v === 'string' && /^[\w\s,"'-]{1,120}$/.test(v) ? v : null;
 }
 
-function resolveStyle(raw: Json, warnings: string[]): ResolvedStyle {
+/** `game_icon`: `[visible, radius px]`, or a bare `visible`. */
+function gameIcon(raw: unknown, warnings: string[]): ResolvedStyle['gameIcon'] {
+    if (raw === undefined || raw === null) return { visible: null, radius: null };
+    if (typeof raw === 'boolean') return { visible: raw, radius: null };
+    if (Array.isArray(raw)) return { visible: bool(raw[0]), radius: num(raw[1], 0, 100) ?? null };
+    warnings.push('game_icon must be [visible, radius] or true / false; ignored.');
+    return { visible: null, radius: null };
+}
+
+function resolveStyle(raw: Json, textAlign: TextAlign | null, warnings: string[]): ResolvedStyle {
     const popup = isObject(raw.popup) ? raw.popup : {};
     const text = isObject(raw.text) ? raw.text : {};
-    const logo = isObject(raw.logo) ? raw.logo : {};
 
     const background = Array.isArray(popup.background)
         ? popup.background.map(color).filter((c): c is string => !!c)
@@ -201,7 +213,8 @@ function resolveStyle(raw: Json, warnings: string[]): ResolvedStyle {
         watermark: bool(popup.watermark),
         fontFamily: fontFamily(raw.font_family),
         text: { title: textStyle(text.title), body: textStyle(text.body), subtext: textStyle(text.subtext) },
-        logo: { visible: bool(logo.visible), radius: num(logo.radius, 0, 100) ?? null },
+        textAlign,
+        gameIcon: gameIcon(raw.game_icon, warnings),
         headerIcon: bool(raw.header_icon),
         sound,
         margin: edges(popup.margin, 0, -100, 200),
@@ -209,6 +222,16 @@ function resolveStyle(raw: Json, warnings: string[]): ResolvedStyle {
         gap: gapPair(popup.gap),
     };
 }
+
+/** Top-level keys of older formats, each with where its value lives now. A theme that has them loads with a warning. */
+const GONE: Record<string, string> = {
+    default: '"default" is gone: one style for every notification, with its keys at the top level; ignored.',
+    categories: '"categories" is gone: one style for every notification, with its keys at the top level; ignored.',
+    types: '"types" is gone: one style for every notification, with its keys at the top level; ignored.',
+    display_time_ms: 'display_time_ms moved into "settings"; ignored here.',
+    logo: '"logo" is now "game_icon": [visible, radius]; ignored.',
+    themes: '"themes" (an Enhanced Achievements theme) is gone: put its tiers in "achievements" (achievements.normal, ...); ignored.',
+};
 
 /**
  * Validate a theme file. Throws only when it is unusable (not an object);
@@ -224,40 +247,28 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     }
     const animation = resolveAnimation(settings.animation, warnings);
     const displayTimeMs = num(settings.display_time_ms, 1000, 60_000) ?? null;
-    for (const key of ['default', 'categories', 'types']) {
-        if (raw[key] !== undefined) warnings.push(`"${key}" is gone: one style for every notification, with its keys at the top level; ignored.`);
+    const textAlign = settings.text_align === undefined ? null : (oneOf(settings.text_align, TEXT_ALIGNS) ?? null);
+    if (settings.text_align !== undefined && !textAlign) {
+        warnings.push(`settings.text_align "${String(settings.text_align)}" is not one of ${TEXT_ALIGNS.join(', ')}; keeping Steam's left.`);
     }
-    if (raw.display_time_ms !== undefined) warnings.push('display_time_ms moved into "settings"; ignored here.');
+    for (const [key, message] of Object.entries(GONE)) if (raw[key] !== undefined) warnings.push(message);
 
-    const style = resolveStyle(raw, warnings);
-    const achievements = resolveAchievements(raw.achievements, { position, animation: animation ? settings.animation : undefined, displayTimeMs }, warnings);
+    const style = resolveStyle(raw, textAlign, warnings);
+    const achievements = resolveAchievements(raw.achievements, { position, animation, displayTimeMs, textAlign, popup: raw.popup, text: raw.text }, warnings);
     const assetPaths = new Set<string>(style.sound ? [style.sound.path] : []);
     for (const path of achievements?.assetPaths ?? []) assetPaths.add(path);
     return { position, animation, displayTimeMs, style, achievements, assetPaths: [...assetPaths], warnings };
 }
 
 /**
- * The optional `achievements` block. Its `settings` inherit the theme's `position`, `animation` and `display_time_ms`
- * (each one it does not set itself), so one theme reads as one look. A block that cannot be used is a warning, never a
- * failed theme: achievement toasts then get the notification style.
+ * The optional `achievements` block. It inherits the theme's settings, `popup` and `text` (achievements.ts), so one
+ * theme reads as one look. A block that cannot be used is a warning, never a failed theme: achievement toasts then get
+ * the notification style.
  */
-function resolveAchievements(
-    raw: unknown,
-    inherited: { position: ToastPosition | null; animation: unknown; displayTimeMs: number | null },
-    warnings: string[],
-): AchievementTheme | null {
+function resolveAchievements(raw: unknown, inherited: Inherited, warnings: string[]): AchievementTheme | null {
     if (raw === undefined || raw === null) return null;
-    if (!isObject(raw)) {
-        warnings.push('"achievements" is not an object; achievement toasts get the notification style.');
-        return null;
-    }
-    const own = isObject(raw.settings) ? raw.settings : {};
-    const settings: Json = {};
-    if (inherited.position) settings.position = inherited.position;
-    if (inherited.animation !== undefined) settings.animation = inherited.animation;
-    if (inherited.displayTimeMs !== null) settings.display_time_ms = inherited.displayTimeMs;
     try {
-        const theme = resolveAchievementTheme({ ...raw, settings: { ...settings, ...own } });
+        const theme = resolveAchievementTheme(raw, inherited);
         for (const warning of theme.warnings) warnings.push(`achievements: ${warning}`);
         return theme;
     } catch (error) {
@@ -271,9 +282,10 @@ function resolveAchievements(
 /** Steam's default font sizes for the three text parts (px), which size_pct scales. */
 const BASE_PX = { title: 11, body: 12, subtext: 11 };
 
-function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: number): string {
+function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: number, align: TextAlign | null): string {
     if (!sel) return '';
     const decls = [
+        align ? `text-align: ${align} !important;` : '',
         t.color ? `color: ${t.color} !important;` : '',
         t.sizePct !== null && t.sizePct !== 100 ? `font-size: ${((basePx * t.sizePct) / 100).toFixed(1)}px !important;` : '',
         t.style === 'bold' ? 'font-weight: 700 !important;' : t.style === 'regular' ? 'font-weight: 400 !important;' : '',
@@ -322,13 +334,13 @@ export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
 
     if (s.watermark === false && sel.watermark) css += `${root} ${sel.watermark} { display: none !important; }\n`;
 
-    css += textRule(sel.title, root, s.text.title, BASE_PX.title);
-    css += textRule(sel.body, root, s.text.body, BASE_PX.body);
-    css += textRule(sel.subtext, root, s.text.subtext, BASE_PX.subtext);
+    css += textRule(sel.title, root, s.text.title, BASE_PX.title, s.textAlign);
+    css += textRule(sel.body, root, s.text.body, BASE_PX.body, s.textAlign);
+    css += textRule(sel.subtext, root, s.text.subtext, BASE_PX.subtext, s.textAlign);
 
-    if (s.logo.visible === false && sel.logoBox) css += `${root} ${sel.logoBox} { display: none !important; }\n`;
-    if (s.logo.radius !== null && sel.appLogo) {
-        css += `${root} ${sel.appLogo}, ${root} ${sel.appLogo} img { border-radius: ${s.logo.radius}px !important; overflow: hidden; }\n`;
+    if (s.gameIcon.visible === false && sel.logoBox) css += `${root} ${sel.logoBox} { display: none !important; }\n`;
+    if (s.gameIcon.radius !== null && sel.appLogo) {
+        css += `${root} ${sel.appLogo}, ${root} ${sel.appLogo} img { border-radius: ${s.gameIcon.radius}px !important; overflow: hidden; }\n`;
     }
     if (s.headerIcon === false && sel.headerIcon) css += `${root} ${sel.headerIcon} { display: none !important; }\n`;
 

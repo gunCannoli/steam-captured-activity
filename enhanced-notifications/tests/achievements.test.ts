@@ -301,9 +301,9 @@ test('completion: one 100% toast 1.5 s after a completing unlock; none when comp
 });
 
 test("duration: the banner's lifetime is its entrance, display time and exit", () => {
-    const theme = resolveAchievementTheme({ themes: { normal: {} }, settings: { display_time_ms: 4000, animation: 'fade' } });
+    const theme = resolveAchievementTheme({}, { displayTimeMs: 4000, animation: { in: 'fade', out: 'fade' } });
     // fade: 400 in, 300 out, 100 settle
     assert.equal(bannerDurationMs(theme, 7000), 4000 + 400 + 300 + 100);
-    const noDisplay = resolveAchievementTheme({ themes: { normal: {} }, settings: { animation: 'fade' } });
+    const noDisplay = resolveAchievementTheme({}, { animation: { in: 'fade', out: 'fade' } });
     assert.equal(bannerDurationMs(noDisplay, 7000), 7000 + 800, "no display_time_ms: Steam's own duration");
 });

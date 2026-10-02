@@ -16,6 +16,14 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**enhanced-notifications simpler theme format (ADR-0052, 2026-10-02): code, themes and docs done, not live-verified.**
+Unit tests pass except the bundled-asset check: `themes/ps5.jsonc` points at `PlayStation/*.svg` (the folder holds
+`.png`), and the user's untracked `ps5.json` / `SteamStation.json` at a missing `ps5_assets/`; the user fixes the paths.
+Then deploy with `dev.ps1`, `npm run test:live` (`achievements-bigpicture.mjs` changed: the banner now uses the theme's
+corner), and look at the ps5 theme's toasts and Preview on desktop and in Big Picture (`text_align`, `game_icon`).
+Follow-up: make Steam's own toasts honour `popup.scale` and `popup.layout` (banner only today); needs a live probe of
+the per-toast popup's size (`ResizeTo`, `STEAM_TOAST_WIDTH` in `theme/placement.ts`) and of Steam's toast DOM.
+
 **steam-cartridges community tab (2026-10-01): crash fixed, downloads kept on disk (ADR-0051).** Both live-verified by the
 agent (Chrono Trigger after a restart: images 479 ms, was 11-23 s; `test:live` 13/13). Left for the user: plan § 7 of
 [the investigation](docs/plans/steam-cartridges-community-crash-and-speed-investigation.md) (Chrono Trigger three times, then

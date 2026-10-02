@@ -1,10 +1,11 @@
 # Theme Schema (`themes.md`)
 
-A theme restyles Steam's own toasts. **One style for every notification**, so
-toasts stay consistent. Every key is optional; anything unset stays Steam's own.
-An optional [`achievements`](#achievements) block replaces achievement toasts
-with a themed banner per rarity tier; without it, achievement toasts get the
-same style as every other toast.
+A theme restyles Steam's own toasts. **One look for every notification**, so
+toasts stay consistent: `settings`, `popup` and `text` apply to every toast.
+Every key is optional; anything unset stays Steam's own. An optional
+[`achievements`](#achievements) block replaces achievement toasts with a themed
+banner per rarity tier, built from that same look; without it, achievement
+toasts are styled like every other toast.
 
 **[themes/theme.jsonc](themes/theme.jsonc) is the commented version of this
 page**: every option, in a working theme you can copy and trim. Also bundled:
@@ -19,34 +20,51 @@ comments and trailing commas. If a folder has both `name.jsonc` and
 
 ```jsonc
 {
-  "settings": { "position": "top_right", "animation": "ps5", "display_time_ms": 4000 },
-  "popup":    { "background": ["#0e141b", "#1b2838"], "border": [1, "#66c0f455", 6], "margin": 10, "padding": [8, 12] },
-  "text":     { "title": ["#66c0f4", 100, "bold"] },
-  "logo":     { "radius": 6 },
-  "sound":    false,
+  "settings":  { "position": "top_right", "animation": "ps5", "display_time_ms": 4000, "text_align": "left" },
+  "popup":     { "background": ["#1F1F1F", "#0F0F0F"], "border": [0, "#8a2be2", 8], "margin": 10, "padding": 10, "gap": 10 },
+  "text":      { "title": ["#ffffff", 120, "regular"], "body": ["#ffffff", 100, "regular"] },
+  "game_icon": [true, 8],
   "achievements": {
-    "settings": { "layout": "ps5" },
-    "tiers": { "normal": { "icons": { "rarity": "assets/trophy_bronze.svg" } }, "rare": { "threshold": 10 } }
+    "layout": "ps5",
+    "padding": [10, 15, 10, 10],   // any popup key: overrides the popup for the banner
+    "normal": { "icons": { "rarity": "assets/trophy_bronze.svg" } },
+    "rare":   { "threshold": 10, "border": [2, "#e5a93c", 8], "icons": { "rarity": "assets/trophy_gold.svg" } }
   }
 }
 ```
-
-The older `default`, `categories` and `types` blocks are gone; a theme that
-still has them loads with a warning and they are ignored.
 
 A theme only describes how toasts look and sound. What the plugin does (which
 theme is active, the achievement queue, captures on unlock) is a plugin
 setting, in the settings panel: see [Plugin settings](#plugin-settings).
 
+### Older formats
+
+These keys are gone; a theme that still has them loads with a warning and the
+key is ignored ([ADR-0052](../docs/decisions.md#adr-0052-one-theme-one-look-achievements-inherit-the-themes-settings-popup-and-text)):
+
+| Old key | Now |
+| --- | --- |
+| `default`, `categories`, `types` | The style keys at the top level |
+| `display_time_ms` at the top level | `settings.display_time_ms` |
+| `logo: { visible, radius }` | `game_icon: [visible, radius]` |
+| `themes` at the top level (an Enhanced Achievements file) | The tiers in `achievements` |
+| `achievements.settings` | The theme's `settings`; its `layout` is `achievements.layout` |
+| `achievements.tiers` / `achievements.themes` | The tiers directly in `achievements` |
+| A tier's `banner` / `box` | Its keys directly on the tier |
+| A tier's `background_color` | `background` |
+| A tier's `text.title` / `text.desc` style | The theme's `text.title` / `text.body` |
+| `layout: "custom"` | A layout object |
+
 ## Settings
 
-In a top-level `settings` object.
+In a top-level `settings` object. For every toast, achievements included.
 
 | Key | Format | Notes |
 | --- | --- | --- |
-| `position` | `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"` | Screen corner. Unset: Steam's own corner. On desktop Steam's stacking is kept: the newest toast sits at the corner and older ones move inward |
-| `animation` | `"slide"`, `"fade"`, `"up"`, `"down"`, `"ps5"`, `"none"`, or `{ "in": ..., "out": ... }` | Entrance and exit. One name sets both; in the object form an unset side is `slide` (in) or `fade` (out). Unset: Steam's own. `slide` and `ps5` move from the side of the corner (`ps5`: a short slide with a fade, vertical for the centred positions) |
-| `display_time_ms` | ms, `1000`–`60000` | How long every toast stays. Unset: Steam's own per type |
+| `position` | `"top_right"`, `"top_left"`, `"bottom_right"`, `"bottom_left"`, `"top_center"`, `"bottom_center"` | Screen corner. Unset: Steam's own corner (`bottom_right` for the banner). On desktop Steam's stacking is kept: the newest toast sits at the corner and older ones move inward |
+| `animation` | `"slide"`, `"fade"`, `"up"`, `"down"`, `"ps5"`, `"none"`, or `{ "in": ..., "out": ... }` | Entrance and exit. One name sets both; in the object form an unset side is `slide` (in) or `fade` (out). Unset: Steam's own (slide in, fade out for the banner). `slide` and `ps5` move from the side of the corner (`ps5`: a short slide with a fade, vertical for the centred positions) |
+| `display_time_ms` | ms, `1000`–`60000` | How long every toast stays. Unset: Steam's own per type. For the banner, how long it stays fully visible, between the end of its entrance and the start of its exit |
+| `text_align` | `"left"`, `"center"`, `"right"` | Text alignment. Unset: left |
 
 Position and animation apply on desktop, in the in-game overlay and in Big
 Picture. With an `animation`, the toast does not travel with Steam's slide: it
@@ -54,7 +72,7 @@ appears at its place, and the exit ends when Steam closes the toast.
 
 Big Picture has one toast place, which follows the toast on screen: the
 theme's `position` and `popup.margin`, or, while an achievement banner shows,
-the banner's position and its tier's `margin`.
+the banner's `margin`.
 
 ## Style keys
 
@@ -63,17 +81,19 @@ At the top level of the theme.
 | Key | Format | Notes |
 | --- | --- | --- |
 | `popup.background` | `["#hex", ...]` | One colour is solid, two or more a gradient |
-| `popup.gradient_angle` | degrees | Default `135` |
-| `popup.border` | `[width_px, "#hex", radius_px]` | |
-| `popup.glow` | `["#hex", spread_px, pulse_ms]` | Inner glow; `pulse_ms` `0` = steady |
+| `popup.gradient_angle` | degrees | Default `135` (`90` for the banner) |
+| `popup.border` | `[width_px, "#hex", radius_px]` | Width `0` = no stroke |
+| `popup.glow` | `["#hex", spread_px, pulse_ms]` | Inner glow; `pulse_ms` `0` = steady. Not drawn on the banner |
 | `popup.watermark` | `true` / `false` | Steam logo behind desktop toasts |
 | `popup.margin` | CSS shorthand: `px`, `[vertical, horizontal]`, `[top, horizontal, bottom]` or `[top, right, bottom, left]` | Distance from the screen corner; only the sides the toast is anchored to count (`top_right` uses top and right; centred positions ignore left and right). Works with Steam's own corner too |
-| `popup.padding` | CSS shorthand, as `margin` | Space inside the toast around the logo and text. Steam's is `10` on desktop |
-| `popup.gap` | `px` or `[logo_to_text, between_rows]` | Steam's is `[12, 0]` on desktop |
+| `popup.padding` | CSS shorthand, as `margin` | Space inside the toast around the icon and text. Steam's is `10` on desktop; the banner's default `[6, 10]` |
+| `popup.gap` | `px` or `[icon_to_text, between_rows]` | Steam's is `[12, 0]` on desktop; the banner's default `[10, 2]` |
+| `popup.scale` | `pct` or `[width_pct, height_pct]`, `25`–`400` | Banner only, for now. Size of the banner box; text and icons keep their own sizes |
+| `popup.width` / `popup.height` | px | Banner only, for now. Base size before `scale`; default: the layout's own |
+| `popup.layout` | A [layout](#achievementslayout) | Banner only, for now. `achievements.layout` wins over it |
 | `font_family` | `"Name, Fallback"` | Plain font names only |
-| `text.title` / `text.body` / `text.subtext` | `["#hex", size_pct, "bold"\|"regular"\|"italic"]` | Size is relative to Steam's default |
-| `logo.visible` | `true` / `false` | The game's logo on the left of the toast |
-| `logo.radius` | px | Rounds the corners of that logo (Steam's is square) |
+| `text.title` / `text.body` / `text.subtext` | `["#hex", size_pct, "bold"\|"regular"\|"italic"]` | Size is relative to Steam's default. The banner uses `title` for the achievement's name and `body` for its description |
+| `game_icon` | `[visible, radius_px]` or `true` / `false` | The game's icon on the left of the toast, and its rounded corners (Steam's is square) |
 | `header_icon` | `true` / `false` | Small icon before the title |
 | `sound` | `["path", volume_pct]` or `false` | Every notification's sound (achievements too, unless their tier has its own); `false` mutes them; see File paths; `.mp3`, `.wav`, `.ogg` |
 
@@ -86,48 +106,37 @@ Colours accept `#rgb`, `#rrggbb`, `#rrggbbaa`. Invalid values are ignored
 ## achievements
 
 Optional. Replaces Steam's achievement toast with a themed banner: your
-layout, colours, icons and sound for each of four rarity tiers. Leave it out
-and achievement toasts look like every other toast. A block that cannot be
-used (no `tiers.normal`) is a warning, and achievement toasts then get the
+layout, icons and sound for each of four rarity tiers, on the theme's own
+card. Leave it out and achievement toasts look like every other toast. A block
+that is not an object is a warning, and achievement toasts then get the
 notification style.
 
 ```jsonc
 "achievements": {
-  "settings": { "layout": "custom", "text_align": "left" },  // + position / animation / display_time_ms to override the theme's
-  "layout":   { "achievement": "left", "system": "right", "rarity": "title_left" },
-  "tiers": {
-    "normal":      { "banner": { ... }, "text": { ... }, "icons": { ... }, "sound": ["assets/bronze.mp3", 80] },
-    "magic":       { "threshold": 25.0, ... },
-    "rare":        { "threshold": 10.0, ... },
-    "exceptional": { "text": { "title": "100% Complete", "desc": "You've unlocked all achievements!" } }
-  }
+  "layout": "ps5",                 // or an object: see achievements.layout
+  "padding": [10, 15, 10, 10],     // any popup key, for every tier
+  "normal":      { "icons": { ... }, "sound": ["assets/bronze.mp3", 80] },
+  "magic":       { "threshold": 25.0, "background": ["#20262e", "#3a4454"], ... },
+  "rare":        { "threshold": 10.0, "border": [2, "#e5a93c", 8], ... },
+  "exceptional": { "text": { "title": "100% Complete", "desc": "You've unlocked all achievements!" } }
 }
 ```
 
-An Enhanced Achievements theme file (the plugin merged into this one) works
-as an `achievements` block as it is: paste its `settings`, `layout` and
-`themes` inside `"achievements": { ... }`. `themes` is read as `tiers`.
-
-### achievements.settings
-
-- **`layout`**: How the banner's parts are arranged.
-    - `"ps5"`: Authentic PlayStation 5 trophy layout (achievement icon on the left, tier trophy icon anchored left of the title, description below, system/PlayStation icon pinned on the right).
-    - `"default_steam"` (default): Achievement icon on the left, title and description stacked on the right.
-    - `"default_system_right"`: Achievement icon on the left, text in the middle, system icon pinned to the right edge.
-    - `"compact_pill"`: Slim horizontal bar with icon and title.
-    - `"custom"`: Flexible anchor-based layout defined via the `layout` mapping object.
-- **`text_align`**: Text alignment for titles and descriptions: `"left"` (default), `"center"`, or `"right"`.
-- **`position`**, **`animation`**, **`display_time_ms`**: the same values as the
-  theme's [settings](#settings), which the banner uses unless these are set
-  here. Without either: `bottom_right`, slide in and fade out, Steam's own
-  duration. The banner is placed by the plugin, at its `position` offset inward
-  by its tier's `margin`; `display_time_ms` is how long it stays fully visible,
-  between the end of its entrance and the start of its exit.
+**The banner is layered**, each layer only listing what differs: the theme's
+`popup`, then any popup key set directly in `achievements`, then `normal`, then
+the tier. Position, animation, display time and text alignment are the
+theme's `settings`; text styles are the theme's `text`.
 
 ### achievements.layout
 
-Used with `"layout": "custom"`. Places each icon (`achievement`, `system`,
-`rarity`); the text is always the middle column:
+A preset name, or an object that places each icon. Default `"default_steam"`.
+`popup.layout` is used when this is unset.
+
+- `"default_steam"`: achievement icon on the left, title and description stacked on the right (283 px wide).
+- `"default_system_right"`: the same, plus the system icon pinned to the right edge (400 px).
+- `"compact_pill"`: slim horizontal bar with icon and title, no description (48 px tall).
+- `"ps5"`: PlayStation 5 trophy layout: achievement icon on the left, tier trophy before the title, description below, system icon on the right (400 px).
+- An object (400 px): places each icon (`achievement`, `system`, `rarity`); the text is always the middle column:
 
 ```json
 "layout": {
@@ -138,16 +147,16 @@ Used with `"layout": "custom"`. Places each icon (`achievement`, `system`,
 ```
 
 - **Outer zones**: `"left"`, `"right"` (also `"achievement_left"`, `"achievement_right"`: the same zones, placed after a `left`/`right` icon).
-- **Sub-Element Anchors**: `"title_left"`, `"title_right"`, `"desc_left"`, `"desc_right"`.
+- **Sub-element anchors**: `"title_left"`, `"title_right"`, `"desc_left"`, `"desc_right"`.
+  An icon anchored to a text line is sized to that line.
+- Defaults: achievement `"left"`, system `"right"`, rarity `"title_left"`.
 - `"center"` and a `"text"` key are accepted for older themes but place nothing.
-  When an element is anchored to another (such as `"rarity": "title_left"`), its height is automatically matched to the reference element's size (e.g. font line-height).
 
-### achievements.tiers
+### Tiers
 
-One visual and audio profile per rarity tier (`themes` is accepted as an older
-name).
+One look per rarity tier, directly in `achievements`, all optional.
 
-- **`normal`** (Bronze): the base tier, required. Every key defined here is the fallback for the other tiers.
+- **`normal`** (Bronze): the base tier. Every key here is the fallback for the other tiers.
 - **`magic`** (Silver): used when the achievement's global unlock rate is ≤ `magic.threshold`.
 - **`rare`** (Gold): used when the global unlock rate is ≤ `rare.threshold`.
 - **`exceptional`** (Platinum): synthesized 100% completion banner triggered right after the final achievement in a game is unlocked (acting as a "fake platinum trophy", since Steam has no native 100% completion achievement).
@@ -162,6 +171,13 @@ no global unlock rate (common for non-Steam games), the tier is `normal`.
 
 ### Tier keys
 
+#### Popup keys
+
+Any [popup key](#style-keys) the banner reads, as a plain key on the tier:
+`background`, `gradient_angle`, `border`, `glow`, `margin`, `padding`, `gap`,
+`scale`, `width`, `height`. For example
+`"rare": { "threshold": 10, "border": [2, "#e5a93c", 8] }`.
+
 #### `threshold` (number)
 
 Global unlock percentage cutoff for `magic` and `rare`.
@@ -169,30 +185,12 @@ Global unlock percentage cutoff for `magic` and `rare`.
 - `"threshold": 10.0` matches when 10% or fewer of players have the achievement.
 - Recommended: `magic` = `25.0`, `rare` = `10.0`. Never inherited from `normal`.
 
-#### `banner` (formerly `box`)
-
-Geometry, colours, border, glow, margin, padding, and gap of the banner. (The key `box` is maintained as a backward-compatible alias).
-
-- **`scale`**: `[width_pct, height_pct]` or scalar `pct`: size of the banner **box** relative to the default (`[100, 100]` = standard size). Text and icons keep their own sizes (`text.*` size %, icon `scale_pct`); they do not grow or shrink with the box.
-- **`width`**: *(optional)* Base banner width in px (defaults to 400 for `ps5` and `custom`, 283 for standard Steam).
-- **`height`**: *(optional)* Base banner height in px (defaults to 70 for normal cards, 48 for `compact_pill`).
-- **`margin`**: CSS shorthand, clockwise, as `popup.margin`: distance from the anchor corner. With `top_right` and `5`, the banner sits 5 px left of the right edge and 5 px below the top. Only the sides the banner is anchored to count; the horizontal margins are ignored for `top_center`/`bottom_center`.
-- **`padding`**: CSS shorthand, clockwise (e.g. `[10, 5, 4, 7]`: 10 top, 5 right, 4 bottom, 7 left): internal breathing room pushing banner content inward.
-- **`gap`**: `[col_gap_px, row_gap_px]` or scalar `px`: flexbox spacing between layout zones, columns, and text rows (e.g. `[10, 2]`).
-- **`background_color`**: `["#hex", ...]`: one colour is solid; two or more make a smooth gradient.
-- **`gradient_angle`**: degrees (`90` = left→right, `180` = top→bottom, `135` = diagonal).
-- **`border`**: `[width_px, "#hex", radius_px]`: `width_px` `0` disables stroke; `radius_px` `0` is square, `15` is rounded, `25` is capsule.
-- **`glow`**: *(parsed, currently has no visual effect: the outline-glow
-  render was removed; kept in the schema so existing theme files do not warn
-  or break)*.
-
 #### `text`
 
-- **`title`** and **`desc`**: `["#hex", size_pct, style]` or custom string overrides.
-    - `size_pct`: relative to the base font size (`100` = base, `120` = 20% larger).
-    - `style`: `"bold"`, `"regular"` or `"italic"`.
-    - Custom strings (`exceptional` only; other tiers always show the achievement's own name and description): `"title": "100% Complete"` and `"desc": "You've unlocked all achievements!"` set the words, while the style is still inherited from `normal`. `title_text` / `desc_text` are the same thing, spelled out.
-- **`align`**: overrides `achievements.settings.text_align` for this tier.
+The words only: `"title"` and `"desc"` strings, for `exceptional` (other tiers
+always show the achievement's own name and description). Default: "100%
+Complete" and "You've unlocked all achievements!". Their style is the theme's
+`text.title` and `text.body`.
 
 #### `icons`
 

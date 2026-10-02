@@ -3004,7 +3004,7 @@ so a ROM shortcut never matched (the test game, Captain Commando, answered `not-
 
 ## ADR-0050: enhanced-achievements merges into enhanced-notifications
 
-**Status:** Accepted · 2026-10-01 · Plan: [enhanced-notifications-achievements-merge-plan.md](plans/enhanced-notifications-achievements-merge-plan.md) · Supersedes [ADR-0049](#adr-0049-big-picture-has-one-toast-position-enhanced-notifications-theme-by-default-enhanced-achievements-when-forced); ends decisions 3 and 4 of [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook); [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) holds in the merged plugin
+**Status:** Accepted · 2026-10-01 · Plan: [enhanced-notifications-achievements-merge-plan.md](plans/enhanced-notifications-achievements-merge-plan.md) · Supersedes [ADR-0049](#adr-0049-big-picture-has-one-toast-position-enhanced-notifications-theme-by-default-enhanced-achievements-when-forced); ends decisions 3 and 4 of [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook); [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) holds in the merged plugin · Decision 2 amended by [ADR-0052](#adr-0052-one-theme-one-look-achievements-inherit-the-themes-settings-popup-and-text)
 
 ### Context
 
@@ -3075,3 +3075,39 @@ opened in that window; a settings slider from 0 to 30 days.
 - The manual covers move from `manual_covers/` (removed by the first prune) into the per-game folder, so they expire too.
 - A key whose media changed on ScreenScraper keeps its old bytes while the game stays opened; setting 0 days, then back,
   refreshes everything.
+
+## ADR-0052: One theme, one look: achievements inherit the theme's settings, popup and text
+
+**Status:** Accepted · 2026-10-02 (the user's decisions) · **Amends decision 2 of [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications)** (the `achievements` block's shape; an Enhanced Achievements theme no longer works pasted in)
+
+### Context
+
+After the merge a theme described the same card twice: `popup` for every toast, then `achievements.tiers.normal.banner`
+with its own background, border, margin, padding and gap, `achievements.settings` with its own position, animation
+and text alignment, and per-tier text styles. The user's PS5 theme repeated every value in both places.
+
+### Decision
+
+1. **`settings` is for every toast**, achievements included: `position`, `animation`, `display_time_ms` and the new
+   `text_align`. `achievements.settings` is gone.
+2. **`popup` is the card of every toast, and the banner starts from it.** The banner is layered: the theme's `popup`,
+   then any popup key set directly in `achievements`, then `achievements.normal`, then the tier. A popup key on a tier
+   is a plain key (`"magic": { "background": [...] }`): no `banner` / `box` wrapper. `popup` also takes `scale`,
+   `width`, `height` and `layout`, which only the banner reads for now (Steam's own toasts keep their size and
+   arrangement).
+3. **One `text` block.** The banner's title and description use `text.title` and `text.body`; a tier's `text` only
+   sets the words (the 100% toast's).
+4. **The tiers sit directly in `achievements`** (`achievements.normal`, `.magic`, `.rare`, `.exceptional`), all
+   optional. `achievements.layout` is a preset name or an object (a custom layout); the `"custom"` name is gone.
+5. **`logo` becomes `game_icon: [visible, radius]`.**
+6. **Clean break:** the old keys (`achievements.settings`, `tiers`, `themes`, a tier's `banner` / `box` /
+   `background_color`, a tier text style, top-level `logo` and `themes`) load with a warning and are ignored. The
+   bundled and example themes were converted.
+
+### Consequences
+
+- A theme states each value once; the PS5 theme lost its duplicated card.
+- The banner can no longer sit in a different corner, or animate differently, from the other toasts.
+- A tier can no longer recolour its title (the old reference theme's gold title on rare).
+- Making Steam's own toasts honour `popup.scale` and `popup.layout` needs live probing of their window and DOM: a
+  follow-up in TASK.md.

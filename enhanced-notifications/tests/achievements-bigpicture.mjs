@@ -121,7 +121,7 @@ async function achievementPosition() {
     const bannerPos = 'bottom_right';
     const banner = `${userDir}/en_bp_achievements.json`;
     const plain = `${userDir}/en_bp_plain.json`;
-    writeFileSync(banner, JSON.stringify({ settings: { position: themePos }, popup: { margin: [20, 30] }, achievements: { settings: { position: bannerPos }, tiers: { normal: { banner: { margin: 10 } } } } }));
+    writeFileSync(banner, JSON.stringify({ settings: { position: bannerPos }, popup: { margin: [20, 30] }, achievements: { normal: { margin: 10 } } }));
     writeFileSync(plain, JSON.stringify({ settings: { position: themePos }, popup: { margin: [20, 30] } }));
     const before = await plugin('activeTheme()?.name');
     const select = async (name) => {
@@ -135,11 +135,11 @@ async function achievementPosition() {
         await select('en_bp_achievements');
         const ach = await placeOf(achievement);
         const okAch = quadrant(ach, bannerPos);
-        console.log(`${okAch ? 'PASS' : 'FAIL'}  an achievement goes to the achievements block's corner (${bannerPos})  ${JSON.stringify(ach)}`);
+        console.log(`${okAch ? 'PASS' : 'FAIL'}  an achievement banner goes to its theme's corner (${bannerPos})  ${JSON.stringify(ach)}`);
         if (!okAch) failed = true;
         const next = await placeOf(download);
-        const okNext = quadrant(next, themePos);
-        console.log(`${okNext ? 'PASS' : 'FAIL'}  the next download goes back to the theme's corner (${themePos})  ${JSON.stringify(next)}`);
+        const okNext = quadrant(next, bannerPos);
+        console.log(`${okNext ? 'PASS' : 'FAIL'}  the next download goes to the same corner (${bannerPos}), with the popup's margin  ${JSON.stringify(next)}`);
         if (!okNext) failed = true;
 
         await select('en_bp_plain');
