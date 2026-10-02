@@ -157,8 +157,8 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
   `themes/SteamStation/` hold Sony's PlayStation trophy art and sounds (`trophy_ps4.mp3`, `trophy_ps5.mp3`,
   `platinum_trophy_ps5.mp3`, the bronze/silver/gold trophy images, `*_playstation.png`). Fine in this private repo;
   replace them with original or licensed assets, or ship `ps5` / `SteamStation` without them, before the public split
-  ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)). Also `SteamStation.json` uses `bronze_playstation.png`
-  for bronze since its own `bronze.png` went missing (2026-10-02); put the original back if it turns up.
+  ([plugins.md § 6](docs/plugins.md#6-publish-as-a-public-repo)). `SteamStation.json` bronze trophy has been recreated
+  as `bronze.png` with Steam controller XYAB markers matching silver/gold (2026-10-02).
 
 - **Achievement timeline markers for non-Steam games, in steam-cartridges** (removed from enhanced-notifications
   2026-10-02 as a Steam-native feature for shortcuts). Steam marks achievements on its own games' timelines but not on

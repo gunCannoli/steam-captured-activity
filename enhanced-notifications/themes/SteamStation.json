@@ -27,7 +27,7 @@
             "icons": {
                 "achievement": [true, 100, 0],
                 "system": [true, 120, 2000],
-                "rarity": ["SteamStation/bronze_playstation.png", 100, 0]
+                "rarity": ["SteamStation/bronze.png", 100, 0]
             },
             "sound": ["SteamStation/sfx/a_deck_bronze.mp3", 80]
         },

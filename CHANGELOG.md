@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: SteamStation bronze trophy with Steam controller XYAB (2026-10-02)**: at the user's
+  request. Replaced the PlayStation controller symbols on `bronze_playstation.png` with the Steam controller XYAB markers
+  (X top-left, Y top-right, A bottom-left, B bottom-right) to match `silver.png` and `gold.png`. Generated
+  `enhanced-notifications/themes/SteamStation/bronze.png`, `bronze_xyab.png`, and `bronze.svg` with 100% bit-identical
+  transparent alpha channel outside the cup, exact metallic curvature, bevel depth, inner groove shadow, and warm peach/rose
+  specular highlight rim. Restored `SteamStation.json` rarity icon from `bronze_playstation.png` to `bronze.png`.
 - **enhanced-notifications: toast hover (2026-10-02)**: at the user's request. Found live: Steam's hover is
   `DesktopToastPopup::before` (`position: absolute; inset: 0`, a blue radial gradient, 0 -> .5 on hover) plus a blue tint
   on the logo watermark, and the card and its ancestors are `position: static`, so the overlay covers the whole window.
