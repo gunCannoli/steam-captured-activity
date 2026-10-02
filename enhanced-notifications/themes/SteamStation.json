@@ -1,0 +1,63 @@
+{
+    "settings": {
+        "position": "top_right",
+        "display_time_ms": 4000,
+        "animation": "ps5",
+        "text_align": "left"
+    },
+    "text": {
+        "title": ["#ffffff", 120, "regular"],
+        "body": ["#ffffff", 100, "regular"]
+    },
+    "achievements": {
+        "layout": {
+            "achievement": "left",
+            "system": "right",
+            "text": "achievement_right",
+            "rarity": "title_left"
+        },
+        "normal": {
+            "background": ["#1F1F1F", "#0F0F0F"],
+            "gradient_angle": 90,
+            "border": [0, "#8a2be2", 10],
+            "glow": ["#363636", 0, 0],
+            "margin": 10,
+            "padding": [10, 15, 10, 10],
+            "gap": 10,
+            "icons": {
+                "achievement": [true, 100, 0],
+                "system": [true, 120, 2000],
+                "rarity": ["SteamStation/bronze.png", 100, 0]
+            },
+            "sound": ["SteamStation/sfx/a_deck_bronze.mp3", 80]
+        },
+        "magic": {
+            "threshold": 25,
+            "glow": ["#505050", 60, 1500],
+            "icons": {
+                "rarity": ["SteamStation/silver.png", 100, 0]
+            },
+            "sound": ["SteamStation/sfx/a_deck_silver.mp3", 85]
+        },
+        "rare": {
+            "threshold": 10,
+            "glow": ["#e5a93c", 80, 1200],
+            "icons": {
+                "rarity": ["SteamStation/gold.png", 150, 0]
+            },
+            "sound": ["SteamStation/sfx/a_deck_gold.mp3", 90]
+        },
+        "exceptional": {
+            "glow": ["#40c4ff", 90, 800],
+            "text": {
+                "title": "100% Complete",
+                "desc": "You've unlocked all achievements!"
+            },
+            "icons": {
+                "rarity": ["SteamStation/steam_100_game-removebg.png", 100, 0],
+                "achievement": ["SteamStation/steam_100_game-removebg.png", 100, 0]
+            },
+            "sound": ["SteamStation/sfx/a_deck_platinum.mp3", 100]
+        }
+    }
+}

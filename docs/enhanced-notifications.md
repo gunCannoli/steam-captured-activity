@@ -100,6 +100,20 @@ unlock plays its tier's clip; otherwise the theme's notification sound (`false` 
   (`fnNotificationResolved`, desktop only). The achievement type's `toastDurationMS` is the banner's whole lifetime, so
   where Steam times the toast (Big Picture) the exit is never cut short.
 
+## Banner look: CSS in `frontend/banner/styles.ts`
+
+The banner's fixed styling (`BANNER_CSS`) travels with the banner into whichever toast window renders it. Values a
+theme sets arrive as CSS variables on `.ea-banner` (`--ea-pad`, `--ea-gap-x`, `--ea-in-ms`, `--ea-hover-bg`, ...);
+the rest is fixed there:
+
+| What | Where | Value |
+| --- | --- | --- |
+| Icon ripple distance (the PS5 water ripple a theme turns on with an icon's `ripple ms`) | `@keyframes ea-ripple`, the `100%` frame: `transform: scale(...)` | `1.4` (the icon's size times 1.4; it starts at `0.92`). Higher spreads further toward the text |
+| Ripple ring | `.ea-ripple`: `border`, `filter: blur(...)`, easing in `animation` | 1.5 px white at 85%, 0.65 px blur, both scaled with the icon |
+| Hover highlight | `.ea-banner::after`; `.ea-banner:hover::after { opacity }` | 0.5 opacity, Steam's gradient unless the theme sets `settings.hover` |
+
+A change here is a frontend change: rebuild and deploy with `dev.ps1` (Steam restarts).
+
 ## Notifications queue
 
 `queue.enabled` ("Notifications queue") shows one toast at a time, of every kind. Steam already has the rule: the
