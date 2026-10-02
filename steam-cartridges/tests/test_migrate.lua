@@ -74,6 +74,23 @@ check("v2 leaves every other record byte-identical",
 local content_after_second_run = utils.read_file(db_path) or ""
 check("second run leaves the file untouched", content_after_second_run == after_content)
 
+print("\n=== web_config.save_credentials keeps the legacy .env ===")
+
+-- A save must not hide keys that only the legacy .env holds (a ScreenScraper account there vanished from GetStatus
+-- after any save, until Steam restarted).
+local config = require("web_config")
+local legacy_path = base .. "/legacy.env"
+utils.write_file(legacy_path, "screenscraper_dev_user=dev\nscreenscraper_dev_pw=pw\n")
+local saved_candidates = config.legacy_env_candidates
+config.legacy_env_candidates = { legacy_path }
+config._reset()
+check("legacy ScreenScraper account found", config.get_screenscraper_credentials() ~= nil)
+config.save_credentials({ zz_probe = "x" })
+check("still found after a save", config.get_screenscraper_credentials() ~= nil)
+config.save_credentials({ zz_probe = "" })
+config.legacy_env_candidates = saved_candidates
+config._reset()
+
 millennium.steam_path = saved_steam_path
 data_dir._reset()
 os.execute('rmdir /s /q "' .. base:gsub("/", "\\") .. '" >nul 2>nul')

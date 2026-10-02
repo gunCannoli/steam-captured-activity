@@ -1,6 +1,6 @@
 // Settings: Library Audit (migration plan M8c; reads the app through the panel context and the backend port).
-import { useCallback, useEffect, useRef, useState } from "react";
-import { DialogButton, Dropdown, Field, PanelSection } from "@steambrew/client";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambrew/client";
 import {
     onSettingChange,
     setSetting,
@@ -13,11 +13,14 @@ import { type GameMetadata } from "../../kernel/record";
 import { lookupStored } from "../../kernel/appid";
 import { usePanelContext } from "../context";
 import {
+    ActionRow,
     Blocks,
+    BUTTON_STYLE,
     ButtonRow,
     FullWidthRows,
     ItemRow,
     SettingsModal,
+    StatRow,
 } from "../components";
 import { GameDataEditor } from "../game-editor/modal";
 import { useSyncProgress } from "../sync-progress";
@@ -64,7 +67,7 @@ export function RevisionSection() {
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [isGameDataOpen, setIsGameDataOpen] = useState(false);
     const [filter, setFilter] = useState<
-        "all" | "controller" | "achievements" | "not_scraped"
+        "all" | "not_scraped"
     >("all");
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
     const [steamIdInput, setSteamIdInput] = useState("");
@@ -144,6 +147,8 @@ export function RevisionSection() {
         name: string;
         profile?: AutoRoutingProfile;
     }[] = [];
+    let ignored = 0;
+    let matched = 0;
 
     for (const sc of shortcuts) {
         const profile = lookupStored(autoProfiles, sc.appid);
@@ -151,10 +156,12 @@ export function RevisionSection() {
         // Excluded by routing rules or auto mode (app/routing, the one evaluation)
         const isAllowed = ctx.routing.serviceAllowed("all", sc.appid);
         if (!isAllowed) {
+            ignored++;
             continue; // Excluded by rule / auto mode: do not count in issues or not-scraped
         }
 
         const meta = lookupStored(metadataLib, sc.appid);
+        if (meta) matched++;
         const achievements = ctx.records.achievementsOf(sc.appid);
         const isScraped = !!meta || (achievements && achievements.nTotal > 0);
 
@@ -193,18 +200,13 @@ export function RevisionSection() {
         }
     }
 
-    const filteredIssues = flagged.filter((f) => {
-        if (filter === "controller") return f.missingController;
-        return true;
-    });
-
     const handleSetController = (appid: number, val: ControllerOverride) => {
         // The setting is written before Game Info re-derives the badges, so a change made here shows at once.
         void setSetting("controllerOverrides", {
             ...controllerOverrides,
             [String(appid)]: val,
         }).then(() => ctx.controller.refresh(appid));
-        setFixMsg(`Updated controller support for ${shortcutName(appid)}`);
+        setFixMsg(`✓ Updated controller support for ${shortcutName(appid)}`);
         setTimeout(() => setFixMsg(""), 2500);
     };
 
@@ -215,7 +217,7 @@ export function RevisionSection() {
         setFixMsg("Linking to Steam Store...");
         const res = await ctx.steamStore.setMapping(shortcutAppId, steamAppId);
         if (res.mapping) {
-            setFixMsg("Mapped successfully!");
+            setFixMsg("✓ Linked to Steam");
             setTimeout(() => setFixMsg(""), 2500);
         } else {
             setFixMsg(res.error || "Failed to map Steam App");
@@ -228,7 +230,7 @@ export function RevisionSection() {
             .start({ forceAll: true, onlyAppids: [appid] })
             .catch(() => {});
         await refreshAuditData();
-        setFixMsg(`Scanned ${name}`);
+        setFixMsg(`✓ Scanned ${name}`);
         setTimeout(() => setFixMsg(""), 2000);
     };
 
@@ -241,635 +243,156 @@ export function RevisionSection() {
                         : "block",
             }}
         >
-            <PanelSection title="Library Audit">
+            <PanelSection title="Library Analytics">
                 <Blocks>
                     <>
-                        <ItemRow>
-                            <Field
-                                label="Not scraped"
-                                description="Games awaiting initial metadata & achievement fetch"
-                                bottomSeparator="none"
-                            >
-                                <span
-                                    style={{
-                                        color:
-                                            notScraped.length > 0
-                                                ? "#66c0f4"
-                                                : "#8ba5b7",
-                                        fontWeight: 700,
-                                        fontSize: "14px",
-                                    }}
-                                >
-                                    {notScraped.length}
-                                </span>
-                            </Field>
-                        </ItemRow>
-                        <ItemRow>
-                            <Field
-                                label="Issues detected"
-                                description="Number of games that require complete information"
-                                bottomSeparator="none"
-                            >
-                                <span
-                                    style={{
-                                        color:
-                                            flagged.length > 0
-                                                ? "#e5a00d"
-                                                : "#a4d007",
-                                        fontWeight: 700,
-                                        fontSize: "14px",
-                                    }}
-                                >
-                                    {flagged.length}
-                                </span>
-                            </Field>
-                        </ItemRow>
-                        <ButtonRow
-                            label="Review"
-                            description="Fix controller support and Steam links game by game"
-                            buttonLabel="Review"
-                            onClick={() => setIsAuditModalOpen(true)}
-                        />
+                        <StatRow label="Non-Steam Games" value={shortcuts.length} />
+                        <StatRow label="Metadata Matched" value={matched} />
+                        <StatRow label="Ignored" value={ignored} />
+                        <StatRow label="Issues detected" value={flagged.length} warn />
                     </>
                     {/* Three rows: label, description, then the button across the full row. */}
+                    <FullWidthRows label="Review" description="Fix controller support and Steam links game by game">
+                        <DialogButton onClick={() => setIsAuditModalOpen(true)} style={{ ...BUTTON_STYLE, width: "100%" }}>
+                            Review
+                        </DialogButton>
+                    </FullWidthRows>
                     <FullWidthRows
                         label="Edit Game MetaData"
-                        description="Correct a game's Game Info by hand (description, credits, player tags, controller support) or link it to a Steam game."
+                        description="Correct a game's Game Info by hand or link it to a Steam game"
                     >
-                        <DialogButton
-                            onClick={() => setIsGameDataOpen(true)}
-                            style={{
-                                padding: "0 16px",
-                                minWidth: 0,
-                                width: "100%",
-                            }}
-                        >
+                        <DialogButton onClick={() => setIsGameDataOpen(true)} style={{ ...BUTTON_STYLE, width: "100%" }}>
                             Manual Edit
                         </DialogButton>
                     </FullWidthRows>
-                    {fixMsg && !isAuditModalOpen && (
-                        <ItemRow>
-                            <div style={{ color: "#66c0f4", fontSize: "12px" }}>
-                                {fixMsg}
-                            </div>
-                        </ItemRow>
-                    )}
+                    {fixMsg && !isAuditModalOpen && <ActionRow message={fixMsg} />}
                 </Blocks>
                 <GameDataEditor
                     isOpen={isGameDataOpen}
                     onClose={() => setIsGameDataOpen(false)}
                 />
 
-                {/* Audit & Fix Modal */}
+                {/* Review popup: the same rows and spacing as the panel, one block per game. */}
                 <SettingsModal
-                    title={`Library Audit (${flagged.length} issue${flagged.length === 1 ? "" : "s"}, ${notScraped.length} unscraped)`}
+                    title="Review"
                     isOpen={isAuditModalOpen}
                     onClose={() => setIsAuditModalOpen(false)}
                     width="620px"
                     maxHeight="85vh"
                 >
-                    {/* Filter Tabs */}
-                    <div
-                        style={{
-                            display: "flex",
-                            gap: "6px",
-                            flexWrap: "wrap",
-                            marginBottom: "12px",
-                        }}
-                    >
-                        <button
-                            type="button"
-                            onClick={() => setFilter("all")}
-                            style={{
-                                background:
-                                    filter === "all"
-                                        ? "rgba(102, 192, 244, 0.25)"
-                                        : "rgba(0, 0, 0, 0.25)",
-                                border:
-                                    filter === "all"
-                                        ? "1px solid #66c0f4"
-                                        : "none",
-                                color: filter === "all" ? "#66c0f4" : "#fff",
-                                borderRadius: "4px",
-                                padding: "4px 10px",
-                                fontSize: "12px",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Issues ({flagged.length})
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFilter("controller")}
-                            style={{
-                                background:
-                                    filter === "controller"
-                                        ? "rgba(102, 192, 244, 0.25)"
-                                        : "rgba(0, 0, 0, 0.25)",
-                                border:
-                                    filter === "controller"
-                                        ? "1px solid #66c0f4"
-                                        : "none",
-                                color:
-                                    filter === "controller"
-                                        ? "#66c0f4"
-                                        : "#fff",
-                                borderRadius: "4px",
-                                padding: "4px 10px",
-                                fontSize: "12px",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Unknown Input (
-                            {flagged.filter((f) => f.missingController).length})
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFilter("not_scraped")}
-                            style={{
-                                background:
+                    <PanelSection>
+                        <Blocks>
+                            <FullWidthRows
+                                label="Show"
+                                description={
                                     filter === "not_scraped"
-                                        ? "rgba(102, 192, 244, 0.25)"
-                                        : "rgba(0, 0, 0, 0.25)",
-                                border:
-                                    filter === "not_scraped"
-                                        ? "1px solid #66c0f4"
-                                        : "none",
-                                color:
-                                    filter === "not_scraped"
-                                        ? "#66c0f4"
-                                        : "#fff",
-                                borderRadius: "4px",
-                                padding: "4px 10px",
-                                fontSize: "12px",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Not Scraped ({notScraped.length})
-                        </button>
-                    </div>
-
-                    {filter === "not_scraped" && (
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                padding: "4px 0",
-                                marginBottom: "8px",
-                            }}
-                        >
-                            <span style={{ fontSize: "11px", opacity: 0.7 }}>
-                                {notScraped.length} game(s) awaiting initial
-                                scraping (automatically scraped in the
-                                background).
-                            </span>
-                        </div>
-                    )}
-
-                    {fixMsg && (
-                        <div
-                            style={{
-                                color: "#66c0f4",
-                                fontSize: "12px",
-                                padding: "2px 0",
-                            }}
-                        >
-                            {fixMsg}
-                        </div>
-                    )}
-
-                    {/* Filtered Items */}
-                    <div
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "8px",
-                            maxHeight: "55vh",
-                            overflowY: "auto",
-                        }}
-                    >
-                        {filter === "not_scraped" ? (
-                            notScraped.length === 0 ? (
-                                <div
-                                    style={{
-                                        fontSize: "12px",
-                                        opacity: 0.6,
-                                        padding: "8px 0",
-                                        fontStyle: "italic",
-                                    }}
-                                >
-                                    All games in your library have been scraped.
-                                </div>
-                            ) : (
-                                notScraped.map((item) => (
-                                    <div
-                                        key={item.appid}
-                                        style={{
-                                            background:
-                                                "rgba(255, 255, 255, 0.03)",
-                                            border: "1px solid rgba(255, 255, 255, 0.06)",
-                                            borderRadius: "4px",
-                                            padding: "8px 10px",
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                        }}
-                                    >
-                                        <div>
-                                            <span
-                                                style={{
-                                                    fontWeight: 600,
-                                                    fontSize: "13px",
-                                                }}
-                                            >
-                                                {item.name}
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize: "11px",
-                                                    opacity: 0.6,
-                                                    marginLeft: "6px",
-                                                }}
-                                            >
-                                                ({item.appid})
-                                            </span>
-                                        </div>
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                gap: "6px",
-                                                alignItems: "center",
-                                            }}
-                                        >
-                                            {item.profile && (
-                                                <span
-                                                    style={{
-                                                        background:
-                                                            item.profile
-                                                                .category ===
-                                                            "retroarch"
-                                                                ? "rgba(102, 192, 244, 0.15)"
-                                                                : item.profile
-                                                                        .category ===
-                                                                    "console_emulator"
-                                                                  ? "rgba(163, 112, 247, 0.15)"
-                                                                  : "rgba(255, 255, 255, 0.08)",
-                                                        color:
-                                                            item.profile
-                                                                .category ===
-                                                            "retroarch"
-                                                                ? "#66c0f4"
-                                                                : item.profile
-                                                                        .category ===
-                                                                    "console_emulator"
-                                                                  ? "#a370f7"
-                                                                  : "#bbb",
-                                                        fontSize: "10px",
-                                                        padding: "1px 5px",
-                                                        borderRadius: "3px",
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {item.profile.category ===
-                                                    "retroarch"
-                                                        ? "Retro"
-                                                        : item.profile
-                                                                .category ===
-                                                            "console_emulator"
-                                                          ? item.profile
-                                                                .program ||
-                                                            "Emulator"
-                                                          : "PC"}
-                                                </span>
-                                            )}
-                                            <span
-                                                style={{
-                                                    background:
-                                                        "rgba(102, 192, 244, 0.2)",
-                                                    color: "#66c0f4",
-                                                    fontSize: "10px",
-                                                    padding: "1px 5px",
-                                                    borderRadius: "3px",
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                Not Scraped
-                                            </span>
-                                            <DialogButton
-                                                onClick={() =>
-                                                    handleScanSingle(
-                                                        item.appid,
-                                                        item.name,
-                                                    )
-                                                }
-                                                style={{
-                                                    padding: "0 8px",
-                                                    minWidth: 0,
-                                                    width: "auto",
-                                                    fontSize: "11px",
-                                                }}
-                                            >
-                                                Scrape
-                                            </DialogButton>
-                                        </div>
-                                    </div>
-                                ))
-                            )
-                        ) : filteredIssues.length === 0 ? (
-                            <div
-                                style={{
-                                    fontSize: "12px",
-                                    opacity: 0.6,
-                                    padding: "8px 0",
-                                    fontStyle: "italic",
-                                }}
+                                        ? "Games still waiting for their first fetch; they are fetched in the background"
+                                        : "Games with no known controller support"
+                                }
                             >
-                                No issues detected for this filter.
-                            </div>
-                        ) : (
-                            filteredIssues.map((item) => {
-                                const currentOverride =
-                                    controllerOverrides[String(item.appid)] ||
-                                    "auto";
-                                return (
-                                    <div
-                                        key={item.appid}
-                                        style={{
-                                            background:
-                                                "rgba(255, 255, 255, 0.03)",
-                                            border: "1px solid rgba(255, 255, 255, 0.06)",
-                                            borderRadius: "4px",
-                                            padding: "8px 10px",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                alignItems: "center",
-                                            }}
-                                        >
-                                            <div>
-                                                <span
-                                                    style={{
-                                                        fontWeight: 600,
-                                                        fontSize: "13px",
-                                                    }}
-                                                >
-                                                    {item.name}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        fontSize: "11px",
-                                                        opacity: 0.6,
-                                                        marginLeft: "6px",
-                                                    }}
-                                                >
-                                                    ({item.appid})
-                                                </span>
-                                            </div>
-                                            <div
-                                                style={{
-                                                    display: "flex",
-                                                    gap: "4px",
-                                                    alignItems: "center",
-                                                }}
-                                            >
-                                                {item.profile && (
-                                                    <span
-                                                        style={{
-                                                            background:
-                                                                item.profile
-                                                                    .category ===
-                                                                "retroarch"
-                                                                    ? "rgba(102, 192, 244, 0.15)"
-                                                                    : item
-                                                                            .profile
-                                                                            .category ===
-                                                                        "console_emulator"
-                                                                      ? "rgba(163, 112, 247, 0.15)"
-                                                                      : "rgba(255, 255, 255, 0.08)",
-                                                            color:
-                                                                item.profile
-                                                                    .category ===
-                                                                "retroarch"
-                                                                    ? "#66c0f4"
-                                                                    : item
-                                                                            .profile
-                                                                            .category ===
-                                                                        "console_emulator"
-                                                                      ? "#a370f7"
-                                                                      : "#bbb",
-                                                            fontSize: "10px",
-                                                            padding: "1px 5px",
-                                                            borderRadius: "3px",
-                                                            fontWeight: 600,
-                                                        }}
-                                                    >
-                                                        {item.profile
-                                                            .category ===
-                                                        "retroarch"
-                                                            ? "Retro"
-                                                            : item.profile
-                                                                    .category ===
-                                                                "console_emulator"
-                                                              ? item.profile
-                                                                    .program ||
-                                                                "Emulator"
-                                                              : "PC"}
-                                                    </span>
-                                                )}
-                                                {item.missingController && (
-                                                    <span
-                                                        style={{
-                                                            background:
-                                                                "#e5a00d",
-                                                            color: "#000",
-                                                            fontSize: "10px",
-                                                            padding: "1px 5px",
-                                                            borderRadius: "3px",
-                                                            fontWeight: 600,
-                                                        }}
-                                                    >
-                                                        Missing Input
-                                                    </span>
-                                                )}
-                                                {item.noAchievements && (
-                                                    <span
-                                                        style={{
-                                                            background:
-                                                                "rgba(255, 255, 255, 0.1)",
-                                                            color: "#aaa",
-                                                            fontSize: "10px",
-                                                            padding: "1px 5px",
-                                                            borderRadius: "3px",
-                                                        }}
-                                                    >
-                                                        No Achievements
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                gap: "12px",
-                                                marginTop: "6px",
-                                                alignItems: "center",
-                                                flexWrap: "wrap",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: "6px",
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontSize: "11px",
-                                                        opacity: 0.75,
-                                                    }}
-                                                >
-                                                    Input:
-                                                </span>
-                                                <Dropdown
-                                                    rgOptions={
-                                                        CONTROLLER_OVERRIDE_OPTIONS
-                                                    }
-                                                    selectedOption={
-                                                        currentOverride
-                                                    }
-                                                    onChange={(o) =>
-                                                        handleSetController(
-                                                            item.appid,
-                                                            o.data as ControllerOverride,
-                                                        )
-                                                    }
-                                                    contextMenuPositionOptions={{
-                                                        bMatchWidth: true,
-                                                    }}
-                                                />
-                                                {item.inferred === true && (
-                                                    <span
-                                                        style={{
-                                                            fontSize: "11px",
-                                                            color: "#66c0f4",
-                                                            marginLeft: "4px",
-                                                        }}
-                                                    >
-                                                        (Detected: Full
-                                                        Controller)
-                                                    </span>
-                                                )}
-                                                {item.inferred === false && (
-                                                    <span
-                                                        style={{
-                                                            fontSize: "11px",
-                                                            color: "#8ba5b7",
-                                                            marginLeft: "4px",
-                                                        }}
-                                                    >
-                                                        (Detected: K&M)
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <div
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: "6px",
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontSize: "11px",
-                                                        opacity: 0.75,
-                                                    }}
-                                                >
-                                                    Link Steam AppID:
-                                                </span>
-                                                <input
-                                                    type="text"
-                                                    placeholder="e.g. 2820820"
-                                                    value={
-                                                        targetAppId ===
-                                                        item.appid
-                                                            ? steamIdInput
-                                                            : ""
-                                                    }
-                                                    onChange={(e) => {
-                                                        setTargetAppId(
-                                                            item.appid,
-                                                        );
-                                                        setSteamIdInput(
-                                                            e.target.value,
-                                                        );
-                                                    }}
-                                                    style={{
-                                                        background:
-                                                            "rgba(0, 0, 0, 0.4)",
-                                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                                        color: "#fff",
-                                                        borderRadius: "3px",
-                                                        padding: "3px 6px",
-                                                        fontSize: "11px",
-                                                        width: "90px",
-                                                    }}
-                                                />
-                                                <DialogButton
-                                                    onClick={() => {
-                                                        const num = parseInt(
-                                                            steamIdInput,
-                                                            10,
-                                                        );
-                                                        if (num > 0)
-                                                            handleLinkSteamApp(
-                                                                item.appid,
-                                                                num,
-                                                            );
-                                                    }}
-                                                    style={{
-                                                        padding: "0 8px",
-                                                        minWidth: 0,
-                                                        width: "auto",
-                                                        fontSize: "11px",
-                                                    }}
-                                                >
-                                                    Link
+                                <Dropdown
+                                    rgOptions={[
+                                        { data: "all", label: `Issues (${flagged.length})` },
+                                        { data: "not_scraped", label: `Not scraped (${notScraped.length})` },
+                                    ]}
+                                    selectedOption={filter}
+                                    onChange={(o) => setFilter(o.data as "all" | "not_scraped")}
+                                    contextMenuPositionOptions={{ bMatchWidth: true }}
+                                />
+                            </FullWidthRows>
+                            {fixMsg && <ActionRow message={fixMsg} />}
+                            {filter === "not_scraped" ? (
+                                <>
+                                    {notScraped.length === 0 && (
+                                        <ItemRow>
+                                            <Field label="Every game has been fetched" bottomSeparator="none" />
+                                        </ItemRow>
+                                    )}
+                                    {notScraped.map((item) => (
+                                        <ItemRow key={item.appid}>
+                                            <Field label={item.name} description={gameLine(item.appid, item.profile)}>
+                                                <DialogButton onClick={() => handleScanSingle(item.appid, item.name)} style={BUTTON_STYLE}>
+                                                    Scrape
                                                 </DialogButton>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            marginTop: "8px",
-                        }}
-                    >
-                        <DialogButton
-                            onClick={() => setIsAuditModalOpen(false)}
-                            style={{
-                                padding: "0 16px",
-                                minWidth: 0,
-                                width: "auto",
-                            }}
-                        >
-                            Done
-                        </DialogButton>
-                    </div>
+                                            </Field>
+                                        </ItemRow>
+                                    ))}
+                                </>
+                            ) : flagged.length === 0 ? (
+                                <ItemRow>
+                                    <Field label="No issues found" bottomSeparator="none" />
+                                </ItemRow>
+                            ) : (
+                                flagged.map((item) => (
+                                    <Fragment key={item.appid}>
+                                        <ItemRow>
+                                            <Field
+                                                label={item.name}
+                                                description={[
+                                                    gameLine(item.appid, item.profile),
+                                                    item.inferred === true
+                                                        ? "Detected: full controller"
+                                                        : item.inferred === false
+                                                          ? "Detected: keyboard & mouse"
+                                                          : null,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(" · ")}
+                                                bottomSeparator="none"
+                                            />
+                                        </ItemRow>
+                                        <ItemRow>
+                                            <Field childrenContainerWidth="max" bottomSeparator="none">
+                                                <Dropdown
+                                                    rgOptions={CONTROLLER_OVERRIDE_OPTIONS}
+                                                    selectedOption={controllerOverrides[String(item.appid)] || "auto"}
+                                                    onChange={(o) => handleSetController(item.appid, o.data as ControllerOverride)}
+                                                    contextMenuPositionOptions={{ bMatchWidth: true }}
+                                                />
+                                            </Field>
+                                        </ItemRow>
+                                        <ItemRow trailing>
+                                            <TextField
+                                                label="Steam app id"
+                                                value={targetAppId === item.appid ? steamIdInput : ""}
+                                                onChange={(e) => {
+                                                    setTargetAppId(item.appid);
+                                                    setSteamIdInput(e.target.value);
+                                                }}
+                                            />
+                                        </ItemRow>
+                                        <ButtonRow
+                                            label="Link to Steam"
+                                            description="Use that Steam game's page data"
+                                            buttonLabel="Link"
+                                            disabled={targetAppId !== item.appid || !(parseInt(steamIdInput, 10) > 0)}
+                                            onClick={() => handleLinkSteamApp(item.appid, parseInt(steamIdInput, 10))}
+                                        />
+                                    </Fragment>
+                                ))
+                            )}
+                            <ActionRow>
+                                <DialogButton onClick={() => setIsAuditModalOpen(false)} style={BUTTON_STYLE}>
+                                    Done
+                                </DialogButton>
+                            </ActionRow>
+                        </Blocks>
+                    </PanelSection>
                 </SettingsModal>
             </PanelSection>
         </div>
     );
+}
+
+/** A game's second line in the Review popup: what kind of game it is, and its app id. */
+function gameLine(appid: number, profile?: AutoRoutingProfile): string {
+    const kind =
+        profile?.category === "retroarch"
+            ? "Retro"
+            : profile?.category === "console_emulator"
+              ? profile.program || "Emulator"
+              : profile
+                ? "PC"
+                : null;
+    return kind ? `${kind} · ${appid}` : String(appid);
 }

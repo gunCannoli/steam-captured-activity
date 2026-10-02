@@ -686,9 +686,12 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      as one card; its rows touch (no gap). Blocks of a section are `BLOCK_GAP` (22 px)
      apart, set in one place: `<Blocks>` takes each block as one child (a fragment of
      rows) and adds `padding-top` (padding, because margins collapse into Steam's own
-     trailing margin). Steam's `SliderField` and `TextField` end with 22 px of blank
-     space of their own: `ItemRow trailing` cancels it, so a block's spacing never
-     depends on its last control. Controls stacked inside one custom card are
+     trailing margin). Steam's `TextField` ends with 22 px of blank space of its own:
+     `ItemRow trailing` cancels it, so a block's spacing never depends on its last
+     control. Steam's `SliderField` is its old dialog slider (a translucent box of its
+     own, no card colour, 22 px bottom margin): never place it bare, use `SliderRow`
+     (two rows of one card, the slider's box reset); cancelling its margin instead ate
+     the gap to the next section. Controls stacked inside one custom card are
      `CONTROL_GAP` (8 px) apart on the card's colour (`CARD_BACKGROUND`, measured live).
   5. **Group by meaning.** Options that belong together (an on/off toggle and the
      sliders it enables) are one block; unrelated options, and every button that opens
@@ -696,8 +699,14 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      description, button), not a bare button under a list.
   6. **Popups follow the same rules** (they are panels too): `Field`s and the shared rows
      inside a `PanelSection` and `Blocks`, player tags and other flags as toggle rows
-     (not a checkbox strip), results as one two-column row each.
-  7. **No diagnostics in a settings panel.** Kill switches, safe mode and error counters
+     (not a checkbox strip), results as one two-column row each, and the popup's own
+     buttons in a last `ActionRow` (status message left, buttons right).
+  7. **No empty-state rows, one size of icon button.** A list with nothing in it shows
+     nothing (no "No ... active" row), and a block that renders nothing is left out of
+     `<Blocks>` (it would still add its gap). Remove, edit and info buttons are
+     `IconButton` (one fixed size, whatever the glyph). A popup that asks for an account
+     or a key says where it is kept (`CredentialsNote`).
+  8. **No diagnostics in a settings panel.** Kill switches, safe mode and error counters
      are not shown to the user (removed from steam-cartridges 2026-09-30); the log and
      `disabledFeatures` stay the tools for that.
 

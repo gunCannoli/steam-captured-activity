@@ -10,7 +10,17 @@ import {
 import { useSetting } from "../settings";
 import { backend, type ProviderStatus } from "../../ports/backend";
 import { usePanelContext } from "../context";
-import { Blocks, ButtonRow, ItemRow, SettingsModal } from "../components";
+import {
+    ActionRow,
+    Blocks,
+    BUTTON_STYLE,
+    ButtonRow,
+    CredentialsNote,
+    FullWidthRows,
+    IconButton,
+    ItemRow,
+    SettingsModal,
+} from "../components";
 
 // ===========================================================================
 // 1. {Metadata} Services Section
@@ -34,6 +44,14 @@ const ALL_METADATA_SERVICES: MetadataServiceDef[] = [
     { id: "steamgriddb", label: "SteamGridDB" },
 ];
 
+/** What each service brings, shown under the Service dropdown of the Add popup. */
+const SERVICE_DESCRIPTIONS: Record<MetadataServiceId, string> = {
+    steam_store: "Game Info from the matching Steam Store page. No account needed.",
+    screenscraper: "Game Info, screenshots, artwork and manuals for retro games. Sign in with your screenscraper.fr account.",
+    igdb: "Game Info, trailers and artwork. Needs a Twitch developer app's Client ID and Secret.",
+    steamgriddb: "Fills empty artwork slots of games with no Steam match; art you set is never replaced. Get a free key in your SteamGridDB profile preferences.",
+};
+
 export function MetadataSection() {
     const ctx = usePanelContext();
     const [services, setServices] = useSetting("services");
@@ -45,8 +63,6 @@ export function MetadataSection() {
         useState<MetadataServiceId>("steam_store");
     const [ssUser, setSsUser] = useState("");
     const [ssPass, setSsPass] = useState("");
-    const [ssDevUser, setSsDevUser] = useState("");
-    const [ssDevPw, setSsDevPw] = useState("");
     const [igdbId, setIgdbId] = useState("");
     const [igdbSecret, setIgdbSecret] = useState("");
     const [sgdbKey, setSgdbKey] = useState("");
@@ -118,12 +134,12 @@ export function MetadataSection() {
 
     const handleRegisterService = async () => {
         setIsSaving(true);
-        setStatusMsg("Checking API connection...");
+        setStatusMsg("Saving...");
 
         if (selectedService === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
             ctx.ingest.trigger(250);
-            setStatusMsg("✓ Steam Store Mirror enabled!");
+            setStatusMsg("✓ Steam Store Mirror added");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSaving(false);
@@ -141,14 +157,12 @@ export function MetadataSection() {
             const res = await backend.saveServiceCredentials({
                 screenscraper_user: ssUser.trim(),
                 screenscraper_pass: ssPass.trim(),
-                screenscraper_dev_user: ssDevUser.trim(),
-                screenscraper_dev_pw: ssDevPw.trim(),
             });
             if (res.success) {
                 setServices({ ...services, screenscraperEnabled: true });
                 ctx.ingest.trigger(250);
                 refresh();
-                setStatusMsg("✓ ScreenScraper registered & verified!");
+                setStatusMsg("✓ ScreenScraper added");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSaving(false);
@@ -176,7 +190,7 @@ export function MetadataSection() {
                 setServices({ ...services, igdbEnabled: true });
                 ctx.ingest.trigger(250);
                 refresh();
-                setStatusMsg("✓ IGDB registered & verified!");
+                setStatusMsg("✓ IGDB added");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSaving(false);
@@ -202,7 +216,7 @@ export function MetadataSection() {
             if (res.success) {
                 setServices({ ...services, steamgriddbEnabled: true });
                 refresh();
-                setStatusMsg("✓ SteamGridDB key saved!");
+                setStatusMsg("✓ SteamGridDB added");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSaving(false);
@@ -220,202 +234,86 @@ export function MetadataSection() {
     return (
         <PanelSection title="Metadata">
             <Blocks>
-                <>
-                    {activeServices.length === 0 && (
-                        <ItemRow>
-                            <div
-                                style={{
-                                    opacity: 0.6,
-                                    fontSize: "12px",
-                                    padding: "4px 0",
-                                    fontStyle: "italic",
-                                }}
-                            >
-                                No metadata services active.
-                            </div>
-                        </ItemRow>
-                    )}
-
-                    {/* List of Active Services */}
-                    {activeServices.map((svc) => (
-                        <ItemRow key={svc.id}>
-                            <Field label={svc.label}>
-                                <DialogButton
-                                    onClick={() => handleRemoveService(svc.id)}
-                                    style={{
-                                        padding: "0 8px",
-                                        minWidth: 0,
-                                        width: "auto",
-                                        fontSize: "12px",
-                                    }}
-                                >
-                                    🗑️
-                                </DialogButton>
-                            </Field>
-                        </ItemRow>
-                    ))}
-                </>
-                <>
-                    {availableToAdd.length > 0 && (
-                        <ButtonRow
-                            label="Add service"
-                            description="Connect another source of game info and artwork"
-                            buttonLabel="Add"
-                            onClick={handleOpenAddModal}
-                        />
-                    )}
-                </>
+                {activeServices.length > 0 && (
+                    <>
+                        {activeServices.map((svc) => (
+                            <ItemRow key={svc.id}>
+                                <Field label={svc.label}>
+                                    <IconButton onClick={() => handleRemoveService(svc.id)} title="Remove">
+                                        🗑️
+                                    </IconButton>
+                                </Field>
+                            </ItemRow>
+                        ))}
+                    </>
+                )}
+                {availableToAdd.length > 0 && (
+                    <ButtonRow
+                        label="Add service"
+                        description="Connect another source of game info and artwork"
+                        buttonLabel="Add"
+                        onClick={handleOpenAddModal}
+                    />
+                )}
             </Blocks>
 
-            {/* Add Service Modal */}
-            <SettingsModal
-                title="Register Metadata Service"
-                isOpen={showAddModal}
-                onClose={() => setShowAddModal(false)}
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
-                        Service
-                    </span>
-                    <Dropdown
-                        rgOptions={availableToAdd.map((s) => ({
-                            data: s.id,
-                            label: s.label,
-                        }))}
-                        selectedOption={selectedService}
-                        onChange={(o) => setSelectedService(o.data as any)}
-                        contextMenuPositionOptions={{ bMatchWidth: true }}
-                    />
-                </div>
-
-                {selectedService === "steam_store" && (
-                    <div
-                        style={{
-                            fontSize: "12px",
-                            opacity: 0.8,
-                            padding: "4px 0",
-                        }}
-                    >
-                        Steam Store Mirror extracts Game Info, descriptions,
-                        genres, and release dates directly from Steam Store
-                        matching. No API key required.
-                    </div>
-                )}
-
-                {selectedService === "screenscraper" && (
-                    <>
-                        <TextField
-                            label="Account Username"
-                            value={ssUser}
-                            onChange={(e) => setSsUser(e.target.value)}
-                        />
-                        <TextField
-                            label="Account Password"
-                            bIsPassword
-                            value={ssPass}
-                            onChange={(e) => setSsPass(e.target.value)}
-                        />
-                        <TextField
-                            label="Dev ID (Optional)"
-                            value={ssDevUser}
-                            onChange={(e) => setSsDevUser(e.target.value)}
-                        />
-                        <TextField
-                            label="Dev Password (Optional)"
-                            bIsPassword
-                            value={ssDevPw}
-                            onChange={(e) => setSsDevPw(e.target.value)}
-                        />
-                    </>
-                )}
-
-                {selectedService === "igdb" && (
-                    <>
-                        <TextField
-                            label="Twitch Client ID"
-                            value={igdbId}
-                            onChange={(e) => setIgdbId(e.target.value)}
-                        />
-                        <TextField
-                            label="Twitch Client Secret"
-                            bIsPassword
-                            value={igdbSecret}
-                            onChange={(e) => setIgdbSecret(e.target.value)}
-                        />
-                    </>
-                )}
-
-                {selectedService === "steamgriddb" && (
-                    <>
-                        <div
-                            style={{
-                                fontSize: "12px",
-                                opacity: 0.8,
-                                padding: "4px 0",
-                            }}
-                        >
-                            Fills empty artwork slots (capsule, hero, logo,
-                            wide) for shortcuts with no Steam match. Art you set
-                            yourself is never replaced. Get a free key in your
-                            SteamGridDB profile preferences.
-                        </div>
-                        <TextField
-                            label="SteamGridDB API Key"
-                            bIsPassword
-                            value={sgdbKey}
-                            onChange={(e) => setSgdbKey(e.target.value)}
-                        />
-                    </>
-                )}
-
-                {statusMsg && (
-                    <div
-                        style={{
-                            fontSize: "12px",
-                            color: statusMsg.startsWith("✓")
-                                ? "#a4d007"
-                                : "#eb4b4b",
-                        }}
-                    >
-                        {statusMsg}
-                    </div>
-                )}
-
-                <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                    <DialogButton
-                        disabled={isSaving}
-                        onClick={handleRegisterService}
-                        style={{
-                            padding: "0 16px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Register
-                    </DialogButton>
-                    <DialogButton
-                        onClick={() => setShowAddModal(false)}
-                        style={{
-                            padding: "0 16px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Cancel
-                    </DialogButton>
-                </div>
+            {/* Add Service popup: the same rows and spacing as the panel. */}
+            <SettingsModal title="Add Metadata Service" isOpen={showAddModal} onClose={() => setShowAddModal(false)}>
+                <PanelSection>
+                    <Blocks>
+                        <FullWidthRows label="Service" description={SERVICE_DESCRIPTIONS[selectedService]}>
+                            <Dropdown
+                                rgOptions={availableToAdd.map((s) => ({ data: s.id, label: s.label }))}
+                                selectedOption={selectedService}
+                                onChange={(o) => setSelectedService(o.data as MetadataServiceId)}
+                                contextMenuPositionOptions={{ bMatchWidth: true }}
+                            />
+                        </FullWidthRows>
+                        {selectedService === "screenscraper" && (
+                            <>
+                                <ItemRow trailing>
+                                    <TextField label="Username" value={ssUser} onChange={(e) => setSsUser(e.target.value)} />
+                                </ItemRow>
+                                <ItemRow trailing>
+                                    <TextField label="Password" bIsPassword value={ssPass} onChange={(e) => setSsPass(e.target.value)} />
+                                </ItemRow>
+                                <CredentialsNote service="ScreenScraper" />
+                            </>
+                        )}
+                        {selectedService === "igdb" && (
+                            <>
+                                <ItemRow trailing>
+                                    <TextField label="Twitch Client ID" value={igdbId} onChange={(e) => setIgdbId(e.target.value)} />
+                                </ItemRow>
+                                <ItemRow trailing>
+                                    <TextField
+                                        label="Twitch Client Secret"
+                                        bIsPassword
+                                        value={igdbSecret}
+                                        onChange={(e) => setIgdbSecret(e.target.value)}
+                                    />
+                                </ItemRow>
+                                <CredentialsNote service="Twitch and IGDB" />
+                            </>
+                        )}
+                        {selectedService === "steamgriddb" && (
+                            <>
+                                <ItemRow trailing>
+                                    <TextField label="API Key" bIsPassword value={sgdbKey} onChange={(e) => setSgdbKey(e.target.value)} />
+                                </ItemRow>
+                                <CredentialsNote service="SteamGridDB" />
+                            </>
+                        )}
+                        <ActionRow message={statusMsg}>
+                            <DialogButton disabled={isSaving} onClick={handleRegisterService} style={BUTTON_STYLE}>
+                                Add
+                            </DialogButton>
+                            <DialogButton onClick={() => setShowAddModal(false)} style={BUTTON_STYLE}>
+                                Cancel
+                            </DialogButton>
+                        </ActionRow>
+                    </Blocks>
+                </PanelSection>
             </SettingsModal>
         </PanelSection>
     );

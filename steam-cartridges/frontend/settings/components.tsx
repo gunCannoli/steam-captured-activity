@@ -8,8 +8,9 @@ export const CARD_BACKGROUND = "rgb(35, 38, 46)";
 
 /**
  * Spacing system. A *block* is a group of options that read as one card: its rows touch (no gap). Blocks in a section
- * are `BLOCK_GAP` apart, set in one place (`Blocks`). Steam's SliderField and TextField each end with `STEAM_TRAILING`
- * of blank space of their own; `ItemRow` cancels it (`trailing`) so a block's spacing never depends on its last control.
+ * are `BLOCK_GAP` apart, set in one place (`Blocks`). Steam's TextField ends with `STEAM_TRAILING` of blank space of
+ * its own; `ItemRow` cancels it (`trailing`) so a block's spacing never depends on its last control. A slider goes in
+ * `SliderRow`, which resets Steam's slider box instead (a negative margin there ate the gap to the next section).
  */
 export const BLOCK_GAP = 22;
 export const STEAM_TRAILING = 22;
@@ -64,8 +65,11 @@ export function ToggleRow({
     );
 }
 
-/** Steam's slider across the full row, the value shown with its suffix (enhanced-notifications' SliderRow). `ItemRow
- *  trailing` cancels the slider's own trailing space, so the block's spacing stays the system's. */
+/** Steam's `SliderField` is its old dialog slider: a translucent box of its own (12 px padding, 22 px bottom margin),
+ *  not a settings card. Inside `SliderRow` that box is reset, so the slider sits on the card like every other control. */
+const SLIDER_RESET_CSS = `.sc-slider-row [class*="DialogSlider_Container"] { background: none; padding: 0; margin: 0; }`;
+
+/** A slider as two rows of one card: label, description and the value on the first, the slider across the second. */
 export function SliderRow({
     label,
     description,
@@ -90,20 +94,89 @@ export function SliderRow({
     disabled?: boolean;
 }) {
     return (
-        <ItemRow trailing>
-            <SliderField
-                label={label}
-                description={description}
-                layout="below"
-                value={value}
-                min={min}
-                max={max}
-                step={step}
-                showValue
-                valueSuffix={suffix}
-                resetValue={resetValue}
-                disabled={disabled}
-                onChange={onChange}
+        <>
+            <ItemRow>
+                <Field label={label} description={description} disabled={disabled} bottomSeparator="none">
+                    <span style={{ whiteSpace: "nowrap" }}>
+                        {value}
+                        {suffix}
+                    </span>
+                </Field>
+            </ItemRow>
+            <ItemRow>
+                <Field disabled={disabled} childrenContainerWidth="max">
+                    <div className="sc-slider-row" style={{ width: "100%" }}>
+                        <style>{SLIDER_RESET_CSS}</style>
+                        <SliderField
+                            value={value}
+                            min={min}
+                            max={max}
+                            step={step}
+                            resetValue={resetValue}
+                            disabled={disabled}
+                            onChange={onChange}
+                        />
+                    </div>
+                </Field>
+            </ItemRow>
+        </>
+    );
+}
+
+/** A number on the right of a row (the Library Analytics counts). `warn` colours it when it asks for attention. */
+export function StatRow({ label, value, warn }: { label: string; value: number; warn?: boolean }) {
+    return (
+        <ItemRow>
+            <Field label={label}>
+                <span style={{ fontWeight: 700, color: warn && value > 0 ? "#e5a00d" : undefined }}>{value}</span>
+            </Field>
+        </ItemRow>
+    );
+}
+
+/** A row's small icon button (remove, edit, info). One fixed size, so different glyphs line up. */
+export function IconButton({ onClick, title, children }: { onClick: () => void; title?: string; children: React.ReactNode }) {
+    return (
+        <DialogButton
+            onClick={onClick}
+            title={title}
+            style={{ padding: 0, minWidth: 0, width: "40px", fontSize: "14px", lineHeight: "normal" }}
+        >
+            {children}
+        </DialogButton>
+    );
+}
+
+/** A button sized to its label (popup actions, ButtonRow). */
+export const BUTTON_STYLE: React.CSSProperties = { padding: "0 16px", minWidth: 0, width: "auto" };
+
+/** The last row of a popup: a status message on the left, its buttons on the right. A message ending in "..." is
+ *  progress, one starting with "✓" success, anything else an error. */
+export function ActionRow({ message, children }: { message?: string; children?: React.ReactNode }) {
+    const color = !message
+        ? undefined
+        : message.startsWith("✓")
+          ? "#a4d007"
+          : message.endsWith("...")
+            ? undefined
+            : "#eb4b4b";
+    return (
+        <ItemRow>
+            <Field label={message ? <span style={{ color, fontWeight: 400 }}>{message}</span> : undefined} bottomSeparator="none">
+                {children && <div style={{ display: "flex", gap: CONTROL_GAP }}>{children}</div>}
+            </Field>
+        </ItemRow>
+    );
+}
+
+/** The privacy note of a popup that asks for an account or a key. */
+export function CredentialsNote({ service }: { service: string }) {
+    return (
+        <ItemRow>
+            <Field
+                label="Stored only on this PC"
+                description={`Saved in the plugin's own folder, sent only to ${service}, never logged or shared.`}
+                bottomSeparator="none"
             />
         </ItemRow>
     );
@@ -126,7 +199,7 @@ export function ButtonRow({
     return (
         <ItemRow>
             <Field label={label} description={description} disabled={disabled}>
-                <DialogButton disabled={disabled} onClick={onClick} style={{ padding: "0 16px", minWidth: 0, width: "auto" }}>
+                <DialogButton disabled={disabled} onClick={onClick} style={BUTTON_STYLE}>
                     {buttonLabel}
                 </DialogButton>
             </Field>

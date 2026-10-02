@@ -4,7 +4,18 @@ import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambr
 import { useSetting } from "../settings";
 import { backend, type RetroStatusResponse } from "../../ports/backend";
 import { usePanelContext } from "../context";
-import { Blocks, ButtonRow, ItemRow, SettingsModal } from "../components";
+import {
+    ActionRow,
+    Blocks,
+    BUTTON_STYLE,
+    ButtonRow,
+    CONTROL_GAP,
+    CredentialsNote,
+    FullWidthRows,
+    IconButton,
+    ItemRow,
+    SettingsModal,
+} from "../components";
 
 // ===========================================================================
 // 2. {Achievements} Sources Section
@@ -20,6 +31,13 @@ const ALL_ACHIEVEMENT_SOURCES: AchievementSourceDef[] = [
     { id: "retroachievements", label: "RetroAchievements" },
     { id: "console_emulators", label: "Emulators" },
 ];
+
+/** What each source reads, shown under the Source dropdown of the Add popup. */
+const SOURCE_DESCRIPTIONS: Record<AchievementSourceDef["id"], string> = {
+    steam_store: "Reads local emulator saves (Goldberg, CODEX, RUNE, GSE) and engine logs (Unity, Godot, Unreal).",
+    retroachievements: "Your RetroAchievements unlocks. Sign in with your username and Web API key.",
+    console_emulators: "Reads PS3 / PS4 trophies (RPCS3, shadPS4) and DuckStation, PCSX2, Dolphin, PPSSPP and RPCS3 logs.",
+};
 
 export function AchievementsSection() {
     const ctx = usePanelContext();
@@ -106,12 +124,12 @@ export function AchievementsSection() {
 
     const handleRegisterSource = async () => {
         setIsSavingRa(true);
-        setRaMsg("Checking API connection...");
+        setRaMsg("Saving...");
 
         if (sourceToRegister === "steam_store") {
             setServices({ ...services, steamStoreEnabled: true });
             ctx.ingest.trigger(250);
-            setRaMsg("✓ Steam Store Mirror enabled!");
+            setRaMsg("✓ Steam Store Mirror added");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSavingRa(false);
@@ -127,7 +145,7 @@ export function AchievementsSection() {
                 rpcs3Enabled: true,
             });
             ctx.ingest.trigger(250);
-            setRaMsg("✓ Console Emulators enabled!");
+            setRaMsg("✓ Emulators added");
             setTimeout(() => {
                 setShowAddModal(false);
                 setIsSavingRa(false);
@@ -150,7 +168,7 @@ export function AchievementsSection() {
                 setServices({ ...services, retroachievementsEnabled: true });
                 ctx.ingest.trigger(250);
                 refreshRetro();
-                setRaMsg("✓ RetroAchievements verified & connected!");
+                setRaMsg("✓ RetroAchievements added");
                 setTimeout(() => {
                     setShowAddModal(false);
                     setIsSavingRa(false);
@@ -168,249 +186,100 @@ export function AchievementsSection() {
     return (
         <PanelSection title="Achievements">
             <Blocks>
-                <>
-            {activeSources.length === 0 && (
-                <ItemRow>
-                    <div
-                        style={{
-                            opacity: 0.6,
-                            fontSize: "12px",
-                            padding: "4px 0",
-                            fontStyle: "italic",
-                        }}
-                    >
-                        No achievement sources active.
-                    </div>
-                </ItemRow>
-            )}
-
-            {/* List of Active Achievement Sources */}
-            {activeSources.map((src) => (
-                <ItemRow key={src.id}>
-                    <Field label={src.label}>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                            }}
-                        >
-                            {src.id === "console_emulators" && (
-                                <DialogButton
-                                    onClick={() => setShowEmuModal(true)}
-                                    title="Console Emulators Status"
-                                    style={{
-                                        padding: "0 8px",
-                                        minWidth: 0,
-                                        width: "auto",
-                                        fontSize: "13px",
-                                        lineHeight: "20px",
-                                    }}
-                                >
-                                    ⓘ
-                                </DialogButton>
-                            )}
-                            <DialogButton
-                                onClick={() => handleRemoveSource(src.id)}
-                                style={{
-                                    padding: "0 8px",
-                                    minWidth: 0,
-                                    width: "auto",
-                                    fontSize: "12px",
-                                }}
-                            >
-                                🗑️
-                            </DialogButton>
-                        </div>
-                    </Field>
-                </ItemRow>
-            ))}
-
-                </>
-                <>
-            {availableToAdd.length > 0 && (
-                <ButtonRow
-                    label="Add source"
-                    description="Connect another source of achievements"
-                    buttonLabel="Add"
-                    onClick={handleOpenAddModal}
-                />
-            )}
-
-                </>
-            </Blocks>
-
-            {/* Add Source Modal */}
-            <SettingsModal
-                title="Add Achievements Source"
-                isOpen={showAddModal}
-                onClose={() => setShowAddModal(false)}
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: "12px",
-                            color: "#e1e7ee",
-                            fontWeight: 600,
-                        }}
-                    >
-                        Source
-                    </span>
-                    <Dropdown
-                        rgOptions={availableToAdd.map((s) => ({
-                            data: s.id,
-                            label: s.label,
-                        }))}
-                        selectedOption={sourceToRegister}
-                        onChange={(o) => setSourceToRegister(o.data as any)}
-                        contextMenuPositionOptions={{ bMatchWidth: true }}
-                    />
-                </div>
-
-                {sourceToRegister === "retroachievements" && (
+                {activeSources.length > 0 && (
                     <>
-                        <TextField
-                            label="Username"
-                            value={raUser}
-                            onChange={(e) => setRaUser(e.target.value)}
-                        />
-                        <TextField
-                            label="Web API Key / Token"
-                            bIsPassword
-                            value={raToken}
-                            onChange={(e) => setRaToken(e.target.value)}
-                        />
+                        {activeSources.map((src) => (
+                            <ItemRow key={src.id}>
+                                <Field label={src.label}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: CONTROL_GAP }}>
+                                        {src.id === "console_emulators" && (
+                                            <IconButton onClick={() => setShowEmuModal(true)} title="Emulator status">
+                                                🛈
+                                            </IconButton>
+                                        )}
+                                        <IconButton onClick={() => handleRemoveSource(src.id)} title="Remove">
+                                            🗑️
+                                        </IconButton>
+                                    </div>
+                                </Field>
+                            </ItemRow>
+                        ))}
                     </>
                 )}
-
-                {sourceToRegister === "steam_store" && (
-                    <div style={{ fontSize: "12px", opacity: 0.8 }}>
-                        Passively scans local emulator saves (Goldberg, CODEX,
-                        RUNE, GSE) and engine runtime logs (Unity, Godot,
-                        Unreal).
-                    </div>
+                {availableToAdd.length > 0 && (
+                    <ButtonRow
+                        label="Add source"
+                        description="Connect another source of achievements"
+                        buttonLabel="Add"
+                        onClick={handleOpenAddModal}
+                    />
                 )}
+            </Blocks>
 
-                {sourceToRegister === "console_emulators" && (
-                    <div style={{ fontSize: "12px", opacity: 0.8 }}>
-                        Parses offline PS3 / PS4 trophies (RPCS3, shadPS4) and
-                        tails DuckStation, PCSX2, Dolphin, PPSSPP, and RPCS3
-                        emulator logs.
-                    </div>
-                )}
-
-                {raMsg && (
-                    <div
-                        style={{
-                            fontSize: "12px",
-                            color: raMsg.startsWith("✓")
-                                ? "#a4d007"
-                                : "#eb4b4b",
-                        }}
-                    >
-                        {raMsg}
-                    </div>
-                )}
-
-                <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                    <DialogButton
-                        disabled={isSavingRa}
-                        onClick={handleRegisterSource}
-                        style={{
-                            padding: "0 16px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Register
-                    </DialogButton>
-                    <DialogButton
-                        onClick={() => setShowAddModal(false)}
-                        style={{
-                            padding: "0 16px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Cancel
-                    </DialogButton>
-                </div>
+            {/* Add Source popup: the same rows and spacing as the panel. */}
+            <SettingsModal title="Add Achievements Source" isOpen={showAddModal} onClose={() => setShowAddModal(false)}>
+                <PanelSection>
+                    <Blocks>
+                        <FullWidthRows label="Source" description={SOURCE_DESCRIPTIONS[sourceToRegister]}>
+                            <Dropdown
+                                rgOptions={availableToAdd.map((s) => ({ data: s.id, label: s.label }))}
+                                selectedOption={sourceToRegister}
+                                onChange={(o) => setSourceToRegister(o.data as AchievementSourceDef["id"])}
+                                contextMenuPositionOptions={{ bMatchWidth: true }}
+                            />
+                        </FullWidthRows>
+                        {sourceToRegister === "retroachievements" && (
+                            <>
+                                <ItemRow trailing>
+                                    <TextField label="Username" value={raUser} onChange={(e) => setRaUser(e.target.value)} />
+                                </ItemRow>
+                                <ItemRow trailing>
+                                    <TextField label="Web API Key" bIsPassword value={raToken} onChange={(e) => setRaToken(e.target.value)} />
+                                </ItemRow>
+                                <CredentialsNote service="RetroAchievements" />
+                            </>
+                        )}
+                        <ActionRow message={raMsg}>
+                            <DialogButton disabled={isSavingRa} onClick={handleRegisterSource} style={BUTTON_STYLE}>
+                                Add
+                            </DialogButton>
+                            <DialogButton onClick={() => setShowAddModal(false)} style={BUTTON_STYLE}>
+                                Cancel
+                            </DialogButton>
+                        </ActionRow>
+                    </Blocks>
+                </PanelSection>
             </SettingsModal>
 
-            {/* Emulators Status Modal */}
-            <SettingsModal
-                title="Emulator Status & Integration"
-                isOpen={showEmuModal}
-                onClose={() => setShowEmuModal(false)}
-                width="480px"
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                        fontSize: "12px",
-                    }}
-                >
-                    {retroStatus?.emulators?.map((emu) => (
-                        <div
-                            key={emu.name}
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                padding: "6px 10px",
-                                background: "rgba(255, 255, 255, 0.03)",
-                                borderRadius: "4px",
-                            }}
-                        >
-                            <span
-                                style={{
-                                    color: emu.detected ? "#a4d007" : "#888",
-                                    fontWeight: 600,
-                                }}
-                            >
-                                {emu.detected ? "✓" : "✗"} {emu.name}
-                            </span>
-                            <span
-                                style={{
-                                    color: emu.authenticated
-                                        ? "#66c0f4"
-                                        : "#aaa",
-                                }}
-                            >
-                                {emu.authenticated
-                                    ? `Logged in (${emu.username})`
-                                    : emu.detected
-                                      ? "Local / Unauthenticated"
-                                      : "Not Detected"}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        marginTop: "8px",
-                    }}
-                >
-                    <DialogButton
-                        onClick={() => setShowEmuModal(false)}
-                        style={{
-                            padding: "0 16px",
-                            minWidth: 0,
-                            width: "auto",
-                        }}
-                    >
-                        Close
-                    </DialogButton>
-                </div>
+            {/* Emulator status popup: one row per emulator. */}
+            <SettingsModal title="Emulator Status" isOpen={showEmuModal} onClose={() => setShowEmuModal(false)} width="480px">
+                <PanelSection>
+                    <Blocks>
+                        <>
+                            {retroStatus?.emulators?.map((emu) => (
+                                <ItemRow key={emu.name}>
+                                    <Field
+                                        label={emu.name}
+                                        description={
+                                            emu.authenticated
+                                                ? `Signed in as ${emu.username}`
+                                                : emu.detected
+                                                  ? "Found, not signed in"
+                                                  : "Not found"
+                                        }
+                                    >
+                                        <span style={{ color: emu.detected ? "#a4d007" : "#8b929a" }}>{emu.detected ? "✓" : "✗"}</span>
+                                    </Field>
+                                </ItemRow>
+                            ))}
+                        </>
+                        <ActionRow>
+                            <DialogButton onClick={() => setShowEmuModal(false)} style={BUTTON_STYLE}>
+                                Close
+                            </DialogButton>
+                        </ActionRow>
+                    </Blocks>
+                </PanelSection>
             </SettingsModal>
         </PanelSection>
     );

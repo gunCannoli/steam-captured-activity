@@ -24,10 +24,17 @@ corner), and look at the ps5 theme's toasts and Preview on desktop and in Big Pi
 Follow-up: make Steam's own toasts honour `popup.scale` and `popup.layout` (banner only today); needs a live probe of
 the per-toast popup's size (`ResizeTo`, `STEAM_TOAST_WIDTH` in `theme/placement.ts`) and of Steam's toast DOM.
 
+**steam-cartridges settings panel tidy-up (2026-10-02): done, layout measured live.** Left for the user: a look at the
+panel and its popups (Add service / source, Emulator status, Add Rule, Review) on desktop and in Big Picture. Open:
+ScreenScraper's developer account comes from `screenscraper_dev_*` in a `.env` (this machine's workspace `.env`); a
+published build needs it shipped with the plugin (decide how). `test:live` F1 is blocked by a manual edit on game
+4263274102 (revert it in Manual Edit, or tell the agent to). `click_settings_panel.mjs`'s "Scan buttons" step looks
+on the Issues view, where there are none (the Scrape buttons are under "Not scraped").
+
 **steam-cartridges community tab (2026-10-01): crash fixed, downloads kept on disk (ADR-0051).** Both live-verified by the
 agent (Chrono Trigger after a restart: images 479 ms, was 11-23 s; `test:live` 13/13). Left for the user: plan § 7 of
 [the investigation](docs/plans/steam-cartridges-community-crash-and-speed-investigation.md) (Chrono Trigger three times, then
-after a restart), and a look at the "Keep downloaded media" slider in Settings → Community & Media (desktop and Big Picture).
+after a restart), and a look at the "Cached Media Lifespan" slider in Settings → Community Content (desktop and Big Picture).
 When both pass, delete the investigation plan. Do not re-introduce parallel backend calls (no gain: the host serves one
 request at a time).
 

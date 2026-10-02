@@ -165,7 +165,9 @@ function config.save_credentials(map)
   end
   table.sort(lines)
   local ok = utils.write_file(env_path, table.concat(lines, "\n") .. "\n")
-  cached_env = current
+  -- Drop the cache instead of setting it to `current`: `current` is the data folder's .env alone, and the next read
+  -- must merge the legacy .env again (it may hold the only ScreenScraper account, so GetStatus said none after a save).
+  cached_env = nil
   cached_key = nil -- the SteamGridDB key may have changed (re-read on next use)
   return ok ~= false
 end

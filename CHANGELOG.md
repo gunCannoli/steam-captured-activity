@@ -7,6 +7,20 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: settings panel and popups on one spacing system (2026-10-02)**: at the user's request. Every popup
+  (Add service, Add source, Emulator status, Add/Edit rule, Review) is now `PanelSection` + `Blocks` + the shared rows,
+  like the Game Data editor: dropdowns as `FullWidthRows`, rule services as toggle rows, one block per game in Review.
+  New shared rows in `frontend/settings/components.tsx`: `IconButton` (one fixed size, so 🛈 and 🗑️ match), `StatRow`,
+  `ActionRow` (status message + popup buttons), `CredentialsNote`. `SliderRow` measured live: Steam's `SliderField` is
+  the old `DialogSlider` (its own translucent box, 12 px padding, 22 px bottom margin, no card colour), and the
+  `ItemRow trailing` cancel ate the gap to the next section (2 px instead of 24); it is now a card of two rows (label,
+  description, value; then the slider with its box reset). Empty-state rows ("No ... active", "No custom routing
+  rules") are gone and an empty block no longer leaves a 22 px gap. ScreenScraper's popup asks only for the user
+  account: the developer account stays the plugin's (`screenscraper_dev_*` in `.env`). Fixed in the backend:
+  `web_config.save_credentials` set its cache to the data folder's `.env` alone, dropping the legacy `.env` keys, so
+  after any save (the live click-through saves a probe key) `GetStatus` said no ScreenScraper until Steam restarted;
+  now it drops the cache (Lua regression test in `test_migrate.lua`). Live: `test:live` 13/14 (F1 refuses: game
+  4263274102 already has a manual edit), layout measured section by section (gaps 22-24 px, slider on the card colour).
 - **enhanced-notifications: simpler theme format (2026-10-02, ADR-0052, amends ADR-0050 decision 2)**: the user's
   decisions, from their draft of `themes/ps5.jsonc`. One `settings` for every toast (plus `text_align`); the banner is
   layered from the theme's `popup`, the block's popup keys, `normal`, the tier (popup keys straight on a tier); one
