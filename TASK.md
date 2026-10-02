@@ -131,7 +131,7 @@ After a Steam restart, check on desktop: Reset keeps one dialog open (Resetting.
 a theme with a typo, picked and then reloaded, opens the theme-problems popup (560 x 360) listing it, and none opens at Steam's start.
 
 **F1 Game Data editor: the user did a live check (2026-09-30); follow-ups are coded, waiting for a second live check.** Settings now use
-enhanced-achievements' spacing ([plugins.md guardrail 18](docs/plugins.md#18-settings-panel-layout-reference-enhanced-achievements)),
+enhanced-achievements' spacing ([plugins.md guardrail 18](docs/plugins.md#18-settings-panel-layout-reference-enhanced-notifications)),
 Troubleshooting is gone, Game Data is the **Manual Edit** block in Library Audit, and the popup has a Controller support dropdown (the
 `controllerOverrides` setting now reaches Game Info). Deploy with `dev.ps1`, then look at every section and the popup (desktop and Big Picture),
 set Multi-player, Co-op and a controller option on a game whose data is wrong and check its Game Info, then run `check_settings_panel.mjs`,
@@ -209,7 +209,7 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 ## Waiting on the user
 
 - Alpha testing checklist (U1–U9, real hardware/real unlocks only) —
-  [phase7-and-alpha-plan.md § User test checklist](docs/plans/phase7-and-alpha-plan.md#user-test-checklist-only-the-user-can-verify).
+  the plan's "User test checklist" (deleted plan; `git show 0cc6249^:docs/plans/phase7-and-alpha-plan.md`).
 
 ## Blocked upstream
 
