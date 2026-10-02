@@ -16,6 +16,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**Epic and Xbox copies (2026-10-02): umbrella plan drafted, no code.**
+[steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md). Next: the user answers its
+§ 8 questions (Epic sign-in, client-id risk, Game Info and community order, activity for every source), then Phase 0
+research (Xbox detection needs an installed Xbox PC game) and the ADR before any code.
+
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
 (RUNE)" toggle, popup size) on desktop and in Big Picture; Super Mario World's popup with "Open RetroAchievements to

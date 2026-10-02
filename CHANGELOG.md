@@ -7,6 +7,16 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Epic and Xbox copies: investigation and umbrella plan (2026-10-02, no code)**: at the user's request.
+  [docs/plans/steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md). Read
+  game-data-linker's Epic and Xbox code: Epic game data and achievement lists come from egdata.app (no sign-in, never the
+  user's unlocks; its Epic sign-in only lists friends), Xbox unlocks come from Xbox Live after a device-code sign-in.
+  Found on this machine: the Epic shortcut (Jotunnslayer) launches the .exe directly, and Epic's manifest
+  (`ProgramData\Epic\EpicGamesLauncher\Data\Manifests\*.item`) identifies it exactly (`InstallLocation`,
+  `CatalogNamespace`); egdata.app returns its achievements by that namespace, and Epic's achievement ids equal the Steam
+  API names for this game. The Activity feed shows no achievement events today. User decisions: no manual linking, Steam
+  first, synced unlocks with no toast, live unlock capture as a future consideration. A new ADR is needed before code
+  (amends ADR-0034, reverses ADR-0037's "Epic/Xbox stay dropped").
 - **Reset Achievements: RetroAchievements manual reset (ADR-0054, 2026-10-02)**: at the user's request, the RA source
   carries its game page (`url`); the popup warns and offers "Open RetroAchievements to reset manually", which opens
   `retroachievements.org/game/<id>` (its "Manage progress" button, RAWeb `MasteredProgressIndicator`) with
