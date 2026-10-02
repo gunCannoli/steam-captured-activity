@@ -1,6 +1,12 @@
 // Settings: Metadata services (migration plan M8c, moved verbatim).
 import { useEffect, useState } from "react";
-import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambrew/client";
+import {
+    DialogButton,
+    Dropdown,
+    Field,
+    PanelSection,
+    TextField,
+} from "@steambrew/client";
 import { useSetting } from "../settings";
 import { backend, type ProviderStatus } from "../../ports/backend";
 import { usePanelContext } from "../context";
@@ -10,7 +16,11 @@ import { Blocks, ButtonRow, ItemRow, SettingsModal } from "../components";
 // 1. {Metadata} Services Section
 // ===========================================================================
 
-type MetadataServiceId = "steam_store" | "screenscraper" | "igdb" | "steamgriddb";
+type MetadataServiceId =
+    | "steam_store"
+    | "screenscraper"
+    | "igdb"
+    | "steamgriddb";
 
 interface MetadataServiceDef {
     id: MetadataServiceId;
@@ -21,7 +31,7 @@ const ALL_METADATA_SERVICES: MetadataServiceDef[] = [
     { id: "steam_store", label: "Steam Store Mirror" },
     { id: "screenscraper", label: "ScreenScraper" },
     { id: "igdb", label: "IGDB" },
-    { id: "steamgriddb", label: "SteamGridDB (artwork)" },
+    { id: "steamgriddb", label: "SteamGridDB" },
 ];
 
 export function MetadataSection() {
@@ -45,7 +55,8 @@ export function MetadataSection() {
     const [isSaving, setIsSaving] = useState(false);
 
     const refresh = () => {
-        backend.getStatus()
+        backend
+            .getStatus()
             .then(setStatus)
             .catch(() => {});
     };
@@ -56,7 +67,8 @@ export function MetadataSection() {
 
     // Determine active services
     const activeServices: MetadataServiceDef[] = [];
-    const [steamStoreService, ssService, igdbService, sgdbService] = ALL_METADATA_SERVICES;
+    const [steamStoreService, ssService, igdbService, sgdbService] =
+        ALL_METADATA_SERVICES;
     if (steamStoreService && services.steamStoreEnabled !== false) {
         activeServices.push(steamStoreService);
     }
@@ -70,7 +82,11 @@ export function MetadataSection() {
     if (igdbService && services.igdbEnabled !== false && status?.has_twitch) {
         activeServices.push(igdbService);
     }
-    if (sgdbService && services.steamgriddbEnabled !== false && status?.has_sgdb) {
+    if (
+        sgdbService &&
+        services.steamgriddbEnabled !== false &&
+        status?.has_sgdb
+    ) {
         activeServices.push(sgdbService);
     }
 
@@ -205,51 +221,49 @@ export function MetadataSection() {
         <PanelSection title="Metadata">
             <Blocks>
                 <>
-            {activeServices.length === 0 && (
-                <ItemRow>
-                    <div
-                        style={{
-                            opacity: 0.6,
-                            fontSize: "12px",
-                            padding: "4px 0",
-                            fontStyle: "italic",
-                        }}
-                    >
-                        No metadata services active.
-                    </div>
-                </ItemRow>
-            )}
+                    {activeServices.length === 0 && (
+                        <ItemRow>
+                            <div
+                                style={{
+                                    opacity: 0.6,
+                                    fontSize: "12px",
+                                    padding: "4px 0",
+                                    fontStyle: "italic",
+                                }}
+                            >
+                                No metadata services active.
+                            </div>
+                        </ItemRow>
+                    )}
 
-            {/* List of Active Services */}
-            {activeServices.map((svc) => (
-                <ItemRow key={svc.id}>
-                    <Field label={svc.label}>
-                        <DialogButton
-                            onClick={() => handleRemoveService(svc.id)}
-                            style={{
-                                padding: "0 8px",
-                                minWidth: 0,
-                                width: "auto",
-                                fontSize: "12px",
-                            }}
-                        >
-                            🗑️
-                        </DialogButton>
-                    </Field>
-                </ItemRow>
-            ))}
-
+                    {/* List of Active Services */}
+                    {activeServices.map((svc) => (
+                        <ItemRow key={svc.id}>
+                            <Field label={svc.label}>
+                                <DialogButton
+                                    onClick={() => handleRemoveService(svc.id)}
+                                    style={{
+                                        padding: "0 8px",
+                                        minWidth: 0,
+                                        width: "auto",
+                                        fontSize: "12px",
+                                    }}
+                                >
+                                    🗑️
+                                </DialogButton>
+                            </Field>
+                        </ItemRow>
+                    ))}
                 </>
                 <>
-            {availableToAdd.length > 0 && (
-                <ButtonRow
-                    label="Add service"
-                    description="Connect another source of game info and artwork"
-                    buttonLabel="Add"
-                    onClick={handleOpenAddModal}
-                />
-            )}
-
+                    {availableToAdd.length > 0 && (
+                        <ButtonRow
+                            label="Add service"
+                            description="Connect another source of game info and artwork"
+                            buttonLabel="Add"
+                            onClick={handleOpenAddModal}
+                        />
+                    )}
                 </>
             </Blocks>
 
@@ -353,9 +367,9 @@ export function MetadataSection() {
                             }}
                         >
                             Fills empty artwork slots (capsule, hero, logo,
-                            wide) for shortcuts with no Steam match. Art you
-                            set yourself is never replaced. Get a free key in
-                            your SteamGridDB profile preferences.
+                            wide) for shortcuts with no Steam match. Art you set
+                            yourself is never replaced. Get a free key in your
+                            SteamGridDB profile preferences.
                         </div>
                         <TextField
                             label="SteamGridDB API Key"
