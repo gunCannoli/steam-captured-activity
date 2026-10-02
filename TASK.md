@@ -16,6 +16,15 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges backend crashes on Chrono Trigger (SNES) + community tabs are slow to fill (2026-10-01): open investigation,
+not root-caused.** `steam-cartridges-dev`'s Lua backend dies (`EXCEPTION_ACCESS_VIOLATION`, `crash.dmp` unread) about a second after
+the images are in and the manual's cover job starts, on deployed `df6326d` and again on `9a174b6`. Prime suspects: the new
+`GetManualCover` / `manual_cover_store.lua` (it has no `require("fs")`, and `manual_covers/` was never created), then the chunk path,
+then concurrent backend calls. Investigation plan with evidence, ordered hypotheses, speed-up options and rules:
+[steam-cartridges-community-crash-and-speed-investigation.md](docs/plans/steam-cartridges-community-crash-and-speed-investigation.md).
+Until it is understood, do not re-introduce parallel backend calls; if a quick stop-gap is wanted, remove the disk-cover RPCs first
+(H1 in the plan).
+
 **enhanced-achievements merged into enhanced-notifications (ADR-0050, 2026-10-01): code committed, waiting for the live
 verification in [its plan § 9](docs/plans/enhanced-notifications-achievements-merge-plan.md)** (the user: disable
 enhanced-achievements, move the ps5 theme and settings, deploy, `npm run test:live`, the by-hand checks). It supersedes
