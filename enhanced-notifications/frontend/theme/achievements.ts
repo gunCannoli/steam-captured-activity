@@ -23,6 +23,7 @@ import {
     type AnimationPair,
     type Edges,
     type FontStyle,
+    type HoverSpec,
     type SoundSpec,
     type TextAlign,
     type ToastPosition,
@@ -111,6 +112,8 @@ export interface AchievementTheme {
     textAlign: TextAlign;
     /** `null` keeps Steam's own toast duration. */
     displayTimeMs: number | null;
+    /** The theme's `settings.hover`, drawn inside the banner. */
+    hover: HoverSpec;
     tiers: Record<Tier, ResolvedTier>;
     /** Every custom asset path the theme references, for the backend to load. */
     assetPaths: string[];
@@ -123,6 +126,8 @@ export interface Inherited {
     animation?: AnimationPair | null;
     displayTimeMs?: number | null;
     textAlign?: TextAlign | null;
+    /** `settings.hover`, already resolved. */
+    hover?: HoverSpec;
     /** The theme's raw `popup`. */
     popup?: unknown;
     /** The theme's raw `text`. */
@@ -416,6 +421,7 @@ export function resolveAchievementTheme(raw: unknown, inherited: Inherited = {})
         animation: inherited.animation ?? DEFAULT_ANIMATION,
         textAlign: inherited.textAlign ?? 'left',
         displayTimeMs: inherited.displayTimeMs ?? null,
+        hover: inherited.hover ?? { enabled: true, color: null },
         tiers,
         assetPaths: [...assetPaths],
         warnings,

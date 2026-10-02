@@ -81,6 +81,7 @@ In a top-level `settings` object. For every toast, achievements included.
 | `animation` | `"slide"`, `"fade"`, `"up"`, `"down"`, `"ps5"`, `"none"`, or `{ "in": ..., "out": ... }` | Entrance and exit. One name sets both; in the object form an unset side is `slide` (in) or `fade` (out). Unset: Steam's own (slide in, fade out for the banner). `slide` and `ps5` move from the side of the corner (`ps5`: a short slide with a fade, vertical for the centred positions) |
 | `display_time_ms` | ms, `1000`–`60000` | How long every toast stays. Unset: Steam's own per type. For the banner, how long it stays fully visible, between the end of its entrance and the start of its exit |
 | `text_align` | `"left"`, `"center"`, `"right"` | Text alignment. Unset: left |
+| `hover` | `true`, `false` or `[true, "#hex"]` | The highlight while the mouse is over a toast (achievement banners included). `true`, or unset: Steam's own blue gradient. `false`: none. `[true, "#hex"]`: that colour (also tints the Steam logo watermark); like Steam's, shown at 50% |
 
 Position and animation apply on desktop, in the in-game overlay and in Big
 Picture. With an `animation`, the toast does not travel with Steam's slide: it

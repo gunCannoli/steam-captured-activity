@@ -1,3 +1,5 @@
+import { STEAM_HOVER_GRADIENT } from '../theme/schema.ts';
+
 /**
  * Banner styles, injected with the banner itself so they travel into whichever
  * toast window (desktop popup, Big Picture, overlay) the portal renders into.
@@ -53,6 +55,29 @@ export const BANNER_CSS = `
 /* Done: stays invisible while Steam fades and closes the popup. Visibility,
    not a class swap, so the finished exit animation is not restarted. */
 .ea-banner.ea-done { visibility: hidden; }
+
+/* Hover. Steam's own belongs to the toast card we render inside: its ::before
+   (position: absolute; inset: 0, on a static, 0 px tall card) covered the whole
+   window square, and with its blue logo it stayed on screen after the banner
+   left, until Steam closed the popup (verified live 2026-10-02). Never shown
+   under a banner; the banner draws its own highlight inside its shape, so it
+   has the banner's corners and fades out with it. --ea-hover-bg is the theme's
+   colour (settings.hover); unset, Steam's own gradient. */
+:has(> .ea-banner)::before { display: none !important; }
+:has(> .ea-banner) > :not(.ea-banner) { display: none !important; }
+.ea-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--ea-hover-bg, ${STEAM_HOVER_GRADIENT});
+    opacity: 0;
+    transition: opacity 0.3s linear;
+    pointer-events: none;
+    z-index: 2;
+}
+.ea-banner:hover::after { opacity: 0.5; }
+.ea-banner.ea-hover-off::after { display: none; }
 
 /* --- entrance (ea-in-*) --- */
 .ea-in-fade  { --ea-in-name: ea-in-fade; }

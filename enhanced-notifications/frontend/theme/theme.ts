@@ -17,7 +17,7 @@
  */
 
 import type { ToastSelectors } from '../kernel/toast-selectors.ts';
-import { ANIMATIONS, POSITIONS, TEXT_ALIGNS, type Animation, type AnimationPair, type Edges, type FontStyle, type SoundSpec, type TextAlign, type ToastPosition } from './schema.ts';
+import { ANIMATIONS, POSITIONS, TEXT_ALIGNS, type Animation, type AnimationPair, type Edges, type FontStyle, type HoverSpec, type SoundSpec, type TextAlign, type ToastPosition } from './schema.ts';
 import { resolveAchievementTheme, type AchievementTheme, type Inherited } from './achievements.ts';
 
 /** Re-exported: theme.test.ts and active-theme.ts read it from here. */
@@ -70,6 +70,8 @@ export interface ResolvedStyle {
     headerIcon: boolean | null;
     /** `false` mutes every notification; `null` keeps Steam's sound. */
     sound: SoundSpec | false | null;
+    /** `settings.hover`: the mouse-over highlight (Steam's own when unset). */
+    hover: HoverSpec;
     /** Distance from the anchor corner; only the sides the toast is anchored to count. `null` = Steam's place. */
     margin: Edges | null;
     /** Space inside the toast, around its logo and text. `null` = Steam's 10 px. */
@@ -181,6 +183,22 @@ function gameIcon(raw: unknown, warnings: string[]): ResolvedStyle['gameIcon'] {
     return { visible: null, radius: null };
 }
 
+/** `settings.hover`: `true` / `false`, `[enabled]` or `[enabled, "#hex"]`. Unset or unreadable: Steam's own. */
+export function resolveHover(raw: unknown, warnings: string[]): HoverSpec {
+    const steam: HoverSpec = { enabled: true, color: null };
+    if (raw === undefined) return steam;
+    if (typeof raw === 'boolean') return { enabled: raw, color: null };
+    if (Array.isArray(raw) && typeof raw[0] === 'boolean') {
+        if (raw[1] === undefined) return { enabled: raw[0], color: null };
+        const c = color(raw[1]);
+        if (c) return { enabled: raw[0], color: c };
+        warnings.push(`settings.hover colour "${String(raw[1])}" is not #rgb, #rrggbb or #rrggbbaa; using Steam's.`);
+        return { enabled: raw[0], color: null };
+    }
+    warnings.push('settings.hover must be true, false or [true, "#hex"]; using Steam\'s.');
+    return steam;
+}
+
 function resolveStyle(raw: Json, textAlign: TextAlign | null, warnings: string[]): ResolvedStyle {
     const popup = isObject(raw.popup) ? raw.popup : {};
     const text = isObject(raw.text) ? raw.text : {};
@@ -214,6 +232,7 @@ function resolveStyle(raw: Json, textAlign: TextAlign | null, warnings: string[]
         fontFamily: fontFamily(raw.font_family),
         text: { title: textStyle(text.title), body: textStyle(text.body), subtext: textStyle(text.subtext) },
         textAlign,
+        hover: resolveHover(isObject(raw.settings) ? raw.settings.hover : undefined, warnings),
         gameIcon: gameIcon(raw.game_icon, warnings),
         headerIcon: bool(raw.header_icon),
         sound,
@@ -254,7 +273,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     for (const [key, message] of Object.entries(GONE)) if (raw[key] !== undefined) warnings.push(message);
 
     const style = resolveStyle(raw, textAlign, warnings);
-    const achievements = resolveAchievements(raw.achievements, { position, animation, displayTimeMs, textAlign, popup: raw.popup, text: raw.text }, warnings);
+    const achievements = resolveAchievements(raw.achievements, { position, animation, displayTimeMs, textAlign, hover: style.hover, popup: raw.popup, text: raw.text }, warnings);
     const assetPaths = new Set<string>(style.sound ? [style.sound.path] : []);
     for (const path of achievements?.assetPaths ?? []) assetPaths.add(path);
     return { position, animation, displayTimeMs, style, achievements, assetPaths: [...assetPaths], warnings };
@@ -342,6 +361,22 @@ export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
     if (s.fontFamily && sel.templates) css += `${root} ${sel.templates}, ${root} ${sel.templates} * { font-family: ${s.fontFamily} !important; }\n`;
 
     if (s.watermark === false && sel.watermark) css += `${root} ${sel.watermark} { display: none !important; }\n`;
+
+    // Steam's hover is the card's ::before (`position: absolute; inset: 0`), but the card is `position: static`, so the
+    // overlay covered the whole toast window: square over a rounded card, outside its margin, and only following an
+    // animation while its transform ran. Positioned and clipping, the card holds its own overlay and watermark. Only
+    // when the card differs from the window (rounded corners) or the hover is the theme's: otherwise stock is right.
+    if (sel.desktopPopup && (s.border || !s.hover.enabled || s.hover.color)) {
+        const card = `${root} ${sel.desktopPopup}`;
+        css += `${card} { position: relative !important; overflow: hidden !important; }\n`;
+        if (!s.hover.enabled) {
+            css += `${card}::before { display: none !important; }\n`;
+            if (sel.watermark) css += `${card}:hover ${sel.watermark} { color: inherit !important; opacity: 0.05 !important; }\n`;
+        } else if (s.hover.color) {
+            css += `${card}::before { background: ${s.hover.color} !important; }\n`;
+            if (sel.watermark) css += `${card}:hover ${sel.watermark} { color: ${s.hover.color} !important; }\n`;
+        }
+    }
 
     css += textRule(sel.title, root, s.text.title, BASE_PX.title, s.textAlign);
     css += textRule(sel.body, root, s.text.body, BASE_PX.body, s.textAlign);

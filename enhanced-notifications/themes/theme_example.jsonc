@@ -45,6 +45,12 @@
 
         // Text alignment: "left" | "center" | "right". Unset: left.
         "text_align": "left",
+
+        // The highlight while the mouse is over a toast, achievement banners included.
+        //   true (or unset)  Steam's own blue gradient
+        //   false            none
+        //   [true, "#hex"]   that colour, shown at 50% like Steam's (it also tints the Steam logo watermark)
+        "hover": true,
     },
 
     // -------------------------------------------------------------------------

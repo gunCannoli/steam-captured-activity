@@ -7,6 +7,16 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: toast hover (2026-10-02)**: at the user's request. Found live: Steam's hover is
+  `DesktopToastPopup::before` (`position: absolute; inset: 0`, a blue radial gradient, 0 -> .5 on hover) plus a blue tint
+  on the logo watermark, and the card and its ancestors are `position: static`, so the overlay covers the whole window.
+  A themed card with rounded corners did not clip it, it ignored the margin and followed an animation only while its
+  transform ran; in a banner's popup (card 0 px tall) it covered the window square and stayed until Steam closed the
+  popup. Fix: themed cards get `position: relative; overflow: hidden` (only with a border or a theme hover, so a theme
+  that sets nothing still emits no CSS); banner popups hide Steam's overlay and watermark and the banner draws its own
+  (`.ea-banner::after`, its radius, fading with it). New key `settings.hover` (`true` / `false` / `[true, "#hex"]`,
+  `resolveHover`), inherited by the banner. Live (forced hover over CDP): banner, Steam's overlay none, ours .5 with 8 px
+  corners; ps5 toast, card relative and clipping, the overlay moving with the slide-out. Unit tests 171.
 - **enhanced-notifications: notifications queue and the padding crop (ADR-0055, 2026-10-02)**: at the user's request.
   (1) The achievement queue now queues every notification: found that Steam's desktop toast stack (module `48197`) holds
   back toasts while one is `displayToastAlone` (`typeConfig[eType].displayToastAlone`, true only on types 33-35); a new

@@ -31,6 +31,18 @@ export interface Edges {
 
 export type FontStyle = 'bold' | 'regular' | 'italic';
 
+/**
+ * `settings.hover`: the highlight when the mouse is over a toast. `enabled: false` draws none; `color: null` is Steam's
+ * own (a blue radial gradient at 50%), else that colour at 50%. Steam's own when the theme does not set it.
+ */
+export interface HoverSpec {
+    enabled: boolean;
+    color: string | null;
+}
+
+/** Steam's own toast hover (DesktopToastPopup::before, verified live 2026-10-02): this gradient at 50% opacity, 0.3 s. */
+export const STEAM_HOVER_GRADIENT = 'radial-gradient(155.42% 100% at 0% 0%, rgb(31, 42, 57) 0px, rgb(31, 42, 57) 0%, rgba(26, 160, 255, 0.325) 100%)';
+
 export interface SoundSpec {
     path: string;
     volumePct: number;

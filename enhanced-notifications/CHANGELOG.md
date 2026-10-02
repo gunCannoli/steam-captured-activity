@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Changed
 
+- **Fixed: the mouse-over highlight on toasts** was square on rounded toasts, ignored the margin and the animation, and on an achievement banner stayed on screen after the banner had gone. It now has the toast's shape and moves and fades with it. New theme setting `"hover"`: `true` (Steam's own, the default), `false` (none) or `[true, "#hex"]` (your colour).
 - **Notifications queue** (ADR-0055): "Achievement queue" now queues every notification, not just achievements: one on screen at a time instead of Steam's stack of up to three, using Steam's own "show alone" rule.
 - **Fixed: a theme's `padding` shrank desktop toasts and cut their text off** at the top and bottom (the toast went from 70 to 50 px). The toast now keeps Steam's height and the padding comes out of it. The bundled `ps5` theme uses `"gap": [10, 2]` so three-row toasts fit.
 - **Removed: Timeline marker.** The setting and the marker added to a non-Steam game's timeline on unlock are gone; adding Steam's own features to non-Steam games is steam-cartridges' job, which may take it up later. Screenshot and clip on unlock are unchanged. A stored `recording.add_timeline_marker` is ignored.

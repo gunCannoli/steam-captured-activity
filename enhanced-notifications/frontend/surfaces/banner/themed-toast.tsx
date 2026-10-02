@@ -248,6 +248,7 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedAchievementTheme
         background,
         border: banner.border.width > 0 ? `${banner.border.width}px solid ${banner.border.color}` : 'none',
         borderRadius: `${banner.border.radius}px`,
+        ...(theme.hover.color ? { '--ea-hover-bg': theme.hover.color } : {}),
     } as React.CSSProperties;
 
     if (phase === 'waiting') {
@@ -402,7 +403,7 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedAchievementTheme
     return (
         <div
             ref={rootRef}
-            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}${phase === 'done' ? ' ea-done' : ''}`}
+            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}${theme.hover.enabled ? '' : ' ea-hover-off'}${phase === 'done' ? ' ea-done' : ''}`}
             style={rootStyle}
             onClick={dismiss}
         >

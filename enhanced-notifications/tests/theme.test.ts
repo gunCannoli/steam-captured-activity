@@ -253,3 +253,34 @@ test('padding keeps Steam\'s toast height: the box height is what the padding le
     const huge = buildCss(resolveTheme({ popup: { padding: 50 } }).style, sel);
     assert.match(huge, /:is\(\.tt\) \{[^}]*height: 0px !important; \}/);
 });
+
+test('settings.hover: unset or true is Steam\'s own, false is none, [true, "#hex"] a colour; bad values warn', async () => {
+    const { resolveHover } = await import('../frontend/theme/theme.ts');
+    const w: string[] = [];
+    assert.deepEqual(resolveHover(undefined, w), { enabled: true, color: null });
+    assert.deepEqual(resolveHover(true, w), { enabled: true, color: null });
+    assert.deepEqual(resolveHover(false, w), { enabled: false, color: null });
+    assert.deepEqual(resolveHover([true], w), { enabled: true, color: null });
+    assert.deepEqual(resolveHover([true, '#66c0f4'], w), { enabled: true, color: '#66c0f4' });
+    assert.equal(w.length, 0);
+    assert.deepEqual(resolveHover([true, 'blue'], w), { enabled: true, color: null });
+    assert.deepEqual(resolveHover('yes', w), { enabled: true, color: null });
+    assert.equal(w.length, 2);
+    assert.deepEqual(resolveTheme({ settings: { hover: false } }).achievements, null);
+    const withBlock = resolveTheme({ settings: { hover: [true, '#ff000080'] }, achievements: { normal: {} } });
+    assert.deepEqual(withBlock.achievements?.hover, { enabled: true, color: '#ff000080' }, 'the banner inherits it');
+});
+
+test('hover CSS: the card holds its own overlay; false hides it; a colour replaces Steam\'s', () => {
+    const sel: ToastSelectors = { ...SEL, desktopPopup: ':is(.dp)', watermark: ':is(.wm)' };
+    assert.equal(buildCss(resolveTheme({}).style, sel), '', 'nothing set: stock, no CSS');
+    const rounded = buildCss(resolveTheme({ popup: { border: [0, '#000', 8] } }).style, sel);
+    assert.match(rounded, /body\[data-en-type\] :is\(\.dp\) \{ position: relative !important; overflow: hidden !important; \}/);
+    assert.doesNotMatch(rounded, /::before/, "rounded with Steam's hover: Steam's overlay, now inside the card");
+    const off = buildCss(resolveTheme({ settings: { hover: false } }).style, sel);
+    assert.match(off, /:is\(\.dp\)::before \{ display: none !important; \}/);
+    assert.match(off, /:is\(\.dp\):hover :is\(\.wm\) \{ color: inherit !important; opacity: 0\.05 !important; \}/);
+    const tinted = buildCss(resolveTheme({ settings: { hover: [true, '#66c0f4'] } }).style, sel);
+    assert.match(tinted, /:is\(\.dp\)::before \{ background: #66c0f4 !important; \}/);
+    assert.match(tinted, /:is\(\.dp\):hover :is\(\.wm\) \{ color: #66c0f4 !important; \}/);
+});
