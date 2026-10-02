@@ -253,7 +253,14 @@ export function RevisionSection() {
                     </>
                     {/* Three rows: label, description, then the button across the full row. */}
                     <FullWidthRows label="Review" description="Fix controller support and Steam links game by game">
-                        <DialogButton onClick={() => setIsAuditModalOpen(true)} style={{ ...BUTTON_STYLE, width: "100%" }}>
+                        <DialogButton
+                            onClick={() => {
+                                // Open on the view that has something in it.
+                                setFilter(flagged.length === 0 && notScraped.length > 0 ? "not_scraped" : "all");
+                                setIsAuditModalOpen(true);
+                            }}
+                            style={{ ...BUTTON_STYLE, width: "100%" }}
+                        >
                             Review
                         </DialogButton>
                     </FullWidthRows>

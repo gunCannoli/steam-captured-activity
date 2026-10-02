@@ -41,18 +41,24 @@ const body = mode === "list"
   const btn = (t) => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === t);
   const add = btn('Add Rule'); step('Add Rule button', !!add);
   if (add) { click(add); await wait(800); const cancel = btn('Cancel'); step('Add Rule modal opens (Cancel present)', !!cancel); if (cancel) { click(cancel); await wait(300); } }
-  // 3. Audit: "Review" opens the audit modal; look for per-game Scan buttons.
+  // 3. Library Analytics: "Review" opens the Review popup, on "Not scraped" when there are no issues but unscraped games;
+  //    with a Scrape button there, scrape one game.
   const rev = btn('Review'); step('Review button', !!rev);
   if (rev) {
     click(rev); await wait(1500);
-    const scans = [...document.querySelectorAll('button')].filter(b => /scan/i.test(b.textContent));
-    step('Audit modal lists Scan buttons', scans.length > 0, scans.length + ' scan button(s); ' + [...new Set([...document.querySelectorAll('button')].map(b => b.textContent.trim().slice(0, 20)))].slice(0, 20).join(' | '));
-    out.scanCount = scans.length;
-    if (scans.length) {
-      click(scans[0]); await wait(300);
-      const msg1 = document.body.textContent.match(/Scanning [^.]*\.\.\./)?.[0];
-      let done; for (let i = 0; i < 60 && !done; i++) { await wait(500); done = document.body.textContent.match(/Scanned [^A-Z]*/)?.[0]; }
-      step('Scan single: Scanning... then Scanned', !!msg1 && !!done, [msg1, done].join(' -> '));
+    const done = btn('Done');
+    const view = document.body.textContent.match(/(Issues|Not scraped) [(][0-9]+[)]/);
+    step('Review popup opens (Done and the view dropdown)', !!done && !!view, view?.[0] ?? 'no view label');
+    const scrapes = [...document.querySelectorAll('button')].filter(b => b.textContent.trim() === 'Scrape');
+    out.scrapeCount = scrapes.length;
+    if (scrapes.length) {
+      click(scrapes[0]); await wait(300);
+      const msg1 = document.body.textContent.match(/Scanning [^.]*[.][.][.]/)?.[0];
+      let fin; for (let i = 0; i < 60 && !fin; i++) { await wait(500); fin = document.body.textContent.match(/Scanned [^A-Z]*/)?.[0]; }
+      step('Scrape one game: Scanning... then Scanned', !!msg1 && !!fin, [msg1, fin].join(' -> '));
+    } else {
+      // Nothing to scrape on the view the popup opened on (no unscraped games, or issues to fix first): not a failure.
+      step('Scrape one game: skipped, nothing to scrape on ' + (view?.[0] ?? '?'), true);
     }
     const close = [...document.querySelectorAll('button')].find(b => /^(Close|Done|Cancel)$/.test(b.textContent.trim())); if (close) click(close);
     await wait(300);
