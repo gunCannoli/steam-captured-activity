@@ -36,7 +36,6 @@ export interface Settings {
     'recording.enabled': boolean;
     'recording.duration_s': number;
     'recording.delay_ms': number;
-    'recording.add_timeline_marker': boolean;
     /** Comma-separated FeatureIds switched off (safety/features.ts); no panel control. */
     disabledFeatures: string;
 }
@@ -52,7 +51,6 @@ export const DEFAULTS: Settings = {
     'recording.enabled': defaults.recording.enabled,
     'recording.duration_s': defaults.recording.duration_s,
     'recording.delay_ms': defaults.recording.delay_ms,
-    'recording.add_timeline_marker': defaults.recording.add_timeline_marker,
     disabledFeatures: defaults.disabledFeatures,
 };
 

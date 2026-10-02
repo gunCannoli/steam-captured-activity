@@ -51,7 +51,7 @@ styled like every other toast. The surfaces get `bannerDraws` injected: a surfac
 | `placement` | Moving toasts to the theme's place (desktop and overlay popups; Big Picture's placeholder, the banner's corner while it shows), and holding desktop popups still during a theme `animation` | Steam places every toast that is not a banner. Part of the `style` surface: `style` off also turns it off |
 | `banner` | The themed achievement banner (jsx replacement of Steam's toast dispatcher, popup hold and pin) | Steam's achievement toast, with the notification style |
 | `completion` | The synthetic 100% toast after a game-completing unlock | No 100% toast |
-| `captures` | Screenshot, clip and marker on unlock | No captures |
+| `captures` | Screenshot and clip on unlock | No captures |
 | `toasts` | Posting synthetic achievement toasts (tier previews, the 100% toast, the capture test) | None posted |
 | `reset` | The settings panel's Reset Achievements | The section is disabled and `reset()` refuses |
 
@@ -158,7 +158,7 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 Sections: Theme (dropdown across the full row, "Steam default" first; Reload, Themes folder; load problems in a
 popup), Preview Notifications (a random notification; "Select Notification": a dropdown of the preview types and a
 Preview button on one card), Achievements Preview (one row per tier, only with an `achievements` block; then a random
-preview leaves achievements out), Achievements (queue, timeline marker, screenshot, clip), Reset (defaults, Reset
+preview leaves achievements out), Achievements (queue, screenshot, clip), Reset (defaults, Reset
 Achievements: a non-Steam game's confirm popup lists where its unlocks also live, with an "Also reset ..." toggle per
 resettable source and a warning built by `resetWarning` in `kernel/reset.ts`, ADR-0054). There are no style, sound or display-time switches: a theme that leaves a key out gets Steam's own, and
 "Steam default" (`theme` = `STEAM_DEFAULT_THEME`, `theme/schema.ts`) loads no theme at all
@@ -200,6 +200,8 @@ on a row.
 
 ## History
 
+- 2026-10-02 The timeline marker on unlock is removed (`recording.add_timeline_marker`, the `UserAddTimelineEntry`
+  call, the plan's `marker` action): a Steam-native feature for non-Steam games belongs in steam-cartridges (TASK.md).
 - 2026-10-02 ADR-0053: the "Themed style / sounds / display time" switches removed; "Steam default" theme (the
   default); a `.json` / `.jsonc` pair both listed; "Select Notification" and "Achievements Preview" in the panel.
 - 2026-10-01 ADR-0050: enhanced-achievements merged into this plugin. Its theme became the optional `achievements`

@@ -6,7 +6,6 @@ import { gameIdCandidates, mergeClip, planCaptures, resolveCaptureSettings, SETT
 const OFF: CaptureSettings = {
     screenshot: { enabled: false, delayMs: 500 },
     clip: { enabled: false, durationS: 15, delayMs: 0 },
-    marker: { enabled: false },
 };
 
 test('gameIdCandidates: shortcut composes the 64-bit id, native is the plain appid', () => {
@@ -30,10 +29,10 @@ test('resolveCaptureSettings: out-of-range or wrong-type fields are ignored with
     assert.equal(warnings.length, 2);
 });
 
-test('resolveCaptureSettings: add_timeline_marker is not overridable', () => {
+test('resolveCaptureSettings: an unknown recording key (the removed add_timeline_marker) is ignored with a warning', () => {
     const { settings, warnings } = resolveCaptureSettings(OFF, { recording: { add_timeline_marker: true } });
-    assert.equal(settings.marker.enabled, false);
-    assert.ok(warnings.some((w) => w.includes('add_timeline_marker')));
+    assert.deepEqual(settings, OFF);
+    assert.ok(warnings.some((w) => w.includes('add_timeline_marker') && w.includes('not a recognised override')));
 });
 
 test('unlockOffsetMs: fresh toast keeps nowOffset', () => {
@@ -53,9 +52,8 @@ test('unlockOffsetMs: never negative', () => {
 const ALL_ON: CaptureSettings = {
     screenshot: { enabled: true, delayMs: 500 },
     clip: { enabled: true, durationS: 15, delayMs: 0 },
-    marker: { enabled: true },
 };
-const unlock = { appid: 480, name: 'Test Achievement', description: 'desc', nowMs: 1_000_000, rtCreatedS: 1_000_000 / 1000 };
+const unlock = { appid: 480, name: 'Test Achievement', nowMs: 1_000_000, rtCreatedS: 1_000_000 / 1000 };
 
 test('planCaptures: null timeline skips everything', () => {
     const plan = planCaptures(ALL_ON, unlock, null);
@@ -63,27 +61,20 @@ test('planCaptures: null timeline skips everything', () => {
     assert.deepEqual(plan.skipped, [{ kind: 'all', reason: 'no-running-timeline' }]);
 });
 
-test('planCaptures: recording null skips screenshot and clip, keeps marker (shortcut)', () => {
+test('planCaptures: recording null skips screenshot and clip (shortcut)', () => {
     const shortcutGameId = gameIdCandidates(480).shortcut;
-    const timeline = { timelineId: 't1', gameId: shortcutGameId, nowOffsetMs: 10_000, startBeforeZeroMs: 0, recording: null };
+    const timeline = { timelineId: 't1', gameId: shortcutGameId, nowOffsetMs: 10_000, recording: null };
     const plan = planCaptures(ALL_ON, unlock, timeline);
-    assert.equal(plan.actions.length, 1);
-    assert.equal(plan.actions[0]!.kind, 'marker');
+    assert.equal(plan.actions.length, 0);
+    assert.equal(plan.shortcut, true);
     assert.deepEqual(
         plan.skipped.map((s) => s.reason),
         ['recording-not-active', 'recording-not-active'],
     );
 });
 
-test('planCaptures: native game skips marker with steam-marks-achievements', () => {
-    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, startBeforeZeroMs: 0, recording: { startOffsetMs: 0 } };
-    const plan = planCaptures(ALL_ON, unlock, timeline);
-    assert.ok(plan.skipped.some((s) => s.kind === 'marker' && s.reason === 'steam-marks-achievements'));
-    assert.ok(!plan.actions.some((a) => a.kind === 'marker'));
-});
-
 test('planCaptures: clip start is clamped to recording.startOffsetMs and to 0', () => {
-    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, startBeforeZeroMs: 0, recording: { startOffsetMs: 8_000 } };
+    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, recording: { startOffsetMs: 8_000 } };
     const plan = planCaptures(ALL_ON, unlock, timeline);
     const clip = plan.actions.find((a) => a.kind === 'clip') as Extract<Action, { kind: 'clip' }>;
     assert.equal(clip.startOffsetMs, 8_000);
@@ -95,14 +86,14 @@ test('planCaptures: clip start is clamped to recording.startOffsetMs and to 0', 
 });
 
 test('planCaptures: sendAfterMs = delay + SETTLE_MS', () => {
-    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, startBeforeZeroMs: 0, recording: { startOffsetMs: 0 } };
+    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, recording: { startOffsetMs: 0 } };
     const plan = planCaptures(ALL_ON, unlock, timeline);
     const shot = plan.actions.find((a) => a.kind === 'screenshot')!;
     assert.equal(shot.sendAfterMs, 500 + SETTLE_MS);
 });
 
 test('planCaptures: all disabled gives empty actions and no skip noise', () => {
-    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, startBeforeZeroMs: 0, recording: { startOffsetMs: 0 } };
+    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 10_000, recording: { startOffsetMs: 0 } };
     const plan = planCaptures(OFF, unlock, timeline);
     assert.deepEqual(plan.actions, []);
     assert.deepEqual(plan.skipped, []);

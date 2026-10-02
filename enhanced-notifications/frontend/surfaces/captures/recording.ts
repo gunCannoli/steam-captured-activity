@@ -3,7 +3,7 @@ import { findExports } from '../../steam/webpack';
 
 /**
  * The only file that touches Steam's Game Recording objects: the RPC service
- * (`GameRecording.TakeScreenshot#1` / `SaveClip#1` / `UserAddTimelineEntry#1`)
+ * (`GameRecording.TakeScreenshot#1` / `SaveClip#1`)
  * and the live recording store (`window.g_GRS`, `CGameRecordingStore`).
  *
  * Resolution signatures and RPC shapes: docs/plans/phase7-and-alpha-plan.md
@@ -28,20 +28,6 @@ interface GameRecordingService {
         temporary: boolean;
         force_thumbnail: boolean;
     }): Promise<RpcResult>;
-    UserAddTimelineEntry(req: {
-        game_id: string;
-        entry: {
-            timeline_id: string;
-            entry_id: string;
-            time: string;
-            type: number;
-            marker_icon?: string;
-            marker_priority?: number;
-            range_title?: string;
-            range_duration?: string;
-            marker_description?: string;
-        };
-    }): Promise<RpcResult<{ entry_id: string }>>;
 }
 
 interface RunningRecording {
@@ -55,7 +41,6 @@ interface TimelineLoader {
     BIsTimelineRunning(tid: string): boolean;
     GetRunningTimelineDurationMS(tid: string): number;
     GetGameID(): string;
-    GetTimelineStartBeforeGlobalZeroMS(tid: string): number;
     m_mapRunningTimelines: Map<string, { m_metadata?: unknown; m_runningRecording: RunningRecording | null }>;
 }
 
@@ -72,7 +57,7 @@ export function initRecording(): boolean {
         (src) => src.includes('GameRecording.TakeScreenshot#1'),
         (v) => {
             const svc = v as GameRecordingService;
-            return svc?.TakeScreenshotHandler?.name === 'GameRecording.TakeScreenshot#1' && typeof svc.TakeScreenshot === 'function' && typeof svc.SaveClip === 'function' && typeof svc.UserAddTimelineEntry === 'function';
+            return svc?.TakeScreenshotHandler?.name === 'GameRecording.TakeScreenshot#1' && typeof svc.TakeScreenshot === 'function' && typeof svc.SaveClip === 'function';
         },
     );
     if (hits.length !== 1) {
@@ -93,7 +78,6 @@ export interface TimelineSnapshot {
     timelineId: string;
     gameId: string;
     nowOffsetMs: number;
-    startBeforeZeroMs: number;
     recording: { startOffsetMs: number } | null;
 }
 
@@ -122,7 +106,6 @@ export function snapshotTimeline(candidates: { native: string; shortcut: string 
                 timelineId: tid,
                 gameId,
                 nowOffsetMs: loader.GetRunningTimelineDurationMS(tid),
-                startBeforeZeroMs: loader.GetTimelineStartBeforeGlobalZeroMS(tid),
                 recording: running ? { startOffsetMs: running.start_offset_ms } : null,
             },
         };
@@ -179,23 +162,6 @@ export function saveClip(req: {
     force_thumbnail: boolean;
 }): Promise<RpcOutcome> {
     return invoke(() => service!.SaveClip(req));
-}
-
-export function addTimelineEntry(req: {
-    game_id: string;
-    entry: {
-        timeline_id: string;
-        entry_id: string;
-        time: string;
-        type: number;
-        marker_icon?: string;
-        marker_priority?: number;
-        range_title?: string;
-        range_duration?: string;
-        marker_description?: string;
-    };
-}): Promise<RpcOutcome> {
-    return invoke(() => service!.UserAddTimelineEntry(req));
 }
 
 /** For tests/captures.mjs: the appid of the game with a running timeline, if any. */

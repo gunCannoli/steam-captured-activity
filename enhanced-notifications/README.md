@@ -25,8 +25,8 @@ the Enhanced Achievements plugin, now part of this one):
   is still respected.
 - **Themed banner** with gradients, borders, icons and animations, on the
   desktop client, in Big Picture, and in the in-game overlay.
-- **Auto-captures on unlock** (opt-in, any theme): a screenshot, a clip and a
-  timeline marker, using Steam's own Game Recording. Off by default.
+- **Auto-captures on unlock** (opt-in, any theme): a screenshot and a clip,
+  using Steam's own Game Recording. Off by default.
 - **Nothing breaks if something is wrong.** A missing sound falls back to the
   notification sound (or Steam's chime), and a broken `achievements` block
   falls back to the notification style.
@@ -68,7 +68,6 @@ Open Millennium's sidebar and select **Enhanced Notifications**:
 | Select Notification | Pick a notification type from the list and press **Preview** |
 | Achievements Preview | Only for a theme with an `achievements` block: fires a test achievement for each tier |
 | Achievement queue | One achievement banner at a time instead of Steam's own stacking |
-| Timeline marker | Adds an achievement marker on non-Steam games' timelines |
 | Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
 | Record clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
 | Reset to defaults | Clears every changed setting |
@@ -125,9 +124,7 @@ The workflow is: edit the theme file, press **Reload themes**, press **Preview**
   unlock that completes the game.
 - **Captures need Game Recording on**, and never happen if Steam's in-game
   toast notifications are disabled for that game: Steam itself never calls
-  the hook this plugin uses in that case. Steam already marks achievements on
-  its own games' timelines; the timeline marker only applies to non-Steam
-  shortcuts.
+  the hook this plugin uses in that case.
 - Styling, sounds, display time and captures do nothing while Steam's own
   toast notifications are turned off entirely (Steam Settings ->
   Notifications). The settings panel shows a warning when it can detect this.

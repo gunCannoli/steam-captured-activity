@@ -9,7 +9,7 @@ import { initRecording } from './recording';
 export function createCapturesSurface(): Surface {
     return {
         id: 'captures',
-        touches: ['GameRecording.TakeScreenshot', 'GameRecording.SaveClip', 'GameRecording.UserAddTimelineEntry'],
+        touches: ['GameRecording.TakeScreenshot', 'GameRecording.SaveClip'],
         install: () => initRecording(), // false = no recording service: captures stay off, nothing else does
         uninstall: () => disposeCaptures(),
     };

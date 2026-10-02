@@ -139,6 +139,19 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Considerations (decided later, not scheduled)
 
+- **Achievement timeline markers for non-Steam games, in steam-cartridges** (removed from enhanced-notifications
+  2026-10-02 as a Steam-native feature for shortcuts). Steam marks achievements on its own games' timelines but not on
+  shortcuts'. steam-cartridges already knows each unlock (its `achievements.unlocked` event, with name and description),
+  so a `timeline` surface (with a kill switch and a `touches` entry) could add the marker. What is known: the RPC is
+  `GameRecording.UserAddTimelineEntry#1` on `CGameRecordingService`, resolved by signature (steam-components.md § Game
+  Recording RPCs); the running timeline is in `window.g_GRS.m_mapActiveTimelines` (loader `BIsTimelineRunning`,
+  `GetGameID`, `GetRunningTimelineDurationMS`, `GetTimelineStartBeforeGlobalZeroMS`); the entry time is the unlock's
+  offset plus `GetTimelineStartBeforeGlobalZeroMS`. enhanced-notifications sent an `Event` entry (`type: 2`,
+  `marker_icon: 'steam_achievement'`, `range_title`, `marker_description`, `range_duration: '0'`) and fell back to a
+  `UserMarker` (`type: 5`, `steam_marker`); its code is in git before this change (`frontend/surfaces/captures/captures.ts`
+  `sendMarker`, `frontend/capture/plan.ts`). Open: on Wuchang (2026-10-02 11:47, unlocks 2 s after launch) both forms
+  were rejected with EResult 42, likely because the timeline was not running yet; probe live with a game that has been
+  running for a while before designing.
 - **Wrap `LoadCacheFile` instead of watching (ADR-0045 decision 5, option 2).** steam-cartridges re-applies its
   achievements when Steam replaces its progress cache after login, detected by polling the map's identity
   (`sensors/progress-cache`, 1 s, at most 10 min). If the poll ever proves too slow, too costly, or misses a user who logs

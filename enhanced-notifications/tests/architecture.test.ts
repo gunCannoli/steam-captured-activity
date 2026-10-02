@@ -214,7 +214,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'steam/toast-pop.ts'],
     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],
     ['Steam console commands (reset achievements)', /\.ExecCommand\s*\(/, 'surfaces/reset/index.ts'],
-    ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip|UserAddTimelineEntry)\s*\(/, 'surfaces/captures/recording.ts'],
+    ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip)\s*\(/, 'surfaces/captures/recording.ts'],
 ];
 
 /** Files the owner scan skips: the shared jsx runtime hook defines the patch helper the banner calls. */

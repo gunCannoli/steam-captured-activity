@@ -22,13 +22,9 @@ export const MAX_CLIP_MS = 120_000;
 /** Below this age (ms) a toast is considered "just arrived", not queued. */
 export const FRESH_MS = 1500;
 
-/** ETimelineEntryType wire values (protobuf network contract) we use. */
-export const ENTRY_TYPE = { Event: 2, UserMarker: 5 } as const;
-
 export interface CaptureSettings {
     screenshot: { enabled: boolean; delayMs: number };
     clip: { enabled: boolean; durationS: number; delayMs: number };
-    marker: { enabled: boolean };
 }
 
 function num(v: unknown, min: number, max: number): number | undefined {
@@ -39,8 +35,7 @@ function num(v: unknown, min: number, max: number): number | undefined {
  * Apply a tier's `screenshot` / `recording` overrides (themes.md § Capture
  * overrides) on top of the base plugin settings. A bad field (wrong type, out
  * of range, unknown key) is ignored and a warning is returned; the override
- * never throws. `recording.add_timeline_marker` (marker.enabled) is not
- * overridable per tier: themes.md does not document it.
+ * never throws.
  */
 export function resolveCaptureSettings(
     base: CaptureSettings,
@@ -50,7 +45,6 @@ export function resolveCaptureSettings(
     const settings: CaptureSettings = {
         screenshot: { ...base.screenshot },
         clip: { ...base.clip },
-        marker: { ...base.marker },
     };
 
     const ss = tier?.screenshot;
@@ -79,8 +73,6 @@ export function resolveCaptureSettings(
                 const v = num(rr.delay_ms, CAPTURE_RANGES['recording.delay_ms'].min, CAPTURE_RANGES['recording.delay_ms'].max);
                 if (v !== undefined) settings.clip.delayMs = v;
                 else warnings.push(`recording.delay_ms override is invalid; using the plugin setting.`);
-            } else if (key === 'add_timeline_marker') {
-                warnings.push(`recording.add_timeline_marker cannot be overridden per tier; ignored.`);
             } else if (key !== 'enabled') {
                 warnings.push(`recording.${key} is not a recognised override; ignored.`);
             }
@@ -91,7 +83,7 @@ export function resolveCaptureSettings(
 }
 
 export function anyEnabled(s: CaptureSettings): boolean {
-    return s.screenshot.enabled || s.clip.enabled || s.marker.enabled;
+    return s.screenshot.enabled || s.clip.enabled;
 }
 
 /** The two candidate `game_id` forms for an appid (AGENTS.md § two identifiers). */
@@ -119,26 +111,23 @@ export interface TimelineSnapshot {
     timelineId: string;
     gameId: string;
     nowOffsetMs: number;
-    startBeforeZeroMs: number;
     recording: { startOffsetMs: number } | null;
 }
 
 export interface UnlockInfo {
     appid: number;
     name: string;
-    description: string;
     nowMs: number;
     rtCreatedS?: number;
 }
 
 export type Action =
     | { kind: 'screenshot'; sendAfterMs: number; targetOffsetMs: number }
-    | { kind: 'clip'; sendAfterMs: number; startOffsetMs: number; endOffsetMs: number; name: string }
-    | { kind: 'marker'; sendAfterMs: 0; time: number; name: string; description: string };
+    | { kind: 'clip'; sendAfterMs: number; startOffsetMs: number; endOffsetMs: number; name: string };
 
 export interface Plan {
     actions: Action[];
-    skipped: { kind: 'screenshot' | 'clip' | 'marker' | 'all'; reason: string }[];
+    skipped: { kind: 'screenshot' | 'clip' | 'all'; reason: string }[];
     /** true = shortcut, false = native Steam game, null = no running timeline (unknown). */
     shortcut: boolean | null;
 }
@@ -188,20 +177,6 @@ export function planCaptures(s: CaptureSettings, unlock: UnlockInfo, timeline: T
                 startOffsetMs,
                 endOffsetMs,
                 name: unlock.name.slice(0, 100),
-            });
-        }
-    }
-
-    if (s.marker.enabled) {
-        if (!shortcut) {
-            skipped.push({ kind: 'marker', reason: 'steam-marks-achievements' });
-        } else {
-            actions.push({
-                kind: 'marker',
-                sendAfterMs: 0,
-                time: Math.floor(unlockOffset + timeline.startBeforeZeroMs),
-                name: unlock.name,
-                description: unlock.description,
             });
         }
     }

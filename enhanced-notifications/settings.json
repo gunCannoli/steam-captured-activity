@@ -10,8 +10,7 @@
     "recording": {
         "enabled": false,
         "duration_s": 15,
-        "delay_ms": 0,
-        "add_timeline_marker": false
+        "delay_ms": 0
     },
     "disabledFeatures": ""
 }

@@ -1,13 +1,13 @@
 import { logger } from '../../logger';
 import { setting } from '../../settings/settings';
 import type { Tier } from '../../theme/achievements';
-import { addTimelineEntry, runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from './recording';
-import { ENTRY_TYPE, gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from '../../capture/plan';
+import { runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from './recording';
+import { gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from '../../capture/plan';
 import type { SteamNotification } from '../../kernel/notification';
 import { reportError } from '../../safety/runtime';
 
 /**
- * Schedules Phase 7 auto-captures (screenshot / clip / timeline marker) on
+ * Schedules Phase 7 auto-captures (screenshot / clip) on
  * achievement unlock. The `achievement.unlocked` subscriber in `index.tsx` calls `onUnlock`
  * synchronously (O(1): dedupe, snapshot, schedule); every RPC runs later, in a
  * `setTimeout` callback, never in the hook itself (the one scoped exception to
@@ -53,7 +53,6 @@ function baseSettings(): CaptureSettings {
     return {
         screenshot: { enabled: setting('screenshot.enabled'), delayMs: setting('screenshot.delay_ms') },
         clip: { enabled: setting('recording.enabled'), durationS: setting('recording.duration_s'), delayMs: setting('recording.delay_ms') },
-        marker: { enabled: setting('recording.add_timeline_marker') },
     };
 }
 
@@ -101,29 +100,6 @@ async function sendClip(gameId: string, timelineId: string, action: Extract<Acti
     pushLog({ at: Date.now(), appid, tier, gameId, dryRun: false, actions: [{ kind: 'clip', request, eresult: res.eresult }], skipped: [] });
 }
 
-async function sendMarker(gameId: string, timelineId: string, action: Extract<Action, { kind: 'marker' }>, appid: number, tier: Tier): Promise<void> {
-    const entryBase = { timeline_id: timelineId, entry_id: '', time: String(action.time), marker_priority: 0 };
-    const eventRequest = {
-        game_id: gameId,
-        entry: { ...entryBase, type: ENTRY_TYPE.Event, marker_icon: 'steam_achievement', range_title: action.name, marker_description: action.description, range_duration: '0' },
-    };
-    if (dryRun) {
-        logger.info(`[dry-run] marker`, eventRequest);
-        pushLog({ at: Date.now(), appid, tier, gameId, dryRun: true, actions: [{ kind: 'marker', request: eventRequest }], skipped: [] });
-        return;
-    }
-    let res = await addTimelineEntry(eventRequest);
-    const actions: LogAction[] = [{ kind: 'marker', request: eventRequest, eresult: res.eresult }];
-    if (res.eresult !== 1) {
-        const fallbackRequest = { game_id: gameId, entry: { ...entryBase, type: ENTRY_TYPE.UserMarker, marker_icon: 'steam_marker' } };
-        logger.warn(`Achievement Event marker rejected (EResult ${res.eresult}); retrying as a plain marker.`);
-        res = await addTimelineEntry(fallbackRequest);
-        actions.push({ kind: 'marker', request: fallbackRequest, eresult: res.eresult });
-    }
-    if (res.eresult !== 1) logger.warn(`Timeline marker failed (EResult ${res.eresult}).`, res.error ?? res.body);
-    pushLog({ at: Date.now(), appid, tier, gameId, dryRun: false, actions, skipped: [] });
-}
-
 /** Called from the `achievement.unlocked` event, one macrotask after the toast. O(1): dedupe, tier merge, snapshot, schedule. Never awaits an RPC. */
 export function onUnlock(n: SteamNotification, tier: Tier): void {
     try {
@@ -140,7 +116,7 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
         const timelineSnap: TimelineSnapshot | null = snap;
         const plan = planCaptures(
             settings,
-            { appid, name: n.data.name(), description: n.data.description(), nowMs, rtCreatedS: n.rtCreated },
+            { appid, name: n.data.name(), nowMs, rtCreatedS: n.rtCreated },
             timelineSnap,
         );
 
@@ -159,8 +135,6 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
         for (const action of plan.actions) {
             if (action.kind === 'screenshot') {
                 schedule(() => void sendScreenshot(gameId, timelineId, action, appid, tier), action.sendAfterMs);
-            } else if (action.kind === 'marker') {
-                schedule(() => void sendMarker(gameId, timelineId, action, appid, tier), action.sendAfterMs);
             } else {
                 const pending = pendingClips.get(timelineId);
                 if (pending) {

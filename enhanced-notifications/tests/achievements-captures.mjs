@@ -1,5 +1,5 @@
 // Live test: Phase 7 auto-captures, dry-run only. Creates nothing (no real
-// screenshot, clip or marker) — it only exercises the planning/scheduling path
+// screenshot or clip) — it only exercises the planning/scheduling path
 // with setCaptureDryRun(true), which logs the RPC it would have sent instead
 // of sending it. Restores every setting it touches.
 import { connect, resolvePluginName } from './cdp.mjs';
@@ -26,7 +26,6 @@ try {
     // 2. Enable every capture and turn on dry-run.
     await plugin(`setSetting('screenshot.enabled', true)`);
     await plugin(`setSetting('recording.enabled', true)`);
-    await plugin(`setSetting('recording.add_timeline_marker', true)`);
     await wait(300);
     await plugin('setCaptureDryRun(true)');
 

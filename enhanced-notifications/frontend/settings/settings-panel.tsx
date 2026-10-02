@@ -344,12 +344,6 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
                     description="One banner at a time instead of Steam's stacking"
                     disabled={disabled}
                 />
-                <ToggleRow
-                    k="recording.add_timeline_marker"
-                    label="Timeline marker"
-                    description="Non-Steam games only"
-                    disabled={disabled}
-                />
                 <>
                     <ToggleRow
                         k="screenshot.enabled"

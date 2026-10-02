@@ -7,6 +7,13 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: timeline marker removed (2026-10-02)**: at the user's request, it is a Steam-native feature
+  for non-Steam games, steam-cartridges' focus. Gone: the setting (`recording.add_timeline_marker`, settings.json, the
+  panel row), the plan's `marker` action, `ENTRY_TYPE`, `sendMarker`, `addTimelineEntry` and its RPC type, the
+  `startBeforeZeroMs` snapshot field and the unlock's `description` (marker-only), `UserAddTimelineEntry` from the
+  captures surface's `touches`, its service check and the architecture test's owner pattern. Tests: the marker plan
+  tests went; a test now proves a theme's `add_timeline_marker` override is ignored as unknown. 164 pass (the known
+  asset failure). The Steam facts stay in steam-components.md for steam-cartridges (TASK.md).
 - **Epic and Xbox games: research round 1 (2026-10-02, no code)**: at the user's request, plan updated with the user's
   decisions (Third-party section with auto-add, not listed for reset, store then IGDB then ScreenScraper, activity from
   every source, credentials through `web_config`). Found: Epic's own store GraphQL (`store.epicgames.com/graphql`)
