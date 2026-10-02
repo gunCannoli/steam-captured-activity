@@ -16,11 +16,12 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**Epic and Xbox games (2026-10-02): umbrella plan, research rounds 1 and 2 done, no code.**
-[steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md). Both stores verified end to
-end with the user's accounts (§ 4.7): Epic unlocks with no sign-in (public profile), Xbox unlocks after a device-code
-sign-in. Next: Phase 0 steps 0.3-0.8 (0.5-0.7 need the Steam lock; 0.7 adds a test shortcut, with the user's go-ahead),
-then the ADR (0.9) before any code. Jotunnslayer's shortcut was removed by the user for the auto-add test.
+**Epic and Xbox games (ADR-0056, 2026-10-02): plan ready to execute, dry-run on `547c437`:**
+[steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md) (nine patches in
+`docs/plans/steam-cartridges-store-copies/`, the ADR and doc text blocks, then a live verification that is the user's,
+§ 10). It also answers "does an unlock reach the Activity feed?": today no source does; after the plan every source does.
+ADR-0055 was taken by another session's uncommitted queue ADR, so this one is ADR-0056 (precondition P3 checks it is free).
+Any change to the files of the plan's § 2.3 before it runs makes its patches stale: land those first or re-cut the plan.
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements

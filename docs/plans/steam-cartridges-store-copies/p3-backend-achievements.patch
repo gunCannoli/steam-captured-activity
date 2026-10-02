@@ -1,0 +1,358 @@
+diff --git a/steam-cartridges/backend/ach_service.lua b/steam-cartridges/backend/ach_service.lua
+index bf75d41..5e6e40d 100644
+--- a/steam-cartridges/backend/ach_service.lua
++++ b/steam-cartridges/backend/ach_service.lua
+@@ -2,6 +2,9 @@
+ ---
+ --- Sources, in this order (the chain CartridgesAchievementsGet used to hard-code), each with a
+ --- `supports` rule so a source is only asked when the shortcut can be one of its games:
++---   epic, xbox        the shortcut is that store's copy (ctx.store, ADR-0056) and the store is enabled: the
++---                     player's own unlocks, synced (store_achievements.lua); a copy with a Steam match keeps
++---                     Steam's list when it covers the store's ids
+ ---   steam             the shortcut has a Steam match (ctx.native > 0)
+ ---   rpcs3             a PS3 trophy directory is found from the launch command
+ ---   shadps4           a PS4 trophy directory is found from the launch command
+@@ -24,6 +27,7 @@ M.deps = {
+   ps3_dir = nil,  -- fun(exe, launch_options) -> dir | nil ; nil = ps3_trophies.find_trophy_dir
+   ps4_dir = nil,  -- fun(exe, launch_options) -> dir | nil ; nil = ps4_trophies.find_trophy_dir
+   rom_path = nil, -- fun(exe, launch_options) -> path | nil ; nil = retroachievements.extract_rom_path
++  store_fetch = nil, -- fun(appid, copy, native) -> res, err ; nil = store_achievements.fetch (ADR-0056)
+   now = function() return os.time() end,
+ }
+ 
+@@ -39,7 +43,21 @@ local function dep(name, module_name, fn_name)
+   return M.deps[name] or function(...) return require(module_name)[fn_name](...) end
+ end
+ 
++local function store_row(kind, allow_key)
++  return {
++    name = kind,
++    supports = function(ctx)
++      return type(ctx.store) == "table" and ctx.store.kind == kind and ctx[allow_key] ~= false
++    end,
++    fetch = function(appid, ctx)
++      return dep("store_fetch", "store_achievements", "fetch")(appid, ctx.store, tonumber(ctx.native) or 0)
++    end,
++  }
++end
++
+ local SOURCES = {
++  store_row("epic", "allowEpic"),
++  store_row("xbox", "allowXbox"),
+   {
+     name = "steam",
+     supports = function(ctx) return (tonumber(ctx.native) or 0) > 0 end,
+@@ -69,7 +87,7 @@ local SOURCES = {
+ }
+ 
+ --- Resolve, returning the part and the raw source result (the old RPC's response shape).
+---- ctx = { native = number|nil, hardcore = boolean|nil, title = string }
++--- ctx = { native = number|nil, hardcore = boolean|nil, title = string, store = StoreCopy|nil, allowEpic?, allowXbox? }
+ function M._resolve(appid, ctx)
+   ctx = ctx or {}
+   local entry = (M.deps.entry or default_entry)(appid)
+@@ -105,7 +123,8 @@ end
+ function M.local_part(appid)
+   local st = store.get_state(appid)
+   if not st or not st.schema then return nil end
+-  return { status = "ok", data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
++  -- `source` tells a synced store part (its freshness is short, fresh_policy) from a local one.
++  return { status = "ok", source = st.source, data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
+ end
+ 
+ --- Every shortcut appid (a number) the store holds an entry for, with or without a schema. Disk only;
+diff --git a/steam-cartridges/backend/achievements_store.lua b/steam-cartridges/backend/achievements_store.lua
+index d34abf4..c1254b2 100644
+--- a/steam-cartridges/backend/achievements_store.lua
++++ b/steam-cartridges/backend/achievements_store.lua
+@@ -53,7 +53,8 @@ end
+ function M._reset() state = nil end
+ 
+ local function to_schema_key(id)
+-  if type(id) == "string" and id:match("^ra_") then
++  -- A source's own list: "ra_<game>", "epic_<namespace>", "xbox_<title id>" (ADR-0056); a number is a native appid.
++  if type(id) == "string" and (id:match("^ra_") or id:match("^epic_") or id:match("^xbox_")) then
+     return id
+   end
+   return tostring(math.floor(tonumber(id) or 0))
+@@ -98,6 +99,8 @@ function M.get_state(shortcut_appid, native_appid)
+   return {
+     schema = schema,
+     unlocks = sc and sc.unlocks or {},
++    -- The source that wrote the unlocks when it is a synced store ("epic", "xbox"; ADR-0056), else nil.
++    source = sc and sc.source or nil,
+   }
+ end
+ 
+@@ -134,6 +137,20 @@ function M.unlock(shortcut_appid, achievement_id, unlock_time)
+   return { ok = true, unlocks = sc.unlocks }
+ end
+ 
++--- A store sync (ADR-0056): the shortcut's list and its unlocks as the store reports them (the store is the truth,
++--- so the unlocks are replaced, not merged), and which store wrote them.
++function M.sync(shortcut_appid, schema_id, unlocks, source)
++  local s = load()
++  local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))
++  local sc = s.shortcuts[sc_key] or {}
++  sc.schema_appid = schema_id
++  sc.unlocks = unlocks or {}
++  sc.source = source
++  s.shortcuts[sc_key] = sc
++  save()
++  return sc
++end
++
+ function M.reset(shortcut_appid)
+   local s = load()
+   local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))
+diff --git a/steam-cartridges/backend/fresh_policy.lua b/steam-cartridges/backend/fresh_policy.lua
+index 25f8549..dc16135 100644
+--- a/steam-cartridges/backend/fresh_policy.lua
++++ b/steam-cartridges/backend/fresh_policy.lua
+@@ -21,6 +21,7 @@ M.TTL = {
+   identity_ok_no_native = 7 * DAY,     -- same as the store search negative cache
+   metadata_ok = 24 * HOUR,             -- igdb / screenscraper / fallback: Flow B
+   achievements_ok = 24 * HOUR,         -- the schema; unlocks are read on every open by their own channels
++  achievements_synced = 15 * 60 * 1000, -- a store's unlocks (Epic, Xbox; ADR-0056): synced on open, at most this often
+   media_ok = 7 * DAY,                  -- community media (features plan F2): trailers and art rarely change
+   unsupported = 24 * HOUR,             -- a route or source may change (credentials, settings)
+   error = 30 * 60 * 1000,              -- retry soon, never in a loop
+@@ -83,7 +84,10 @@ local function ttl_for(part, info)
+       return M.TTL.identity_ok_no_native
+     end
+     if part == "metadata" then return M.TTL.metadata_ok end
+-    if part == "achievements" then return M.TTL.achievements_ok end
++    if part == "achievements" then
++      if source == "epic" or source == "xbox" then return M.TTL.achievements_synced end
++      return M.TTL.achievements_ok
++    end
+     if part == "media" then return M.TTL.media_ok end
+     return M.TTL.metadata_ok
+   end
+diff --git a/steam-cartridges/backend/record_rpc.lua b/steam-cartridges/backend/record_rpc.lua
+index d2f8d81..d00c66b 100644
+--- a/steam-cartridges/backend/record_rpc.lua
++++ b/steam-cartridges/backend/record_rpc.lua
+@@ -103,10 +103,15 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
+       if cached and not ctx.force and not fresh().is_stale(appid, "achievements", cached, now_ms()) then
+         parts.achievements = cached
+       else
++        -- The store copy (ADR-0056): this call's fresh part, else the saved one.
++        local copy = ctx.store or store_service.saved(appid)
+         parts.achievements = ach().ensure(appid, {
+           native = native and native.appid or nil,
+           hardcore = ctx.hardcore ~= false,
+           title = ctx.title,
++          store = copy and copy.data or nil,
++          allowEpic = ctx.allowEpic,
++          allowXbox = ctx.allowXbox,
+         })
+         local st = parts.achievements.status
+         if st == "ok" or st == "error" then fresh().touch(appid, "achievements", now_ms(), st) end
+diff --git a/steam-cartridges/backend/store_achievements.lua b/steam-cartridges/backend/store_achievements.lua
+new file mode 100644
+index 0000000..fb3c2c4
+--- /dev/null
++++ b/steam-cartridges/backend/store_achievements.lua
+@@ -0,0 +1,128 @@
++--- Sources `epic` and `xbox` of the achievements service (ADR-0056): the player's own unlocks on the store the copy
++--- was bought on, synced through the store's API (decision 4: no in-game observer, no toast; the store's overlay
++--- already showed the unlock).
++---
++---   epic  the list from Epic's achievement sandbox (= the manifest's namespace); the unlocks from the player's public
++---         profile, by the account id the launcher keeps on disk (no sign-in). A private profile keeps the last
++---         unlocks known and is remembered (lookup "epic:account") so the settings panel can say why.
++---   xbox  the list and the unlocks from Xbox Live, for the signed-in account; signed out = no answer (the next source
++---         of ach_service answers instead).
++---
++--- A copy with a Steam match keeps Steam's own list (names and icons in the user's language) when every store id is in
++--- it, as for Jotunnslayer (Epic's ACH_* names are Steam's API names); any mismatch -> the store's own list. Never a
++--- match by display name.
++---
++--- Persisted in achievements.json like every source: the store's list under "epic_<namespace>" / "xbox_<title id>",
++--- the shortcut's unlocks (replaced by each sync: the store is the truth) and its `source`.
++
++local store = require("achievements_store")
++
++local M = {}
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  epic = nil,         -- nil = epic_graphql
++  live = nil,         -- nil = xbox_live
++  epic_local = nil,   -- nil = store_epic_local (account_id)
++  steam_fetch = nil,  -- fun(native) -> schema | nil, err ; nil = steam_schema.fetch
++  copies = nil,       -- nil = store_copies_store (the "epic:account" lookup)
++}
++
++local function epic() return M.deps.epic or require("epic_graphql") end
++local function live() return M.deps.live or require("xbox_live") end
++local function epic_local() return M.deps.epic_local or require("store_epic_local") end
++local function copies() return M.deps.copies or require("store_copies_store") end
++
++--- Steam's list for a native app: stored, else fetched and stored (the shortcut is not re-bound here).
++local function steam_list(native)
++  local s = store.get_schema(native)
++  if s then return s end
++  local fetched = (M.deps.steam_fetch or require("steam_schema").fetch)(native)
++  if fetched then store.save_schema(native, fetched) end
++  return fetched
++end
++
++--- Every id of `list` is in `steam` (pure).
++local function covered_by(list, steam)
++  if type(steam) ~= "table" or type(steam.achievements) ~= "table" or #list == 0 then return false end
++  local ids = {}
++  for _, a in ipairs(steam.achievements) do ids[tostring(a.id)] = true end
++  for _, a in ipairs(list) do
++    if not ids[tostring(a.id)] then return false end
++  end
++  return true
++end
++
++local function as_unlocks(times)
++  local out = {}
++  for id, at in pairs(times or {}) do out[tostring(id)] = { unlocked_time = tonumber(at) or 0 } end
++  return out
++end
++
++--- The schema record the store keeps for a store list.
++local function schema_record(kind, items, extra)
++  local s = { native_appid = 0, total = #items, achievements = items, source = kind, fetched_at = os.time() }
++  for k, v in pairs(extra or {}) do s[k] = v end
++  return s
++end
++
++--- Pick the list (Steam's when it covers the store's), persist, and answer like the other sources.
++local function finish(appid, kind, key, list_schema, unlocks, native)
++  local schema_id, schema = key, list_schema
++  if (tonumber(native) or 0) > 0 then
++    local ok, steam = pcall(steam_list, native)
++    if ok and covered_by(list_schema.achievements, steam) then schema_id, schema = native, steam end
++  end
++  store.sync(appid, schema_id, unlocks, kind)
++  return { schema = schema, unlocks = unlocks }
++end
++
++local function fetch_epic(appid, copy, native)
++  if not copy.namespace then return nil, "no namespace" end
++  local key = "epic_" .. copy.namespace
++  local list = store.get_schema(key)
++  if not list then
++    local res, err = epic().achievement_schema(copy.namespace)
++    if not res then return nil, err end
++    if #res.achievements == 0 then return nil, "no achievements" end
++    list = schema_record("epic", res.achievements, { product_id = res.product_id, title = copy.title })
++    store.save_schema(key, list)
++  end
++  local previous = store.get_state(appid).unlocks or {}
++  local account = epic_local().account_id()
++  local product = copy.productId or list.product_id
++  local unlocks = previous
++  if account and product then
++    local times, err = epic().player_unlocks(account, product)
++    if times then
++      unlocks = as_unlocks(times)
++      copies().remember("epic:account", { private = false })
++    elseif err == "private" then
++      copies().remember("epic:account", { private = true })
++    else
++      return nil, err -- a failed request: try again later, keep what the record has
++    end
++  end
++  return finish(appid, "epic", key, list, unlocks, native)
++end
++
++local function fetch_xbox(appid, copy, native)
++  if not copy.titleId then return nil, "no title id" end
++  local res, err = live().achievements(copy.titleId)
++  if not res then return nil, err end
++  if #res.achievements == 0 then return nil, "no achievements" end
++  local key = "xbox_" .. copy.titleId
++  local list = schema_record("xbox", res.achievements, { title = copy.title })
++  store.save_schema(key, list)
++  return finish(appid, "xbox", key, list, as_unlocks(res.unlocks), native)
++end
++
++--- { schema, unlocks } for a store copy, or nil and an error. `copy` is the record's StoreCopy; `native` its Steam match.
++function M.fetch(appid, copy, native)
++  if type(copy) ~= "table" then return nil, "not a store copy" end
++  if copy.kind == "epic" then return fetch_epic(appid, copy, native) end
++  if copy.kind == "xbox" then return fetch_xbox(appid, copy, native) end
++  return nil, "unknown store"
++end
++
++return M
+diff --git a/steam-cartridges/tests/test_ach_service.lua b/steam-cartridges/tests/test_ach_service.lua
+index 2fe3c29..fd9dedc 100644
+--- a/steam-cartridges/tests/test_ach_service.lua
++++ b/steam-cartridges/tests/test_ach_service.lua
+@@ -265,6 +265,68 @@ check("steam_schema fetches a schema and the store keeps it", r1.schema ~= nil a
+ local r2 = steam_schema.get_or_fetch(4000000001, 440, get_json, get_html)
+ check("... the next call is served from the store, no request", r2.schema ~= nil and r2.schema.achievements[1].id == "A1" and fetches == 1)
+ 
++
++-- ---------- store copies: sources epic and xbox (ADR-0056) ----------
++print("store copies")
++local EPIC_COPY = { kind = "epic", namespace = "d8a39ea2f35e49b58f18c2b96aec276a", productId = "18f6", title = "Jotunnslayer", via = "manifest" }
++wipe()
++fresh({ store_fetch = function(a, copy, native) calls.store = (calls.store or 0) + 1; calls.store_native = native; return { schema = SCHEMA, unlocks = { B = { unlocked_time = 9 } } } end })
++r = ach.ensure(SC, { native = 2820820, store = EPIC_COPY })
++check("an Epic copy answers from its store first, even with a Steam match", r.status == "ok" and r.source == "epic" and calls.store == 1 and (calls.steam or 0) == 0 and calls.store_native == 2820820)
++fresh({ store_fetch = function() calls.store = (calls.store or 0) + 1; return { schema = SCHEMA, unlocks = {} } end })
++r = ach.ensure(SC, { native = 2820820, store = EPIC_COPY, allowEpic = false })
++check("with Epic switched off the copy falls back to Steam's list", r.source == "steam" and (calls.store or 0) == 0)
++fresh({ store_fetch = function() return nil, "not signed in" end })
++r = ach.ensure(SC, { native = 2820820, store = { kind = "xbox", titleId = "1" } })
++check("a store that does not answer (signed out) falls through to the next source", r.status == "ok" and r.source == "steam")
++fresh({ store_fetch = function() calls.store = 1; return { schema = SCHEMA, unlocks = {} } end })
++r = ach.ensure(SC, { native = 0, store = { kind = "xbox", titleId = "1" }, allowXbox = false })
++check("an Xbox copy with Xbox off and no other source is unsupported, silently", r.status == "unsupported" and calls.store == nil)
++
++-- store_achievements: the real source over fake store APIs.
++wipe()
++local sa = require("store_achievements")
++local remembered = {}
++local epic_unlocks = { ACH_FRIENDLY_JOTUNN = 1790963093 }
++local epic_err = nil
++local steam_fetches = 0
++sa.deps.epic = {
++  achievement_schema = function() return { product_id = "18f6", achievements = { { id = "ACH_A_TROPHY_SPECIAL", name = "A-Trophy", description = "", icon = "u", global_pct = 70 }, { id = "ACH_FRIENDLY_JOTUNN", name = "Friendly", description = "", icon = "f", global_pct = 5 } } } end,
++  player_unlocks = function() if epic_err then return nil, epic_err end return epic_unlocks end,
++}
++sa.deps.epic_local = { account_id = function() return "acc" end }
++sa.deps.copies = { remember = function(k, v) remembered[k] = v end }
++sa.deps.steam_fetch = function() steam_fetches = steam_fetches + 1; return { native_appid = 2820820, total = 3, achievements = { { id = "ACH_A_TROPHY_SPECIAL", name = "Steam A" }, { id = "ACH_FRIENDLY_JOTUNN", name = "Steam F" }, { id = "ACH_EXTRA", name = "x" } } } end
++local res1 = sa.fetch(SC, EPIC_COPY, 0)
++check("an Epic copy with no Steam match gets Epic's list and the profile's unlocks", res1 and res1.schema.source == "epic" and res1.schema.total == 2 and res1.unlocks.ACH_FRIENDLY_JOTUNN.unlocked_time == 1790963093 and remembered["epic:account"].private == false)
++local stored = store.get_state(SC)
++check("... persisted: the list under epic_<namespace>, the unlocks, the source", stored.schema and stored.schema.source == "epic" and stored.unlocks.ACH_FRIENDLY_JOTUNN ~= nil and stored.source == "epic" and store.get_schema("epic_" .. EPIC_COPY.namespace) ~= nil)
++local lp = ach.local_part(SC)
++check("... local_part carries the source (a short freshness for a synced store)", lp.source == "epic")
++fresh_policy.touch(SC, "achievements", 0, "ok")
++local at16 = 16 * 60 * 1000
++check("... fresh_policy: a synced part is stale after 15 min, a local one is not (24 h)",
++  fresh_policy.is_stale(SC, "achievements", { status = "ok", source = "epic" }, at16)
++    and not fresh_policy.is_stale(SC, "achievements", { status = "ok", source = "steam" }, at16))
++local res2 = sa.fetch(SC, EPIC_COPY, 2820820)
++check("with a Steam match whose list covers every Epic id, Steam's list is kept with Epic's unlocks", res2.schema.native_appid == 2820820 and res2.schema.total == 3 and res2.unlocks.ACH_FRIENDLY_JOTUNN ~= nil and steam_fetches == 1)
++sa.deps.steam_fetch = function() return { native_appid = 999, total = 1, achievements = { { id = "OTHER" } } } end
++store._reset(); os.remove(ACH_PATH)
++local res3 = sa.fetch(SC, EPIC_COPY, 999)
++check("a Steam list that misses an Epic id is not used: Epic's own list", res3.schema.source == "epic" and res3.schema.total == 2)
++epic_err = "private"
++local res4 = sa.fetch(SC, EPIC_COPY, 0)
++check("a private profile keeps the last unlocks known and is remembered", res4 and res4.unlocks.ACH_FRIENDLY_JOTUNN ~= nil and remembered["epic:account"].private == true)
++epic_err = "HTTP 500"
++check("a failed request is an error (the record keeps what it has)", sa.fetch(SC, EPIC_COPY, 0) == nil)
++epic_err = nil
++sa.deps.live = { achievements = function() return { achievements = { { id = "2", name = "First Unlock", description = "", icon = "", global_pct = 40 } }, unlocks = { ["2"] = 1790963661 } } end }
++local rx = sa.fetch(SC, { kind = "xbox", titleId = "2003863742", title = "Jigsaw" }, 0)
++check("an Xbox copy gets Xbox Live's list and unlocks, stored under xbox_<title id>", rx and rx.schema.source == "xbox" and rx.unlocks["2"].unlocked_time == 1790963661 and store.get_state(SC).source == "xbox" and store.get_schema("xbox_2003863742") ~= nil)
++sa.deps.live = { achievements = function() return nil, "not signed in" end }
++check("signed out of Xbox: no answer (ach_service asks the next source)", sa.fetch(SC, { kind = "xbox", titleId = "1" }, 0) == nil)
++sa.deps.epic, sa.deps.epic_local, sa.deps.copies, sa.deps.steam_fetch, sa.deps.live = nil, nil, nil, nil, nil
++wipe()
+ os.remove(ACH_PATH); os.remove(STORE_PATH)
+ print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
+ os.exit(failures == 0 and 0 or 1)

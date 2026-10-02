@@ -14,6 +14,16 @@ This repo is private and unversioned; entries are grouped by date.
   captures surface's `touches`, its service check and the architecture test's owner pattern. Tests: the marker plan
   tests went; a test now proves a theme's `add_timeline_marker` override is ignored as unknown. 164 pass (the known
   asset failure). The Steam facts stay in steam-components.md for steam-cartridges (TASK.md).
+- **Epic and Xbox games: executable plan (ADR-0056, 2026-10-02, no code in the plugins yet)**: at the user's request,
+  [docs/plans/steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md) with nine
+  patches, dry-run on `547c437` (TS 272 → 292, Lua 10 → 11 suites, enhanced-notifications 164 → 165, build ok). Research
+  round 3, live: no unlock of any source reaches the Activity feed today (Super Mario World); Steam's achievement event
+  (module 12750 class `P`) is not exported, but an object on the shared event base with its fields renders as Steam's
+  own card; the open feed re-renders only when `appActivityStore.m_mapAppActivity` gets a new object;
+  `SteamClient.Apps.AddShortcut` returns the appid but ignores the name and launch options (set after with
+  `SetShortcutName` / `SetShortcutLaunchOptions`) and refuses a URL as the exe. All probe changes were undone; the test
+  shortcut was removed. The plan keeps the copy as its own `store` part and service (not in `identity`), the unlock
+  grouping inside the captures surface (surfaces may not import `domain/`), and leaves store art and trailers out.
 - **Epic and Xbox games: research round 2 (2026-10-02, no code)**: with the user's accounts (Epic profile set to public,
   Microsoft Jigsaw installed, one unlock in each store). Epic: `playerProfile.achievementsSummaries` and
   `productAchievements(productId)` answer anonymously for a public profile (`ACH_FRIENDLY_JOTUNN`, with its unlock time),

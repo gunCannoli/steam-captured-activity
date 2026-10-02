@@ -1,0 +1,320 @@
+diff --git a/steam-cartridges/frontend/domain/community-media.ts b/steam-cartridges/frontend/domain/community-media.ts
+index 96a7fbe..d2301f2 100644
+--- a/steam-cartridges/frontend/domain/community-media.ts
++++ b/steam-cartridges/frontend/domain/community-media.ts
+@@ -25,14 +25,19 @@ export function isShowable(item: MediaItem | undefined): item is MediaItem {
+ 
+ /**
+  * The items to show: allowed by the toggles, complete, at most MAX_PER_KIND per kind. Order: the manual first (the user
+- * wants it as the top-left card, features plan F2c), then trailers, then the images
+- * ScreenScraper has for this exact game (chosen by ROM and console, so the most specific), then IGDB's. The ScreenScraper
+- * images go first so IGDB's larger sets can neither crowd them out of the cap nor leave them at the end of the grid, where
+- * Steam's row layout drops a card that fits no row.
++ * wants it as the top-left card, features plan F2c), then trailers, then the screenshots of the store the copy was bought
++ * on (Epic, Xbox: the game's own, ADR-0056), then the images ScreenScraper has for this exact game (chosen by ROM and
++ * console, so the most specific), then IGDB's. The ScreenScraper images go before IGDB's so IGDB's larger sets can neither
++ * crowd them out of the cap nor leave them at the end of the grid, where Steam's row layout drops a card that fits no row.
+  */
+ export function visibleMedia(media: CommunityMedia | undefined, toggles: MediaToggles): MediaItem[] {
+     const counts: Record<string, number> = {};
+-    const rank = (item: MediaItem) => (item.kind === "manual" ? -1 : item.kind === "video" ? 0 : item.source === "screenscraper" ? 1 : 2);
++    const rank = (item: MediaItem) =>
++        item.kind === "manual" ? -1
++        : item.kind === "video" ? 0
++        : item.source === "epic" || item.source === "xbox" ? 1
++        : item.source === "screenscraper" ? 2
++        : 3;
+     const wanted = asList<MediaItem>(media?.items)
+         .filter(isShowable)
+         .filter((item) => (item.kind === "video" ? toggles.trailers : item.kind === "manual" ? toggles.manuals : toggles.artworks))
+diff --git a/steam-cartridges/frontend/kernel/events.ts b/steam-cartridges/frontend/kernel/events.ts
+index 79b6f51..5e6fc11 100644
+--- a/steam-cartridges/frontend/kernel/events.ts
++++ b/steam-cartridges/frontend/kernel/events.ts
+@@ -18,6 +18,11 @@ export interface Events {
+     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
+     /** New unlocks (app/achievements), with what the toast and the Post-Game Summary show. */
+     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };
++    /**
++     * New unlocks a store sync found (Epic, Xbox; ADR-0056): the store's own overlay already showed them, so there is
++     * no toast; the Post-Game Summary shows them.
++     */
++    "achievements.synced": { appid: ShortcutId; items: UnlockedAchievement[] };
+     /** The launch toast policy (app/achievements) decided a launch gets the "Achievements Enabled" toast. */
+     "achievements.launch-toast": { appid: ShortcutId };
+     /** The captures surface published (or cleared) a shortcut's summary and activity (sections drops the placeholder). */
+diff --git a/steam-cartridges/frontend/kernel/record.ts b/steam-cartridges/frontend/kernel/record.ts
+index 5f70c08..4e451d6 100644
+--- a/steam-cartridges/frontend/kernel/record.ts
++++ b/steam-cartridges/frontend/kernel/record.ts
+@@ -24,6 +24,32 @@ export interface Identity {
+     web?: { igdb?: number; ra?: number; ss?: number; romHash?: string };
+ }
+ 
++/** The stores a shortcut can be a copy of (ADR-0056). */
++export type StoreKind = "epic" | "xbox";
++
++/**
++ * A shortcut that is a copy of a game bought on another store (backend store_service.lua, ADR-0056): found from the
++ * store's own install data on this PC, never typed by the user. A copy can also have a Steam match (`identity`).
++ */
++export interface StoreCopy {
++    kind: StoreKind;
++    /** The store's name for the game. */
++    title?: string;
++    /** Epic: CatalogNamespace (also the achievement sandbox), CatalogItemId and AppName from the install manifest. */
++    namespace?: string;
++    itemId?: string;
++    appName?: string;
++    /** Epic: the store offer (Game Info) and the achievement product (player unlocks). */
++    offerId?: string;
++    productId?: string;
++    /** Xbox: package family name, Store product id and Xbox title id (decimal). */
++    pfn?: string;
++    storeId?: string;
++    titleId?: string;
++    /** How the copy was found: an Epic manifest, a launch link, an Xbox game config file, an installed package. */
++    via: "manifest" | "launch-link" | "config" | "package";
++}
++
+ /** Player and controller flags from a metadata source (moved from rpc.ts in M3.3, plan § 7.0 D12). */
+ export interface GameCategories {
+     single_player?: boolean;
+@@ -132,10 +158,11 @@ export interface AchievementSet {
+ export interface MediaItem {
+     /** "manual": a ScreenScraper PDF (features plan F2c), shown as a cover card and opened page by page. */
+     kind: "video" | "screenshot" | "artwork" | "manual";
+-    source: "igdb" | "screenscraper";
++    /** "epic" / "xbox": the store's own screenshots of a copy with no Steam match (ADR-0056), public URLs like IGDB's. */
++    source: "igdb" | "screenscraper" | "epic" | "xbox";
+     /** A video's YouTube id. */
+     youtube?: string;
+-    /** Public full-size and preview URLs (IGDB). A ScreenScraper item has none: its image is fetched by `key` into the media bin. */
++    /** Public full-size and preview URLs (IGDB, Epic, Xbox). A ScreenScraper item has none: its image is fetched by `key` into the media bin. */
+     url?: string;
+     thumb?: string;
+     /** ScreenScraper media key, e.g. "ss(wor)". */
+@@ -225,9 +252,11 @@ export interface GameRecord {
+     achievements?: Part<AchievementSet>;
+     media?: Part<CommunityMedia>;
+     artwork?: Part<ArtworkPlan>;
++    /** The Epic or Xbox copy behind the shortcut (ADR-0056); `unsupported` for any other shortcut. */
++    store?: Part<StoreCopy>;
+ }
+ 
+-export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork";
++export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork" | "store";
+ 
+ export interface RecordStore {
+     get(appid: ShortcutId): GameRecord | undefined;
+diff --git a/steam-cartridges/frontend/settings/defaults.ts b/steam-cartridges/frontend/settings/defaults.ts
+index 6ed7dce..22f4a0e 100644
+--- a/steam-cartridges/frontend/settings/defaults.ts
++++ b/steam-cartridges/frontend/settings/defaults.ts
+@@ -13,6 +13,10 @@ export interface ServicesConfig {
+     retroachievementsEnabled: boolean;
+     emulatorsEnabled: boolean;
+     rpcs3Enabled?: boolean;
++    /** Epic Games Store copies: the store's Game Info, screenshots and the user's unlocks (ADR-0056). */
++    epicEnabled: boolean;
++    /** Xbox (PC Game Pass / Microsoft Store) copies: the store's Game Info, screenshots and the user's unlocks (ADR-0056). */
++    xboxEnabled: boolean;
+ }
+ 
+ export const DEFAULT_SERVICES: ServicesConfig = {
+@@ -23,6 +27,8 @@ export const DEFAULT_SERVICES: ServicesConfig = {
+     retroachievementsEnabled: true,
+     emulatorsEnabled: true,
+     rpcs3Enabled: true,
++    epicEnabled: true,
++    xboxEnabled: true,
+ };
+ 
+ export type ControllerOverride = 'full' | 'partial' | 'none' | 'auto';
+@@ -47,6 +53,12 @@ export interface Settings {
+     activityShowAddedToLibrary: boolean;
+     /** Show native activity card when a non-Steam game is played for the first time. Default true. */
+     activityShowFirstPlayed: boolean;
++    /** Show Steam's "achieved" activity card for each day a non-Steam game's achievements were unlocked (ADR-0056). Default true. */
++    activityShowAchievements: boolean;
++    /** Add every installed Epic Games Store game that is not in the library yet as a shortcut (ADR-0056). Default false. */
++    autoAddEpicGames: boolean;
++    /** Add every installed Xbox PC game that is not in the library yet as a shortcut (ADR-0056). Default false. */
++    autoAddXboxGames: boolean;
+     /** Show trailers carousel on community tab. Default true. */
+     communityShowTrailers: boolean;
+     /** Show digital game manuals on community tab. Default true. */
+@@ -79,6 +91,9 @@ export const DEFAULTS: Settings = {
+     controllerOverrides: {},
+     activityShowAddedToLibrary: true,
+     activityShowFirstPlayed: true,
++    activityShowAchievements: true,
++    autoAddEpicGames: false,
++    autoAddXboxGames: false,
+     communityShowTrailers: true,
+     communityShowManuals: true,
+     communityShowArtworks: true,
+diff --git a/steam-cartridges/frontend/settings/settings.ts b/steam-cartridges/frontend/settings/settings.ts
+index 21dd546..34b3dc8 100644
+--- a/steam-cartridges/frontend/settings/settings.ts
++++ b/steam-cartridges/frontend/settings/settings.ts
+@@ -18,6 +18,9 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
+     raHardcoreMode: (raw) => raw !== false,
+     activityShowAddedToLibrary: (raw) => raw !== false,
+     activityShowFirstPlayed: (raw) => raw !== false,
++    activityShowAchievements: (raw) => raw !== false,
++    autoAddEpicGames: (raw) => raw === true,
++    autoAddXboxGames: (raw) => raw === true,
+     communityShowTrailers: (raw) => raw !== false,
+     communityShowManuals: (raw) => raw !== false,
+     communityShowArtworks: (raw) => raw !== false,
+@@ -41,6 +44,8 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
+             retroachievementsEnabled: r.retroachievementsEnabled !== false,
+             emulatorsEnabled: emu,
+             rpcs3Enabled: emu,
++            epicEnabled: r.epicEnabled !== false,
++            xboxEnabled: r.xboxEnabled !== false,
+         };
+     },
+     controllerOverrides: (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, ControllerOverride>) : {}),
+@@ -57,6 +62,9 @@ const current: Settings = {
+     controllerOverrides: {},
+     activityShowAddedToLibrary: true,
+     activityShowFirstPlayed: true,
++    activityShowAchievements: true,
++    autoAddEpicGames: false,
++    autoAddXboxGames: false,
+     communityShowTrailers: true,
+     communityShowManuals: true,
+     communityShowArtworks: true,
+diff --git a/steam-cartridges/frontend/surfaces/community/core.ts b/steam-cartridges/frontend/surfaces/community/core.ts
+index 02cda8f..4c1d8d7 100644
+--- a/steam-cartridges/frontend/surfaces/community/core.ts
++++ b/steam-cartridges/frontend/surfaces/community/core.ts
+@@ -10,7 +10,7 @@
+ import type { MediaItem } from "../../kernel/record";
+ import type { MediaImage } from "../../kernel/media-bin";
+ import { toShortcutId } from "../../kernel/appid.ts";
+-import { IGDB_ICON, SCREENSCRAPER_ICON } from "./icons.ts";
++import { EPIC_ICON, IGDB_ICON, SCREENSCRAPER_ICON, XBOX_ICON } from "./icons.ts";
+ 
+ export const FILE_TYPE = { artwork: 3, video: 4, screenshot: 5 } as const;
+ 
+@@ -25,17 +25,22 @@ export function feedId(appid: number, index: number): string {
+     return String(FEED_ID_BASE + appid * MAX_ITEMS + index);
+ }
+ 
+-export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper" };
++export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper", epic: "Epic Games Store", xbox: "Xbox" };
+ 
+ /**
+- * Each source is a made-up Steam account (public individual accounts 2147483101 and 2147483102, at the top of the signed
++ * Each source is a made-up Steam account (public individual accounts 2147483101 to 2147483104, at the top of the signed
+  * int32 range), so `new SteamID(...)` is valid and Steam's own author and "Created by" components accept it. They must
+  * stay below 2^31: Steam converts an account id with signed bit operations when it opens a comment thread, and a
+  * protobuf uint32 writer then asserts on the negative value (verified live 2026-09-30, guardrail 1). The 64-bit ids are
+  * decimal strings because they exceed 2^53.
+  */
+-export const CREATOR_STEAMIDS: Record<MediaItem["source"], string> = { igdb: "76561200107748829", screenscraper: "76561200107748830" };
+-const ACCOUNT_SOURCE: Record<number, MediaItem["source"]> = { 2147483101: "igdb", 2147483102: "screenscraper" };
++export const CREATOR_STEAMIDS: Record<MediaItem["source"], string> = {
++    igdb: "76561200107748829",
++    screenscraper: "76561200107748830",
++    epic: "76561200107748831",
++    xbox: "76561200107748832",
++};
++const ACCOUNT_SOURCE: Record<number, MediaItem["source"]> = { 2147483101: "igdb", 2147483102: "screenscraper", 2147483103: "epic", 2147483104: "xbox" };
+ 
+ /** The source whose made-up account this is, or undefined for any real account. O(1). */
+ export function sourceOfAccount(accountId: unknown): MediaItem["source"] | undefined {
+@@ -46,6 +51,8 @@ export function sourceOfAccount(accountId: unknown): MediaItem["source"] | undef
+ export const CREATOR_AVATARS: Record<MediaItem["source"], string> = {
+     igdb: IGDB_ICON,
+     screenscraper: SCREENSCRAPER_ICON,
++    epic: EPIC_ICON,
++    xbox: XBOX_ICON,
+ };
+ 
+ /** One item of Steam's community feed, as its card components read it. */
+diff --git a/steam-cartridges/frontend/surfaces/community/icons.ts b/steam-cartridges/frontend/surfaces/community/icons.ts
+index e2861e6..db96607 100644
+--- a/steam-cartridges/frontend/surfaces/community/icons.ts
++++ b/steam-cartridges/frontend/surfaces/community/icons.ts
+@@ -16,3 +16,18 @@ const IGDB_SVG =
+ export const IGDB_ICON = `data:image/svg+xml;utf8,${encodeURIComponent(IGDB_SVG)}`;
+ 
+ export const SCREENSCRAPER_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAABdmlDQ1BJQ0MgUHJvZmlsZQAAeJylkLFLw0AYxV9bRdFKBx0cHDIUB2lB6uKodShIKaVWsOqSpEkrJG1IUkQcHVw7dFFxsYr/gW7iPyAIgjq56OygIIKU+K4pxKGd/MLd9+PdvcvdA8JNQzWdoXnArLl2IZOWNkqbEv6UrDrWcj6fxcD6ekRI9IekOGvwvr41XtYcFQiNkhdVy3bJS+TcrmsJbpKn1KpcJp+TEzYvSL4XuuLzm+CKz9+C7WJhBQhHyVLF54RgxWfxFkmt2ibZIMdNo6H27iNeEtVq62vsM93hoIAM0pCgoIEdGHCRZK8xs/6+VNeXQ50elbOFPdh0VFClN0G1wVM1dp26xs/gDlaQfZCpoy+k/D9EV4HhV8/7nANGToDOoef9nHlepw1EnoHbVuCvtxjnO/VmoMVPgdgBcHUTaMoFcM2Mp18s2Za7UoQjrOvAxyUwUQImmfXY1n/X/bx762g/AcV9IHsHHB0Ds9wf2/4F9IxzaxM+sS0AAAMAUExURQAAACwnI1E1Iv38BwkHBRgWENP2R6/nN+b9S43ZLi4lD25DIkW8GGrLJHFFGVLCGycZCjU1MXXUKE43Ejy5FvLXDmM9IkEuITI1Ec6mEZBXF1jGIVJGErCHEe/9Z0ZGRZBoEpbiM+rID/XnEcjzOnBXEKp4FNe1E0grFCYmJIVKGUxGLFVWU2rIG5R0DmM8HcWaESYmJMzrS7bpRLqVEzFGFG/kK+W4DBskEKRpF8TsOXPVGC5ZF3VmEU9WK2RkZCYmJjMzMajaNE63IxgYFnS3Lo6aMW9nJ4nWGmZkWikpJykpJxcXFbPJShcXFhgYF1BWGK/XR5CEKbnyOnWVLXSHMC9nFgICAmp2K1ZnJbrxRjU1MRo0EIu4MZTFMzJ4GFJ0JVdXUjY2NDtEN1vWJbSSKYNJIdnEFicnJlRpGJSkM3KnKmlZKEumI+r8M6aKLCEgHTo6OJF4J6W3MarFMxwcGyIiHSQeIreiJrykFEI9QkhIRh4eIZqqQ86nJk53Fl3iKFeJFk6VGicnJ4RtKjiFGTyWGioqEdnqY2BdUENDOUeWI9DtHU2EJUNDQ0hISMGNFurEI8rbT6VeGeypEZniGm94GcXaPFNSUW63GiAgHl9gX6NZIMOZJouhGc/SGsxaHljVHkOpGbvWF2ioGvWdFYuXGdH3HopQJTMzMd71YG6EGa3jHZzJQxAODmlpaaqqqqW2RrLGGX9/fzNaJTc3QDiCIjyhHjzDHVVVADExLzExLlxdYF9hYB8iIT8/AAAAMx4gHmGXGP///5yCEoaSQJmZZo2/H5HGF5rXQB0fHZ/wOiIiH6GpRvWAFOZgGfJ5DyEbGyEPDBxEEgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFzZyoIAAAEAdFJOUwD+///+/f/////+/////////P/+//////7////+///8///////+////iv/++v////9v/////////v////////4Oz///MP/////+sVBR/xTP/v///////yz///8v//////8ImP//////zv////////+LDP///7Y1/v///8n+////////K////w7//xn///8Tu///////////2P+y+/////////////////+x/////00GA///Av//////A3tI////BAWW/wH//wX///+D/3D/////Lv//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADfafFSAAAQW0lEQVR42q1ahX/bWLa2HEuyrm1h7Eq2ZMtMsWMMJw1MoClz2i1NYcrcYeaZHdzZnVlmprdv9zEz83v/0DvnSnacNk3amT2/pm2a5vvugXvugXg8m8jv4W+Hd9RPfzCwdesAyp/Dnx+cLu443P3yZ5Qdp58d2LZ167aBRFeAa+vXBz7400d+G+hf2bZt29tT5bKJUi57FUVhGEZREgN/sfXrXzn9O58F/XD9WUCfKpt7spOT1Wr1VnVx8QpwlRWXBVQZeLZ++NPCnx7Ytg1OnrWrVqtmGLW81araWc1EeLATJaEcxU9DcXh5YNsAnH2y2jJSw6nUcNgI14ycnS0QHwqL4AnKgRQPjV9MIHy2ahn58HA4nAoPp1pP3bq1eKXs9QIoyzokSuIMVWNr4t89v/swrn3WgW/lhwE7nPrCN8/d2rdv38LCpUsL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";
++
++/** A plain text badge for a store's cards (ADR-0056): the store's name on a dark tile, not its logo. */
++function storeBadge(label: string, color: string): string {
++    const svg =
++        '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">' +
++        `<rect width="96" height="96" rx="12" fill="${color}"/>` +
++        `<text x="48" y="58" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">${label}</text>` +
++        "</svg>";
++    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
++}
++
++/** Epic Games Store cards (ADR-0056). */
++export const EPIC_ICON = storeBadge("EPIC", "#2a2a2a");
++/** Xbox cards (ADR-0056). */
++export const XBOX_ICON = storeBadge("XBOX", "#107c10");
+diff --git a/steam-cartridges/tests/community-core.test.ts b/steam-cartridges/tests/community-core.test.ts
+index a7e325d..61b7bff 100644
+--- a/steam-cartridges/tests/community-core.test.ts
++++ b/steam-cartridges/tests/community-core.test.ts
+@@ -262,3 +262,16 @@ test('community core: a first page is held until released (or the limit), then a
+     assert.deepEqual(await third, { appid: 3 });
+     assert.deepEqual(EMPTY_ANSWER().vecContent, []);
+ });
++
++test('community core: an Epic or Xbox screenshot is a URL card with its store as the author (ADR-0056)', () => {
++    const [epic, xbox] = toFeedItems(SC, [
++        { kind: 'screenshot', source: 'epic', url: 'https://cdn2.unrealengine.com/a.jpg', width: 1920, height: 1080 },
++        { kind: 'screenshot', source: 'xbox', url: 'https://store-images.s-microsoft.com/b', width: 1920, height: 1080 },
++    ], none);
++    assert.equal(epic!.full_image_url, 'https://cdn2.unrealengine.com/a.jpg');
++    assert.deepEqual(epic!.creator, { name: 'Epic Games Store', steamid: CREATOR_STEAMIDS.epic, avatar: CREATOR_AVATARS.epic, online_state: 0 });
++    assert.equal(xbox!.creator.name, 'Xbox');
++    assert.equal(sourceOfAccount(2147483103), 'epic');
++    assert.equal(sourceOfAccount(2147483104), 'xbox');
++    assert.equal(BigInt(CREATOR_STEAMIDS.xbox) - 76561197960265728n, 2147483104n, 'the 64-bit id is the account id plus the individual base');
++});
+diff --git a/steam-cartridges/tests/community-media.test.ts b/steam-cartridges/tests/community-media.test.ts
+index 1909a4f..c117554 100644
+--- a/steam-cartridges/tests/community-media.test.ts
++++ b/steam-cartridges/tests/community-media.test.ts
+@@ -65,3 +65,11 @@ test('community media: the section shows with cards, and while the media is bein
+     assert.ok(!wantsCommunitySection({ status: 'unsupported' }));
+     assert.ok(!wantsCommunitySection({ status: 'needs-setup' }));
+ });
++
++test('community media: a store copy\'s own screenshots come before ScreenScraper and IGDB images (ADR-0056)', () => {
++    const epic = { kind: 'screenshot', source: 'epic', url: 'https://cdn2.unrealengine.com/a.jpg', width: 1920, height: 1080 } as any;
++    const xbox = { kind: 'screenshot', source: 'xbox', url: 'https://store-images.s-microsoft.com/b', width: 1920, height: 1080 } as any;
++    assert.ok(isShowable(epic) && isShowable(xbox), 'a store screenshot is a card when it has a URL');
++    const media = { items: [shot(1), ssArt, epic, video(), xbox] };
++    assert.deepEqual(visibleMedia(media, ON), [video(), epic, xbox, ssArt, shot(1)]);
++});
+diff --git a/steam-cartridges/tests/fixtures/settings-defaults.json b/steam-cartridges/tests/fixtures/settings-defaults.json
+index 9426c98..f582e9e 100644
+--- a/steam-cartridges/tests/fixtures/settings-defaults.json
++++ b/steam-cartridges/tests/fixtures/settings-defaults.json
+@@ -17,11 +17,16 @@
+     "steamgriddbEnabled": true,
+     "retroachievementsEnabled": true,
+     "emulatorsEnabled": true,
+-    "rpcs3Enabled": true
++    "rpcs3Enabled": true,
++    "epicEnabled": true,
++    "xboxEnabled": true
+   },
+   "controllerOverrides": {},
+   "activityShowAddedToLibrary": true,
+   "activityShowFirstPlayed": true,
++  "activityShowAchievements": true,
++  "autoAddEpicGames": false,
++  "autoAddXboxGames": false,
+   "communityShowTrailers": true,
+   "communityShowManuals": true,
+   "communityShowArtworks": true,

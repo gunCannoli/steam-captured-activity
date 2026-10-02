@@ -1,0 +1,1838 @@
+diff --git a/steam-cartridges/backend/epic_graphql.lua b/steam-cartridges/backend/epic_graphql.lua
+new file mode 100644
+index 0000000..f986097
+--- /dev/null
++++ b/steam-cartridges/backend/epic_graphql.lua
+@@ -0,0 +1,186 @@
++--- Source `epic` (ADR-0056): the Epic Games Store's own public GraphQL API, https://store.epicgames.com/graphql.
++--- No sign-in and no key: the store's game data, achievement list and, when the player's profile shows its
++--- achievements to everyone, the player's unlocks. Every request goes through net.lua (source "epic", breakers).
++---
++--- Queries and fields verified anonymously on 2026-10-02 (plan § 4.2 and § 4.7). Introspection is off, and a query
++--- that names an unknown field fails as a whole, so only these fields are asked for:
++---   Catalog.catalogOffers(namespace, locale, params)   the namespace's offers with offerType (BASE_GAME first)
++---   Catalog.catalogOffer(namespace, id, locale)        title, description, developer/publisherDisplayName,
++---                                                      releaseDate, pcReleaseDate, tags { name groupName },
++---                                                      keyImages { type url } (featuredMedia = screenshots)
++---   Achievement.productAchievementsRecordBySandbox     productId and each achievement (name = the API name)
++---   PlayerProfile.playerProfile(epicAccountId)
++---     .productAchievements(productId)                  the player's unlocks with unlockDate; a private profile
++---                                                      answers ServiceError { status 403 }
++
++local json     = require("json")
++local iso_date = require("iso_date")
++
++local M = {}
++
++M.URL = "https://store.epicgames.com/graphql"
++M.USER_AGENT = "steam-cartridges (Millennium plugin)"
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  post = nil, -- fun(url, body, opts) -> res | nil, err ; nil = net.post
++}
++
++--- GraphQL request -> the `data` table, or nil and an error.
++local function query(q)
++  local post = M.deps.post or require("net").post
++  local res, err = post(M.URL, json.encode({ query = q }), {
++    source = "epic",
++    headers = { ["Content-Type"] = "application/json", ["Accept"] = "application/json", ["User-Agent"] = M.USER_AGENT },
++    timeout = 20,
++  })
++  if not res then return nil, err or "no response" end
++  if tonumber(res.status) ~= 200 then return nil, "HTTP " .. tostring(res.status) end
++  local ok, body = pcall(json.decode, res.body or "")
++  if not ok or type(body) ~= "table" then return nil, "bad JSON" end
++  if type(body.errors) == "table" and body.errors[1] then
++    return nil, tostring(body.errors[1].message or "GraphQL error")
++  end
++  if type(body.data) ~= "table" then return nil, "no data" end
++  return body.data
++end
++
++--- A GraphQL string literal (ids come from the user's own disk, still quote them safely).
++local function lit(s) return json.encode(tostring(s or "")) end
++
++--- The namespace's base game offer: { id, title } or nil and an error.
++function M.base_offer(namespace)
++  local data, err = query("query { Catalog { catalogOffers(namespace: " .. lit(namespace)
++    .. ", locale: \"en-US\", params: { count: 50 }) { elements { id title offerType } } } }")
++  if not data then return nil, err end
++  local list = (((data.Catalog or {}).catalogOffers or {}).elements) or {}
++  local first
++  for _, o in ipairs(list) do
++    if type(o) == "table" and o.id then
++      first = first or o
++      if o.offerType == "BASE_GAME" then return { id = tostring(o.id), title = tostring(o.title or "") } end
++    end
++  end
++  if first then return { id = tostring(first.id), title = tostring(first.title or "") } end
++  return nil, "no offer"
++end
++
++--- The offer's game data (the fields above), or nil and an error.
++function M.offer(namespace, offer_id)
++  local data, err = query("query { Catalog { catalogOffer(namespace: " .. lit(namespace) .. ", id: " .. lit(offer_id)
++    .. ", locale: \"en-US\") { title description developerDisplayName publisherDisplayName releaseDate pcReleaseDate"
++    .. " tags { name groupName } keyImages { type url } } } }")
++  if not data then return nil, err end
++  local o = (data.Catalog or {}).catalogOffer
++  if type(o) ~= "table" or not o.title then return nil, "no offer" end
++  return o
++end
++
++--- Epic feature tags -> our player flags (pure). Only tags that say it exactly; Epic's "Controller Support" does not
++--- tell full from partial, so it is partial.
++local FEATURE_FLAGS = {
++  ["Single Player"] = "single_player",
++  ["Multiplayer"] = "multiplayer",
++  ["Co-op"] = "coop",
++  ["Controller Support"] = "partial_controller",
++}
++
++--- An offer -> our metadata record (pure; the shape library_metadata.json stores).
++function M.to_metadata(offer, appid, title)
++  if type(offer) ~= "table" then return nil end
++  local genres, categories = {}, {}
++  for _, t in ipairs(type(offer.tags) == "table" and offer.tags or {}) do
++    if type(t) == "table" and t.name then
++      if t.groupName == "genre" then genres[#genres + 1] = tostring(t.name) end
++      local flag = (t.groupName == "feature" or t.groupName == "epicfeature") and FEATURE_FLAGS[tostring(t.name)]
++      if flag then categories[flag] = true end
++    end
++  end
++  local function names(s)
++    s = tostring(s or "")
++    return s ~= "" and { s } or {}
++  end
++  return {
++    appid = appid,
++    title = title,
++    matched_title = tostring(offer.title or title),
++    description = tostring(offer.description or ""),
++    developers = names(offer.developerDisplayName),
++    publishers = names(offer.publisherDisplayName),
++    franchises = {},
++    release_date = iso_date.day(offer.pcReleaseDate) or iso_date.day(offer.releaseDate) or 0,
++    genres = genres,
++    categories = categories,
++    custom_override = false,
++  }
++end
++
++--- An offer's screenshots as community media items (pure): its `featuredMedia` key images, 16:9 store art.
++function M.screenshots(offer)
++  local items = {}
++  for _, k in ipairs(type(offer) == "table" and type(offer.keyImages) == "table" and offer.keyImages or {}) do
++    if type(k) == "table" and k.type == "featuredMedia" and type(k.url) == "string" and k.url:match("^https://") then
++      items[#items + 1] = {
++        kind = "screenshot", source = "epic", url = k.url,
++        -- Epic's image CDN resizes on request: the card loads a small copy, the viewer the full one.
++        thumb = k.url .. (k.url:find("?", 1, true) and "&" or "?") .. "w=640&resize=1",
++        width = 1920, height = 1080,
++      }
++    end
++  end
++  return items
++end
++
++--- The sandbox's achievement list: { product_id, achievements = { { id, name, description, icon, icon_locked, xp,
++--- global_pct, hidden } } }, or nil and an error.
++function M.achievement_schema(sandbox)
++  local data, err = query("query { Achievement { productAchievementsRecordBySandbox(sandboxId: " .. lit(sandbox)
++    .. ", locale: \"en-US\") { productId totalAchievements achievements { achievement { name hidden"
++    .. " unlockedDisplayName unlockedDescription unlockedIconLink lockedIconLink XP rarity { percent } } } } } }")
++  if not data then return nil, err end
++  local rec = (data.Achievement or {}).productAchievementsRecordBySandbox
++  if type(rec) ~= "table" or not rec.productId then return nil, "no achievements" end
++  local out = { product_id = tostring(rec.productId), achievements = {} }
++  for _, wrap in ipairs(type(rec.achievements) == "table" and rec.achievements or {}) do
++    local a = type(wrap) == "table" and wrap.achievement or nil
++    if type(a) == "table" and a.name then
++      out.achievements[#out.achievements + 1] = {
++        id = tostring(a.name),
++        name = tostring(a.unlockedDisplayName or a.name),
++        description = tostring(a.unlockedDescription or ""),
++        icon = tostring(a.unlockedIconLink or ""),
++        icon_locked = tostring(a.lockedIconLink or ""),
++        xp = tonumber(a.XP) or 0,
++        global_pct = tonumber(type(a.rarity) == "table" and a.rarity.percent) or 0,
++        hidden = a.hidden == true,
++      }
++    end
++  end
++  return out
++end
++
++--- The player's unlocks in one product: { [api name] = unix seconds }, or nil and an error. "private" when the
++--- profile does not show its achievements to everyone (the user changes that in their Epic account's privacy).
++function M.player_unlocks(account_id, product_id)
++  local data, err = query("query { PlayerProfile { playerProfile(epicAccountId: " .. lit(account_id)
++    .. ") { productAchievements(productId: " .. lit(product_id) .. ") { __typename"
++    .. " ... on PlayerProductAchievementsResponseSuccess { data { playerAchievements { playerAchievement"
++    .. " { achievementName unlocked unlockDate } } } } ... on ServiceError { status message } } } } }")
++  if not data then return nil, err end
++  local res = (((data.PlayerProfile or {}).playerProfile or {}).productAchievements)
++  if type(res) ~= "table" then return nil, "no profile" end
++  if res.__typename == "ServiceError" then
++    return nil, tonumber(res.status) == 403 and "private" or ("service error " .. tostring(res.status))
++  end
++  local unlocks = {}
++  local list = type(res.data) == "table" and res.data.playerAchievements or {}
++  for _, wrap in ipairs(type(list) == "table" and list or {}) do
++    local p = type(wrap) == "table" and wrap.playerAchievement or nil
++    if type(p) == "table" and p.unlocked == true and p.achievementName then
++      unlocks[tostring(p.achievementName)] = iso_date.instant(p.unlockDate) or 0
++    end
++  end
++  return unlocks
++end
++
++return M
+diff --git a/steam-cartridges/backend/iso_date.lua b/steam-cartridges/backend/iso_date.lua
+new file mode 100644
+index 0000000..5ea347d
+--- /dev/null
++++ b/steam-cartridges/backend/iso_date.lua
+@@ -0,0 +1,32 @@
++--- ISO 8601 dates from the store APIs (ADR-0056): "2023-10-27T04:00:00.000Z" -> Unix seconds of that day (UTC).
++--- Pure. Steam shows a release as a day, so the time of day is dropped.
++
++local M = {}
++
++local function days_from_civil(y, m, d)
++  if m <= 2 then y = y - 1 end
++  local era = math.floor((y >= 0 and y or y - 399) / 400)
++  local yoe = y - era * 400
++  local doy = math.floor((153 * (m + (m > 2 and -3 or 9)) + 2) / 5) + d - 1
++  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
++  return era * 146097 + doe - 719468
++end
++
++--- The day as Unix seconds, or nil when the text does not start with YYYY-MM-DD (a year alone or 0001 is no date).
++function M.day(s)
++  local y, m, d = tostring(s or ""):match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
++  y, m, d = tonumber(y), tonumber(m), tonumber(d)
++  if not y or y < 1970 or m < 1 or m > 12 or d < 1 or d > 31 then return nil end
++  return days_from_civil(y, m, d) * 86400
++end
++
++--- Date and time as Unix seconds ("2026-10-02T17:44:53.533Z" -> 1790963093), or nil.
++function M.instant(s)
++  local text = tostring(s or "")
++  local day = M.day(text)
++  if not day then return nil end
++  local h, mi, se = text:match("^%d%d%d%d%-%d%d%-%d%dT(%d%d):(%d%d):(%d%d)")
++  return day + (tonumber(h) or 0) * 3600 + (tonumber(mi) or 0) * 60 + (tonumber(se) or 0)
++end
++
++return M
+diff --git a/steam-cartridges/backend/main.lua b/steam-cartridges/backend/main.lua
+index fdb47c0..579a06e 100644
+--- a/steam-cartridges/backend/main.lua
++++ b/steam-cartridges/backend/main.lua
+@@ -21,6 +21,7 @@ local WEB_RPC = require("web_rpc")
+ local STORE_RPC = require("steam_store_rpc")
+ local ACH_RPC   = require("achievements_rpc")
+ local RECORD_RPC = require("record_rpc")
++local STORE_RPC_3P = require("store_rpc")
+ 
+ -- Millennium exposes globals to the frontend as callable methods.
+ GetLibraryStats = RPC.GetLibraryStats
+@@ -66,6 +67,13 @@ SaveManualCover = RECORD_RPC.SaveManualCover
+ -- Downloaded media on disk (ADR-0051): drop the games not opened within the setting's days.
+ PruneMediaCache = RECORD_RPC.PruneMediaCache
+ 
++-- Third-party stores (ADR-0056): installed Epic and Xbox games, the accounts, the Xbox sign-in.
++StoreInstalledGames = STORE_RPC_3P.StoreInstalledGames
++StoreAccounts       = STORE_RPC_3P.StoreAccounts
++XboxSignInStart     = STORE_RPC_3P.XboxSignInStart
++XboxSignInPoll      = STORE_RPC_3P.XboxSignInPoll
++XboxSignOut         = STORE_RPC_3P.XboxSignOut
++
+ local function on_load()
+   -- Resolve paths eagerly so a misconfigured install shows up in the log at
+   -- startup rather than on the first page view.
+diff --git a/steam-cartridges/backend/record_rpc.lua b/steam-cartridges/backend/record_rpc.lua
+index c82d496..d2f8d81 100644
+--- a/steam-cartridges/backend/record_rpc.lua
++++ b/steam-cartridges/backend/record_rpc.lua
+@@ -6,6 +6,7 @@ local resolve_identity  = require("resolve_identity")
+ local metadata_service  = require("metadata_service")
+ local art_service       = require("art_service")
+ local media_service     = require("media_service")
++local store_service     = require("store_service")
+ local metadata_db       = require("web_metadata_db")
+ local steam_store_store = require("steam_store_store")
+ 
+@@ -56,6 +57,10 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
+         end
+       end
+       ctx.identity = parts.identity -- later parts of this same call see the fresh identity
++    elseif name == "store" then
++      -- The Epic or Xbox copy behind the shortcut (ADR-0056): local detection, then the store's ids once per game.
++      parts.store = store_service.ensure(appid, ctx)
++      ctx.store = parts.store -- later parts of this same call see the copy
+     elseif name == "metadata" then
+       parts.metadata = metadata_service.ensure(appid, ctx)
+     elseif name == "artwork" then
+diff --git a/steam-cartridges/backend/store_copies_store.lua b/steam-cartridges/backend/store_copies_store.lua
+new file mode 100644
+index 0000000..341324c
+--- /dev/null
++++ b/steam-cartridges/backend/store_copies_store.lua
+@@ -0,0 +1,80 @@
++--- The store copies a shortcut is (ADR-0056): <data dir>/store_copies.json. The store stores; store_service.lua finds
++--- and fills. No network here (tests/architecture.test.ts: a store never requires net).
++---
++--- { version = 1, copies = { ["<shortcut appid>"] = StoreCopy }, lookups = { ["epic:<namespace>"] = {...},
++---   ["xbox:<pfn>"] = {...} } }. A lookup remembers what the store's API said about a game (its offer, product, title
++--- id), so another shortcut of the same game, or the next start, asks nothing.
++
++local json     = require("json")
++local utils    = require("utils")
++local data_dir = require("data_dir")
++
++local M = {}
++
++local FILE = "store_copies.json"
++local state = nil
++M._path = nil -- test override
++
++local function path() return M._path or data_dir.file(FILE) end
++
++local function load()
++  if state then return state end
++  state = { version = 1, copies = {}, lookups = {} }
++  local text = utils.read_file(path())
++  if text and #text > 0 then
++    local ok, data = pcall(json.decode, text)
++    if ok and type(data) == "table" then
++      if type(data.copies) == "table" then state.copies = data.copies end
++      if type(data.lookups) == "table" then state.lookups = data.lookups end
++    end
++  end
++  return state
++end
++
++local function save()
++  local tmp = path() .. ".tmp"
++  local ok, err = utils.write_file(tmp, json.encode(load()))
++  if not ok then error("could not write " .. tmp .. ": " .. tostring(err)) end
++  pcall(os.remove, path())
++  if not os.rename(tmp, path()) then
++    utils.write_file(path(), json.encode(load()))
++    pcall(os.remove, tmp)
++  end
++end
++
++function M._reset() state = nil end
++
++local function key(appid) return tostring(math.floor(tonumber(appid) or 0)) end
++
++local function same(a, b) return json.encode(a) == json.encode(b) end
++
++--- The saved copy of a shortcut, or nil. Disk only.
++function M.get(appid) return load().copies[key(appid)] end
++
++--- Save (or, with nil, forget) a shortcut's copy; writes only when it changed.
++function M.set(appid, copy)
++  local s = load()
++  local k = key(appid)
++  if same(s.copies[k], copy) then return end
++  s.copies[k] = copy
++  save()
++end
++
++--- What a store's API said about a game ("epic:<namespace>", "xbox:<pfn>"), or nil.
++function M.lookup(k) return load().lookups[k] end
++
++function M.remember(k, value)
++  local s = load()
++  if same(s.lookups[k], value) then return end
++  s.lookups[k] = value
++  save()
++end
++
++--- Every shortcut appid (a string) with a saved copy.
++function M.copy_keys()
++  local out = {}
++  for k in pairs(load().copies) do out[#out + 1] = k end
++  return out
++end
++
++return M
+diff --git a/steam-cartridges/backend/store_epic_local.lua b/steam-cartridges/backend/store_epic_local.lua
+new file mode 100644
+index 0000000..746673d
+--- /dev/null
++++ b/steam-cartridges/backend/store_epic_local.lua
+@@ -0,0 +1,176 @@
++--- Epic Games Store copies on this PC (ADR-0056): the launcher's install manifests, its URL handler and the account
++--- the launcher is signed in with. Disk and registry reads only, never the network. Every path comes from the
++--- environment (%ProgramData%, %LOCALAPPDATA%) or the registry, never a hardcoded install folder (ADR-0011).
++---
++--- Facts verified on this machine (2026-10-02, docs/plans/steam-cartridges-store-copies-plan.md § 4):
++---   %ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item  one JSON per installed game: InstallLocation,
++---       LaunchExecutable, DisplayName, CatalogNamespace (= the achievement sandbox), CatalogItemId, AppName;
++---       MainGameCatalogNamespace / MainGameAppName are set for an add-on and empty for a game.
++---   %LOCALAPPDATA%\EpicGamesLauncher\Saved\Data\<32 hex>.dat     the file name is the signed-in account id.
++---   HKCR\com.epicgames.launcher\shell\open\command (Default)      "<launcher exe>" %1
++---   A shortcut may run the game's exe directly (Jotunnslayer) or the launcher link com.epicgames.launcher://apps/<id>.
++
++local json = require("json")
++
++local M = {}
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  getenv = nil, -- fun(name) -> string | nil                  ; nil = os.getenv
++  list = nil,   -- fun(dir) -> { { name, path, is_file } }     ; nil = fs.list
++  read = nil,   -- fun(path) -> string | nil                   ; nil = io.open
++  mtime = nil,  -- fun(path) -> number                         ; nil = fs.last_write_time
++  run = nil,    -- fun(cmd) -> string | nil                    ; nil = silent_exec.run
++}
++
++local function getenv(name) return (M.deps.getenv or os.getenv)(name) end
++
++local function read(path)
++  if M.deps.read then return M.deps.read(path) end
++  local f = io.open(path, "rb")
++  if not f then return nil end
++  local c = f:read("*a")
++  f:close()
++  return c
++end
++
++local function list(dir)
++  if M.deps.list then return M.deps.list(dir) end
++  local ok, entries = pcall(function() return require("fs").list(dir) end)
++  return ok and type(entries) == "table" and entries or {}
++end
++
++local function mtime(path)
++  if M.deps.mtime then return M.deps.mtime(path) end
++  local ok, t = pcall(function() return require("fs").last_write_time(path) end)
++  return ok and tonumber(t) or 0
++end
++
++local function run(cmd)
++  if M.deps.run then return M.deps.run(cmd) end
++  local ok, out = pcall(function() return require("silent_exec").run(cmd) end)
++  return ok and out or nil
++end
++
++--- A path for comparison: no quotes, backslashes, lower case, no trailing separator.
++function M.norm_path(p)
++  local s = tostring(p or ""):gsub('"', ""):gsub("/", "\\"):lower()
++  s = s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("\\+$", "")
++  return s
++end
++
++--- The manifests folder, or nil when %ProgramData% is unknown.
++function M.manifests_dir()
++  local base = getenv("ProgramData") or getenv("PROGRAMDATA")
++  if not base or base == "" then return nil end
++  return base .. "\\Epic\\EpicGamesLauncher\\Data\\Manifests"
++end
++
++--- One manifest's text -> { app_name, title, install_location, launch_exe, namespace, item_id, addon } | nil (pure).
++function M.parse_manifest(text)
++  local ok, m = pcall(json.decode, text or "")
++  if not ok or type(m) ~= "table" then return nil end
++  local ns = tostring(m.CatalogNamespace or "")
++  local app = tostring(m.AppName or "")
++  if ns == "" or app == "" or not m.InstallLocation then return nil end
++  local main_ns = tostring(m.MainGameCatalogNamespace or "")
++  local main_app = tostring(m.MainGameAppName or "")
++  return {
++    app_name = app,
++    title = tostring(m.DisplayName or ""),
++    install_location = tostring(m.InstallLocation),
++    launch_exe = tostring(m.LaunchExecutable or ""),
++    namespace = ns,
++    item_id = tostring(m.CatalogItemId or ""),
++    -- An add-on (DLC) names its game; the game itself leaves both fields empty (or names itself).
++    addon = (main_app ~= "" and main_app ~= app) or (main_ns ~= "" and main_ns ~= ns),
++  }
++end
++
++--- Every installed game (add-ons left out), from the manifests folder. Disk only.
++function M.installed()
++  local dir = M.manifests_dir()
++  if not dir then return {} end
++  local out = {}
++  for _, e in ipairs(list(dir)) do
++    local name = tostring(e.name or "")
++    if name:lower():match("%.item$") and e.is_file ~= false then
++      local m = M.parse_manifest(read(e.path or (dir .. "\\" .. name)))
++      if m and not m.addon then out[#out + 1] = m end
++    end
++  end
++  table.sort(out, function(a, b) return a.title:lower() < b.title:lower() end)
++  return out
++end
++
++local function url_decode(s)
++  return (s:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end))
++end
++
++--- The AppName a launcher link names (pure): com.epicgames.launcher://apps/<AppName>?..., or the newer
++--- apps/<namespace>%3A<item>%3A<AppName>?... form. nil when the text has no launcher link.
++function M.app_name_from_link(text)
++  local id = tostring(text or ""):match("com%.epicgames%.launcher://apps/([^%?&%s\"]+)")
++  if not id then return nil end
++  id = url_decode(id)
++  return id:match("([^:]+)$") or id
++end
++
++--- The installed game a shortcut runs (pure over `games`): its launcher link, else its exe inside an install folder.
++--- Returns the manifest and how it matched ("launch-link" | "manifest"), or nil.
++function M.match(entry, games)
++  if type(entry) ~= "table" then return nil end
++  local app = M.app_name_from_link(entry.launch_options) or M.app_name_from_link(entry.exe)
++  if app then
++    for _, g in ipairs(games or {}) do
++      if g.app_name == app then return g, "launch-link" end
++    end
++  end
++  local exe = M.norm_path(entry.exe)
++  if exe == "" then return nil end
++  for _, g in ipairs(games or {}) do
++    local root = M.norm_path(g.install_location)
++    if root ~= "" and exe:sub(1, #root + 1) == root .. "\\" then return g, "manifest" end
++  end
++  return nil
++end
++
++--- The account the launcher is signed in with: the newest <32 hex>.dat in its Saved\Data folder, or nil.
++function M.account_id()
++  local base = getenv("LOCALAPPDATA")
++  if not base or base == "" then return nil end
++  local dir = base .. "\\EpicGamesLauncher\\Saved\\Data"
++  local best, best_t = nil, -1
++  for _, e in ipairs(list(dir)) do
++    local id = tostring(e.name or ""):lower():match("^(%x+)%.dat$")
++    if id and #id == 32 then
++      local t = mtime(e.path or (dir .. "\\" .. tostring(e.name)))
++      if t > best_t then best, best_t = id, t end
++    end
++  end
++  return best
++end
++
++--- The launcher's exe from its URL handler (pure parse of `reg query ... /ve` output).
++function M.parse_handler(output)
++  local cmd = tostring(output or ""):match("REG_SZ%s+([^\r\n]+)")
++  if not cmd then return nil end
++  return cmd:match('^%s*"([^"]+)"') or cmd:match("^%s*(%S+)")
++end
++
++--- The launcher's exe, or nil (registry read once per call; the caller caches).
++function M.launcher_exe()
++  return M.parse_handler(run('reg query "HKCR\\com.epicgames.launcher\\shell\\open\\command" /ve'))
++end
++
++--- How a shortcut for an installed game is set up (ADR-0056): the launcher, with the game's launch link as its
++--- argument, so the launcher's updates, cloud saves and overlay run as when the user starts it from Epic.
++function M.launch_spec(game, launcher)
++  if not game or not launcher or launcher == "" then return nil end
++  local dir = launcher:match("^(.*)\\[^\\]+$") or ""
++  local link = "com.epicgames.launcher://apps/" .. game.namespace .. "%3A" .. game.item_id .. "%3A" .. game.app_name
++    .. "?action=launch&silent=true"
++  return { exe = '"' .. launcher .. '"', start_dir = dir ~= "" and ('"' .. dir .. '\\"') or "", launch_options = link }
++end
++
++return M
+diff --git a/steam-cartridges/backend/store_rpc.lua b/steam-cartridges/backend/store_rpc.lua
+new file mode 100644
+index 0000000..7dc2264
+--- /dev/null
++++ b/steam-cartridges/backend/store_rpc.lua
+@@ -0,0 +1,43 @@
++--- Third-party stores (ADR-0056): what the settings panel's Third-party section and the auto-add use.
++---   StoreInstalledGames  every installed Epic and Xbox game, and whether the library has a shortcut for it
++---   StoreAccounts        whether an Epic account was found on this PC (and whether its achievements are private),
++---                        and whether an Xbox account is signed in (its gamertag). Never a token or an account id.
++---   XboxSignInStart / XboxSignInPoll / XboxSignOut   the device-code sign-in (xbox_live.lua)
++
++local core          = require("rpc")
++local store_service = require("store_service")
++local xbox_live     = require("xbox_live")
++local epic_local    = require("store_epic_local")
++local copies        = require("store_copies_store")
++
++local method = core.method
++
++local RPC = {}
++
++--- { allowXbox? }: the installed games (store_service.installed_games).
++RPC.StoreInstalledGames = method("StoreInstalledGames", function(data)
++  return store_service.installed_games({ allowXbox = data.allowXbox ~= false })
++end)
++
++RPC.StoreAccounts = method("StoreAccounts", function(_)
++  local epic_seen = copies.lookup("epic:account") or {}
++  return {
++    epic = { found = epic_local.account_id() ~= nil, private = epic_seen.private == true },
++    xbox = xbox_live.status(),
++  }
++end)
++
++RPC.XboxSignInStart = method("XboxSignInStart", function(_)
++  return xbox_live.sign_in_start()
++end)
++
++--- { device_code }: one poll; the frontend waits `interval` seconds between polls.
++RPC.XboxSignInPoll = method("XboxSignInPoll", function(data)
++  return xbox_live.sign_in_poll(data.device_code)
++end)
++
++RPC.XboxSignOut = method("XboxSignOut", function(_)
++  return xbox_live.sign_out()
++end)
++
++return RPC
+diff --git a/steam-cartridges/backend/store_service.lua b/steam-cartridges/backend/store_service.lua
+new file mode 100644
+index 0000000..1928770
+--- /dev/null
++++ b/steam-cartridges/backend/store_service.lua
+@@ -0,0 +1,177 @@
++--- Store copies (ADR-0056): is this shortcut an Epic Games Store or Xbox copy of a game, and which one?
++---
++--- Found from files already on the PC, never typed by the user (decision 1): the Epic launcher's install manifests,
++--- the Xbox packages and their game config (store_epic_local.lua, store_xbox_local.lua). The store's API then names the
++--- game's offer and achievement product (Epic) or Store product and title id (Xbox), once per game (the lookup is kept
++--- in store_copies.json). A copy is a fact about the shortcut, like its Steam match (resolve_identity.lua), and a copy
++--- can have both: Steam stays first for Game Info, art and community content (decision 2); the store's own data fills
++--- a copy with no Steam match, and its achievements are the player's from that store (decision 4).
++---
++--- The `store` part of a record: Part<StoreCopy> (frontend kernel/record.ts). `unsupported` = not a store copy.
++
++local logger = require("logger")
++local store  = require("store_copies_store")
++
++local M = {}
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  entry = nil,        -- fun(appid) -> shortcuts.vdf entry | nil ; nil = registry.shortcut
++  entries = nil,      -- fun() -> every shortcuts.vdf entry       ; nil = registry entries
++  epic_local = nil,   -- nil = store_epic_local
++  xbox_local = nil,   -- nil = store_xbox_local
++  epic = nil,         -- nil = epic_graphql
++  xbox_catalog = nil, -- nil = xbox_catalog
++  now = function() return os.time() end,
++}
++
++local function now_ms() return math.floor((M.deps.now or os.time)() * 1000) end
++local function epic_local() return M.deps.epic_local or require("store_epic_local") end
++local function xbox_local() return M.deps.xbox_local or require("store_xbox_local") end
++local function epic() return M.deps.epic or require("epic_graphql") end
++local function xbox_catalog() return M.deps.xbox_catalog or require("xbox_catalog") end
++
++local function entry_of(appid)
++  if M.deps.entry then return M.deps.entry(appid) end
++  return require("registry").shortcut(appid)
++end
++
++--- The installed games of both stores, read once per session (the installs change rarely; a new game needs a restart
++--- to be found, like a new shortcut's capture folder).
++local installed_cache = nil
++function M._reset() installed_cache = nil end
++
++local function installed()
++  if installed_cache then return installed_cache end
++  local okE, epic_games = pcall(function() return epic_local().installed() end)
++  local okX, xbox_games = pcall(function() return xbox_local().installed() end)
++  installed_cache = {
++    epic = okE and type(epic_games) == "table" and epic_games or {},
++    xbox = okX and type(xbox_games) == "table" and xbox_games or {},
++  }
++  return installed_cache
++end
++
++--- The copy a shortcuts.vdf entry is, from local data only: a StoreCopy table without its API fields, or nil.
++function M.detect(entry)
++  if type(entry) ~= "table" then return nil end
++  local games = installed()
++  local g, via = epic_local().match(entry, games.epic)
++  if g then
++    return { kind = "epic", title = g.title, namespace = g.namespace, itemId = g.item_id, appName = g.app_name, via = via }
++  end
++  local x, xvia = xbox_local().match(entry, games.xbox)
++  if x then
++    return { kind = "xbox", title = x.title, pfn = x.pfn, titleId = x.title_id, storeId = x.store_id, via = xvia }
++  end
++  return nil
++end
++
++--- Disk only: the saved copy as a part, or nil.
++function M.saved(appid)
++  local copy = store.get(appid)
++  if not copy then return nil end
++  return { status = "ok", data = copy, source = copy.kind, checkedAt = now_ms() }
++end
++
++--- The store API fields of an Epic game: offer and achievement product, remembered per namespace.
++local function fill_epic(copy, ctx)
++  local k = "epic:" .. copy.namespace
++  local known = store.lookup(k) or {}
++  if (not known.offerId or not known.productId) and ctx.allowEpic ~= false and not ctx.noNetwork then
++    if not known.offerId then
++      local offer = epic().base_offer(copy.namespace)
++      if offer then known.offerId, known.title = offer.id, offer.title end
++    end
++    if not known.productId then
++      local schema = epic().achievement_schema(copy.namespace)
++      if schema then known.productId = schema.product_id end
++    end
++    store.remember(k, known)
++  end
++  copy.offerId, copy.productId = known.offerId, known.productId
++  copy.title = (known.title and known.title ~= "") and known.title or copy.title
++end
++
++--- The store API fields of an Xbox game: Store product and title, remembered per package family name.
++local function fill_xbox(copy, ctx)
++  local k = "xbox:" .. copy.pfn
++  local known = store.lookup(k) or {}
++  if not known.storeId and ctx.allowXbox ~= false and not ctx.noNetwork then
++    local product = (copy.storeId and xbox_catalog().by_store_id(copy.storeId)) or xbox_catalog().by_pfn(copy.pfn)
++    if product then
++      local ids = xbox_catalog().ids(product)
++      known.storeId, known.title, known.isGame = ids.store_id, ids.title, ids.is_game
++      known.titleId = ids.title_id
++      store.remember(k, known)
++    end
++  end
++  copy.storeId = copy.storeId or known.storeId
++  copy.titleId = copy.titleId or known.titleId
++  copy.title = (known.title and known.title ~= "") and known.title or copy.title
++end
++
++--- The `store` part. ctx = { allowEpic?, allowXbox?, noNetwork? }. Local detection always runs (it is the user's own
++--- disk); the store APIs are asked only when that store is enabled and not already known.
++function M.ensure(appid, ctx)
++  ctx = ctx or {}
++  local copy = M.detect(entry_of(appid))
++  if not copy then
++    store.set(appid, nil)
++    return { status = "unsupported", checkedAt = now_ms() }
++  end
++  local ok, err = pcall(copy.kind == "epic" and fill_epic or fill_xbox, copy, ctx)
++  if not ok then logger:warn("Store copy " .. tostring(appid) .. ": " .. tostring(err)) end -- ADR-0014: the local copy still counts
++  store.set(appid, copy)
++  return { status = "ok", data = copy, source = copy.kind, checkedAt = now_ms() }
++end
++
++local function all_entries()
++  if M.deps.entries then return M.deps.entries() end
++  local ok, list = pcall(function()
++    local paths = require("steam_paths").resolve()
++    if not paths or not paths.shortcuts then return {} end
++    return require("shortcuts").parse(paths.shortcuts) or {}
++  end)
++  return ok and list or {}
++end
++
++local function unsigned(id)
++  local n = tonumber(id) or 0
++  if n < 0 then n = n + 4294967296 end
++  return n
++end
++
++--- Every installed game and whether the library already has a shortcut for it (Third-party settings, auto-add).
++--- { epic = { { key, title, inLibrary, launch } }, xbox = { ... }, epicLauncher = bool }: `launch` = { exe, start_dir,
++--- launch_options } for SteamClient.Apps.AddShortcut. Local data, except an Xbox game whose name is unknown: its
++--- package names a resource, not a title, so the catalog is asked once (ctx.allowXbox, remembered like any lookup).
++function M.installed_games(ctx)
++  ctx = ctx or {}
++  local games = installed()
++  local owned = {}
++  for _, e in ipairs(all_entries()) do
++    local c = M.detect(e)
++    if c then owned[(c.kind == "epic" and c.appName or c.pfn) or ""] = unsigned(e.appid) end
++  end
++  local launcher = epic_local().launcher_exe()
++  local out = { epic = {}, xbox = {}, epicLauncher = launcher ~= nil }
++  for _, g in ipairs(games.epic) do
++    out.epic[#out.epic + 1] = {
++      key = g.app_name, title = g.title, inLibrary = owned[g.app_name],
++      launch = epic_local().launch_spec(g, launcher),
++    }
++  end
++  for _, g in ipairs(games.xbox) do
++    local copy = { kind = "xbox", title = g.title, pfn = g.pfn, titleId = g.title_id, storeId = g.store_id }
++    if not g.title then pcall(fill_xbox, copy, ctx) end
++    local known = store.lookup("xbox:" .. tostring(g.pfn)) or {}
++    out.xbox[#out.xbox + 1] = {
++      key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = owned[g.pfn],
++      launch = xbox_local().launch_spec(g),
++    }
++  end
++  return out
++end
++
++return M
+diff --git a/steam-cartridges/backend/store_xbox_local.lua b/steam-cartridges/backend/store_xbox_local.lua
+new file mode 100644
+index 0000000..8127205
+--- /dev/null
++++ b/steam-cartridges/backend/store_xbox_local.lua
+@@ -0,0 +1,175 @@
++--- Xbox (PC Game Pass / Microsoft Store) copies on this PC (ADR-0056): the installed packages from the registry and the
++--- Xbox Live game config each game ships. Disk and registry reads only, never the network.
++---
++--- Facts verified on this machine (2026-10-02, docs/plans/steam-cartridges-store-copies-plan.md § 4.7):
++---   reg query "HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages"
++---       /s /v PackageRootFolder  lists every installed package (361 here) with its folder, in about 0.2 s.
++---   <folder>\xboxservices.config     a UWP Xbox Live game (Microsoft Jigsaw): JSON with TitleId (decimal).
++---   <folder>\MicrosoftGame.config    a GDK game: XML with <TitleId> (hex) and <StoreId>. Not seen on a real install yet.
++---   <folder>\AppxManifest.xml        <Application Id="App" Executable="Jigsaw.exe">, <DisplayName>.
++---   A package full name is Name_Version_Arch_ResourceId_PublisherId; its family name is Name_PublisherId, and the
++---   launch target is shell:AppsFolder\<family name>!<application id>.
++
++local json = require("json")
++
++local M = {}
++
++M.PACKAGES_KEY = [[HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages]]
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  run = nil,    -- fun(cmd) -> string | nil ; nil = silent_exec.run
++  read = nil,   -- fun(path) -> string | nil ; nil = io.open
++  getenv = nil, -- fun(name) -> string | nil ; nil = os.getenv
++}
++
++local function run(cmd)
++  if M.deps.run then return M.deps.run(cmd) end
++  local ok, out = pcall(function() return require("silent_exec").run(cmd) end)
++  return ok and out or nil
++end
++
++local function read(path)
++  if M.deps.read then return M.deps.read(path) end
++  local f = io.open(path, "rb")
++  if not f then return nil end
++  local c = f:read("*a")
++  f:close()
++  return c
++end
++
++local function getenv(name) return (M.deps.getenv or os.getenv)(name) end
++
++--- `reg query ... /s /v PackageRootFolder` output -> { { full_name, root } } (pure).
++function M.parse_packages(output)
++  local out, current = {}, nil
++  for line in tostring(output or ""):gmatch("[^\r\n]+") do
++    local key = line:match("\\Packages\\([^\\]+)%s*$")
++    if key then
++      current = key
++    else
++      local root = line:match("PackageRootFolder%s+REG_SZ%s+(.-)%s*$")
++      if root and current then out[#out + 1] = { full_name = current, root = root } end
++    end
++  end
++  return out
++end
++
++--- Name_Version_Arch_ResourceId_PublisherId -> Name_PublisherId (pure).
++function M.family_name(full_name)
++  local parts = {}
++  for p in tostring(full_name or ""):gmatch("[^_]+") do parts[#parts + 1] = p end
++  if #parts < 2 then return nil end
++  return parts[1] .. "_" .. parts[#parts]
++end
++
++--- xboxservices.config text -> title id (decimal string) | nil (pure).
++function M.parse_services_config(text)
++  if not text then return nil end
++  text = text:gsub("^\239\187\191", "") -- UTF-8 byte order mark
++  local ok, c = pcall(json.decode, text)
++  if not ok or type(c) ~= "table" or c.TitleId == nil then return nil end
++  local n = tonumber(c.TitleId)
++  if not n or n <= 0 then return nil end
++  return string.format("%d", n)
++end
++
++--- MicrosoftGame.config text -> { title_id (decimal string), store_id, name } | nil (pure). The TitleId is hex.
++function M.parse_game_config(text)
++  if not text then return nil end
++  local hex = text:match("<TitleId>%s*(%x+)%s*</TitleId>")
++  if not hex then return nil end
++  local n = tonumber(hex, 16)
++  if not n or n <= 0 then return nil end
++  return {
++    title_id = string.format("%d", n),
++    store_id = text:match("<StoreId>%s*([%w]+)%s*</StoreId>"),
++    name = text:match('<Identity[^>]-Name="([^"]+)"'),
++  }
++end
++
++--- AppxManifest.xml text -> { app_id, executable, title } (pure). The title may be an ms-resource reference: nil then.
++function M.parse_appx_manifest(text)
++  if not text then return nil end
++  local app = text:match("<Application%s[^>]-Id=\"([^\"]+)\"")
++  local exe = text:match("<Application%s[^>]-Executable=\"([^\"]+)\"")
++  local title = text:match("<DisplayName>%s*([^<]-)%s*</DisplayName>")
++  if title and title:match("^ms%-resource:") then title = nil end
++  return { app_id = app, executable = exe, title = title }
++end
++
++--- Every installed Xbox Live game: a package with an Xbox game config. Registry and disk only.
++--- { { pfn, full_name, root, title_id, store_id?, app_id, executable?, title?, via = "config" } }
++function M.installed()
++  local out = {}
++  for _, p in ipairs(M.parse_packages(run('reg query "' .. M.PACKAGES_KEY .. '" /s /v PackageRootFolder'))) do
++    local title_id, store_id
++    local services = M.parse_services_config(read(p.root .. "\\xboxservices.config"))
++    if services then
++      title_id = services
++    else
++      local game = M.parse_game_config(read(p.root .. "\\MicrosoftGame.config"))
++      if game then title_id, store_id = game.title_id, game.store_id end
++    end
++    if title_id then
++      local manifest = M.parse_appx_manifest(read(p.root .. "\\AppxManifest.xml")) or {}
++      out[#out + 1] = {
++        pfn = M.family_name(p.full_name),
++        full_name = p.full_name,
++        root = p.root,
++        title_id = title_id,
++        store_id = store_id,
++        app_id = manifest.app_id or "App",
++        executable = manifest.executable,
++        title = manifest.title,
++        via = "config",
++      }
++    end
++  end
++  table.sort(out, function(a, b) return (a.title or a.pfn or ""):lower() < (b.title or b.pfn or ""):lower() end)
++  return out
++end
++
++local function norm_path(p)
++  local s = tostring(p or ""):gsub('"', ""):gsub("/", "\\"):lower()
++  return (s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("\\+$", ""))
++end
++
++--- The package family name a shell:AppsFolder target names, or nil (pure).
++function M.pfn_from_target(text)
++  return tostring(text or ""):match("[Ss][Hh][Ee][Ll][Ll]:[Aa][Pp][Pp][Ss][Ff][Oo][Ll][Dd][Ee][Rr]\\([^!%s\"]+)!")
++end
++
++--- The installed game a shortcut runs (pure over `games`): its shell:AppsFolder target, else its exe inside a
++--- package folder. Returns the game and how it matched ("launch-link" | "package"), or nil.
++function M.match(entry, games)
++  if type(entry) ~= "table" then return nil end
++  local pfn = M.pfn_from_target(entry.launch_options) or M.pfn_from_target(entry.exe)
++  if pfn then
++    for _, g in ipairs(games or {}) do
++      if g.pfn and g.pfn:lower() == pfn:lower() then return g, "launch-link" end
++    end
++  end
++  local exe = norm_path(entry.exe)
++  if exe == "" then return nil end
++  for _, g in ipairs(games or {}) do
++    local root = norm_path(g.root)
++    if root ~= "" and exe:sub(1, #root + 1) == root .. "\\" then return g, "package" end
++  end
++  return nil
++end
++
++--- How a shortcut for an installed game is set up (ADR-0056): Windows Explorer opening the package's app, the way the
++--- Xbox app and the Start menu start it (the game's own exe cannot be run directly from a protected package folder).
++function M.launch_spec(game)
++  if not game or not game.pfn then return nil end
++  local windir = getenv("SystemRoot") or getenv("windir")
++  if not windir or windir == "" then return nil end
++  return {
++    exe = '"' .. windir .. '\\explorer.exe"',
++    start_dir = '"' .. windir .. '\\"',
++    launch_options = "shell:AppsFolder\\" .. game.pfn .. "!" .. (game.app_id or "App"),
++  }
++end
++
++return M
+diff --git a/steam-cartridges/backend/web_config.lua b/steam-cartridges/backend/web_config.lua
+index a12c30c..e01c946 100644
+--- a/steam-cartridges/backend/web_config.lua
++++ b/steam-cartridges/backend/web_config.lua
+@@ -145,6 +145,18 @@ function config.get_screenscraper_credentials()
+   return nil
+ end
+ 
++--- The Xbox account (ADR-0056): the Microsoft refresh token and whose it is, or nil when signed out. Written by
++--- xbox_live.lua through save_credentials (keys xbox_refresh_token, xbox_xuid, xbox_gamertag); never logged.
++---@return table|nil { refresh_token = string, xuid = string, gamertag = string }
++function config.get_xbox_account()
++  local env_map = get_env_map()
++  local token = env_map["xbox_refresh_token"]
++  if token and #token > 0 then
++    return { refresh_token = token, xuid = env_map["xbox_xuid"] or "", gamertag = env_map["xbox_gamertag"] or "" }
++  end
++  return nil
++end
++
+ --- Save key-value pairs into data_dir .env
+ function config.save_credentials(map)
+   if type(map) ~= "table" then return false end
+diff --git a/steam-cartridges/backend/xbox_catalog.lua b/steam-cartridges/backend/xbox_catalog.lua
+new file mode 100644
+index 0000000..d3eb5e6
+--- /dev/null
++++ b/steam-cartridges/backend/xbox_catalog.lua
+@@ -0,0 +1,138 @@
++--- Source `xbox` for game data (ADR-0056): Microsoft's public display catalog,
++--- https://displaycatalog.mp.microsoft.com/v7.0/. No sign-in and no key. Every request goes through net.lua
++--- (source "xbox-catalog").
++---
++--- Verified on 2026-10-02 (plan § 4.5 and § 4.7):
++---   products/lookup?alternateId=PackageFamilyName&value=<pfn>   Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe -> 9WZDNCRFJ9X2
++---   products/lookup?alternateId=XboxTitleId&value=<decimal id>  200
++---   A product: ProductKind ("Game" tells a game from an app), AlternateIds (XboxTitleId), LocalizedProperties[1]
++---   { ProductTitle, ProductDescription, DeveloperName, PublisherName, Images { ImagePurpose, Uri (//...), Width,
++---   Height } }, MarketProperties[1].OriginalReleaseDate, Properties { Category, Attributes { Name } }.
++
++local json     = require("json")
++local iso_date = require("iso_date")
++
++local M = {}
++
++M.BASE = "https://displaycatalog.mp.microsoft.com/v7.0/"
++M.QUERY = "&market=US&languages=en-US,neutral&fieldsTemplate=details"
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  get = nil, -- fun(url, opts) -> res | nil, err ; nil = net.get
++}
++
++local function url_encode(s)
++  return (tostring(s):gsub("[^%w%-_%.~]", function(c) return string.format("%%%02X", c:byte()) end))
++end
++
++--- GET -> the first product, or nil and an error.
++local function first_product(url)
++  local get = M.deps.get or require("net").get
++  local res, err = get(url, { source = "xbox-catalog", headers = { ["Accept"] = "application/json" }, timeout = 20 })
++  if not res then return nil, err or "no response" end
++  if tonumber(res.status) ~= 200 then return nil, "HTTP " .. tostring(res.status) end
++  local ok, body = pcall(json.decode, res.body or "")
++  if not ok or type(body) ~= "table" then return nil, "bad JSON" end
++  local p = type(body.Products) == "table" and body.Products[1] or (type(body.Product) == "table" and body.Product or nil)
++  if type(p) ~= "table" then return nil, "not found" end
++  return p
++end
++
++--- The product of an installed package (its family name), or nil and an error.
++function M.by_pfn(pfn)
++  return first_product(M.BASE .. "products/lookup?alternateId=PackageFamilyName&value=" .. url_encode(pfn) .. M.QUERY)
++end
++
++--- The product of an Xbox title id (decimal), or nil and an error.
++function M.by_title_id(title_id)
++  return first_product(M.BASE .. "products/lookup?alternateId=XboxTitleId&value=" .. url_encode(title_id) .. M.QUERY)
++end
++
++--- A product by its Store id (9WZDNCRFJ9X2), or nil and an error.
++function M.by_store_id(store_id)
++  return first_product(M.BASE .. "products?bigIds=" .. url_encode(store_id) .. M.QUERY)
++end
++
++local function localized(product)
++  return type(product.LocalizedProperties) == "table" and product.LocalizedProperties[1] or {}
++end
++
++--- { store_id, title_id, title, is_game } of a product (pure).
++function M.ids(product)
++  if type(product) ~= "table" then return {} end
++  local title_id
++  for _, a in ipairs(type(product.AlternateIds) == "table" and product.AlternateIds or {}) do
++    if type(a) == "table" and a.IdType == "XboxTitleId" then title_id = tostring(a.Value) end
++  end
++  return {
++    store_id = product.ProductId and tostring(product.ProductId) or nil,
++    title_id = title_id,
++    title = localized(product).ProductTitle,
++    is_game = product.ProductKind == "Game",
++  }
++end
++
++--- Catalog attributes -> our player flags (pure). Only attributes that say it exactly; the catalog has no controller
++--- attribute for PC, so controller support keeps coming from the plugin's own rules (ADR-0038).
++local ATTRIBUTE_FLAGS = {
++  SinglePlayer = "single_player",
++  XblOnlineMultiPlayer = "multiplayer",
++  XblLocalMultiPlayer = "multiplayer",
++  XblCrossPlatformMultiPlayer = "multiplayer",
++  XblOnlineCoop = "coop",
++  XblLocalCoop = "coop",
++  XblCrossPlatformCoop = "coop",
++}
++local LOCAL_PLAY = { XblLocalMultiPlayer = true, XblLocalCoop = true }
++
++--- A product -> our metadata record (pure; the shape library_metadata.json stores).
++function M.to_metadata(product, appid, title)
++  if type(product) ~= "table" then return nil end
++  local lp = localized(product)
++  local market = type(product.MarketProperties) == "table" and product.MarketProperties[1] or {}
++  local props = type(product.Properties) == "table" and product.Properties or {}
++  local categories = {}
++  for _, a in ipairs(type(props.Attributes) == "table" and props.Attributes or {}) do
++    local name = type(a) == "table" and a.Name or nil
++    if name and ATTRIBUTE_FLAGS[name] then categories[ATTRIBUTE_FLAGS[name]] = true end
++    if name and LOCAL_PLAY[name] then categories.split_screen = true end
++  end
++  local function names(s)
++    s = tostring(s or "")
++    return s ~= "" and { s } or {}
++  end
++  return {
++    appid = appid,
++    title = title,
++    matched_title = tostring(lp.ProductTitle or title),
++    description = tostring(lp.ProductDescription or lp.ShortDescription or ""),
++    developers = names(lp.DeveloperName),
++    publishers = names(lp.PublisherName),
++    franchises = {},
++    release_date = iso_date.day(market.OriginalReleaseDate) or 0,
++    genres = props.Category and { tostring(props.Category) } or {},
++    categories = categories,
++    custom_override = false,
++  }
++end
++
++--- A product's screenshots as community media items (pure). The catalog's URIs start with "//".
++function M.screenshots(product)
++  local items = {}
++  for _, img in ipairs(type(localized(product).Images) == "table" and localized(product).Images or {}) do
++    if type(img) == "table" and img.ImagePurpose == "Screenshot" and type(img.Uri) == "string" then
++      local url = img.Uri:sub(1, 2) == "//" and ("https:" .. img.Uri) or img.Uri
++      if url:match("^https://") then
++        items[#items + 1] = {
++          kind = "screenshot", source = "xbox", url = url,
++          thumb = url .. (url:find("?", 1, true) and "&" or "?") .. "w=640",
++          width = tonumber(img.Width) or 1920, height = tonumber(img.Height) or 1080,
++        }
++      end
++    end
++  end
++  return items
++end
++
++return M
+diff --git a/steam-cartridges/backend/xbox_live.lua b/steam-cartridges/backend/xbox_live.lua
+new file mode 100644
+index 0000000..ffcb817
+--- /dev/null
++++ b/steam-cartridges/backend/xbox_live.lua
+@@ -0,0 +1,275 @@
++--- Source `xbox` for achievements (ADR-0056): the player's own Xbox Live unlocks, after a one-time sign-in with a
++--- device code (the user types a short code at microsoft.com/link; no password passes through the plugin).
++--- Every request goes through net.lua (source "xbox-live").
++---
++--- Verified with the user's account on 2026-10-02 (plan § 4.7):
++---   login.live.com/oauth20_connect.srf    device code (client 00000000402b5328, scope MBI_SSL), interval 5 s, 900 s
++---   login.live.com/oauth20_token.srf      the device code (authorization_pending until the user approves), then a
++---                                         24 h access token and a refresh token
++---   user.auth.xboxlive.com/user/authenticate  RpsTicket = the access token with no prefix -> an XBL token
++---   xsts.auth.xboxlive.com/xsts/authorize     -> XSTS token (about 16 h) and DisplayClaims.xui[1] { uhs, xid, gtg }
++---   achievements.xboxlive.com/users/xuid(<xuid>)/achievements?titleId=<id>   contract 2: progressState,
++---                                         progression.timeUnlocked, rewards (Gamerscore), mediaAssets, rarity
++---   titlehub.xboxlive.com/users/xuid(<xuid>)/titles/titlehistory/decoration/achievement   every played title's
++---                                         currentAchievements / currentGamerscore, in one call
++---
++--- Credentials (decision 8): only the refresh token, the xuid and the gamertag are stored, in the data folder's .env
++--- through web_config, like every other account. The access and XSTS tokens live in memory. Nothing here logs a
++--- token, a device code or a request body.
++
++local json     = require("json")
++local logger   = require("logger")
++local iso_date = require("iso_date")
++
++local M = {}
++
++M.CLIENT_ID = "00000000402b5328"
++M.SCOPE = "service::user.auth.xboxlive.com::MBI_SSL"
++M.DEVICE_URL = "https://login.live.com/oauth20_connect.srf"
++M.TOKEN_URL = "https://login.live.com/oauth20_token.srf"
++M.XBL_URL = "https://user.auth.xboxlive.com/user/authenticate"
++M.XSTS_URL = "https://xsts.auth.xboxlive.com/xsts/authorize"
++
++--- Injectable for tests. nil = the real dependency.
++M.deps = {
++  post = nil,    -- fun(url, body, opts) -> res | nil, err ; nil = net.post
++  get = nil,     -- fun(url, opts) -> res | nil, err       ; nil = net.get
++  now = nil,     -- fun() -> unix seconds                   ; nil = os.time
++  account = nil, -- { get = fun() -> account | nil, save = fun(map) } ; nil = web_config
++}
++
++local session = nil -- { xsts, uhs, xuid, gamertag, until_ }
++
++function M._reset() session = nil end
++
++local function now() return (M.deps.now or os.time)() end
++local function post(url, body, opts) return (M.deps.post or require("net").post)(url, body, opts) end
++local function get(url, opts) return (M.deps.get or require("net").get)(url, opts) end
++
++local function account()
++  if M.deps.account then return M.deps.account.get() end
++  return require("web_config").get_xbox_account()
++end
++
++--- The .env reader drops spaces from a value, so a gamertag's spaces are stored as %20.
++local function save_account(map)
++  if map.xbox_gamertag then map.xbox_gamertag = map.xbox_gamertag:gsub(" ", "%%20") end
++  if M.deps.account then return M.deps.account.save(map) end
++  return require("web_config").save_credentials(map)
++end
++
++local function url_encode(s)
++  return (tostring(s):gsub("[^%w%-_%.~]", function(c) return string.format("%%%02X", c:byte()) end))
++end
++
++local function form(t)
++  local parts = {}
++  for _, kv in ipairs(t) do parts[#parts + 1] = kv[1] .. "=" .. url_encode(kv[2]) end
++  return table.concat(parts, "&")
++end
++
++local FORM = { ["Content-Type"] = "application/x-www-form-urlencoded", ["Accept"] = "application/json" }
++local JSON_HEADERS = { ["Content-Type"] = "application/json", ["Accept"] = "application/json", ["x-xbl-contract-version"] = "1" }
++
++local function decode(res)
++  if not res or not res.body then return nil end
++  local ok, body = pcall(json.decode, res.body)
++  return ok and type(body) == "table" and body or nil
++end
++
++--- Step 1 of the sign-in: a code for the user to type at the returned address.
++--- { user_code, verification_uri, device_code, interval, expires_in } or { error }.
++function M.sign_in_start()
++  local res = post(M.DEVICE_URL, form({ { "client_id", M.CLIENT_ID }, { "scope", M.SCOPE }, { "response_type", "device_code" } }),
++    { source = "xbox-live", headers = FORM, timeout = 20 })
++  local body = decode(res)
++  if not body or not body.device_code then return { error = "Could not reach Microsoft's sign-in." } end
++  return {
++    user_code = tostring(body.user_code or ""),
++    verification_uri = tostring(body.verification_uri or "https://www.microsoft.com/link"),
++    device_code = tostring(body.device_code),
++    interval = tonumber(body.interval) or 5,
++    expires_in = tonumber(body.expires_in) or 900,
++  }
++end
++
++--- The XBL and XSTS tokens for a Microsoft access token: a session, or nil and an error.
++local function token_chain(access_token)
++  local xbl
++  for _, prefix in ipairs({ "", "d=", "t=" }) do
++    local res = post(M.XBL_URL, json.encode({
++      RelyingParty = "http://auth.xboxlive.com",
++      TokenType = "JWT",
++      Properties = { AuthMethod = "RPS", SiteName = "user.auth.xboxlive.com", RpsTicket = prefix .. access_token },
++    }), { source = "xbox-live", headers = JSON_HEADERS, timeout = 20 })
++    local body = res and tonumber(res.status) == 200 and decode(res)
++    if body and body.Token then
++      xbl = body.Token
++      break
++    end
++  end
++  if not xbl then return nil, "Xbox Live sign-in failed." end
++  local res = post(M.XSTS_URL, json.encode({
++    RelyingParty = "http://xboxlive.com",
++    TokenType = "JWT",
++    Properties = { SandboxId = "RETAIL", UserTokens = { xbl } },
++  }), { source = "xbox-live", headers = JSON_HEADERS, timeout = 20 })
++  local body = res and tonumber(res.status) == 200 and decode(res)
++  if not body or not body.Token then
++    -- 401 with XErr: no Xbox profile on this Microsoft account, or a child account without consent.
++    return nil, "This Microsoft account has no Xbox profile, or Xbox Live refused it."
++  end
++  local xui = type(body.DisplayClaims) == "table" and type(body.DisplayClaims.xui) == "table" and body.DisplayClaims.xui[1] or {}
++  if not xui.uhs or not xui.xid then return nil, "Xbox Live answered without a player." end
++  return {
++    xsts = tostring(body.Token),
++    uhs = tostring(xui.uhs),
++    xuid = tostring(xui.xid),
++    gamertag = tostring(xui.gtg or ""),
++    -- XSTS lasts about 16 h; renew after 8 h so a call never races its expiry.
++    until_ = now() + 8 * 3600,
++  }
++end
++
++--- Step 2: poll once (every `interval` seconds). { pending = true } until the user approves, then signs in and stores
++--- the account: { ok = true, gamertag }. { error } when the code expired or was declined.
++function M.sign_in_poll(device_code)
++  if type(device_code) ~= "string" or device_code == "" then return { error = "No sign-in in progress." } end
++  local res = post(M.TOKEN_URL, form({
++    { "client_id", M.CLIENT_ID },
++    { "grant_type", "urn:ietf:params:oauth:grant-type:device_code" },
++    { "device_code", device_code },
++  }), { source = "xbox-live", headers = FORM, timeout = 20 })
++  local body = decode(res)
++  if not body then return { pending = true } end
++  if body.error then
++    if body.error == "authorization_pending" or body.error == "slow_down" then return { pending = true } end
++    if body.error == "expired_token" then return { error = "The code expired. Start again." } end
++    if body.error == "authorization_declined" then return { error = "The sign-in was declined." } end
++    return { error = "Sign-in failed (" .. tostring(body.error) .. ")." }
++  end
++  if not body.access_token then return { pending = true } end
++  local s, err = token_chain(body.access_token)
++  if not s then return { error = err } end
++  session = s
++  save_account({ xbox_refresh_token = body.refresh_token or "", xbox_xuid = s.xuid, xbox_gamertag = s.gamertag })
++  logger:info("Xbox account signed in.")
++  return { ok = true, gamertag = s.gamertag }
++end
++
++--- Forget the account (the refresh token leaves the .env). Microsoft keeps the app's consent until the user removes it
++--- at account.live.com/consent; the settings panel says so.
++function M.sign_out()
++  session = nil
++  save_account({ xbox_refresh_token = "", xbox_xuid = "", xbox_gamertag = "" })
++  return { ok = true }
++end
++
++--- { signed_in, gamertag } from the stored account. Disk only.
++function M.status()
++  local a = account()
++  if not a then return { signed_in = false } end
++  return { signed_in = true, gamertag = (a.gamertag or ""):gsub("%%20", " ") }
++end
++
++--- A current session: the one in memory, else a refresh of the stored token. nil and an error when signed out.
++local function ensure_session()
++  if session and now() < session.until_ then return session end
++  local a = account()
++  if not a or not a.refresh_token or a.refresh_token == "" then return nil, "not signed in" end
++  local res = post(M.TOKEN_URL, form({
++    { "client_id", M.CLIENT_ID },
++    { "grant_type", "refresh_token" },
++    { "refresh_token", a.refresh_token },
++    { "scope", M.SCOPE },
++  }), { source = "xbox-live", headers = FORM, timeout = 20 })
++  local body = decode(res)
++  if not body or not body.access_token then
++    logger:warn("Xbox account: the stored sign-in no longer works (status " .. tostring(res and res.status) .. ").")
++    return nil, "sign in again"
++  end
++  local s, err = token_chain(body.access_token)
++  if not s then return nil, err end
++  session = s
++  -- Microsoft rotates the refresh token: keep the new one.
++  if body.refresh_token and body.refresh_token ~= a.refresh_token then
++    save_account({ xbox_refresh_token = body.refresh_token, xbox_xuid = s.xuid, xbox_gamertag = s.gamertag })
++  end
++  return s
++end
++
++local function xbl_headers(s, contract)
++  return {
++    ["Authorization"] = "XBL3.0 x=" .. s.uhs .. ";" .. s.xsts,
++    ["x-xbl-contract-version"] = tostring(contract),
++    ["Accept"] = "application/json",
++    ["Accept-Language"] = "en-US",
++  }
++end
++
++--- One title's achievements for the signed-in player: { achievements = { schema items }, unlocks = { [id] = unix } },
++--- or nil and an error ("not signed in" when there is no account).
++function M.achievements(title_id)
++  local s, err = ensure_session()
++  if not s then return nil, err end
++  local url = "https://achievements.xboxlive.com/users/xuid(" .. s.xuid .. ")/achievements?titleId="
++    .. url_encode(title_id) .. "&maxItems=1000"
++  local res, gerr = get(url, { source = "xbox-live", headers = xbl_headers(s, 2), timeout = 20 })
++  if not res then return nil, gerr end
++  if tonumber(res.status) == 401 then session = nil end -- the next call renews the session
++  if tonumber(res.status) ~= 200 then return nil, "HTTP " .. tostring(res.status) end
++  local body = decode(res)
++  if not body or type(body.achievements) ~= "table" then return nil, "bad answer" end
++  local out = { achievements = {}, unlocks = {} }
++  for _, a in ipairs(body.achievements) do
++    if type(a) == "table" and a.id ~= nil then
++      local id = tostring(a.id)
++      local icon = type(a.mediaAssets) == "table" and type(a.mediaAssets[1]) == "table" and a.mediaAssets[1].url or ""
++      local gamerscore = 0
++      for _, r in ipairs(type(a.rewards) == "table" and a.rewards or {}) do
++        if type(r) == "table" and r.type == "Gamerscore" then gamerscore = tonumber(r.value) or 0 end
++      end
++      out.achievements[#out.achievements + 1] = {
++        id = id,
++        name = tostring(a.name or id),
++        description = tostring(a.description or a.lockedDescription or ""),
++        icon = tostring(icon or ""),
++        global_pct = tonumber(type(a.rarity) == "table" and a.rarity.currentPercentage) or 0,
++        hidden = a.isSecret == true,
++        gamerscore = gamerscore,
++      }
++      if a.progressState == "Achieved" then
++        local at = type(a.progression) == "table" and iso_date.instant(a.progression.timeUnlocked) or nil
++        out.unlocks[id] = at or 0
++      end
++    end
++  end
++  return out
++end
++
++--- Every title the player has played, with progress: { [title id] = { unlocked, gamerscore, last_played } }, or nil
++--- and an error. One call; a sync uses it to ask only for titles whose progress changed.
++function M.title_progress()
++  local s, err = ensure_session()
++  if not s then return nil, err end
++  local url = "https://titlehub.xboxlive.com/users/xuid(" .. s.xuid .. ")/titles/titlehistory/decoration/achievement"
++  local res, gerr = get(url, { source = "xbox-live", headers = xbl_headers(s, 2), timeout = 20 })
++  if not res then return nil, gerr end
++  if tonumber(res.status) ~= 200 then return nil, "HTTP " .. tostring(res.status) end
++  local body = decode(res)
++  if not body or type(body.titles) ~= "table" then return nil, "bad answer" end
++  local out = {}
++  for _, t in ipairs(body.titles) do
++    if type(t) == "table" and t.titleId then
++      local ach = type(t.achievement) == "table" and t.achievement or {}
++      out[tostring(t.titleId)] = {
++        unlocked = tonumber(ach.currentAchievements) or 0,
++        gamerscore = tonumber(ach.currentGamerscore) or 0,
++        last_played = type(t.titleHistory) == "table" and iso_date.instant(t.titleHistory.lastTimePlayed) or nil,
++      }
++    end
++  end
++  return out
++end
++
++return M
+diff --git a/steam-cartridges/package.json b/steam-cartridges/package.json
+index 51b71f8..7bad1bc 100644
+--- a/steam-cartridges/package.json
++++ b/steam-cartridges/package.json
+@@ -9,7 +9,7 @@
+     "build:dev": "millennium-ttc --build dev",
+     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
+     "test:ts": "node --experimental-strip-types --test tests/*.test.ts",
+-    "test:lua": "lua tests/test_backend.lua && lua tests/test_steam_store.lua && lua tests/test_migrate.lua && lua tests/test_identity.lua && lua tests/test_metadata_service.lua && lua tests/test_art_service.lua && lua tests/test_ach_service.lua && lua tests/test_freshness.lua && lua tests/test_media_service.lua && lua tests/test_globals.lua",
++    "test:lua": "lua tests/test_backend.lua && lua tests/test_steam_store.lua && lua tests/test_migrate.lua && lua tests/test_identity.lua && lua tests/test_metadata_service.lua && lua tests/test_art_service.lua && lua tests/test_ach_service.lua && lua tests/test_freshness.lua && lua tests/test_media_service.lua && lua tests/test_store.lua && lua tests/test_globals.lua",
+     "test": "npm run test:ts && npm run test:lua",
+     "test:live": "node tests/live/run.mjs"
+   },
+diff --git a/steam-cartridges/tests/architecture-unwired-rpcs.json b/steam-cartridges/tests/architecture-unwired-rpcs.json
+index 5e1fb0f..7b9a515 100644
+--- a/steam-cartridges/tests/architecture-unwired-rpcs.json
++++ b/steam-cartridges/tests/architecture-unwired-rpcs.json
+@@ -1,4 +1,9 @@
+ {
+   "GetDiagnostics": "debug: called from the SharedJSContext console and tests/live/probes/http_calls.mjs",
+-  "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it"
++  "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it",
++  "StoreInstalledGames": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
++  "StoreAccounts": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
++  "XboxSignInStart": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
++  "XboxSignInPoll": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
++  "XboxSignOut": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts"
+ }
+diff --git a/steam-cartridges/tests/architecture.test.ts b/steam-cartridges/tests/architecture.test.ts
+index 902d65a..c2ad918 100644
+--- a/steam-cartridges/tests/architecture.test.ts
++++ b/steam-cartridges/tests/architecture.test.ts
+@@ -297,7 +297,7 @@ test('architecture: backend services use no RPC module as a library, and no stor
+     const bad: string[] = [];
+     for (const name of readdirSync(dir).filter((n) => n.endsWith('.lua') && n !== 'main.lua')) {
+         const src = readFileSync(join(dir, name), 'utf8');
+-        if (/require\("(web_rpc|steam_store_rpc|record_rpc|achievements_rpc)"\)/.test(src)) bad.push(`${name}: requires an RPC module`);
++        if (/require\("(web_rpc|steam_store_rpc|record_rpc|achievements_rpc|store_rpc)"\)/.test(src)) bad.push(`${name}: requires an RPC module`);
+         if (/(_store|_db)\.lua$|^(fresh_policy|registry)\.lua$/.test(name) && /require\("net"\)/.test(src)) bad.push(`${name}: a store that fetches`);
+     }
+     assert.deepEqual(bad, []);
+diff --git a/steam-cartridges/tests/test_store.lua b/steam-cartridges/tests/test_store.lua
+new file mode 100644
+index 0000000..d0b13b6
+--- /dev/null
++++ b/steam-cartridges/tests/test_store.lua
+@@ -0,0 +1,383 @@
++-- Third-party store copies (ADR-0056) backend tests: the local readers, the Epic and Xbox sources, the service.
++-- Hermetic: no network, no Steam install (each source's http is injected); one census reads this PC's Epic manifests.
++--
++--   lua tests/test_store.lua
++--
++-- Same stubs as test_ach_service.lua: hand-shaped fixtures copied from live answers (2026-10-02), injected deps,
++-- the real `http` module stubbed to throw so a test can never go online.
++
++local here = (debug.getinfo(1, "S").source:match("^@(.*)[/\\][^/\\]*$") or "."):gsub("\\", "/")
++package.path = here .. "/../backend/?.lua;" .. package.path
++
++-- ---------- stubs ----------
++local WARNS = 0
++local logger = setmetatable({}, { __index = function(_, k) return function() if k == "warn" or k == "error" then WARNS = WARNS + 1 end end end })
++package.loaded["logger"] = logger
++local TMP = (os.getenv("TEMP") or os.getenv("TMPDIR") or "/tmp"):gsub("\\", "/")
++package.loaded["millennium"] = { steam_path = function() return TMP end, ready = function() end }
++package.loaded["fs"] = {
++  is_directory = function() return true end,
++  create_directories = function() return true end,
++  join = function(...) return table.concat({ ... }, "/") end,
++  is_file = function(p) local f = io.open(p, "rb"); if f then f:close() return true end return false end,
++}
++package.loaded["utils"] = {
++  read_file = function(p) local f = io.open(p, "rb"); if not f then return nil, "nf" end local c = f:read("*a"); f:close(); return c end,
++  write_file = function(p, c) local f, e = io.open(p, "wb"); if not f then return false, e end f:write(c); f:close(); return true end,
++  base64_encode = function(s) return s end,
++}
++package.loaded["http"] = { get = function() error("network in test") end }
++
++-- Full JSON codec (the shared harness decoder only handles flat payloads).
++local json = {}
++local function esc(s)
++  return '"' .. s:gsub('[%c"\\]', function(c)
++    local m = { ['"'] = '\\"', ["\\"] = "\\\\", ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t" }
++    return m[c] or string.format("\\u%04x", c:byte())
++  end) .. '"'
++end
++function json.encode(v)
++  local t = type(v)
++  if t == "table" then
++    if next(v) == nil then return "{}" end
++    if #v > 0 then
++      local p = {}
++      for _, x in ipairs(v) do p[#p + 1] = json.encode(x) end
++      return "[" .. table.concat(p, ",") .. "]"
++    end
++    local p = {}
++    for k, x in pairs(v) do p[#p + 1] = esc(tostring(k)) .. ":" .. json.encode(x) end
++    return "{" .. table.concat(p, ",") .. "}"
++  elseif t == "string" then return esc(v)
++  elseif t == "number" then return string.format("%.14g", v)
++  elseif t == "boolean" then return tostring(v) end
++  return "null"
++end
++function json.decode(s)
++  local i = 1
++  local function ws() i = s:find("%S", i) or #s + 1 end
++  local value
++  local function str()
++    local out = {}
++    i = i + 1
++    while true do
++      local c = s:sub(i, i)
++      if c == '"' then i = i + 1 break end
++      if c == "\\" then
++        local n = s:sub(i + 1, i + 1)
++        if n == "u" then
++          local cp = tonumber(s:sub(i + 2, i + 5), 16)
++          out[#out + 1] = utf8.char(cp); i = i + 6
++        else
++          out[#out + 1] = ({ n = "\n", r = "\r", t = "\t", b = "\b", f = "\f" })[n] or n; i = i + 2
++        end
++      else out[#out + 1] = c; i = i + 1 end
++    end
++    return table.concat(out)
++  end
++  function value()
++    ws()
++    local c = s:sub(i, i)
++    if c == "{" then
++      local o = {}; i = i + 1; ws()
++      if s:sub(i, i) == "}" then i = i + 1 return o end
++      while true do
++        ws(); local k = str(); ws(); i = i + 1 -- ':'
++        o[k] = value(); ws()
++        local d = s:sub(i, i); i = i + 1
++        if d == "}" then return o end
++      end
++    elseif c == "[" then
++      local a = {}; i = i + 1; ws()
++      if s:sub(i, i) == "]" then i = i + 1 return a end
++      while true do
++        a[#a + 1] = value(); ws()
++        local d = s:sub(i, i); i = i + 1
++        if d == "]" then return a end
++      end
++    elseif c == '"' then return str()
++    elseif s:sub(i, i + 3) == "true" then i = i + 4 return true
++    elseif s:sub(i, i + 4) == "false" then i = i + 5 return false
++    elseif s:sub(i, i + 3) == "null" then i = i + 4 return nil end
++    local num = s:match("^-?%d+%.?%d*[eE]?[+-]?%d*", i)
++    i = i + #num
++    return tonumber(num)
++  end
++  return value()
++end
++package.loaded["json"] = json
++
++-- steam_paths / shortcuts stubs for resolve_identity's emulator guard.
++local SHORTCUTS = {}
++package.loaded["steam_paths"] = { resolve = function() return { shortcuts = "unused" } end }
++package.loaded["shortcuts"] = {
++  parse = function() return SHORTCUTS end,
++  by_appid = function(entries) local ix = {} for _, e in ipairs(entries) do ix[e.appid] = e end return ix end,
++}
++package.loaded["rpc"] = { method = function(_, f)
++  return function(payload)
++    local ok, res = pcall(f, json.decode(payload))
++    if not ok then return json.encode({ error = tostring(res) }) end
++    if res == nil then return "null" end
++    return json.encode(res)
++  end
++end }
++
++-- ---------- helpers ----------
++local failures = 0
++local function check(label, cond, detail)
++  print((cond and "  PASS  " or "  FAIL  ") .. label .. (detail and ("  -> " .. tostring(detail)) or ""))
++  if not cond then failures = failures + 1 end
++end
++
++-- ======================================================================
++-- iso_date
++-- ======================================================================
++print("iso_date")
++local iso = require("iso_date")
++check("a day from an ISO date-time (UTC midnight)", iso.day("2023-10-27T04:00:00.000Z") == 1698364800)
++check("an instant keeps the time of day", iso.instant("2026-10-02T17:44:53.533Z") == 1790963093, iso.instant("2026-10-02T17:44:53.533Z"))
++check("Xbox's seven-digit fraction parses too", iso.instant("2026-10-02T17:54:21.7670000Z") == 1790963661)
++check("no date, a year alone or year 0001 is nil", iso.day("") == nil and iso.day("2023") == nil and iso.day("0001-01-01T00:00:00Z") == nil)
++
++-- ======================================================================
++-- store_epic_local (pure parts; fixtures copied from this PC's manifest, ids only)
++-- ======================================================================
++print("store_epic_local")
++local epic_local = require("store_epic_local")
++local MANIFEST = [[{"FormatVersion":0,"LaunchExecutable":"Jotunnslayer.exe","DisplayName":"Jotunnslayer: Hordes of Hel",
++"InstallLocation":"C:\\Program Files\\Epic Games\\JotunnslayerHordesofrI2Zp","CatalogNamespace":"d8a39ea2f35e49b58f18c2b96aec276a",
++"CatalogItemId":"193ae706e4ef468aa030326aa0781efe","AppName":"05cc03868360490aa4d7138723f4d99e","MainGameCatalogNamespace":"",
++"MainGameCatalogItemId":"","MainGameAppName":""}]]
++local ADDON = [[{"DisplayName":"Some DLC","InstallLocation":"C:\\Program Files\\Epic Games\\JotunnslayerHordesofrI2Zp",
++"CatalogNamespace":"d8a39ea2f35e49b58f18c2b96aec276a","CatalogItemId":"x","AppName":"dlc1",
++"MainGameCatalogNamespace":"d8a39ea2f35e49b58f18c2b96aec276a","MainGameAppName":"05cc03868360490aa4d7138723f4d99e"}]]
++local g = epic_local.parse_manifest(MANIFEST)
++check("a game manifest parses", g and g.namespace == "d8a39ea2f35e49b58f18c2b96aec276a" and g.app_name == "05cc03868360490aa4d7138723f4d99e" and g.addon == false)
++check("an add-on manifest is marked as one", epic_local.parse_manifest(ADDON).addon == true)
++check("garbage is no manifest", epic_local.parse_manifest("not json") == nil)
++check("the plain launch link names its AppName", epic_local.app_name_from_link("com.epicgames.launcher://apps/05cc03868360490aa4d7138723f4d99e?action=launch&silent=true") == "05cc03868360490aa4d7138723f4d99e")
++check("the namespace:item:app link names its AppName", epic_local.app_name_from_link("com.epicgames.launcher://apps/ns%3Aitem%3Aapp9?action=launch") == "app9")
++check("no link, no AppName", epic_local.app_name_from_link('"C:\\x.exe"') == nil)
++local games = { g }
++local m1, via1 = epic_local.match({ exe = '"C:\\Program Files\\Epic Games\\JotunnslayerHordesofrI2Zp\\Jotunnslayer.exe"', launch_options = "" }, games)
++check("a shortcut running the game's exe matches by install folder", m1 == g and via1 == "manifest")
++local m2, via2 = epic_local.match({ exe = '"C:\\Launcher\\EpicGamesLauncher.exe"', launch_options = "com.epicgames.launcher://apps/05cc03868360490aa4d7138723f4d99e?action=launch&silent=true" }, games)
++check("a shortcut running the launcher link matches by AppName", m2 == g and via2 == "launch-link")
++check("a sibling folder with the same prefix is not a match", epic_local.match({ exe = '"C:\\Program Files\\Epic Games\\JotunnslayerHordesofrI2Zp2\\x.exe"' }, games) == nil)
++epic_local.deps.getenv = function(n) if n == "LOCALAPPDATA" then return "L:" end end
++epic_local.deps.list = function() return { { name = "8b91fd9e3d434c52a322ce7be76c06e7.dat", path = "a" }, { name = "OC_8b91fd9e3d434c52a322ce7be76c06e7.dat", path = "b" }, { name = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.dat", path = "c" } } end
++epic_local.deps.mtime = function(p) return p == "a" and 20 or 10 end
++check("the account id is the newest 32-hex .dat (OC_ files ignored)", epic_local.account_id() == "8b91fd9e3d434c52a322ce7be76c06e7")
++epic_local.deps.getenv, epic_local.deps.list, epic_local.deps.mtime = nil, nil, nil
++check("the URL handler names the launcher exe", epic_local.parse_handler('HKEY_CLASSES_ROOT\\com.epicgames.launcher\\shell\\open\\command\n    (Default)    REG_SZ    "C:\\Program Files\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe" %1\n') == "C:\\Program Files\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe")
++local spec = epic_local.launch_spec(g, "C:\\L\\EpicGamesLauncher.exe")
++check("a launch spec runs the launcher with the game's link", spec.exe == '"C:\\L\\EpicGamesLauncher.exe"' and spec.launch_options:find("apps/d8a39ea2f35e49b58f18c2b96aec276a%3A193ae706e4ef468aa030326aa0781efe%3A05cc0386", 1, true) ~= nil)
++
++-- ======================================================================
++-- store_xbox_local (pure parts; fixtures from this PC's Microsoft Jigsaw)
++-- ======================================================================
++print("store_xbox_local")
++local xbox_local = require("store_xbox_local")
++local REG = "\r\nHKEY_CURRENT_USER\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages\\Microsoft.MicrosoftJigsaw_2.9.6011.0_x86__8wekyb3d8bbwe\r\n    PackageRootFolder    REG_SZ    C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftJigsaw_2.9.6011.0_x86__8wekyb3d8bbwe\r\n\r\nHKEY_CURRENT_USER\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages\\Some.App_1.0.0.0_x64__abc\r\n    PackageRootFolder    REG_SZ    C:\\Program Files\\WindowsApps\\Some.App_1.0.0.0_x64__abc\r\n\r\nEnd of search: 2 match(es) found.\r\n"
++local pk = xbox_local.parse_packages(REG)
++check("reg query output lists packages and folders", #pk == 2 and pk[1].full_name == "Microsoft.MicrosoftJigsaw_2.9.6011.0_x86__8wekyb3d8bbwe" and pk[1].root:match("Jigsaw_2%.9") ~= nil)
++check("the family name is Name_PublisherId", xbox_local.family_name(pk[1].full_name) == "Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe")
++check("xboxservices.config (with a byte order mark) gives the decimal title id", xbox_local.parse_services_config('\239\187\191{"TitleId": 2003863742, "FirstParty": true}') == "2003863742")
++local gc = xbox_local.parse_game_config('<Game><Identity Name="Studio.Game" Publisher="CN=x"/><StoreId>9NBLGGH4R315</StoreId><TitleId>7770BBE5</TitleId></Game>')
++check("MicrosoftGame.config gives the hex title id as decimal, and the Store id", gc.title_id == "2003876837" and gc.store_id == "9NBLGGH4R315" and gc.name == "Studio.Game")
++local am = xbox_local.parse_appx_manifest('<Properties><DisplayName>ms-resource:AppName</DisplayName></Properties><Applications><Application Id="App" Executable="Jigsaw.exe" EntryPoint="x">')
++check("AppxManifest gives the app id and exe; a resource name is no title", am.app_id == "App" and am.executable == "Jigsaw.exe" and am.title == nil)
++xbox_local.deps.run = function() return REG end
++xbox_local.deps.read = function(p) if p:find("Jigsaw", 1, true) and p:find("xboxservices") then return '{"TitleId": 2003863742}' end if p:find("Jigsaw", 1, true) and p:find("AppxManifest") then return '<Application Id="App" Executable="Jigsaw.exe">' end end
++local xg = xbox_local.installed()
++check("installed() keeps only packages with an Xbox game config", #xg == 1 and xg[1].pfn == "Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe" and xg[1].title_id == "2003863742" and xg[1].app_id == "App")
++local x1, xv1 = xbox_local.match({ exe = '"C:\\Windows\\explorer.exe"', launch_options = "shell:AppsFolder\\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App" }, xg)
++check("a shell:AppsFolder shortcut matches by family name", x1 == xg[1] and xv1 == "launch-link")
++local x2, xv2 = xbox_local.match({ exe = '"C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftJigsaw_2.9.6011.0_x86__8wekyb3d8bbwe\\Jigsaw.exe"' }, xg)
++check("a shortcut running the package's exe matches by folder", x2 == xg[1] and xv2 == "package")
++xbox_local.deps.getenv = function(n) if n == "SystemRoot" then return "C:\\Windows" end end
++local xs = xbox_local.launch_spec(xg[1])
++check("a launch spec opens the app through Explorer", xs.exe == '"C:\\Windows\\explorer.exe"' and xs.launch_options == "shell:AppsFolder\\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App")
++xbox_local.deps.run, xbox_local.deps.read, xbox_local.deps.getenv = nil, nil, nil
++
++-- ======================================================================
++-- epic_graphql (GraphQL answers as seen live, 2026-10-02)
++-- ======================================================================
++print("epic_graphql")
++local epic = require("epic_graphql")
++local posted = {}
++local ANSWERS = {}
++epic.deps.post = function(url, body, opts)
++  posted[#posted + 1] = { url = url, body = body, source = opts.source }
++  for pattern, answer in pairs(ANSWERS) do
++    if body:find(pattern, 1, true) then return { status = 200, body = answer } end
++  end
++  return { status = 200, body = '{"errors":[{"message":"unexpected query"}]}' }
++end
++ANSWERS["catalogOffers"] = '{"data":{"Catalog":{"catalogOffers":{"elements":[{"id":"e1","title":"Edition","offerType":"EDITION"},{"id":"b1","title":"Jotunnslayer: Hordes of Hel","offerType":"BASE_GAME"}]}}}}'
++local bo = epic.base_offer("d8a39ea2f35e49b58f18c2b96aec276a")
++check("the base game offer wins over an edition", bo and bo.id == "b1" and posted[1].source == "epic" and posted[1].url == "https://store.epicgames.com/graphql")
++ANSWERS["catalogOffer("] = '{"data":{"Catalog":{"catalogOffer":{"title":"Alan Wake 2","description":"Saga Anderson arrives.","developerDisplayName":"Remedy Entertainment","publisherDisplayName":"Epic Games Publishing","releaseDate":"2023-10-27T04:00:00.000Z","pcReleaseDate":"2023-10-27T04:00:00.000Z","tags":[{"name":"Horror","groupName":"genre"},{"name":"Single Player","groupName":"feature"},{"name":"Controller Support","groupName":"feature"},{"name":"Co-op","groupName":"feature"},{"name":"Cloud Saves","groupName":"epicfeature"}],"keyImages":[{"type":"featuredMedia","url":"https://cdn2.unrealengine.com/a.jpg"},{"type":"OfferImageTall","url":"https://cdn1.epicgames.com/t.jpg"}]}}}}'
++local offer = epic.offer("ns", "id")
++local meta = epic.to_metadata(offer, 4000000001, "AW2")
++check("an offer maps to Game Info", meta.description == "Saga Anderson arrives." and meta.developers[1] == "Remedy Entertainment" and meta.publishers[1] == "Epic Games Publishing" and meta.release_date == 1698364800)
++check("... genres from genre tags, player flags only from exact feature tags", meta.genres[1] == "Horror" and #meta.genres == 1 and meta.categories.single_player and meta.categories.coop and meta.categories.partial_controller and not meta.categories.multiplayer and not meta.categories.full_controller)
++local shots = epic.screenshots(offer)
++check("featuredMedia images are the screenshots, with a resized thumbnail", #shots == 1 and shots[1].source == "epic" and shots[1].thumb == "https://cdn2.unrealengine.com/a.jpg?w=640&resize=1")
++ANSWERS["productAchievementsRecordBySandbox"] = '{"data":{"Achievement":{"productAchievementsRecordBySandbox":{"productId":"18f679a82b234692874031d40a3aaea1","totalAchievements":2,"achievements":[{"achievement":{"name":"ACH_A_TROPHY_SPECIAL","hidden":false,"unlockedDisplayName":"A-Trophy Special","unlockedDescription":"Obtain a Trophy.","unlockedIconLink":"https://i/u.png","lockedIconLink":"https://i/l.png","XP":15,"rarity":{"percent":70}}},{"achievement":{"name":"ACH_FRIENDLY_JOTUNN","hidden":true,"unlockedDisplayName":"Friendly","unlockedDescription":"x","unlockedIconLink":"https://i/f.png","lockedIconLink":"","XP":10,"rarity":{"percent":5}}}]}}}}'
++local sch = epic.achievement_schema("d8a39ea2f35e49b58f18c2b96aec276a")
++check("the sandbox's list: product id, API names, icons, rarity", sch.product_id == "18f679a82b234692874031d40a3aaea1" and #sch.achievements == 2 and sch.achievements[1].id == "ACH_A_TROPHY_SPECIAL" and sch.achievements[1].global_pct == 70 and sch.achievements[2].hidden == true)
++ANSWERS["productAchievements("] = '{"data":{"PlayerProfile":{"playerProfile":{"productAchievements":{"__typename":"PlayerProductAchievementsResponseSuccess","data":{"playerAchievements":[{"playerAchievement":{"achievementName":"ACH_FRIENDLY_JOTUNN","unlocked":true,"unlockDate":"2026-10-02T17:44:53.533Z"}},{"playerAchievement":{"achievementName":"ACH_X","unlocked":false,"unlockDate":null}}]}}}}}}'
++local un = epic.player_unlocks("acc", "18f679a82b234692874031d40a3aaea1")
++check("a public profile's unlocks, with their times; a locked one is left out", un and un.ACH_FRIENDLY_JOTUNN == 1790963093 and un.ACH_X == nil)
++ANSWERS["productAchievements("] = '{"data":{"PlayerProfile":{"playerProfile":{"productAchievements":{"__typename":"ServiceError","status":403,"message":"Request failed with status code 403"}}}}}'
++local un2, why = epic.player_unlocks("acc", "p")
++check("a private profile is 'private', not a crash", un2 == nil and why == "private")
++epic.deps.post = function() return nil, "paused" end
++check("a paused source is an error, never a throw", select(2, epic.base_offer("ns")) == "paused")
++epic.deps.post = nil
++
++-- ======================================================================
++-- xbox_catalog (the Jigsaw product as seen live)
++-- ======================================================================
++print("xbox_catalog")
++local catalog = require("xbox_catalog")
++local got = {}
++local PRODUCT = '{"Products":[{"ProductId":"9WZDNCRFJ9X2","ProductKind":"Game","AlternateIds":[{"IdType":"LegacyWindowsStoreProductId","Value":"cb51"},{"IdType":"XboxTitleId","Value":"2003863742"}],"LocalizedProperties":[{"ProductTitle":"Microsoft Jigsaw","ProductDescription":"Puzzles.","DeveloperName":"","PublisherName":"Xbox Game Studios","Images":[{"ImagePurpose":"Screenshot","Uri":"//store-images.microsoft.com/image/apps.1.a","Width":1366,"Height":768},{"ImagePurpose":"Logo","Uri":"//x/logo"}]}],"MarketProperties":[{"OriginalReleaseDate":"2012-10-26T00:00:00.0000000Z"}],"Properties":{"Category":"Puzzle & trivia","Attributes":[{"Name":"XboxLive"},{"Name":"SinglePlayer"},{"Name":"XblLocalCoop"}]}}]}'
++catalog.deps.get = function(url, opts) got[#got + 1] = { url = url, source = opts.source }; return { status = 200, body = PRODUCT } end
++local prod = catalog.by_pfn("Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe")
++check("lookup by family name asks the display catalog", prod ~= nil and got[1].url:find("alternateId=PackageFamilyName&value=Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe", 1, true) ~= nil and got[1].source == "xbox-catalog")
++local ids = catalog.ids(prod)
++check("ids: Store id, title id, title, is a game", ids.store_id == "9WZDNCRFJ9X2" and ids.title_id == "2003863742" and ids.title == "Microsoft Jigsaw" and ids.is_game == true)
++local xm = catalog.to_metadata(prod, 4000000002, "Jigsaw")
++check("a product maps to Game Info; an empty developer is no developer", xm.description == "Puzzles." and #xm.developers == 0 and xm.publishers[1] == "Xbox Game Studios" and xm.release_date == 1351209600 and xm.genres[1] == "Puzzle & trivia")
++check("... attributes: single player, co-op, local play = split screen", xm.categories.single_player and xm.categories.coop and xm.categories.split_screen and not xm.categories.multiplayer)
++local xsh = catalog.screenshots(prod)
++check("Screenshot images get https: and a resized thumbnail", #xsh == 1 and xsh[1].url == "https://store-images.microsoft.com/image/apps.1.a" and xsh[1].thumb == "https://store-images.microsoft.com/image/apps.1.a?w=640" and xsh[1].width == 1366)
++catalog.deps.get = function() return { status = 404, body = "" } end
++check("a 404 is 'not found' through an error, never a throw", catalog.by_pfn("x") == nil)
++catalog.deps.get = nil
++
++-- ======================================================================
++-- xbox_live (answers as seen live; tokens are fake)
++-- ======================================================================
++print("xbox_live")
++local live = require("xbox_live")
++local ACCOUNT = nil
++local saved_maps = {}
++live.deps.account = {
++  get = function() return ACCOUNT end,
++  save = function(map) saved_maps[#saved_maps + 1] = map; if map.xbox_refresh_token ~= "" then ACCOUNT = { refresh_token = map.xbox_refresh_token, xuid = map.xbox_xuid, gamertag = map.xbox_gamertag } else ACCOUNT = nil end end,
++}
++live.deps.now = function() return 1000 end
++local poll_state = "pending"
++local refreshes = 0
++live.deps.post = function(url, body)
++  if url == live.DEVICE_URL then return { status = 200, body = '{"user_code":"TMSUDKC2","device_code":"DC","verification_uri":"https://www.microsoft.com/link","interval":5,"expires_in":900}' } end
++  if url == live.TOKEN_URL then
++    if body:find("grant_type=refresh_token", 1, true) then refreshes = refreshes + 1; return { status = 200, body = '{"access_token":"AT2","refresh_token":"RT2"}' } end
++    if poll_state == "pending" then return { status = 400, body = '{"error":"authorization_pending"}' } end
++    if poll_state == "expired" then return { status = 400, body = '{"error":"expired_token"}' } end
++    return { status = 200, body = '{"access_token":"AT","refresh_token":"RT"}' }
++  end
++  if url == live.XBL_URL then return { status = 200, body = '{"Token":"XBL"}' } end
++  if url == live.XSTS_URL then return { status = 200, body = '{"Token":"XSTS","DisplayClaims":{"xui":[{"uhs":"UHS","xid":"2535","gtg":"Cannoli Gun"}]}}' } end
++  return nil, "unexpected"
++end
++local start = live.sign_in_start()
++check("sign-in start gives the code and the address, never logs them", start.user_code == "TMSUDKC2" and start.device_code == "DC" and start.interval == 5)
++check("a poll before approval is pending", live.sign_in_poll("DC").pending == true and ACCOUNT == nil)
++poll_state = "expired"
++check("an expired code says so", live.sign_in_poll("DC").error ~= nil)
++poll_state = "ok"
++local done = live.sign_in_poll("DC")
++check("an approved code signs in and stores the refresh token, xuid and gamertag", done.ok == true and done.gamertag == "Cannoli Gun" and ACCOUNT.refresh_token == "RT" and ACCOUNT.xuid == "2535")
++check("... the gamertag's space is stored as %20 and read back as a space", saved_maps[#saved_maps].xbox_gamertag == "Cannoli%20Gun" and live.status().gamertag == "Cannoli Gun")
++local XACH = '{"achievements":[{"id":"2","name":"First Unlock","description":"Solve one.","isSecret":false,"progressState":"Achieved","progression":{"timeUnlocked":"2026-10-02T17:54:21.7670000Z"},"mediaAssets":[{"url":"https://i/1.png"}],"rewards":[{"type":"Gamerscore","value":"20"}],"rarity":{"currentPercentage":40.5}},{"id":"3","name":"Two","lockedDescription":"Hidden.","isSecret":true,"progressState":"NotStarted","progression":{"timeUnlocked":"0001-01-01T00:00:00.0000000Z"},"mediaAssets":[],"rewards":[]}]}'
++local asked = {}
++live.deps.get = function(url, opts) asked[#asked + 1] = { url = url, auth = opts.headers.Authorization, source = opts.source }; return { status = 200, body = url:find("titlehub", 1, true) and '{"titles":[{"titleId":"2003863742","achievement":{"currentAchievements":1,"currentGamerscore":20},"titleHistory":{"lastTimePlayed":"2026-10-02T17:52:12.5610357Z"}}]}' or XACH } end
++local xa = live.achievements("2003863742")
++check("achievements: schema items and the unlock time; a locked one has no unlock", xa and #xa.achievements == 2 and xa.unlocks["2"] == 1790963661 and xa.unlocks["3"] == nil and xa.achievements[1].global_pct == 40.5 and xa.achievements[2].hidden == true and xa.achievements[2].description == "Hidden.")
++check("... asked with the XBL3.0 header for the signed-in xuid", asked[1].url:find("xuid(2535)", 1, true) ~= nil and asked[1].auth == "XBL3.0 x=UHS;XSTS" and asked[1].source == "xbox-live")
++local tp = live.title_progress()
++check("title progress: one call, every played title", tp["2003863742"].unlocked == 1 and tp["2003863742"].gamerscore == 20)
++live._reset(); live.deps.now = function() return 1000 + 9 * 3600 end
++live.achievements("2003863742")
++check("an old session is renewed from the refresh token, and the rotated token is kept", refreshes == 1 and ACCOUNT.refresh_token == "RT2")
++live.sign_out()
++check("sign-out forgets the account", ACCOUNT == nil and live.status().signed_in == false)
++check("signed out, achievements is 'not signed in' with no request", select(2, live.achievements("1")) == "not signed in")
++live.deps.post, live.deps.get, live.deps.now, live.deps.account = nil, nil, nil, nil
++live._reset()
++
++-- ======================================================================
++-- store_service
++-- ======================================================================
++print("store_service")
++local copies = require("store_copies_store")
++copies._path = TMP .. "/sc_store_copies_test_" .. os.time() .. ".json"
++os.remove(copies._path); copies._reset()
++local svc = require("store_service")
++local api_calls = { offer = 0, schema = 0, pfn = 0 }
++local EPIC_GAME = g
++local XBOX_GAME = { pfn = "Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe", title_id = "2003863742", app_id = "App", root = "C:\\WA\\Jig", title = nil }
++local ENTRIES = {
++  [4000000001] = { appid = 4000000001, exe = '"C:\\Program Files\\Epic Games\\JotunnslayerHordesofrI2Zp\\Jotunnslayer.exe"', launch_options = "" },
++  [4000000002] = { appid = 4000000002, exe = '"C:\\Windows\\explorer.exe"', launch_options = "shell:AppsFolder\\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App" },
++  [4000000003] = { appid = 4000000003, exe = '"C:\\emu\\AM2R.exe"', launch_options = "" },
++}
++svc.deps.entry = function(appid) return ENTRIES[appid] end
++svc.deps.entries = function() local out = {} for _, e in pairs(ENTRIES) do out[#out + 1] = e end return out end
++svc.deps.epic_local = setmetatable({ installed = function() return { EPIC_GAME } end, launcher_exe = function() return "C:\\L\\EpicGamesLauncher.exe" end }, { __index = epic_local })
++svc.deps.xbox_local = setmetatable({ installed = function() return { XBOX_GAME } end }, { __index = xbox_local })
++svc.deps.epic = {
++  base_offer = function() api_calls.offer = api_calls.offer + 1; return { id = "b1", title = "Jotunnslayer: Hordes of Hel" } end,
++  achievement_schema = function() api_calls.schema = api_calls.schema + 1; return { product_id = "18f6", achievements = {} } end,
++}
++svc.deps.xbox_catalog = setmetatable({ by_pfn = function() api_calls.pfn = api_calls.pfn + 1; return catalog.deps and require("json").decode(PRODUCT).Products[1] end }, { __index = catalog })
++svc._reset()
++local ep = svc.ensure(4000000001, {})
++check("an Epic copy is found and filled with its offer and achievement product", ep.status == "ok" and ep.source == "epic" and ep.data.namespace == EPIC_GAME.namespace and ep.data.offerId == "b1" and ep.data.productId == "18f6" and ep.data.via == "manifest")
++svc.ensure(4000000001, {})
++check("... the store's ids are asked once per game (remembered)", api_calls.offer == 1 and api_calls.schema == 1)
++check("... and saved: saved() reads it from disk", svc.saved(4000000001).data.offerId == "b1")
++local xp = svc.ensure(4000000002, {})
++check("an Xbox copy is found by its launch target and named by the catalog", xp.status == "ok" and xp.data.kind == "xbox" and xp.data.titleId == "2003863742" and xp.data.storeId == "9WZDNCRFJ9X2" and xp.data.title == "Microsoft Jigsaw" and xp.data.via == "launch-link")
++check("a shortcut that is no store copy is unsupported, with nothing saved", svc.ensure(4000000003, {}).status == "unsupported" and svc.saved(4000000003) == nil)
++os.remove(copies._path); copies._reset(); api_calls.offer = 0
++local off = svc.ensure(4000000001, { allowEpic = false })
++check("with Epic switched off the local copy is still found, and the API is not asked", off.status == "ok" and off.data.offerId == nil and api_calls.offer == 0)
++local list = svc.installed_games({})
++check("installed games say which ones the library has", list.epic[1].inLibrary == 4000000001 and list.xbox[1].inLibrary == 4000000002 and list.epicLauncher == true)
++check("... with a launch spec for the ones it does not", list.epic[1].launch.exe == '"C:\\L\\EpicGamesLauncher.exe"' and list.xbox[1].title == "Microsoft Jigsaw")
++ENTRIES[4000000001] = nil
++check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)
++os.remove(copies._path)
++
++-- ======================================================================
++-- census: this PC's Epic manifests (plugins.md § 5: count with a naive scan first, never a hardcoded number)
++-- ======================================================================
++print("census")
++local pd = os.getenv("ProgramData")
++if pd then
++  local dir = pd .. "\\Epic\\EpicGamesLauncher\\Data\\Manifests"
++  local naive = 0
++  local p = io.popen('dir /b "' .. dir .. '\\*.item" 2>nul')
++  local names = {}
++  if p then for line in p:lines() do if line:match("%.item$") then naive = naive + 1; names[#names + 1] = line end end p:close() end
++  print("  census: " .. naive .. " manifest file(s) in " .. dir)
++  if naive > 0 then
++    epic_local.deps.list = function() local out = {} for _, n in ipairs(names) do out[#out + 1] = { name = n, path = dir .. "\\" .. n, is_file = true } end return out end
++    local parsed = epic_local.installed()
++    local addons = 0
++    for _, n in ipairs(names) do local f = io.open(dir .. "\\" .. n, "rb"); local m = f and epic_local.parse_manifest(f:read("*a")); if f then f:close() end if m and m.addon then addons = addons + 1 end end
++    check("every manifest that is not an add-on is an installed game", #parsed == naive - addons, #parsed .. " of " .. naive)
++    epic_local.deps.list = nil
++  else
++    print("  SKIP  no Epic games installed on this PC")
++  end
++end
++
++print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
++os.exit(failures == 0 and 0 or 1)

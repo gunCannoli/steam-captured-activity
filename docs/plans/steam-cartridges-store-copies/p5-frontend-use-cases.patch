@@ -1,0 +1,562 @@
+diff --git a/steam-cartridges/frontend/app/achievements.ts b/steam-cartridges/frontend/app/achievements.ts
+index 0117980..6d99129 100644
+--- a/steam-cartridges/frontend/app/achievements.ts
++++ b/steam-cartridges/frontend/app/achievements.ts
+@@ -29,6 +29,8 @@ export interface AchievementsDeps {
+     launchPolicy(): LaunchPolicy;
+     /** Kill switch `achievements-observer`: gates the launch toast and the polling session. */
+     observerEnabled(): boolean;
++    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
++    stores?(): { epic: boolean; xbox: boolean };
+     timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(handle: unknown): void };
+     now(): number;
+ }
+@@ -50,6 +52,11 @@ export interface AchievementsService {
+     resetSources(appid: ShortcutId): Promise<AchievementResetSource[]>;
+     /** Unlocked and total count from the record, for the settings panel's audit. */
+     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
++    /**
++     * Can this shortcut's achievements be reset? false for an Epic or Xbox copy: its unlocks live on the store's account
++     * and the next sync brings them back (ADR-0056, decision 7). Record only, synchronous.
++     */
++    resettable(appid: number): boolean;
+     /**
+      * Start-up: every stored achievements part of a shortcut into its record (disk only, no
+      * request), so the achievements surface fills Steam's stores for every shortcut, as Steam does for an owned
+@@ -81,6 +88,16 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+ 
+     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
+ 
++    /**
++     * An Epic or Xbox copy (ADR-0056): its unlocks are synced from the store, which already notified the player in game,
++     * so there is no launch toast and no in-game polling (decision 4). The record's store part, or a synced source.
++     */
++    const isSynced = (appid: ShortcutId) => {
++        const rec = deps.records.get(appid);
++        const source = rec?.achievements?.source;
++        return (rec?.store?.status === "ok" && !!rec.store.data) || source === "epic" || source === "xbox";
++    };
++
+     /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
+     async function resolveNative(appid: ShortcutId): Promise<number> {
+         const known = deps.records.get(appid)?.identity?.data?.native?.appid;
+@@ -102,7 +119,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+         deps.bus.emit("achievements.unlocked", { appid, ids, items });
+     }
+ 
+-    async function load(appid: ShortcutId, route: Route, native?: number): Promise<Part<AchievementSet>> {
++    async function load(appid: ShortcutId, route: Route, native?: number, force?: boolean): Promise<Part<AchievementSet>> {
+         deps.ensureBase(appid);
+         const known = deps.records.get(appid)?.identity;
+         const identity = native && !known?.data?.native
+@@ -113,6 +130,9 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+             route,
+             identity,
+             hardcore: deps.hardcore(),
++            allowEpic: deps.stores?.().epic ?? true,
++            allowXbox: deps.stores?.().xbox ?? true,
++            force,
+         });
+         const raw = res.error ? undefined : (res.parts.achievements as Part<AchievementSet> | undefined);
+         const part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
+@@ -125,7 +145,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+         return part;
+     }
+ 
+-    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number } = {}) {
++    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number; force?: boolean } = {}) {
+         if (route.bucket === "none") {
+             const part: Part<AchievementSet> = { status: "unsupported" };
+             deps.ensureBase(appid);
+@@ -134,7 +154,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+         }
+         const existing = inflight.get(appid);
+         if (existing) return existing;
+-        const promise = load(appid, route, opts.native).finally(() => inflight.delete(appid));
++        const promise = load(appid, route, opts.native, opts.force).finally(() => inflight.delete(appid));
+         inflight.set(appid, promise);
+         return promise;
+     }
+@@ -179,6 +199,27 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+         return stop;
+     }
+ 
++    /**
++     * A store sync after the game quit (ADR-0056): ask the store now (force), and announce what it found that the record
++     * did not have, for the Post-Game Summary. No toast: the store's overlay already showed each unlock in game.
++     */
++    async function syncAfterQuit(appid: ShortcutId): Promise<void> {
++        const before = new Set(Object.keys(current(appid)?.data?.unlocks ?? {}));
++        const part = await ensure(appid, deps.routeOf(appid), { force: true });
++        const set = part.data;
++        if (part.status !== "ok" || !set) return;
++        const items: UnlockedAchievement[] = [];
++        for (const [id, u] of Object.entries(set.unlocks ?? {})) {
++            if (before.has(id)) continue;
++            const a = set.schema.achievements.find((x) => String(x.id) === id);
++            if (!a) continue;
++            items.push({ id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: u.unlocked_time || Math.floor(deps.now() / 1000) });
++        }
++        if (items.length === 0) return;
++        logger.info(`Store sync found ${items.length} new unlock(s) for shortcut ${appid}: ${items.map((i) => i.id).join(", ")}`);
++        deps.bus.emit("achievements.synced", { appid, items });
++    }
++
+     function launchToast(appid: ShortcutId): void {
+         const policy = deps.launchPolicy();
+         if (policy === "off") return;
+@@ -195,6 +236,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+         install() {
+             deps.bus.on("shortcut.launched", ({ appid, name }) => {
+                 if (!deps.observerEnabled()) return;
++                if (isSynced(appid)) return; // the store's overlay notifies; synced when the game quits (ADR-0056)
+                 running.add(appid);
+                 launchToast(appid);
+                 void resolveNative(appid).then((n) => {
+@@ -206,6 +248,10 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+                 running.delete(appid);
+                 const stop = sessions.get(appid);
+                 stop?.();
++                if (isSynced(appid)) {
++                    void syncAfterQuit(appid);
++                    return;
++                }
+                 // New captures and unlocks: reload what the record holds for this shortcut.
+                 void ensure(appid, deps.routeOf(appid));
+             });
+@@ -298,6 +344,10 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService
+             }
+             return n;
+         },
++        resettable(appid) {
++            const id = toShortcutId(appid);
++            return id === undefined || !isSynced(id);
++        },
+         summary(appid) {
+             const id = toShortcutId(appid); // the panel hands Steam's appids, signed or not
+             const set = id === undefined ? undefined : current(id)?.data;
+diff --git a/steam-cartridges/frontend/app/media.ts b/steam-cartridges/frontend/app/media.ts
+index 58b51d2..ed6103f 100644
+--- a/steam-cartridges/frontend/app/media.ts
++++ b/steam-cartridges/frontend/app/media.ts
+@@ -28,6 +28,8 @@ export interface MediaDeps {
+     cacheDays?(): number;
+     /** Timing lines for the diagnostics log. */
+     log?(message: string): void;
++    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
++    stores?(): { epic: boolean; xbox: boolean };
+ }
+ 
+ /**
+@@ -77,6 +79,8 @@ export function createMedia(deps: MediaDeps): MediaResolver {
+             igdb_id: deps.records.get(appid)?.metadata?.data?.igdb_id,
+             allowWeb: deps.allowWeb(appid),
+             allowScreenscraper: deps.allowScreenscraper(appid),
++            allowEpic: deps.stores?.().epic ?? true,
++            allowXbox: deps.stores?.().xbox ?? true,
+             cacheDays: cacheDays(),
+         });
+         const raw = res.error ? undefined : (res.parts.media as Part<CommunityMedia> | undefined);
+diff --git a/steam-cartridges/frontend/app/metadata.ts b/steam-cartridges/frontend/app/metadata.ts
+index ac975bf..ebf9c2b 100644
+--- a/steam-cartridges/frontend/app/metadata.ts
++++ b/steam-cartridges/frontend/app/metadata.ts
+@@ -20,6 +20,8 @@ export interface MetadataDeps {
+     allowScreenscraper(appid: ShortcutId): boolean;
+     /** What decides the controller badge without Steam Store data (app/controller + setting defaultFullController). */
+     controller(appid: ShortcutId): ControllerContext;
++    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
++    stores?(): { epic: boolean; xbox: boolean };
+ }
+ 
+ export interface MetadataResolver {
+@@ -57,6 +59,8 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
+             storeItem: storeItem ?? undefined,
+             allowWeb: deps.allowWeb(appid),
+             allowScreenscraper: deps.allowScreenscraper(appid),
++            allowEpic: deps.stores?.().epic ?? true,
++            allowXbox: deps.stores?.().xbox ?? true,
+             noNetwork: opts.noNetwork,
+         });
+ 
+diff --git a/steam-cartridges/frontend/app/store-copy.ts b/steam-cartridges/frontend/app/store-copy.ts
+new file mode 100644
+index 0000000..2e2620f
+--- /dev/null
++++ b/steam-cartridges/frontend/app/store-copy.ts
+@@ -0,0 +1,55 @@
++// app/store-copy: is this shortcut an Epic or Xbox copy? (ADR-0056). One EnsureFresh(["store"]) per shortcut per
++// session: the backend finds the copy from the store's install data on this PC (no typing, decision 1) and names the
++// game in the store's API once per game. Metadata, media and achievements then read the copy (the backend from disk,
++// the frontend from the record).
++import { logger } from "../logger.ts";
++import type { ShortcutId } from "../kernel/appid";
++import type { Part, RecordStore, Route, StoreCopy } from "../kernel/record";
++import type { backend as Backend } from "../ports/backend";
++import { createSessionMemo } from "./session-memo.ts";
++
++export interface StoreCopyDeps {
++    backend: Pick<typeof Backend, "ensureFresh">;
++    records: RecordStore;
++    /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
++    ensureBase(appid: ShortcutId): void;
++    titleOf(appid: number): string | undefined;
++    /** Settings services.epicEnabled / xboxEnabled: may each store's API be asked. */
++    stores(): { epic: boolean; xbox: boolean };
++}
++
++export interface StoreCopyResolver {
++    ensure(appid: ShortcutId, route: Route): Promise<Part<StoreCopy>>;
++    /** Is the shortcut a known store copy? (record only, O(1)) */
++    isCopy(appid: ShortcutId): boolean;
++}
++
++export function createStoreCopy(deps: StoreCopyDeps): StoreCopyResolver {
++    const memo = createSessionMemo<StoreCopy>();
++
++    async function resolve(appid: ShortcutId, route: Route): Promise<Part<StoreCopy>> {
++        deps.ensureBase(appid);
++        const stores = deps.stores();
++        const res = await deps.backend.ensureFresh(appid, ["store"], {
++            title: deps.titleOf(appid) ?? "",
++            route,
++            allowEpic: stores.epic,
++            allowXbox: stores.xbox,
++        });
++        const raw = res.error ? undefined : (res.parts.store as Part<StoreCopy> | undefined);
++        const part: Part<StoreCopy> = raw ?? { status: "error", message: res.error ?? "no store part" };
++        const changed = deps.records.update(appid, { store: part });
++        if (changed.length > 0 && part.status === "ok") logger.info(`Store copy ${appid}: ${part.data?.kind} (${part.data?.via})`);
++        return part;
++    }
++
++    return {
++        ensure(appid, route) {
++            return memo.run(appid, () => resolve(appid, route), () => deps.records.get(appid)?.store);
++        },
++        isCopy(appid) {
++            const part = deps.records.get(appid)?.store;
++            return part?.status === "ok" && !!part.data;
++        },
++    };
++}
+diff --git a/steam-cartridges/frontend/app/view.ts b/steam-cartridges/frontend/app/view.ts
+index 1fe87b4..9ead060 100644
+--- a/steam-cartridges/frontend/app/view.ts
++++ b/steam-cartridges/frontend/app/view.ts
+@@ -4,7 +4,7 @@
+ // backend's TTLs (fresh_policy.lua) decide whether anything is fetched, so a fresh page costs no
+ // network. A Steam render never starts a view (M0a): views come from sensors/view.
+ import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
+-import type { ArtworkPlan, GameMetadata, Identity, Part, Route } from "../kernel/record";
++import type { ArtworkPlan, GameMetadata, Identity, Part, Route, StoreCopy } from "../kernel/record";
+ 
+ export interface ViewDeps {
+     routing: {
+@@ -12,6 +12,8 @@ export interface ViewDeps {
+         waitForCollections(timeoutMs?: number): Promise<boolean>;
+     };
+     identity: { ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>> };
++    /** The Epic or Xbox copy behind the shortcut (ADR-0056); asked first, so every later part sees it. */
++    store: { ensure(appid: ShortcutId, route: Route): Promise<Part<StoreCopy>> };
+     metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
+     artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
+     achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
+@@ -51,6 +53,9 @@ export function createView(deps: ViewDeps): View {
+                 await deps.metadata.ensure(id, route, undefined);
+                 return;
+             }
++            // ADR-0056: the store copy first (local files, then the store's ids once per game); the backend's
++            // metadata, media and achievements read it from disk. A route of "none" asks nothing at all.
++            if (bucket !== "none") await deps.store.ensure(id, route);
+             if (bucket === "steam-store") {
+                 // ADR-0036: Steam Store first; no Steam match -> the web tier (metadata); not known yet
+                 // (title missing) -> local Game Info only.
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index 919b011..c155796 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -31,6 +31,7 @@ import { createRouting } from "./app/routing";
+ import { createRecords } from "./app/records";
+ import { createRenderQueue } from "./app/render-queue";
+ import { createIdentity } from "./app/identity";
++import { createStoreCopy } from "./app/store-copy";
+ import { createMetadata } from "./app/metadata";
+ import { createArtwork } from "./app/artwork";
+ import { createMedia } from "./app/media";
+@@ -142,6 +143,18 @@ const identity = createIdentity({
+     titleOf: shortcutTitle,
+ });
+ 
++/** Which store APIs may be asked (settings services.epicEnabled / xboxEnabled, ADR-0056). */
++const stores = () => ({ epic: setting("services").epicEnabled !== false, xbox: setting("services").xboxEnabled !== false });
++
++/** Store copies (app/store-copy.ts, ADR-0056): the Epic or Xbox copy behind a shortcut, found from the PC's install data. */
++const storeCopy = createStoreCopy({
++    backend,
++    records: records.store,
++    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
++    titleOf: shortcutTitle,
++    stores,
++});
++
+ /** Controller support inferred from each shortcut's emulator (app/controller.ts). */
+ const controller = createController({ backend });
+ 
+@@ -160,6 +173,7 @@ const metadata = createMetadata({
+         defaultFull: setting("defaultFullController"),
+         override: lookupStored(setting("controllerOverrides"), appid),
+     }),
++    stores,
+ });
+ 
+ /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
+@@ -174,6 +188,7 @@ const achievements = createAchievements({
+     hardcore: () => setting("raHardcoreMode"),
+     launchPolicy: () => setting("localAchievementsNotifyOnLaunch"),
+     observerEnabled: () => features.isEnabled("achievements-observer"),
++    stores,
+     now: () => Date.now(),
+ });
+ 
+@@ -214,6 +229,7 @@ const media = createMedia({
+     cacheDays: () => setting("mediaCacheDays"),
+     objectUrl,
+     log: (message) => logger.info(message),
++    stores,
+ });
+ 
+ /** Manual pages as object URLs (kernel/manual-shelf, features plan F2c): app/manuals puts, surfaces/community reads. */
+@@ -234,7 +250,7 @@ const manuals = createManuals({
+ });
+ 
+ /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
+-const view = createView({ routing, identity, metadata, artwork, achievements, media });
++const view = createView({ routing, identity, store: storeCopy, metadata, artwork, achievements, media });
+ 
+ /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
+ const steamStore = createSteamStore({ backend, identity, metadata, artwork });
+@@ -314,6 +330,12 @@ export const resetAchievementsWithSources = (shortcutAppId: number, sources: str
+ /** Where a shortcut's unlocks come from besides the plugin's store, and which can be reset. */
+ export const achievementResetSources = (shortcutAppId: number) => achievements.resetSources(shortcutAppId as ShortcutId);
+ 
++/**
++ * Can a shortcut's achievements be reset at all? false for an Epic or Xbox copy: its unlocks are on the store's account
++ * and come back with the next sync, so enhanced-notifications leaves it out of Reset Achievements (ADR-0056). Synchronous.
++ */
++export const achievementsResettable = (shortcutAppId: number) => achievements.resettable(shortcutAppId);
++
+ /** One unlock check against the backend observer; resolves to the number of new unlocks. */
+ export const checkObserverUnlocks = (shortcutAppId: number, nativeAppId: number, gameTitle?: string) =>
+     achievements.checkNow(shortcutAppId as ShortcutId, { native: nativeAppId, title: gameTitle });
+diff --git a/steam-cartridges/frontend/ports/backend.ts b/steam-cartridges/frontend/ports/backend.ts
+index fe5e5e1..77d6b9a 100644
+--- a/steam-cartridges/frontend/ports/backend.ts
++++ b/steam-cartridges/frontend/ports/backend.ts
+@@ -115,6 +115,9 @@ export interface FreshContext {
+     igdb_id?: number;
+     /** Media only (ADR-0051): setting mediaCacheDays; more than 0 counts this page open for the disk cache. */
+     cacheDays?: number;
++    /** Store copies (ADR-0056): settings services.epicEnabled / xboxEnabled. false = that store's API is never asked. */
++    allowEpic?: boolean;
++    allowXbox?: boolean;
+ }
+ 
+ /** One ScreenScraper image of the media part (features plan F2b): the bytes, never the URL. */
+diff --git a/steam-cartridges/tests/app-achievements.test.ts b/steam-cartridges/tests/app-achievements.test.ts
+index 3a1e528..258328c 100644
+--- a/steam-cartridges/tests/app-achievements.test.ts
++++ b/steam-cartridges/tests/app-achievements.test.ts
+@@ -241,3 +241,84 @@ test('rerenderAll: emits record.updated(achievements) for every record with an o
+     assert.equal(ach.rerenderAll(), 1);
+     assert.deepEqual(updated, [SC]);
+ });
++
++// ---------- store copies: synced, not observed (ADR-0056) ----------
++
++/** A record that is an Epic copy, whose backend answers with the store's unlocks (one call per ensure). */
++function storeSetup(answers: Record<string, { unlocked_time: number }>[]) {
++    const bus = createEventBus();
++    const records = createRecordStore(bus);
++    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
++    records.update(SC, { store: { status: 'ok', data: { kind: 'epic', namespace: 'ns', via: 'manifest' } } as any });
++    records.update(SC, { achievements: { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 5 } } } } });
++    const contexts: any[] = [];
++    const synced: any[] = [];
++    const unlocked: any[] = [];
++    const toasts: number[] = [];
++    const timers: any[] = [];
++    let n = 0;
++    bus.on('achievements.synced', (e) => synced.push(e));
++    bus.on('achievements.unlocked', (e) => unlocked.push(e));
++    bus.on('achievements.launch-toast', () => toasts.push(1));
++    const ach = createAchievements({
++        backend: {
++            async ensureFresh(_a: number, _p: string[], ctx: any) {
++                contexts.push(ctx);
++                const unlocks = answers[Math.min(n++, answers.length - 1)];
++                return { appid: SC, parts: { achievements: { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks } } } };
++            },
++            async checkUnlocks() { throw new Error('a synced copy is never polled'); },
++            async steamStoreGetMapping() { return { mapping: null }; },
++        } as any,
++        records,
++        bus,
++        ensureBase: () => {},
++        titleOf: () => 'Game',
++        routeOf: () => ({ bucket: 'steam-store', via: 'default' }),
++        hardcore: () => true,
++        launchPolicy: () => 'all_runs',
++        observerEnabled: () => true,
++        stores: () => ({ epic: true, xbox: false }),
++        timers: { setInterval: (fn: () => void, ms: number) => { timers.push(ms); return 1; }, clearInterval: () => {} },
++        now: () => 1000,
++    });
++    ach.install();
++    return { ach, bus, contexts, synced, unlocked, toasts, timers };
++}
++
++test('a store copy gets no launch toast and no in-game polling (the store notifies)', async () => {
++    const s = storeSetup([{ A: { unlocked_time: 5 } }]);
++    s.bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
++    await tick();
++    assert.deepEqual(s.toasts, []);
++    assert.deepEqual(s.timers, []);
++});
++
++test('after a store copy quits, a forced sync announces only the new unlocks, never as a toast', async () => {
++    const s = storeSetup([{ A: { unlocked_time: 5 }, B: { unlocked_time: 900 } }]);
++    s.bus.emit('shortcut.quit', { appid: SC, name: 'Game' });
++    await tick();
++    await tick();
++    assert.equal(s.contexts.length, 1);
++    assert.equal(s.contexts[0].force, true, 'the quit sync ignores the 15 min freshness');
++    assert.equal(s.contexts[0].allowEpic, true);
++    assert.equal(s.contexts[0].allowXbox, false);
++    assert.equal(s.synced.length, 1);
++    assert.deepEqual(s.synced[0].items.map((i: any) => [i.id, i.name, i.unlockedAt]), [['B', 'Beta', 900]]);
++    assert.equal(s.unlocked.length, 0, 'achievements.unlocked (which toasts) is never emitted for a sync');
++});
++
++test('a sync that finds nothing new announces nothing', async () => {
++    const s = storeSetup([{ A: { unlocked_time: 5 } }]);
++    s.bus.emit('shortcut.quit', { appid: SC, name: 'Game' });
++    await tick();
++    await tick();
++    assert.equal(s.synced.length, 0);
++});
++
++test('a store copy is not resettable; any other shortcut is', () => {
++    const s = storeSetup([{}]);
++    assert.equal(s.ach.resettable(SC), false);
++    const other = setup();
++    assert.equal(other.ach.resettable(SC), true);
++});
+diff --git a/steam-cartridges/tests/app-store-copy.test.ts b/steam-cartridges/tests/app-store-copy.test.ts
+new file mode 100644
+index 0000000..494c0ac
+--- /dev/null
++++ b/steam-cartridges/tests/app-store-copy.test.ts
+@@ -0,0 +1,51 @@
++// app/store-copy (ADR-0056): one EnsureFresh(["store"]) per shortcut per session, with the store switches.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { createStoreCopy } from '../frontend/app/store-copy.ts';
++import { createRecordStore } from '../frontend/kernel/record.ts';
++import { createEventBus } from '../frontend/kernel/events.ts';
++
++const SC = 4263274102 as any;
++const ROUTE = { bucket: 'steam-store', via: 'default' } as const;
++
++function setup(answer: any, stores = { epic: true, xbox: true }) {
++    const bus = createEventBus();
++    const records = createRecordStore(bus);
++    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
++    const calls: any[] = [];
++    const copy = createStoreCopy({
++        backend: { async ensureFresh(appid: number, parts: string[], ctx: any) { calls.push({ appid, parts, ctx }); return { appid, parts: { store: answer } }; } } as any,
++        records,
++        ensureBase: () => {},
++        titleOf: () => 'Game',
++        stores: () => stores,
++    });
++    return { copy, records, calls };
++}
++
++test('store copy: asks for the store part with the store switches and puts it in the record', async () => {
++    const s = setup({ status: 'ok', source: 'epic', data: { kind: 'epic', namespace: 'ns', via: 'manifest' } }, { epic: true, xbox: false });
++    const part = await s.copy.ensure(SC, ROUTE);
++    assert.equal(part.data?.kind, 'epic');
++    assert.deepEqual(s.calls[0].parts, ['store']);
++    assert.equal(s.calls[0].ctx.allowEpic, true);
++    assert.equal(s.calls[0].ctx.allowXbox, false);
++    assert.equal(s.records.get(SC)?.store?.data?.namespace, 'ns');
++    assert.equal(s.copy.isCopy(SC), true);
++});
++
++test('store copy: a final answer is asked once per session', async () => {
++    const s = setup({ status: 'unsupported' });
++    await s.copy.ensure(SC, ROUTE);
++    await s.copy.ensure(SC, ROUTE);
++    assert.equal(s.calls.length, 1);
++    assert.equal(s.copy.isCopy(SC), false);
++});
++
++test('store copy: a backend error is an error part, asked again next time', async () => {
++    const s = setup(undefined);
++    const part = await s.copy.ensure(SC, ROUTE);
++    assert.equal(part.status, 'error');
++    await s.copy.ensure(SC, ROUTE);
++    assert.equal(s.calls.length, 2);
++});
+diff --git a/steam-cartridges/tests/app-view.test.ts b/steam-cartridges/tests/app-view.test.ts
+index 2e47c4d..d1fd337 100644
+--- a/steam-cartridges/tests/app-view.test.ts
++++ b/steam-cartridges/tests/app-view.test.ts
+@@ -9,6 +9,7 @@ function setup(getBucket: () => { bucket: string; via: string }, opts: { collect
+     const view = createView({
+         routing: { getBucket: getBucket as any, waitForCollections: async () => opts.collections ?? true },
+         identity: { async ensure() { log.push('identity'); return { status: 'ok', data: { native: { appid: 77, source: 'search' } } } as any; } },
++        store: { async ensure() { log.push('store'); return { status: 'unsupported' } as any; } },
+         metadata: { async ensure(_a: any, _r: any, id: any) { log.push('metadata:' + (id ? 'identity' : 'none')); return { status: 'ok' } as any; } },
+         artwork: { async ensure() { log.push('artwork'); return { status: 'ok' } as any; } },
+         achievements: { async ensure() { log.push('achievements'); } },
+@@ -19,18 +20,25 @@ function setup(getBucket: () => { bucket: string; via: string }, opts: { collect
+ 
+ const tick = () => new Promise((r) => setTimeout(r, 0));
+ 
+-test('a steam-store shortcut runs identity, metadata, artwork, media, achievements in order', async () => {
++test('a steam-store shortcut runs store, identity, metadata, artwork, media, achievements in order', async () => {
+     const s = setup(() => ({ bucket: 'steam-store', via: 'default' }));
+     await s.view.onSourceView(SC);
+     await tick();
+-    assert.deepEqual(s.log, ['identity', 'metadata:identity', 'artwork', 'media:identity', 'achievements']);
++    assert.deepEqual(s.log, ['store', 'identity', 'metadata:identity', 'artwork', 'media:identity', 'achievements']);
+ });
+ 
+-test('a web-scraping shortcut skips identity and the store', async () => {
++test('a web-scraping shortcut skips identity (the Steam match) but still finds its store copy first (ADR-0056)', async () => {
+     const s = setup(() => ({ bucket: 'web-scraping', via: 'default' }));
+     await s.view.onSourceView(SC);
+     await tick();
+-    assert.deepEqual(s.log, ['metadata:none', 'artwork', 'media:none', 'achievements']);
++    assert.deepEqual(s.log, ['store', 'metadata:none', 'artwork', 'media:none', 'achievements']);
++});
++
++test('a shortcut routed to none asks for no store copy (ADR-0056)', async () => {
++    const s = setup(() => ({ bucket: 'none', via: 'default' }));
++    await s.view.onSourceView(SC);
++    await tick();
++    assert.ok(!s.log.includes('store'));
+ });
+ 
+ test('a native appid is not a shortcut view', async () => {
+@@ -51,7 +59,7 @@ test('a pending route is local metadata only, replayed once collections are read
+     release(true);
+     await tick();
+     await tick();
+-    assert.deepEqual(s.log, ['metadata:none', 'metadata:none', 'artwork', 'media:none', 'achievements']);
++    assert.deepEqual(s.log, ['metadata:none', 'store', 'metadata:none', 'artwork', 'media:none', 'achievements']);
+ });
+ 
+ test('leaving the steam-store bucket stops resolving identity', async () => {

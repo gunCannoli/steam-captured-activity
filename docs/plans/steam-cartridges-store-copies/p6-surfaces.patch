@@ -1,0 +1,895 @@
+diff --git a/steam-cartridges/frontend/app/store-sync.ts b/steam-cartridges/frontend/app/store-sync.ts
+new file mode 100644
+index 0000000..a564b2e
+--- /dev/null
++++ b/steam-cartridges/frontend/app/store-sync.ts
+@@ -0,0 +1,80 @@
++// app/store-sync: auto-add (ADR-0056, decision 6). With a store's "Auto-add installed games" toggle on, every installed
++// game of that store with no shortcut yet gets one, in a collection named after the store, so the routing rules can
++// treat the store's games together (ADR-0036). Off by default; a shortcut is never removed automatically (the user's
++// decisions, 2026-10-02). The library-shortcuts surface does the writing (`store.add-requested`).
++import { logger } from "../logger.ts";
++import type { EventBus } from "../kernel/events";
++import type { StoreKind } from "../kernel/record";
++import type { backend as Backend, InstalledStoreGame } from "../ports/backend";
++
++/** The collection each store's added games go into. */
++export const STORE_COLLECTIONS: Record<StoreKind, string> = { epic: "Epic Games", xbox: "Xbox" };
++
++export interface StoreSyncDeps {
++    backend: Pick<typeof Backend, "storeInstalledGames">;
++    bus: Pick<EventBus, "emit" | "on">;
++    /** Settings autoAddEpicGames / autoAddXboxGames. */
++    autoAdd(): Record<StoreKind, boolean>;
++    /** Settings services.xboxEnabled: may the catalog be asked for a game's name. */
++    allowXbox(): boolean;
++}
++
++export interface StoreSync {
++    /** Log the surface's results. */
++    install(): void;
++    /** Add what is missing; resolves to how many shortcuts were requested. One run at a time. */
++    run(): Promise<number>;
++    /** The installed games of both stores, for the Third-party settings section. */
++    installed(): Promise<{ epic: InstalledStoreGame[]; xbox: InstalledStoreGame[]; epicLauncher: boolean }>;
++}
++
++export function createStoreSync(deps: StoreSyncDeps): StoreSync {
++    /** Games requested this session: a game whose add failed is not asked again until the next start. */
++    const requested = new Set<string>();
++    let running: Promise<number> | undefined;
++
++    async function installed() {
++        const res = await deps.backend.storeInstalledGames(deps.allowXbox());
++        return {
++            epic: Array.isArray(res?.epic) ? res.epic : [],
++            xbox: Array.isArray(res?.xbox) ? res.xbox : [],
++            epicLauncher: res?.epicLauncher === true,
++        };
++    }
++
++    async function runOnce(): Promise<number> {
++        const want = deps.autoAdd();
++        if (!want.epic && !want.xbox) return 0;
++        const list = await installed();
++        let n = 0;
++        for (const kind of ["epic", "xbox"] as const) {
++            if (!want[kind]) continue;
++            for (const game of list[kind]) {
++                const id = `${kind}:${game.key}`;
++                if (game.inLibrary || !game.launch || requested.has(id)) continue;
++                requested.add(id);
++                deps.bus.emit("store.add-requested", { kind, key: game.key, title: game.title, launch: game.launch, collection: STORE_COLLECTIONS[kind] });
++                n++;
++            }
++        }
++        if (n > 0) logger.info(`Auto-add: ${n} installed store game(s) requested as shortcuts.`);
++        return n;
++    }
++
++    return {
++        install() {
++            deps.bus.on("store.shortcut-added", (e) => {
++                if (e.error) logger.warn(`Auto-add: ${e.kind} game ${e.key} was not added: ${e.error}`);
++                else logger.info(`Auto-add: ${e.kind} game ${e.key} is shortcut ${e.appid}${e.collection ? ` in "${e.collection}"` : ""}.`);
++            });
++        },
++        run() {
++            if (!running) running = runOnce().catch((err) => {
++                logger.warn("Auto-add failed:", err);
++                return 0;
++            }).finally(() => (running = undefined));
++            return running;
++        },
++        installed,
++    };
++}
+diff --git a/steam-cartridges/frontend/index.tsx b/steam-cartridges/frontend/index.tsx
+index c155796..eae67a1 100644
+--- a/steam-cartridges/frontend/index.tsx
++++ b/steam-cartridges/frontend/index.tsx
+@@ -4,6 +4,7 @@ import {
+     createCapturesSurface,
+     patch as patchLibraryApp,
+     refresh as refreshLibraryApp,
++    onSynced as capturesOnSynced,
+     onUnlocked as capturesOnUnlocked,
+     onWindowClosed as capturesWindowClosed,
+     onWindowOpened as capturesWindowOpened,
+@@ -40,6 +41,8 @@ import { createLibraryStats } from "./app/library-stats";
+ import { fetchImage, objectUrl, objectUrlToBase64, releaseObjectUrl } from "./ports/image";
+ import { pdfRenderer } from "./ports/pdf";
+ import { createAchievements } from "./app/achievements";
++import { createStoreSync } from "./app/store-sync";
++import { createLibraryShortcutsSurface, onAddRequested as libraryShortcutsOnAddRequested } from "./surfaces/library-shortcuts";
+ import { ownedCandidates } from "./sensors/owned-apps";
+ import { loadStoreItem } from "./sensors/store-item";
+ import { createFeatureSwitches, type FeatureId } from "./safety/features";
+@@ -269,6 +272,17 @@ const gameEditor = createGameEditor({
+ /** Capture stats for the library grid (app/library-stats.ts): loaded at start-up and after a game quits. */
+ const libraryStats = createLibraryStats({ backend });
+ 
++/** Auto-add (app/store-sync.ts, ADR-0056): installed Epic and Xbox games without a shortcut, when the toggles are on. */
++const storeSync = createStoreSync({
++    backend,
++    bus,
++    autoAdd: () => ({ epic: setting("autoAddEpicGames") === true, xbox: setting("autoAddXboxGames") === true }),
++    allowXbox: () => stores().xbox,
++});
++onSettingChange((key) => {
++    if (key === "autoAddEpicGames" || key === "autoAddXboxGames") void storeSync.run();
++});
++
+ /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
+ const ingest = createIngest({
+     backend,
+@@ -463,6 +477,7 @@ async function init() {
+             activityOptions: () => ({
+                 showAdded: setting("activityShowAddedToLibrary") !== false,
+                 showFirstPlayed: setting("activityShowFirstPlayed") !== false,
++                showAchievements: setting("activityShowAchievements") !== false,
+             }),
+             bus,
+         }),
+@@ -499,11 +514,19 @@ async function init() {
+     runner.register(createToastsSurface(surfaceDeps));
+     runner.installAll();
+     features.run("achievements", () => initAchievements());
++    // Auto-add (ADR-0056): the library-shortcuts surface adds what app/store-sync asks for, once collections are ready.
++    runner.register(createLibraryShortcutsSurface({ ...surfaceDeps, bus }));
++    runner.installAll();
++    bus.on("store.add-requested", (e) => void libraryShortcutsOnAddRequested(e));
++    storeSync.install();
++    void routing.waitForCollections().then(() => storeSync.run());
+     // Flow C (launch toast, unlock polling, quit reload) and the unlock announcements.
+     achievements.install();
+     // Each new unlock: a toast and a Post-Game Summary line; a launch with achievements: the launch toast.
+     bus.on("achievements.unlocked", toastsOnUnlocked);
+     bus.on("achievements.unlocked", capturesOnUnlocked);
++    // A store sync's new unlocks (ADR-0056): the Post-Game Summary only, never a toast.
++    bus.on("achievements.synced", capturesOnSynced);
+     bus.on("achievements.launch-toast", toastsOnLaunch);
+ 
+     // ===== Game Info (surfaces/game-info, plan M3.3; record-driven from M5b) =====
+diff --git a/steam-cartridges/frontend/kernel/events.ts b/steam-cartridges/frontend/kernel/events.ts
+index 5e6fc11..2d39664 100644
+--- a/steam-cartridges/frontend/kernel/events.ts
++++ b/steam-cartridges/frontend/kernel/events.ts
+@@ -2,7 +2,7 @@
+ // Sensors emit, app/ and surfaces subscribe. A handler that throws is logged and
+ // skipped; it never stops the other handlers or the emitter.
+ import type { ShortcutId } from "./appid";
+-import type { RecordPart } from "./record";
++import type { RecordPart, StoreKind } from "./record";
+ 
+ export interface Events {
+     /** The user opened a shortcut's page (desktop route or Big Picture), deduplicated per appid. */
+@@ -42,6 +42,19 @@ export interface Events {
+         icon?: { path: string; previous: string };
+     };
+     "settings.changed": { key: string };
++    /**
++     * Auto-add (app/store-sync, ADR-0056): add this installed store game as a shortcut, in `collection`. The
++     * library-shortcuts surface writes it and answers with `store.shortcut-added`.
++     */
++    "store.add-requested": {
++        kind: StoreKind;
++        key: string;
++        title: string;
++        launch: { exe: string; start_dir: string; launch_options: string };
++        collection: string;
++    };
++    /** What the library-shortcuts surface did: the new appid (and the collection it is in), or an error. */
++    "store.shortcut-added": { kind: StoreKind; key: string; appid?: number; collection?: string; error?: string };
+     /** The community surface showed Steam's viewer for a manual card (features plan F2c): app/manuals renders its pages. */
+     "community.manual-opened": { appid: ShortcutId; key: string };
+ }
+diff --git a/steam-cartridges/frontend/ports/backend.ts b/steam-cartridges/frontend/ports/backend.ts
+index 77d6b9a..133e047 100644
+--- a/steam-cartridges/frontend/ports/backend.ts
++++ b/steam-cartridges/frontend/ports/backend.ts
+@@ -16,6 +16,17 @@ export interface AchievementResetSource {
+     url?: string;
+ }
+ 
++/** An installed Epic or Xbox game (backend store_service.installed_games, ADR-0056). */
++export interface InstalledStoreGame {
++    /** Epic AppName or Xbox package family name. */
++    key: string;
++    title: string;
++    /** The shortcut appid when the library already has one for it. */
++    inLibrary?: number;
++    /** How a shortcut for it is set up; absent when it cannot be (no Epic launcher found). */
++    launch?: { exe: string; start_dir: string; launch_options: string };
++}
++
+ /** What a reset did to one source. */
+ export interface ResetSourceResult {
+     id: string;
+@@ -217,6 +228,10 @@ export const backend = {
+     pruneMediaCache(days: number): Promise<{ removed?: number; kept?: number; error?: string }> {
+         return call<{ removed?: number; kept?: number; error?: string }>("PruneMediaCache", { days });
+     },
++    /** Store copies (ADR-0056): every installed Epic and Xbox game and whether the library has it. */
++    storeInstalledGames(allowXbox: boolean) {
++        return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox });
++    },
+     /** Disk only: every DB record and every saved mapping (M5a). */
+     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
+         return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {});
+diff --git a/steam-cartridges/frontend/safety/features.ts b/steam-cartridges/frontend/safety/features.ts
+index 31b23fa..44b22c4 100644
+--- a/steam-cartridges/frontend/safety/features.ts
++++ b/steam-cartridges/frontend/safety/features.ts
+@@ -23,6 +23,7 @@ export const FEATURE_IDS = [
+     "toasts",
+     "artwork",
+     "community",
++    "library-shortcuts",
+ ] as const;
+ export type FeatureId = (typeof FEATURE_IDS)[number];
+ 
+diff --git a/steam-cartridges/frontend/steam/stores.ts b/steam-cartridges/frontend/steam/stores.ts
+index 3f151b7..60e9759 100644
+--- a/steam-cartridges/frontend/steam/stores.ts
++++ b/steam-cartridges/frontend/steam/stores.ts
+@@ -280,6 +280,17 @@ export function screenshotEventClass(): any | undefined {
+     ]);
+ }
+ 
++/**
++ * The prototype every activity event shares (`E` in module 12750: InitFromUserNewsEvent, BIsValid, GetParentalFeature,
++ * comment threads), reached as the parent of the exported screenshot class. Steam's achievement event class (`P`) is
++ * not exported; an object on this prototype with P's fields (m_rgAchievements, m_rtOldestAchievement, an
++ * `achievements` getter) renders as Steam's own "achieved" card (verified live 2026-10-02, ADR-0056).
++ */
++export function activityEventBase(): object | undefined {
++    const proto = screenshotEventClass()?.prototype;
++    return proto ? (Object.getPrototypeOf(proto) as object | undefined) ?? undefined : undefined;
++}
++
+ // ---------------------------------------------------------------------------
+ // Data sources
+ // ---------------------------------------------------------------------------
+diff --git a/steam-cartridges/frontend/surfaces/captures/achievement-days.ts b/steam-cartridges/frontend/surfaces/captures/achievement-days.ts
+new file mode 100644
+index 0000000..486b20d
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/captures/achievement-days.ts
+@@ -0,0 +1,65 @@
++// Surface `captures`, pure part: a shortcut's unlocks as days of Steam's activity feed (ADR-0056). The caller gives the day a
++// time falls on (activity.ts: local midnight, as for the captures). Every source that stores an
++// unlock time is shown: Steam emulator saves, trophy files, RetroAchievements, Epic, Xbox.
++// Its imports carry `.ts`, so Node can run the unit tests with type stripping.
++import type { AchievementSet } from "../../kernel/record";
++
++/** One unlock as the activity event shows it (Steam's own achievement event fields come from these). */
++export interface ActivityAchievement {
++    id: string;
++    name: string;
++    description: string;
++    icon: string;
++    /** Percent of players who have it (0 when the source does not say). */
++    globalPct: number;
++    /** Unix seconds. */
++    unlockedAt: number;
++}
++
++/** The unlocks of one day: Steam shows them as one "achieved" event. */
++export interface ActivityAchievementDay {
++    /** `dayOf(unlockedAt)` of every item. */
++    day: number;
++    /** The newest and oldest unlock time of the day (the event's time and its comment thread key). */
++    latest: number;
++    oldest: number;
++    /** Newest first. */
++    items: ActivityAchievement[];
++}
++
++/**
++ * The unlocks of a set, grouped by `dayOf(unlockedAt)`, newest day first and newest unlock first within a day. An
++ * unlock with no time (0 or missing) or whose id is not in the schema is left out: there is nothing true to show.
++ */
++export function achievementDays(set: AchievementSet | undefined, dayOf: (unixSeconds: number) => number): ActivityAchievementDay[] {
++    if (!set?.schema || !set.unlocks) return [];
++    const byId = new Map<string, AchievementSet["schema"]["achievements"][number]>();
++    for (const a of Array.isArray(set.schema.achievements) ? set.schema.achievements : []) byId.set(String(a.id), a);
++
++    const days = new Map<number, ActivityAchievementDay>();
++    for (const [id, unlock] of Object.entries(set.unlocks)) {
++        const raw = Number(unlock?.unlocked_time);
++        const at = Number.isFinite(raw) ? Math.floor(raw) : 0;
++        const a = byId.get(String(id));
++        if (at <= 0 || !a) continue;
++        const day = dayOf(at);
++        let entry = days.get(day);
++        if (!entry) {
++            entry = { day, latest: at, oldest: at, items: [] };
++            days.set(day, entry);
++        }
++        entry.latest = Math.max(entry.latest, at);
++        entry.oldest = Math.min(entry.oldest, at);
++        entry.items.push({
++            id: String(a.id),
++            name: a.name ?? "",
++            description: a.description ?? "",
++            icon: a.icon ?? "",
++            globalPct: Number(a.global_pct) || 0,
++            unlockedAt: at,
++        });
++    }
++    const out = [...days.values()];
++    for (const d of out) d.items.sort((x, y) => y.unlockedAt - x.unlockedAt || x.id.localeCompare(y.id));
++    return out.sort((a, b) => b.day - a.day);
++}
+diff --git a/steam-cartridges/frontend/surfaces/captures/activity.ts b/steam-cartridges/frontend/surfaces/captures/activity.ts
+index e3b0174..20e9af8 100644
+--- a/steam-cartridges/frontend/surfaces/captures/activity.ts
++++ b/steam-cartridges/frontend/surfaces/captures/activity.ts
+@@ -1,7 +1,10 @@
+ import { logger } from "../../logger";
+ import { isShortcutAppId } from "../../kernel/appid";
++import type { AchievementSet } from "../../kernel/record";
+ import { deps } from "./deps";
++import { achievementDays, type ActivityAchievementDay } from "./achievement-days";
+ import {
++    activityEventBase,
+     appActivityStore,
+     clipsSince,
+     friendStore,
+@@ -138,6 +141,57 @@ export function setNativeActivitySource(appid: number, nativeAppid: number | und
+     else nativeActivitySource.set(appid, nativeAppid);
+ }
+ 
++/**
++ * Shortcut appid -> its achievements (the record's part, ADR-0056): every unlock with a time becomes Steam's own
++ * "achieved" event on its day, whatever the source (emulator saves, trophy files, RetroAchievements, Epic, Xbox).
++ */
++const achievementSource = new Map<number, AchievementSet>();
++
++export function setAchievementSource(appid: number, set: AchievementSet | undefined): void {
++    if (set) achievementSource.set(appid, set);
++    else achievementSource.delete(appid);
++}
++
++/** What the feed last published per app, so an unchanged feed writes nothing (guardrail 17.2). */
++const publishedSignature = new Map<number, string>();
++
++/**
++ * One day's unlocks as Steam's achievement event: P's fields (module 12750) on the shared event base. One event per
++ * day, as Steam groups a user's unlocks of a day (`AddAchievementEvent`), timed at the day's newest unlock.
++ */
++function achievementEvent(appid: number, day: ActivityAchievementDay, actor: unknown): any {
++    const base = activityEventBase();
++    const ev = Object.create(base ?? Object.prototype);
++    ev.gameid = appid.toString();
++    Object.defineProperty(ev, "appid", { get: () => appid, configurable: true });
++    ev.unUniqueID = `ach_${appid}_${day.day}`;
++    ev.rtEventTime = day.latest;
++    ev.steamIDActor = actor;
++    ev.steamIDTarget = actor;
++    ev.eEventType = 2; // AchievementUnlocked
++    ev.bIsGameActivity = false;
++    ev.bIsNonSteam = true;
++    ev.commentThreads = [];
++    ev.activeThread = 0;
++    ev.m_rtOldestAchievement = day.oldest;
++    ev.m_rgAchievements = day.items.map((i) => ({
++        strID: i.id,
++        strName: i.name,
++        strDescription: i.description,
++        strImage: i.icon,
++        flAchieved: i.globalPct,
++        rtUnlocked: i.unlockedAt,
++        bAchieved: true,
++    }));
++    Object.defineProperty(ev, "achievements", { get() { return this.m_rgAchievements; }, configurable: true });
++    ev.BIsValid = () => true;
++    ev.GetParentalFeature = () => 0;
++    ev.BSupportsCommentThreads = () => false;
++    ev.BUserCanDelete = () => false;
++    ev.GetActiveCommentThread = () => null;
++    return ev;
++}
++
+ /**
+  * Steam's own activity for a native app, as [day key, day] pairs. `GetAppActivity`
+  * makes Steam restore its cache and fetch from the server (verified live
+@@ -222,14 +276,15 @@ export async function publishActivity(
+     appid: number,
+     gameid: string,
+ ): Promise<number> {
+-    const { showAdded, showFirstPlayed } = deps.activityOptions();
++    const { showAdded, showFirstPlayed, showAchievements } = deps.activityOptions();
+ 
+     const [screenshots, clips, nativeDays] = await Promise.all([
+         screenshotsSince(appid, 0),
+         clipsSince(gameid, 0),
+         nativeActivityDays(nativeActivitySource.get(appid)),
+     ]);
+-    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0 && !showAdded && !showFirstPlayed) return 0;
++    const achDays = showAchievements ? achievementDays(achievementSource.get(appid), getLocalMidnight) : [];
++    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0 && achDays.length === 0 && !showAdded && !showFirstPlayed) return 0;
+ 
+     const actStore = appActivityStore();
+     const storeCache = storeItemCache();
+@@ -285,11 +340,10 @@ export async function publishActivity(
+     // 2. Resolve event class constructor
+     const V = screenshotEventClass();
+ 
+-    // 3. Obtain or instantiate CAppActivity
+-    let appActivity = actStore.m_mapAppActivity.get(appid);
+-    // An entry that is not a real activity (no day map) is dropped and rebuilt: a plain-object fallback
+-    // used as the constructor sample once produced a Number wrapper here.
+-    if (appActivity && !(appActivity.m_mapActivityByDay instanceof Map)) appActivity = undefined;
++    // 3. A new CAppActivity on every publish (ADR-0056): Steam's feed keeps the object it mounted with and re-renders
++    // when the store's observable map is given a new object for the app, not when the old one is mutated (verified live
++    // 2026-10-02: unlocks that arrive after the page opened showed up within 2 s). It is set at the end, once full.
++    let appActivity: AppActivity | undefined;
+     // The constructor sample must be Steam's own class: never a plain object (our fallback literal).
+     const sampleEntry = [...actStore.m_mapAppActivity.values()].find(
+         (e) => e?.m_mapActivityByDay instanceof Map && e.constructor !== Object,
+@@ -325,7 +379,6 @@ export async function publishActivity(
+                 },
+             };
+         }
+-        actStore.m_mapAppActivity.set(appid, appActivity!);
+     }
+     if (!appActivity) return 0;
+ 
+@@ -461,6 +514,21 @@ export async function publishActivity(
+         day.SortEvents?.();
+     }
+ 
++    // Achievements (ADR-0056): one "achieved" event per day with unlocks, from the record's part.
++    for (const d of achDays) {
++        const dayBegin = d.day;
++        let day = appActivity.m_mapActivityByDay.get(dayBegin);
++        if (!day) {
++            day = createActivityDay(dayBegin);
++            appActivity.m_mapActivityByDay.set(dayBegin, day);
++        }
++        if (!Array.isArray(day.m_rgEvents)) {
++            day.m_rgEvents = [];
++        }
++        day.m_rgEvents.push(achievementEvent(appid, d, currentSteamID));
++    }
++    const achievementCount = achDays.reduce((n, d) => n + d.items.length, 0);
++
+     // 6. Synthetic native activity events: Added to Library and Played First Time
+     let syntheticCount = 0;
+     if (showAdded || showFirstPlayed) {
+@@ -588,14 +656,29 @@ export async function publishActivity(
+     }
+ 
+     registeredFilesByApp.set(appid, fileIdsForApp);
++
++    // Hand Steam the new object only when the feed changed (guardrail 17.2): same captures, native events, unlocks and
++    // synthetic events -> nothing is written, nothing re-renders.
++    const signature = JSON.stringify([
++        mediaItems.map((m) => m.id),
++        nativeDays.map(([k, d]) => [k, (d.m_rgEvents ?? []).length]),
++        achDays.map((d) => [d.day, d.items.map((i) => `${i.id}:${i.unlockedAt}`)]),
++        [...appActivity.m_mapActivityByDay.values()].map((d) => (d.m_rgEvents ?? []).map((e: any) => `${e.eEventType}:${e.rtEventTime}`)),
++    ]);
++    const previous = actStore.m_mapAppActivity.get(appid);
++    if (publishedSignature.get(appid) !== signature || !(previous?.m_mapActivityByDay instanceof Map)) {
++        actStore.m_mapAppActivity.set(appid, appActivity);
++        publishedSignature.set(appid, signature);
++    }
+     logger.info(
+-        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
++        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), ${achievementCount} unlock(s) on ${achDays.length} day(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
+     );
+-    return mediaItems.length + nativeEvents + syntheticCount;
++    return mediaItems.length + nativeEvents + achievementCount + syntheticCount;
+ }
+ 
+ /** Drop an app's activity feed entries and associated fake store/workshop records. */
+ export function clearActivity(appid: number): void {
++    publishedSignature.delete(appid);
+     const actStore = appActivityStore();
+     if (actStore) {
+         actStore.m_mapAppActivity.delete(appid);
+diff --git a/steam-cartridges/frontend/surfaces/captures/deps.ts b/steam-cartridges/frontend/surfaces/captures/deps.ts
+index 0664941..bf73147 100644
+--- a/steam-cartridges/frontend/surfaces/captures/deps.ts
++++ b/steam-cartridges/frontend/surfaces/captures/deps.ts
+@@ -8,6 +8,8 @@ export interface ActivityOptions {
+     showAdded: boolean;
+     /** Show Steam's "Played for the first time" event (setting activityShowFirstPlayed). */
+     showFirstPlayed: boolean;
++    /** Show Steam's "achieved" event for each day with unlocks (setting activityShowAchievements, ADR-0056). */
++    showAchievements: boolean;
+ }
+ 
+ export const deps: SurfaceDeps & {
+@@ -17,6 +19,6 @@ export const deps: SurfaceDeps & {
+ } = {
+     isEnabled: () => true,
+     reportError: () => {},
+-    activityOptions: () => ({ showAdded: true, showFirstPlayed: true }),
++    activityOptions: () => ({ showAdded: true, showFirstPlayed: true, showAchievements: true }),
+     bus: { emit: () => {} },
+ };
+diff --git a/steam-cartridges/frontend/surfaces/captures/index.ts b/steam-cartridges/frontend/surfaces/captures/index.ts
+index 36845b9..66ea120 100644
+--- a/steam-cartridges/frontend/surfaces/captures/index.ts
++++ b/steam-cartridges/frontend/surfaces/captures/index.ts
+@@ -3,7 +3,7 @@
+ // own captures (ADR-0022). Takes over the kill switches `captures`, `store-cache`,
+ // `headline` and `activity-cards` (plan § 7.0 D6).
+ import type { Surface, SurfaceDeps } from "../../kernel/surface";
+-import { ensureStoreCacheHooked, setNativeActivitySource } from "./activity";
++import { ensureStoreCacheHooked, setAchievementSource, setNativeActivitySource } from "./activity";
+ import { installActivityCardsPatch } from "./activity-cards";
+ import { deps } from "./deps";
+ import { installHeadlinePatch } from "./headline";
+@@ -11,7 +11,7 @@ import { patch, unpatch } from "./publish";
+ 
+ export { patch, refresh, unpatch } from "./publish";
+ export { setNativeActivitySource } from "./activity";
+-export { addSessionAchievement, onUnlocked } from "./session";
++export { addSessionAchievement, onSynced, onUnlocked } from "./session";
+ export { onWindowClosed, onWindowOpened } from "./bpm-style";
+ export { registerSummaryProvider } from "./summary";
+ export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
+@@ -47,16 +47,18 @@ export function createCapturesSurface(d: SurfaceDeps & Pick<typeof deps, "activi
+             "jsx:activity-cards",
+             "BPM.style#nsga-bpm-activity-thumbs",
+         ],
+-        reads: ["identity"],
++        reads: ["identity", "achievements"],
+         install() {
+             part("store-cache", ensureStoreCacheHooked);
+             part("headline", installHeadlinePatch);
+             part("activity-cards", installActivityCardsPatch);
+         },
+         render(appid, record) {
+-            // Captures are Steam's own data, read live (ADR-0022); only the native
+-            // activity source (a mapped shortcut's Steam Store match) is record-driven.
++            // Captures are Steam's own data, read live (ADR-0022); the native activity source (a mapped shortcut's
++            // Steam Store match) and the unlocks (ADR-0056) are record-driven.
+             setNativeActivitySource(appid, record?.identity?.data?.native?.appid);
++            const ach = record?.achievements;
++            setAchievementSource(appid, ach?.status === "ok" ? ach.data : undefined);
+             void patch(appid);
+         },
+         clear: (appid) => unpatch(appid),
+diff --git a/steam-cartridges/frontend/surfaces/captures/session.ts b/steam-cartridges/frontend/surfaces/captures/session.ts
+index b7c55cb..3dc3f2d 100644
+--- a/steam-cartridges/frontend/surfaces/captures/session.ts
++++ b/steam-cartridges/frontend/surfaces/captures/session.ts
+@@ -40,6 +40,14 @@ export function addSessionAchievement(appid: number, item: SessionAchievement):
+     }
+ }
+ 
++/**
++ * Unlocks a store sync found after the game quit (achievements.synced, ADR-0056): the Post-Game Summary lists them like
++ * any unlock; nothing toasts (the store's overlay already did).
++ */
++export function onSynced({ appid, items }: Events["achievements.synced"]): void {
++    onUnlocked({ appid, ids: items.map((i) => i.id), items });
++}
++
+ /** Each new unlock also goes into the Post-Game Summary session (achievements.unlocked, M10). */
+ export function onUnlocked({ appid, items }: Events["achievements.unlocked"]): void {
+     for (const a of items) {
+diff --git a/steam-cartridges/frontend/surfaces/library-shortcuts/index.ts b/steam-cartridges/frontend/surfaces/library-shortcuts/index.ts
+new file mode 100644
+index 0000000..d4f1d69
+--- /dev/null
++++ b/steam-cartridges/frontend/surfaces/library-shortcuts/index.ts
+@@ -0,0 +1,110 @@
++// Surface `library-shortcuts` (ADR-0056): the only code that adds a shortcut to the user's library. It runs what
++// app/store-sync decided (an installed Epic or Xbox game that has no shortcut yet, with the "Auto-add" toggle on)
++// and reports the result as its own event; it decides nothing and fetches nothing.
++//
++// Verified live 2026-10-02 (plan § 4.8, step 0.7): SteamClient.Apps.AddShortcut(name, exe, startDir, launchOptions)
++// resolves to the new appid and writes shortcuts.vdf at once, but ignores the name (the shortcut is named after the
++// exe) and the launch options (stored empty): both are set right after with SetShortcutName and
++// SetShortcutLaunchOptions, which keep the appid. Exe and start dir are stored as given.
++//
++// The collection: Steam's collectionStore (NewUnsavedCollection, a collection's Save and AsDragDropCollection().AddApps,
++// the calls Steam's own UI makes); read only once its storage map exists (guardrail 13). Not verified on this build:
++// fail-open, the shortcut is added either way and the log says the collection was skipped.
++import { logger } from "../../logger.ts";
++import type { Events, EventBus } from "../../kernel/events";
++import type { Surface, SurfaceDeps } from "../../kernel/surface";
++
++interface Deps extends SurfaceDeps {
++    bus: Pick<EventBus, "emit">;
++}
++
++const deps: Deps = { isEnabled: () => true, reportError: () => {}, bus: { emit: () => {} } };
++
++const steamApps = (): any => (window as any).SteamClient?.Apps;
++
++/** Guardrail 13: userCollections is a keepAlive computed that throws (and stays poisoned) before its storage exists. */
++function collectionStoreReady(store: any): boolean {
++    const m = store?.m_mapCollectionsFromStorage;
++    return !!m && typeof m.values === "function";
++}
++
++/** Put a shortcut in the named user collection, creating the collection when missing. false when Steam's API is not there. */
++async function addToCollection(appid: number, name: string): Promise<boolean> {
++    const store = (window as any).collectionStore;
++    if (!name || !collectionStoreReady(store)) return false;
++    const overview = (window as any).appStore?.GetAppOverviewByAppID?.(appid);
++    if (!overview) return false;
++    let collection = (Array.isArray(store.userCollections) ? store.userCollections : []).find((c: any) => c?.displayName === name);
++    if (!collection && typeof store.NewUnsavedCollection === "function") {
++        collection = store.NewUnsavedCollection(name, undefined, []);
++        await collection?.Save?.();
++    }
++    const target = collection?.AsDragDropCollection?.();
++    if (typeof target?.AddApps !== "function") return false;
++    target.AddApps([overview]);
++    return true;
++}
++
++/** Waits for Steam to know the new shortcut (its overview appears a moment after AddShortcut resolves). */
++async function overviewReady(appid: number, tries = 20): Promise<boolean> {
++    for (let i = 0; i < tries; i++) {
++        if ((window as any).appStore?.GetAppOverviewByAppID?.(appid)) return true;
++        await new Promise((r) => setTimeout(r, 250));
++    }
++    return false;
++}
++
++/** `store.add-requested` (index.tsx subscribes it): add the shortcut, name it, set its launch options, file it. */
++export async function onAddRequested(e: Events["store.add-requested"]): Promise<void> {
++    if (!deps.isEnabled("library-shortcuts")) return;
++    const apps = steamApps();
++    if (typeof apps?.AddShortcut !== "function") {
++        deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, error: "SteamClient.Apps.AddShortcut not found" });
++        return;
++    }
++    try {
++        const appid = await apps.AddShortcut(e.title, e.launch.exe, e.launch.start_dir, e.launch.launch_options);
++        if (typeof appid !== "number") {
++            deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, error: `AddShortcut answered ${JSON.stringify(appid)}` });
++            return;
++        }
++        apps.SetShortcutName?.(appid, e.title);
++        apps.SetShortcutLaunchOptions?.(appid, e.launch.launch_options);
++        let filed = false;
++        if (e.collection && (await overviewReady(appid))) {
++            try {
++                filed = await addToCollection(appid, e.collection);
++            } catch (err) {
++                deps.reportError("library-shortcuts", err);
++            }
++            if (!filed) logger.warn(`Added "${e.title}" but could not put it in the "${e.collection}" collection.`);
++        }
++        deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, appid, collection: filed ? e.collection : undefined });
++    } catch (err) {
++        deps.reportError("library-shortcuts", err);
++        deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, error: String(err) });
++    }
++}
++
++export function createLibraryShortcutsSurface(d: Deps): Surface {
++    deps.isEnabled = d.isEnabled;
++    deps.reportError = d.reportError;
++    deps.bus = d.bus;
++    return {
++        id: "library-shortcuts",
++        touches: [
++            "SteamClient.Apps.AddShortcut",
++            "SteamClient.Apps.SetShortcutName",
++            "SteamClient.Apps.SetShortcutLaunchOptions",
++            "collectionStore.NewUnsavedCollection",
++            "Collection.AsDragDropCollection.AddApps",
++        ],
++        reads: [],
++        install() {},
++        render() {
++            /* event-driven (store.add-requested), never per record */
++        },
++        clear() {},
++        uninstall() {},
++    };
++}
+diff --git a/steam-cartridges/tests/achievement-days.test.ts b/steam-cartridges/tests/achievement-days.test.ts
+new file mode 100644
+index 0000000..96d0e7f
+--- /dev/null
++++ b/steam-cartridges/tests/achievement-days.test.ts
+@@ -0,0 +1,43 @@
++// surfaces/captures/achievement-days (ADR-0056): unlocks as activity days, for every source with an unlock time.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { achievementDays } from '../frontend/surfaces/captures/achievement-days.ts';
++
++const DAY = 86400;
++const dayOf = (t: number) => Math.floor(t / DAY) * DAY; // UTC days are enough for the test
++const schema = (ids: string[]) => ({
++    native_appid: 0,
++    total: ids.length,
++    achievements: ids.map((id) => ({ id, name: `N${id}`, description: `D${id}`, icon: `I${id}`, global_pct: 12.5 })),
++});
++
++test('activity achievements: unlocks grouped by day, newest day first, newest unlock first', () => {
++    const set = {
++        schema: schema(['a', 'b', 'c']),
++        unlocks: { a: { unlocked_time: 10 * DAY + 100 }, b: { unlocked_time: 10 * DAY + 500 }, c: { unlocked_time: 12 * DAY + 1 } },
++    };
++    const days = achievementDays(set as any, dayOf);
++    assert.deepEqual(days.map((d) => d.day), [12 * DAY, 10 * DAY]);
++    assert.deepEqual(days[1]!.items.map((i) => i.id), ['b', 'a']);
++    assert.equal(days[1]!.latest, 10 * DAY + 500);
++    assert.equal(days[1]!.oldest, 10 * DAY + 100);
++    assert.deepEqual(days[0]!.items[0], { id: 'c', name: 'Nc', description: 'Dc', icon: 'Ic', globalPct: 12.5, unlockedAt: 12 * DAY + 1 });
++});
++
++test('activity achievements: an unlock with no time, or not in the schema, is left out', () => {
++    const set = { schema: schema(['a']), unlocks: { a: { unlocked_time: 0 }, ghost: { unlocked_time: 5 * DAY } } };
++    assert.deepEqual(achievementDays(set as any, dayOf), []);
++});
++
++test('activity achievements: no set, no schema or an empty unlock map gives no days', () => {
++    assert.deepEqual(achievementDays(undefined, dayOf), []);
++    assert.deepEqual(achievementDays({ schema: schema(['a']), unlocks: {} } as any, dayOf), []);
++    assert.deepEqual(achievementDays({ unlocks: { a: { unlocked_time: 1 } } } as any, dayOf), []);
++});
++
++test('activity achievements: a schema id stored as a number still matches its unlock key', () => {
++    const set = { schema: { native_appid: 0, total: 1, achievements: [{ id: 2304, name: 'All Exits', description: '', icon: '', global_pct: 0 }] }, unlocks: { '2304': { unlocked_time: 1790471689 } } };
++    const days = achievementDays(set as any, dayOf);
++    assert.equal(days.length, 1);
++    assert.equal(days[0]!.items[0]!.id, '2304');
++});
+diff --git a/steam-cartridges/tests/architecture-unwired-rpcs.json b/steam-cartridges/tests/architecture-unwired-rpcs.json
+index 7b9a515..367801f 100644
+--- a/steam-cartridges/tests/architecture-unwired-rpcs.json
++++ b/steam-cartridges/tests/architecture-unwired-rpcs.json
+@@ -1,7 +1,6 @@
+ {
+   "GetDiagnostics": "debug: called from the SharedJSContext console and tests/live/probes/http_calls.mjs",
+   "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it",
+-  "StoreInstalledGames": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
+   "StoreAccounts": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
+   "XboxSignInStart": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
+   "XboxSignInPoll": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
+diff --git a/steam-cartridges/tests/library-shortcuts.test.ts b/steam-cartridges/tests/library-shortcuts.test.ts
+new file mode 100644
+index 0000000..b6d1aa0
+--- /dev/null
++++ b/steam-cartridges/tests/library-shortcuts.test.ts
+@@ -0,0 +1,67 @@
++// Surface library-shortcuts (ADR-0056): AddShortcut, then the name and launch options it ignores (verified live).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { createEventBus } from '../frontend/kernel/events.ts';
++
++const g = globalThis as any;
++g.window = g;
++
++const { createLibraryShortcutsSurface, onAddRequested } = await import('../frontend/surfaces/library-shortcuts/index.ts');
++
++const REQUEST = {
++    kind: 'epic' as const,
++    key: 'app',
++    title: 'Jotunnslayer: Hordes of Hel',
++    launch: { exe: '"C:\L\EpicGamesLauncher.exe"', start_dir: '"C:\L\\"', launch_options: 'com.epicgames.launcher://apps/x?action=launch&silent=true' },
++    collection: 'Epic Games',
++};
++
++function rig(addShortcut: (...a: any[]) => any) {
++    const bus = createEventBus();
++    const results: any[] = [];
++    bus.on('store.shortcut-added', (e) => results.push(e));
++    const calls: any[] = [];
++    g.SteamClient = {
++        Apps: {
++            AddShortcut: async (...a: any[]) => { calls.push(['add', ...a]); return addShortcut(...a); },
++            SetShortcutName: (...a: any[]) => calls.push(['name', ...a]),
++            SetShortcutLaunchOptions: (...a: any[]) => calls.push(['opts', ...a]),
++        },
++    };
++    const added: any[] = [];
++    const overview = { appid: 3235712508 };
++    g.appStore = { GetAppOverviewByAppID: (id: number) => (id === 3235712508 ? overview : undefined) };
++    g.collectionStore = {
++        m_mapCollectionsFromStorage: new Map(),
++        userCollections: [],
++        NewUnsavedCollection: (name: string) => ({ displayName: name, Save: async () => {}, AsDragDropCollection: () => ({ AddApps: (list: any[]) => added.push([name, list]) }) }),
++    };
++    const surface = createLibraryShortcutsSurface({ isEnabled: () => true, reportError: () => {}, bus });
++    return { surface, results, calls, added };
++}
++
++test('library-shortcuts: adds, then sets the name and launch options AddShortcut ignores, then files it', async () => {
++    const r = rig(() => 3235712508);
++    await onAddRequested(REQUEST);
++    assert.deepEqual(r.calls[0], ['add', REQUEST.title, REQUEST.launch.exe, REQUEST.launch.start_dir, REQUEST.launch.launch_options]);
++    assert.deepEqual(r.calls[1], ['name', 3235712508, REQUEST.title]);
++    assert.deepEqual(r.calls[2], ['opts', 3235712508, REQUEST.launch.launch_options]);
++    assert.equal(r.added[0][0], 'Epic Games');
++    assert.deepEqual(r.results, [{ kind: 'epic', key: 'app', appid: 3235712508, collection: 'Epic Games' }]);
++    assert.ok(r.surface.touches.includes('SteamClient.Apps.AddShortcut'));
++});
++
++test('library-shortcuts: an answer that is not an appid is reported, nothing else is written', async () => {
++    const r = rig(() => ({ result: 2, message: '' }));
++    await onAddRequested(REQUEST);
++    assert.equal(r.calls.length, 1);
++    assert.match(r.results[0].error, /AddShortcut answered/);
++});
++
++test('library-shortcuts: without a ready collection store the shortcut is still added (fail-open)', async () => {
++    const r = rig(() => 3235712508);
++    g.collectionStore = {};
++    await onAddRequested(REQUEST);
++    assert.equal(r.results[0].appid, 3235712508);
++    assert.equal(r.results[0].collection, undefined);
++});
+diff --git a/steam-cartridges/tests/store-sync.test.ts b/steam-cartridges/tests/store-sync.test.ts
+new file mode 100644
+index 0000000..78cf003
+--- /dev/null
++++ b/steam-cartridges/tests/store-sync.test.ts
+@@ -0,0 +1,62 @@
++// Auto-add (ADR-0056): app/store-sync decides, the library-shortcuts surface writes.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { createStoreSync, STORE_COLLECTIONS } from '../frontend/app/store-sync.ts';
++import { createEventBus } from '../frontend/kernel/events.ts';
++
++const LAUNCH = { exe: '"C:\L\EpicGamesLauncher.exe"', start_dir: '"C:\L\\"', launch_options: 'com.epicgames.launcher://apps/ns%3Ait%3Aapp?action=launch&silent=true' };
++
++function setup(autoAdd = { epic: true, xbox: true }) {
++    const bus = createEventBus();
++    const asked: any[] = [];
++    bus.on('store.add-requested', (e) => asked.push(e));
++    let calls = 0;
++    const sync = createStoreSync({
++        backend: {
++            async storeInstalledGames() {
++                calls++;
++                return {
++                    epic: [
++                        { key: 'app', title: 'Jotunnslayer: Hordes of Hel', launch: LAUNCH },
++                        { key: 'owned', title: 'In Library', inLibrary: 4000000001, launch: LAUNCH },
++                        { key: 'nolaunch', title: 'No Launcher' },
++                    ],
++                    xbox: [{ key: 'Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe', title: 'Microsoft Jigsaw', launch: { exe: '"C:\Windows\explorer.exe"', start_dir: '"C:\Windows\\"', launch_options: 'shell:AppsFolder\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App' } }],
++                    epicLauncher: true,
++                };
++            },
++        } as any,
++        bus,
++        autoAdd: () => autoAdd,
++        allowXbox: () => true,
++    });
++    return { sync, asked, calls: () => calls };
++}
++
++test('auto-add: each installed game without a shortcut is requested once, in its store\'s collection', async () => {
++    const s = setup();
++    assert.equal(await s.sync.run(), 2);
++    assert.deepEqual(s.asked.map((e) => [e.kind, e.key, e.collection]), [
++        ['epic', 'app', STORE_COLLECTIONS.epic],
++        ['xbox', 'Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe', STORE_COLLECTIONS.xbox],
++    ]);
++    assert.equal(s.asked[0].title, 'Jotunnslayer: Hordes of Hel');
++    assert.deepEqual(s.asked[0].launch, LAUNCH);
++    assert.equal(await s.sync.run(), 0, 'a game already requested this session is not asked again');
++});
++
++test('auto-add: a store whose toggle is off adds nothing; both off asks the backend nothing', async () => {
++    const epicOnly = setup({ epic: true, xbox: false });
++    await epicOnly.sync.run();
++    assert.deepEqual(epicOnly.asked.map((e) => e.kind), ['epic']);
++    const none = setup({ epic: false, xbox: false });
++    assert.equal(await none.sync.run(), 0);
++    assert.equal(none.calls(), 0);
++});
++
++test('auto-add: two runs at the same time share one backend call', async () => {
++    const s = setup();
++    await Promise.all([s.sync.run(), s.sync.run()]);
++    assert.equal(s.calls(), 1);
++    assert.equal(s.asked.length, 2);
++});
