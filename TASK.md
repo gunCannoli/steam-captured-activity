@@ -16,10 +16,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**Epic and Xbox games (2026-10-02): umbrella plan with research round 1, no code.**
-[steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md). Both stores give game data
-and achievement lists with no sign-in (§ 4). Next: the user answers § 8 (Epic profile set to public for a test,
-auto-add defaults, an Xbox game to test with), then Phase 0 round 2 and the ADR before any code.
+**Epic and Xbox games (2026-10-02): umbrella plan, research rounds 1 and 2 done, no code.**
+[steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md). Both stores verified end to
+end with the user's accounts (§ 4.7): Epic unlocks with no sign-in (public profile), Xbox unlocks after a device-code
+sign-in. Next: Phase 0 steps 0.3-0.8 (0.5-0.7 need the Steam lock; 0.7 adds a test shortcut, with the user's go-ahead),
+then the ADR (0.9) before any code. Jotunnslayer's shortcut was removed by the user for the auto-add test.
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements

@@ -1,6 +1,6 @@
 # Plan: Epic and Xbox games in steam-cartridges (third-party stores)
 
-**Status:** Draft 2026-10-02, research round 1 done (§ 4). For an architecture agent to detail and an implementer agent
+**Status:** Draft 2026-10-02, research rounds 1 and 2 done (§ 4). For an architecture agent to detail and an implementer agent
 to execute.
 **Kind:** Umbrella feature plan, like [steam-cartridges-features-plan.md](steam-cartridges-features-plan.md). It fixes
 *what* is built, the user's decisions, what we can get from each store and how, and *which modules in which layer* each
@@ -132,7 +132,7 @@ The Xbox app and Gaming Services are installed. Shortcut shapes to check on a re
 | `products/lookup?alternateId=XboxTitleId&value=<id>…` | 200; from `MicrosoftGame.config`'s `TitleId` to the product |
 | `products?bigIds=<id>…` | `ProductTitle`, `DeveloperName`, `PublisherName`, `OriginalReleaseDate`, `AlternateIds` (`XboxTitleId` 1717113201), images by purpose (7 `Screenshot`, `SuperHeroArt`, `TitledHeroArt`, `Poster`, `BoxArt`, `Logo`, `BrandedKeyArt`), `Properties.Category`, `Properties.Attributes` (`SinglePlayer`, `XblOnlineCoop`, `XblOnlineMultiPlayer`, `XblCrossPlatformCoop`, `XblAchievements`, `ConsoleKeyboardMouse` …, which map to Steam categories), `CMSVideos` (trailers as HLS and DASH streams with a caption and size), packages with their `PackageFamilyName` |
 
-### 4.6 Signed-in APIs (from public sources and game-data-linker's code; not tested here)
+### 4.6 Signed-in APIs (round 1: from public sources and game-data-linker's code; Xbox rows verified in § 4.7)
 
 | Store | Call | Gives |
 | --- | --- | --- |
@@ -142,6 +142,45 @@ The Xbox app and Gaming Services are installed. Shortcut shapes to check on a re
 | Xbox | Sign-in: device code at `login.live.com/oauth20_connect.srf` (client `00000000402b5328`, scope `service::user.auth.xboxlive.com::MBI_SSL`), then `user.auth.xboxlive.com` and `xsts.auth.xboxlive.com` | A user code shown in our settings, typed at microsoft.com/link: no password ever passes through the plugin |
 | Epic | The same GraphQL queries with the user's bearer token | Unknown: whether that turns the 403 / `records: null` above into unlocks (step 0.1) |
 | Epic | `library-service.live.use1a.on.epicgames.com/library/api/public/items`, `…/playtime/account/<id>/all` | Owned games and playtime (Legendary / Heroic use them) |
+
+### 4.7 Round 2: verified with the user's accounts (2026-10-02)
+
+The user set their Epic profile's achievements to public, installed Microsoft Jigsaw (Xbox), unlocked one achievement in
+each store, and removed Jotunnslayer's shortcut from Steam (to test auto-add later). Neither game is a shortcut now.
+
+**Epic unlocks need no sign-in once the profile is public** (anonymous `store.epicgames.com/graphql`, account id from
+§ 4.1):
+
+| Query | Answer |
+| --- | --- |
+| `PlayerProfile.playerProfile(epicAccountId).achievementsSummaries` (fragment `PlayerAchievementResponseSuccess`) | `status 200`, one entry per game with unlocks: `sandboxId`, `totalUnlocked` (1), `totalXP` (10). One call for every game: a sync asks per game only when this changed |
+| `PlayerProfile.playerProfile(epicAccountId).productAchievements(productId)` (fragment `PlayerProductAchievementsResponseSuccess`) | `playerAchievements[].playerAchievement { achievementName: "ACH_FRIENDLY_JOTUNN", unlocked: true, unlockDate: "2026-10-02T17:44:53.533Z" }` |
+| `PlayerAchievement.playerAchievementGameRecordsBySandbox` | Still `records: null`: not the query to use |
+| A private profile | `ServiceError { status 403, message }` (round 1): the source answers `needs-setup` ("set your Epic profile's achievements to public"); no Epic sign-in is built |
+
+`productId` comes from `productAchievementsRecordBySandbox` (§ 4.2). `ACH_FRIENDLY_JOTUNN` is also a Steam id of native
+2820820 (the overlay rule of step 0.4 holds for this game).
+
+**Xbox, a UWP game, detected locally** (Microsoft Jigsaw, `Get-AppxPackage`, `SignatureKind: Store`):
+
+- `<InstallLocation>\xboxservices.config` (JSON): `TitleId` 2003863742 (decimal), `PrimaryServiceConfigId`. A GDK game
+  has `MicrosoftGame.config` instead (§ 4.4, still unverified: Jigsaw is not GDK). Either file means "an Xbox Live game".
+- `AppxManifest.xml`: `Application Id="App"`, `Executable="Jigsaw.exe"`, `DisplayName`; launch with
+  `shell:AppsFolder\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App`.
+- Catalog lookup by package family name → product `9WZDNCRFJ9X2`, `ProductKind: Game` (tells a game from an app),
+  `XboxTitleId` 2003863742 (equals the local `TitleId`), 9 screenshots, 6 hero, 4 logo, 2 trailers. It is installed in
+  `WindowsApps`, not in the `.GamingRoot` folder: the package list, not the folder, is the source of truth.
+
+**Xbox signed-in calls, verified** (device code typed by the user at microsoft.com/link; client `00000000402b5328`;
+`RpsTicket` with no prefix worked; the Microsoft token lasts 24 h and comes with a refresh token; XSTS lasts about 16 h):
+
+| Call | Answer |
+| --- | --- |
+| `achievements.xboxlive.com/users/xuid(<xuid>)/achievements?titleId=2003863742&maxItems=1000` (contract 2) | 200, 20 achievements: `id`, `name`, `description`, `lockedDescription`, `isSecret`, `progressState`, `progression.timeUnlocked`, `rewards` (Gamerscore), `mediaAssets` (icon), `rarity` (absent for this title). Unlocked: id 2 "First Unlock", 20 G, `2026-10-02T17:54:21.767Z` |
+| `titlehub.xboxlive.com/…/titlehistory/decoration/achievement,image,detail` (contract 2) | 200, 46 titles played on the account (installed or not, PC and console): `titleId`, `name`, `type`, `devices`, `pfn`, `achievement { currentAchievements, currentGamerscore, totalGamerscore, progressPercentage }` (`totalAchievements` is 0 for newer titles: use the gamerscore), `titleHistory.lastTimePlayed`. One call for every game: a sync asks per game only when this changed |
+| `userstats.xboxlive.com/batch` `MinutesPlayed` | 200, `value: "6"` for Jigsaw: playtime is available |
+
+The probe kept tokens in memory only (a scratchpad script; results saved without tokens).
 
 ## 5. Phases
 
@@ -157,11 +196,11 @@ The Xbox app and Gaming Services are installed. Shortcut shapes to check on a re
 
 Each phase is its own commit series, live verification and CHANGELOG entry.
 
-### Phase 0: research round 2 and the ADR
+### Phase 0: remaining research and the ADR
 
-Everything here is read-only. 0.1 needs the user; 0.2 needs an installed Xbox game; 0.5-0.7 need the Steam lock.
+0.1 and 0.2 are answered (§ 4.7). Everything left is read-only except 0.7. 0.5-0.7 need the Steam lock.
 
-- **0.1 Epic unlocks** (the user's question 1). Two paths, the cheapest first:
+- **0.1 Epic unlocks: done** (§ 4.7: path 1 works; path 2 is not built). Kept for the record:
   1. **Public profile, no sign-in.** The user sets their Epic profile's achievements to public (Epic account → privacy)
      and we re-run the § 4.2 profile and player queries with the account id from § 4.1. If they answer, Epic unlocks need
      **no credentials at all**, only the id already on disk.
@@ -169,7 +208,7 @@ Everything here is read-only. 0.1 needs the user; 0.2 needs an installed Xbox ga
      copying codes by hand (a device-code flow for a client we may use). Reading the Epic launcher's own saved session
      is **not** allowed: it is the launcher's secret, not ours. If neither works, Epic stays **locked-only** (list with
      rarity, no unlocks, like an unowned Steam game in ADR-0034) and no Epic sign-in is built.
-- **0.2 Xbox on a real install**: the shortcut shapes, `MicrosoftGame.config` fields, PFN → product → title id, and the
+- **0.2 Xbox on a real install: done for a UWP game** (§ 4.7); a GDK game (`MicrosoftGame.config`) is still to check when one is installed. Was: the shortcut shapes, `MicrosoftGame.config` fields, PFN → product → title id, and the
   user's own sign-in and achievements call (with the user, device code).
 - **0.3 Epic edge cases**: an add-on manifest (`MainGameCatalogNamespace` set) is never taken as a game; a game with
   several `BASE_GAME` offers; a launcher-link shortcut with no manifest (uninstalled).
@@ -205,7 +244,7 @@ A copy is a fact about the shortcut, found locally and saved, like the Steam mat
 
 | Layer | Module | Change |
 | --- | --- | --- |
-| settings | `settings/panels/third-party.tsx` (new) | Section "Third-party": per store a block with what was found ("4 Epic games installed, 3 in your library"), the **Auto-add installed games** toggle, and the account (Xbox sign-in with the device code; Epic only if 0.1 needs it). Guardrail 18 layout, `CredentialsNote`. |
+| settings | `settings/panels/third-party.tsx` (new) | Section "Third-party": per store a block with what was found ("4 Epic games installed, 3 in your library"), the **Auto-add installed games** toggle, and the account (Xbox sign-in with the device code; for Epic, the account found on disk and whether its achievements are public). Guardrail 18 layout, `CredentialsNote`. |
 | backend | `store_installed.lua` (new) | The installed list per store (reuses Phase 1a's readers) and which are already shortcuts (by exe, install folder or launch link). |
 | app | `app/store-sync.ts` (new) | With the toggle on, at start-up and when the section opens: add a shortcut for each installed game that has none. Launch through the store's own link (`com.epicgames.launcher://apps/<AppName>?action=launch&silent=true`; `shell:AppsFolder\<PFN>!<AppId>`) so the launcher handles updates and its overlay runs. Remembers what it added. |
 | surfaces | `surfaces/library-shortcuts/` (new) | The only writer of `SteamClient.Apps.AddShortcut` / `SetShortcut*` (a new Steam target, its own kill switch and `touches`). |
@@ -219,7 +258,7 @@ routing applies), and that the toggle is off by default.
 | Layer | Module | Change |
 | --- | --- | --- |
 | backend | `xbox_live.lua` (new) | Device-code sign-in, refresh, the token chain (§ 4.6), `achievements(titleId)` → schema and unlocks with `unlockedAt`; `titlehub` to skip unchanged games. Tokens through `web_config` (decision 8). |
-| backend | `epic_store.lua` (new) | The schema from `productAchievementsRecordBySandbox`; unlocks by the path 0.1 found, or none (locked-only). |
+| backend | `epic_store.lua` (new) | The schema from `productAchievementsRecordBySandbox`; unlocks from `playerProfile.productAchievements` with the account id read from disk (§ 4.1), no sign-in; `achievementsSummaries` to skip unchanged games; a 403 → `needs-setup` (profile private). |
 | backend | `ach_service.lua` | `xbox` and `epic` rows in `SOURCES`, `supports` = `ctx.store.kind` (no request). A Steam-matched copy: the `steam` schema plus the store's unlocks when 0.4 allows, else the store's schema. |
 | backend | `fresh_policy.lua` | A TTL for store unlocks (e.g. 15 min on page open; `force` at quit). Never polled while the game runs (ADR-0007). |
 | backend | `achievements_reset.lua` | No source row for `xbox` / `epic`, and the shortcut is reported as **not resettable** (decision 7). |
@@ -281,12 +320,12 @@ then ScreenScraper.
   sent only to the store's own hosts; removed on sign-out. A device code is shown, never logged.
 - Respect the APIs (ADR-0007): cache, no polling while a game runs, a descriptive `User-Agent`.
 
-## 8. Questions left for the user
+## 8. Answers from the user (2026-10-02)
 
-1. **Epic profile privacy** (0.1): would you set your Epic profile's achievements to public for the test? If that works,
-   Epic needs no sign-in at all.
-2. **Auto-add** (Phase 1b): off by default; never remove a shortcut automatically; one collection per store. Agree?
-3. **Xbox test game** (0.2): can you install one small Xbox PC game (Game Pass) for the detection and sign-in tests?
+1. **Epic profile privacy:** set to public. Epic needs no sign-in (§ 4.7).
+2. **Auto-add:** agreed: off by default, never remove a shortcut automatically, one collection per store.
+3. **Xbox test game:** Microsoft Jigsaw installed, one achievement unlocked; Jotunnslayer's shortcut removed so auto-add
+   can add it back.
 
 ## 9. Future considerations (not scheduled)
 

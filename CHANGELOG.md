@@ -14,6 +14,13 @@ This repo is private and unversioned; entries are grouped by date.
   captures surface's `touches`, its service check and the architecture test's owner pattern. Tests: the marker plan
   tests went; a test now proves a theme's `add_timeline_marker` override is ignored as unknown. 164 pass (the known
   asset failure). The Steam facts stay in steam-components.md for steam-cartridges (TASK.md).
+- **Epic and Xbox games: research round 2 (2026-10-02, no code)**: with the user's accounts (Epic profile set to public,
+  Microsoft Jigsaw installed, one unlock in each store). Epic: `playerProfile.achievementsSummaries` and
+  `productAchievements(productId)` answer anonymously for a public profile (`ACH_FRIENDLY_JOTUNN`, with its unlock time),
+  so Epic needs no sign-in; a private profile answers 403. Xbox: a UWP game is found from `Get-AppxPackage` and its
+  `xboxservices.config` (`TitleId`), the catalog's `ProductKind: Game` tells games from apps; after a device-code sign-in
+  `achievements.xboxlive.com` (unlock with `timeUnlocked`), `titlehub` (46 titles with progress in one call) and
+  `userstats` `MinutesPlayed` all answer 200. Tokens were kept in memory only.
 - **Epic and Xbox games: research round 1 (2026-10-02, no code)**: at the user's request, plan updated with the user's
   decisions (Third-party section with auto-add, not listed for reset, store then IGDB then ScreenScraper, activity from
   every source, credentials through `web_config`). Found: Epic's own store GraphQL (`store.epicgames.com/graphql`)
