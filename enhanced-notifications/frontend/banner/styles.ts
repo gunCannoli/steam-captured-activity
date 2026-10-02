@@ -150,8 +150,9 @@ export const BANNER_CSS = `
    expands a little past it (like an object breaking the surface of water),
    not a pre-inflated blurred disc drifting further away. Fixed-size ring
    (inset: 0, same box as the icon) rather than a percentage inset, so it
-   always starts at the icon's edge regardless of icon scale; it ends at 1.35x,
-   hugging the icon rather than drifting into the text beside it. */
+   always starts at the icon's edge regardless of icon scale; it ends at 1.4x
+   the icon's size (the 100% keyframe below: the ripple distance), close to
+   the icon rather than drifting into the text beside it. */
 .ea-ripple {
     position: absolute;
     inset: 0;
@@ -166,7 +167,7 @@ export const BANNER_CSS = `
 @keyframes ea-ripple {
     0%   { transform: scale(0.92); opacity: 0.9; }
     15%  { opacity: 0.7; }
-    100% { transform: scale(1.2); opacity: 0; }
+    100% { transform: scale(1.4); opacity: 0; }
 }
 
 /* 3-Zone Flexbox Architecture */
