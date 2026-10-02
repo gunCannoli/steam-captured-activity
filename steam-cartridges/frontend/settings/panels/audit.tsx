@@ -251,19 +251,20 @@ export function RevisionSection() {
                         <StatRow label="Ignored" value={ignored} />
                         <StatRow label="Issues detected" value={flagged.length} warn />
                     </>
-                    {/* Three rows: label, description, then the button across the full row. */}
-                    <FullWidthRows label="Review" description="Fix controller support and Steam links game by game">
-                        <DialogButton
-                            onClick={() => {
-                                // Open on the view that has something in it.
-                                setFilter(flagged.length === 0 && notScraped.length > 0 ? "not_scraped" : "all");
-                                setIsAuditModalOpen(true);
-                            }}
-                            style={{ ...BUTTON_STYLE, width: "100%" }}
-                        >
-                            Review
-                        </DialogButton>
-                    </FullWidthRows>
+                    {/* Only when there is something to fix. Three rows: label, description, then the button across the full row. */}
+                    {flagged.length > 0 && (
+                        <FullWidthRows label="Review" description="Fix controller support and Steam links game by game">
+                            <DialogButton
+                                onClick={() => {
+                                    setFilter("all");
+                                    setIsAuditModalOpen(true);
+                                }}
+                                style={{ ...BUTTON_STYLE, width: "100%" }}
+                            >
+                                Review
+                            </DialogButton>
+                        </FullWidthRows>
+                    )}
                     <FullWidthRows
                         label="Edit Game MetaData"
                         description="Correct a game's Game Info by hand or link it to a Steam game"

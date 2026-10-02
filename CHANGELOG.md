@@ -7,6 +7,9 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Review shows only when issues are detected (2026-10-02)**: at the user's request, the Library
+  Analytics Review rows are hidden while "Issues detected" is 0 (its Not scraped view is reached through Review only
+  then). The click-through checks the button follows the count. Live: 0 issues, no Review, all steps pass.
 - **steam-cartridges: outdated live tests fixed (2026-10-02)**: `probes/game_editor.mjs` (F1) aborted when its fixed
   game (4263274102) had a manual edit; it now skips any game the user edited and takes the first shortcut with fetched
   metadata, app details and no edit (live: 4271101655; the user's edit untouched). `click_settings_panel.mjs` looked for

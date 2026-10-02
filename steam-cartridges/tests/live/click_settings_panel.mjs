@@ -41,9 +41,11 @@ const body = mode === "list"
   const btn = (t) => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === t);
   const add = btn('Add Rule'); step('Add Rule button', !!add);
   if (add) { click(add); await wait(800); const cancel = btn('Cancel'); step('Add Rule modal opens (Cancel present)', !!cancel); if (cancel) { click(cancel); await wait(300); } }
-  // 3. Library Analytics: "Review" opens the Review popup, on "Not scraped" when there are no issues but unscraped games;
-  //    with a Scrape button there, scrape one game.
-  const rev = btn('Review'); step('Review button', !!rev);
+  // 3. Library Analytics: "Review" shows only when issues are detected; it opens the Review popup, and with a Scrape
+  //    button there (the Not scraped view), scrape one game.
+  const issues = Number(div.textContent.match(/Issues detected[ ]*([0-9]+)/)?.[1] ?? -1);
+  const rev = btn('Review');
+  step('Review button shown only with issues', issues > 0 ? !!rev : issues === 0 && !rev, 'issues detected: ' + issues);
   if (rev) {
     click(rev); await wait(1500);
     const done = btn('Done');
