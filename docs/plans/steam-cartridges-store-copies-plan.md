@@ -1,252 +1,301 @@
-# Plan: Epic and Xbox copies in steam-cartridges
+# Plan: Epic and Xbox games in steam-cartridges (third-party stores)
 
-**Status:** Draft 2026-10-02, for an architecture agent to detail and an implementer agent to execute.
+**Status:** Draft 2026-10-02, research round 1 done (§ 4). For an architecture agent to detail and an implementer agent
+to execute.
 **Kind:** Umbrella feature plan, like [steam-cartridges-features-plan.md](steam-cartridges-features-plan.md). It fixes
-*what* is built, the user's decisions, what game-data-linker gave us and what we drop, and *which modules in which layer*
-each phase touches. It has no literal before/after blocks: each phase gets its own executable plan to
-[the plan writing standard](README.md) once Phase 0 has answered its questions.
-**Needs a new ADR before any code** (Phase 0, step 0.6): it amends
+*what* is built, the user's decisions, what we can get from each store and how, and *which modules in which layer* each
+phase touches. It has no literal before/after blocks: each phase gets its own executable plan to
+[the plan writing standard](README.md) once its open research (§ 5, Phase 0) is answered.
+**Needs a new ADR before any code** (step 0.9): it amends
 [ADR-0034](../decisions.md#adr-0034-achievement-sourcing-per-bucket-locked-only-for-unowned-steam-games) (unlocks come
 only from Steam's caches), reverses "Epic/Xbox stay dropped" in
 [ADR-0037](../decisions.md#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity),
-and replaces invariant 1 of [service-achievements.md](../steam-cartridges/service-achievements.md#core-invariants) ("never
-requires Epic Games OAuth … or Xbox Live credentials").
+replaces invariant 1 of [service-achievements.md](../steam-cartridges/service-achievements.md#core-invariants) ("never
+requires Epic Games OAuth … or Xbox Live credentials"), and records that the plugin may add shortcuts to the user's
+library (Phase 1b), which nothing in the suite does today.
 
 ## 1. Goal
 
-A shortcut that is an **Epic Games Store** or **Xbox (PC Game Pass / Microsoft Store)** copy of a game is found
-automatically from files already on the PC, with nothing for the user to link. Its page then shows:
+Epic Games Store and Xbox (PC Game Pass / Microsoft Store) games get the same treatment as IGDB and ScreenScraper
+games: found and filled **automatically**, with nothing for the user to link by hand.
 
-- **The Steam data, when the game is on Steam** (as today: metadata, artwork, community content, news, friends from the
-  native app; ADR-0036 to ADR-0038).
-- **The store's own data, when it is not** (Alan Wake 2 is Epic only): Game Info, artwork, community images.
-- **The user's real unlocks from that store**, synced through its web API, in Steam's own achievement UI, Post-Game
-  Summary and Activity feed. There is no toast from us: the store's own overlay already shows the unlock while the game
-  runs.
+- A shortcut that is an Epic or Xbox copy is recognised from files already on the PC.
+- Optionally, every installed Epic and Xbox game is added to the Steam library as a shortcut (a toggle).
+- The page shows **the Steam data when the game is on Steam** (as today), and **the store's own data when it is not**
+  (Alan Wake 2 is Epic only): Game Info, artwork, community images.
+- The user's unlocks from that store are synced through its web API into Steam's own achievement UI, Post-Game Summary
+  and Activity feed. No toast from us: the store's overlay already notifies while the game runs.
 
-## 2. Decisions already taken (user, 2026-10-02)
+## 2. Decisions (user, 2026-10-02)
 
 1. **Nothing manual.** No pasting store links into Properties (game-data-linker's way). A copy is found from the
    shortcut and the store's local install data.
-2. **Steam stays first** for every game that is on both stores: metadata, artwork and community content are still
-   mirrored from the native Steam app.
-3. **A game that is not on Steam** takes its data from the store it was bought on, whichever store is easier to fetch
-   from. Phase 0 checks what each store gives.
-4. **Achievements are synced, not observed.** They are fetched from the store's API when the page opens and when the game
-   quits. No unlock toast or sound from steam-cartridges or enhanced-notifications for these games: the store's own
-   overlay notifies.
-5. **Out of scope for now, kept as a future consideration** (§ 9): enhanced-notifications noticing a store's unlock as
-   it happens, to save a screenshot or a recording.
+2. **Steam stays first** for every game on both stores: metadata, artwork and community content are still mirrored from
+   the native Steam app.
+3. **A game not on Steam** takes its data from its store first, then IGDB, then ScreenScraper, for **Game Info** and for
+   the **Community tab** alike.
+4. **Achievements are synced, not observed.** Fetched from the store's API when the page opens and when the game quits.
+   No unlock toast or sound from steam-cartridges or enhanced-notifications for these games.
+5. **Activity feed from every source** that knows an unlock time (stores, RetroAchievements, emulator files).
+6. **A "Third-party" settings section** with an **auto-sync toggle** that adds every installed Epic and Xbox game to the
+   library as a shortcut.
+7. **Epic and Xbox games are not listed** in enhanced-notifications' Reset Achievements dropdown: their unlocks live on
+   the store's account and cannot be reset in any form (a reset here would be undone by the next sync).
+8. **Credentials stay local and safe**, like the RetroAchievements and ScreenScraper accounts today: tokens in the data
+   folder through `web_config` (`<data dir>/.env`, `config.save_credentials`), never logged, never sent anywhere but the
+   store's own hosts. The public client ids are constants in the code, not user data.
+9. **Research first.** Before any code, find out what each store gives and how, preferring automated, sign-in-free paths
+   the way IGDB and ScreenScraper work (§ 4 is round 1; Phase 0 lists what is left).
+10. **Out of scope for now** (§ 9): enhanced-notifications noticing a store's unlock as it happens, to save a screenshot
+    or a recording.
 
 ## 3. What we keep from game-data-linker, and what we drop
 
-game-data-linker (MIT, licence checked in ADR-0034) was read on 2026-10-02 (`backend/main.lua`, about 1,900 lines). We
-take its **data paths only**, never its rendering.
+game-data-linker (MIT, licence checked in ADR-0034), read 2026-10-02. We take **data paths only**, never its rendering.
+Round 1 (§ 4) found better paths than its own for most of them.
 
 | game-data-linker | Ours | Why |
 | --- | --- | --- |
-| The user pastes a Steam, Epic or Xbox store link in Properties | **Dropped.** Found from the shortcut (§ 4) | Decision 1 |
-| Shows the linked game's data in place of the shortcut's, with no record of where it came from | **Dropped.** A copy keeps its own identity; Steam data only through the existing Steam match | ADR-0038 |
-| Epic game info, artwork, achievement list from egdata.app (no sign-in) | **Kept as a candidate** for an Epic-only game, behind a source; Phase 0 compares it with Epic's own catalog | Decision 3 |
-| Epic sign-in posing as the Epic Launcher's public client; token used only for friends | **Kept only if** it gives the user's own unlocks (step 0.3). Friends dropped | Decision 4; ADR-0037 |
-| Xbox device-code sign-in (`microsoft.com/link`) through Microsoft's old public client, then Xbox Live tokens | **Kept**: the only way to read the user's Xbox unlocks | Decision 4 |
-| Xbox achievements with unlocked state, Gamerscore, rarity | **Kept**, mapped to our schema and unlocks | Decision 4 |
-| Xbox store data from Microsoft's public catalog (`displaycatalog.mp.microsoft.com`) | **Kept** for an Xbox-only game | Decision 3 |
-| Friends who play (Epic, Xbox) | **Dropped** | ADR-0037: no persona scraping. Steam's own Friends section still shows for a Steam-matched copy |
-| News from a Google News search; community from Reddit | **Dropped** | ADR-0037: no scraping. A Steam-matched copy gets the native app's news and community already |
-| SteamGridDB logo for Xbox | **Already ours** (`web_sgdb.lua`, artwork service) | Nothing to port |
-| Injected HTML copies of Steam's panels (play bar stat, sidebar, activity) | **Dropped.** We feed Steam's stores | ADR-0022, ADR-0045; plugins.md ladder |
-| Tokens as plain JSON in the plugin's own folder | **Changed**: our data dir, never logged, listed where accounts are shown | plugins.md guardrail 18.7; § 7 |
+| The user pastes a store link in Properties | **Dropped.** Found from local install data (§ 4.1, § 4.4) | Decision 1 |
+| Shows the linked game's data in place of the shortcut's | **Dropped.** A copy keeps its own identity | ADR-0038 |
+| Epic data and achievement list from egdata.app | **Replaced** by Epic's own store GraphQL (§ 4.2). egdata.app only for trailer files | Epic's own API answers without a sign-in |
+| Epic sign-in posing as the Launcher's client; used only for friends | **Pending** step 0.1: needed only if unlocks require it | Decision 4 |
+| Xbox device-code sign-in, Xbox Live tokens | **Kept**: the only way to read Xbox unlocks | Decision 4 |
+| Xbox achievements with unlocked state | **Kept** | Decision 4 |
+| Xbox store data from Microsoft's display catalog | **Kept**, plus lookup by package family name (§ 4.5) | Decision 3 |
+| Friends who play; Google News; Reddit | **Dropped** | ADR-0037 |
+| SteamGridDB logo for Xbox | **Already ours** (`web_sgdb.lua`) | — |
+| Injected HTML copies of Steam's panels | **Dropped.** We feed Steam's stores | ADR-0022, ADR-0045 |
+| Tokens as plain JSON in the plugin's folder | **Changed**: `web_config`, data folder | Decision 8 |
 
-## 4. Evidence so far (read-only, this machine, 2026-10-02)
+## 4. Research round 1: what each store gives, and how (2026-10-02)
 
-- **Epic shortcuts may launch the game's .exe directly, not the launcher's link.** The one Epic shortcut here,
-  Jotunnslayer (shortcut 2315502503, native 2820820), runs
-  `"C:\Program Files\Epic Games\JotunnslayerHordesofrI2Zp\Jotunnslayer.exe"`. Detection must cover both shapes:
-  `com.epicgames.launcher://apps/<AppName>…` in the target or launch options, and an exe inside an Epic install folder.
-- **Epic's install manifests identify the copy exactly.**
-  `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests\B3F2847BEE2735B7C9CC107C02D98D58.item` (JSON) has
-  `InstallLocation` = the shortcut's folder, `LaunchExecutable` = `Jotunnslayer.exe`, `CatalogNamespace` =
-  `d8a39ea2f35e49b58f18c2b96aec276a` (the sandbox), `CatalogItemId` = `193ae706e4ef468aa030326aa0781efe`, `AppName`,
-  `DisplayName`. The path must come from the registry or `ProgramData` discovery, never hardcoded (ADR-0011).
-- **egdata.app answers without a sign-in.** `GET https://api.egdata.app/sandboxes/<CatalogNamespace>/achievements`
-  returned Jotunnslayer's sets (names, descriptions, locked and unlocked icons, XP, hidden); `GET /items/<CatalogItemId>`
-  returned title, description and key images. It is a community service, not Epic's.
-- **Epic achievement ids equal the Steam API names for this game.** egdata's `ACH_A_TROPHY_SPECIAL` is in our stored
-  Steam schema (`<steam>/millennium/config/steam-cartridges/achievements.json`, with `ACH_RIGOR_MORTIS`,
-  `ACH_THE_MORIA` …). So for a Steam-matched Epic copy, Epic's unlocks can be laid over the Steam schema by id. One game
-  is not a rule: step 0.4 checks more.
-- **No Xbox game is installed here** (no `C:\XboxGames`, no Xbox shortcut). Everything about Xbox detection is unverified.
-- **The Activity feed shows only captures today.** `surfaces/captures` writes `AppActivityStore.m_mapAppActivity`; unlocks
-  reach the Post-Game Summary (`addSessionAchievement`) but no `AchievementUnlocked` event is ever added.
-  `steam-components.md` (the store-record blocker) notes that this event renders from `event.achievements` alone once the
-  store stub is in place, which it now is (ADR-0030).
-- **The Epic per-user unlock API is unverified.** game-data-linker never reads Epic unlocks (its Epic list is always
-  locked). Epic's store GraphQL has `PlayerAchievement` / `playerAchievementGameRecordsBySandbox` (fields `unlocked`,
-  `unlockDate`, `achievementName`), per [woctezuma's gist](https://gist.github.com/woctezuma/8ca464a276b15d7dfad475fd6b6cbee9);
-  Epic closed one leak in that API in January 2025. Not tried.
+Read-only, from this machine. Every network call was one anonymous GET or GraphQL query with a descriptive
+`User-Agent`. The user's Epic account id was used once, read-only, and is not written here.
+
+### 4.1 Epic, on disk (no network)
+
+| File | What it gives |
+| --- | --- |
+| `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item` (JSON, one per installed game) | `InstallLocation`, `LaunchExecutable`, `DisplayName`, `CatalogNamespace` (= the achievement sandbox), `CatalogItemId`, `AppName`; `MainGame*` set for an add-on |
+| `%ProgramData%\Epic\UnrealEngineLauncher\LauncherInstalled.dat` (JSON) | The installed list: `InstallLocation`, `NamespaceId`, `ItemId`, `ArtifactId` (= `AppName`), `AppVersion` |
+| `%ProgramData%\Epic\EpicGamesLauncher\Data\Catalog\catcache.bin` (base64 of a JSON array) | Catalog items for installed or recently used namespaces only (97 items, 4 namespaces here): `title`, `description`, `developer`, `keyImages` (`DieselGameBox` 2560x1440, `DieselGameBoxTall` 1200x1600), `releaseInfo`, `categories`. Offline Game Info for an installed game |
+| `%LOCALAPPDATA%\EpicGamesLauncher\Saved\Data\<32 hex>.dat` | The file name is the signed-in Epic account id (its profile resolved through GraphQL). The file content was not read |
+
+Shortcut shapes: the one Epic shortcut here (Jotunnslayer, 2315502503) runs
+`"C:\Program Files\Epic Games\JotunnslayerHordesofrI2Zp\Jotunnslayer.exe"` directly; the launcher's own shortcuts use
+`com.epicgames.launcher://apps/<AppName>?action=launch&silent=true`. Both must match (exe inside an `InstallLocation`,
+or the `AppName` in the link).
+
+### 4.2 Epic, store GraphQL without a sign-in (`POST https://store.epicgames.com/graphql`)
+
+Answers anonymously (200). Introspection is off; field names were found by trial. `launcher.store.epicgames.com`
+redirects to a captcha; `graphql.epicgames.com` is gone (404).
+
+| Query | Gives |
+| --- | --- |
+| `Achievement.productAchievementsRecordBySandbox(sandboxId, locale)` | `productId`, `totalAchievements` (38), `totalProductXP`, sets, and per achievement `name` (the API name), `hidden`, `unlockedDisplayName`, `unlockedDescription`, `unlockedIconLink`, `lockedIconLink`, `XP`, `rarity.percent` |
+| `Catalog.catalogOffers(namespace, locale, params)` | Every offer of a namespace with `offerType` (`BASE_GAME`, `EDITION`, `ADD_ON`): the way from an installed game to its store offer |
+| `Catalog.catalogOffer(namespace, id, locale)` | `title`, `developerDisplayName`, `publisherDisplayName`, `releaseDate`, `pcReleaseDate`, `tags { name groupName }` (genres, features such as `Single Player`), `keyImages` (`DieselStoreFrontWide`, `OfferImageTall`, `Thumbnail`, 9 `featuredMedia` screenshots, 4 `heroCarouselVideo` as `com.epicgames.video://<uuid>?cover=…`) |
+| `Catalog.catalogItem(namespace, id)` | `title`, `description`, `developer`, `keyImages` |
+| `Catalog.searchStore(keywords, category, …)` | Title search (Alan Wake 2 → its offer); only for a game with no manifest |
+| `PlayerProfile.playerProfile(epicAccountId)` | The profile resolves; `privacy` is null anonymously |
+| `PlayerProfile.playerProfile.achievementsSummaries` / `productAchievements(productId)` | `ServiceError` with `status 403` ("Request failed with status code 403") for this account, anonymously |
+| `PlayerAchievement.playerAchievementGameRecordsBySandbox(epicAccountId, sandboxId)` | `records: null` anonymously |
+
+**Achievement ids match Steam's for Jotunnslayer**: Epic's `ACH_A_TROPHY_SPECIAL` is in our stored Steam schema for
+native 2820820. One game is not a rule (step 0.4).
+
+### 4.3 Epic, egdata.app (community service, no sign-in)
+
+`/sandboxes/<ns>/achievements`, `/items/<id>`, `/offers/<id>`, `/offers/<id>/media`, `/autocomplete?query=`. Same data as
+§ 4.2, plus one thing Epic's GraphQL does not give: `/offers/<id>/media` `videos[].outputs[]` resolves trailers to
+files (`media-cdn.epicgames.com/…-high.webm`, 1920x1080, `video/webm`). Use it only for that, and only if Steam's viewer
+can play a direct file (step 0.6).
+
+### 4.4 Xbox, on disk (no network)
+
+| File | What it gives |
+| --- | --- |
+| `<drive>:\.GamingRoot` | Where the Xbox app installs games: `RGBX`, a uint32 count, then NUL-terminated UTF-16 folder paths relative to the drive root. Here: `C:\` → `game\gamepass` (empty) |
+| `<install folder>\<Game>\Content\MicrosoftGame.config` | Expected for GDK games: `<TitleId>`, `<StoreId>`, `<Identity Name=…>`, executables. **Not verified**: no Xbox game is installed here |
+| `Get-AppxPackage` (or the registry) | Installed packages with `PackageFamilyName` and `InstallLocation`; 0 GDK game packages here |
+
+The Xbox app and Gaming Services are installed. Shortcut shapes to check on a real install (step 0.2):
+`shell:AppsFolder\<PackageFamilyName>!<AppId>`, `explorer.exe shell:AppsFolder\…`, an exe under the GamingRoot folder.
+
+### 4.5 Xbox, Microsoft's display catalog without a sign-in (`https://displaycatalog.mp.microsoft.com/v7.0/`)
+
+| Call | Gives |
+| --- | --- |
+| `products/lookup?alternateId=PackageFamilyName&value=<PFN>&market=US&languages=en-US,neutral&fieldsTemplate=details` | The product id (`Microsoft.SeaofThieves_8wekyb3d8bbwe` → `9P2N57MC619K`): from an installed package to its store entry |
+| `products/lookup?alternateId=XboxTitleId&value=<id>…` | 200; from `MicrosoftGame.config`'s `TitleId` to the product |
+| `products?bigIds=<id>…` | `ProductTitle`, `DeveloperName`, `PublisherName`, `OriginalReleaseDate`, `AlternateIds` (`XboxTitleId` 1717113201), images by purpose (7 `Screenshot`, `SuperHeroArt`, `TitledHeroArt`, `Poster`, `BoxArt`, `Logo`, `BrandedKeyArt`), `Properties.Category`, `Properties.Attributes` (`SinglePlayer`, `XblOnlineCoop`, `XblOnlineMultiPlayer`, `XblCrossPlatformCoop`, `XblAchievements`, `ConsoleKeyboardMouse` …, which map to Steam categories), `CMSVideos` (trailers as HLS and DASH streams with a caption and size), packages with their `PackageFamilyName` |
+
+### 4.6 Signed-in APIs (from public sources and game-data-linker's code; not tested here)
+
+| Store | Call | Gives |
+| --- | --- | --- |
+| Xbox | `achievements.xboxlive.com/users/xuid(<xuid>)/achievements?titleId=<id>` (contract 2) | Each achievement with `progressState`, `progression.timeUnlocked`, Gamerscore, rarity, icon. game-data-linker uses it |
+| Xbox | `titlehub.xboxlive.com/users/xuid(<xuid>)/titles/titlehistory/decoration/achievement,image,detail` | Every played title with unlocked and total counts and last played time, in one call: lets a sync skip unchanged games |
+| Xbox | `userstats.xboxlive.com` `MinutesPlayed` | Playtime per title (a possible later feature) |
+| Xbox | Sign-in: device code at `login.live.com/oauth20_connect.srf` (client `00000000402b5328`, scope `service::user.auth.xboxlive.com::MBI_SSL`), then `user.auth.xboxlive.com` and `xsts.auth.xboxlive.com` | A user code shown in our settings, typed at microsoft.com/link: no password ever passes through the plugin |
+| Epic | The same GraphQL queries with the user's bearer token | Unknown: whether that turns the 403 / `records: null` above into unlocks (step 0.1) |
+| Epic | `library-service.live.use1a.on.epicgames.com/library/api/public/items`, `…/playtime/account/<id>/all` | Owned games and playtime (Legendary / Heroic use them) |
 
 ## 5. Phases
 
 | # | Phase | Ships | Depends on |
 | --- | --- | --- | --- |
-| 0 | Research and the ADR (read-only, no code) | Answers below, the ADR, the executable plans | — |
-| 1 | Store identity: find the Epic or Xbox copy behind a shortcut | Identity only, nothing visible yet | 0 |
-| 2 | Achievements from Xbox and Epic | Real unlocks in Steam's UI | 1 |
-| 3 | Activity: unlock events in the feed | `AchievementUnlocked` days, every source | 2 |
-| 4 | Store data for a game not on Steam (Game Info, artwork) | Alan Wake 2 gets a full page | 1 |
-| 5 | Community tab for a game not on Steam | Store screenshots as cards | 4 |
+| 0 | Research round 2 and the ADR (read-only, no code) | Answers, the ADR, executable plans | — |
+| 1a | Store identity: recognise an Epic or Xbox shortcut | Identity only | 0 |
+| 1b | Third-party section: auto-add installed games | Shortcuts in the library | 1a |
+| 2 | Achievements: Xbox, then Epic | Synced unlocks in Steam's UI | 1a |
+| 3 | Activity feed from every source | `AchievementUnlocked` days | 2 for stores; the other sources can go first |
+| 4 | Store data for a game not on Steam | Game Info, artwork | 1a |
+| 5 | Community tab for a game not on Steam | Store screenshots (and trailers if 0.6 allows) | 4 |
 
-Phases 2-3 and 4-5 are independent of each other. Each phase is its own commit series, live verification and CHANGELOG
-entry.
+Each phase is its own commit series, live verification and CHANGELOG entry.
 
-### Phase 0: research (live, read-only) and decisions
+### Phase 0: research round 2 and the ADR
 
-Every step is a read or a probe outside Steam. No deploy and no Steam lock needed, except 0.5.
+Everything here is read-only. 0.1 needs the user; 0.2 needs an installed Xbox game; 0.5-0.7 need the Steam lock.
 
-- **0.1 Epic detection.** Find the manifest folder without hardcoding (the launcher's registry key or
-  `%ProgramData%`). Confirm the match rule: the shortcut's exe (or its start dir) is inside a manifest's
-  `InstallLocation`, or the target or launch options carry `com.epicgames.launcher://apps/<AppName>`. Check a DLC or
-  add-on manifest (`MainGameCatalogNamespace` not empty) is never taken as the game.
-- **0.2 Xbox detection** (needs an installed Xbox PC game, the user's machine or a test install). Read the shapes an Xbox
-  shortcut takes: `shell:AppsFolder\<PackageFamilyName>!<AppId>`, `explorer.exe shell:AppsFolder\…`, an exe under
-  `<drive>\XboxGames\<Game>\Content\`. Check `MicrosoftGame.config` in `Content\` for `<TitleId>` and `<StoreId>`
-  (expected for GDK games, not verified), and the catalog lookup from a package family name to a product id when there
-  is no config file.
-- **0.3 Epic unlocks.** With a test account the user signs in to: does the store GraphQL (or any Epic endpoint the
-  launcher's client may call) return the user's unlocks for a sandbox? If not, Epic achievements are **locked-only**,
-  like an unowned Steam game (ADR-0034), and Epic sign-in is not built at all.
-- **0.4 Epic ids against Steam ids.** For three or more games on both stores, compare egdata achievement `name`s with the
-  Steam schema's ids. Decide the overlay rule: same ids → Steam schema plus Epic unlocks; any mismatch → that game uses
-  the Epic schema (never a guess by display name).
-- **0.5 Steam's activity event** (needs the Steam lock, read-only probe): build one `AchievementUnlocked` event for a
-  shortcut through `CActivityDay.AddAchievementEvent` (or its constructor) in the live client and record the fields it
-  needs. Write the trace into `steam-components.md` § Activity feed.
-- **0.6 Store data for a store-only game.** For Alan Wake 2 (Epic) and one Xbox-only game: what Epic's own catalog gives
-  without a sign-in compared with egdata.app, and what Microsoft's display catalog gives (title, description, developer,
-  publisher, release date, key art, logo, screenshots, trailers and their format). Pick the source per store (decision 3).
-- **0.7 Rate limits and terms.** Note each API's limits (Xbox Live throttles per user) and the risk of using the Epic
-  Launcher's and Microsoft's public client ids in a published plugin. The user accepts or refuses that risk in the ADR.
-- **0.8 Write the ADR** (amends 0034, reverses the Epic/Xbox line of 0037, replaces the invariant) with the answers to
-  § 8, then one executable plan per phase.
+- **0.1 Epic unlocks** (the user's question 1). Two paths, the cheapest first:
+  1. **Public profile, no sign-in.** The user sets their Epic profile's achievements to public (Epic account → privacy)
+     and we re-run the § 4.2 profile and player queries with the account id from § 4.1. If they answer, Epic unlocks need
+     **no credentials at all**, only the id already on disk.
+  2. **Signed in.** If the profile must stay private, the same queries with a bearer token. Find a sign-in flow without
+     copying codes by hand (a device-code flow for a client we may use). Reading the Epic launcher's own saved session
+     is **not** allowed: it is the launcher's secret, not ours. If neither works, Epic stays **locked-only** (list with
+     rarity, no unlocks, like an unowned Steam game in ADR-0034) and no Epic sign-in is built.
+- **0.2 Xbox on a real install**: the shortcut shapes, `MicrosoftGame.config` fields, PFN → product → title id, and the
+  user's own sign-in and achievements call (with the user, device code).
+- **0.3 Epic edge cases**: an add-on manifest (`MainGameCatalogNamespace` set) is never taken as a game; a game with
+  several `BASE_GAME` offers; a launcher-link shortcut with no manifest (uninstalled).
+- **0.4 Epic ids against Steam ids** for three or more games on both stores. Rule: all ids equal → the Steam schema plus
+  the store's unlocks; any mismatch → the store's own schema for that game (never a match by display name).
+- **0.5 Steam's activity event** (Steam lock, read-only probe): build one `AchievementUnlocked` event for a shortcut
+  (`CActivityDay.AddAchievementEvent` or its constructor) and record the fields it needs; trace into
+  `steam-components.md` § Activity feed.
+- **0.6 Trailers in Steam's community viewer**: does it play a direct `.webm` or an HLS stream, or only YouTube ids
+  (`MediaItem.youtube`)? If only YouTube, store trailers are left out.
+- **0.7 `SteamClient.Apps.AddShortcut(appName, exe, dir, launchOptions)`** (in the SDK typings,
+  `@steambrew/client` `App.d.ts`; also `RemoveShortcut`, `SetShortcutName`, `SetShortcutLaunchOptions`,
+  `SetShortcutStartDir`, `SetShortcutIcon`): what it returns (the new appid?), whether `shortcuts.vdf` is written at once,
+  and whether the new appid is stable across restarts. On a throwaway test shortcut, removed afterwards, with the user's
+  go-ahead (it changes the library).
+- **0.8 Limits and terms**: each API's rate limits (Xbox Live throttles per user), egdata.app's terms, the risk of the
+  borrowed public client ids in a published plugin (decision 8 covers storage, not that risk; the ADR records it).
+- **0.9 The ADR**, then one executable plan per phase.
 
-### Phase 1: store identity
+### Phase 1a: store identity
 
-A copy is a fact about the shortcut, found locally and saved, like the Steam match. It does not replace the Steam match:
-a copy can have both.
-
-| Layer | Module | Change |
-| --- | --- | --- |
-| kernel | `kernel/record.ts` | `Identity` gains `store?: { kind: "epic" \| "xbox"; id: string; namespace?: string; titleId?: string; source: "manifest" \| "launch" \| "config" }` (additive). |
-| backend | `store_copies.lua` (new) | Pure readers: Epic manifests, the Epic launch link, Xbox `MicrosoftGame.config` and `shell:AppsFolder` targets. No network. |
-| backend | `resolve_identity.lua` | A new step, gated by its own check, that adds `store` to the part. It runs for every route, does not end resolution, and never touches the Steam match steps (service-resolver.md "How to add a source"). An Xbox package with no config file may need one catalog lookup (0.2): that is the only network call, cached. |
-| backend | `steam_store_emulators.lua` / `launches_emulator` | None. A store copy is never an emulator. |
-| tests | `tests/test_store_copies.lua` (new), `tests/test_identity.lua` | Fixtures copied from a real manifest (ids only), each launch shape, a DLC manifest ignored, no network. |
-| docs | `service-resolver.md` | The new step and the `store` field. |
-
-No surface and no Steam write in this phase.
-
-### Phase 2: achievements from Xbox and Epic
+A copy is a fact about the shortcut, found locally and saved, like the Steam match. A copy can have both.
 
 | Layer | Module | Change |
 | --- | --- | --- |
-| backend | `xbox_live.lua` (new) | Device-code sign-in, token refresh, the Xbox Live token chain, `achievements(titleId)` → schema and unlocks with `unlockedAt` (`progression.timeUnlocked`). Tokens in `<data dir>/accounts/xbox.json`; no token or code in a log line. |
-| backend | `epic_store.lua` (new) | egdata.app (or Epic's catalog, 0.6) schema by sandbox; unlocks only if 0.3 says yes. |
-| backend | `ach_service.lua` | Two `SOURCES` rows, `xbox` and `epic`, `supports` = `ctx.store.kind` (cheap, no request). For a copy that is also Steam-matched: the `steam` row keeps the schema, and the store's unlocks are laid over it by id when 0.4 allows; otherwise the store's own schema. |
+| kernel | `kernel/record.ts` | `Identity` gains `store?: { kind: "epic" \| "xbox"; namespace?: string; itemId?: string; offerId?: string; appName?: string; productId?: string; titleId?: string; pfn?: string; source: "manifest" \| "launch-link" \| "config" \| "package" }` (additive). |
+| backend | `store_epic_local.lua`, `store_xbox_local.lua` (new) | Pure readers of § 4.1 and § 4.4 (manifests, `LauncherInstalled.dat`, `catcache.bin`, `.GamingRoot`, `MicrosoftGame.config`); paths discovered, never hardcoded (ADR-0011). No network. |
+| backend | `resolve_identity.lua` | A new step, gated by its own check, that adds `store`. It runs for every route, never ends resolution and never touches the Steam steps (service-resolver.md "How to add a source"). The only network calls: Epic `catalogOffers` (offer id) and Xbox PFN lookup (product and title id), cached with the identity. |
+| tests | `tests/test_store_local.lua` (new), `tests/test_identity.lua` | Fixtures of each file shape (ids only), each shortcut shape, an add-on ignored. A census for the live install (plugins.md § 5): count manifests with a naive scan, never hardcode. |
+| docs | `service-resolver.md`, `knowledgebase.md` (file formats of § 4.1 and § 4.4) | — |
+
+### Phase 1b: Third-party section and auto-add
+
+| Layer | Module | Change |
+| --- | --- | --- |
+| settings | `settings/panels/third-party.tsx` (new) | Section "Third-party": per store a block with what was found ("4 Epic games installed, 3 in your library"), the **Auto-add installed games** toggle, and the account (Xbox sign-in with the device code; Epic only if 0.1 needs it). Guardrail 18 layout, `CredentialsNote`. |
+| backend | `store_installed.lua` (new) | The installed list per store (reuses Phase 1a's readers) and which are already shortcuts (by exe, install folder or launch link). |
+| app | `app/store-sync.ts` (new) | With the toggle on, at start-up and when the section opens: add a shortcut for each installed game that has none. Launch through the store's own link (`com.epicgames.launcher://apps/<AppName>?action=launch&silent=true`; `shell:AppsFolder\<PFN>!<AppId>`) so the launcher handles updates and its overlay runs. Remembers what it added. |
+| surfaces | `surfaces/library-shortcuts/` (new) | The only writer of `SteamClient.Apps.AddShortcut` / `SetShortcut*` (a new Steam target, its own kill switch and `touches`). |
+
+Open, for the ADR: whether a game uninstalled from the store loses its shortcut (proposed: never remove automatically;
+the section lists it), the default collection for added games (proposed: one per store, e.g. "Epic Games", so ADR-0036's
+routing applies), and that the toggle is off by default.
+
+### Phase 2: achievements (Xbox first, then Epic)
+
+| Layer | Module | Change |
+| --- | --- | --- |
+| backend | `xbox_live.lua` (new) | Device-code sign-in, refresh, the token chain (§ 4.6), `achievements(titleId)` → schema and unlocks with `unlockedAt`; `titlehub` to skip unchanged games. Tokens through `web_config` (decision 8). |
+| backend | `epic_store.lua` (new) | The schema from `productAchievementsRecordBySandbox`; unlocks by the path 0.1 found, or none (locked-only). |
+| backend | `ach_service.lua` | `xbox` and `epic` rows in `SOURCES`, `supports` = `ctx.store.kind` (no request). A Steam-matched copy: the `steam` schema plus the store's unlocks when 0.4 allows, else the store's schema. |
 | backend | `fresh_policy.lua` | A TTL for store unlocks (e.g. 15 min on page open; `force` at quit). Never polled while the game runs (ADR-0007). |
-| backend | `achievements_reset.lua` | `xbox` and `epic` listed as not resettable, with the store's page as the "reset by hand" link (like RetroAchievements, ADR-0054). |
-| app | `app/achievements.ts` | For a store copy: `ensure` on view and on `shortcut.quit`; **no Flow C polling** and no launch toast (decision 4). New unlocks found by a sync go into the record and the Post-Game Summary, but emit no toast event: a separate event (`achievements.synced`) or a flag on `achievements.unlocked` that the `toasts` surface ignores (the architect picks one, keeping the `toasts` surface unchanged if possible). |
-| settings | `settings/panels/achievements.tsx` | An "Xbox account" block (sign in: shows the code and `microsoft.com/link`, polls; sign out), and an Epic one only if 0.3 says yes. Guardrail 18: `ButtonRow`, `CredentialsNote`, no diagnostics. |
+| backend | `achievements_reset.lua` | No source row for `xbox` / `epic`, and the shortcut is reported as **not resettable** (decision 7). |
+| app | `app/achievements.ts` | Store copy: `ensure` on view and on `shortcut.quit`; no Flow C polling, no launch toast. New unlocks from a sync go into the record and the Post-Game Summary but never into a toast (a separate `achievements.synced` event, or a flag the `toasts` surface ignores; the architect picks, keeping `toasts` unchanged if possible). |
 | ports | `ports/backend.ts` | The sign-in RPCs. |
-| tests | `tests/test_ach_service.lua`, `tests/app-achievements.test.ts` | Source selection, the overlay by id, a sync emits no toast, no Flow C for a store copy. |
-| docs | `service-achievements.md`, `settings.md`, `rpc.md` | Rows for both sources; the invariant replaced. |
+| tests | `tests/test_ach_service.lua`, `tests/app-achievements.test.ts` | Source selection, the overlay by id, a sync never toasts, no Flow C for a store copy, not resettable. |
+| docs | `service-achievements.md`, `settings.md`, `rpc.md` | The invariant replaced. |
 
-Steam targets: none new. The `achievements` surface already fills `AppDetailsStore`, `AchievementsFullStore` and the
-progress cache from the record.
+**enhanced-notifications** (decision 7): its Reset Achievements dropdown leaves out a game that steam-cartridges reports
+as a store copy. steam-cartridges exposes that through its public API (for example `achievementResetSources` answering
+`{ resettable: false }`), and enhanced-notifications filters on it. That is a change in both plugins: the shared field
+is decided in the ADR, and each plugin's architecture doc is updated.
 
-enhanced-notifications: unchanged. Its achievement banner only answers our `achievements.unlocked` toasts, which a sync
-does not send.
-
-### Phase 3: Activity feed
-
-Unlocks with a time become Steam's own `AchievementUnlocked` events, bucketed by day next to the captures. This applies to
-**every** source that stores `unlockedAt` (RetroAchievements, the emulator files, Xbox, Epic), not only to store copies.
+### Phase 3: Activity feed from every source (decision 5)
 
 | Layer | Module | Change |
 | --- | --- | --- |
-| domain | `domain/activity-achievements.ts` (new, pure) | Unlocks → per-day groups (local midnight), newest first; tests. |
-| surfaces | `surfaces/captures/activity.ts` | Adds the achievement events for the record. The captures surface already owns `AppActivityStore.m_mapAppActivity`; one owner per Steam target, so no new surface. Its `touches` gains the event constructor from 0.5 if it is new. Idempotent (guardrail 17.2). |
-| docs | `surfaces.md`, `steam-components.md` | The new event, the trace from 0.5. |
+| domain | `domain/activity-achievements.ts` (new, pure) | Unlocks with a time → per-day groups (local midnight), newest first; tests. |
+| surfaces | `surfaces/captures/activity.ts` | Adds the achievement events. The captures surface already owns `AppActivityStore.m_mapAppActivity` (one owner per target, no new surface); `touches` gains the event constructor from 0.5 if new. Idempotent (guardrail 17.2). |
+| docs | `surfaces.md`, `steam-components.md` | — |
 
-A Steam-matched copy already shows the native app's activity (ADR-0037: friends' unlocks of the Steam game). The user's
-own store unlocks join it, marked as the shortcut's.
+### Phase 4: store data for a game not on Steam (decisions 2 and 3)
 
-### Phase 4: store data for a game not on Steam
-
-Only when the resolver finds **no** Steam match (decision 2).
+Only when the resolver finds **no** Steam match.
 
 | Layer | Module | Change |
 | --- | --- | --- |
-| backend | `metadata_service.lua` | A new tier after the Steam tier and **before IGDB** (the store is the game's own publisher data): `ctx.identity.store` present, no native match → the store source → persisted in `library_metadata.json` with `source = "epic"` or `"xbox"`. The order is a user decision (§ 8 question 3). |
-| backend | `epic_store.lua`, `xbox_catalog.lua` (new) | `to_metadata` for each store: description, developers, publishers, release date; Xbox `Categories` / Epic tags to player badges only when exact. |
-| backend | `art_service.lua` | Store key art as a source behind SteamGridDB for hero, capsule and logo where the store's image fits the slot (Epic `DieselStoreFrontWide`, `OfferImageTall`, `DieselGameBoxLogo`; Xbox `SuperHeroArt`, `Poster`). |
-| domain | `domain/routing` | The store tier is a fetch gate like the web tier (guardrail 14: it never hides local data). |
-| docs | `service-metadata.md`, `service-artwork.md` | The tier and the image mapping. |
+| backend | `metadata_service.lua` | A store tier after the Steam tier and **before IGDB**: `identity.store` and no native match → the store → persisted in `library_metadata.json` with `source = "epic"` / `"xbox"`; then IGDB, then ScreenScraper, as today. Epic: `catcache.bin` first when it has the namespace (offline), else `catalogOffer`. |
+| backend | `epic_store.lua`, `xbox_catalog.lua` | `to_metadata`: description, developers, publishers, release date; player badges only from exact features (Epic tag `Single Player`; Xbox `SinglePlayer`, `XblOnlineCoop`, `XblOnlineMultiPlayer` …), never guessed. |
+| backend | `art_service.lua` | Store art behind SteamGridDB where it fits the slot (Epic `DieselStoreFrontWide` / `DieselGameBox` hero, `OfferImageTall` / `DieselGameBoxTall` capsule; Xbox `SuperHeroArt`, `Poster`, `Logo` only as a last resort). |
+| domain | `domain/routing` | The store tier is a fetch gate like the web tier (guardrail 14). |
 
-### Phase 5: Community tab for a game not on Steam
+### Phase 5: Community tab for a game not on Steam (decisions 2 and 3)
 
-A Steam-matched copy keeps Steam's own community content (ADR-0038, unchanged). For a store-only game:
+A Steam-matched copy keeps Steam's own community content (ADR-0038). For a store-only game: the store first, then IGDB,
+then ScreenScraper.
 
 | Layer | Module | Change |
 | --- | --- | --- |
 | kernel | `kernel/record.ts` | `MediaItem.source` gains `"epic"` and `"xbox"`. |
-| backend | `media_service.lua` | A store source: the store's screenshots as `screenshot` cards (public URLs, like IGDB's). Order with IGDB is § 8 question 4. |
-| — | Videos | Steam's viewer plays YouTube ids (`MediaItem.youtube`). Store trailers are MP4 files, so they are **not** shown unless 0.6 finds a YouTube id or the viewer plays a direct URL (a separate probe). |
-| docs | `service-media.md` | The source. |
+| backend | `media_service.lua` | A store source ahead of IGDB: Epic `featuredMedia`, Xbox `Screenshot` images as `screenshot` cards (public URLs). Trailers only if 0.6 says the viewer plays them (Epic `.webm` through egdata.app, Xbox HLS). |
+| domain | `domain/community-media.ts` | The card order: store, IGDB, ScreenScraper. |
 
 ## 6. Tests and live verification (all phases)
 
-- Offline: `npm run check`, `npm test`, `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua`, the new Lua tests.
-  The census rule applies: no hardcoded count of Epic manifests or Xbox games (plugins.md § 5).
+- Offline: `npm run check`, `npm test`, `NSGA_STEAM_ROOT=C:/game/steam lua tests/test_backend.lua`, the new Lua tests;
+  census, not hardcoded counts.
 - Live, after `dev.ps1`, under the Steam lock: `node steam-health.mjs --wait 120`, `npm run test:live`, Routines 1-3 on
-  Jotunnslayer (Epic, Steam-matched) and on a store-only Epic game, and on an Xbox game when one is installed. Each
-  phase's plan lists its exact PASS lines.
-- By the user: sign in to Xbox from the settings panel (desktop and Big Picture), unlock an achievement in an Xbox game,
-  quit, and see it in Steam's achievement panel, the Post-Game Summary and the Activity feed, with no toast from us.
+  Jotunnslayer (Epic, Steam-matched), a store-only Epic game, and an Xbox game when one is installed.
+- By the user: the Third-party section (desktop and Big Picture), Xbox sign-in, an unlock in an Xbox game, quit, and
+  the unlock in Steam's achievement panel, Post-Game Summary and Activity, with no toast from us; Reset Achievements does
+  not list the game.
 
-## 7. Rules for every phase (the architect re-checks each)
+## 7. Rules for every phase
 
-- Guardrails 2 (hot paths O(1)), 5 (store stubs kept), 14 (a gate never hides what was shown), 15 (no check weakened),
-  17 (no work from a render; idempotent writes), 18 (settings layout), 20 (`require` every module) of
-  [plugins.md](../plugins.md).
-- A source fails silently (ADR-0014): no store data, no account, a 429 → the page as today.
-- Tokens: written only by the account module, never logged, never sent anywhere but the store's own hosts; removed by
-  sign-out. Device codes are shown to the user, never logged.
-- Respect the APIs (ADR-0007): cache, no polling while a game runs, a descriptive `User-Agent` where the API allows.
+- plugins.md guardrails 2, 5, 14, 15, 17, 18, 20.
+- A source fails silently (ADR-0014): no store data, no account, a 403 or 429 → the page as today.
+- Credentials (decision 8): only `web_config` reads or writes them; never in a log line, a diagnostic or the record;
+  sent only to the store's own hosts; removed on sign-out. A device code is shown, never logged.
+- Respect the APIs (ADR-0007): cache, no polling while a game runs, a descriptive `User-Agent`.
 
-## 8. Questions for the user (answer before step 0.8)
+## 8. Questions left for the user
 
-1. **Epic sign-in.** If Epic gives the user's unlocks (0.3), its sign-in is, in game-data-linker's way, a code copied from a
-   browser page (whether Epic offers a device-code flow to a client we may use is part of 0.3). Is that acceptable as the one manual step, or should Epic stay
-   locked-only?
-2. **Client-id risk** (0.7). Accept borrowing the Epic Launcher's and Microsoft's public client ids in a published plugin?
-3. **Game Info order for a store-only game:** the store first, then IGDB, then ScreenScraper (proposed), or IGDB first?
-4. **Community order for a store-only game:** IGDB (it has YouTube trailers) then the store's screenshots (proposed), or
-   the store first?
-5. **Activity for every source** (Phase 3): also show RetroAchievements and emulator unlocks in the feed (proposed), or
-   only store copies?
+1. **Epic profile privacy** (0.1): would you set your Epic profile's achievements to public for the test? If that works,
+   Epic needs no sign-in at all.
+2. **Auto-add** (Phase 1b): off by default; never remove a shortcut automatically; one collection per store. Agree?
+3. **Xbox test game** (0.2): can you install one small Xbox PC game (Game Pass) for the detection and sign-in tests?
 
 ## 9. Future considerations (not scheduled)
 
-- **Recording a store unlock as it happens** (enhanced-notifications). Decision 4 means we learn about Xbox and Epic
-  unlocks only after a sync, too late to capture the moment. Ideas to research later, each read-only and passive
-  (service-achievements.md invariant 2: no injection into games):
+- **Recording a store unlock as it happens** (enhanced-notifications). A sync learns of an unlock too late to capture the
+  moment. To research later, passive only (no injection into games):
   - Xbox: Game Bar's unlock toast may go through Windows' notification platform; a `UserNotificationListener` reader
-    (the "Windows Notification Listen" channel in service-achievements.md § 1) could see it and ask Steam for a
-    screenshot (`SteamClient.Screenshots` / the recording API) at once.
-  - Epic: the overlay draws inside the game, not through Windows. A game's EOS log lines, if any, or a short sync loop
-    while the game runs (only if the API's limits allow it, which ADR-0007 currently forbids).
-  - Either way the capture goes into Steam's own screenshots for the shortcut, so the existing captures pipeline shows
-    it. A toast stays off (decision 4).
-- **GOG Galaxy** fits the same shape (identity from Galaxy's local database, unlocks from its `UserAchievements` table,
-  no network). service-achievements.md § 1 already names the table.
+    could see it and ask Steam for a screenshot at once.
+  - Epic: its overlay draws inside the game, not through Windows; a game's EOS log lines, if any, or a short sync loop
+    while it runs (only if the API's limits allow; ADR-0007 forbids it today).
+  - The capture goes into Steam's own screenshots for the shortcut, so the captures pipeline shows it. No toast.
+- **Playtime** from Xbox `userstats` and Epic's library service.
+- **GOG Galaxy** fits the same shape (identity and unlocks from Galaxy's local database, no network).

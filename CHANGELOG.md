@@ -7,6 +7,15 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Epic and Xbox games: research round 1 (2026-10-02, no code)**: at the user's request, plan updated with the user's
+  decisions (Third-party section with auto-add, not listed for reset, store then IGDB then ScreenScraper, activity from
+  every source, credentials through `web_config`). Found: Epic's own store GraphQL (`store.epicgames.com/graphql`)
+  answers without a sign-in with the achievement list (`productAchievementsRecordBySandbox`), a namespace's offers
+  (`catalogOffers`) and full offer data with tags and screenshots (`catalogOffer`); per-player unlocks are 403 /
+  `records: null` anonymously. Epic's `catcache.bin` (base64 JSON) holds installed games' catalog data offline, and
+  `Saved/Data/<id>.dat` names the account id. egdata.app adds trailers as `.webm` files. Microsoft's display catalog
+  maps a package family name or Xbox title id to the product, with images, trailers (HLS/DASH) and attributes that map
+  to Steam categories. `.GamingRoot` is `RGBX`, a count, then UTF-16 folder paths. No Xbox game is installed here.
 - **Epic and Xbox copies: investigation and umbrella plan (2026-10-02, no code)**: at the user's request.
   [docs/plans/steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md). Read
   game-data-linker's Epic and Xbox code: Epic game data and achievement lists come from egdata.app (no sign-in, never the
