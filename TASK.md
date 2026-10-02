@@ -16,6 +16,15 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
+Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
+(RUNE)" toggle, popup size) on desktop and in Big Picture; a real reset with the toggle on, then launch the game and
+confirm nothing comes back (the backup is `achievements.ini.bak-<date>` next to the file). (2) **RPCS3 and shadPS4,
+untested on real files** (none on this machine): with a game that has trophies, check the source is listed with the
+right count, reset with the toggle on, and confirm the emulator shows the trophies locked and still loads the file
+(RPCS3: `TROPUSR.DAT`, entries 0x70 bytes; shadPS4: `<home>/<user>/trophy/<npcommid>.xml`; shadNet may sync back).
+The readers changed too (`ps3_trophies.parse_tropusr`, `ps4_trophies.find_save_files`): check detected unlocks match.
+
 **steam-cartridges "Achievements Enabled" launch toast never shows (found 2026-10-02, the user's Wuchang report): not
 fixed, needs a decision.** `surfaces/toasts/launch.ts` calls `NotificationStore.ProcessNotification(notif)` with one
 argument; Steam's is `ProcessNotification(config, notification, kind)` and returns before showing anything (module

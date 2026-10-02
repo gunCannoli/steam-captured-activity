@@ -46,6 +46,7 @@ SteamStoreRecordIcon     = STORE_RPC.SteamStoreRecordIcon
 -- Native Achievements subsystem (P5).
 CartridgesAchievementsUnlock       = ACH_RPC.CartridgesAchievementsUnlock
 CartridgesAchievementsReset        = ACH_RPC.CartridgesAchievementsReset
+CartridgesAchievementsResetSources = ACH_RPC.CartridgesAchievementsResetSources
 CartridgesAchievementsGetRetroStatus = ACH_RPC.CartridgesAchievementsGetRetroStatus
 
 -- Record facade (migration M4b; M5a adds GetAllRecords; M10 removed the uncalled GetGameRecord).

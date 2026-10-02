@@ -4,6 +4,24 @@
 import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, OwnedCandidate, Part, RecordPart, Route, StoreApplied } from "../kernel/record";
 import { call } from "./transport";
 
+/** A place a shortcut's unlocks come from, as the backend lists it (achievements_reset.lua). */
+export interface AchievementResetSource {
+    /** "local" (Steam emulator saves), "rpcs3", "shadps4" or "retroachievements". */
+    id: string;
+    label: string;
+    resettable: boolean;
+    unlocked: number;
+    note?: string;
+}
+
+/** What a reset did to one source. */
+export interface ResetSourceResult {
+    id: string;
+    ok: boolean;
+    cleared: number;
+    error?: string;
+}
+
 export interface ProviderStatus {
     has_twitch: boolean;
     has_sgdb: boolean;
@@ -145,10 +163,18 @@ export const backend = {
             { shortcut_appid: appid, achievement_id: achievementId, unlock_time: unlockTime },
         );
     },
-    resetAchievements(appid: number) {
-        return call<{ ok: boolean; unlocks: Record<string, AchievementUnlockRecord>; error?: string }>(
+    /** Clears the plugin's unlocks and the chosen sources' files, each backed up first (ADR-0054). */
+    resetAchievements(appid: number, opts: { native?: number; sources?: string[]; title?: string } = {}) {
+        return call<{ ok: boolean; sources?: ResetSourceResult[] | Record<string, never>; error?: string }>(
             "CartridgesAchievementsReset",
-            { shortcut_appid: appid },
+            { shortcut_appid: appid, native_appid: opts.native ?? 0, sources: opts.sources ?? [], title: opts.title ?? "" },
+        );
+    },
+    /** Where a shortcut's unlocks come from besides the plugin's store, and which can be reset. */
+    resetAchievementSources(appid: number, native = 0) {
+        return call<{ sources?: AchievementResetSource[] | Record<string, never>; error?: string }>(
+            "CartridgesAchievementsResetSources",
+            { shortcut_appid: appid, native_appid: native },
         );
     },
     /** Shortcuts not seen before (M7a). The first call seeds the library and returns none. */

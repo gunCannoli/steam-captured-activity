@@ -1,4 +1,4 @@
-import type { ResetCandidate, ResetResult } from '../../kernel/reset.ts';
+import type { ResetCandidate, ResetResult, ResetSourceOutcome } from '../../kernel/reset.ts';
 
 /**
  * Reset Achievements decisions (pure). A Steam game is cleared one achievement at a time with Steam's own console
@@ -32,15 +32,17 @@ export interface ResetDeps {
     exec(command: string): void;
     /** Time for Steam to apply the commands before they are read back. */
     settle(): Promise<void>;
-    resetShortcut(appid: number): Promise<boolean>;
+    /** steam-cartridges' reset, with the ids of the sources whose files are cleared too (ADR-0054). */
+    resetShortcut(appid: number, sources: string[]): Promise<{ ok: boolean; sources: ResetSourceOutcome[] }>;
 }
 
-export function createReset(deps: ResetDeps): { reset(c: ResetCandidate): Promise<ResetResult> } {
+export function createReset(deps: ResetDeps): { reset(c: ResetCandidate, sources?: string[]): Promise<ResetResult> } {
     return {
-        async reset(c) {
+        async reset(c, sources = []) {
             if (c.kind === 'shortcut') {
-                return (await deps.resetShortcut(c.appid))
-                    ? { ok: true, cleared: c.unlocked, remaining: 0, skipped: 0 }
+                const r = await deps.resetShortcut(c.appid, sources);
+                return r.ok
+                    ? { ok: true, cleared: c.unlocked, remaining: 0, skipped: 0, sources: r.sources }
                     : { ok: false, reason: 'steam-cartridges could not reset this game.' };
             }
             const before = await deps.achievements(c.appid);

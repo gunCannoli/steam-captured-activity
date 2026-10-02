@@ -18,8 +18,44 @@ local store  = require("achievements_store")
 
 local M = {}
 
---- Track log file byte offsets for incremental tailing.
-local log_offsets = {}
+local files  = require("achievement_files")
+
+--- How far each log has been read (byte offset by path), kept on disk so a Steam restart does
+--- not read a whole log again and bring back unlocks a reset cleared (ADR-0054). Loaded on first
+--- use; written only when it changed. M._offsets_path overrides the file (tests).
+local log_offsets = nil
+local offsets_dirty = false
+M._offsets_path = nil
+
+local function offsets_path()
+  return M._offsets_path or require("data_dir").file("log_offsets.json")
+end
+
+local function load_offsets()
+  if log_offsets then return end
+  log_offsets = {}
+  local f = io.open(offsets_path(), "rb")
+  if not f then return end
+  local ok, data = pcall(json.decode, f:read("*a") or "")
+  f:close()
+  if ok and type(data) == "table" then
+    for k, v in pairs(data) do
+      if type(k) == "string" and tonumber(v) then log_offsets[k] = tonumber(v) end
+    end
+  end
+end
+
+local function save_offsets()
+  if not offsets_dirty then return end
+  offsets_dirty = false
+  local f = io.open(offsets_path(), "wb")
+  if not f then return end
+  f:write(json.encode(log_offsets or {}))
+  f:close()
+end
+
+--- Tests: forget the offsets held in memory.
+function M._reset_offsets() log_offsets, offsets_dirty = nil, false end
 
 local function trim(s)
   return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", ""))
@@ -186,6 +222,7 @@ function M.scan_log_for_unlocks(filepath)
   local f = io.open(filepath, "rb")
   if not f then return {} end
 
+  load_offsets()
   local current_size = f:seek("end")
   local last_offset = log_offsets[filepath] or 0
 
@@ -196,7 +233,11 @@ function M.scan_log_for_unlocks(filepath)
 
   f:seek("set", last_offset)
   local new_bytes = f:read("*a")
-  log_offsets[filepath] = f:seek()
+  local read_to = f:seek()
+  if log_offsets[filepath] ~= read_to then
+    log_offsets[filepath] = read_to
+    offsets_dirty = true
+  end
   f:close()
 
   if not new_bytes or #new_bytes == 0 then
@@ -269,128 +310,80 @@ local function as_array(list)
   return list
 end
 
-function M.check_unlocks(shortcut_appid, native_appid, game_title)
-  local s_appid = tonumber(shortcut_appid) or 0
-  local n_appid = tonumber(native_appid) or 0
-  if s_appid <= 0 then
-    return { new_unlocks = as_array({}) }
-  end
+-- ---------- where a shortcut's unlocks can come from (shared with achievements_reset.lua) ----------
 
-  local st = store.get_state(s_appid)
-  if not st or not st.schema or not st.schema.achievements then
-    -- One resolver for every source, so a PC game with no trophy dir or ROM path stays silent (K2).
-    local _, raw = require("ach_service")._resolve(s_appid, { native = n_appid })
-    st = raw
+--- The shortcut's shortcuts.vdf entry and its executable's folder ("" when unknown).
+function M.shortcut_entry(s_appid)
+  local paths = require("steam_paths").resolve()
+  if not (paths and paths.shortcuts) then return nil, "" end
+  for _, sc in ipairs(require("shortcuts").parse(paths.shortcuts) or {}) do
+    if sc.appid == s_appid and sc.exe then
+      local s = tostring(sc.exe):gsub('^"(.*)"$', "%1"):gsub("\\", "/")
+      return sc, (s:match("^(.*)/[^/]+$") or "")
+    end
   end
-  if not st or not st.schema or not st.schema.achievements then
-    return { new_unlocks = as_array({}) }
-  end
+  return nil, ""
+end
 
-  local schema_achievements = st.schema.achievements
-  local existing_unlocks = st.unlocks or {}
-  local candidate_unlocks = {}
-
+--- Steam emulator save files for a Steam appid, whether or not they exist: { path, emulator }.
+function M.emulator_files(n_appid)
+  n_appid = tonumber(n_appid) or 0
+  if n_appid <= 0 then return {} end
   local public_dir = os.getenv("PUBLIC") or "C:\\Users\\Public"
+  local appdata = os.getenv("APPDATA") or ""
+  local id = tostring(math.floor(n_appid))
+  return {
+    { path = public_dir .. "\\Documents\\Steam\\CODEX\\" .. id .. "\\achievements.ini", emulator = "CODEX" },
+    { path = appdata .. "\\Steam\\CODEX\\" .. id .. "\\achievements.ini", emulator = "CODEX" },
+    { path = public_dir .. "\\Documents\\Steam\\RUNE\\" .. id .. "\\achievements.ini", emulator = "RUNE" },
+    { path = appdata .. "\\Steam\\RUNE\\" .. id .. "\\achievements.ini", emulator = "RUNE" },
+    { path = public_dir .. "\\Documents\\Steam\\" .. id .. "\\achievements.ini", emulator = "GSE" },
+    { path = appdata .. "\\Steam\\" .. id .. "\\achievements.ini", emulator = "GSE" },
+    { path = appdata .. "\\Goldberg SteamEmu Saves\\" .. id .. "\\achievements.json", emulator = "Goldberg" },
+  }
+end
+
+--- The trophy files holding the unlocks of an RPCS3 or shadPS4 shortcut that exist: RPCS3's
+--- TROPUSR.DAT, or shadPS4's trophy XML (its per-user save file, or the older in-folder TROP*.XML).
+function M.trophy_files(schema, sc_match, exe_dir)
+  local out = {}
+  local cmd, opts = sc_match and sc_match.exe or exe_dir, sc_match and sc_match.launch_options
+  if schema and schema.ps3_title_id then
+    local dir = require("ps3_trophies").find_trophy_dir(cmd, opts)
+    if dir and file_exists(dir .. "/TROPUSR.DAT") then out[#out + 1] = dir .. "/TROPUSR.DAT" end
+  end
+  if schema and schema.ps4_title_id then
+    local ps4 = require("ps4_trophies")
+    for _, p in ipairs(ps4.find_save_files(ps4.find_trophy_dir(cmd, opts), schema.ps4_npcommid) or {}) do
+      out[#out + 1] = p
+    end
+  end
+  return out
+end
+
+--- Every log that may hold this game's unlocks and exists: emulator logs (next to the
+--- executable and in known install folders) and engine logs found from the game's title and
+--- its executable's project codename.
+function M.log_paths(game_title, sc_match, exe_dir)
   local appdata = os.getenv("APPDATA") or ""
   local localappdata = os.getenv("LOCALAPPDATA") or ""
   local userprofile = os.getenv("USERPROFILE") or ""
-
-  -- 1. Check Emulator INI / JSON Paths (if native_appid > 0)
-  if n_appid > 0 then
-    local emu_files = {
-      -- CODEX
-      public_dir .. "\\Documents\\Steam\\CODEX\\" .. tostring(n_appid) .. "\\achievements.ini",
-      appdata .. "\\Steam\\CODEX\\" .. tostring(n_appid) .. "\\achievements.ini",
-      -- RUNE
-      public_dir .. "\\Documents\\Steam\\RUNE\\" .. tostring(n_appid) .. "\\achievements.ini",
-      appdata .. "\\Steam\\RUNE\\" .. tostring(n_appid) .. "\\achievements.ini",
-      -- Generic / GSE
-      public_dir .. "\\Documents\\Steam\\" .. tostring(n_appid) .. "\\achievements.ini",
-      appdata .. "\\Steam\\" .. tostring(n_appid) .. "\\achievements.ini",
-      -- Goldberg JSON
-      appdata .. "\\Goldberg SteamEmu Saves\\" .. tostring(n_appid) .. "\\achievements.json",
-    }
-
-    for _, path in ipairs(emu_files) do
-      if file_exists(path) then
-        local content = read_file(path)
-        if content then
-          local parsed = path:match("%.json$")
-            and M.parse_goldberg_achievements(content)
-            or M.parse_ini_achievements(content)
-          for id, info in pairs(parsed) do
-            candidate_unlocks[id] = info
-          end
-        end
-      end
+  local out, seen = {}, {}
+  local function add(p)
+    if p and not seen[p] and file_exists(p) then
+      seen[p] = true
+      out[#out + 1] = p
     end
   end
-
-  -- 2. Check RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP, RPCS3 Runtime Logs & Trophies
-  local exe_dir = ""
-  local sc_match = nil
-  local steam_paths = require("steam_paths")
-  local shortcuts = require("shortcuts")
-  local sp_paths = steam_paths.resolve()
-  if sp_paths and sp_paths.shortcuts then
-    local list = shortcuts.parse(sp_paths.shortcuts) or {}
-    for _, sc in ipairs(list) do
-      if sc.appid == s_appid and sc.exe then
-        sc_match = sc
-        local s = tostring(sc.exe):gsub("\\", "/")
-        exe_dir = s:match("^(.*)/[^/]+$") or ""
-        break
-      end
+  exe_dir = exe_dir or ""
+  if #exe_dir > 0 then
+    for _, rel in ipairs({ "/duckstation.log", "/logs/duckstation.log", "/logs/retroarch.log", "/User/Logs/dolphin.log",
+        "/Logs/dolphin.log", "/logs/emulog.txt", "/emulog.txt", "/ppsspp.log", "/RPCS3.log", "/rpcs3.log",
+        "/user/log/shadps4.log", "/shadps4.log" }) do
+      add(exe_dir .. rel)
     end
   end
-
-  -- Check RPCS3 local TROPUSR.DAT if PS3 title
-  if st.schema.ps3_title_id then
-    local ps3 = require("ps3_trophies")
-    local trop_dir = ps3.find_trophy_dir(sc_match and sc_match.exe or exe_dir, sc_match and sc_match.launch_options)
-    if trop_dir then
-      local usr_path = trop_dir .. "/TROPUSR.DAT"
-      if file_exists(usr_path) then
-        local usr_data = read_file(usr_path)
-        local parsed = usr_data and ps3.parse_tropusr(usr_data) or {}
-        for id, info in pairs(parsed) do
-          candidate_unlocks[id] = info
-        end
-      end
-    end
-  end
-
-  -- Check shadPS4 local TROPUSR.DAT if PS4 title
-  if st.schema.ps4_title_id then
-    local ps4 = require("ps4_trophies")
-    local trop_dir = ps4.find_trophy_dir(sc_match and sc_match.exe or exe_dir, sc_match and sc_match.launch_options)
-    if trop_dir then
-      local usr_path = trop_dir .. "/TROPUSR.DAT"
-      if file_exists(usr_path) then
-        local usr_data = read_file(usr_path)
-        local parsed = usr_data and ps4.parse_tropusr(usr_data) or {}
-        for id, info in pairs(parsed) do
-          candidate_unlocks[id] = info
-        end
-      end
-    end
-  end
-
-  local emu_logs = {
-    -- Dynamic log path next to emulator exe
-    #exe_dir > 0 and (exe_dir .. "/duckstation.log"),
-    #exe_dir > 0 and (exe_dir .. "/logs/duckstation.log"),
-    #exe_dir > 0 and (exe_dir .. "/logs/retroarch.log"),
-    #exe_dir > 0 and (exe_dir .. "/User/Logs/dolphin.log"),
-    #exe_dir > 0 and (exe_dir .. "/Logs/dolphin.log"),
-    #exe_dir > 0 and (exe_dir .. "/logs/emulog.txt"),
-    #exe_dir > 0 and (exe_dir .. "/emulog.txt"),
-    #exe_dir > 0 and (exe_dir .. "/ppsspp.log"),
-    #exe_dir > 0 and (exe_dir .. "/RPCS3.log"),
-    #exe_dir > 0 and (exe_dir .. "/rpcs3.log"),
-    #exe_dir > 0 and (exe_dir .. "/user/log/shadps4.log"),
-    #exe_dir > 0 and (exe_dir .. "/shadps4.log"),
-    -- Standard known install locations
+  for _, p in ipairs({
     "C:\\emu\\RetroArch\\logs\\retroarch.log",
     appdata .. "\\RetroArch\\logs\\retroarch.log",
     "C:\\emu\\duckstation\\duckstation.log",
@@ -412,75 +405,116 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
     "C:\\emu\\shadps4\\user\\log\\shadps4.log",
     appdata .. "\\shadps4\\user\\log\\shadps4.log",
     localappdata .. "\\shadps4\\user\\log\\shadps4.log",
-  }
-  for _, logpath in ipairs(emu_logs) do
-    if logpath and file_exists(logpath) then
-      local detected = M.scan_log_for_unlocks(logpath)
-      for id, info in pairs(detected) do
-        candidate_unlocks[id] = info
-      end
-    end
+  }) do
+    add(p)
   end
 
-  -- 3. Check Engine Logs (Unity / Godot / Unreal) using both the Steam title
-  -- and, where available, the shortcut's executable-derived project codename.
-  -- Unreal Engine games are frequently distributed under an internal project
-  -- name distinct from their storefront title (e.g. "Project_Plague.exe" for
-  -- "WUCHANG: Fallen Feathers"), so title-only folder lookups miss them.
+  -- Engine logs. Unreal Engine games are often shipped under an internal project name distinct
+  -- from their store title ("Project_Plague.exe" for "WUCHANG: Fallen Feathers"), so the
+  -- executable's codename is tried too.
   local exe_path = sc_match and sc_match.exe or nil
-  if (game_title and #game_title > 0 or exe_path) and userprofile and #userprofile > 0 then
-    local possible_logs = {}
+  if (game_title and #game_title > 0 or exe_path) and #userprofile > 0 then
     local folder_candidates = M.get_possible_folder_names(game_title, exe_path)
-
     for _, name in ipairs(folder_candidates) do
-      possible_logs[#possible_logs + 1] = userprofile .. "\\AppData\\LocalLow\\" .. name .. "\\Player.log"
-      possible_logs[#possible_logs + 1] = appdata .. "\\Godot\\app_userdata\\" .. name .. "\\logs\\godot.log"
-      possible_logs[#possible_logs + 1] = localappdata .. "\\" .. name .. "\\Saved\\Logs\\" .. name .. ".log"
+      add(userprofile .. "\\AppData\\LocalLow\\" .. name .. "\\Player.log")
+      add(appdata .. "\\Godot\\app_userdata\\" .. name .. "\\logs\\godot.log")
+      add(localappdata .. "\\" .. name .. "\\Saved\\Logs\\" .. name .. ".log")
     end
-
-    for _, logpath in ipairs(possible_logs) do
-      if logpath and file_exists(logpath) then
-        local detected = M.scan_log_for_unlocks(logpath)
-        for id, info in pairs(detected) do
-          candidate_unlocks[id] = info
-        end
-      end
-    end
-
-    -- Fallback: if a Saved\Logs directory exists for a candidate but the
-    -- conventional "<Project>.log" filename doesn't match, tail the most
-    -- recently modified *.log file in that directory instead.
+    -- Fallback: a Saved\Logs folder without "<Project>.log": the most recently written *.log.
     local fs_ok, fs = pcall(require, "fs")
     if fs_ok and fs and fs.list and fs.is_directory then
       for _, name in ipairs(folder_candidates) do
         local log_dir = localappdata .. "\\" .. name .. "\\Saved\\Logs"
-        local exact = log_dir .. "\\" .. name .. ".log"
-        if not file_exists(exact) and fs.is_directory(log_dir) then
+        if not file_exists(log_dir .. "\\" .. name .. ".log") and fs.is_directory(log_dir) then
           local ok, entries = pcall(fs.list, log_dir)
-          if ok and entries then
-            local newest_path, newest_mtime = nil, -1
-            for _, entry in ipairs(entries) do
-              local ename = entry.name or entry.path
-              if ename and tostring(ename):match("%.[Ll][Oo][Gg]$") then
-                local full = entry.path or (log_dir .. "\\" .. ename)
-                local mtime = (fs.last_write_time and fs.last_write_time(full)) or 0
-                if mtime > newest_mtime then
-                  newest_mtime = mtime
-                  newest_path = full
-                end
-              end
-            end
-            if newest_path then
-              local detected = M.scan_log_for_unlocks(newest_path)
-              for id, info in pairs(detected) do
-                candidate_unlocks[id] = info
-              end
+          local newest_path, newest_mtime = nil, -1
+          for _, entry in ipairs(ok and entries or {}) do
+            local ename = entry.name or entry.path
+            if ename and tostring(ename):match("%.[Ll][Oo][Gg]$") then
+              local full = entry.path or (log_dir .. "\\" .. ename)
+              local mtime = (fs.last_write_time and fs.last_write_time(full)) or 0
+              if mtime > newest_mtime then newest_mtime, newest_path = mtime, full end
             end
           end
+          add(newest_path)
         end
       end
     end
   end
+  return out
+end
+
+--- Marks every log of this shortcut as read up to its current end, so lines written before a
+--- reset never unlock again (ADR-0054). Saved at once.
+function M.mark_logs_read(s_appid, game_title)
+  local sc_match, exe_dir = M.shortcut_entry(tonumber(s_appid) or 0)
+  load_offsets()
+  for _, p in ipairs(M.log_paths(game_title, sc_match, exe_dir)) do
+    local f = io.open(p, "rb")
+    if f then
+      log_offsets[p] = f:seek("end")
+      offsets_dirty = true
+      f:close()
+    end
+  end
+  save_offsets()
+end
+
+function M.check_unlocks(shortcut_appid, native_appid, game_title)
+  local s_appid = tonumber(shortcut_appid) or 0
+  local n_appid = tonumber(native_appid) or 0
+  if s_appid <= 0 then
+    return { new_unlocks = as_array({}) }
+  end
+
+  local st = store.get_state(s_appid)
+  if not st or not st.schema or not st.schema.achievements then
+    -- One resolver for every source, so a PC game with no trophy dir or ROM path stays silent (K2).
+    local _, raw = require("ach_service")._resolve(s_appid, { native = n_appid })
+    st = raw
+  end
+  if not st or not st.schema or not st.schema.achievements then
+    return { new_unlocks = as_array({}) }
+  end
+
+  local schema_achievements = st.schema.achievements
+  local existing_unlocks = st.unlocks or {}
+  local candidate_unlocks = {}
+
+  local sc_match, exe_dir = M.shortcut_entry(s_appid)
+
+  -- 1. Steam emulator INI / JSON files (if native_appid > 0)
+  for _, f in ipairs(M.emulator_files(n_appid)) do
+    if file_exists(f.path) then
+      local content = read_file(f.path)
+      if content then
+        local parsed = f.path:match("%.json$")
+          and M.parse_goldberg_achievements(content)
+          or M.parse_ini_achievements(content)
+        for id, info in pairs(parsed) do
+          candidate_unlocks[id] = info
+        end
+      end
+    end
+  end
+
+  -- 2. RPCS3 / shadPS4 trophy files
+  for _, path in ipairs(M.trophy_files(st.schema, sc_match, exe_dir)) do
+    local data = read_file(path)
+    local parsed = data and (path:match("%.[Dd][Aa][Tt]$") and files.rpcs3_unlocked(data) or files.shadps4_unlocked(data)) or {}
+    for id, info in pairs(parsed) do
+      candidate_unlocks[id] = info
+    end
+  end
+
+  -- 3. Emulator and engine (Unity / Godot / Unreal) logs, read from where the last check stopped
+  for _, logpath in ipairs(M.log_paths(game_title, sc_match, exe_dir)) do
+    local detected = M.scan_log_for_unlocks(logpath)
+    for id, info in pairs(detected) do
+      candidate_unlocks[id] = info
+    end
+  end
+  save_offsets()
 
   -- 4. Match Candidates Against Schema & Record Unlocks
   local new_unlocks = {}

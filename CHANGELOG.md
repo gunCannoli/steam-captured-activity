@@ -7,6 +7,20 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Reset Achievements reaches the emulator and trophy files (ADR-0054, 2026-10-02)**: at the user's request. Found:
+  a reset of a non-Steam game came back from the Steam emulator's `achievements.ini` (Wuchang, RUNE) and from logs
+  re-read after each restart. steam-cartridges: `achievements_reset.lua` (`sources`, `reset`), `achievement_files.lua`
+  (pure clearers: emulator INI, Goldberg JSON, RPCS3 `TROPUSR.DAT` after RPCS3's `LockTrophy`, shadPS4 XML), new RPC
+  `CartridgesAchievementsResetSources`, exports `achievementResetSources` / `resetAchievementsWithSources`; the
+  observer's path lists are shared functions and log positions persist (`log_offsets.json`); the RPCS3 / shadPS4 readers
+  follow the real formats (RPCS3's type-6 entries are 0x70 bytes, not the `entry_size` 0x60; shadPS4 keeps unlocks in
+  XML, not a `TROPUSR.DAT`). enhanced-notifications: the confirm popup lists the sources with an "Also reset ..."
+  toggle each (off by default) and a dynamic warning (`resetWarning`); RetroAchievements is listed as not resettable
+  (its API has no reset, confirmed in RAWeb's `dorequest.php`). Tests: steam-cartridges Lua 30 new, TS 272/272;
+  enhanced-notifications 163 (+4 warning tests; the known asset failure). Live: Wuchang lists "local achievements
+  (RUNE)" 2, Super Mario World RetroAchievements (not resettable); `achievements-reset.mjs` 10/10 (non-destructive),
+  steam-cartridges `test:live` 13/13, the observer finds 0 new for Wuchang and saves its log positions. No real reset
+  was run.
 - **enhanced-notifications: settings panel tweaks (ADR-0053, 2026-10-02)**: at the user's request. The General
   section's three switches are removed (`style.enabled`, `sound.enabled`, `duration.enabled`; a missing theme key is
   Steam's own, themes.md § Defaults); "Steam default" (`theme` = `<steam>`, no theme) is the first entry and the shipped

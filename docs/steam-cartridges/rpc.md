@@ -51,7 +51,8 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `SteamStoreSaveIcon` | `steam_store_rpc.lua` (→ `shortcut_icon.save`) | live | icon plan: store our copy of the library icon; refused unless still eligible |
 | `SteamStoreRecordIcon` | `steam_store_rpc.lua` (→ `steam_store_store.record_icon`) | live | icon plan: remember the icon the `artwork` surface set |
 | `CartridgesAchievementsUnlock` | `achievements_rpc.lua` | live | manual unlock |
-| `CartridgesAchievementsReset` | `achievements_rpc.lua` | live | reset local achievements |
+| `CartridgesAchievementsReset` | `achievements_rpc.lua` | live | reset a shortcut's achievements and, on request, its source files (`sources`, ADR-0054) |
+| `CartridgesAchievementsResetSources` | `achievements_rpc.lua` | live | where a shortcut's unlocks also live, and which can be reset |
 | `CartridgesAchievementsGetRetroStatus` | `achievements_rpc.lua` | live | RetroAchievements connection status |
 | `GetManualChunk` | `record_rpc.lua` (→ `media_service.manual_chunk`) | live | F2c: `app/manuals.ts` reads a ScreenScraper manual in 1 MiB base64 chunks (never the URL) |
 | `GetMediaImage` | `record_rpc.lua` (→ `media_service.image`) | live | F2: `app/media.ts` fetches one ScreenScraper image as base64 (never the URL). Replaced the unwired `GetGameMedia`, `GetGameManual`, `GetGameTrailers`, `GetGameCommunityLinks` (deleted) |
@@ -250,6 +251,7 @@ All stay public; other plugins and the CDP scripts reach them through `PLUGIN_LI
 | `clearSteamStore`, `setSteamStoreMapping`, `steamStoreState` | manual Steam Store mapping (CDP and the settings panel) |
 | `getLocalAchievements`, `getLocalSchema`, `dispatchAchievementToast` | read a shortcut's achievements; show a toast |
 | `initAchievements`, `loadAchievementsForApp`, `triggerAchievement`, `resetAchievements`, `checkObserverUnlocks`, `startAchievementsObserver` | achievements test hooks and manual control |
+| `achievementResetSources`, `resetAchievementsWithSources` | Reset Achievements with the emulator and trophy files (ADR-0054; enhanced-notifications) |
 | `registerSummaryProvider` (+ `SummaryContext`, `SummaryContribution`, `SummaryProvider`) | providers add lines to the Post-Game Summary |
 | `gameInfoRepairDiagnostics` | K6: how often Game Info was re-applied from Steam's overview rebuild (`viaTrigger`) or a render (`viaRender`, must stay 0) |
 | `jsxDiagnostics`, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks |

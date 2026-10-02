@@ -1,5 +1,5 @@
 import type { Surface } from '../../kernel/surface';
-import type { AchievementResetApi, ResetResult } from '../../kernel/reset';
+import type { AchievementResetApi, ResetResult, ResetSource, ResetSourceOutcome } from '../../kernel/reset';
 import { progressFor } from '../../steam/notification-store';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { buildCandidates, createReset, type AppFacts } from './reset';
@@ -18,6 +18,9 @@ interface AppOverviewLike {
 }
 interface Cartridges {
     resetAchievements(appid: number): Promise<boolean>;
+    /** Newer steam-cartridges (ADR-0054): where a shortcut's unlocks also live, and a reset that clears them too. */
+    achievementResetSources?(appid: number): Promise<ResetSource[]>;
+    resetAchievementsWithSources?(appid: number, sources: string[]): Promise<{ ok: boolean; sources: ResetSourceOutcome[] }>;
 }
 
 const steamConsole = (): SteamConsole | undefined => Reflect.get(globalThis, 'SteamClient')?.Console;
@@ -55,7 +58,13 @@ const engine = createReset({
     achievements: steamAchievements,
     exec: (command) => steamConsole()?.ExecCommand(command),
     settle: () => new Promise((resolve) => setTimeout(resolve, SETTLE_MS)),
-    resetShortcut: async (appid) => (await cartridges()?.resetAchievements(appid)) === true,
+    async resetShortcut(appid, sources) {
+        const c = cartridges();
+        if (!c) return { ok: false, sources: [] };
+        // An older steam-cartridges has no source files to clear: its plain reset.
+        if (typeof c.resetAchievementsWithSources !== 'function') return { ok: (await c.resetAchievements(appid)) === true, sources: [] };
+        return await c.resetAchievementsWithSources(appid, sources);
+    },
 });
 
 /** Handed to the settings panel by index.tsx (D7). Fail-open: an error is counted and reported to the user, never thrown. */
@@ -76,10 +85,20 @@ export const achievementReset: AchievementResetApi = {
             return [];
         }
     },
-    async reset(candidate): Promise<ResetResult> {
+    async sources(candidate): Promise<ResetSource[]> {
+        if (candidate.kind !== 'shortcut') return [];
+        try {
+            const list = await cartridges()?.achievementResetSources?.(candidate.appid);
+            return Array.isArray(list) ? list : [];
+        } catch (error) {
+            reportError('reset', error);
+            return [];
+        }
+    },
+    async reset(candidate, sources = []): Promise<ResetResult> {
         if (!achievementReset.available()) return { ok: false, reason: 'Reset Achievements is switched off.' };
         try {
-            return await engine.reset(candidate);
+            return await engine.reset(candidate, sources);
         } catch (error) {
             reportError('reset', error);
             return { ok: false, reason: 'Something went wrong; see the log.' };

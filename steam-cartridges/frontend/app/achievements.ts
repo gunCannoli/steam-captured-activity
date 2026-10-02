@@ -7,7 +7,7 @@ import { logger } from "../logger.ts";
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
 import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
-import type { backend as Backend } from "../ports/backend";
+import type { AchievementResetSource, backend as Backend, ResetSourceResult } from "../ports/backend";
 import { asList } from "../kernel/lists.ts";
 
 export type LaunchPolicy = "off" | "first_run" | "all_runs";
@@ -16,7 +16,7 @@ export type LaunchPolicy = "off" | "first_run" | "all_runs";
 const POLL_MS = 2000;
 
 export interface AchievementsDeps {
-    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "steamStoreGetMapping" | "getAllRecords">;
+    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "resetAchievementSources" | "steamStoreGetMapping" | "getAllRecords">;
     records: RecordStore;
     bus: EventBus;
     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
@@ -44,7 +44,10 @@ export interface AchievementsService {
     startSession(appid: ShortcutId, opts?: { native?: number; title?: string }): () => void;
     /** Unlock one achievement (the given id, else the next locked one). */
     trigger(appid: ShortcutId, achievementId?: string): Promise<boolean>;
-    reset(appid: ShortcutId): Promise<boolean>;
+    /** Clears the unlocks, and the chosen sources' files (ids from `resetSources`). */
+    reset(appid: ShortcutId, sources?: string[]): Promise<{ ok: boolean; sources: ResetSourceResult[] }>;
+    /** Where the unlocks come from besides the plugin's store (Steam emulator saves, trophy files, RetroAchievements). */
+    resetSources(appid: ShortcutId): Promise<AchievementResetSource[]>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
     /**
@@ -235,20 +238,37 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 return false;
             }
         },
-        async reset(appid) {
+        async resetSources(appid) {
             try {
-                const res = await deps.backend.resetAchievements(appid);
+                const res = await deps.backend.resetAchievementSources(appid, await resolveNative(appid));
+                return Array.isArray(res.sources) ? res.sources : [];
+            } catch (e) {
+                logger.warn(`Could not list achievement sources for shortcut ${appid}:`, e);
+                return [];
+            }
+        },
+        async reset(appid, sources = []) {
+            try {
+                const res = await deps.backend.resetAchievements(appid, {
+                    native: await resolveNative(appid),
+                    sources,
+                    title: deps.titleOf(appid) ?? "",
+                });
                 if (res.error) {
                     logger.error(`Failed resetting achievements: ${res.error}`);
-                    return false;
+                    return { ok: false, sources: [] };
+                }
+                const done = Array.isArray(res.sources) ? res.sources : [];
+                for (const r of done) {
+                    if (!r.ok) logger.warn(`Reset achievements: ${r.id}: ${r.error ?? "failed"}`);
                 }
                 const set = current(appid)?.data;
                 if (set) deps.records.update(appid, { achievements: { ...current(appid)!, data: { ...set, unlocks: {} } } });
                 logger.info(`Reset achievements for shortcut ${appid}`);
-                return true;
+                return { ok: true, sources: done };
             } catch (e) {
                 logger.error(`Error resetting achievements for shortcut ${appid}:`, e);
-                return false;
+                return { ok: false, sources: [] };
             }
         },
         async preload() {

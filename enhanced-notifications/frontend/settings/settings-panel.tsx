@@ -7,6 +7,7 @@ import {
     Field,
     PanelSection,
     TextField,
+    Toggle,
 } from "@steambrew/client";
 import { logger } from "../logger";
 import { rpc, type ThemeEntry } from "../rpc";
@@ -22,9 +23,11 @@ import { STEAM_DEFAULT_THEME } from "../theme/schema";
 import { TIERS, type Tier } from "../theme/achievements";
 import {
     filterCandidates,
+    resetWarning,
     type AchievementResetApi,
     type ResetCandidate,
     type ResetResult,
+    type ResetSource,
 } from "../kernel/reset";
 import { showDialog } from "../steam/modal";
 import { resetSettings, useSetting } from "./settings";
@@ -386,11 +389,19 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
     );
 }
 
-function resultText(c: ResetCandidate, result: ResetResult): string {
+function resultText(c: ResetCandidate, result: ResetResult, sources: ResetSource[]): string {
     if (!result.ok) return result.reason;
-    return result.remaining > 0 || result.skipped > 0
-        ? `Cleared ${result.cleared} in ${c.name}; ${result.remaining} still show as unlocked (Steam may need a moment, or a restart).`
-        : `Cleared all achievements in ${c.name}.`;
+    const main =
+        result.remaining > 0 || result.skipped > 0
+            ? `Cleared ${result.cleared} in ${c.name}; ${result.remaining} still show as unlocked (Steam may need a moment, or a restart).`
+            : `Cleared all achievements in ${c.name}.`;
+    const labelOf = (id: string) => sources.find((s) => s.id === id)?.label ?? id;
+    const files = (result.sources ?? []).map((r) =>
+        r.ok
+            ? `${labelOf(r.id)}: ${r.cleared} cleared (backup kept next to the file).`
+            : `${labelOf(r.id)}: not cleared (${r.error ?? "failed"}).`,
+    );
+    return [main, ...files].join(" ");
 }
 
 /**
@@ -402,12 +413,15 @@ function resultText(c: ResetCandidate, result: ResetResult): string {
  */
 function ResetDialog({
     candidate: c,
+    sources,
     api,
     onStart,
     onFinished,
     closeModal,
 }: {
     candidate: ResetCandidate;
+    /** Where the game's unlocks also live (steam-cartridges), loaded before the dialog opens. */
+    sources: ResetSource[];
     api: AchievementResetApi;
     onStart: () => void;
     onFinished: () => void;
@@ -416,6 +430,9 @@ function ResetDialog({
     const [phase, setPhase] = useState<"confirm" | "running" | "done">(
         "confirm",
     );
+    // "Also reset ..." choices, off until the user turns one on: clearing files is the bigger step.
+    const [chosen, setChosen] = useState<Set<string>>(() => new Set());
+    const resettable = sources.filter((s) => s.resettable);
     const [outcome, setOutcome] = useState("");
     const hold = useRef(false);
     const close = () => {
@@ -425,9 +442,9 @@ function ResetDialog({
         hold.current = true;
         setPhase("running");
         onStart();
-        const result = await api.reset(c);
+        const result = await api.reset(c, [...chosen]);
         hold.current = false;
-        setOutcome(resultText(c, result));
+        setOutcome(resultText(c, result, sources));
         setPhase("done");
         onFinished();
     };
@@ -436,11 +453,31 @@ function ResetDialog({
         return (
             <ConfirmModal
                 strTitle="Reset achievements"
-                strDescription={`${c.name} will lose all its achievements (${c.unlocked} unlocked). ${
-                    c.kind === "steam"
-                        ? "They are cleared on your Steam account. "
-                        : ""
-                }This cannot be undone.`}
+                strDescription={
+                    <>
+                        <div>{resetWarning(c, sources, chosen)}</div>
+                        {resettable.map((s) => (
+                            <Field
+                                key={s.id}
+                                label={`Also reset ${s.label}`}
+                                description={`${s.unlocked} unlocked`}
+                                bottomSeparator="none"
+                            >
+                                <Toggle
+                                    value={chosen.has(s.id)}
+                                    onChange={(on) =>
+                                        setChosen((prev) => {
+                                            const next = new Set(prev);
+                                            if (on) next.add(s.id);
+                                            else next.delete(s.id);
+                                            return next;
+                                        })
+                                    }
+                                />
+                            </Field>
+                        ))}
+                    </>
+                }
                 strOKButtonText="Reset"
                 bDestructiveWarning
                 onOK={() => void start()}
@@ -483,11 +520,19 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     ];
     const available = api.available();
 
-    const confirm = () => {
+    const confirm = async () => {
         if (!chosen) return;
+        // Where the unlocks also live decides the warning and the "Also reset" rows, so it is asked before the dialog
+        // opens (its window size is set once, at open).
+        setBusy(true);
+        const sources = await api.sources(chosen);
+        setBusy(false);
+        const rows = sources.filter((s) => s.resettable).length;
+        const notes = sources.filter((s) => !s.resettable || s.note).length;
         showDialog(
             <ResetDialog
                 candidate={chosen}
+                sources={sources}
                 api={api}
                 onStart={() => setBusy(true)}
                 onFinished={() => {
@@ -499,7 +544,7 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
             {
                 strTitle: "Reset achievements",
                 popupWidth: 480,
-                popupHeight: 250,
+                popupHeight: 250 + rows * 64 + notes * 40 + (sources.length ? 20 : 0),
             },
         );
     };
@@ -542,7 +587,7 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
                     />
                     <DialogButton
                         disabled={!available || busy || !chosen}
-                        onClick={confirm}
+                        onClick={() => void confirm()}
                         style={{
                             padding: "0 16px",
                             minWidth: 0,

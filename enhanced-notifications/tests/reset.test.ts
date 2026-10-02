@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCandidates, createReset, type AppFacts } from '../frontend/surfaces/reset/reset.ts';
-import { filterCandidates, type ResetCandidate } from '../frontend/kernel/reset.ts';
+import { filterCandidates, resetWarning, type ResetCandidate, type ResetSource } from '../frontend/kernel/reset.ts';
 
 const apps: AppFacts[] = [
     { appid: 2, name: 'Zed', isShortcut: false },
@@ -50,7 +50,7 @@ function rig(over: Partial<Parameters<typeof createReset>[0]> = {}) {
             cleared = true;
         },
         settle: async () => {},
-        resetShortcut: async () => true,
+        resetShortcut: async () => ({ ok: true, sources: [] }),
         ...over,
     });
     return { r, commands };
@@ -72,17 +72,51 @@ test('reset: a Steam game whose list Steam did not return fails and sends nothin
 });
 
 test('reset: a non-Steam game goes through steam-cartridges, not the console', async () => {
-    const seen: number[] = [];
+    const seen: [number, string[]][] = [];
     const { r, commands } = rig({
-        resetShortcut: async (id) => {
-            seen.push(id);
-            return true;
+        resetShortcut: async (id, sources) => {
+            seen.push([id, sources]);
+            return { ok: true, sources: [{ id: 'local', ok: true, cleared: 2 }] };
         },
     });
-    const res = await r.reset({ appid: 4271101655, name: 'S', unlocked: 4, total: 9, kind: 'shortcut' });
-    assert.deepEqual(seen, [4271101655]);
+    const res = await r.reset({ appid: 4271101655, name: 'S', unlocked: 4, total: 9, kind: 'shortcut' }, ['local']);
+    assert.deepEqual(seen, [[4271101655, ['local']]]);
     assert.deepEqual(commands, []);
     assert.equal(res.ok, true);
-    const bad = rig({ resetShortcut: async () => false });
+    assert.deepEqual(res.ok && res.sources, [{ id: 'local', ok: true, cleared: 2 }]);
+    const bad = rig({ resetShortcut: async () => ({ ok: false, sources: [] }) });
     assert.equal((await bad.r.reset({ appid: 1, name: 'S', unlocked: 1, total: 1, kind: 'shortcut' })).ok, false);
+});
+
+// ---------- the confirm dialog's warning (ADR-0054) ----------
+const shortcut: ResetCandidate = { appid: 3135033888, name: 'WUCHANG', unlocked: 2, total: 40, kind: 'shortcut' };
+const local: ResetSource = { id: 'local', label: 'local achievements (RUNE)', resettable: true, unlocked: 2 };
+const ra: ResetSource = { id: 'retroachievements', label: 'RetroAchievements', resettable: false, unlocked: 5, note: 'Reset them on retroachievements.org.' };
+const ps4: ResetSource = { id: 'shadps4', label: 'shadPS4 achievements', resettable: true, unlocked: 1, note: 'shadNet may sync them back.' };
+
+test('reset warning: a Steam game is cleared on the Steam account', () => {
+    const w = resetWarning({ appid: 730, name: 'G', unlocked: 3, total: 4, kind: 'steam' }, [], new Set());
+    assert.match(w, /cleared on your Steam account/);
+    assert.match(w, /cannot be undone/);
+});
+
+test('reset warning: a shortcut with no source files says only the list in Steam is reset', () => {
+    const w = resetWarning(shortcut, [], new Set());
+    assert.match(w, /Only the list in Steam can be reset/);
+});
+
+test('reset warning: a local source not chosen comes back; chosen, it is backed up and the game must be closed', () => {
+    assert.match(resetWarning(shortcut, [local], new Set()), /local achievements \(RUNE\) are kept and will come back/);
+    const chosen = resetWarning(shortcut, [local], new Set(['local']));
+    assert.match(chosen, /cleared too, each file backed up first/);
+    assert.match(chosen, /Close the game/);
+    assert.doesNotMatch(chosen, /come back/);
+});
+
+test('reset warning: RetroAchievements is out of reach and says where to reset; a chosen source keeps its note', () => {
+    const w = resetWarning(shortcut, [ra], new Set(['retroachievements']));
+    assert.match(w, /Only the list in Steam can be reset here/);
+    assert.match(w, /RetroAchievements: Reset them on retroachievements.org/);
+    assert.doesNotMatch(w, /cleared too/);
+    assert.match(resetWarning(shortcut, [ps4], new Set(['shadps4'])), /shadPS4 achievements: shadNet may sync them back/);
 });

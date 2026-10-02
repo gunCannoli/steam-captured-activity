@@ -301,8 +301,18 @@ export async function loadAchievementsForApp(shortcutAppId: number, nativeAppId:
 export const triggerAchievement = (shortcutAppId: number, targetAchievementId?: string) =>
     achievements.trigger(shortcutAppId as ShortcutId, targetAchievementId);
 
-/** Resets all unlocked achievements for a shortcut. */
-export const resetAchievements = (shortcutAppId: number) => achievements.reset(shortcutAppId as ShortcutId);
+/** Resets all unlocked achievements for a shortcut (the plugin's own; no source files). */
+export const resetAchievements = async (shortcutAppId: number) => (await achievements.reset(shortcutAppId as ShortcutId)).ok;
+
+/**
+ * Resets a shortcut's achievements and the chosen sources' files (ids from `achievementResetSources`), each backed
+ * up first (ADR-0054). Resolves to what happened per source.
+ */
+export const resetAchievementsWithSources = (shortcutAppId: number, sources: string[]) =>
+    achievements.reset(shortcutAppId as ShortcutId, sources);
+
+/** Where a shortcut's unlocks come from besides the plugin's store, and which can be reset. */
+export const achievementResetSources = (shortcutAppId: number) => achievements.resetSources(shortcutAppId as ShortcutId);
 
 /** One unlock check against the backend observer; resolves to the number of new unlocks. */
 export const checkObserverUnlocks = (shortcutAppId: number, nativeAppId: number, gameTitle?: string) =>

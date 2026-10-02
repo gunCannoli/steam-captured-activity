@@ -3,7 +3,7 @@
 --- Integrates local PlayStation 3 trophies for games launched via RPCS3.
 --- Key features:
 ---   1. Parses official offline TROPCONF.SFM XML schema (titles, descriptions, types, hidden status).
----   2. Parses TROPUSR.DAT binary unlock database (status flags, timestamps) without network access.
+---   2. Parses TROPUSR.DAT binary unlock database (its trophy state table, achievement_files.lua) without network access.
 ---   3. Maps trophy types (Platinum, Gold, Silver, Bronze) to canonical points and rarity percentiles.
 ---   4. Integrates with achievements_store and out-of-process RPCS3.log tailer.
 
@@ -102,36 +102,10 @@ function M.parse_tropconf(xml_text, base_dir)
   }
 end
 
---- Parses TROPUSR.DAT binary file to extract unlocked trophy IDs and timestamps
+--- Unlocked trophies in a TROPUSR.DAT (RPCS3's format, achievement_files.lua):
+--- id ("0" and "000") -> { unlocked_time }.
 function M.parse_tropusr(binary_data)
-  if not binary_data or #binary_data < 64 then return {} end
-
-  local unlocked = {}
-  local len = #binary_data
-  local offset = 65 -- 1-based index after 64-byte header
-  local record_stride = 32
-
-  local index = 0
-  while offset + record_stride - 1 <= len do
-    local status = binary_data:byte(offset)
-    local status_type = binary_data:byte(offset + 1)
-    local is_unlocked = (status ~= 0) or (status_type ~= 0)
-
-    if is_unlocked then
-      local ts = read_u64_be(binary_data, offset + 16)
-      if ts <= 0 then ts = os.time() end
-      -- Formats id as 3-digit string ("000", "001", etc.)
-      local id_str = string.format("%03d", index)
-      unlocked[id_str] = { unlocked_time = ts }
-      -- Also store non-padded string for flexible matching
-      unlocked[tostring(index)] = { unlocked_time = ts }
-    end
-
-    offset = offset + record_stride
-    index = index + 1
-  end
-
-  return unlocked
+  return require("achievement_files").rpcs3_unlocked(binary_data)
 end
 
 --- Locates the trophy directory for a given RPCS3 game path

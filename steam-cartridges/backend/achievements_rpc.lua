@@ -23,10 +23,22 @@ RPC.CartridgesAchievementsUnlock = method("CartridgesAchievementsUnlock", functi
   return store.unlock(shortcut_appid, achievement_id, data.unlock_time)
 end)
 
+--- data = { shortcut_appid, native_appid?, sources? = { "local" | "rpcs3" | "shadps4" }, title? }
+--- Clears the plugin's unlocks, and the chosen sources' files (backed up first): ADR-0054.
 RPC.CartridgesAchievementsReset = method("CartridgesAchievementsReset", function(data)
   local shortcut_appid = normalize_appid(data.shortcut_appid)
   if not shortcut_appid then error("missing shortcut_appid") end
-  return store.reset(shortcut_appid)
+  local sources = type(data.sources) == "table" and data.sources or {}
+  local result = require("achievements_reset").reset(shortcut_appid, data.native_appid, sources, data.title)
+  result.unlocks = {}
+  return result
+end)
+
+--- Where this shortcut's unlocks come from besides the plugin's store, and which can be reset.
+RPC.CartridgesAchievementsResetSources = method("CartridgesAchievementsResetSources", function(data)
+  local shortcut_appid = normalize_appid(data.shortcut_appid)
+  if not shortcut_appid then error("missing shortcut_appid") end
+  return require("achievements_reset").sources(shortcut_appid, data.native_appid)
 end)
 
 RPC.CartridgesAchievementsGetRetroStatus = method("CartridgesAchievementsGetRetroStatus", function(data)

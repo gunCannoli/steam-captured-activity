@@ -3,7 +3,7 @@
 --- Integrates local PlayStation 4 trophies for games launched via shadPS4.
 --- Key features:
 ---   1. Parses offline TROP.XML / TROPCONF.SFM schemas (titles, descriptions, trophy types, hidden status).
----   2. Parses TROPUSR.DAT binary unlock database (status flags, timestamps) without network access.
+---   2. Reads unlocks from shadPS4's trophy XML save files (find_save_files) without network access.
 ---   3. Detects shadPS4 trophy directories across AppData, portable emulator dirs, and game directories.
 ---   4. Integrates with achievements_store and out-of-process shadps4.log tailer.
 
@@ -129,34 +129,51 @@ function M.parse_trop_xml(xml_text, base_dir)
   }
 end
 
---- Parses TROPUSR.DAT binary file to extract unlocked trophy IDs and timestamps
-function M.parse_tropusr(binary_data)
-  if not binary_data or #binary_data < 64 then return {} end
-
-  local unlocked = {}
-  local len = #binary_data
-  local offset = 65
-  local record_stride = 32
-
-  local index = 0
-  while offset + record_stride - 1 <= len do
-    local status = binary_data:byte(offset)
-    local status_type = binary_data:byte(offset + 1)
-    local is_unlocked = (status ~= 0) or (status_type ~= 0)
-
-    if is_unlocked then
-      local ts = read_u64_be(binary_data, offset + 16)
-      if ts <= 0 then ts = os.time() end
-      local id_str = string.format("%03d", index)
-      unlocked[id_str] = { unlocked_time = ts }
-      unlocked[tostring(index)] = { unlocked_time = ts }
-    end
-
-    offset = offset + record_stride
-    index = index + 1
+--- shadPS4 keeps unlocks in a trophy XML (`unlockstate="true"`, `timestamp`): its per-user save
+--- file <shadPS4>/[user/]home/<user id>/trophy/<npcommid>.xml, or, on older builds, the TROP*.XML
+--- in the game's trophy folder. Returns every such file that exists and holds unlock state.
+--- `npcommid` may be nil: it is then read from the folder's TROP.XML.
+function M.find_save_files(trop_dir, npcommid)
+  if not trop_dir then return {} end
+  trop_dir = tostring(trop_dir):gsub("\\", "/")
+  if not npcommid or not tostring(npcommid):match("^NPWR") then
+    local text = utils.read_file(trop_dir .. "/TROP.XML") or ""
+    npcommid = text:match("<npcommid>%s*([^<%s]+)%s*</npcommid>")
   end
-
-  return unlocked
+  local out, seen = {}, {}
+  local function add(p)
+    if seen[p] or not file_exists(p) then return end
+    local text = utils.read_file(p) or ""
+    if text:find('unlockstate="', 1, true) then
+      seen[p] = true
+      out[#out + 1] = p
+    end
+  end
+  -- Older builds: the state in the game's own trophy XML.
+  for _, dir in ipairs({ trop_dir, trop_dir .. "/Xml" }) do
+    add(dir .. "/TROP.XML")
+    for i = 0, 30 do add(string.format("%s/TROP_%02d.XML", dir, i)) end
+  end
+  -- Current builds: a per-user save file under a home folder above the trophy folder.
+  if npcommid then
+    local dir = trop_dir
+    for _ = 1, 5 do
+      dir = dir:match("^(.*)/[^/]+$")
+      if not dir then break end
+      for _, home in ipairs({ dir .. "/home", dir .. "/user/home" }) do
+        if fs.is_directory(home) then
+          local ok, entries = pcall(fs.list, home)
+          for _, e in ipairs(ok and entries or {}) do
+            local user = type(e) == "table" and (e.path or e.name) or e
+            user = tostring(user):gsub("\\", "/")
+            if not user:find("/", 1, true) then user = home .. "/" .. user end
+            add(user .. "/trophy/" .. npcommid .. ".xml")
+          end
+        end
+      end
+    end
+  end
+  return out
 end
 
 --- Locates the trophy directory for a given shadPS4 game path
@@ -285,13 +302,17 @@ function M.get_or_fetch(shortcut_appid)
 
   local effective_title_id = detected_id or parsed_schema.title_id
 
-  -- 5. Parse TROPUSR.DAT
-  local usr_path = trop_dir .. "/TROPUSR.DAT"
-  local usr_data = utils.read_file(usr_path)
-  local unlocks = usr_data and M.parse_tropusr(usr_data) or {}
+  -- 5. Unlocks from shadPS4's trophy XML save files
+  local unlocks = {}
+  for _, path in ipairs(M.find_save_files(trop_dir, parsed_schema.title_id)) do
+    for id, info in pairs(require("achievement_files").shadps4_unlocked(utils.read_file(path) or "")) do
+      unlocks[id] = info
+    end
+  end
 
   local schema = {
     ps4_title_id = effective_title_id,
+    ps4_npcommid = parsed_schema.title_id,
     native_appid = 0,
     title = sc.name or sc.appname or effective_title_id,
     total = parsed_schema.total,

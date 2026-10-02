@@ -35,6 +35,18 @@ try {
     const cartridges = await plugin("Object.keys(window.PLUGIN_LIST).some((n) => n.startsWith('steam-cartridges') && typeof window.PLUGIN_LIST[n].resetAchievements === 'function')");
     check('non-Steam games with unlocks are listed when steam-cartridges is loaded', !cartridges || list.some((c) => c.kind === 'shortcut'), `${list.filter((c) => c.kind === 'shortcut').length} shortcuts`);
 
+    // Where the unlocks also live (ADR-0054): read only. A Steam game has none; a shortcut's are well formed.
+    const steamGame = list.find((c) => c.kind === 'steam');
+    if (steamGame) check('sources: a Steam game has none', (await plugin(`achievementReset.sources(${JSON.stringify(steamGame)}).then((s) => s.length)`)) === 0);
+    const shortcuts = list.filter((c) => c.kind === 'shortcut');
+    if (cartridges && shortcuts.length) {
+        const all = [];
+        for (const c of shortcuts) all.push(...JSON.parse(await plugin(`achievementReset.sources(${JSON.stringify(c)}).then((s) => JSON.stringify(s.map((x) => ({ ...x, game: ${JSON.stringify(c.name)} }))))`)));
+        const known = new Set(['local', 'rpcs3', 'shadps4', 'retroachievements']);
+        check('sources: every shortcut source is known and well formed', all.every((s) => known.has(s.id) && typeof s.label === 'string' && typeof s.resettable === 'boolean' && (s.id !== 'retroachievements' || !s.resettable)),
+            all.map((s) => `${s.game}: ${s.id} ${s.unlocked}${s.resettable ? '' : ' (not resettable)'}`).join('; ') || 'none found');
+    } else console.log('SKIP  sources of shortcuts (no steam-cartridges or no shortcut with unlocks)');
+
     const wrapped = await cdp.evaluate(`(() => { window.__eaConsole = []; const c = SteamClient.Console; window.__eaExec = c.ExecCommand; c.ExecCommand = (x) => { window.__eaConsole.push(x); return window.__eaExec.call(c, x); }; return true; })()`);
     const res = JSON.parse(await plugin("achievementReset.reset({ appid: 480, name: 'Spacewar', unlocked: 0, total: 0, kind: 'steam' }).then((r) => JSON.stringify(r))"));
     const sent = JSON.parse(await cdp.evaluate('JSON.stringify(window.__eaConsole)'));

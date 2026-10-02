@@ -19,7 +19,7 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
     const records = createRecordStore(bus);
     records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
     if (over.withSchema !== false) records.update(SC, { achievements: { status: 'ok', data: { schema: SCHEMA, unlocks: {} } } });
-    const calls = { ensure: 0, check: [] as any[], toast: 0 };
+    const calls = { ensure: 0, check: [] as any[], toast: 0, reset: [] as any[] };
     const timers: { fn: () => void; ms: number; cleared: boolean }[] = [];
     const emitted: any[] = [];
     bus.on('achievements.unlocked', (e) => emitted.push(e));
@@ -35,7 +35,14 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
                 return over.checkUnlocks ? over.checkUnlocks() : { new_unlocks: [] };
             },
             async unlockAchievement() { return { ok: true, unlocks: { A: { unlocked_time: 9 } } }; },
-            async resetAchievements() { return { ok: true, unlocks: {} }; },
+            async resetAchievements(appid: number, opts: any) {
+                calls.reset.push({ appid, ...opts });
+                return { ok: true, sources: opts?.sources?.length ? [{ id: 'local', ok: true, cleared: 2 }] : {} };
+            },
+            async resetAchievementSources(appid: number, native: number) {
+                calls.reset.push({ sourcesFor: appid, native });
+                return { sources: [{ id: 'local', label: 'local achievements (RUNE)', resettable: true, unlocked: 2 }] };
+            },
             async steamStoreGetMapping() { return { mapping: { steam_appid: 77 } }; },
         } as any,
         records,
@@ -141,8 +148,16 @@ test('trigger unlocks the next locked achievement and emits it; reset clears the
     assert.equal(await ach.trigger(SC), true);
     assert.deepEqual(emitted[0], { appid: SC, ids: ['A'], items: [{ id: 'A', name: 'Alpha', description: 'da', icon: 'ia', global_pct: 10, unlockedAt: 9 }] });
     assert.deepEqual(Object.keys(records.get(SC)?.achievements?.data?.unlocks ?? {}), ['A']);
-    assert.equal(await ach.reset(SC), true);
+    assert.deepEqual(await ach.reset(SC), { ok: true, sources: [] });
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, {});
+});
+
+test('reset sends the chosen sources, the native app and the title; resetSources lists them (ADR-0054)', async () => {
+    const { ach, calls } = setup();
+    assert.deepEqual((await ach.resetSources(SC)).map((s) => s.id), ['local']);
+    assert.deepEqual(calls.reset[0], { sourcesFor: SC, native: 77 });
+    assert.deepEqual(await ach.reset(SC, ['local']), { ok: true, sources: [{ id: 'local', ok: true, cleared: 2 }] });
+    assert.deepEqual(calls.reset[1], { appid: SC, native: 77, sources: ['local'], title: 'Game' });
 });
 
 test('the native app comes from the record, else from the saved mapping', async () => {

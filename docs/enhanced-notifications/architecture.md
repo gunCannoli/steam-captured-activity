@@ -151,7 +151,7 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 | Notification `fnNotificationResolved` (banner popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
 | `NotificationStore.Test*` (previews) | `surfaces/preview/index.ts` | — |
 | Game Recording RPCs | `surfaces/captures/recording.ts` | — |
-| `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` | `surfaces/reset/index.ts` | — |
+| `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` / `achievementResetSources` / `resetAchievementsWithSources` | `surfaces/reset/index.ts` | — |
 
 ## Settings panel
 
@@ -159,7 +159,8 @@ Sections: Theme (dropdown across the full row, "Steam default" first; Reload, Th
 popup), Preview Notifications (a random notification; "Select Notification": a dropdown of the preview types and a
 Preview button on one card), Achievements Preview (one row per tier, only with an `achievements` block; then a random
 preview leaves achievements out), Achievements (queue, timeline marker, screenshot, clip), Reset (defaults, Reset
-Achievements). There are no style, sound or display-time switches: a theme that leaves a key out gets Steam's own, and
+Achievements: a non-Steam game's confirm popup lists where its unlocks also live, with an "Also reset ..." toggle per
+resettable source and a warning built by `resetWarning` in `kernel/reset.ts`, ADR-0054). There are no style, sound or display-time switches: a theme that leaves a key out gets Steam's own, and
 "Steam default" (`theme` = `STEAM_DEFAULT_THEME`, `theme/schema.ts`) loads no theme at all
 ([ADR-0053](../decisions.md#adr-0053-enhanced-notifications-has-no-style-sound-or-display-time-switches-steam-default-is-a-theme)).
 `onPreview`, `previewOptions`, `onPreviewTier` and `achievementReset` are injected by `index.tsx`. A random preview's achievement is the banner's own

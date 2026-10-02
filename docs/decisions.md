@@ -3140,3 +3140,37 @@ had no way to pick "no theme".
 - Turning one part of a theme off means editing the theme (or a copy), not a switch.
 - A user who had a switch off gets the theme's value after the update (the stored key is ignored).
 - Users who never picked a theme now start on Steam default instead of `steam_midnight`.
+
+## ADR-0054: Reset Achievements also clears the files a non-Steam game's unlocks come back from
+
+**Status:** Accepted · 2026-10-02 (the user's decisions)
+
+### Context
+
+Resetting a non-Steam game only cleared steam-cartridges' own unlocks. The observer then read them back: from the Steam
+emulator's `achievements.ini` at the next launch (the user's Wuchang reset on 2026-09-30 came back on 2026-10-02 from
+`C:\Users\Public\Documents\Steam\RUNE\2277560`), and from engine and emulator logs, read again from the start after
+every Steam restart because log positions lived in memory. The confirm popup said nothing about any of it.
+
+### Decision
+
+1. **steam-cartridges lists where a shortcut's unlocks also live** (`achievements_reset.sources`): `local` (CODEX /
+   RUNE / GSE / Goldberg saves), `rpcs3` (`TROPUSR.DAT`), `shadps4` (its trophy XML), `retroachievements`.
+2. **The confirm popup offers "Also reset {source}" per resettable source, off by default,** and its warning says what
+   the reset reaches: Steam's account (a Steam game), only the list in Steam (no files found, or only RetroAchievements),
+   files cleared after a backup, files kept (they come back), and the note of a source it cannot reach.
+3. **A chosen file is copied to `<file>.bak-<date>` and edited in place**, never deleted: emulator INI `Achieved=0` /
+   `UnlockTime=0`, Goldberg `earned=false`, RPCS3's own `LockTrophy` layout, shadPS4 `unlockstate="false"`. A file in an
+   unexpected format is left alone and reported.
+4. **RetroAchievements is never reset from here**: its API (`dorequest.php`) has no reset request; only the signed-in
+   website does it. The popup says so and where.
+5. **Log read positions persist** (`log_offsets.json`), and a reset marks the game's logs read to their end, so a log
+   never brings back an unlock a reset cleared.
+6. **The RPCS3 and shadPS4 readers now follow those emulators' real formats** (the old ones assumed a fixed-record
+   `TROPUSR.DAT` for both). Built from their sources and unit-tested; not yet tested on a real file (TASK.md).
+
+### Consequences
+
+- A reset with "Also reset local achievements" sticks; without it the popup says the unlocks come back.
+- The first check after this update reads logs once from the start (no positions saved yet), as before.
+- Epic, Xbox and other stores' achievements are not seen by steam-cartridges, so they are neither listed nor reset.

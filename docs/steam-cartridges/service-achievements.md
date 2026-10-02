@@ -63,7 +63,9 @@ so a PC game stays silent there too.
 | `backend/ach_service.lua` | Source order, `supports` rules, `ensure`, `local_part` |
 | `backend/record_rpc.lua` | `EnsureFresh` `achievements`, `CheckUnlocks`, local parts |
 | `backend/achievements_rpc.lua` | The old RPC names, as aliases |
-| `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels; `get_possible_folder_names` (K7 fixed) |
+| `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels (`emulator_files`, `trophy_files`, `log_paths`, shared with the reset); `get_possible_folder_names` (K7 fixed); log read positions kept in `log_offsets.json` |
+| `backend/achievement_files.lua` | Pure readers and clearers of the unlock files: Steam emulator INI / Goldberg JSON, RPCS3 `TROPUSR.DAT`, shadPS4 trophy XML |
+| `backend/achievements_reset.lua` | `sources` (where a shortcut's unlocks also live) and `reset` (ADR-0054) |
 | `backend/steam_schema.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
 | `backend/achievements_store.lua` | The store (`achievements.json`); no network since M10 |
 
@@ -83,6 +85,25 @@ its only output, plus the `achievements.unlocked` event:
   into the record and announced with `bus.emit("achievements.unlocked", { appid, ids })`.
 - `trigger` / `reset` / `checkNow` / `startSession` back the public API (`triggerAchievement`, `resetAchievements`,
   `checkObserverUnlocks`, `startAchievementsObserver`; same names and signatures, D8).
+- `resetSources` / `reset(appid, sources)` back `achievementResetSources` and `resetAchievementsWithSources`
+  (ADR-0054), used by enhanced-notifications' Reset Achievements.
+
+## Reset (ADR-0054)
+
+A reset clears the plugin's unlocks (`achievements_store.reset`) and marks every log of the game as read to its end
+(`achievements_observer.mark_logs_read`), so lines written before the reset never unlock again; log read positions
+survive a Steam restart (`<data dir>/log_offsets.json`, written only when they change). On request it also clears the
+files the observer reads unlocks back from, each copied to `<file>.bak-<yyyymmdd-hhmmss>` first:
+
+| Source id | Files | Cleared by |
+| --- | --- | --- |
+| `local` | CODEX / RUNE / GSE `achievements.ini`, Goldberg `achievements.json` (`observer.emulator_files(native)`) | `Achieved=0`, `UnlockTime=0`, the `[SteamAchievements]` list emptied; Goldberg `earned=false` |
+| `rpcs3` | `TROPUSR.DAT` in the trophy folder | RPCS3's own `LockTrophy`: state and both timestamps 0 in the type-6 table (entries are 0x70 bytes) |
+| `shadps4` | `<shadPS4>/[user/]home/<user>/trophy/<npcommid>.xml`, or the older in-folder `TROP*.XML` | `unlockstate="false"`, `timestamp` removed; shadNet may sync them back |
+| `retroachievements` | none: on the user's account | not resettable (its API has no reset; the website does it) |
+
+A file that is not in the expected format is left alone and reported. The RPCS3 and shadPS4 paths are unit-tested only
+(no such files on the development machine); live testing is in TASK.md.
 - `preload()` (ADR-0045): at start-up every stored `ok` part from `GetAllRecords` goes into the record of a shortcut,
   unless the record already has one (no library check: Steam's `appStore` is empty at start-up, verified live
   2026-09-30). Only the `achievements` part (never `identity`, knowledgebase Part 7). The `achievements` surface then
