@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: media cache setting in enhanced-notifications' form (2026-10-02)**: at the user's request, like
+  "Screenshot on unlock": a "Cache downloaded media" toggle (on = `mediaCacheDays` > 0; off writes 0, on writes the
+  default 7) and under it Steam's slider "Cache lifespan" (1-30 days, disabled while off), one block. `SliderRow` is now
+  enhanced-notifications' (bare `SliderField`, label and value above), replacing the two-row card, but keeps Steam's
+  22 px bottom margin: measured live, cancelling it (as enhanced-notifications does) put the next section's title 2 px
+  below; kept, 24 px like every other section. No setting or backend change.
 - **steam-cartridges: Review shows only when issues are detected (2026-10-02)**: at the user's request, the Library
   Analytics Review rows are hidden while "Issues detected" is 0 (its Not scraped view is reached through Review only
   then). The click-through checks the button follows the count. Live: 0 issues, no Review, all steps pass.

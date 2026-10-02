@@ -9,8 +9,8 @@ export const CARD_BACKGROUND = "rgb(35, 38, 46)";
 /**
  * Spacing system. A *block* is a group of options that read as one card: its rows touch (no gap). Blocks in a section
  * are `BLOCK_GAP` apart, set in one place (`Blocks`). Steam's TextField ends with `STEAM_TRAILING` of blank space of
- * its own; `ItemRow` cancels it (`trailing`) so a block's spacing never depends on its last control. A slider goes in
- * `SliderRow`, which resets Steam's slider box instead (a negative margin there ate the gap to the next section).
+ * its own; `ItemRow` cancels it (`trailing`) so a block's spacing never depends on its last control. SliderRow keeps
+ * Steam's slider margin (see there).
  */
 export const BLOCK_GAP = 22;
 export const STEAM_TRAILING = 22;
@@ -65,14 +65,12 @@ export function ToggleRow({
     );
 }
 
-/** Steam's `SliderField` is its old dialog slider: a translucent box of its own (12 px padding, 22 px bottom margin),
- *  not a settings card. Inside `SliderRow` that box is reset, so the slider sits on the card like every other control. */
-const SLIDER_RESET_CSS = `.sc-slider-row [class*="DialogSlider_Container"] { background: none; padding: 0; margin: 0; }`;
-
-/** A slider as two rows of one card: label, description and the value on the first, the slider across the second. */
+/** Steam's slider across the full row, the value shown with its suffix: enhanced-notifications' SliderRow, so both
+ *  plugins draw sliders the same way (a toggle row, then its slider, in one block). The slider keeps its own 22 px
+ *  bottom margin: as a section's last row that margin is the gap to the next section (measured live: cancelling it
+ *  left 2 px). Followed by another block in the same section, it would double the block gap. */
 export function SliderRow({
     label,
-    description,
     value,
     min,
     max,
@@ -83,7 +81,6 @@ export function SliderRow({
     disabled,
 }: {
     label: string;
-    description?: string;
     value: number;
     min: number;
     max: number;
@@ -94,32 +91,21 @@ export function SliderRow({
     disabled?: boolean;
 }) {
     return (
-        <>
-            <ItemRow>
-                <Field label={label} description={description} disabled={disabled} bottomSeparator="none">
-                    <span style={{ whiteSpace: "nowrap" }}>
-                        {value}
-                        {suffix}
-                    </span>
-                </Field>
-            </ItemRow>
-            <ItemRow>
-                <Field disabled={disabled} childrenContainerWidth="max">
-                    <div className="sc-slider-row" style={{ width: "100%" }}>
-                        <style>{SLIDER_RESET_CSS}</style>
-                        <SliderField
-                            value={value}
-                            min={min}
-                            max={max}
-                            step={step}
-                            resetValue={resetValue}
-                            disabled={disabled}
-                            onChange={onChange}
-                        />
-                    </div>
-                </Field>
-            </ItemRow>
-        </>
+        <ItemRow>
+            <SliderField
+                label={label}
+                layout="below"
+                value={value}
+                min={min}
+                max={max}
+                step={step}
+                showValue
+                valueSuffix={suffix}
+                resetValue={resetValue}
+                disabled={disabled}
+                onChange={onChange}
+            />
+        </ItemRow>
     );
 }
 
