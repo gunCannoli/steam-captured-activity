@@ -104,7 +104,7 @@ test('app/media: a backend error is recorded as an error part', async () => {
     assert.equal(s.records.get(SC)!.media!.status, 'error');
 });
 
-test('app/media: ScreenScraper images download IMAGE_CONCURRENCY at a time, the cards keep the record order, and prefetch sees the visible items first', async () => {
+test('app/media: ScreenScraper images download IMAGE_CONCURRENCY at a time (one: the backend is a single Lua state), and the cards keep the record order', async () => {
     const keys = ['a()', 'b()', 'c()', 'd()', 'e()'];
     const items = keys.map((key) => ({ kind: 'artwork', source: 'screenscraper', key, width: 100, height: 100 }));
     let active = 0;
@@ -133,10 +133,9 @@ test('app/media: ScreenScraper images download IMAGE_CONCURRENCY at a time, the 
         allowScreenscraper: () => true,
         toggles: () => ({ trailers: true, artworks: true }),
         objectUrl: (b64: string) => `blob:${b64}`,
-        prefetch: (_appid: number, visible: readonly any[]) => events.push(`prefetch ${visible.length}`),
     });
     const part = await media.ensure(SC, ROUTE, undefined);
+    assert.equal(IMAGE_CONCURRENCY, 1);
     assert.equal(peak, IMAGE_CONCURRENCY);
-    assert.deepEqual(events, ['ensure', 'prefetch 5']);
     assert.deepEqual(part.data!.items.map((i: any) => i.key), keys);
 });

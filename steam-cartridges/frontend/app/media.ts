@@ -23,14 +23,15 @@ export interface MediaDeps {
     toggles(): MediaToggles;
     /** ports/image objectUrl: base64 bytes -> a blob: URL, or null. */
     objectUrl(base64: string, ext: string): string | null;
-    /** The items the card list will show, as soon as the lookup answered: lets a slow manual start before the images are in. */
-    prefetch?(appid: ShortcutId, items: readonly MediaItem[]): void;
     /** Timing lines for the diagnostics log. */
     log?(message: string): void;
 }
 
-/** ScreenScraper images downloaded at the same time (ScreenScraper's own per-account thread limit is the ceiling). */
-export const IMAGE_CONCURRENCY = 3;
+/**
+ * Backend calls made at the same time. One: the Lua backend is a single state and crashed (Chrono Trigger, 2026-10-01) when
+ * image downloads ran in parallel, and again with a manual PDF download beside them, so every backend call waits for the last.
+ */
+export const IMAGE_CONCURRENCY = 1;
 
 export interface MediaResolver {
     ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<CommunityMedia>>;
@@ -74,9 +75,8 @@ export function createMedia(deps: MediaDeps): MediaResolver {
         let part: Part<CommunityMedia> = raw ?? { status: "error", message: res.error ?? "no media part" };
         if (part.status === "ok" && part.data) {
             const visible = visibleMedia(part.data, deps.toggles());
-            deps.prefetch?.(appid, visible);
             const started = Date.now();
-            // A few at a time, kept in the record's order: each image is a separate download in the backend.
+            // IMAGE_CONCURRENCY at a time, kept in the record's order.
             const shown: Array<MediaItem | undefined> = new Array(visible.length);
             let next = 0;
             const worker = async () => {

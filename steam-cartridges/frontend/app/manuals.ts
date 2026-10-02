@@ -194,15 +194,14 @@ export function createManuals(deps: ManualsDeps): Manuals {
         const id = `${appid}:${key}`;
         if (covered.has(id) || deps.shelf.cover(appid, key)) return Promise.resolve();
         covered.add(id);
-        // The disk copy is a small read: it does not wait behind a PDF download in the queue.
-        if (!deps.backend.getManualCover || !deps.coverCache) return serial(() => coverNow(appid, key));
-        const started = Date.now();
-        return coverFromDisk(appid, key).then((found) => {
-            if (found) {
+        // The disk read is a backend call like any other: it waits in the queue (the backend is a single Lua state).
+        return serial(async () => {
+            const started = Date.now();
+            if (await coverFromDisk(appid, key)) {
                 log(`Manual cover ${appid}: from disk in ${Date.now() - started} ms`);
                 return;
             }
-            return serial(() => coverNow(appid, key));
+            await coverNow(appid, key);
         });
     };
 

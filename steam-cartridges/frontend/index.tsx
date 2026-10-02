@@ -205,11 +205,6 @@ const media = createMedia({
         manuals: setting("communityShowManuals") !== false,
     }),
     objectUrl,
-    // The manual's first page takes the longest (a PDF download), so it starts while the images download.
-    prefetch: (appid, items) => {
-        const key = items.find((item) => item.kind === "manual")?.key;
-        if (key) void manuals.cover(appid, key);
-    },
     log: (message) => logger.info(message),
 });
 
