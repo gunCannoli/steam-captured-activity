@@ -16,6 +16,18 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**enhanced-notifications notifications queue (ADR-0055, 2026-10-02): deployed; one open issue.** Works live (one
+toast at a time, Steam's `displayToastAlone`; the stack stall it caused is fixed by refreshing Steam's fullscreen
+query when the stack empties, `steam/toast-stack.ts`). **Open: toasts sometimes vanish in the full live suite**, one
+check per run and a different one each time (run 4 `notifications-queue`: 0 of 3 test toasts entered Steam's queue;
+run 5 `achievements-queue`: 1 of 5 banners), never when the same test runs alone (passed 6 times alone, and twice with
+a wrapper on `ClearAllToastNotifications` that saw no clear). Not seen before the queue; not proven caused by it.
+Suspects: Steam's `ClearAllToastNotifications` when its fullscreen check answers true (our refresh asks it more
+often), or `ProcessNotification` returning early. Next: keep the `entered` diagnostic in `notifications-queue.mjs`,
+add the clear counter to the suite, run it with the queue off to see whether the drop exists without it. Left for the
+user: use the queue for a while and say if a notification ever goes missing; look at the ps5 toasts (padding fix,
+`"gap": [10, 2]`).
+
 **Epic and Xbox games (ADR-0056, 2026-10-02): plan ready to execute, dry-run on `547c437`:**
 [steam-cartridges-store-copies-plan.md](docs/plans/steam-cartridges-store-copies-plan.md) (nine patches in
 `docs/plans/steam-cartridges-store-copies/`, the ADR and doc text blocks, then a live verification that is the user's,

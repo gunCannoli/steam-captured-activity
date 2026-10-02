@@ -204,7 +204,7 @@ test("popup.margin / padding: CSS's clockwise shorthand; gap: [x, y] or one numb
 });
 
 test('padding and gap CSS target the toast template and the text column', () => {
-    const sel: ToastSelectors = { ...SEL, toastTemplate: ':is(.tt)', content: ':is(.ct)' };
+    const sel: ToastSelectors = { ...SEL, desktopTemplate: ':is(.tt)', content: ':is(.ct)' };
     const css = buildCss(resolveTheme({ popup: { padding: [10, 5, 4, 7], gap: [6, 2] } }).style, sel);
     assert.match(css, /body\[data-en-type\] :is\(\.tt\) \{ padding: 10px 5px 4px 7px !important;/);
     assert.match(css, /body\[data-en-type\] :is\(\.ct\) \{ margin-left: 6px !important; gap: 2px !important; \}/);
@@ -239,4 +239,17 @@ test('Big Picture: placeholder CSS from the corner and margin; animation replace
     assert.match(buildPlaceholderCss(null, { top: 0, right: 8, bottom: 12, left: 0 }, P), /bottom: 12px !important;.* right: 8px !important;/, "margin alone: Steam's bottom-right");
     const anim = buildAnimationCss(resolveTheme({ settings: { position: 'top_right', animation: 'fade' } }), SEL);
     assert.match(anim, /body\[data-en-type\] :is\(\.gp\) > \* \{ animation-name: en-in-fade, en-out-fade;.* animation-delay: 0ms, calc\(var\(--toast-duration, 5000ms\) \+ 0ms\);/);
+});
+
+test('padding keeps Steam\'s toast height: the box height is what the padding leaves (never border-box)', () => {
+    const sel: ToastSelectors = { ...SEL, desktopTemplate: ':is(.tt)', shortTemplate: ':is(.short)' };
+    const css = buildCss(resolveTheme({ popup: { padding: 10 } }).style, sel);
+    // Steam's own box: padding 10 + height 50 = 70. Same padding, same 50: the toast does not shrink.
+    assert.match(css, /:is\(\.tt\) \{ padding: 10px 10px 10px 10px !important; box-sizing: content-box !important; height: 50px !important; \}/);
+    assert.match(css, /:is\(\.short\) \{ padding: 10px 10px 10px 10px !important; box-sizing: content-box !important; height: 20px !important; \}/);
+    assert.doesNotMatch(css, /border-box/);
+    const tall = buildCss(resolveTheme({ popup: { padding: [6, 10, 4, 10] } }).style, sel);
+    assert.match(tall, /:is\(\.tt\) \{[^}]*height: 60px !important; \}/);
+    const huge = buildCss(resolveTheme({ popup: { padding: 50 } }).style, sel);
+    assert.match(huge, /:is\(\.tt\) \{[^}]*height: 0px !important; \}/);
 });

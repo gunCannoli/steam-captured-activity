@@ -16,6 +16,7 @@ import { TIERS } from './theme/achievements';
 import { installUnlockSensor } from './sensors/unlock';
 import { createSoundSurface } from './surfaces/sound';
 import { createDurationSurface } from './surfaces/duration';
+import { createQueueSurface } from './surfaces/queue';
 import { createStyleSurface } from './surfaces/style';
 import { createPreviewSurface, preview, previewOptions } from './surfaces/preview';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
@@ -103,6 +104,7 @@ async function init(): Promise<void> {
     const surfaces = [
         createSoundSurface(hook),
         createDurationSurface(handle),
+        createQueueSurface(handle),
         createStyleSurface(hook, sel.placeholder, bannerDraws),
         // A random preview's achievement is the banner's own synthetic preview, in a random tier (never TestAchievement).
         createPreviewSurface(() => previewTier(TIERS[Math.floor(Math.random() * TIERS.length)]!)),

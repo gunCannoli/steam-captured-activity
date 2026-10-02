@@ -45,7 +45,9 @@ async function idle() {
             }
             return false;
         })()`);
-        if (!busy) return;
+        // Desktop: a toast still on screen is its own popup window (with the notifications queue, the next one waits for it).
+        const desktop = (await (await fetch('http://127.0.0.1:8080/json')).json()).some((x) => /^notificationtoasts_\d+_desktop$/.test(x.title));
+        if (!busy && !desktop) return;
         await wait(500);
     }
 }

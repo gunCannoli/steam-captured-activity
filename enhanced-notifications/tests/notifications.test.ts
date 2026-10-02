@@ -267,3 +267,42 @@ test('preview: a random type, never the same twice in a row when there is a choi
     }
     assert.equal(seen.size, 3);
 });
+
+// ---------- the notifications queue (surfaces/queue/queue.ts) ----------
+import { planAlone } from '../frontend/surfaces/queue/queue.ts';
+
+test('notifications queue: on, every type is displayToastAlone; off, Steam\'s own value comes back', () => {
+    const entries = [
+        { eType: 2, pristine: undefined },
+        { eType: 33, pristine: true },
+        { eType: 9, pristine: false },
+    ];
+    assert.deepEqual(planAlone(entries, true), [[2, true], [33, true], [9, true]]);
+    assert.deepEqual(planAlone(entries, false), [[2, undefined], [33, true], [9, false]]);
+});
+
+test('notifications queue: the desktop stack looks stuck only with toasts waiting and none on screen', async () => {
+    const { stackLooksStuck } = await import('../frontend/steam/toast-stack.ts');
+    assert.equal(stackLooksStuck({ m_rgNotificationToasts: [1, 2], m_setContextsRenderingToasts: { size: 0 } }), true);
+    assert.equal(stackLooksStuck({ m_rgNotificationToasts: [1], m_setContextsRenderingToasts: { size: 1 } }), false);
+    assert.equal(stackLooksStuck({ m_rgNotificationToasts: [], m_setContextsRenderingToasts: { size: 0 } }), false);
+    assert.equal(stackLooksStuck(undefined), false);
+});
+
+test('toast stack idle: onIdle runs after SetContextRenderingToast(ctx, false), never for true; uninstall restores Steam', async () => {
+    const { installStackIdle } = await import('../frontend/steam/toast-stack.ts');
+    const calls: unknown[][] = [];
+    const proto = { SetContextRenderingToast(...args: unknown[]) { calls.push(args); return 'steam'; } };
+    const store = Object.create(proto) as Record<string, unknown>;
+    let idle = 0;
+    const off = installStackIdle(store, () => idle++, () => {})!;
+    assert.ok(Object.prototype.hasOwnProperty.call(store, 'SetContextRenderingToast'));
+    assert.equal((store.SetContextRenderingToast as (...a: unknown[]) => unknown)(0, true), 'steam');
+    assert.equal((store.SetContextRenderingToast as (...a: unknown[]) => unknown)(0, false), 'steam');
+    await new Promise((r) => setTimeout(r, 5));
+    assert.equal(idle, 1);
+    assert.deepEqual(calls, [[0, true], [0, false]]);
+    off();
+    assert.ok(!Object.prototype.hasOwnProperty.call(store, 'SetContextRenderingToast'));
+    assert.equal(installStackIdle({}, () => {}, () => {}), null);
+});

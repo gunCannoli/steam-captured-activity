@@ -316,7 +316,7 @@ function AchievementsPreviewSection({
     if (!loaded) return null;
 
     return (
-        <PanelSection title="Achievements Preview">
+        <PanelSection title="Preview Achievements">
             {TIERS.map((tier) => (
                 <ButtonRow
                     key={tier}
@@ -336,12 +336,12 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
     const [clipOn] = useSetting("recording.enabled");
 
     return (
-        <PanelSection title="Achievements">
+        <PanelSection title="General">
             <Blocks>
                 <ToggleRow
                     k="queue.enabled"
-                    label="Achievement queue"
-                    description="One banner at a time instead of Steam's stacking"
+                    label="Notifications queue"
+                    description="One notification at a time instead of Steam's stacking"
                     disabled={disabled}
                 />
                 <>
@@ -362,7 +362,7 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
                     <ToggleRow
                         k="recording.enabled"
                         label="Record clip on unlock"
-                        description="Saves the last length seconds"
+                        description="Needs Game Recording on"
                         disabled={disabled}
                     />
                     <SliderRow
@@ -383,13 +383,18 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
     );
 }
 
-function resultText(c: ResetCandidate, result: ResetResult, sources: ResetSource[]): string {
+function resultText(
+    c: ResetCandidate,
+    result: ResetResult,
+    sources: ResetSource[],
+): string {
     if (!result.ok) return result.reason;
     const main =
         result.remaining > 0 || result.skipped > 0
             ? `Cleared ${result.cleared} in ${c.name}; ${result.remaining} still show as unlocked (Steam may need a moment, or a restart).`
             : `Cleared all achievements in ${c.name}.`;
-    const labelOf = (id: string) => sources.find((s) => s.id === id)?.label ?? id;
+    const labelOf = (id: string) =>
+        sources.find((s) => s.id === id)?.label ?? id;
     const files = (result.sources ?? []).map((r) =>
         r.ok
             ? `${labelOf(r.id)}: ${r.cleared} cleared (backup kept next to the file).`
@@ -450,9 +455,12 @@ function ResetDialog({
             resettable.filter((s) => chosen.has(s.id)).map((s) => s.id),
         );
         hold.current = false;
-        const opened = manual.filter((s) => chosen.has(s.id) && api.openPage(s.url!));
+        const opened = manual.filter(
+            (s) => chosen.has(s.id) && api.openPage(s.url!),
+        );
         const pages = opened.map(
-            (s) => `${s.label}: its game page opened in your browser; press Manage progress there.`,
+            (s) =>
+                `${s.label}: its game page opened in your browser; press Manage progress there.`,
         );
         setOutcome([resultText(c, result, sources), ...pages].join(" "));
         setPhase("done");
@@ -560,7 +568,8 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
             {
                 strTitle: "Reset achievements",
                 popupWidth: 480,
-                popupHeight: 250 + rows * 64 + notes * 40 + (sources.length ? 20 : 0),
+                popupHeight:
+                    250 + rows * 64 + notes * 40 + (sources.length ? 20 : 0),
             },
         );
     };

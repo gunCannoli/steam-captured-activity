@@ -11,7 +11,7 @@ function memory() {
 }
 
 test('features: the ids users type never change (append only)', () => {
-    assert.deepEqual([...FEATURE_IDS], ['style', 'sound', 'duration', 'preview', 'placement', 'banner', 'completion', 'captures', 'toasts', 'reset']);
+    assert.deepEqual([...FEATURE_IDS], ['style', 'sound', 'duration', 'preview', 'placement', 'banner', 'completion', 'captures', 'toasts', 'reset', 'queue']);
 });
 
 test('features: parseDisabled trims and ignores empties', () => {

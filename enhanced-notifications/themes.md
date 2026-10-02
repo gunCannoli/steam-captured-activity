@@ -50,7 +50,7 @@ the theme list shows both, the `.jsonc` one as `name (jsonc)`.
 ```
 
 A theme only describes how toasts look and sound. What the plugin does (which
-theme is active, the achievement queue, captures on unlock) is a plugin
+theme is active, the notifications queue, captures on unlock) is a plugin
 setting, in the settings panel: see [Plugin settings](#plugin-settings).
 
 ### Older formats
@@ -102,8 +102,8 @@ At the top level of the theme.
 | `popup.glow` | `["#hex", spread_px, pulse_ms]` | Inner glow; `pulse_ms` `0` = steady. Not drawn on the banner |
 | `popup.watermark` | `true` / `false` | Steam logo behind desktop toasts |
 | `popup.margin` | CSS shorthand: `px`, `[vertical, horizontal]`, `[top, horizontal, bottom]` or `[top, right, bottom, left]` | Distance from the screen corner; only the sides the toast is anchored to count (`top_right` uses top and right; centred positions ignore left and right). Works with Steam's own corner too |
-| `popup.padding` | CSS shorthand, as `margin` | Space inside the toast around the icon and text. Steam's is `10` on desktop; the banner's default `[6, 10]` |
-| `popup.gap` | `px` or `[icon_to_text, between_rows]` | Steam's is `[12, 0]` on desktop; the banner's default `[10, 2]` |
+| `popup.padding` | CSS shorthand, as `margin` | Space inside the toast around the icon and text. Steam's is `10` on desktop; the banner's default `[6, 10]`. A toast keeps Steam's height (70 px on desktop, 40 px for Big Picture's short toast): the padding comes out of it, so a larger one leaves less room for the text |
+| `popup.gap` | `px` or `[icon_to_text, between_rows]` | Steam's is `[12, 0]` on desktop; the banner's default `[10, 2]`. Keep `between_rows` small: a three-row toast (a download: title, game, "Ready to play") has about 52 px of text in a 70 px toast, so `10` (added twice) crops it at the top and bottom |
 | `popup.scale` | `pct` or `[width_pct, height_pct]`, `25`–`400` | Banner only, for now. Size of the banner box; text and icons keep their own sizes |
 | `popup.width` / `popup.height` | px | Banner only, for now. Base size before `scale`; default: the layout's own |
 | `popup.layout` | A [layout](#achievementslayout) | Banner only, for now. `achievements.layout` wins over it |
@@ -252,12 +252,13 @@ shipped defaults; you never need to edit it.
 - **`theme`**: the active theme's file name without `.jsonc`/`.json` (with it
   for the second of a `.json` / `.jsonc` pair, so either can be picked), or
   `<steam>` for Steam default (the shipped default: no theme).
-- **`queue.enabled`**: one achievement banner at a time, off by default. A
-  burst of unlocks is shown one after another in arrival order, each with its
-  own sound when its banner appears, at the same spot. Up to 5 can wait; past
-  that a new one shows at once rather than being dropped. Applies to banners on
+- **`queue.enabled`**: "Notifications queue", off by default. One notification
+  on screen at a time, of every kind, instead of Steam's stack of up to three:
+  the next one appears when the previous one has gone, each with its own sound.
+  It uses Steam's own "show alone" rule for every notification type. Applies on
   desktop and in the in-game overlay (Big Picture already shows one toast at a
-  time).
+  time). Achievement banners also wait for each other (up to 5 queued; past
+  that a new one shows at once rather than being dropped).
 - **`screenshot`** / **`recording`**: captures on unlock, off by default (they
   write files into your library). Never set by a theme.
 
@@ -276,7 +277,5 @@ install, drop it into the themes folder and pick it in the settings panel.
 
 - **Big Picture** uses Steam's own 300×80 toast frame for the banner too:
   `scale` does not apply there.
-- **Achievement queue and other toasts.** Steam shows at most 3 desktop toasts
-  at once, and a queued achievement keeps its (invisible) toast open until its
-  turn. While a burst of 3+ unlocks drains, a friend or download toast can
-  wait for a free spot (about one banner's display time).
+- **Notifications queue.** With it on, a burst of notifications drains one at
+  a time, so the last one can appear several display times after it arrived.

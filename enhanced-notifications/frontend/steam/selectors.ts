@@ -26,7 +26,7 @@ const PARTS: Record<keyof ToastSelectors, string[]> = {
     logoBox: ['StandardLogoDimensions', 'ShortLogoDimensions'],
     appLogo: ['AppLogo'],
     headerIcon: ['Icon'],
-    toastTemplate: ['DesktopToastTemplate', 'ShortTemplate'],
+    desktopTemplate: ['DesktopToastTemplate'],
     content: ['Content'],
 };
 

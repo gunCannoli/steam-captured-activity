@@ -54,6 +54,7 @@ styled like every other toast. The surfaces get `bannerDraws` injected: a surfac
 | `captures` | Screenshot and clip on unlock | No captures |
 | `toasts` | Posting synthetic achievement toasts (tier previews, the 100% toast, the capture test) | None posted |
 | `reset` | The settings panel's Reset Achievements | The section is disabled and `reset()` refuses |
+| `queue` | The notifications queue: `displayToastAlone` on every type config while `queue.enabled` is on | Steam's own value for every type (restored at once, also on uninstall) |
 
 - **User switch:** `disabledFeatures` setting, comma-separated ids, no panel control. From the SharedJSContext console:
   `PLUGIN_LIST['enhanced-notifications-dev'].setSetting('disabledFeatures', 'style,sound')`. Read live.
@@ -99,6 +100,29 @@ unlock plays its tier's clip; otherwise the theme's notification sound (`false` 
   (`fnNotificationResolved`, desktop only). The achievement type's `toastDurationMS` is the banner's whole lifetime, so
   where Steam times the toast (Big Picture) the exit is never cut short.
 
+## Notifications queue
+
+`queue.enabled` ("Notifications queue") shows one toast at a time, of every kind. Steam already has the rule: the
+desktop and in-game overlay toast stack (module `48197`) pops the next toast only while no toast on screen is
+`displayToastAlone`, and holds a `displayToastAlone` toast until the stack is empty (`NotificationStore`
+`BAnyToastDisplayAlone` / `BNextToastDisplayAlone`, `_e(t) = typeConfig[t.eType].displayToastAlone === true`). The
+`queue` surface writes `true` on every type config while the setting is on and Steam's own value otherwise (pristine
+values kept in a global WeakMap, so a second copy of the plugin restores Steam's, not the first copy's). Steam sets it
+on types 33-35 itself. Verified live 2026-10-02: three test toasts at once opened 3 windows stock and never more than
+1 with the queue on (`tests/notifications-queue.mjs`). The achievement banner's own scheduler (`banner/queue.ts`)
+still orders banners and their sounds; with Steam serializing toasts it rarely has a second banner waiting.
+
+**The stall, and the watchdog.** Steam's stack pops only while its 5 s cache of
+`DefaultMonitorHasFullscreenWindow` is fresh, and refetches it only when an input flips; with toasts shown one at a
+time nothing flips, so a toast longer than 5 s left the next one waiting forever (found live 2026-10-02, 49 toasts
+stuck; steam-components.md). While the queue is on, the `queue` surface refetches that query through its own observer
+(`steam/toast-stack.ts`) the moment the stack's on-screen list empties with toasts still waiting: Steam signals it with
+`NotificationStore.SetContextRenderingToast(context, false)`, wrapped as an own property of the store like
+`PopNextToastNotification`. So queued toasts follow each other with almost no gap (achievement banners ~5.4 s apart,
+their lifetime). A watchdog looking once a second does the same if that signal is ever missed; turning the queue off
+with toasts waiting refetches once too. The live test runs with Steam default (5.6 s per toast) so it
+would catch a stall.
+
 ## Toast position and animation
 
 Desktop and the in-game overlay open one popup per toast; Steam's stack moves each one every frame of its slide
@@ -142,6 +166,9 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 | The hook's sound slot | `surfaces/sound/index.ts` | 2 |
 | `NotificationStore.OnNotification` (synthetic achievement toasts) | `surfaces/toasts/post.ts` | — |
 | Each type config's `toastDurationMS` | `surfaces/duration/index.ts` | — |
+| Each type config's `displayToastAlone` (notifications queue) | `surfaces/queue/index.ts` | — |
+| The desktop toast stack's fullscreen query (`refetch` through its observer, only when stuck) | `steam/toast-stack.ts`, called by `surfaces/queue/index.ts` | — |
+| `NotificationStore` instance `SetContextRenderingToast` (own property: the stack went idle) | `steam/toast-stack.ts`, installed by `surfaces/queue/index.ts` while the queue is on | 2 |
 | Toast windows: `<style id=enhanced-notifications-theme>` and `body[data-en-type]`; `Millennium.AddWindowCreateHook` | `surfaces/style/injector.ts` | [12](../plugins.md#12-popup-hooks-do-not-see-every-window) |
 | Big Picture window: `<style id=enhanced-notifications-placement>` | `surfaces/style/injector.ts` | — |
 | `NotificationStore` instance `PopNextToastNotification` (own property) | `steam/toast-pop.ts` | 2 |
@@ -185,7 +212,7 @@ on a row.
 | --- | --- |
 | `npm test` | Pure modules: themes, JSONC and CSS (`theme.test.ts`), the `achievements` block and its inheritance (`achievements-theme.test.ts`), safety, the hook and its composition with a second copy, the sound decision, the duration plan, the surface runner (`notifications.test.ts`), the unlock sensor, queued banner sounds, the 100% toast and the banner lifetime (`achievements.test.ts`), the scheduler, timing, geometry, capture plan, kernel, Reset Achievements, placement, the Big Picture type source |
 | `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`), and a popup's `MoveTo` has exactly its two writers; no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` matches steam-cartridges' copy; every live script is in `tests/run-live.mjs` |
-| `npm run test:live` | Every live check against the running client, settings snapshotted and restored; fails at once if enhanced-achievements is still loaded. Notification style: `safety`, `previews`, `sound-duration`, `placement`, `bigpicture`. Achievement banner (theme `ps5`): `achievements-smoke`, `-tiers`, `-safety`, `-queue`, `-captures`, `-settings` (SKIP without a theme with tier sounds), `-reset`, `-bigpicture`. The Big Picture checks SKIP unless Big Picture is open; run them with Big Picture in front |
+| `npm run test:live` | Every live check against the running client, settings snapshotted and restored; fails at once if enhanced-achievements is still loaded. Notification style: `safety`, `previews`, `sound-duration`, `notifications-queue`, `placement` (turns the queue off: it checks stacking), `bigpicture`. Achievement banner (theme `ps5`): `achievements-smoke`, `-tiers`, `-safety`, `-queue`, `-captures`, `-settings` (SKIP without a theme with tier sounds), `-reset`, `-bigpicture`. The Big Picture checks SKIP unless Big Picture is open; run them with Big Picture in front |
 
 ## How to add a feature
 
@@ -200,6 +227,9 @@ on a row.
 
 ## History
 
+- 2026-10-02 ADR-0055: the achievement queue became the notifications queue (`queue` surface, Steam's
+  `displayToastAlone` on every type); a theme's `padding` keeps Steam's toast height (content-box, the height set to
+  what is left; `border-box` had shrunk the desktop toast from 70 to 50 px and cropped its text).
 - 2026-10-02 The timeline marker on unlock is removed (`recording.add_timeline_marker`, the `UserAddTimelineEntry`
   call, the plan's `marker` action): a Steam-native feature for non-Steam games belongs in steam-cartridges (TASK.md).
 - 2026-10-02 ADR-0053: the "Themed style / sounds / display time" switches removed; "Steam default" theme (the

@@ -69,7 +69,9 @@ async function burst() {
     for (let t = 0; t < 90_000; t += 150) {
         const s = await sample();
         samples.push(s);
-        if (t > 3000 && s.length === 0) break;
+        // Done when no toast is on screen and none is left waiting: with the notifications queue, Steam shows one at a
+        // time and there is a moment with no window between two banners.
+        if (t > 3000 && s.length === 0 && (await cdp.evaluate('window.NotificationStore.m_rgNotificationToasts.length')) === 0) break;
         await wait(150);
     }
     return samples;

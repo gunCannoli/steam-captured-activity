@@ -7,6 +7,25 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: notifications queue and the padding crop (ADR-0055, 2026-10-02)**: at the user's request.
+  (1) The achievement queue now queues every notification: found that Steam's desktop toast stack (module `48197`) holds
+  back toasts while one is `displayToastAlone` (`typeConfig[eType].displayToastAlone`, true only on types 33-35); a new
+  `queue` surface sets it on every type while `queue.enabled` is on and restores Steam's values otherwise. Live: three
+  toasts at once, 3 windows stock, max 1 queued (`tests/notifications-queue.mjs` 7/7; `placement.mjs` now turns the
+  queue off since it checks stacking). (2) ps5's normal toasts were cropped: Steam's template is `padding: 10px;
+  height: 50px` (content-box, 70 px; Big Picture's ShortTemplate `padding: 0; height: 40px`), and our padding rule's
+  `box-sizing: border-box` made it 50 px. Now content-box with the height set to Steam's total minus the theme's
+  vertical padding (`STEAM_TEMPLATE_HEIGHT`, `desktopTemplate` selector split from `toastTemplate`). Measured live: the
+  card is 70 px again; a three-row download toast still overflowed with `gap: 10` (52 px of text + 20), so ps5 (bundled
+  and the user's copy) uses `"gap": [10, 2]`; every preview type then fits. (3) **Found the hard way:** the first full live
+  run with the queue on stalled Steam's toasts entirely (49 waiting, none shown): the stack pops only while its 5 s cache
+  of `DefaultMonitorHasFullscreenWindow` is fresh and refetches it only when an input flips, which serialized toasts
+  never do. Recovered by emptying the queue; fixed with a watchdog (`steam/toast-stack.ts`: the query observer's own
+  `refetch()`, found through the stack's fiber, only when toasts wait with none on screen, triggered by Steam's own
+  `SetContextRenderingToast(ctx, false)` the moment the stack empties, plus a 1 s watchdog). The live test now uses Steam
+  default (5.6 s toasts) and checks every toast shows and none is left waiting. Also `resetSettings()` now clears keys
+  this version no longer knows (the removed `recording.add_timeline_marker` survived "Reset to defaults"). `previews.mjs` and
+  `achievements-queue.mjs` waited for "no toast queued" only; they now also wait for no toast on screen. Unit tests 169.
 - **enhanced-notifications: timeline marker removed (2026-10-02)**: at the user's request, it is a Steam-native feature
   for non-Steam games, steam-cartridges' focus. Gone: the setting (`recording.add_timeline_marker`, settings.json, the
   panel row), the plan's `marker` action, `ENTRY_TYPE`, `sendMarker`, `addTimelineEntry` and its RPC type, the

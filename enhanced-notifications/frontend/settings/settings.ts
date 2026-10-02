@@ -175,9 +175,18 @@ export function setSetting<K extends SettingKey>(key: K, value: Settings[K]): Pr
     return value === DEFAULTS[key] ? write((n) => config.delete(n, key)) : write((n) => config.set(n, key, value));
 }
 
-/** Forget every stored value, so all settings return to the shipped defaults. */
+/**
+ * Forget every stored value, so all settings return to the shipped defaults. Keys this version no longer knows (a
+ * removed setting, like `recording.add_timeline_marker`) are deleted too, or they would stay in Millennium's config forever.
+ */
 export async function resetSettings(): Promise<void> {
-    for (const key of Object.keys(DEFAULTS)) {
+    let stored: string[] = [];
+    try {
+        stored = Object.keys(await readStored());
+    } catch {
+        /* the known keys below are still cleared */
+    }
+    for (const key of new Set([...Object.keys(DEFAULTS), ...stored])) {
         await write((n) => config.delete(n, key));
     }
 }

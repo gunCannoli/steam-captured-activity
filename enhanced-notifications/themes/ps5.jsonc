@@ -19,7 +19,7 @@
         "watermark": false,
         "margin": 10, // 10 px in from the top and right edges
         "padding": 10,
-        "gap": 10, // 10 px between the icon and the text, and between text rows
+        "gap": [10, 2], // 10 px between the icon and the text, 2 px between text rows (a 3-row toast fills Steam's 70 px card)
     },
     // Achievements use title for their name and body for their description.
     "text": {
@@ -43,7 +43,7 @@
             "icons": {
                 "achievement": [true, 100, 0], // the achievement's own art
                 "system": [true, 120, 2000], // Steam logo at 120%, ripple every 2 s
-                "rarity": ["PlayStation/bronze.svg", 100, 0],
+                "rarity": ["PlayStation/bronze.png", 100, 0],
             },
             "sound": ["PlayStation/trophy_ps5.mp3", 80],
         },
@@ -51,22 +51,22 @@
         // Silver: 25% of players or fewer.
         "magic": {
             "threshold": 25.0,
-            "icons": { "rarity": ["PlayStation/silver.svg", 150, 0] },
-            "sound": ["PlayStation/trophy_ps5.mp3", 90],
+            "icons": { "rarity": ["PlayStation/silver.png", 150, 0] },
+            "sound": ["PlayStation/trophy_ps4.mp3", 90],
         },
 
         // Gold: 10% of players or fewer.
         "rare": {
             "threshold": 10.0,
-            "icons": { "rarity": ["PlayStation/gold.svg", 150, 0] },
-            "sound": ["PlayStation/trophy_ps5.mp3", 90],
+            "icons": { "rarity": ["PlayStation/gold.png", 150, 0] },
+            "sound": ["PlayStation/trophy_ps4.mp3", 90],
         },
 
         // Platinum: the "100% complete" toast after the game's last achievement.
         "exceptional": {
             "icons": {
-                "rarity": ["PlayStation/steam_badge.svg", 100, 0],
-                "achievement": ["PlayStation/platinum_steam.svg", 100, 0],
+                "rarity": ["PlayStation/steam_badge.png", 100, 0],
+                "achievement": ["PlayStation/platinum_steam.png", 100, 0],
             },
             "sound": ["PlayStation/platinum_trophy_ps5.mp3", 90],
             "text": {

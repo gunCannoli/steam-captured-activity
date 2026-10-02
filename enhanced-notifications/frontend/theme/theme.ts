@@ -301,6 +301,15 @@ function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: n
  * achievement toast the banner draws), so nothing can match any other
  * window. Returns '' when the style is all stock.
  */
+/**
+ * The toast box's total height in Steam's own CSS (verified live 2026-10-02 from the toast window's stylesheets):
+ * DesktopToastTemplate (desktop and the overlay, the same class in four modules) is `padding: 10px; height: 50px`,
+ * so 70; Big Picture's ShortTemplate is `padding: 0; height: 40px`. A theme's `padding` is laid out inside that height
+ * (content-box, the height set to what is left), so the toast keeps Steam's size and its window (284x71 on desktop)
+ * never crops it. `box-sizing: border-box` shrank it to 50 and cut the text off at the top and bottom.
+ */
+export const STEAM_TEMPLATE_HEIGHT = { desktop: 70, short: 40 } as const;
+
 export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
     const root = 'body[data-en-type]';
     const popup = [sel.desktopPopup, sel.gamepadPopup].filter(Boolean).map((p) => `${root} ${p}`).join(', ');
@@ -344,9 +353,15 @@ export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
     }
     if (s.headerIcon === false && sel.headerIcon) css += `${root} ${sel.headerIcon} { display: none !important; }\n`;
 
-    if (s.padding && sel.toastTemplate) {
+    if (s.padding) {
         const p = s.padding;
-        css += `${root} ${sel.toastTemplate} { padding: ${p.top}px ${p.right}px ${p.bottom}px ${p.left}px !important; box-sizing: border-box !important; }\n`;
+        const box = (selector: string | undefined, total: number) => {
+            if (!selector) return;
+            const height = Math.max(0, total - p.top - p.bottom);
+            css += `${root} ${selector} { padding: ${p.top}px ${p.right}px ${p.bottom}px ${p.left}px !important; box-sizing: content-box !important; height: ${height}px !important; }\n`;
+        };
+        box(sel.desktopTemplate, STEAM_TEMPLATE_HEIGHT.desktop);
+        box(sel.shortTemplate, STEAM_TEMPLATE_HEIGHT.short);
     }
     const [gapX, gapY] = s.gap;
     if (sel.content && (gapX !== null || gapY !== null)) {

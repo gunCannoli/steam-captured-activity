@@ -72,6 +72,7 @@ writeFileSync(
 
 try {
     await plugin(`setSetting('disabledFeatures', '')`);
+    await plugin(`setSetting('queue.enabled', false)`); // two toasts must stack: the notifications queue would show one at a time
     await plugin(`setSetting('theme', 'en_place_test')`);
     for (let i = 0; i < 40 && (await plugin('activeTheme()?.name')) !== 'en_place_test'; i++) await wait(250);
     check('temp theme loaded', (await plugin('activeTheme()?.name')) === 'en_place_test');

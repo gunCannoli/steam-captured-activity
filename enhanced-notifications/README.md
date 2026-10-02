@@ -67,7 +67,7 @@ Open Millennium's sidebar and select **Enhanced Notifications**:
 | Random notification | Shows a random notification (one of Steam's own test toasts; an achievement too when the theme has no `achievements` block), a different type each press |
 | Select Notification | Pick a notification type from the list and press **Preview** |
 | Achievements Preview | Only for a theme with an `achievements` block: fires a test achievement for each tier |
-| Achievement queue | One achievement banner at a time instead of Steam's own stacking |
+| Notifications queue | One notification at a time, of every kind, instead of Steam's stack of up to three |
 | Screenshot on unlock | Grabs a frame from Steam's game recording, `delay` after the unlock |
 | Record clip on unlock | Saves the last `length` seconds, ending `delay` after the unlock |
 | Reset to defaults | Clears every changed setting |

@@ -3176,3 +3176,31 @@ every Steam restart because log positions lived in memory. The confirm popup sai
 - A reset with "Also reset local achievements" sticks; without it the popup says the unlocks come back.
 - The first check after this update reads logs once from the start (no positions saved yet), as before.
 - Epic, Xbox and other stores' achievements are not seen by steam-cartridges, so they are neither listed nor reset.
+
+## ADR-0055: The notifications queue uses Steam's own "display alone" rule for every notification type
+
+**Status:** Accepted · 2026-10-02 (the user's decision) · **Amends [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications)** (the achievement queue setting)
+
+### Context
+
+"Achievement queue" ordered only achievement banners, by holding each queued banner's popup open and invisible
+(`fnNotificationResolved`). The user wanted every notification queued. Steam's desktop toast stack shows up to three
+toasts, but already has a rule that serializes: a type whose config has `displayToastAlone: true` waits for an empty
+stack and blocks the stack while it shows.
+
+### Decision
+
+1. The setting keeps its key (`queue.enabled`) and becomes "Notifications queue".
+2. A new `queue` surface (its own kill switch) sets `displayToastAlone = true` on every type config while it is on,
+   and Steam's own value (pristine, `true` only on types 33-35 here) when it is off, switched off or uninstalled.
+3. No toast is held or hidden by the plugin for this: Steam pops the next toast itself when the previous one is gone.
+4. The achievement banner keeps its own scheduler for its sound timing and as a fallback while the `queue` switch is off.
+
+### Consequences
+
+- Verified live: three toasts at once, 3 windows stock, never more than 1 with the queue on.
+- Steam's stack stalls when toasts are serialized: it pops only while a 5 s cache is fresh and refreshes it only when an
+  input flips. A watchdog in the `queue` surface refreshes it through the query's own observer when toasts wait with
+  none on screen (steam-components.md, "Desktop stack: when it pops a toast").
+- A burst drains slowly: the last toast shows several display times after it arrived.
+- Big Picture is unchanged (it shows one toast at a time anyway).

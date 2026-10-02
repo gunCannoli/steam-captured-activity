@@ -142,6 +142,7 @@ export const PURE = [
     'steam/notification-hook.ts',
     'steam/toast-pop.ts',
     'surfaces/duration/duration.ts',
+    'surfaces/queue/queue.ts',
     'surfaces/preview/pick.ts',
     'surfaces/sound/sound.ts',
     'surfaces/style/type-source.ts',
@@ -204,6 +205,8 @@ export const OWNERS: [string, RegExp, string][] = [
     ['NotificationStore ChooseSound (per call)', /\.ChooseSound\s*=(?!=)/, 'steam/notification-hook.ts'],
     ['NotificationStore.OnNotification (synthetic achievement toasts)', /\.OnNotification\s*\(/, 'surfaces/toasts/post.ts'],
     ['type config toastDurationMS', /\.toastDurationMS\s*=(?!=)/, 'surfaces/duration/index.ts'],
+    ['desktop toast stack fullscreen query refetch (notifications queue)', /\bobserver\.refetch\s*\(/, 'steam/toast-stack.ts'],
+    ['type config displayToastAlone (notifications queue)', /\.displayToastAlone\s*=(?!=)/, 'surfaces/queue/index.ts'],
     ['toast popup SteamClient.Window.MoveTo (remap)', /\bapi\.MoveTo\s*=\s*wrapper\b/, 'surfaces/style/toast-window.ts'],
     ['achievement banner popup SteamClient.Window.MoveTo (pin)', /\bapi\.MoveTo\s*=\s*pinned\b/, 'surfaces/banner/window-pin.ts'],
     ['notification fnNotificationResolved (banner popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'surfaces/banner/themed-toast.tsx'],
@@ -212,6 +215,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
     ['Big Picture <style id=enhanced-notifications-placement>', /'enhanced-notifications-placement'/, 'surfaces/style/injector.ts'],
     ['NotificationStore PopNextToastNotification (own property)', /'PopNextToastNotification'/, 'steam/toast-pop.ts'],
+    ['NotificationStore SetContextRenderingToast (own property)', /'SetContextRenderingToast'/, 'steam/toast-stack.ts'],
     ["NotificationStore test toasts (previews)", /\.Test[A-Z]\w*\?\.\(/, 'surfaces/preview/index.ts'],
     ['Steam console commands (reset achievements)', /\.ExecCommand\s*\(/, 'surfaces/reset/index.ts'],
     ['GameRecording RPCs (captures)', /\.(TakeScreenshot|SaveClip)\s*\(/, 'surfaces/captures/recording.ts'],
@@ -254,7 +258,7 @@ test('architecture: no two surfaces declare the same Steam target', () => {
             }
         }
     }
-    assert.equal(dirs.length, 8, 'expected the eight surfaces');
+    assert.equal(dirs.length, 9, 'expected the nine surfaces');
     assert.ok(owner.size >= 15, `expected to read the surfaces' touches, found ${owner.size}`);
     assert.deepEqual(clashes, []);
 });
