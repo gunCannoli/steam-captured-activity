@@ -20,6 +20,8 @@ export interface ResetSource {
     resettable: boolean;
     unlocked: number;
     note?: string;
+    /** A page where the user resets this source by hand (RetroAchievements: the game's page, "Manage progress"). */
+    url?: string;
 }
 
 /** What a reset did to one source's files. */
@@ -44,6 +46,13 @@ export interface AchievementResetApi {
     sources(candidate: ResetCandidate): Promise<ResetSource[]>;
     /** `sources`: ids of resettable sources whose files are cleared too (each backed up first). */
     reset(candidate: ResetCandidate, sources?: string[]): Promise<ResetResult>;
+    /** Opens a source's reset page in the user's browser (retroachievements.org only); false when refused. */
+    openPage(url: string): boolean;
+}
+
+/** The only pages `openPage` opens: a game's page on retroachievements.org. */
+export function isResetPage(url: string): boolean {
+    return /^https:\/\/retroachievements\.org\/game\/\d+$/.test(url);
 }
 
 function listOf(labels: string[]): string {
@@ -71,7 +80,13 @@ export function resetWarning(c: ResetCandidate, sources: readonly ResetSource[],
     }
     if (cleared.length) parts.push(`Its ${listOf(cleared.map((s) => s.label))} are cleared too, each file backed up first. Close the game before you reset.`);
     if (kept.length) parts.push(`Its ${listOf(kept.map((s) => s.label))} are kept and will come back the next time you play.`);
-    for (const s of unreachable) parts.push(`${s.label}: ${s.note ?? 'cannot be reset here.'}`);
+    for (const s of unreachable) {
+        parts.push(
+            s.url && chosen.has(s.id)
+                ? `${s.label} cannot be reset from here: its game page opens after the reset; press Manage progress there.`
+                : `${s.label}: ${s.note ?? 'cannot be reset here.'}`,
+        );
+    }
     for (const s of cleared) if (s.note) parts.push(`${s.label}: ${s.note}`);
     if (!cleared.length) parts.push('This cannot be undone.');
     return parts.join(' ');

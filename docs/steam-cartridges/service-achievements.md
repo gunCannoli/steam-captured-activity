@@ -100,7 +100,7 @@ files the observer reads unlocks back from, each copied to `<file>.bak-<yyyymmdd
 | `local` | CODEX / RUNE / GSE `achievements.ini`, Goldberg `achievements.json` (`observer.emulator_files(native)`) | `Achieved=0`, `UnlockTime=0`, the `[SteamAchievements]` list emptied; Goldberg `earned=false` |
 | `rpcs3` | `TROPUSR.DAT` in the trophy folder | RPCS3's own `LockTrophy`: state and both timestamps 0 in the type-6 table (entries are 0x70 bytes) |
 | `shadps4` | `<shadPS4>/[user/]home/<user>/trophy/<npcommid>.xml`, or the older in-folder `TROP*.XML` | `unlockstate="false"`, `timestamp` removed; shadNet may sync them back |
-| `retroachievements` | none: on the user's account | not resettable (its API has no reset; the website does it) |
+| `retroachievements` | none: on the user's account | not resettable (its API has no reset); the source carries the game's page (`url`), where "Manage progress" resets it |
 
 A file that is not in the expected format is left alone and reported. The RPCS3 and shadPS4 paths are unit-tested only
 (no such files on the development machine); live testing is in TASK.md.

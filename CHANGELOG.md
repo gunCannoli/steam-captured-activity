@@ -7,6 +7,13 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Reset Achievements: RetroAchievements manual reset (ADR-0054, 2026-10-02)**: at the user's request, the RA source
+  carries its game page (`url`); the popup warns and offers "Open RetroAchievements to reset manually", which opens
+  `retroachievements.org/game/<id>` (its "Manage progress" button, RAWeb `MasteredProgressIndicator`) with
+  `SteamClient.System.OpenInSystemBrowser` after the reset (`openPage`, allow-listed to RA game pages). Also answered:
+  during play RA unlocks are read locally, from RetroArch's log (`[RCHEEVOS] Awarded achievement <id>`, polled every
+  2 s; `log_to_file = true` here); the RA API (`dorequest r=unlocks`) only loads the list when the game's data is fetched.
+  Live: Super Mario World's source has `.../game/228`; reset test 10/10. The browser was not opened.
 - **Reset Achievements reaches the emulator and trophy files (ADR-0054, 2026-10-02)**: at the user's request. Found:
   a reset of a non-Steam game came back from the Steam emulator's `achievements.ini` (Wuchang, RUNE) and from logs
   re-read after each restart. steam-cartridges: `achievements_reset.lua` (`sources`, `reset`), `achievement_files.lua`

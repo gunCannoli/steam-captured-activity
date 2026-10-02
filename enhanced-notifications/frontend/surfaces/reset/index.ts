@@ -1,5 +1,5 @@
 import type { Surface } from '../../kernel/surface';
-import type { AchievementResetApi, ResetResult, ResetSource, ResetSourceOutcome } from '../../kernel/reset';
+import { isResetPage, type AchievementResetApi, type ResetResult, type ResetSource, type ResetSourceOutcome } from '../../kernel/reset';
 import { progressFor } from '../../steam/notification-store';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { buildCandidates, createReset, type AppFacts } from './reset';
@@ -95,6 +95,16 @@ export const achievementReset: AchievementResetApi = {
             return [];
         }
     },
+    openPage(url) {
+        if (!isEnabled('reset') || !isResetPage(url)) return false;
+        try {
+            Reflect.get(globalThis, 'SteamClient')?.System?.OpenInSystemBrowser(url);
+            return true;
+        } catch (error) {
+            reportError('reset', error);
+            return false;
+        }
+    },
     async reset(candidate, sources = []): Promise<ResetResult> {
         if (!achievementReset.available()) return { ok: false, reason: 'Reset Achievements is switched off.' };
         try {
@@ -110,7 +120,7 @@ export const achievementReset: AchievementResetApi = {
 export function createResetSurface(): Surface {
     return {
         id: 'reset',
-        touches: ['SteamClient.Console.ExecCommand', 'steam-cartridges.resetAchievements'],
+        touches: ['SteamClient.Console.ExecCommand', 'steam-cartridges.resetAchievements', 'SteamClient.System.OpenInSystemBrowser'],
         install: () => typeof steamConsole()?.ExecCommand === 'function',
         uninstall() {},
     };

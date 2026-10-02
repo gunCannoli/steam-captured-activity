@@ -173,7 +173,7 @@ reset.deps.entry = function() return nil, "" end
 local real_get = store.get_state
 store.get_state = function(id) if id == 42 then return { schema = { ra_game_id = 99 }, unlocks = { a = {}, b = {} } } end return real_get(id) end
 local ra = reset.sources(42, 0).sources
-check("sources: RetroAchievements listed as not resettable", #ra == 1 and ra[1].id == "retroachievements" and ra[1].resettable == false and ra[1].unlocked == 2)
+check("sources: RetroAchievements listed as not resettable, with its game page", #ra == 1 and ra[1].id == "retroachievements" and ra[1].resettable == false and ra[1].unlocked == 2 and ra[1].url == "https://retroachievements.org/game/99", ra[1] and ra[1].url)
 r = reset.reset(42, 0, { "retroachievements" }, "x")
 check("reset: a non-resettable source is skipped", #r.sources == 0)
 store.get_state = real_get

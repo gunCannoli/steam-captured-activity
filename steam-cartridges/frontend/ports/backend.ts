@@ -12,6 +12,8 @@ export interface AchievementResetSource {
     resettable: boolean;
     unlocked: number;
     note?: string;
+    /** A page where the user resets this source by hand (RetroAchievements: the game's page). */
+    url?: string;
 }
 
 /** What a reset did to one source. */

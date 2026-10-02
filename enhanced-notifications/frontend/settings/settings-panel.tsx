@@ -433,6 +433,15 @@ function ResetDialog({
     // "Also reset ..." choices, off until the user turns one on: clearing files is the bigger step.
     const [chosen, setChosen] = useState<Set<string>>(() => new Set());
     const resettable = sources.filter((s) => s.resettable);
+    // A source reset by hand on a web page (RetroAchievements): its switch opens the page after the reset.
+    const manual = sources.filter((s) => !s.resettable && s.url);
+    const toggle = (id: string, on: boolean) =>
+        setChosen((prev) => {
+            const next = new Set(prev);
+            if (on) next.add(id);
+            else next.delete(id);
+            return next;
+        });
     const [outcome, setOutcome] = useState("");
     const hold = useRef(false);
     const close = () => {
@@ -442,9 +451,16 @@ function ResetDialog({
         hold.current = true;
         setPhase("running");
         onStart();
-        const result = await api.reset(c, [...chosen]);
+        const result = await api.reset(
+            c,
+            resettable.filter((s) => chosen.has(s.id)).map((s) => s.id),
+        );
         hold.current = false;
-        setOutcome(resultText(c, result, sources));
+        const opened = manual.filter((s) => chosen.has(s.id) && api.openPage(s.url!));
+        const pages = opened.map(
+            (s) => `${s.label}: its game page opened in your browser; press Manage progress there.`,
+        );
+        setOutcome([resultText(c, result, sources), ...pages].join(" "));
         setPhase("done");
         onFinished();
     };
@@ -465,14 +481,20 @@ function ResetDialog({
                             >
                                 <Toggle
                                     value={chosen.has(s.id)}
-                                    onChange={(on) =>
-                                        setChosen((prev) => {
-                                            const next = new Set(prev);
-                                            if (on) next.add(s.id);
-                                            else next.delete(s.id);
-                                            return next;
-                                        })
-                                    }
+                                    onChange={(on) => toggle(s.id, on)}
+                                />
+                            </Field>
+                        ))}
+                        {manual.map((s) => (
+                            <Field
+                                key={s.id}
+                                label={`Open ${s.label} to reset manually`}
+                                description="Opens the game's page after the reset; press Manage progress there"
+                                bottomSeparator="none"
+                            >
+                                <Toggle
+                                    value={chosen.has(s.id)}
+                                    onChange={(on) => toggle(s.id, on)}
                                 />
                             </Field>
                         ))}
@@ -527,7 +549,7 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
         setBusy(true);
         const sources = await api.sources(chosen);
         setBusy(false);
-        const rows = sources.filter((s) => s.resettable).length;
+        const rows = sources.filter((s) => s.resettable || s.url).length;
         const notes = sources.filter((s) => !s.resettable || s.note).length;
         showDialog(
             <ResetDialog

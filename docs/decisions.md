@@ -3163,7 +3163,9 @@ every Steam restart because log positions lived in memory. The confirm popup sai
    `UnlockTime=0`, Goldberg `earned=false`, RPCS3's own `LockTrophy` layout, shadPS4 `unlockstate="false"`. A file in an
    unexpected format is left alone and reported.
 4. **RetroAchievements is never reset from here**: its API (`dorequest.php`) has no reset request; only the signed-in
-   website does it. The popup says so and where.
+   website does it. The popup warns, and an "Open RetroAchievements to reset manually" switch opens the game's page
+   (`https://retroachievements.org/game/<id>`, whose "Manage progress" button resets it) in the user's browser after
+   the reset; `openPage` opens nothing else.
 5. **Log read positions persist** (`log_offsets.json`), and a reset marks the game's logs read to their end, so a log
    never brings back an unlock a reset cleared.
 6. **The RPCS3 and shadPS4 readers now follow those emulators' real formats** (the old ones assumed a fixed-record

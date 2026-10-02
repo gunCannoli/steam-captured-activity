@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCandidates, createReset, type AppFacts } from '../frontend/surfaces/reset/reset.ts';
-import { filterCandidates, resetWarning, type ResetCandidate, type ResetSource } from '../frontend/kernel/reset.ts';
+import { filterCandidates, isResetPage, resetWarning, type ResetCandidate, type ResetSource } from '../frontend/kernel/reset.ts';
 
 const apps: AppFacts[] = [
     { appid: 2, name: 'Zed', isShortcut: false },
@@ -119,4 +119,17 @@ test('reset warning: RetroAchievements is out of reach and says where to reset; 
     assert.match(w, /RetroAchievements: Reset them on retroachievements.org/);
     assert.doesNotMatch(w, /cleared too/);
     assert.match(resetWarning(shortcut, [ps4], new Set(['shadps4'])), /shadPS4 achievements: shadNet may sync them back/);
+});
+
+test('reset page: only a retroachievements.org game page is opened', () => {
+    assert.equal(isResetPage('https://retroachievements.org/game/228'), true);
+    for (const bad of ['http://retroachievements.org/game/228', 'https://retroachievements.org/game/228/x', 'https://evil.example/game/1', 'https://retroachievements.org.evil/game/1', 'javascript:alert(1)']) {
+        assert.equal(isResetPage(bad), false, bad);
+    }
+});
+
+test('reset warning: with its switch on, RetroAchievements says its page opens after the reset', () => {
+    const withUrl: ResetSource = { ...ra, url: 'https://retroachievements.org/game/228' };
+    assert.match(resetWarning(shortcut, [withUrl], new Set(['retroachievements'])), /game page opens after the reset; press Manage progress/);
+    assert.match(resetWarning(shortcut, [withUrl], new Set()), /RetroAchievements: Reset them on retroachievements.org/);
 });

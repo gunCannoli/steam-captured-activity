@@ -106,10 +106,13 @@ function M.sources(shortcut_appid, native_appid)
   end
 
   -- RetroAchievements: on the user's account, not resettable from here.
-  if (tonumber(schema.ra_game_id) or 0) > 0 then
+  local ra_id = math.floor(tonumber(schema.ra_game_id) or 0)
+  if ra_id > 0 then
     out[#out + 1] = { id = "retroachievements", label = "RetroAchievements", resettable = false,
       unlocked = count(st.unlocks), files = {},
-      note = "They stay on your RetroAchievements account and come back the next time they sync. Reset them on retroachievements.org (Settings, Reset game progress)." }
+      -- The game's page: its "Manage progress" button resets the user's progress (RAWeb MasteredProgressIndicator).
+      url = "https://retroachievements.org/game/" .. tostring(ra_id),
+      note = "They stay on your RetroAchievements account and come back the next time they sync. Reset them on the game's page with Manage progress." }
   end
 
   return { sources = out }

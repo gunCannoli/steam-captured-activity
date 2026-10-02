@@ -18,7 +18,8 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
-(RUNE)" toggle, popup size) on desktop and in Big Picture; a real reset with the toggle on, then launch the game and
+(RUNE)" toggle, popup size) on desktop and in Big Picture; Super Mario World's popup with "Open RetroAchievements to
+reset manually" on (the game page opens in the browser after the reset); a real reset with the toggle on, then launch the game and
 confirm nothing comes back (the backup is `achievements.ini.bak-<date>` next to the file). (2) **RPCS3 and shadPS4,
 untested on real files** (none on this machine): with a game that has trophies, check the source is listed with the
 right count, reset with the toggle on, and confirm the emulator shows the trophies locked and still loads the file
