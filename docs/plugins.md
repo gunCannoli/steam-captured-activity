@@ -689,7 +689,8 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      trailing margin). Steam's `TextField` ends with 22 px of blank space of its own:
      `ItemRow trailing` cancels it, so a block's spacing never depends on its last
      control. A slider is `SliderRow` (both plugins: Steam's `SliderField`, label and
-     value above the track), under the toggle that enables it, in one block. It keeps
+     value above the track), under the toggle that enables it or under a `Field` that names
+     it (then without its own label), in one block. It keeps
      Steam's own 22 px bottom margin: as a section's last row that margin is the gap to
      the next section (cancelling it left 2 px, measured live). Controls stacked inside one custom card are
      `CONTROL_GAP` (8 px) apart on the card's colour (`CARD_BACKGROUND`, measured live).

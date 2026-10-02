@@ -32,7 +32,7 @@ published build needs it shipped with the plugin (decide how).
 **steam-cartridges community tab (2026-10-01): crash fixed, downloads kept on disk (ADR-0051).** Both live-verified by the
 agent (Chrono Trigger after a restart: images 479 ms, was 11-23 s; `test:live` 13/13). Left for the user: plan § 7 of
 [the investigation](docs/plans/steam-cartridges-community-crash-and-speed-investigation.md) (Chrono Trigger three times, then
-after a restart), and a look at the "Cache downloaded media" toggle and "Cache lifespan" slider in Settings → Community Content (desktop and Big Picture).
+after a restart), and a look at the "Cache downloaded media" slider in Settings → Community Content (desktop and Big Picture).
 When both pass, delete the investigation plan. Do not re-introduce parallel backend calls (no gain: the host serves one
 request at a time).
 

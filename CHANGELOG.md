@@ -7,6 +7,10 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: media cache setting without its toggle (2026-10-02)**: at the user's request. "Cache downloaded
+  media" is a `Field` (label, "Days images and manuals stay on this PC. 0 keeps nothing.") then the slider with no label
+  of its own (0-30 days, value shown above the track); `SliderRow`'s label is optional for this. Live: gap to Routing
+  Rules 24 px, panel check passes.
 - **steam-cartridges: media cache setting in enhanced-notifications' form (2026-10-02)**: at the user's request, like
   "Screenshot on unlock": a "Cache downloaded media" toggle (on = `mediaCacheDays` > 0; off writes 0, on writes the
   default 7) and under it Steam's slider "Cache lifespan" (1-30 days, disabled while off), one block. `SliderRow` is now

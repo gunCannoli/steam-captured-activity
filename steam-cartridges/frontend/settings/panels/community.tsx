@@ -36,22 +36,21 @@ export function CommunitySection() {
                     <ToggleRow label="Game Manuals" description="ScreenScraper manuals, shown first" value={showManuals} onChange={setShowManuals} />
                 </>
                 <>
-                    {/* enhanced-notifications' form: the toggle, then its slider. Off is 0 days (nothing kept on disk). */}
-                    <ToggleRow
-                        label="Cache downloaded media"
-                        description="Keeps images and manuals on this PC"
-                        value={cacheDays > 0}
-                        onChange={(on) => setCacheDays(on ? MEDIA_CACHE_DAYS.default : 0)}
-                    />
+                    {/* Label and description, then the slider across the full row. 0 keeps nothing on disk. */}
+                    <ItemRow>
+                        <Field
+                            label="Cache downloaded media"
+                            description="Days images and manuals stay on this PC. 0 keeps nothing."
+                            bottomSeparator="none"
+                        />
+                    </ItemRow>
                     <SliderRow
-                        label="Cache lifespan"
-                        value={cacheDays > 0 ? cacheDays : MEDIA_CACHE_DAYS.default}
-                        min={1}
+                        value={cacheDays}
+                        min={MEDIA_CACHE_DAYS.min}
                         max={MEDIA_CACHE_DAYS.max}
                         step={MEDIA_CACHE_DAYS.step}
-                        suffix=" days"
+                        suffix={cacheDays === 1 ? " day" : " days"}
                         resetValue={MEDIA_CACHE_DAYS.default}
-                        disabled={cacheDays === 0}
                         onChange={setCacheDays}
                     />
                 </>

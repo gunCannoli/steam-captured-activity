@@ -15,7 +15,7 @@ shortcut with no Steam match, and from where. Part of the steam-cartridges archi
   `bin_http.lua`, WinINet through LuaJIT's FFI) and answers base64; the frontend turns the bytes into a `blob:` URL
   (`ports/image.ts` `objectUrl`) held in `kernel/media-bin.ts` (8 shortcuts, released on eviction).
 - The disk cache of those downloads (`media_cache.lua`, ADR-0051, § Disk cache): images, a manual's PDF and its cover,
-  per game, for the user's "Cache lifespan" days.
+  per game, for the user's "Cache downloaded media" days.
 
 It does **not** write to Steam (the `community` surface does, [surfaces.md](surfaces.md)), does not search IGDB by title
 (it asks for the game Game Info already shows, `ctx.igdb_id`), and does not decide routing (ADR-0040): `allowWeb` and
@@ -81,7 +81,7 @@ be an image, so the next start refuses it without the 3-15 s `jeuInfos` lookup t
 escaped (`safe_name`); never a URL. `opened.json` holds each game's last page open (`touch`, from `EnsureFresh` media
 with `cacheDays` > 0, at most once an hour; a write counts as an open too).
 
-The frontend sends the setting `mediaCacheDays` (0-30, default 7, the "Cache downloaded media" toggle and "Cache lifespan" slider in Community
+The frontend sends the setting `mediaCacheDays` (0-30, default 7, the "Cache downloaded media" slider in Community
 Content) with every call that can read or write the cache (`cacheDays`); 0 means memory only. `app/media.pruneCache` calls
 `PruneMediaCache(days)` at start-up and 2 s after the slider settles: every game folder whose last open is older than the
 days goes (all of them for 0), and the pre-ADR-0051 `manual_covers/` folder with it. Measured live (Chrono Trigger,

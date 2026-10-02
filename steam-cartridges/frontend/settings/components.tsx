@@ -80,7 +80,8 @@ export function SliderRow({
     onChange,
     disabled,
 }: {
-    label: string;
+    /** Left out when a Field row above already names the slider. */
+    label?: string;
     value: number;
     min: number;
     max: number;
