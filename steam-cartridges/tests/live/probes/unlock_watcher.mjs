@@ -173,7 +173,7 @@ if (only.has("files")) {
         ...values("--watch"),
         ...gameFolders(),
     ].filter((p, i, all) => existsSync(p) && all.indexOf(p) === i);
-    const TEXT = /(\.(log|txt|json|xml|dat|ini|cfg|config|db|sqlite|etl|bin)|[\/]f_[0-9a-f]{6})$/i;
+    const TEXT = /(\.(log|txt|json|xml|dat|ini|cfg|config|db|sqlite|etl|bin)|[\\/]f_[0-9a-f]{6})$/i;
     const readable = /\.(log|txt|json|xml|ini|cfg|config)$/i;
     const offsets = new Map();
     const lastEvent = new Map();
