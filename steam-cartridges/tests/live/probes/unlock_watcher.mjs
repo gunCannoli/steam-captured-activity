@@ -178,6 +178,9 @@ if (only.has("windows")) {
                     log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, kind === "conn+" && (hotProc || /epicgames|eos|xboxlive|xbox\.com|playfab/i.test(host ?? "")), at);
                     // The game (not the launcher) talking to Epic's online services, or anything to Xbox Live's achievements host.
                     if (kind === "conn+" && /api\.epicgames\.dev/i.test(host ?? "") && !/launcher|epicwebhelper/i.test(c.proc ?? "")) candidate("game-epic-api", "epic", { proc: c.proc, host });
+                    // The Epic overlay renderer opens fresh connections when it draws a toast (1 s after the unlock, verified twice);
+                    // the game's own api.epicgames.dev connection is made at launch and may not recur, and cef.log is written late.
+                    if (kind === "conn+" && /EOSOverlayRenderer/i.test(c.proc ?? "")) candidate("overlay-renderer-conn", "epic", { proc: c.proc, remote: c.remote });
                     if (kind === "conn+" && /achievements\.xboxlive\.com|xboxlive\.com/i.test(host ?? "") && !/^(steam|node)$/i.test(c.proc ?? "")) candidate("xbox-live-host", "xbox", { proc: c.proc, host });
                 };
                 if (kind === "conn+") {
@@ -440,18 +443,38 @@ if (only.has("api") && !flag("--no-api")) {
         const fromCollections = JSON.parse(
             (await run(`JSON.stringify([['Epic Games','epic'],['Xbox','xbox']].flatMap(([name, kind]) => { const c = [...collectionStore.userCollections].find((x) => x.displayName === name); return (c?.allApps ?? []).map((a) => ({ id: a.appid >>> 0, kind })); }))`)) ?? "[]",
         );
+        const collectionsJs = `JSON.stringify([['Epic Games','epic'],['Xbox','xbox']].flatMap(([name, kind]) => { const c = [...collectionStore.userCollections].find((x) => x.displayName === name); return (c?.allApps ?? []).map((a) => ({ id: a.appid >>> 0, kind })); }))`;
         const targets = [...fromCollections, ...values("--app").map((a) => ({ id: Number(a.split(":")[0]) >>> 0, kind: a.split(":")[1] ?? "epic" }))];
         log("api", "targets", { targets });
-        // The store part (record) gives an Xbox shortcut its title id: how a push finds its shortcut.
-        for (const t of targets) {
-            const st = JSON.parse((await run(`(async()=>{ try { const raw = await Millennium.callServerMethod('steam-cartridges-dev','EnsureFresh',{payload: JSON.stringify({appid:${t.id}, parts:['store'], context:{allowEpic:true, allowXbox:true}})}); const d = JSON.parse(raw).parts?.store?.data; return JSON.stringify({ titleId: d?.titleId ?? null, kind: d?.kind ?? null }); } catch (e) { return '{}'; } })()`)) ?? "{}");
-            appMeta.set(t.id, { kind: t.kind, titleId: st.titleId });
-        }
+        // The store part (record) gives an Xbox shortcut its title id (how a push finds its shortcut) and an Epic one its product.
+        // Asked again until it answers: a failed first lookup left the Epic game's achievements in error for a whole run.
+        const ensureStore = async (t) => {
+            const m = appMeta.get(t.id) ?? { kind: t.kind };
+            if (m.stored) return;
+            const st = JSON.parse((await run(`(async()=>{ try { const raw = await Millennium.callServerMethod('steam-cartridges-dev','EnsureFresh',{payload: JSON.stringify({appid:${t.id}, parts:['store'], context:{force:true, allowEpic:true, allowXbox:true}})}); const d = JSON.parse(raw).parts?.store?.data; return JSON.stringify({ titleId: d?.titleId ?? null, kind: d?.kind ?? null, productId: d?.productId ?? null }); } catch (e) { return '{}'; } })()`)) ?? "{}");
+            m.titleId = st.titleId;
+            m.stored = t.kind === "xbox" ? !!st.titleId : !!st.productId;
+            appMeta.set(t.id, m);
+        };
+        for (const t of targets) await ensureStore(t);
+        // Shortcuts added while the watcher runs (auto-add, or by hand) become targets within 20 s.
+        setInterval(async () => {
+            try {
+                const now = JSON.parse((await run(collectionsJs)) ?? "[]");
+                for (const t of now) {
+                    if (targets.some((x) => x.id === t.id)) continue;
+                    targets.push(t);
+                    await ensureStore(t);
+                    log("api", "new-target", { appid: t.id, store: t.kind, titleId: appMeta.get(t.id)?.titleId });
+                }
+            } catch { /* Steam busy */ }
+        }, 20000);
         log("api", "meta", { targets: [...appMeta].map(([id, m]) => ({ id, kind: m.kind, titleId: m.titleId })) });
         const last = new Map(); // appid -> { key, ids: Map(id -> time) }
         const poll = async (only) => {
             for (const t of targets) {
                 if (only && t.kind !== only) continue;
+                await ensureStore(t);
                 const res = await run(`(async()=>{ try { const raw = await Millennium.callServerMethod('steam-cartridges-dev','EnsureFresh',{payload: JSON.stringify({appid:${t.id}, parts:['achievements'], context:{force:true, allowEpic:true, allowXbox:true}})});
                   const a = JSON.parse(raw).parts?.achievements; const found = []; const walk = (o) => { if (!o || typeof o !== 'object') return; for (const [k,v] of Object.entries(o)) { if (v && typeof v === 'object' && Number(v.unlocked_time) > 0) found.push(k + '@' + v.unlocked_time); else walk(v); } }; walk(a?.data);
                   const meta = {}; for (const x of (a?.data?.schema?.achievements ?? [])) meta[x.id] = { name: x.name, description: x.description, icon: x.icon, pct: x.global_pct ?? 0 };

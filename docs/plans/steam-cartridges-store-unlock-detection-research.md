@@ -45,6 +45,33 @@ and deterministic:
 - So the local signal says "a toast was shown", not which achievement: ask the Epic API at 1.5 s for 20 s after a trigger
   (the watcher's burst) and diff the unlocked ids.
 
+## Samples of 2026-10-03 17:55 (Xbox, Microsoft Sudoku) and 17:58 (Epic, BURIED STARS), UTC-3
+
+**Xbox, three unlocks in one puzzle** (Good Start, Good Memory, Speed Demon; the store's unlock time 17:55:48.317 for all three).
+The pushes reached Windows at 17:55:49.77 / .78 / .85 (1.5 s after the unlock), but the push watcher printed them at +2.4 s, +3.4 s
+and +6.4 s: the platform delivers them one by one, about a second apart, and the event-driven PowerShell action added up to
+0.9 s of its own. So "about 1 s" holds for the first push, not for a burst. The watcher found no Steam shortcut (Sudoku had none).
+Reason, fixed the same day: Sudoku ships **no** `XboxServices.config` / `MicrosoftGame.config` (Minesweeper and Wordament do), only
+the manifest protocol `xboxliveapp-<n>`; detection now accepts that, and the title id comes from the catalog by package name
+(`Microsoft.MicrosoftSudoku_8wekyb3d8bbwe` is 1703086168, the push's `titleId`). Auto-add then added it within seconds of the restart,
+its record shows 45 achievements, and the unlocked ids (2, 16, 17) are exactly the three pushed.
+
+**Epic, one unlock** ("The Beginning", `NEW_ACHIEVEMENT_1_1`, the API's unlock time 17:58:48.000):
+
+| Local time | What |
+| --- | --- |
+| 17:57:47 | the launcher starts the game; one `cef.log` ffmpeg line (the launch toast) |
+| 17:57:53 | the game's one connection to `api.epicgames.dev` (**at launch only**: it did not recur at the unlock) |
+| 17:58:48.97 | `EOSOverlayRenderer` opens new connections (about 1 s after the unlock) |
+| 17:58:49.17 | `cef.log` ffmpeg line "Unsupported pixel format" (the toast being drawn; the timestamp is inside the line) |
+| 17:58:59 | the file watcher sees `cef.log` grow: the overlay **buffers** its log and wrote it 10 s late, with its shutdown line |
+
+So of the Epic triggers: the overlay renderer's new connections are timely (about 1 s); `cef.log` is late (read the timestamp in each
+line instead of the file's write time); the game's `api.epicgames.dev` connection is a launch event, not an unlock one. The API
+polling in that run sat in `status: error` for the whole run (the first lookup of the new game's store product failed and was
+never repeated), so no API unlock was seen; the watcher now asks for the store part again until it answers, picks up shortcuts
+added while it runs, and treats the renderer's connections as a trigger.
+
 ## Posting the unlock to Steam as a native toast (verified 2026-10-03, `--steam --simulate`)
 
 `NotificationStore.OnNotification(id, achievementType, protobuf)` with the store's real achievement id is Steam's own toast

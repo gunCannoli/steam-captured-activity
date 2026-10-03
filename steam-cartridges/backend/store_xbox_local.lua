@@ -95,11 +95,14 @@ function M.parse_appx_manifest(text)
   local exe = text:match("<Application%s[^>]-Executable=\"([^\"]+)\"")
   local title = text:match("<DisplayName>%s*([^<]-)%s*</DisplayName>")
   if title and title:match("^ms%-resource:") then title = nil end
-  return { app_id = app, executable = exe, title = title }
+  -- An Xbox Live game that ships no game config (Microsoft Sudoku, found 2026-10-03) registers a protocol
+  -- `xboxliveapp-<number>`: the one local mark that its achievements exist. Its title id comes from the catalog.
+  local live = text:find('Name="xboxliveapp%-%d+"') ~= nil
+  return { app_id = app, executable = exe, title = title, xbox_live = live }
 end
 
---- Every installed Xbox Live game: a package with an Xbox game config. Registry and disk only.
---- { { pfn, full_name, root, title_id, store_id?, app_id, executable?, title?, via = "config" } }
+--- Every installed Xbox Live game: a package with an Xbox game config, or an `xboxliveapp-` protocol in its manifest.
+--- Registry and disk only. { { pfn, full_name, root, title_id?, store_id?, app_id, executable?, title?, via = "config" | "protocol" } }
 function M.installed()
   local out = {}
   for _, p in ipairs(M.parse_packages(run('reg query "' .. M.PACKAGES_KEY .. '" /s /v PackageRootFolder'))) do
@@ -111,8 +114,8 @@ function M.installed()
       local game = M.parse_game_config(read(p.root .. "\\MicrosoftGame.config"))
       if game then title_id, store_id = game.title_id, game.store_id end
     end
-    if title_id then
-      local manifest = M.parse_appx_manifest(read(p.root .. "\\AppxManifest.xml")) or {}
+    local manifest = M.parse_appx_manifest(read(p.root .. "\\AppxManifest.xml")) or {}
+    if title_id or manifest.xbox_live then
       out[#out + 1] = {
         pfn = M.family_name(p.full_name),
         full_name = p.full_name,
@@ -122,7 +125,7 @@ function M.installed()
         app_id = manifest.app_id or "App",
         executable = manifest.executable,
         title = manifest.title,
-        via = "config",
+        via = title_id and "config" or "protocol",
       }
     end
   end

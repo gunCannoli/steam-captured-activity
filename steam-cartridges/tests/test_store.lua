@@ -202,6 +202,15 @@ check("a shortcut running the package's exe matches by folder", x2 == xg[1] and 
 xbox_local.deps.getenv = function(n) if n == "SystemRoot" then return "C:\\Windows" end end
 local xs = xbox_local.launch_spec(xg[1])
 check("a launch spec opens the app through Explorer", xs.exe == '"C:\\Windows\\explorer.exe"' and xs.launch_options == "shell:AppsFolder\\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App")
+-- An Xbox Live game with no game config, marked only by its xboxliveapp- protocol (Microsoft Sudoku)
+check("the manifest's xboxliveapp- protocol marks an Xbox Live game", xbox_local.parse_appx_manifest('<uap:Protocol Name="xboxliveapp-1297292189" />').xbox_live == true and xbox_local.parse_appx_manifest('<uap:Protocol Name="myapp" />').xbox_live == false)
+xbox_local.deps.read = function(p)
+  if p:find("Jigsaw", 1, true) and p:find("xboxservices") then return '{"TitleId": 2003863742}' end
+  if p:find("Some.App", 1, true) and p:find("AppxManifest") then return '<Application Id="App" Executable="S.exe"><uap:Protocol Name="xboxliveapp-1297292189" />' end
+end
+local xp2 = xbox_local.installed()
+check("a package with the protocol and no config is installed too, with no title id yet", #xp2 == 2 and xp2[2].pfn == "Some.App_abc" and xp2[2].title_id == nil and xp2[2].via == "protocol")
+check("... and the config game keeps its title id", xp2[1].title_id == "2003863742" and xp2[1].via == "config")
 xbox_local.deps.run, xbox_local.deps.read, xbox_local.deps.getenv = nil, nil, nil
 
 -- ======================================================================
