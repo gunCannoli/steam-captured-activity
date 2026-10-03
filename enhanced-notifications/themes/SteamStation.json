@@ -29,7 +29,7 @@
                 "system": [true, 120, 2000],
                 "rarity": ["SteamStation/bronze.png", 100, 0]
             },
-            "sound": ["SteamStation/sfx/a_deck_bronze.mp3", 80]
+            "sound": ["SteamStation/bronze.mp3", 80]
         },
         "magic": {
             "threshold": 25,
@@ -37,7 +37,7 @@
             "icons": {
                 "rarity": ["SteamStation/silver.png", 100, 0]
             },
-            "sound": ["SteamStation/sfx/a_deck_silver.mp3", 85]
+            "sound": ["SteamStation/silver.mp3", 85]
         },
         "rare": {
             "threshold": 10,
@@ -45,7 +45,7 @@
             "icons": {
                 "rarity": ["SteamStation/gold.png", 150, 0]
             },
-            "sound": ["SteamStation/sfx/a_deck_gold.mp3", 90]
+            "sound": ["SteamStation/gold.mp3", 90]
         },
         "exceptional": {
             "glow": ["#40c4ff", 90, 800],
@@ -57,7 +57,7 @@
                 "rarity": ["SteamStation/steam_100_game-removebg.png", 100, 0],
                 "achievement": ["SteamStation/steam_100_game-removebg.png", 100, 0]
             },
-            "sound": ["SteamStation/sfx/a_deck_platinum.mp3", 100]
+            "sound": ["SteamStation/platinum.mp3", 100]
         }
     }
 }

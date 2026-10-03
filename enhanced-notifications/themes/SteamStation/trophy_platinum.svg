@@ -1,0 +1,282 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="800px" height="800px" viewBox="0 0 128 128" aria-hidden="true" role="img" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <!-- Cyan Energy Glow Filters -->
+    <filter id="cyanGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4.5" result="blur"/>
+    </filter>
+
+    <!-- Metal Base Pedestal Gradients (Titanium / Gunmetal) -->
+    <linearGradient id="pedestalMetal" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#14181f"/>
+      <stop offset="16%" stop-color="#242b36"/>
+      <stop offset="42%" stop-color="#4f5968"/>
+      <stop offset="52%" stop-color="#8c98aa"/>
+      <stop offset="62%" stop-color="#4f5968"/>
+      <stop offset="86%" stop-color="#222832"/>
+      <stop offset="100%" stop-color="#11141a"/>
+    </linearGradient>
+
+    <linearGradient id="metalHighlightRim" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2a323d"/>
+      <stop offset="44%" stop-color="#9fb0c4"/>
+      <stop offset="52%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#9fb0c4"/>
+      <stop offset="100%" stop-color="#1e242c"/>
+    </linearGradient>
+
+    <!-- Chalice Metal Arms Gradients -->
+    <linearGradient id="chaliceArmL" x1="0%" y1="100%" x2="80%" y2="0%">
+      <stop offset="0%" stop-color="#161a20"/>
+      <stop offset="28%" stop-color="#2a323e"/>
+      <stop offset="56%" stop-color="#556071"/>
+      <stop offset="78%" stop-color="#8a99ad"/>
+      <stop offset="92%" stop-color="#c4d1e2"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+
+    <linearGradient id="chaliceArmR" x1="100%" y1="100%" x2="20%" y2="0%">
+      <stop offset="0%" stop-color="#161a20"/>
+      <stop offset="28%" stop-color="#2a323e"/>
+      <stop offset="56%" stop-color="#556071"/>
+      <stop offset="78%" stop-color="#8a99ad"/>
+      <stop offset="92%" stop-color="#c4d1e2"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+
+    <linearGradient id="armShadowL" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0c0f13"/>
+      <stop offset="45%" stop-color="#181d24"/>
+      <stop offset="100%" stop-color="#2c3542"/>
+    </linearGradient>
+
+    <linearGradient id="armShadowR" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c0f13"/>
+      <stop offset="45%" stop-color="#181d24"/>
+      <stop offset="100%" stop-color="#2c3542"/>
+    </linearGradient>
+
+    <!-- Outer Fin Gradients -->
+    <linearGradient id="finGradL" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#151920"/>
+      <stop offset="40%" stop-color="#323b48"/>
+      <stop offset="80%" stop-color="#69768a"/>
+      <stop offset="100%" stop-color="#b6c5d9"/>
+    </linearGradient>
+
+    <linearGradient id="finGradR" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#151920"/>
+      <stop offset="40%" stop-color="#323b48"/>
+      <stop offset="80%" stop-color="#69768a"/>
+      <stop offset="100%" stop-color="#b6c5d9"/>
+    </linearGradient>
+
+    <!-- Celestial Crystal Orb Gradient -->
+    <radialGradient id="orbCore" cx="44%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#ecfeff"/>
+      <stop offset="18%" stop-color="#67e8f9"/>
+      <stop offset="42%" stop-color="#06b6d4"/>
+      <stop offset="68%" stop-color="#0284c7"/>
+      <stop offset="88%" stop-color="#034575"/>
+      <stop offset="100%" stop-color="#082238"/>
+    </radialGradient>
+
+    <!-- Liquid Cyan Energy Flow Gradient -->
+    <linearGradient id="liquidFlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.95"/>
+      <stop offset="35%" stop-color="#06b6d4" stop-opacity="0.85"/>
+      <stop offset="70%" stop-color="#0284c7" stop-opacity="0.6"/>
+      <stop offset="95%" stop-color="#0369a1" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#075985" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Glass Specular Highlight Gradient -->
+    <linearGradient id="glassSpecular" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="30%" stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="70%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Official Steam Logo Mask (Exact Cutouts for Large Crank and Small Crank Annular Groove) -->
+    <mask id="steamHolesMask">
+      <rect x="0" y="0" width="683" height="683" fill="#ffffff"/>
+      <!-- Cut out large crank center hole -->
+      <circle cx="452.92" cy="255.55" r="86.69" fill="#000000"/>
+      <!-- Cut out small crank annular groove (leaving outer ring and center pin) -->
+      <circle cx="235.86" cy="473.98" r="73.0" fill="#000000"/>
+    </mask>
+
+    <!-- Shaft gradient for authentic fade-out towards the left edge -->
+    <linearGradient id="steamShaftFade" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="55%" stop-color="#e0f2fe" stop-opacity="0.85"/>
+      <stop offset="85%" stop-color="#bae6fd" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+
+  <!-- CELESTIAL BACKGROUND AURA GLOW -->
+  <circle cx="64" cy="40" r="36" fill="#00e5ff" opacity="0.28" filter="url(#softGlow)"/>
+
+  <!-- BACK CHALICE ARMS (Behind the orb, visible along the upper rim) -->
+  <g id="back-chalice-arms" opacity="0.9">
+    <path d="M 33 22 C 30 30 29 42 32 54 C 30 46 30 32 36 20 Z" fill="#14181f"/>
+    <path d="M 95 22 C 98 30 99 42 96 54 C 98 46 98 32 92 20 Z" fill="#14181f"/>
+  </g>
+
+  <!-- LIQUID CYAN ENERGY STREAM (Flowing from the orb down through the stem) -->
+  <g id="liquid-cyan-stream">
+    <!-- Outer energy beam -->
+    <path d="M 46 50 C 48 72 55 90 64 105 C 73 90 80 72 82 50 C 75 62 69 66 64 66 C 59 66 53 62 46 50 Z" fill="url(#liquidFlow)" filter="url(#cyanGlow)"/>
+    <!-- Intense inner glowing core of the liquid -->
+    <path d="M 53 58 C 55 76 59 92 64 102 C 69 92 73 76 75 58 C 71 67 67 70 64 70 C 61 70 57 67 53 58 Z" fill="#e0f9ff" opacity="0.7"/>
+    <!-- Central bright droplet near bottom notch -->
+    <path d="M 62 90 C 62 90 61 97 64 104 C 67 97 66 90 66 90 C 66 93 64 95 64 95 C 64 95 62 93 62 90 Z" fill="#ffffff" filter="url(#cyanGlow)"/>
+  </g>
+
+  <!-- THE GLOWING CELESTIAL STEAM ORB -->
+  <g id="celestial-steam-orb">
+    <!-- Outer Atmosphere Aura -->
+    <circle cx="64" cy="40" r="32.5" fill="#00e5ff" opacity="0.35" filter="url(#cyanGlow)"/>
+    <!-- Main Sphere Body -->
+    <circle cx="64" cy="40" r="32" fill="url(#orbCore)"/>
+
+    <!-- Cosmic Star Dust Flecks Inside Orb -->
+    <circle cx="54" cy="24" r="1.0" fill="#ffffff" opacity="0.85"/>
+    <circle cx="75" cy="22" r="0.8" fill="#ffffff" opacity="0.75"/>
+    <circle cx="47" cy="38" r="0.9" fill="#ffffff" opacity="0.65"/>
+    <circle cx="81" cy="46" r="1.1" fill="#ffffff" opacity="0.8"/>
+    <circle cx="72" cy="56" r="0.7" fill="#ffffff" opacity="0.6"/>
+    <circle cx="58" cy="54" r="0.8" fill="#ffffff" opacity="0.7"/>
+    <circle cx="42" cy="48" r="0.7" fill="#67e8f9" opacity="0.75"/>
+    <circle cx="86" cy="36" r="0.8" fill="#67e8f9" opacity="0.75"/>
+    <circle cx="64" cy="18" r="0.6" fill="#ffffff" opacity="0.6"/>
+
+    <!-- OFFICIAL STEAM LOGO MECHANISM (Authentic Geometry from steam_icon_black & steam_100_game) -->
+    <g id="steam-logo-mechanism" transform="translate(64, 38) scale(0.078) translate(-341.33, -341.33)">
+      <!-- Main Mechanism with Exact Mask Cutouts -->
+      <g mask="url(#steamHolesMask)">
+        <!-- Cyan Glow Halo Behind Logo -->
+        <g filter="url(#cyanGlow)" opacity="0.65">
+          <circle cx="452.8" cy="256" r="130.6" fill="#38bdf8"/>
+          <path d="M 323.7 256.8 L 240.3 378.7 L 291.5 419 L 331.4 470.9 L 450.9 385.2 Z" fill="#38bdf8"/>
+          <circle cx="235.86" cy="473.98" r="95.2" fill="#38bdf8"/>
+          <path d="M 212.5 523.2 L 14.7 440.6 C -5.2 377.9 0.7 319.1 0.7 319.1 L 254.7 422.6 Z" fill="#38bdf8"/>
+        </g>
+
+        <!-- Crisp Pure White Steam Logo Body -->
+        <g>
+          <!-- Large Crank Outer Disc (Masked to form hollow ring) -->
+          <circle cx="452.8" cy="256" r="130.6" fill="#ffffff"/>
+          <!-- Connecting Arm with Tapered Fillets -->
+          <path d="M 323.7 256.8 L 240.3 378.7 L 291.5 419 L 331.4 470.9 L 450.9 385.2 Z" fill="#ffffff"/>
+          <!-- Small Crank Outer Disc (Masked to form hollow outer ring) -->
+          <circle cx="235.86" cy="473.98" r="95.2" fill="#ffffff"/>
+          <!-- Piston Shaft with Smooth Translucent Glow Fade -->
+          <path d="M 212.5 523.2 L 14.7 440.6 C -5.2 377.9 0.7 319.1 0.7 319.1 L 254.7 422.6 Z" fill="url(#steamShaftFade)"/>
+        </g>
+      </g>
+
+      <!-- Small Crank Center Pivot Pin (Solid Center Pin inside the annular groove) -->
+      <circle cx="235.86" cy="473.98" r="44.0" fill="#38bdf8" filter="url(#cyanGlow)" opacity="0.65"/>
+      <circle cx="235.86" cy="473.98" r="44.0" fill="#ffffff"/>
+    </g>
+
+    <!-- Glass Specular Highlight (3D Curved Sphere Glint) -->
+    <path d="M 40 20 A 28 28 0 0 1 80 16 A 31 31 0 0 0 46 27 Z" fill="url(#glassSpecular)"/>
+    <ellipse cx="46" cy="22" rx="4" ry="2.2" transform="rotate(-35 46 22)" fill="#ffffff" opacity="0.8"/>
+  </g>
+
+  <!-- FOREGROUND PS5 METALLIC CHALICE STRUCTURE -->
+
+  <!-- Left Outer Flanking Fin (Curving Wing-Petal) -->
+  <g id="left-outer-fin">
+    <!-- Shadow ridge -->
+    <path d="M 48 94 C 36 86 24 72 26 58 C 29 64 38 76 49 84 Z" fill="url(#armShadowL)"/>
+    <!-- Main fin blade -->
+    <path d="M 49 90 C 37 82 25 68 26 58 C 29 56 38 66 52 78 Z" fill="url(#finGradL)"/>
+    <!-- Specular blade edge -->
+    <path d="M 26 58 C 34 66 44 76 52 78 C 42 73 34 66 26 58 Z" fill="#ffffff" opacity="0.85"/>
+  </g>
+
+  <!-- Right Outer Flanking Fin (Curving Wing-Petal) -->
+  <g id="right-outer-fin">
+    <!-- Shadow ridge -->
+    <path d="M 80 94 C 92 86 104 72 102 58 C 99 64 90 76 79 84 Z" fill="url(#armShadowR)"/>
+    <!-- Main fin blade -->
+    <path d="M 79 90 C 91 82 103 68 102 58 C 99 56 90 66 76 78 Z" fill="url(#finGradR)"/>
+    <!-- Specular blade edge -->
+    <path d="M 102 58 C 94 66 84 76 76 78 C 86 73 94 66 102 58 Z" fill="#ffffff" opacity="0.85"/>
+  </g>
+
+  <!-- Left Main Chalice Arm (Cradles the orb from waist to upper left) -->
+  <g id="left-main-cradle-arm">
+    <!-- Outer bevel & shadow curve -->
+    <path d="M 64 107 C 56 102 44 86 38 66 C 32 48 31 28 35 18 C 31 24 29 44 34 62 C 39 80 50 98 64 107 Z" fill="url(#armShadowL)"/>
+    <!-- Main sculpted arm body -->
+    <path d="M 64 106 C 56 100 43 82 37 64 C 31 46 32 26 35 18 C 36 24 38 42 43 60 C 48 76 57 90 64 99 Z" fill="url(#chaliceArmL)"/>
+    <!-- Inner dark bezel curve hugging the orb -->
+    <path d="M 35 18 C 30 32 33 54 42 72 C 48 84 56 95 64 103 C 60 95 52 82 45 68 C 38 52 35 34 35 18 Z" fill="#13171d"/>
+    <!-- Center ridge specular reflection line -->
+    <path d="M 35 18 C 32 28 33 46 37 64 C 42 80 52 95 64 105 C 53 95 44 79 39 63 C 35 46 34 28 35 18 Z" fill="#dce6f2" opacity="0.9"/>
+    <path d="M 35 18 C 33 24 34 38 38 52 C 37 42 35 28 35 18 Z" fill="#ffffff"/>
+  </g>
+
+  <!-- Right Main Chalice Arm (Cradles the orb from waist to upper right) -->
+  <g id="right-main-cradle-arm">
+    <!-- Outer bevel & shadow curve -->
+    <path d="M 64 107 C 72 102 84 86 90 66 C 96 48 97 28 93 18 C 97 24 99 44 94 62 C 89 80 78 98 64 107 Z" fill="url(#armShadowR)"/>
+    <!-- Main sculpted arm body -->
+    <path d="M 64 106 C 72 100 85 82 91 64 C 97 46 96 26 93 18 C 92 24 90 42 85 60 C 80 76 71 90 64 99 Z" fill="url(#chaliceArmR)"/>
+    <!-- Inner dark bezel curve hugging the orb -->
+    <path d="M 93 18 C 98 32 95 54 86 72 C 80 84 72 95 64 103 C 68 95 76 82 83 68 C 90 52 93 34 93 18 Z" fill="#13171d"/>
+    <!-- Center ridge specular reflection line -->
+    <path d="M 93 18 C 96 28 95 46 91 64 C 86 80 76 95 64 105 C 75 95 84 79 89 63 C 93 46 94 28 93 18 Z" fill="#dce6f2" opacity="0.9"/>
+    <path d="M 93 18 C 95 24 94 38 90 52 C 91 42 93 28 93 18 Z" fill="#ffffff"/>
+  </g>
+
+  <!-- CENTRAL V-NOTCH ACCENT (Pinched Waist Cleft) -->
+  <g id="central-waist-notch">
+    <path d="M 60 99 L 64 107 L 68 99 C 67 102 64 104 64 104 C 64 104 61 102 60 99 Z" fill="#0284c7" filter="url(#cyanGlow)"/>
+    <path d="M 61 101 L 64 106 L 67 101 Z" fill="#e0f9ff" opacity="0.9"/>
+  </g>
+
+  <!-- PEDESTAL BASE (Sculpted Titanium / Gunmetal Circular Stand) -->
+  <g id="pedestal-base">
+    <!-- Waist Neck Collar Tier -->
+    <path d="M 52 105 C 52 105 58 107.5 64 107.5 C 70 107.5 76 105 76 105 L 78 111 C 78 111 69 113.5 64 113.5 C 59 113.5 50 111 50 111 Z" fill="url(#pedestalMetal)"/>
+    <!-- Collar Specular Line -->
+    <path d="M 52 105 Q 64 107.8 76 105" stroke="url(#metalHighlightRim)" stroke-width="1.3" fill="none"/>
+
+    <!-- Main Flared Bell Pedestal -->
+    <path d="M 50 111 C 48 114.5 41 118 37 120.5 C 50 123 78 123 91 120.5 C 87 118 80 114.5 78 111 C 73 112.8 67 113.5 64 113.5 C 61 113.5 55 112.8 50 111 Z" fill="url(#pedestalMetal)"/>
+
+    <!-- Base Foot / Cylinder Step -->
+    <path d="M 37 120.5 L 37 123 C 37 125.8 49 127 64 127 C 79 127 91 125.8 91 123 L 91 120.5 C 91 122.5 79 124.2 64 124.2 C 49 124.2 37 122.5 37 120.5 Z" fill="#0d1015"/>
+    
+    <!-- Base Specular Rim Highlight Edge -->
+    <path d="M 37 120.5 C 37 122.5 49 124.2 64 124.2 C 79 124.2 91 122.5 91 120.5" stroke="url(#metalHighlightRim)" stroke-width="1.5" fill="none"/>
+    <path d="M 54 123.6 Q 64 124.8 74 123.6" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.95"/>
+  </g>
+
+  <!-- GLINTING CELESTIAL STAR SPARKLES -->
+  <!-- Top Right Arm Tip Sparkle -->
+  <g transform="translate(93, 18) scale(0.95)">
+    <path d="M 0 -9 Q 0 0 -9 0 Q 0 0 0 9 Q 0 0 9 0 Q 0 0 0 -9 Z" fill="#ffffff" filter="url(#cyanGlow)"/>
+    <circle cx="0" cy="0" r="1.6" fill="#ffffff"/>
+  </g>
+  <!-- Top Left Arm Tip Sparkle -->
+  <g transform="translate(35, 18) scale(0.75)">
+    <path d="M 0 -8 Q 0 0 -8 0 Q 0 0 0 8 Q 0 0 8 0 Q 0 0 0 -8 Z" fill="#ffffff" filter="url(#cyanGlow)"/>
+    <circle cx="0" cy="0" r="1.3" fill="#ffffff"/>
+  </g>
+  <!-- Orb Glass Specular Glint -->
+  <g transform="translate(78, 16) scale(0.6)">
+    <path d="M 0 -7 Q 0 0 -7 0 Q 0 0 0 7 Q 0 0 7 0 Q 0 0 0 -7 Z" fill="#ffffff" filter="url(#cyanGlow)"/>
+    <circle cx="0" cy="0" r="1.2" fill="#67e8f9"/>
+  </g>
+</svg>

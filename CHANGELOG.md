@@ -7,6 +7,19 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: PlayStation DNA procedural trophy audio suite (30 variations across 3 reference profiles and 10 bespoke moods) (2026-10-03)**: at the user's request.
+  Synthesized 100% original, copyright-clean procedural notification audio inspired by the acoustic DNA and wave movements of
+  PlayStation's trophy sounds (`ps4_trophy.mp3`, `ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`). Deconstructed the reference profiles:
+  (1) **PS4 Profile (~0.95s)**: punchy tactile transient, immediate fundamental strike, fast bright metallic chime, focused center image;
+  (2) **PS5 Profile (~1.40s)**: smooth atmospheric pre-swell, warm open suspended chord bloom, glassy tine strike, modern stereo width;
+  (3) **PS5 Platinum Profile (~2.20s)**: multi-stage celebratory fanfare arc (foundation swell ➔ harmonic lift ➔ celestial high crest shimmer ➔ expansive 3D hall decay).
+  Synthesized each profile across 10 bespoke acoustic moods: Epic (cinematic brass & timpani), Sci-Fi (cyber-optic FM crystal),
+  Fantasiac (fairy dust celesta sparkle), Medieval (hammered dulcimer & carillon), Religious (cathedral bell & sanctus chime),
+  Arcaic (bronze singing bowl & lyre), Guitar (natural acoustic flageolets), Harp (Celtic concert arpeggio), Drums (taiko sub-impact
+  & singing tom), and Afric Ancient (resonant mbira, balafon & udu clay bass pulse). Produced 30 variations (both 320kbps MP3 and 48kHz WAV).
+  Fixed local `file:///` Chromium playback restrictions by replacing `AudioContext.createMediaElementSource` and `crossOrigin` with direct
+  HTML5 audio playback paired with dynamic mathematical canvas visualizer. Built interactive player `preview_dna_trophies.html` with
+  profile filter chips, notification toast simulation, and bundled `DNA_Trophies_Complete_Suite.zip`.
 - **enhanced-notifications: SteamStation 100% bespoke trophy sound suite (2026-10-02)**: at the user's request.
   Removed all PlayStation audio files from the synthesis pipeline to eliminate any bootleg character, creating completely
   original, bespoke sound design from scratch using physical modal synthesis and procedural ambient atmospheres:

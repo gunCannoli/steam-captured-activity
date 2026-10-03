@@ -1,0 +1,572 @@
+{
+  "title": "PlayStation DNA Trophy Suite (3 Profiles x 10 Moods = 30 Sounds)",
+  "description": "100% Original Audio Synthesis inspired by PlayStation Trophy wave movements (PS4, PS5, PS5 Platinum)",
+  "profiles": [
+    {
+      "key": "ps4",
+      "prefix": "trophy_ps4",
+      "label": "PS4 Chime DNA",
+      "ref": "ps4_trophy.mp3",
+      "dur_label": "~0.95s",
+      "desc": "Punchy tactile tick, rapid bright chime, focused stereo"
+    },
+    {
+      "key": "ps5",
+      "prefix": "trophy_ps5",
+      "label": "PS5 Bloom DNA",
+      "ref": "ps5_trophy.mp3",
+      "dur_label": "~1.40s",
+      "desc": "Warm air-intake swell, modern open suspended chord bloom, glassy strike"
+    },
+    {
+      "key": "platinum",
+      "prefix": "trophy_platinum",
+      "label": "PS5 Platinum DNA",
+      "ref": "ps5_trophy_platinum.mp3",
+      "dur_label": "~2.20s",
+      "desc": "Triumphant multi-stage fanfare arc, soaring celestial crest, expansive 3D tail"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "trophy_ps4_epic",
+      "mood_id": "epic",
+      "title": "Epic",
+      "category": "Cinematic Orchestral",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_epic.wav",
+      "mp3_file": "trophy_ps4_epic.mp3",
+      "color": "#e5a93c",
+      "tags": [
+        "brass",
+        "timpani",
+        "cinematic",
+        "heroic"
+      ]
+    },
+    {
+      "id": "trophy_ps5_epic",
+      "mood_id": "epic",
+      "title": "Epic",
+      "category": "Cinematic Orchestral",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_epic.wav",
+      "mp3_file": "trophy_ps5_epic.mp3",
+      "color": "#e5a93c",
+      "tags": [
+        "brass",
+        "timpani",
+        "cinematic",
+        "heroic"
+      ]
+    },
+    {
+      "id": "trophy_platinum_epic",
+      "mood_id": "epic",
+      "title": "Epic",
+      "category": "Cinematic Orchestral",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.25,
+      "wav_file": "trophy_platinum_epic.wav",
+      "mp3_file": "trophy_platinum_epic.mp3",
+      "color": "#e5a93c",
+      "tags": [
+        "brass",
+        "timpani",
+        "cinematic",
+        "heroic"
+      ]
+    },
+    {
+      "id": "trophy_ps4_scifi",
+      "mood_id": "scifi",
+      "title": "Sci-Fi",
+      "category": "Futuristic Cybernetic",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_scifi.wav",
+      "mp3_file": "trophy_ps4_scifi.mp3",
+      "color": "#38bdf8",
+      "tags": [
+        "fm-synth",
+        "cyber",
+        "holographic",
+        "crystal"
+      ]
+    },
+    {
+      "id": "trophy_ps5_scifi",
+      "mood_id": "scifi",
+      "title": "Sci-Fi",
+      "category": "Futuristic Cybernetic",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_scifi.wav",
+      "mp3_file": "trophy_ps5_scifi.mp3",
+      "color": "#38bdf8",
+      "tags": [
+        "fm-synth",
+        "cyber",
+        "holographic",
+        "crystal"
+      ]
+    },
+    {
+      "id": "trophy_platinum_scifi",
+      "mood_id": "scifi",
+      "title": "Sci-Fi",
+      "category": "Futuristic Cybernetic",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.15,
+      "wav_file": "trophy_platinum_scifi.wav",
+      "mp3_file": "trophy_platinum_scifi.mp3",
+      "color": "#38bdf8",
+      "tags": [
+        "fm-synth",
+        "cyber",
+        "holographic",
+        "crystal"
+      ]
+    },
+    {
+      "id": "trophy_ps4_fantasy",
+      "mood_id": "fantasy",
+      "title": "Fantasiac",
+      "category": "Enchanted Ethereal",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_fantasy.wav",
+      "mp3_file": "trophy_ps4_fantasy.mp3",
+      "color": "#c084fc",
+      "tags": [
+        "glass",
+        "celesta",
+        "fairy-dust",
+        "lydian"
+      ]
+    },
+    {
+      "id": "trophy_ps5_fantasy",
+      "mood_id": "fantasy",
+      "title": "Fantasiac",
+      "category": "Enchanted Ethereal",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_fantasy.wav",
+      "mp3_file": "trophy_ps5_fantasy.mp3",
+      "color": "#c084fc",
+      "tags": [
+        "glass",
+        "celesta",
+        "fairy-dust",
+        "lydian"
+      ]
+    },
+    {
+      "id": "trophy_platinum_fantasy",
+      "mood_id": "fantasy",
+      "title": "Fantasiac",
+      "category": "Enchanted Ethereal",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_fantasy.wav",
+      "mp3_file": "trophy_platinum_fantasy.mp3",
+      "color": "#c084fc",
+      "tags": [
+        "glass",
+        "celesta",
+        "fairy-dust",
+        "lydian"
+      ]
+    },
+    {
+      "id": "trophy_ps4_medieval",
+      "mood_id": "medieval",
+      "title": "Medieval",
+      "category": "Royal Castle Courtyard",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_medieval.wav",
+      "mp3_file": "trophy_ps4_medieval.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "dulcimer",
+        "carillon",
+        "dorian",
+        "castle"
+      ]
+    },
+    {
+      "id": "trophy_ps5_medieval",
+      "mood_id": "medieval",
+      "title": "Medieval",
+      "category": "Royal Castle Courtyard",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_medieval.wav",
+      "mp3_file": "trophy_ps5_medieval.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "dulcimer",
+        "carillon",
+        "dorian",
+        "castle"
+      ]
+    },
+    {
+      "id": "trophy_platinum_medieval",
+      "mood_id": "medieval",
+      "title": "Medieval",
+      "category": "Royal Castle Courtyard",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_medieval.wav",
+      "mp3_file": "trophy_platinum_medieval.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "dulcimer",
+        "carillon",
+        "dorian",
+        "castle"
+      ]
+    },
+    {
+      "id": "trophy_ps4_religious",
+      "mood_id": "religious",
+      "title": "Religious",
+      "category": "Cathedral Sanctuary",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_religious.wav",
+      "mp3_file": "trophy_ps4_religious.mp3",
+      "color": "#facc15",
+      "tags": [
+        "cathedral-bell",
+        "choir",
+        "organ",
+        "sacred"
+      ]
+    },
+    {
+      "id": "trophy_ps5_religious",
+      "mood_id": "religious",
+      "title": "Religious",
+      "category": "Cathedral Sanctuary",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_religious.wav",
+      "mp3_file": "trophy_ps5_religious.mp3",
+      "color": "#facc15",
+      "tags": [
+        "cathedral-bell",
+        "choir",
+        "organ",
+        "sacred"
+      ]
+    },
+    {
+      "id": "trophy_platinum_religious",
+      "mood_id": "religious",
+      "title": "Religious",
+      "category": "Cathedral Sanctuary",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.35,
+      "wav_file": "trophy_platinum_religious.wav",
+      "mp3_file": "trophy_platinum_religious.mp3",
+      "color": "#facc15",
+      "tags": [
+        "cathedral-bell",
+        "choir",
+        "organ",
+        "sacred"
+      ]
+    },
+    {
+      "id": "trophy_ps4_arcaic",
+      "mood_id": "arcaic",
+      "title": "Arcaic",
+      "category": "Ancient Mediterranean",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_arcaic.wav",
+      "mp3_file": "trophy_ps4_arcaic.mp3",
+      "color": "#d97706",
+      "tags": [
+        "bronze-bowl",
+        "lyre",
+        "ancient",
+        "phrygian"
+      ]
+    },
+    {
+      "id": "trophy_ps5_arcaic",
+      "mood_id": "arcaic",
+      "title": "Arcaic",
+      "category": "Ancient Mediterranean",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_arcaic.wav",
+      "mp3_file": "trophy_ps5_arcaic.mp3",
+      "color": "#d97706",
+      "tags": [
+        "bronze-bowl",
+        "lyre",
+        "ancient",
+        "phrygian"
+      ]
+    },
+    {
+      "id": "trophy_platinum_arcaic",
+      "mood_id": "arcaic",
+      "title": "Arcaic",
+      "category": "Ancient Mediterranean",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_arcaic.wav",
+      "mp3_file": "trophy_platinum_arcaic.mp3",
+      "color": "#d97706",
+      "tags": [
+        "bronze-bowl",
+        "lyre",
+        "ancient",
+        "phrygian"
+      ]
+    },
+    {
+      "id": "trophy_ps4_guitar",
+      "mood_id": "guitar",
+      "title": "Guitar",
+      "category": "Acoustic Flageolet",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_guitar.wav",
+      "mp3_file": "trophy_ps4_guitar.mp3",
+      "color": "#fb923c",
+      "tags": [
+        "harmonics",
+        "acoustic",
+        "flageolet",
+        "spruce"
+      ]
+    },
+    {
+      "id": "trophy_ps5_guitar",
+      "mood_id": "guitar",
+      "title": "Guitar",
+      "category": "Acoustic Flageolet",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_guitar.wav",
+      "mp3_file": "trophy_ps5_guitar.mp3",
+      "color": "#fb923c",
+      "tags": [
+        "harmonics",
+        "acoustic",
+        "flageolet",
+        "spruce"
+      ]
+    },
+    {
+      "id": "trophy_platinum_guitar",
+      "mood_id": "guitar",
+      "title": "Guitar",
+      "category": "Acoustic Flageolet",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.1,
+      "wav_file": "trophy_platinum_guitar.wav",
+      "mp3_file": "trophy_platinum_guitar.mp3",
+      "color": "#fb923c",
+      "tags": [
+        "harmonics",
+        "acoustic",
+        "flageolet",
+        "spruce"
+      ]
+    },
+    {
+      "id": "trophy_ps4_harp",
+      "mood_id": "harp",
+      "title": "Harp",
+      "category": "Celtic Concert Strings",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_harp.wav",
+      "mp3_file": "trophy_ps4_harp.mp3",
+      "color": "#a7f3d0",
+      "tags": [
+        "plucked-strings",
+        "celtic",
+        "arpeggio",
+        "concert-hall"
+      ]
+    },
+    {
+      "id": "trophy_ps5_harp",
+      "mood_id": "harp",
+      "title": "Harp",
+      "category": "Celtic Concert Strings",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_harp.wav",
+      "mp3_file": "trophy_ps5_harp.mp3",
+      "color": "#a7f3d0",
+      "tags": [
+        "plucked-strings",
+        "celtic",
+        "arpeggio",
+        "concert-hall"
+      ]
+    },
+    {
+      "id": "trophy_platinum_harp",
+      "mood_id": "harp",
+      "title": "Harp",
+      "category": "Celtic Concert Strings",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_harp.wav",
+      "mp3_file": "trophy_platinum_harp.mp3",
+      "color": "#a7f3d0",
+      "tags": [
+        "plucked-strings",
+        "celtic",
+        "arpeggio",
+        "concert-hall"
+      ]
+    },
+    {
+      "id": "trophy_ps4_drums",
+      "mood_id": "drums",
+      "title": "Drums",
+      "category": "Cinematic Percussion",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_drums.wav",
+      "mp3_file": "trophy_ps4_drums.mp3",
+      "color": "#ef4444",
+      "tags": [
+        "taiko",
+        "rimshot",
+        "sub-impact",
+        "cinematic-percussion"
+      ]
+    },
+    {
+      "id": "trophy_ps5_drums",
+      "mood_id": "drums",
+      "title": "Drums",
+      "category": "Cinematic Percussion",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_drums.wav",
+      "mp3_file": "trophy_ps5_drums.mp3",
+      "color": "#ef4444",
+      "tags": [
+        "taiko",
+        "rimshot",
+        "sub-impact",
+        "cinematic-percussion"
+      ]
+    },
+    {
+      "id": "trophy_platinum_drums",
+      "mood_id": "drums",
+      "title": "Drums",
+      "category": "Cinematic Percussion",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.1,
+      "wav_file": "trophy_platinum_drums.wav",
+      "mp3_file": "trophy_platinum_drums.mp3",
+      "color": "#ef4444",
+      "tags": [
+        "taiko",
+        "rimshot",
+        "sub-impact",
+        "cinematic-percussion"
+      ]
+    },
+    {
+      "id": "trophy_ps4_afric_ancient",
+      "mood_id": "afric_ancient",
+      "title": "Afric Ancient",
+      "category": "Earthen African Heritage",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_afric_ancient.wav",
+      "mp3_file": "trophy_ps4_afric_ancient.mp3",
+      "color": "#10b981",
+      "tags": [
+        "mbira",
+        "kalimba",
+        "balafon",
+        "udu-clay"
+      ]
+    },
+    {
+      "id": "trophy_ps5_afric_ancient",
+      "mood_id": "afric_ancient",
+      "title": "Afric Ancient",
+      "category": "Earthen African Heritage",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_afric_ancient.wav",
+      "mp3_file": "trophy_ps5_afric_ancient.mp3",
+      "color": "#10b981",
+      "tags": [
+        "mbira",
+        "kalimba",
+        "balafon",
+        "udu-clay"
+      ]
+    },
+    {
+      "id": "trophy_platinum_afric_ancient",
+      "mood_id": "afric_ancient",
+      "title": "Afric Ancient",
+      "category": "Earthen African Heritage",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_afric_ancient.wav",
+      "mp3_file": "trophy_platinum_afric_ancient.mp3",
+      "color": "#10b981",
+      "tags": [
+        "mbira",
+        "kalimba",
+        "balafon",
+        "udu-clay"
+      ]
+    }
+  ]
+}
