@@ -17,6 +17,7 @@ public static class W {
   [DllImport("user32.dll", EntryPoint="GetWindowLongW")] public static extern int GetWindowLong(IntPtr h, int i);
   [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int k);
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int v, int size);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 }
@@ -80,6 +81,9 @@ $tick = 0
 while ($true) {
   Start-Sleep -Milliseconds 250
   $tick++
+  # F8 anywhere (even inside a game, even over RDP, where the console may not get Enter): a user mark.
+  # (bit 0 = "pressed since the last call", so a tap shorter than the 250 ms poll is still seen)
+  if (([W]::GetAsyncKeyState(0x77) -band 0x1) -ne 0) { Emit @{ kind = 'hotkey'; key = 'F8' } }
   $now = Snapshot
   foreach ($k in $now.Keys) {
     $n = $now[$k]

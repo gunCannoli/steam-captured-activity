@@ -45,6 +45,15 @@ const t0 = Date.now();
 const KEYWORDS = /achiev|unlock|trophy|trophies|toast|notif|overlay|gamerscore|earned|reward/i;
 const NOISE_PROC = /^(conhost|AudioHelper|dotnet|powershell|pwsh|node|WmiPrvSE|svchost|RuntimeBroker)(\.exe)?$/i;
 const NOISE_CLASS = /^(tooltips_class32|Microsoft\.UI\.Content\.PopupWindowSiteBridge|IME|MSCTFIME UI|CicMarshalWnd)/i;
+// A "candidate" is a deterministic local trace that may mean an unlock; it starts a fast burst of API checks (set by the api sensor).
+let burst = () => {};
+const lastCandidate = { at: 0, reason: "" };
+function candidate(reason, store, data = {}) {
+    lastCandidate.at = Date.now();
+    lastCandidate.reason = reason;
+    log("candidate", reason, { store, ...data }, true);
+    burst(store);
+}
 const clip = (s, n) => (String(s).length > n ? String(s).slice(0, n) + `...(+${String(s).length - n})` : String(s));
 function log(sensor, kind, data = {}, hot = false) {
     const ts = new Date().toISOString();
@@ -55,7 +64,11 @@ function log(sensor, kind, data = {}, hot = false) {
 }
 console.log(`unlock_watcher: writing ${logFile}\nPress Enter (after typing a note, if you like) the moment you SEE the achievement toast. Ctrl+C stops.\n`);
 
-createInterface({ input: process.stdin }).on("line", (note) => log("user", "MARK", { note: note || "(toast seen now)" }, true));
+// Three ways to say "I see the toast now": F8 anywhere (global hotkey, works inside the game and over RDP), Enter in this console,
+// or `node tests/live/probes/unlock_mark.mjs "note"` from another terminal. The report also marks every unlock the store's API
+// reports, at the store's own unlock time, so a missed mark costs nothing.
+const mark = (note, how) => log("user", "MARK", { note, how }, true);
+createInterface({ input: process.stdin }).on("line", (note) => mark(note || "(toast seen now)", "enter"));
 
 // ---- windows + processes (PowerShell helper) -----------------------------------------------------------------------------
 if (only.has("windows")) {
@@ -64,6 +77,7 @@ if (only.has("windows")) {
         try {
             const o = JSON.parse(l);
             const { kind, ...rest } = o;
+            if (kind === "hotkey") return mark("(toast seen now)", "F8");
             if (kind === "dns+") {
                 log("dns", "resolved", { address: rest.address, name: rest.name }, /epicgames|epicdata|eos|xboxlive|xbox\.com|microsoft\.com|playfab|gamepass/i.test(rest.name ?? ""));
                 return;
@@ -71,7 +85,12 @@ if (only.has("windows")) {
             if (kind === "conn+" || kind === "conn-") {
                 const c = rest.c;
                 const hotProc = /epic|eos|xbox|gaming|jotunn|jigsaw|gamebar|msedgewebview|WebHelper/i.test(c.proc ?? "");
-                const emit = (host) => log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, kind === "conn+" && (hotProc || /epicgames|eos|xboxlive|xbox\.com|playfab/i.test(host ?? "")));
+                const emit = (host) => {
+                    log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, kind === "conn+" && (hotProc || /epicgames|eos|xboxlive|xbox\.com|playfab/i.test(host ?? "")));
+                    // The game (not the launcher) talking to Epic's online services, or anything to Xbox Live's achievements host.
+                    if (kind === "conn+" && /api\.epicgames\.dev/i.test(host ?? "") && !/launcher|epicwebhelper/i.test(c.proc ?? "")) candidate("game-epic-api", "epic", { proc: c.proc, host });
+                    if (kind === "conn+" && /achievements\.xboxlive\.com|xboxlive\.com/i.test(host ?? "") && !/^(steam|node)$/i.test(c.proc ?? "")) candidate("xbox-live-host", "xbox", { proc: c.proc, host });
+                };
                 if (kind === "conn+") {
                     if (c.host) emit(c.host);
                     else {
@@ -188,6 +207,7 @@ if (only.has("files")) {
                 // A new Chromium cache entry: say what it is (image type and size), the toast's image is one.
                 let magic;
                 try { const fd = openSync(full, "r"); const b = Buffer.alloc(12); readSync(fd, b, 0, 12, 0); closeSync(fd); magic = b.subarray(0, 4).toString("latin1").startsWith("GIF8") ? `GIF ${b.readUInt16LE(6)}x${b.readUInt16LE(8)}` : b.subarray(0, 4).toString("hex"); } catch { /* locked */ }
+                if (/EOSOverlay/i.test(full) && /^GIF/.test(magic ?? "")) candidate("overlay-toast-image", "epic", { magic, size: st.size });
                 log("files", "created", { file: full.replace(LOCAL, "%LOCAL%"), size: st.size, magic }, KEYWORDS.test(full) || /EOSOverlay/i.test(full));
             }
             return;
@@ -207,6 +227,7 @@ if (only.has("files")) {
         }
         const hotLines = lines.filter((l) => KEYWORDS.test(l) || (/EOSOverlay/i.test(full) && /cef\.log$/i.test(full)));
         const shown = hotLines.length ? hotLines : lines.slice(0, 8);
+        if (/EOSOverlay[\\/]cef\.log$/i.test(full)) candidate("overlay-cef-log", "epic", { lines: lines.length });
         log("files", "append", { file: full.replace(LOCAL, "%LOCAL%"), grew, lines: lines.length, text: shown.map((l) => clip(l, 600)) }, hotLines.length > 0);
     };
     for (const root of roots) {
@@ -291,21 +312,45 @@ if (only.has("api") && !flag("--no-api")) {
         );
         const targets = [...fromCollections, ...values("--app").map((a) => ({ id: Number(a.split(":")[0]), kind: a.split(":")[1] ?? "epic" }))];
         log("api", "targets", { targets });
-        const last = new Map();
-        const poll = async () => {
+        const last = new Map(); // appid -> { key, ids: Map(id -> time) }
+        const poll = async (only) => {
             for (const t of targets) {
+                if (only && t.kind !== only) continue;
                 const res = await run(`(async()=>{ try { const raw = await Millennium.callServerMethod('steam-cartridges-dev','EnsureFresh',{payload: JSON.stringify({appid:${t.id}, parts:['achievements'], context:{force:true, allowEpic:true, allowXbox:true}})});
                   const a = JSON.parse(raw).parts?.achievements; const found = []; const walk = (o) => { if (!o || typeof o !== 'object') return; for (const [k,v] of Object.entries(o)) { if (v && typeof v === 'object' && Number(v.unlocked_time) > 0) found.push(k + '@' + v.unlocked_time); else walk(v); } }; walk(a?.data);
                   return JSON.stringify({ status: a?.status, source: a?.source ?? a?.data?.source, unlocked: found.sort() }); } catch (e) { return JSON.stringify({ error: String(e).slice(0,150) }); } })()`);
                 const now = JSON.parse(res ?? "{}");
+                const ids = new Map((now.unlocked ?? []).map((u) => u.split("@")).map(([id, at]) => [id, Number(at)]));
                 const key = JSON.stringify(now.unlocked ?? now);
-                if (last.get(t.id) === undefined) log("api", "baseline", { appid: t.id, store: t.kind, status: now.status, source: now.source, unlockedCount: now.unlocked?.length, error: now.error });
-                else if (last.get(t.id) !== key) log("api", "CHANGED", { appid: t.id, store: t.kind, status: now.status, unlocked: now.unlocked }, true);
-                last.set(t.id, key);
+                const prev = last.get(t.id);
+                if (!prev) log("api", "baseline", { appid: t.id, store: t.kind, status: now.status, source: now.source, unlockedCount: now.unlocked?.length, error: now.error });
+                else if (prev.key !== key && now.unlocked) {
+                    // The ground truth: which achievements are new, the store's own unlock time, and how late we learned of it.
+                    const fresh = [...ids].filter(([id]) => !prev.ids.has(id)).map(([id, at]) => ({ id, at, atIso: new Date(at * 1000).toISOString(), lateSec: +(Date.now() / 1000 - at).toFixed(1) }));
+                    log("api", "CHANGED", { appid: t.id, store: t.kind, status: now.status, newUnlocks: fresh, unlockedCount: ids.size, sinceCandidateSec: lastCandidate.at ? +((Date.now() - lastCandidate.at) / 1000).toFixed(1) : null, candidate: lastCandidate.reason }, true);
+                }
+                if (!prev || now.unlocked) last.set(t.id, { key, ids });
             }
         };
         await poll();
-        setInterval(poll, POLL_S * 1000);
+        setInterval(() => poll(), POLL_S * 1000);
+        // Burst: after a local candidate, ask the store of that kind every 1.5 s for 20 s (one burst at a time).
+        let bursting = false;
+        let burstEnd = 0;
+        burst = (store) => {
+            if (bursting || Date.now() - burstEnd < 10000) return; // one at a time, with a 10 s rest (the Xbox app chats with Xbox Live all day)
+            bursting = true;
+            const started = Date.now();
+            const tick = async () => {
+                await poll(store).catch(() => {});
+                if (Date.now() - started < 20000) setTimeout(tick, 1500);
+                else {
+                    bursting = false;
+                    burstEnd = Date.now();
+                }
+            };
+            tick();
+        };
     })();
 }
 
