@@ -1,6 +1,6 @@
 // Shared building blocks of the settings panels (migration plan M8c). The spacing system and row kinds are the ones of
 // enhanced-notifications (its settings/rows.tsx), the reference; the rules are in docs/plugins.md § Settings panel layout.
-import { Children, useEffect } from "react";
+import { Children, useEffect, useState } from "react";
 import { DialogButton, Field, PanelSectionRow, SliderField, Toggle as SteamToggle } from "@steambrew/client";
 
 /** Steam's settings-card background (a Field's own), measured live: rgb(35, 38, 46). */
@@ -336,5 +336,72 @@ export function SettingsModal({
                 </div>
             </div>
         </div>
+    );
+}
+
+const MDI_CLIPBOARD =
+    "M20 3H16.8C16.4 1.8 15.3 1 14 1C12.7 1 11.6 1.8 11.2 3H8C6.9 3 6 3.9 6 5V17C6 18.1 6.9 19 8 19H20C21.1 19 22 18.1 22 17V5C22 3.9 21.1 3 20 3M14 3C14.6 3 15 3.5 15 4C15 4.5 14.5 5 14 5C13.5 5 13 4.5 13 4C13 3.5 13.4 3 14 3M16 14H9V12H16M19 10H9V8H19M4 21H18V23H4C2.9 23 2 22.1 2 21V7H4";
+const MDI_CLIPBOARD_CHECK =
+    "M4 7H2V21C2 22.1 2.9 23 4 23H18V21H4M20 3H16.8C16.4 1.8 15.3 1 14 1C12.7 1 11.6 1.8 11.2 3H8C6.9 3 6 3.9 6 5V17C6 18.1 6.9 19 8 19H20C21.1 19 22 18.1 22 17V5C22 3.9 21.1 3 20 3M14 3C14.6 3 15 3.5 15 4C15 4.5 14.5 5 14 5C13.5 5 13 4.5 13 4C13 3.5 13.4 3 14 3M12.3 15.1L9 11.8L10.4 10.4L12.3 12.3L17.6 7L19 8.4";
+
+/** Copies to the clipboard: the async API when the window allows it, else a hidden textarea. */
+async function copyText(text: string): Promise<boolean> {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.style.cssText = "position:fixed;left:-10000px;top:0";
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand("copy");
+        area.remove();
+        return ok;
+    }
+}
+
+/** A code that copies itself when clicked: a clipboard icon that lights up on hover, becomes a check once copied, and is a clipboard again when the pointer leaves. */
+export function CopyCode({ text }: { text: string }) {
+    const [hover, setHover] = useState(false);
+    const [copied, setCopied] = useState(false);
+    return (
+        <span
+            role="button"
+            title={copied ? "Copied" : "Copy the code"}
+            onClick={async () => setCopied(await copyText(text))}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => {
+                setHover(false);
+                setCopied(false);
+            }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "10px", cursor: "pointer", userSelect: "none" }}
+        >
+            <span style={{ fontFamily: "monospace", letterSpacing: "2px" }}>{text}</span>
+            <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                style={{ fill: copied ? "#59bf40" : hover ? "#ffffff" : "currentColor", opacity: hover || copied ? 1 : 0.55, transition: "opacity 0.15s, fill 0.15s" }}
+            >
+                <path d={copied ? MDI_CLIPBOARD_CHECK : MDI_CLIPBOARD} />
+            </svg>
+        </span>
+    );
+}
+
+/** A web address that opens in the system browser when clicked. */
+export function ExternalLink({ url, children }: { url: string; children?: React.ReactNode }) {
+    return (
+        <a
+            href={url}
+            onClick={(event) => {
+                event.preventDefault();
+                (Reflect.get(globalThis, "SteamClient") as { System?: { OpenInSystemBrowser?: (u: string) => void } } | undefined)?.System?.OpenInSystemBrowser?.(url);
+            }}
+            style={{ color: "#1a9fff", textDecoration: "underline", cursor: "pointer" }}
+        >
+            {children ?? url}
+        </a>
     );
 }

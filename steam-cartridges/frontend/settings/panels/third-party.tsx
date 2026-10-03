@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { DialogButton, Field, PanelSection } from "@steambrew/client";
 import { useSetting } from "../settings";
 import { backend, type InstalledStoreGame } from "../../ports/backend";
-import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CredentialsNote, ItemRow, SettingsModal, ToggleRow } from "../components";
+import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CopyCode, CredentialsNote, ExternalLink, ItemRow, SettingsModal, ToggleRow } from "../components";
 
 interface Accounts {
     epic: { found: boolean; private: boolean };
@@ -176,11 +176,16 @@ export function ThirdPartySection() {
                         <>
                             <ItemRow>
                                 <Field
-                                    label={code ? code.user_code : "..."}
+                                    label={code ? <CopyCode text={code.user_code} /> : "..."}
                                     description={
-                                        code
-                                            ? `On any device, open ${code.verification_uri} and type this code, then sign in with your Xbox account.`
-                                            : "Getting a code..."
+                                        code ? (
+                                            <>
+                                                On any device, open <ExternalLink url={code.verification_uri} /> and type this code (click it to copy), then sign in with
+                                                your Xbox account.
+                                            </>
+                                        ) : (
+                                            "Getting a code..."
+                                        )
                                     }
                                 />
                             </ItemRow>
