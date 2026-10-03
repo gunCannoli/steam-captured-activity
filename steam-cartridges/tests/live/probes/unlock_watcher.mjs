@@ -19,6 +19,7 @@
 //   Steam     nothing: Steam is not asked anything else.
 import { DatabaseSync } from "node:sqlite";
 import { spawn } from "node:child_process";
+import dns from "node:dns/promises";
 import { createInterface } from "node:readline";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readSync, closeSync, statSync, watch, writeFileSync, appendFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -63,12 +64,21 @@ if (only.has("windows")) {
         try {
             const o = JSON.parse(l);
             const { kind, ...rest } = o;
-            // A new visible window, a process of a game or a store, or any title with a keyword is the interesting part.
+            if (kind === "conn+" || kind === "conn-") {
+                const c = rest.c;
+                const hotProc = /epic|eos|xbox|gaming|jotunn|jigsaw|gamebar|msedgewebview|WebHelper/i.test(c.proc ?? "");
+                const emit = (host) => log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, hotProc && kind === "conn+");
+                if (kind === "conn+") {
+                    const ip = c.remote.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+                    Promise.race([dns.reverse(ip).then((h) => h[0]), new Promise((r) => setTimeout(() => r(undefined), 1500))]).catch(() => undefined).then(emit);
+                } else emit(undefined);
+                return;
+            }
             // Our own helpers, console hosts and audio helpers start and stop all the time: kept in the file, not shown.
-            const own = /Get-WinEvent|unlock_watcher/.test(rest.cmd ?? "") || rest.ppid === process.pid || NOISE_PROC.test(rest.name ?? "") || (rest.kind === "process-" && NOISE_PROC.test(rest.name ?? ""));
+            const own = /Get-WinEvent|unlock_watcher/.test(rest.cmd ?? "") || rest.ppid === process.pid || NOISE_PROC.test(rest.name ?? "");
             const quiet = own || NOISE_CLASS.test(rest.w?.cls ?? rest.cls ?? "");
             const text = JSON.stringify(rest);
-            const hot = !quiet && kind !== "baseline" && ((kind === "window+" && rest.w?.visible && !/ 0x0$/.test(rest.w?.rect ?? "")) || KEYWORDS.test(kind.startsWith("window") ? JSON.stringify(rest.w ?? rest) : text));
+            const hot = !quiet && kind !== "baseline" && ((kind === "window+" && rest.w?.visible && !/ 0x0$/.test(rest.w?.rect ?? "")) || (kind === "window~" && rest.changes?.visible?.endsWith("True")) || KEYWORDS.test(kind.startsWith("window") ? JSON.stringify(rest.w ?? rest) + JSON.stringify(rest.text ?? "") : text));
             if (quiet && !flag("--verbose")) { appendFileSync(logFile, JSON.stringify({ ts: new Date().toISOString(), t: ((Date.now() - t0) / 1000).toFixed(2), sensor: "windows", kind, quiet: true, ...rest }) + "\n"); return; }
             log("windows", kind, rest, hot);
         } catch {
@@ -122,6 +132,22 @@ if (only.has("toasts")) {
     setInterval(poll, 1000);
 }
 
+// Folders of the games themselves: every Epic manifest's InstallLocation, and app-data folders named like the test games.
+function gameFolders() {
+    const out = [];
+    try {
+        const dir = join(PROGRAMDATA, "Epic", "EpicGamesLauncher", "Data", "Manifests");
+        for (const f of readdirSync(dir)) {
+            if (!f.endsWith(".item")) continue;
+            const loc = JSON.parse(readFileSync(join(dir, f), "utf8")).InstallLocation;
+            if (loc) out.push(loc, join(LOCAL, basename(loc)));
+        }
+    } catch { /* no Epic */ }
+    try {
+        for (const e of readdirSync(LOCAL, { withFileTypes: true })) if (e.isDirectory() && /jotunn|hordes|jigsaw|games ?farm|grindstone|ARTillery/i.test(e.name)) out.push(join(LOCAL, e.name));
+    } catch { /* ignore */ }
+    return out;
+}
 // ---- files: appends under the stores' folders ---------------------------------------------------------------------------
 if (only.has("files")) {
     const pk = (name) => join(LOCAL, "Packages", name);
@@ -137,7 +163,8 @@ if (only.has("files")) {
         pk("Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe"),
         join(LOCAL, "Microsoft", "XboxLive"),
         ...values("--watch"),
-    ].filter((p) => existsSync(p));
+        ...gameFolders(),
+    ].filter((p, i, all) => existsSync(p) && all.indexOf(p) === i);
     const TEXT = /\.(log|txt|json|xml|dat|ini|cfg|config|db|sqlite|etl|bin)$/i;
     const readable = /\.(log|txt|json|xml|ini|cfg|config)$/i;
     const offsets = new Map();
@@ -194,7 +221,7 @@ if (only.has("files")) {
     }
     log("files", "baseline", { roots: roots.map((r) => r.replace(LOCAL, "%LOCAL%")), files: offsets.size });
 }
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 function require_readdir(d) { return readdirSync(d, { withFileTypes: true }); }
 
 // ---- events: Windows event logs ---------------------------------------------------------------------------------------------
