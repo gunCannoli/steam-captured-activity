@@ -90,6 +90,12 @@ memory and nothing logs a token or a device code. The public client ids are cons
 | `backend/store_rpc.lua` | The Third-party section's RPCs |
 | `frontend/app/store-copy.ts` | `EnsureFresh(["store"])` once per shortcut per session (first in `app/view`) |
 | `frontend/app/store-sync.ts` | Auto-add: which installed games get a shortcut, in which collection |
+| `frontend/sensors/installs/index.ts` | The 60 s tick that re-runs auto-add, so a game installed while Steam runs needs no restart |
+
+**When auto-add runs:** once at start-up (after the collections are ready), when a toggle changes, and every 60 s
+(`sensors/installs`). A game is requested once per session (`requested` in `store-sync`): a shortcut the user deletes is not
+added again until Steam restarts, and a game whose add failed is not retried in a loop. An Epic manifest with
+`bIsIncompleteInstall: true` (a download in progress) is not an installed game yet (`store_epic_local.installed`).
 
 ## Steam targets touched
 

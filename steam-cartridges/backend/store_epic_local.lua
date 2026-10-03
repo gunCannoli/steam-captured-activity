@@ -66,7 +66,7 @@ function M.manifests_dir()
   return base .. "\\Epic\\EpicGamesLauncher\\Data\\Manifests"
 end
 
---- One manifest's text -> { app_name, title, install_location, launch_exe, namespace, item_id, addon } | nil (pure).
+--- One manifest's text -> { app_name, title, install_location, launch_exe, namespace, item_id, addon, incomplete } | nil (pure).
 function M.parse_manifest(text)
   local ok, m = pcall(json.decode, text or "")
   if not ok or type(m) ~= "table" then return nil end
@@ -82,6 +82,8 @@ function M.parse_manifest(text)
     launch_exe = tostring(m.LaunchExecutable or ""),
     namespace = ns,
     item_id = tostring(m.CatalogItemId or ""),
+    -- The launcher writes the manifest when a download starts; until it ends the game is not installed yet.
+    incomplete = m.bIsIncompleteInstall == true,
     -- An add-on (DLC) names its game; the game itself leaves both fields empty (or names itself).
     addon = (main_app ~= "" and main_app ~= app) or (main_ns ~= "" and main_ns ~= ns),
   }
@@ -96,7 +98,7 @@ function M.installed()
     local name = tostring(e.name or "")
     if name:lower():match("%.item$") and e.is_file ~= false then
       local m = M.parse_manifest(read(e.path or (dir .. "\\" .. name)))
-      if m and not m.addon then out[#out + 1] = m end
+      if m and not m.addon and not m.incomplete then out[#out + 1] = m end
     end
   end
   table.sort(out, function(a, b) return a.title:lower() < b.title:lower() end)

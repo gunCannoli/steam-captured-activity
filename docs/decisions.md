@@ -3235,7 +3235,8 @@ anonymously, and Xbox Live unlocks after a device-code sign-in. Unlocks of no so
 5. **Not resettable:** an Epic or Xbox copy is not offered by Reset Achievements (`achievementsResettable`).
 6. **Unlocks of every source appear in the Activity feed** as Steam's own "achieved" event, one per day.
 7. **Auto-add:** per store, off by default; adds installed games without a shortcut (launcher link for Epic,
-   `shell:AppsFolder` for Xbox) into a collection named after the store; never removes one. The plugin may write the
+   `shell:AppsFolder` for Xbox) into a collection named after the store; never removes one. It runs at start-up, when a toggle changes
+   and every 60 s (2026-10-03, so a game installed while Steam runs needs no restart); a game is requested once per session. The plugin may write the
    user's library only through the `library-shortcuts` surface, and only when the user turned the toggle on.
 
 ### Consequences

@@ -67,6 +67,71 @@ The overlay renderer is `EOSOverlayRenderer-Win64-Shipping.exe` / `-Win32-Shippi
 triggers (`cef.log`, the toast GIF, the renderer's connections) exist; muted they cannot, and the detector rests on the game's
 own connection to `api.epicgames.dev` (which came first in the sample) and the API poll. To be checked live.
 
+## Xbox without our own sign-in: what we lose (checked 2026-10-03)
+
+The unlock push (above) reaches Windows through the Xbox app's own sign-in, so **detecting an unlock and its toast needs no
+account link in our plugin**. What the plugin's device-code sign-in adds is everything that is not "an unlock happening now":
+
+| | Windows push only | With our sign-in |
+| --- | --- | --- |
+| An unlock as it happens (game, id, name, description, icon, gamerscore, rarity, time) | yes, about 1 s | yes, 5 s or more later (poll) |
+| The Steam toast, captures, Post-Game Summary line, Activity feed day | yes | yes |
+| The full list: names, icons and descriptions of **locked** achievements | no | yes |
+| Totals: "1 of 20", the progress bar, game completion (100% toast), total gamerscore | no (a list built from pushes is only the unlocked ones) | yes |
+| Unlocks from before the listener ran, while Windows was off or the Xbox app signed out (the log is circular, 1 MB) | no | yes |
+| Rarity of a locked achievement, secret achievements | no | partly |
+
+No anonymous source fills the gap (all probed read-only): `profile.xboxlive.com` and `titlehub.xboxlive.com` answer 401,
+`achievements.xboxlive.com` answers 400 "No valid claims were found on the request"; `xbox.com/play/user/<gamertag>` answers 200
+but is a client-rendered shell with no profile or achievement data in it; the third-party mirrors block us (xboxgamertag.com 503,
+trueachievements.com 403, and scraping them is not acceptable anyway); the Xbox app, Gaming Services and Game Bar cache nothing
+about achievements on disk; Microsoft's display catalog (anonymous) only says a title has Xbox Live achievements
+(`XblAchievements`), with no list or count. Whether Windows' own Xbox identity could hand a plugin a token (the GDK `XUser` API)
+was not checked and would need a registered title.
+
+**Option:** Xbox runs in two modes. *Lite* (default, no link): push-only notifications, captures and feed entries, and the
+Achievements page lists only what the push has told us (stored per title, never "x of N"). *Full* (the existing sign-in, now
+optional): the whole list, totals, completion and history. The settings row says what the sign-in adds. Epic needs nothing
+either way (a public profile). Separate issue: Microsoft's sign-in page names the borrowed client id "Minecraft Launcher"
+(`00000000402b5328`); a registered app would show our name.
+
+## To test, and to finish (the end-of-session list, 2026-10-03)
+
+**Auto-add of games installed while Steam runs** (built, `sensors/installs`, the tick verified live at 60.0 s):
+1. Install an Epic game and an Xbox game while Steam runs, with the toggles on: the shortcut appears within a minute, in
+   "Epic Games" / "Xbox", named correctly, launches.
+2. Start an Epic download and watch it: no shortcut while it downloads (`bIsIncompleteInstall`), one when it finishes.
+3. Uninstall a game: its shortcut stays (never removed automatically). Delete a shortcut by hand: it is not re-added until
+   Steam restarts (once per session).
+4. Not covered: an Xbox game still installing (the package list may show it early): see what the registry shows mid-install.
+
+**Seeing a store unlock live and showing Steam's toast** (probe only, `unlock_watcher.mjs --steam`):
+5. Xbox: a real unlock with `--steam` running (Fortress Merge or Minesweeper are installed; Jigsaw was uninstalled): the
+   event-driven push watcher decodes it (only the polling decoder has seen a real push), the toast shows, and the log gives
+   `unlockToShownSec`. Also: Xbox app closed; Game Bar off; a console unlock on the same account (must not toast, no shortcut).
+6. Epic, overlay muted (elevated PowerShell, `--mute-epic-overlay`, start before the game): Epic's toast is gone, the Steam
+   toast shows, and the detector still fires on the game's `api.epicgames.dev` connection and the API burst; files restored.
+7. Epic, overlay on, a second sample: do the toast GIF and the `cef.log` line recur every time; is the launch toast
+   distinguishable (one `cef.log` line at game start).
+8. Captures: start the game from its Steam shortcut with background recording on, unlock, and see whether
+   enhanced-notifications takes a screenshot and a clip. Unknown: whether Steam has a recording timeline for a game started by a
+   launcher link (`com.epicgames.launcher://`) or `shell:AppsFolder`; if not, find how to get one.
+9. Two unlocks in one second (Epic gave two in the same second), two stores at once, a shortcut-less game (no toast, logged).
+10. No duplicate toasts: a re-sync of the same unlock must not post twice (dedupe by appid and achievement id; the probe has it).
+
+**To build (not started)**: each step needs a plan, an ADR amendment and tests.
+- ADR: supersede ADR-0056 decision 3 ("no toast": store unlocks now post Steam's native toast, with a per-store setting).
+- Backend (Lua): a push-log reader (`wevtutil`/PowerShell, decode hex, parse JSON) and an Epic trigger (overlay `cef.log` growth,
+  and the burst of API checks). ADR-0007: nothing on a timer while no store game runs; start on `shortcut.launched`, stop on
+  `quit` (then the existing forced sync). A persistent event-driven PowerShell child would be better than polling if the
+  backend can hold one; else poll once a second while a store game runs.
+- Frontend: a `store-unlock` sensor, an `achievements.unlocked`-style event, and the `toasts` surface posting through
+  `NotificationStore.OnNotification` (the existing launch toast calls it wrongly: TASK.md). `appid` normalised with `>>> 0`.
+- Xbox lite and full modes (above), the settings rows and their explanation; Epic overlay muting stays a documented manual step
+  (it edits Program Files and needs admin), or a button with a clear warning: decide.
+- Tests: unit (push payload, id mapping, dedupe, appid signedness), Lua (hex decode, parser), live (the steps above); then the
+  four views of Routine 1 and Game A, B, A (Routine 2).
+
 ## Both: what the watcher does today
 
 Sensors: windows and processes (with UI Automation text, own timestamps), toast database, files (store folders, the

@@ -28,11 +28,14 @@ add the clear counter to the suite, run it with the queue off to see whether the
 user: use the queue for a while and say if a notification ever goes missing; look at the ps5 toasts (padding fix,
 `"gap": [10, 2]`).
 
-**Seeing an Epic or Xbox unlock as it happens (research, 2026-10-03):** [the research note](docs/plans/steam-cartridges-store-unlock-detection-research.md).
-Xbox: Windows' push-notification event log holds the full achievement JSON ~1 s after the unlock (verified, no admin needed).
-Epic: a trigger only (the overlay's `cef.log` line, a new GIF in its cache, the game's connection to `api.epicgames.dev`), the
-API names the achievement. Left: a second Epic sample, then the design (a sensor in steam-cartridges, and how to feed
-enhanced-notifications). The probe is `tests/live/probes/unlock_watcher.mjs` (F8 marks; `unlock_report.mjs` reads the log).
+**Seeing an Epic or Xbox unlock as it happens (research, 2026-10-03):** [the research note](docs/plans/steam-cartridges-store-unlock-detection-research.md),
+which ends with the **list of everything left to test and build** (10 live checks, then the backend, sensor, toast surface,
+settings and ADR). Xbox: Windows' push log carries the full achievement ~1 s after the unlock (no account link of ours needed;
+the sign-in only adds the locked list, totals and history). Epic: a trigger (the game's `api.epicgames.dev` connection, the
+overlay's traces) plus the API. The probe `tests/live/probes/unlock_watcher.mjs --steam` posts the unlock as Steam's native
+toast (183 ms after the call, verified) and `--mute-epic-overlay` hides Epic's own (untested on the real files, elevated shell).
+**Games installed while Steam runs are now added within a minute** (`sensors/installs`, verified: the tick runs every 60.0 s;
+a real install is still to be seen, note-list items 1-4).
 
 **Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
 agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer

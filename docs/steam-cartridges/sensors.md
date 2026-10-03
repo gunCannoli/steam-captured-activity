@@ -36,6 +36,9 @@ steam-cartridges architecture (ADR-0039); index:
   pure mapping half moved to `domain/store-item.ts`).
 - Shortcut titles and the shortcut list: `frontend/sensors/shortcuts/` is the only code that reads
   them (`shortcutTitle(appid)`, `listShortcuts()`; M10, was two copies in `index.tsx` and `steam/shortcut.ts`).
+- Store installs: `frontend/sensors/installs/` is a 60 s tick (`watchInstalls`) that asks `app/store-sync` to look again, so an
+  Epic or Xbox game installed while Steam runs is added without a restart. It reads nothing itself, and costs nothing while both
+  auto-add toggles are off (`run()` returns before any backend call). Verified live: the backend was called every 60.0 s.
 - Window lifecycle: the view sensor also emits `window.opened` / `window.closed` (desktop and Big Picture) for
   surfaces that write into a window's own document (M10: `captures`' Big Picture style; it watches no popups itself).
 - The plugin's one event bus: `frontend/app/bus.ts` wraps
@@ -110,6 +113,7 @@ export function loadStoreItem(steamAppid: number, timeoutMs?: number): Promise<a
 | `frontend/sensors/owned-apps/index.ts` | `ownedCandidates()` (moved verbatim from `features/steam-store/known-apps.ts` `readNativeGames` in M4c) |
 | `frontend/sensors/store-item/index.ts` | `loadStoreItem()` (moved verbatim from `features/steam-store/store-item.ts` in M5b) |
 | `frontend/sensors/shortcuts/index.ts` | `shortcutTitle()`, `listShortcuts()` (M10) |
+| `frontend/sensors/installs/index.ts` | `watchInstalls()`: the 60 s tick of auto-add (ADR-0056) |
 | `tests/sensors.test.ts` | Unit tests for the view tracker |
 
 ## Steam targets touched

@@ -71,6 +71,7 @@ test('view: gamepad switch and close emit left; modes are independent', () => {
 });
 
 import { watchIdentity } from '../frontend/sensors/progress-cache/index.ts';
+import { watchInstalls } from '../frontend/sensors/installs/index.ts';
 
 function fakeTimers() {
     let fn: (() => void) | undefined;
@@ -103,4 +104,20 @@ test('progress-cache: a map that is already there is reported at once, and the w
     assert.equal(calls, 1, 'reported by the first look (Steam loaded before us)');
     t.tick(); t.tick();
     assert.equal(t.log.cleared, 1, 'stopped after 3 ticks (bounded)');
+});
+
+test('installs: ticks on its interval, never at once, and stops when told', () => {
+    const calls: number[] = [];
+    let tick: (() => void) | undefined;
+    let cleared: unknown;
+    const stop = watchInstalls(() => calls.push(1), {
+        intervalMs: 5000,
+        timers: { setInterval: (fn, ms) => ((tick = fn), ms), clearInterval: (h) => (cleared = h) },
+    });
+    assert.equal(calls.length, 0, 'the caller runs its own first check');
+    tick!();
+    tick!();
+    assert.equal(calls.length, 2);
+    stop();
+    assert.equal(cleared, 5000, 'the interval handle is cleared');
 });

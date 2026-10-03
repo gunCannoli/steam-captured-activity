@@ -57,6 +57,7 @@ import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
 import { listShortcuts, shortcutTitle } from "./sensors/shortcuts";
 import { watchProgressCache } from "./sensors/progress-cache";
+import { watchInstalls } from "./sensors/installs";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
 import { backend } from "./ports/backend";
 import {
@@ -519,7 +520,12 @@ async function init() {
     runner.installAll();
     bus.on("store.add-requested", (e) => void libraryShortcutsOnAddRequested(e));
     storeSync.install();
-    void routing.waitForCollections().then(() => storeSync.run());
+    // The first look at start-up, then one a minute, so a game installed while Steam runs is added without a restart
+    // (the tick returns at once while both toggles are off).
+    void routing.waitForCollections().then(() => {
+        void storeSync.run();
+        watchInstalls(() => void storeSync.run());
+    });
     // Flow C (launch toast, unlock polling, quit reload) and the unlock announcements.
     achievements.install();
     // Each new unlock: a toast and a Post-Game Summary line; a launch with achievements: the launch toast.
