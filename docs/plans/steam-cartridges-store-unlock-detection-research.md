@@ -45,6 +45,19 @@ and deterministic:
 - So the local signal says "a toast was shown", not which achievement: ask the Epic API at 1.5 s for 20 s after a trigger
   (the watcher's burst) and diff the unlocked ids.
 
+## Posting the unlock to Steam as a native toast (verified 2026-10-03, `--steam --simulate`)
+
+`NotificationStore.OnNotification(id, achievementType, protobuf)` with the store's real achievement id is Steam's own toast
+(the call enhanced-notifications uses for its previews). Measured with a simulated unlock (Microsoft Jigsaw's shortcut):
+the CDP call took 9 ms and Steam showed the toast (its sound handler ran) **183 ms** after the call. enhanced-notifications
+treated it as a real unlock (its sensor ignores only `EA_` ids) and tried its captures: "Unlock captures skipped for appid
+2366742765: no-running-timeline", because no game was running through Steam: captures need Steam's running recording
+timeline for that appid (`g_GRS.m_mapActiveTimelines`), so the game must be started from its Steam shortcut with background
+recording on. Fields: `appid` (normalise with `>>> 0`: shortcut appids pass 0x7FFFFFFF), `achievement_id`, `name`,
+`description`, `image_url`, `achieved: true`, `rtime_unlocked`, `global_achieved_pct`. Names and icons: Xbox from the push
+itself; Epic from the plugin's schema (`EnsureFresh` achievements part). Expected end to end: Xbox unlock + ~1 s (push) +
+0.2 s; Epic unlock + overlay trigger + the API burst (1.5 s steps).
+
 ## Both: what the watcher does today
 
 Sensors: windows and processes (with UI Automation text, own timestamps), toast database, files (store folders, the

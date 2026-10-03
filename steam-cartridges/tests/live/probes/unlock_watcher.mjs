@@ -1,6 +1,12 @@
 // Research tool: what does this PC "smell" when an Epic or Xbox game unlocks an achievement? (ADR-0056 follow-up)
 //
-//   node tests/live/probes/unlock_watcher.mjs [--watch <dir>]... [--poll <seconds>] [--no-api] [--only <sensor,...>]
+//   node tests/live/probes/unlock_watcher.mjs [--steam] [--watch <dir>]... [--poll <seconds>] [--no-api] [--only <sensor,...>]
+//
+//   --steam   when an unlock is identified (Xbox: the push from Windows; Epic: the API burst after a local trigger), post it
+//             to Steam as a NATIVE achievement toast (NotificationStore.OnNotification, the same call enhanced-notifications
+//             uses for its previews, with the store's real achievement id) and log how long each step took. Without --steam the
+//             watcher only logs what it WOULD post (steam/dry). With --steam, enhanced-notifications sees a real unlock: its banner,
+//             screenshot and recording run.
 //
 // Start it, play the game, unlock one achievement, then press Enter in this console (a MARK line: "I saw the toast
 // now"; type a note first if you like). Ctrl+C stops it. Everything is also written, one JSON object per line, to
@@ -35,6 +41,84 @@ const POLL_S = Number(values("--poll")[0] ?? 10);
 const only = new Set((values("--only")[0] ?? "windows,toasts,files,events,api").split(","));
 const LOCAL = process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local");
 const PROGRAMDATA = process.env.ProgramData ?? "C:\\ProgramData";
+
+// ---- steam: post a native achievement toast and time it ----------------------------------------------------------------------------
+const STEAM = flag("--steam");
+let cdpSession;
+async function cdp(expression) {
+    cdpSession ??= (async () => {
+        const sess = session((await pick("SharedJSContext")).webSocketDebuggerUrl);
+        await sess.ready;
+        return sess;
+    })();
+    const sess = await cdpSession;
+    return (await sess.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true })).result?.result?.value;
+}
+// Installed once in SharedJSContext: finds the achievement notification type by its protobuf class (the way enhanced-notifications
+// does), wraps PlayNotificationSound only to record WHEN Steam shows a toast, and offers __ucPost(fields).
+const INSTALL = `(() => {
+  const S = window.NotificationStore; if (!S) return JSON.stringify({ ok: false, why: 'no NotificationStore' });
+  const P = Object.getPrototypeOf(S);
+  if (window.__ucProbe && window.__ucProbe.eType) return JSON.stringify({ ok: true, eType: window.__ucProbe.eType, reused: true });
+  let captured; const standIn = { ChooseSound(c) { captured = c; return null; } };
+  let eType = null, proto = null;
+  for (let t = 1; t <= 120 && eType === null; t++) {
+    captured = undefined; try { P.PlayNotificationSound.call(standIn, { eType: t }); } catch { continue; }
+    const c = captured; if (!c || typeof c.proto !== 'function') continue;
+    try { if (new c.proto().getClassName?.() === 'CClientNotificationAchievement') { eType = t; proto = c.proto; } } catch {}
+  }
+  if (eType === null) return JSON.stringify({ ok: false, why: 'achievement type not found' });
+  const orig = P.PlayNotificationSound; const shown = {};
+  const wrap = function (n) { try { if (n && n.eType === eType) { const k = (n.data.appid() >>> 0) + ':' + n.data.achievement_id(); if (!shown[k]) shown[k] = Date.now(); } } catch {} return orig.apply(this, arguments); };
+  P.PlayNotificationSound = wrap;
+  window.__ucProbe = { eType, proto, shown, restore() { if (P.PlayNotificationSound === wrap) P.PlayNotificationSound = orig; } };
+  window.__ucPost = (f) => {
+    const msg = window.__ucProbe.proto.fromObject({ appid: f.appid >>> 0, achievement_id: String(f.id), name: f.name, description: f.description, image_url: f.icon || '', achieved: true, rtime_unlocked: f.unlockedAt, global_achieved_pct: f.pct });
+    const nid = typeof S.m_nNextTestNotificationID === 'number' ? S.m_nNextTestNotificationID++ : (Date.now() & 0x7fffffff);
+    const t0 = Date.now(); S.OnNotification(nid, window.__ucProbe.eType, msg.serializeBinary()); return t0;
+  };
+  return JSON.stringify({ ok: true, eType });
+})()`;
+let steamReady;
+const posted = new Set();
+/** f: { appid, id, name, description, icon, pct, unlockedAtMs, via, detectedAtMs } */
+async function toSteam(f) {
+    const key = `${f.appid >>> 0}:${f.id}`;
+    if (posted.has(key)) return;
+    posted.add(key);
+    const unlockIso = new Date(f.unlockedAtMs).toISOString();
+    const base = { appid: f.appid >>> 0, id: f.id, name: f.name, via: f.via, unlockIso, unlockToDetectSec: +((f.detectedAtMs - f.unlockedAtMs) / 1000).toFixed(2) };
+    if (!STEAM) {
+        log("steam", "dry", { ...base, note: "run with --steam to post" }, true);
+        return;
+    }
+    try {
+        steamReady ??= cdp(INSTALL).then((r) => JSON.parse(r ?? "{}"));
+        const ready = await steamReady;
+        if (!ready.ok) return log("steam", "error", { ...base, why: ready.why });
+        const postedAt = Date.now();
+        await cdp(`window.__ucPost(${JSON.stringify({ appid: f.appid, id: f.id, name: f.name, description: f.description, icon: f.icon, pct: f.pct, unlockedAt: Math.floor(f.unlockedAtMs / 1000) })})`);
+        const sentAt = Date.now();
+        let shownAt;
+        for (let i = 0; i < 80 && !shownAt; i++) {
+            shownAt = JSON.parse((await cdp(`JSON.stringify(window.__ucProbe.shown[${JSON.stringify(key)}] ?? null)`)) ?? "null");
+            if (!shownAt) await new Promise((r) => setTimeout(r, 100));
+        }
+        log("steam", "toast", {
+            ...base,
+            detectToPostSec: +((postedAt - f.detectedAtMs) / 1000).toFixed(2),
+            cdpCallMs: sentAt - postedAt,
+            postToShownMs: shownAt ? shownAt - sentAt : null,
+            unlockToPostSec: +((sentAt - f.unlockedAtMs) / 1000).toFixed(2),
+            unlockToShownSec: shownAt ? +((shownAt - f.unlockedAtMs) / 1000).toFixed(2) : null,
+            shown: !!shownAt,
+        }, true);
+    } catch (e) {
+        log("steam", "error", { ...base, error: String(e).slice(0, 200) });
+    }
+}
+// What the api sensor learns about each target (shortcut): its store, its Xbox title id, and the achievements' names / icons.
+const appMeta = new Map(); // appid -> { kind, titleId?, schema: Map(id -> { name, description, icon, pct }) }
 
 // ---- log ------------------------------------------------------------------------------------------------------------
 const outDir = join(here, "..", "..", "..", "..", "scratch");
@@ -298,7 +382,6 @@ $out | Sort-Object TimeCreated | ForEach-Object {
                         let ach;
                         try { ach = json?.startsWith("{") ? JSON.parse(json) : undefined; } catch { /* not JSON */ }
                         log("events", ach?.service === "achievements" ? "xbox-push" : "event", { ...rest, payload: payload ? clip(payload, 1500) : undefined }, !!ach || KEYWORDS.test(e.msg), e.time);
-                        if (ach?.service === "achievements") candidate("xbox-push", "xbox", { title: ach.titleName, titleId: ach.titleId, achievement: ach.achievementName, description: ach.achievementDescription, unlockTime: ach.unlockTime, gamerscore: ach.gamerscore, rarity: ach.rarityCategory });
                     }
                 } catch { /* empty poll */ }
                 first = false;
@@ -306,6 +389,34 @@ $out | Sort-Object TimeCreated | ForEach-Object {
             });
         });
     (async () => { for (;;) { await run(); await new Promise((r) => setTimeout(r, 1000)); } })();
+}
+
+// ---- push: Windows' push log, event-driven (Xbox achievements arrive here with their full JSON) ---------------------------------------
+if (only.has("events") || only.has("push")) {
+    const ps = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(here, "unlock_watcher_push.ps1")], { stdio: ["ignore", "pipe", "pipe"] });
+    createInterface({ input: ps.stdout }).on("line", (l) => {
+        let o;
+        try { o = JSON.parse(l); } catch { return; }
+        if (o.kind === "ready") return log("push", "ready", {});
+        if (o.kind !== "push") return;
+        const received = Date.parse(o.received);
+        const i = o.payload.indexOf("{");
+        let ach;
+        try { ach = i >= 0 ? JSON.parse(o.payload.slice(i)) : undefined; } catch { /* not JSON */ }
+        if (ach?.service !== "achievements") {
+            // Other pushes (Windows' keep-alive pings, other apps): kept in the file only.
+            appendFileSync(logFile, JSON.stringify({ ts: o.received, sensor: "push", kind: "other", quiet: true, id: o.id, head: clip(o.payload, 160) }) + "\n");
+            return;
+        }
+        const unlockedAtMs = Date.parse(ach.unlockTime);
+        log("push", "achievement", { written: o.written, game: ach.titleName, titleId: ach.titleId, achievementId: ach.achievementId, name: ach.achievementName, description: ach.achievementDescription, gamerscore: ach.gamerscore, rarity: ach.rarityPercentage, unlockTime: ach.unlockTime, unlockToWatcherSec: +((received - unlockedAtMs) / 1000).toFixed(2) }, true, o.received);
+        candidate("xbox-push", "xbox", { title: ach.titleName, achievement: ach.achievementName });
+        const target = [...appMeta].find(([, m]) => m.kind === "xbox" && String(m.titleId) === String(ach.titleId));
+        if (!target) return log("steam", "no-target", { titleId: ach.titleId, game: ach.titleName, note: "no Xbox shortcut with this title id (or the api sensor is not ready yet)" });
+        toSteam({ appid: target[0], id: ach.achievementId, name: ach.achievementName, description: ach.achievementDescription, icon: ach.achievementIcon, pct: ach.rarityPercentage ?? 0, unlockedAtMs, via: "xbox-push", detectedAtMs: received });
+    });
+    ps.stderr.on("data", (d) => log("push", "stderr", { text: clip(d, 300) }));
+    process.on("exit", () => ps.kill());
 }
 
 // ---- api: when does the store itself report the unlock? -------------------------------------------------------------------------
@@ -322,26 +433,39 @@ if (only.has("api") && !flag("--no-api")) {
         const run = async (expression) => (await s.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true })).result?.result?.value;
         // Shortcuts of the "Epic Games" and "Xbox" collections (made by auto-add, ADR-0056), plus --app <appid>:<epic|xbox>.
         const fromCollections = JSON.parse(
-            (await run(`JSON.stringify([['Epic Games','epic'],['Xbox','xbox']].flatMap(([name, kind]) => { const c = [...collectionStore.userCollections].find((x) => x.displayName === name); return (c?.allApps ?? []).map((a) => ({ id: a.appid, kind })); }))`)) ?? "[]",
+            (await run(`JSON.stringify([['Epic Games','epic'],['Xbox','xbox']].flatMap(([name, kind]) => { const c = [...collectionStore.userCollections].find((x) => x.displayName === name); return (c?.allApps ?? []).map((a) => ({ id: a.appid >>> 0, kind })); }))`)) ?? "[]",
         );
-        const targets = [...fromCollections, ...values("--app").map((a) => ({ id: Number(a.split(":")[0]), kind: a.split(":")[1] ?? "epic" }))];
+        const targets = [...fromCollections, ...values("--app").map((a) => ({ id: Number(a.split(":")[0]) >>> 0, kind: a.split(":")[1] ?? "epic" }))];
         log("api", "targets", { targets });
+        // The store part (record) gives an Xbox shortcut its title id: how a push finds its shortcut.
+        for (const t of targets) {
+            const st = JSON.parse((await run(`(async()=>{ try { const raw = await Millennium.callServerMethod('steam-cartridges-dev','EnsureFresh',{payload: JSON.stringify({appid:${t.id}, parts:['store'], context:{allowEpic:true, allowXbox:true}})}); const d = JSON.parse(raw).parts?.store?.data; return JSON.stringify({ titleId: d?.titleId ?? null, kind: d?.kind ?? null }); } catch (e) { return '{}'; } })()`)) ?? "{}");
+            appMeta.set(t.id, { kind: t.kind, titleId: st.titleId });
+        }
+        log("api", "meta", { targets: [...appMeta].map(([id, m]) => ({ id, kind: m.kind, titleId: m.titleId })) });
         const last = new Map(); // appid -> { key, ids: Map(id -> time) }
         const poll = async (only) => {
             for (const t of targets) {
                 if (only && t.kind !== only) continue;
                 const res = await run(`(async()=>{ try { const raw = await Millennium.callServerMethod('steam-cartridges-dev','EnsureFresh',{payload: JSON.stringify({appid:${t.id}, parts:['achievements'], context:{force:true, allowEpic:true, allowXbox:true}})});
                   const a = JSON.parse(raw).parts?.achievements; const found = []; const walk = (o) => { if (!o || typeof o !== 'object') return; for (const [k,v] of Object.entries(o)) { if (v && typeof v === 'object' && Number(v.unlocked_time) > 0) found.push(k + '@' + v.unlocked_time); else walk(v); } }; walk(a?.data);
-                  return JSON.stringify({ status: a?.status, source: a?.source ?? a?.data?.source, unlocked: found.sort() }); } catch (e) { return JSON.stringify({ error: String(e).slice(0,150) }); } })()`);
+                  const meta = {}; for (const x of (a?.data?.schema?.achievements ?? [])) meta[x.id] = { name: x.name, description: x.description, icon: x.icon, pct: x.global_pct ?? 0 };
+                  return JSON.stringify({ status: a?.status, source: a?.source ?? a?.data?.source, unlocked: found.sort(), meta }); } catch (e) { return JSON.stringify({ error: String(e).slice(0,150) }); } })()`);
                 const now = JSON.parse(res ?? "{}");
+                const detectedAtMs = Date.now();
                 const ids = new Map((now.unlocked ?? []).map((u) => u.split("@")).map(([id, at]) => [id, Number(at)]));
                 const key = JSON.stringify(now.unlocked ?? now);
                 const prev = last.get(t.id);
+                if (now.meta && appMeta.get(t.id)) appMeta.get(t.id).schema = now.meta;
                 if (!prev) log("api", "baseline", { appid: t.id, store: t.kind, status: now.status, source: now.source, unlockedCount: now.unlocked?.length, error: now.error });
                 else if (prev.key !== key && now.unlocked) {
                     // The ground truth: which achievements are new, the store's own unlock time, and how late we learned of it.
-                    const fresh = [...ids].filter(([id]) => !prev.ids.has(id)).map(([id, at]) => ({ id, at, atIso: new Date(at * 1000).toISOString(), lateSec: +(Date.now() / 1000 - at).toFixed(1) }));
+                    const fresh = [...ids].filter(([id]) => !prev.ids.has(id)).map(([id, at]) => ({ id, at, atIso: new Date(at * 1000).toISOString(), lateSec: +(Date.now() / 1000 - at).toFixed(1), name: now.meta?.[id]?.name }));
                     log("api", "CHANGED", { appid: t.id, store: t.kind, status: now.status, newUnlocks: fresh, unlockedCount: ids.size, sinceCandidateSec: lastCandidate.at ? +((Date.now() - lastCandidate.at) / 1000).toFixed(1) : null, candidate: lastCandidate.reason }, true);
+                    for (const u of fresh) {
+                        const m = now.meta?.[u.id] ?? {};
+                        toSteam({ appid: t.id, id: u.id, name: m.name ?? u.id, description: m.description ?? "", icon: m.icon ?? "", pct: m.pct ?? 0, unlockedAtMs: u.at * 1000, via: `${t.kind}-api`, detectedAtMs });
+                    }
                 }
                 if (!prev || now.unlocked) last.set(t.id, { key, ids });
             }
@@ -368,4 +492,20 @@ if (only.has("api") && !flag("--no-api")) {
     })();
 }
 
-process.on("SIGINT", () => { log("user", "stop", {}); process.exit(0); });
+// --simulate <appid>: post one marked fake unlock (id UC_SIM_<time>) a few seconds after start, to time Steam's own path
+// (post -> toast shown) without waiting for a game. It shows a real toast: with --steam only.
+if (values("--simulate")[0]) {
+    setTimeout(() => {
+        const now = Date.now();
+        toSteam({ appid: Number(values("--simulate")[0]) >>> 0, id: "UC_SIM_" + now, name: "Simulated unlock", description: "unlock_watcher --simulate: timing Steam's toast path", icon: "", pct: 12.5, unlockedAtMs: now, via: "simulate", detectedAtMs: now });
+    }, 6000);
+}
+
+// --for <seconds>: stop by itself (same clean-up as Ctrl+C), for scripted runs.
+if (values("--for")[0]) setTimeout(() => process.emit("SIGINT"), Number(values("--for")[0]) * 1000);
+
+process.on("SIGINT", async () => {
+    log("user", "stop", {});
+    try { await cdp("window.__ucProbe && window.__ucProbe.restore()"); } catch { /* Steam not reachable */ }
+    process.exit(0);
+});
