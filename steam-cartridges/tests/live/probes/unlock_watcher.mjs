@@ -2,6 +2,10 @@
 //
 //   node tests/live/probes/unlock_watcher.mjs [--steam] [--watch <dir>]... [--poll <seconds>] [--no-api] [--only <sensor,...>]
 //
+//   --mute-epic-overlay   rename the EOS overlay renderer (EOSOverlayRenderer-Win64/Win32-Shipping.exe under Epic Online Services\
+//             managedArtifacts\<id>) to .bak while the watcher runs, so Epic's own in-game toast cannot show, and put it back on exit
+//             (see epic_overlay.mjs; needs an ELEVATED PowerShell; start it BEFORE the game: a running renderer is not stopped).
+//             Use with --steam to see the Steam toast alone.
 //   --steam   when an unlock is identified (Xbox: the push from Windows; Epic: the API burst after a local trigger), post it
 //             to Steam as a NATIVE achievement toast (NotificationStore.OnNotification, the same call enhanced-notifications
 //             uses for its previews, with the store's real achievement id) and log how long each step took. Without --steam the
@@ -32,6 +36,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pick, session } from "../cdp.mjs";
+import { mute as muteEpicOverlay, restore as restoreEpicOverlay } from "./epic_overlay.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -499,6 +504,25 @@ if (values("--simulate")[0]) {
         const now = Date.now();
         toSteam({ appid: Number(values("--simulate")[0]) >>> 0, id: "UC_SIM_" + now, name: "Simulated unlock", description: "unlock_watcher --simulate: timing Steam's toast path", icon: "", pct: 12.5, unlockedAtMs: now, via: "simulate", detectedAtMs: now });
     }, 6000);
+}
+
+// --mute-epic-overlay: take Epic's own toast away for this run (reversible: restored on every way out of this process).
+if (flag("--mute-epic-overlay")) {
+    const back = restoreEpicOverlay(); // a leftover from an earlier crashed run
+    if (back.restored.length) log("overlay", "restored-leftover", { files: back.restored });
+    const r = muteEpicOverlay();
+    if (r.renamed.length) log("overlay", "muted", { files: r.renamed, note: "start the game now: Epic's own toast should not show; restored when this stops" }, true);
+    for (const e of r.errors) log("overlay", "mute-failed", e, true);
+    if (!r.renamed.length && !r.errors.length) log("overlay", "nothing-to-mute", { note: "no EOSOverlayRenderer files found (already renamed?)" });
+    const undo = () => {
+        const x = restoreEpicOverlay();
+        if (x.restored.length) console.log(`overlay restored: ${x.restored.join(", ")}`);
+        for (const e of x.errors) console.log(`overlay NOT restored: ${e.file}: ${e.error}  (run: node tests/live/probes/epic_overlay.mjs restore)`);
+    };
+    process.on("exit", undo);
+    process.on("SIGTERM", () => process.exit(0));
+    process.on("SIGHUP", () => process.exit(0));
+    process.on("uncaughtException", (e) => { console.error(e); process.exit(1); });
 }
 
 // --for <seconds>: stop by itself (same clean-up as Ctrl+C), for scripted runs.

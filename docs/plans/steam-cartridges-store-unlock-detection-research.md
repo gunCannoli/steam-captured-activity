@@ -58,6 +58,15 @@ recording on. Fields: `appid` (normalise with `>>> 0`: shortcut appids pass 0x7F
 itself; Epic from the plugin's schema (`EnsureFresh` achievements part). Expected end to end: Xbox unlock + ~1 s (push) +
 0.2 s; Epic unlock + overlay trigger + the API burst (1.5 s steps).
 
+## Muting Epic's own toast (to show Steam's alone) (2026-10-03, untested on the real files)
+
+The overlay renderer is `EOSOverlayRenderer-Win64-Shipping.exe` / `-Win32-Shipping.exe` in
+`C:\Program Files (x86)\Epic Games\Epic Online Services\managedArtifacts\<id>\` (not the launcher's `Portal\Extras\Overlay`).
+`unlock_watcher.mjs --mute-epic-overlay` (module and CLI: `epic_overlay.mjs status|mute|restore`) renames those two files to
+`.bak` and puts them back on exit; it needs an elevated PowerShell and must start before the game. Unmuted, Epic's overlay
+triggers (`cef.log`, the toast GIF, the renderer's connections) exist; muted they cannot, and the detector rests on the game's
+own connection to `api.epicgames.dev` (which came first in the sample) and the API poll. To be checked live.
+
 ## Both: what the watcher does today
 
 Sensors: windows and processes (with UI Automation text, own timestamps), toast database, files (store folders, the
