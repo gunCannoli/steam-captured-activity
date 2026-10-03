@@ -37,6 +37,12 @@ toast (183 ms after the call, verified) and `--mute-epic-overlay` hides Epic's o
 **Games installed while Steam runs are now added within a minute** (`sensors/installs`, verified: the tick runs every 60.0 s;
 a real install is still to be seen, note-list items 1-4).
 
+**Epic and Xbox games: full handoff in [steam-cartridges-store-games-handoff.md](docs/plans/steam-cartridges-store-games-handoff.md)
+(2026-10-03): what is built and deployed, every finding, the decisions taken and open (D1-D7), the options, and the ordered next steps.**
+Latest finding and next work: Steam launches the launcher or Explorer, not the game, so Big Picture focus, the overlay and Steam's
+recording (`no-running-timeline`) cannot see it; options (direct exe for Epic without the exchange code, Steam-started launcher,
+wrapper script, GDK direct exe, COM-activation wrapper) and four small experiments are in section 4 of the handoff.
+
 **Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
 agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer
 4202674849 in "Epic Games" and Microsoft Jigsaw 2366742765 in "Xbox"), H6 (Jotunnslayer: Steam Game Info, parity 17/17, achievements `epic 1/38`,
