@@ -1008,6 +1008,7 @@ def generate_preview_html(all_pairs, html_path, latest_pair_id=None):
       <span>A/B Audio Suite</span>
     </h1>
     <div style="display:flex; gap:10px;">
+      <a href="preview_tiered_trophies.html" class="btn-tool btn-primary" style="text-decoration:none;">🏆 Tiered Trophy Suite &rarr;</a>
       <a href="preview.html" class="btn-tool" style="text-decoration:none;">Classic Sounds &rarr;</a>
     </div>
   </div>

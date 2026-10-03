@@ -7,6 +7,15 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: SteamStation tiered trophy sound suite (2026-10-02)**: at the user's request.
+  Designed custom, progressive trophy achievement sound effects combining Steam's tactile PC attack with PlayStation's
+  crystalline bells, featuring subtle chimes and an ambient sound bed that expands in depth, richness, and space across
+  rarity tiers with exact duration targets: Bronze (~1.0s, subtle chime + warm quick decay), Silver (~1.0s, 2-note ascending
+  chime interval + airy stereo shimmer), Gold (~1.5s, 3-note harmonic bloom + warm low-mid launch foundation + convolution hall),
+  and Platinum (~2.0s, reverse ambient breath riser + multi-voice celestial chord + sub-bass cinematic depth + expansive 2s ambient
+  space). Implemented in `tiered_trophy_sound_designer.py` with three curated sonic sets (Aurora, Celestia, Tactile), generated
+  flagship files (`steamstation_bronze.mp3/.wav` through `steamstation_platinum.mp3/.wav`), built interactive player
+  `preview_tiered_trophies.html` with single-click tier progression playback and direct MP3/WAV downloads, and packaged ZIP archives.
 - **enhanced-notifications: SteamStation hybrid achievement sounds focused run (2026-10-02)**: at the user's
   request. Restricted Steam sources strictly to `deck_ui_achievement_toast.wav` and `deck_ui_launch_game.wav`, paired with
   the 3 PlayStation trophy chimes (`ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`, `ps4_trophy.mp3`) into 6 focused pairs (30
