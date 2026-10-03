@@ -163,6 +163,21 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Considerations (decided later, not scheduled)
 
+- **Auto-add next to shortcuts the user added by hand, or had before the plugin (found 2026-10-03, decide with the item below).**
+  Today a game counts as "in the library" when a shortcut matches it: an Epic launcher link naming its AppName, an exe inside its
+  install folder, or for Xbox a `shell:AppsFolder\<package>` target or an exe inside the package folder (`match` in
+  `store_epic_local.lua` / `store_xbox_local.lua`, applied to every shortcut by `store_service.installed_games`). So the usual manual
+  shapes are not duplicated; verified on this PC only for the six shortcuts the plugin made (the other 219 are not store games).
+  Not covered: a shortcut that runs a wrapper (a .bat, Playnite, Heroic/Legendary), a renamed or different exe, an Xbox
+  `ms-xbl-<id>://` or `xboxliveapp-` URI, or a copy of the same game on both stores. Proposal: (1) keep the matching and add a
+  **title fallback**, a shortcut whose name equals the game's (case and punctuation ignored) counts as the same game and the panel
+  says "In library as <name>"; (2) **re-check the live shortcut list just before AddShortcut** (a shortcut added by hand between two
+  checks); (3) never edit or replace an existing shortcut, even a poor one; (4) **first enable asks first**: Settings lists the games
+  it would add (checkboxes, "already in your library" greyed) so turning the toggle on with 40 Epic games installed adds only what
+  the user ticked; (5) a button "Add existing store shortcuts to the Epic Games / Xbox collection" (routing rules use the
+  collections, ADR-0036), never done silently; (6) skip, or ask about, a game the user already owns on Steam (the Steam match is
+  only known after adding, so this needs the catalog title lookup first). Note for the persistent list: re-adding a deleted game
+  gave a different appid (Minesweeper 2811889182, then 2663546656), so a re-add loses that shortcut's playtime and activity.
 - **Auto-add and a shortcut the user deleted (needs a decision before auto-add is called finished, found 2026-10-03).** Today it is
   inconsistent: a game is requested once per session (`requested` in `app/store-sync.ts`), so a shortcut the user deletes stays gone
   until Steam restarts, then comes back at every restart while the toggle is on; and nothing restores one deleted by mistake.
