@@ -7,13 +7,13 @@
 //
 //   node tests/live/check_parity.mjs [shortcutAppid] [nativeAppid] [otherNativeAppid]
 //
-// Defaults: Jotunnslayer shortcut 2315502503, native 2820820, B = 435150.
+// Defaults: Jotunnslayer shortcut 4202674849 (added by Epic auto-add, ADR-0056; was 2315502503), native 2820820, B = 435150.
 // Needs Steam started with DevTools on 127.0.0.1:8080, desktop UI.
 // Exit code 0 only when every line is PASS (the P5 gate).
 import { existsSync } from 'node:fs';
 
 const PORT = process.env.CDP_PORT ?? '8080';
-const S = Number(process.argv[2] ?? 2315502503);
+const S = Number(process.argv[2] ?? 4202674849);
 const N = Number(process.argv[3] ?? 2820820);
 const B = Number(process.argv[4] ?? 435150);
 const GRID = process.env.SC_GRID ?? 'C:/game/steam/userdata/83513586/config/grid';

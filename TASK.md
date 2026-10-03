@@ -28,12 +28,13 @@ add the clear counter to the suite, run it with the queue off to see whether the
 user: use the queue for a while and say if a notification ever goes missing; look at the ps5 toasts (padding fix,
 `"gap": [10, 2]`).
 
-**Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-checked by the
-agent after each; waiting for the by-hand checks in [its plan § 10](docs/plans/steam-cartridges-store-copies-plan.md#10-live-verification)**
-(H2-H10: Third-party panel, Xbox sign-in, auto-add, Jotunnslayer and Jigsaw pages, Reset Achievements). Agent-verified: `test:live` in both
-plugins passes except `check_parity.mjs` (13 of 17 fail the same on the pre-patch code: its Jotunnslayer page resolves to another app on this
-machine; look into it separately), Super Mario World's feed carries its unlock, no `exceeded its error budget`. When § 10 passes, delete the
-plan and its patch folder.
+**Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
+agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer
+4202674849 in "Epic Games" and Microsoft Jigsaw 2366742765 in "Xbox"), H6 (Jotunnslayer: Steam Game Info, parity 17/17, achievements `epic 1/38`,
+the unlock in the Activity feed), H7 partly (Jigsaw's Game Info from the Xbox catalog; the catalog has no developer, only publisher "Xbox Game Studios"),
+H10 (`Store copy ...: epic (launch-link)`, no error budget). Left for the user: H3 (Xbox sign-in, needs the code typed at microsoft.com/link), then
+Jigsaw's achievements 1/20 and H8 (unlock one more, quit, no toast, Post-Game Summary lists it), H5 (play both new shortcuts; the Epic link form is
+unverified), H9 (Reset Achievements lists neither; unit-tested only), Big Picture look. Then delete the plan and its patch folder.
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements

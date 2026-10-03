@@ -30,7 +30,7 @@ const checks = [
     { name: "K6: overview repair via trigger", file: "probes/overview_repair.mjs", args: [], must: /^PASS K6/m },
     { name: "render loop", file: "count_cycle.mjs", args: ["4263274102"], must: /^PASS render loop:/m },
     { name: "Properties (WUCHANG)", file: "test_props.mjs", args: ["3135033888", "--page"], must: /page=true: OK/ },
-    { name: "Properties (Jotunnslayer)", file: "test_props.mjs", args: ["2315502503", "--page"], must: /page=true: OK/ },
+    { name: "Properties (Jotunnslayer)", file: "test_props.mjs", args: ["4202674849", "--page"], must: /page=true: OK/ },
     { name: "navigation cycle", file: "test_nav_cycle.js", args: [], must: /^PASS/m },
     { name: "tabs", file: "check_all_tabs.js", args: [], must: /^PASS/m, retry: true },
     { name: "settings panel renders", file: "check_settings_panel.mjs", args: [], must: /^PASS Manual Edit/m },
