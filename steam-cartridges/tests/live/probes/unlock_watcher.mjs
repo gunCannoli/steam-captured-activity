@@ -294,7 +294,7 @@ $out | Sort-Object TimeCreated | ForEach-Object {
                         if (first) continue;
                         const { payload, ...rest } = e;
                         // The achievement push: a JSON body with "service":"achievements".
-                        const json = payload && payload.includes("\n\n") ? payload.slice(payload.indexOf("\n\n") + 2) : payload;
+                        const json = payload ? payload.slice(Math.max(payload.indexOf("{"), 0)) : payload; // the headers end in a blank line (CRLF); the body is the JSON
                         let ach;
                         try { ach = json?.startsWith("{") ? JSON.parse(json) : undefined; } catch { /* not JSON */ }
                         log("events", ach?.service === "achievements" ? "xbox-push" : "event", { ...rest, payload: payload ? clip(payload, 1500) : undefined }, !!ach || KEYWORDS.test(e.msg), e.time);

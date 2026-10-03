@@ -28,6 +28,12 @@ add the clear counter to the suite, run it with the queue off to see whether the
 user: use the queue for a while and say if a notification ever goes missing; look at the ps5 toasts (padding fix,
 `"gap": [10, 2]`).
 
+**Seeing an Epic or Xbox unlock as it happens (research, 2026-10-03):** [the research note](docs/plans/steam-cartridges-store-unlock-detection-research.md).
+Xbox: Windows' push-notification event log holds the full achievement JSON ~1 s after the unlock (verified, no admin needed).
+Epic: a trigger only (the overlay's `cef.log` line, a new GIF in its cache, the game's connection to `api.epicgames.dev`), the
+API names the achievement. Left: a second Epic sample, then the design (a sensor in steam-cartridges, and how to feed
+enhanced-notifications). The probe is `tests/live/probes/unlock_watcher.mjs` (F8 marks; `unlock_report.mjs` reads the log).
+
 **Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
 agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer
 4202674849 in "Epic Games" and Microsoft Jigsaw 2366742765 in "Xbox"), H6 (Jotunnslayer: Steam Game Info, parity 17/17, achievements `epic 1/38`,
