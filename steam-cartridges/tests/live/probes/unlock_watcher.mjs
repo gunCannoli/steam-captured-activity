@@ -55,8 +55,8 @@ function candidate(reason, store, data = {}) {
     burst(store);
 }
 const clip = (s, n) => (String(s).length > n ? String(s).slice(0, n) + `...(+${String(s).length - n})` : String(s));
-function log(sensor, kind, data = {}, hot = false) {
-    const ts = new Date().toISOString();
+function log(sensor, kind, data = {}, hot = false, at) {
+    const ts = at ?? new Date().toISOString();
     const line = { ts, t: ((Date.now() - t0) / 1000).toFixed(2), sensor, kind, hot: hot || undefined, ...data };
     appendFileSync(logFile, JSON.stringify(line) + "\n");
     const flat = Object.entries(data).map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`).join(" ");
@@ -76,17 +76,17 @@ if (only.has("windows")) {
     createInterface({ input: ps.stdout }).on("line", (l) => {
         try {
             const o = JSON.parse(l);
-            const { kind, ...rest } = o;
+            const { kind, at, ...rest } = o;
             if (kind === "hotkey") return mark("(toast seen now)", "F8");
             if (kind === "dns+") {
-                log("dns", "resolved", { address: rest.address, name: rest.name }, /epicgames|epicdata|eos|xboxlive|xbox\.com|microsoft\.com|playfab|gamepass/i.test(rest.name ?? ""));
+                log("dns", "resolved", { address: rest.address, name: rest.name }, /epicgames|epicdata|eos|xboxlive|xbox\.com|microsoft\.com|playfab|gamepass/i.test(rest.name ?? ""), at);
                 return;
             }
             if (kind === "conn+" || kind === "conn-") {
                 const c = rest.c;
                 const hotProc = /epic|eos|xbox|gaming|jotunn|jigsaw|gamebar|msedgewebview|WebHelper/i.test(c.proc ?? "");
                 const emit = (host) => {
-                    log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, kind === "conn+" && (hotProc || /epicgames|eos|xboxlive|xbox\.com|playfab/i.test(host ?? "")));
+                    log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, kind === "conn+" && (hotProc || /epicgames|eos|xboxlive|xbox\.com|playfab/i.test(host ?? "")), at);
                     // The game (not the launcher) talking to Epic's online services, or anything to Xbox Live's achievements host.
                     if (kind === "conn+" && /api\.epicgames\.dev/i.test(host ?? "") && !/launcher|epicwebhelper/i.test(c.proc ?? "")) candidate("game-epic-api", "epic", { proc: c.proc, host });
                     if (kind === "conn+" && /achievements\.xboxlive\.com|xboxlive\.com/i.test(host ?? "") && !/^(steam|node)$/i.test(c.proc ?? "")) candidate("xbox-live-host", "xbox", { proc: c.proc, host });
@@ -105,8 +105,8 @@ if (only.has("windows")) {
             const quiet = own || NOISE_CLASS.test(rest.w?.cls ?? rest.cls ?? "");
             const text = JSON.stringify(rest);
             const hot = !quiet && kind !== "baseline" && ((kind === "window+" && rest.w?.visible && !/ 0x0$/.test(rest.w?.rect ?? "")) || (kind === "window~" && rest.changes?.visible?.endsWith("True")) || KEYWORDS.test(kind.startsWith("window") ? JSON.stringify(rest.w ?? rest) + JSON.stringify(rest.text ?? "") : text));
-            if (quiet && !flag("--verbose")) { appendFileSync(logFile, JSON.stringify({ ts: new Date().toISOString(), t: ((Date.now() - t0) / 1000).toFixed(2), sensor: "windows", kind, quiet: true, ...rest }) + "\n"); return; }
-            log("windows", kind, rest, hot);
+            if (quiet && !flag("--verbose")) { appendFileSync(logFile, JSON.stringify({ ts: at ?? new Date().toISOString(), t: ((Date.now() - t0) / 1000).toFixed(2), sensor: "windows", kind, quiet: true, ...rest }) + "\n"); return; }
+            log("windows", kind, rest, hot, at);
         } catch {
             log("windows", "raw", { line: clip(l, 300) });
         }
@@ -262,14 +262,21 @@ import { readdirSync, readFileSync } from "node:fs";
 function require_readdir(d) { return readdirSync(d, { withFileTypes: true }); }
 
 // ---- events: Windows event logs ---------------------------------------------------------------------------------------------
+// The PushNotification platform log (readable without admin) records every push Windows receives, WITH ITS PAYLOAD as hex:
+// Xbox sends each achievement as a raw push (service "achievements": titleId, name, description, icon, unlock time, gamerscore)
+// to the Xbox app's widgets about 1 s after the unlock. The script decodes it and the watcher raises an "xbox-push" candidate.
 if (only.has("events")) {
     const script = `
 $ErrorActionPreference='SilentlyContinue'
-$since = (Get-Date).AddSeconds(-4)
+$since = (Get-Date).AddSeconds(-5)
 $out = @()
 $out += Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-PushNotification-Platform/Operational'; StartTime=$since}
 $out += Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$since} | Where-Object { $_.ProviderName -match 'Xbox|Gaming|Epic|EOS|GameBar|Game Bar|Store' }
-$out | Sort-Object TimeCreated | ForEach-Object { [pscustomobject]@{ id=$_.Id; rec=$_.RecordId; log=$_.LogName; provider=$_.ProviderName; time=$_.TimeCreated.ToString('o'); msg=("$($_.Message)").Substring(0,[Math]::Min(600,("$($_.Message)").Length)) } } | ConvertTo-Json -Compress`;
+$out | Sort-Object TimeCreated | ForEach-Object {
+  $m = "$($_.Message)"; $body = $null
+  $h = [regex]::Match($m, 'payload: 0x([0-9A-Fa-f]+)')
+  if ($h.Success -and $h.Groups[1].Value.Length -lt 20000) { $hex = $h.Groups[1].Value; $b = for ($i = 0; $i -lt $hex.Length; $i += 2) { [Convert]::ToByte($hex.Substring($i, 2), 16) }; $body = [Text.Encoding]::UTF8.GetString($b) }
+  [pscustomobject]@{ id=$_.Id; rec=$_.RecordId; log=$_.LogName; provider=$_.ProviderName; time=$_.TimeCreated.ToUniversalTime().ToString('o'); msg=$m.Substring(0,[Math]::Min(500,$m.Length)); payload=$body } } | ConvertTo-Json -Compress`;
     const seen = new Set();
     let first = true;
     const run = () =>
@@ -284,14 +291,21 @@ $out | Sort-Object TimeCreated | ForEach-Object { [pscustomobject]@{ id=$_.Id; r
                         const key = `${e.log}:${e.rec}`;
                         if (seen.has(key)) continue;
                         seen.add(key);
-                        if (!first) log("events", "event", e, KEYWORDS.test(e.msg));
+                        if (first) continue;
+                        const { payload, ...rest } = e;
+                        // The achievement push: a JSON body with "service":"achievements".
+                        const json = payload && payload.includes("\n\n") ? payload.slice(payload.indexOf("\n\n") + 2) : payload;
+                        let ach;
+                        try { ach = json?.startsWith("{") ? JSON.parse(json) : undefined; } catch { /* not JSON */ }
+                        log("events", ach?.service === "achievements" ? "xbox-push" : "event", { ...rest, payload: payload ? clip(payload, 1500) : undefined }, !!ach || KEYWORDS.test(e.msg), e.time);
+                        if (ach?.service === "achievements") candidate("xbox-push", "xbox", { title: ach.titleName, titleId: ach.titleId, achievement: ach.achievementName, description: ach.achievementDescription, unlockTime: ach.unlockTime, gamerscore: ach.gamerscore, rarity: ach.rarityCategory });
                     }
                 } catch { /* empty poll */ }
                 first = false;
                 resolve();
             });
         });
-    (async () => { for (;;) { await run(); await new Promise((r) => setTimeout(r, 2000)); } })();
+    (async () => { for (;;) { await run(); await new Promise((r) => setTimeout(r, 1000)); } })();
 }
 
 // ---- api: when does the store itself report the unlock? -------------------------------------------------------------------------

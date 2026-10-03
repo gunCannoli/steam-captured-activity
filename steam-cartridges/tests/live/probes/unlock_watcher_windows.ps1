@@ -23,7 +23,9 @@ public static class W {
 }
 '@
 $ErrorActionPreference = 'SilentlyContinue'
-function Emit($o) { [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress -Depth 5)); [Console]::Out.Flush() }
+# Each event carries `at`: the time the pass that found it STARTED (a slow pass, e.g. many windows, must not make events look late).
+$script:passAt = [DateTime]::UtcNow
+function Emit($o) { $o.at = $script:passAt.ToString('o'); [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress -Depth 5)); [Console]::Out.Flush() }
 $noiseClass = '^(tooltips_class32|Microsoft\.UI\.Content\.PopupWindowSiteBridge|IME|MSCTFIME UI|CicMarshalWnd|ComboLBox|WorkerW|gdkWindowTemp|Auto-Suggest Dropdown)'
 function Flags($ex) {
   $f = @(); if ($ex -band 0x8) { $f += 'TOPMOST' }; if ($ex -band 0x80) { $f += 'TOOLWINDOW' }; if ($ex -band 0x20) { $f += 'TRANSPARENT' }
@@ -81,6 +83,7 @@ $tick = 0
 while ($true) {
   Start-Sleep -Milliseconds 250
   $tick++
+  $script:passAt = [DateTime]::UtcNow
   # F8 anywhere (even inside a game, even over RDP, where the console may not get Enter): a user mark.
   # (bit 0 = "pressed since the last call", so a tap shorter than the 250 ms poll is still seen)
   if (([W]::GetAsyncKeyState(0x77) -band 0x1) -ne 0) { Emit @{ kind = 'hotkey'; key = 'F8' } }
