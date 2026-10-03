@@ -214,6 +214,36 @@ This is the model our shortcuts need: **one shortcut per game whose exe is a car
 - C2: add the launch-and-wait part (launcher link for Epic, `IApplicationActivationManager` for Xbox UWP, the exe for GDK) and
   check playtime, the running state, `window.g_GRS.m_mapActiveTimelines` and enhanced-notifications' captures.
 
+## 4c. The Steam guide "Add Any Epic Launcher Game to Steam" (Ducain, updated 2025-01-02; pasted by the user 2026-10-03)
+
+Steam Community guide id 2476375614 (Hand of Fate 2 guide section). The recipe, in our terms: it is **E5, Steam starts the launcher**,
+and it reports that the Steam overlay, screenshots, controller profiles, friends **and Epic cloud saves** all work, "especially for
+games that don't work properly when added by their exe".
+- Shortcut: Target = `...\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe` (a comment: `Win32` made the Play button flick
+  back to Play; use `Win64`), Start In = that folder, **Launch Options = `-com.epicgames.launcher://apps/<ns>%3A<item>%3A<app>?action=launch&silent=true`,
+  with a leading dash** (the same link Epic puts on a desktop shortcut). Ours has no dash (`launch_spec` in `store_epic_local.lua`).
+- The Epic launcher **must be completely closed before** the shortcut runs, "because we want Steam to first hook into the Epic Launcher
+  and then (as a result) hook into the game that will automatically launch". If it is already running (tray), the new instance only
+  forwards the link and the game starts outside Steam's tree: exactly what the unlock tests showed (game's parent = the running launcher).
+- The launcher lingers after the game: Steam shows the entry as running until the launcher is closed by hand ("sometimes it needs a few seconds
+  to cloud sync"); the most asked question in the comments. A wrapper could close it after the game exits.
+- Since 2022 Steam allows the same exe (the launcher) to be added several times, so the old symlink trick (a fake `<Game>.exe` link to the
+  launcher, needs admin) is not needed. Works with GOG Galaxy (`GalaxyClient.exe /command=runGame /gameId=... /path=...`).
+- Failures reported: Alan Wake 2 (Play flickers back at once, the launcher given an `%3A`-joined link), Fortnite (launcher opens, game does not).
+  Direct game exe works for some games with `-epicportal`, without cloud saves.
+
+**State of the user's shortcuts (2026-10-03, read from `shortcuts.vdf`):** Jotunnslayer still runs the launcher with our dash-less link.
+**BURIED STARS now has `exe = ...\BURIEDSTARSd7620\BURIED STARS.exe` and empty launch options** (changed by hand after the plugin created
+it; the plugin still recognizes it as the Epic copy because the exe is inside the install folder): that is test E1. Open question for it:
+without the launcher's `-AUTH_*` exchange code, does the game still log in to EOS and unlock (the unlock detection depends on that)?
+
+**Next test for the guide's recipe (E5), needs the user:** put a leading `-` in the launch options of a launcher-based shortcut
+(Jotunnslayer), fully quit the Epic launcher (tray, Exit), run the shortcut from Steam, then check: the process tree (the watcher's
+`process+` parent chain: the game must descend from the Steam-launched launcher), Shift+Tab, a posted toast
+(`unlock_watcher.mjs --steam --simulate <appid>`), `window.g_GRS.m_mapActiveTimelines`, and whether enhanced-notifications' captures still say
+`no-running-timeline`. Then decide: add the dash to `launch_spec` for new shortcuts (never edit existing ones, policy D2), and whether a
+wrapper that closes the launcher first and after the game is worth building (D6).
+
 ## 5. Full list of what is still to test or build
 
 **Live checks still open** (also in the research note):
