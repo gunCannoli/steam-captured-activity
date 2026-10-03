@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SteamStation Custom Trophy Sound Suite (100% Bespoke)</title>
+<style>
+  :root {
+    --bg: #090c12;
+    --card: #121622;
+    --card-hover: #192032;
+    --border: #21293c;
+    --accent: #0070d1;
+    --accent-steam: #66c0f4;
+    --bronze: #d98845;
+    --silver: #e2e8f0;
+    --gold: #f5b041;
+    --platinum: #38bdf8;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --active: #00ffaa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+  header {
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+  }
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  h1 { font-size: 26px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 12px; }
+  h1 span { font-size: 13px; font-weight: 600; background: rgba(56, 189, 248, 0.15); color: var(--platinum); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.35); }
+  p.subtitle { color: var(--text-dim); margin-top: 6px; font-size: 14px; max-width: 900px; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0f131d;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .btn-tool {
+    background: #181f2f;
+    border: 1px solid #2d3852;
+    color: #fff;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .btn-tool:hover { background: #26324d; border-color: var(--accent-steam); }
+  .btn-primary { background: #0070d1; border-color: #0070d1; }
+  .btn-primary:hover { background: #0084f7; border-color: #0084f7; }
+  .btn-progression {
+    background: linear-gradient(135deg, rgba(217, 136, 69, 0.25), rgba(56, 189, 248, 0.25));
+    border: 1px solid rgba(56, 189, 248, 0.5);
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn-progression:hover {
+    background: linear-gradient(135deg, rgba(217, 136, 69, 0.4), rgba(56, 189, 248, 0.4));
+    border-color: var(--platinum);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+  }
+  .btn-zip {
+    background: rgba(245, 176, 65, 0.12);
+    border-color: rgba(245, 176, 65, 0.35);
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .btn-zip:hover { background: var(--gold); color: #090c12; }
+
+  /* Set Selector Tabs */
+  .set-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 14px;
+  }
+  .tab-btn {
+    background: #121624;
+    border: 1px solid #242c40;
+    color: #8c97ad;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tab-btn:hover { color: #fff; border-color: #3b4764; }
+  .tab-btn.active {
+    background: #0070d1;
+    color: #fff;
+    border-color: #0070d1;
+    box-shadow: 0 2px 12px rgba(0, 112, 209, 0.4);
+  }
+
+  /* Tiers Grid */
+  .tiers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .tier-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  .tier-card:hover {
+    background: var(--card-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+  .tier-card.is-playing {
+    border-color: var(--active);
+    box-shadow: 0 0 22px rgba(0, 255, 170, 0.25);
+  }
+
+  .tier-card.bronze { border-top: 4px solid var(--bronze); }
+  .tier-card.silver { border-top: 4px solid var(--silver); }
+  .tier-card.gold { border-top: 4px solid var(--gold); }
+  .tier-card.platinum { border-top: 4px solid var(--platinum); }
+
+  .tier-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .tier-badge {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge-bronze { background: rgba(217, 136, 69, 0.15); color: var(--bronze); border: 1px solid rgba(217, 136, 69, 0.35); }
+  .badge-silver { background: rgba(226, 232, 240, 0.15); color: var(--silver); border: 1px solid rgba(226, 232, 240, 0.35); }
+  .badge-gold { background: rgba(245, 176, 65, 0.15); color: var(--gold); border: 1px solid rgba(245, 176, 65, 0.35); }
+  .badge-platinum { background: rgba(56, 189, 248, 0.15); color: var(--platinum); border: 1px solid rgba(56, 189, 248, 0.35); }
+
+  .tier-dur { font-size: 13px; font-weight: 600; color: #8c97ad; background: #090c12; padding: 3px 8px; border-radius: 4px; }
+
+  .tier-center { margin-bottom: 18px; }
+  .tier-name { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .tier-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
+
+  .chime-spec {
+    background: #0b0e16;
+    border: 1px solid #1a2130;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: #9ab;
+  }
+  .chime-spec strong { color: #e6edf3; }
+
+  .tier-bottom { display: flex; flex-direction: column; gap: 10px; }
+  .play-bar { display: flex; align-items: center; gap: 10px; }
+  .big-play-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: #181f30;
+    border: 1px solid #2e3b55;
+    color: #fff;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+  .big-play-btn:hover { background: #0070d1; border-color: #0070d1; transform: scale(1.05); }
+  .tier-card.is-playing .big-play-btn { background: var(--active); color: #090c12; border-color: var(--active); }
+
+  .dl-row { display: flex; gap: 6px; }
+  .btn-dl {
+    flex: 1;
+    background: #141a27;
+    border: 1px solid #253147;
+    color: var(--accent-steam);
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .btn-dl:hover { background: #0070d1; color: #fff; border-color: #0070d1; }
+  .btn-dl.wav { color: #b5c7e8; }
+  .btn-dl.wav:hover { background: #1e3f6b; color: #fff; }
+
+  /* Hierarchy Banner */
+  .hierarchy-banner {
+    background: #0f131d;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .hierarchy-steps {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .h-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    background: #141824;
+    border: 1px solid #232c40;
+    padding: 5px 12px;
+    border-radius: 20px;
+  }
+
+  /* Code snippet block */
+  .code-section {
+    background: #0e121a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 24px;
+  }
+  .code-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .code-header h4 { font-size: 13.5px; font-weight: 600; color: #fff; }
+  pre {
+    background: #06080d;
+    border: 1px solid #182030;
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    font-size: 12px;
+    color: #66c0f4;
+    font-family: Consolas, Monaco, monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top-row">
+    <h1>
+      ✨ SteamStation Bespoke Trophy Sound Suite
+      <span>100% Original Synthesis</span>
+    </h1>
+    <div style="display:flex; gap:10px;">
+      <a href="preview_hybrids.html" class="btn-tool" style="text-decoration:none;">&larr; Hybrid A/B Sounds</a>
+    </div>
+  </div>
+  <p class="subtitle">
+    Pure bespoke sound design featuring a subtle modal chime and an ambient sound bed that grows in harmonic depth, spatial width, and duration as the achievement is rarer:
+    <b>Bronze (1.0s)</b> &rarr; <b>Silver (1.0s)</b> &rarr; <b>Gold (1.5s)</b> &rarr; <b>Platinum (2.0s)</b>. Built without any PlayStation sound files.
+  </p>
+</header>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <button class="btn-tool btn-progression" id="btn-progression">▶ Play Hierarchy Progression (Bronze ➔ Platinum)</button>
+    <button class="btn-tool" id="btn-stop">■ Stop All</button>
+  </div>
+  <div class="toolbar-right">
+    <a href="SteamStation_Custom_Trophies_MP3.zip" download class="btn-tool btn-zip">📦 Download All MP3s (.ZIP)</a>
+    <a href="SteamStation_Custom_Trophies_WAV.zip" download class="btn-tool btn-zip">📦 Download All WAVs (.ZIP)</a>
+  </div>
+</div>
+
+<div class="hierarchy-banner">
+  <div class="hierarchy-steps">
+    <div class="h-step"><span style="color:var(--bronze)">🥉 Bronze: 1.0s</span> (Subtle chime + clean decay)</div>
+    <span>&rarr;</span>
+    <div class="h-step"><span style="color:var(--silver)">🥈 Silver: 1.0s</span> (2-Tone interval + airy shimmer)</div>
+    <span>&rarr;</span>
+    <div class="h-step"><span style="color:var(--gold)">🥇 Gold: 1.5s</span> (3-Note bloom + warm low swell)</div>
+    <span>&rarr;</span>
+    <div class="h-step"><span style="color:var(--platinum)">🏆 Platinum: 2.0s</span> (Celestial chord + 2s spatial pad)</div>
+  </div>
+  <div style="font-size:12px; color:var(--text-dim)">Zero Bootleg Audio • Bespoke Synthesis</div>
+</div>
+
+<div class="set-tabs" id="tabs-container"></div>
+
+<main id="tiers-container" class="tiers-grid"></main>
+
+<div class="code-section">
+  <div class="code-header">
+    <h4>⚙️ SteamStation.json Theme Integration</h4>
+    <button class="btn-tool" id="btn-copy-config">📋 Copy JSON Config</button>
+  </div>
+  <pre id="code-snippet"></pre>
+</div>
+
+<script>
+const DATA = [
+  {
+    "id": "prism",
+    "name": "Prism Suite",
+    "character": "Original Flagship",
+    "description": "Pure crystalline glass chimes + airy ambient shimmer with PC tactile attacks.",
+    "tiers": [
+      {
+        "id": "bronze",
+        "title": "Bronze Trophy",
+        "icon": "\ud83e\udd49",
+        "name": "Subtle Chime",
+        "description": "Clean, focused, minimal notification designed to inform without interrupting intense gameplay.",
+        "duration": 1.0,
+        "chime_details": "Singular pure F5 crystalline chime strike (698 Hz)",
+        "ambient_details": "Subtle warm F4/C5 ambient drone decaying cleanly in 0.8s",
+        "mp3_filename": "trophy_prism_bronze.mp3",
+        "wav_filename": "trophy_prism_bronze.wav",
+        "mp3_path": "custom_tiers/trophy_prism_bronze.mp3",
+        "wav_path": "custom_tiers/trophy_prism_bronze.wav",
+        "peak_db": -3.0,
+        "rms_db": -16.8
+      },
+      {
+        "id": "silver",
+        "title": "Silver Trophy",
+        "icon": "\ud83e\udd48",
+        "name": "Crystalline Chime",
+        "description": "Brighter 2-tone chime interval with airy stereo shimmer space.",
+        "duration": 1.0,
+        "chime_details": "Ascending 2-tone chime interval (F5 \u2794 C6, +7 semitones)",
+        "ambient_details": "Airy bandpassed stereo shimmer pad (width 1.35x)",
+        "mp3_filename": "trophy_prism_silver.mp3",
+        "wav_filename": "trophy_prism_silver.wav",
+        "mp3_path": "custom_tiers/trophy_prism_silver.mp3",
+        "wav_path": "custom_tiers/trophy_prism_silver.wav",
+        "peak_db": -0.3,
+        "rms_db": -12.8
+      },
+      {
+        "id": "gold",
+        "title": "Gold Trophy",
+        "icon": "\ud83e\udd47",
+        "name": "Harmonic Chime",
+        "description": "Rich 3-note harmonic bloom with warm low-mid foundation and expanded stereo swell.",
+        "duration": 1.5,
+        "chime_details": "3-Note ascending chime arpeggio (F5 \u2794 A5 \u2794 C6)",
+        "ambient_details": "Warm low bloom swell + stereo convolution hall (width 1.50x)",
+        "mp3_filename": "trophy_prism_gold.mp3",
+        "wav_filename": "trophy_prism_gold.wav",
+        "mp3_path": "custom_tiers/trophy_prism_gold.mp3",
+        "wav_path": "custom_tiers/trophy_prism_gold.wav",
+        "peak_db": -0.3,
+        "rms_db": -12.1
+      },
+      {
+        "id": "platinum",
+        "title": "Platinum Trophy",
+        "icon": "\ud83c\udfc6",
+        "name": "Celestial Chime",
+        "description": "Grand triumphant signature with sub-bass depth, reverse breath riser, and 2-second celestial space.",
+        "duration": 2.0,
+        "chime_details": "Celestial 4-note constellation chord + high E6/G6 glint",
+        "ambient_details": "Reverse breath riser + deep sub-bass + expansive 2s ambient tail",
+        "mp3_filename": "trophy_prism_platinum.mp3",
+        "wav_filename": "trophy_prism_platinum.wav",
+        "mp3_path": "custom_tiers/trophy_prism_platinum.mp3",
+        "wav_path": "custom_tiers/trophy_prism_platinum.wav",
+        "peak_db": -0.3,
+        "rms_db": -13.4
+      }
+    ]
+  },
+  {
+    "id": "velvet",
+    "name": "Velvet Suite",
+    "character": "Warm Orchestral Bells",
+    "description": "Rich modal bell tines, warm atmospheric swells, and deep acoustic depth.",
+    "tiers": [
+      {
+        "id": "bronze",
+        "title": "Bronze Trophy",
+        "icon": "\ud83e\udd49",
+        "name": "Subtle Chime",
+        "description": "Clean, focused, minimal notification designed to inform without interrupting intense gameplay.",
+        "duration": 1.0,
+        "chime_details": "Warm struck bell tine (D5 = 587 Hz)",
+        "ambient_details": "Soft acoustic halo with smooth 0.8s decay",
+        "mp3_filename": "trophy_velvet_bronze.mp3",
+        "wav_filename": "trophy_velvet_bronze.wav",
+        "mp3_path": "custom_tiers/trophy_velvet_bronze.mp3",
+        "wav_path": "custom_tiers/trophy_velvet_bronze.wav",
+        "peak_db": -2.5,
+        "rms_db": -16.8
+      },
+      {
+        "id": "silver",
+        "title": "Silver Trophy",
+        "icon": "\ud83e\udd48",
+        "name": "Crystalline Chime",
+        "description": "Brighter 2-tone chime interval with airy stereo shimmer space.",
+        "duration": 1.0,
+        "chime_details": "Ascending warm bell interval (D5 \u2794 A5, +7 semitones)",
+        "ambient_details": "Smooth stereo air pad with gentle chorus motion",
+        "mp3_filename": "trophy_velvet_silver.mp3",
+        "wav_filename": "trophy_velvet_silver.wav",
+        "mp3_path": "custom_tiers/trophy_velvet_silver.mp3",
+        "wav_path": "custom_tiers/trophy_velvet_silver.wav",
+        "peak_db": -0.3,
+        "rms_db": -11.9
+      },
+      {
+        "id": "gold",
+        "title": "Gold Trophy",
+        "icon": "\ud83e\udd47",
+        "name": "Harmonic Chime",
+        "description": "Rich 3-note harmonic bloom with warm low-mid foundation and expanded stereo swell.",
+        "duration": 1.5,
+        "chime_details": "3-Tone harmonic chime (D5 \u2794 F#5 \u2794 A5)",
+        "ambient_details": "Warm low drone swell (D3/A3) + expansive acoustic hall",
+        "mp3_filename": "trophy_velvet_gold.mp3",
+        "wav_filename": "trophy_velvet_gold.wav",
+        "mp3_path": "custom_tiers/trophy_velvet_gold.mp3",
+        "wav_path": "custom_tiers/trophy_velvet_gold.wav",
+        "peak_db": -0.3,
+        "rms_db": -12.1
+      },
+      {
+        "id": "platinum",
+        "title": "Platinum Trophy",
+        "icon": "\ud83c\udfc6",
+        "name": "Celestial Chime",
+        "description": "Grand triumphant signature with sub-bass depth, reverse breath riser, and 2-second celestial space.",
+        "duration": 2.0,
+        "chime_details": "Grand warm bell symphony + high A6 glint",
+        "ambient_details": "Deep sub-resonance + 2-second expansive orchestral pad",
+        "mp3_filename": "trophy_velvet_platinum.mp3",
+        "wav_filename": "trophy_velvet_platinum.wav",
+        "mp3_path": "custom_tiers/trophy_velvet_platinum.mp3",
+        "wav_path": "custom_tiers/trophy_velvet_platinum.wav",
+        "peak_db": -0.3,
+        "rms_db": -13.8
+      }
+    ]
+  },
+  {
+    "id": "electro",
+    "name": "Electro Suite",
+    "character": "Modern Deck UI",
+    "description": "Snappy high-tech PC transients, sleek micro-chimes, and cyber-spatial tails.",
+    "tiers": [
+      {
+        "id": "bronze",
+        "title": "Bronze Trophy",
+        "icon": "\ud83e\udd49",
+        "name": "Subtle Chime",
+        "description": "Clean, focused, minimal notification designed to inform without interrupting intense gameplay.",
+        "duration": 1.0,
+        "chime_details": "Minimalist glass ping (Eb6 = 1244 Hz) + snappy click",
+        "ambient_details": "Clean instant release, zero reverb clutter",
+        "mp3_filename": "trophy_electro_bronze.mp3",
+        "wav_filename": "trophy_electro_bronze.wav",
+        "mp3_path": "custom_tiers/trophy_electro_bronze.mp3",
+        "wav_path": "custom_tiers/trophy_electro_bronze.wav",
+        "peak_db": -3.1,
+        "rms_db": -16.8
+      },
+      {
+        "id": "silver",
+        "title": "Silver Trophy",
+        "icon": "\ud83e\udd48",
+        "name": "Crystalline Chime",
+        "description": "Brighter 2-tone chime interval with airy stereo shimmer space.",
+        "duration": 1.0,
+        "chime_details": "Dual ping interval (Eb6 \u2794 Bb6, +7 semitones)",
+        "ambient_details": "Shimmering cyber-air tail resolving at 1.0s",
+        "mp3_filename": "trophy_electro_silver.mp3",
+        "wav_filename": "trophy_electro_silver.wav",
+        "mp3_path": "custom_tiers/trophy_electro_silver.mp3",
+        "wav_path": "custom_tiers/trophy_electro_silver.wav",
+        "peak_db": -0.3,
+        "rms_db": -13.1
+      },
+      {
+        "id": "gold",
+        "title": "Gold Trophy",
+        "icon": "\ud83e\udd47",
+        "name": "Harmonic Chime",
+        "description": "Rich 3-note harmonic bloom with warm low-mid foundation and expanded stereo swell.",
+        "duration": 1.5,
+        "chime_details": "3-Step ascending digital arpeggio (Eb5 \u2794 G5 \u2794 Bb5)",
+        "ambient_details": "Low digital sub-thump + controlled diffusion space",
+        "mp3_filename": "trophy_electro_gold.mp3",
+        "wav_filename": "trophy_electro_gold.wav",
+        "mp3_path": "custom_tiers/trophy_electro_gold.mp3",
+        "wav_path": "custom_tiers/trophy_electro_gold.wav",
+        "peak_db": -0.3,
+        "rms_db": -12.7
+      },
+      {
+        "id": "platinum",
+        "title": "Platinum Trophy",
+        "icon": "\ud83c\udfc6",
+        "name": "Celestial Chime",
+        "description": "Grand triumphant signature with sub-bass depth, reverse breath riser, and 2-second celestial space.",
+        "duration": 2.0,
+        "chime_details": "Cascading multi-frequency glass cluster",
+        "ambient_details": "Cyber riser swell + sub-drop punch + 2s spatial pad",
+        "mp3_filename": "trophy_electro_platinum.mp3",
+        "wav_filename": "trophy_electro_platinum.wav",
+        "mp3_path": "custom_tiers/trophy_electro_platinum.mp3",
+        "wav_path": "custom_tiers/trophy_electro_platinum.wav",
+        "peak_db": -0.3,
+        "rms_db": -14.2
+      }
+    ]
+  }
+];
+let activeAudio = null;
+let currentBtn = null;
+let currentCard = null;
+let activeSetIdx = 0;
+let progressionTimer = null;
+
+function stopCurrent() {
+  if (progressionTimer) {
+    clearTimeout(progressionTimer);
+    progressionTimer = null;
+  }
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio.currentTime = 0;
+    activeAudio = null;
+  }
+  if (currentBtn) {
+    currentBtn.textContent = "▶";
+    currentBtn = null;
+  }
+  if (currentCard) {
+    currentCard.classList.remove("is-playing");
+    currentCard = null;
+  }
+}
+
+function playAudio(url, btn, cardEl) {
+  if (activeAudio && currentBtn === btn) {
+    stopCurrent();
+    return;
+  }
+  stopCurrent();
+
+  activeAudio = new Audio(url);
+  currentBtn = btn;
+  currentCard = cardEl;
+  btn.textContent = "■";
+  if (cardEl) cardEl.classList.add("is-playing");
+
+  activeAudio.onended = () => stopCurrent();
+  activeAudio.onerror = () => stopCurrent();
+  activeAudio.play().catch(e => console.warn(e));
+}
+
+document.getElementById("btn-stop").onclick = stopCurrent;
+
+// Setup Style Selector Tabs
+const tabsContainer = document.getElementById("tabs-container");
+DATA.forEach((s, idx) => {
+  const b = document.createElement("button");
+  b.className = "tab-btn" + (idx === 0 ? " active" : "");
+  b.innerHTML = `${s.name} <span style="font-size:11px; opacity:0.7">(${s.character})</span>`;
+  b.onclick = () => {
+    activeSetIdx = idx;
+    document.querySelectorAll(".tab-btn").forEach(t => t.classList.remove("active"));
+    b.classList.add("active");
+    renderTiers();
+  };
+  tabsContainer.appendChild(b);
+});
+
+function renderTiers() {
+  stopCurrent();
+  const set = DATA[activeSetIdx];
+  const container = document.getElementById("tiers-container");
+  container.innerHTML = "";
+
+  set.tiers.forEach(t => {
+    const card = document.createElement("div");
+    card.className = `tier-card ${t.id}`;
+
+    card.innerHTML = `
+      <div class="tier-top">
+        <span class="tier-badge badge-${t.id}">${t.icon} ${t.title}</span>
+        <span class="tier-dur">${t.duration}s</span>
+      </div>
+      <div class="tier-center">
+        <h3 class="tier-name">${t.name}</h3>
+        <p class="tier-desc">${t.description}</p>
+        <div class="chime-spec">
+          <div><strong>Chime:</strong> ${t.chime_details}</div>
+          <div style="margin-top:4px"><strong>Ambient:</strong> ${t.ambient_details}</div>
+        </div>
+      </div>
+      <div class="tier-bottom">
+        <div class="play-bar">
+          <button class="big-play-btn" title="Play ${t.title}">▶</button>
+          <div style="font-size:11.5px; color:#8c97ad">
+            <div>RMS: <strong>${t.rms_db} dB</strong></div>
+            <div>Peak: <strong>${t.peak_db} dB</strong></div>
+          </div>
+        </div>
+        <div class="dl-row">
+          <a href="${t.mp3_path}" download="${t.mp3_filename}" class="btn-dl">⬇ MP3</a>
+          <a href="${t.wav_path}" download="${t.wav_filename}" class="btn-dl wav">⬇ WAV</a>
+        </div>
+      </div>
+    `;
+
+    const pBtn = card.querySelector(".big-play-btn");
+    pBtn.onclick = () => playAudio(t.mp3_path, pBtn, card);
+
+    container.appendChild(card);
+  });
+
+  updateConfigSnippet(set);
+}
+
+function updateConfigSnippet(set) {
+  const pre = document.getElementById("code-snippet");
+  const b = set.tiers.find(t => t.id === "bronze");
+  const s = set.tiers.find(t => t.id === "silver");
+  const g = set.tiers.find(t => t.id === "gold");
+  const p = set.tiers.find(t => t.id === "platinum");
+
+  const snippet = `"achievements": {
+  "normal": {
+    "sound": ["SteamStation/sfx/${b.mp3_filename}", 80]
+  },
+  "magic": {
+    "threshold": 25,
+    "sound": ["SteamStation/sfx/${s.mp3_filename}", 85]
+  },
+  "rare": {
+    "threshold": 10,
+    "sound": ["SteamStation/sfx/${g.mp3_filename}", 90]
+  },
+  "exceptional": {
+    "sound": ["SteamStation/sfx/${p.mp3_filename}", 100]
+  }
+}`;
+  pre.textContent = snippet;
+}
+
+document.getElementById("btn-copy-config").onclick = () => {
+  const pre = document.getElementById("code-snippet");
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    const b = document.getElementById("btn-copy-config");
+    b.textContent = "✅ Copied!";
+    setTimeout(() => b.textContent = "📋 Copy JSON Config", 1800);
+  });
+};
+
+// Progression Player: Plays Bronze -> Silver -> Gold -> Platinum in sequence
+document.getElementById("btn-progression").onclick = () => {
+  stopCurrent();
+  const set = DATA[activeSetIdx];
+  let curr = 0;
+
+  function playNext() {
+    if (curr >= set.tiers.length) return;
+    const tier = set.tiers[curr];
+    const cards = document.querySelectorAll(".tier-card");
+    const targetCard = cards[curr];
+    const targetBtn = targetCard ? targetCard.querySelector(".big-play-btn") : null;
+
+    playAudio(tier.mp3_path, targetBtn, targetCard);
+
+    progressionTimer = setTimeout(() => {
+      curr++;
+      playNext();
+    }, (tier.duration * 1000) + 380);
+  }
+
+  playNext();
+};
+
+renderTiers();
+</script>
+
+</body>
+</html>

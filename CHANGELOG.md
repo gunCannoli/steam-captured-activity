@@ -7,6 +7,17 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: SteamStation 100% bespoke trophy sound suite (2026-10-02)**: at the user's request.
+  Removed all PlayStation audio files from the synthesis pipeline to eliminate any bootleg character, creating completely
+  original, bespoke sound design from scratch using physical modal synthesis and procedural ambient atmospheres:
+  (1) **Bronze (1.0s)**: singular pure F5 crystalline chime strike (698 Hz) with crisp PC tactile transient and subtle warm
+  atmospheric undertone decaying cleanly in 0.8s; (2) **Silver (1.0s)**: ascending 2-tone melodic chime interval (F5 ➔ C6, +7 st)
+  with airy stereo shimmer bed (width 1.35x); (3) **Gold (1.5s)**: 3-note harmonic arpeggio (F5 ➔ A5 ➔ C6) with low-mid warm bloom
+  and blooming stereo convolution hall (width 1.50x); (4) **Platinum (2.0s)**: 70ms reverse ambient breath riser leading into
+  sub-bass cinematic rumble (40-160 Hz), celestial 4-note constellation chord with high sparkle glint, and expansive 2-second
+  spatial ambient pad (width 1.70x). Implemented in `custom_trophy_sound_designer.py` across 3 styles (Prism, Velvet, Electro),
+  updated default flagship sounds in `sfx/` (`steamstation_bronze.mp3/.wav` to `steamstation_platinum.mp3/.wav`), built interactive
+  preview player `preview_custom_trophies.html` with full hierarchy sequence playback and ZIP archives.
 - **enhanced-notifications: SteamStation tiered trophy sound suite (2026-10-02)**: at the user's request.
   Designed custom, progressive trophy achievement sound effects combining Steam's tactile PC attack with PlayStation's
   crystalline bells, featuring subtle chimes and an ambient sound bed that expands in depth, richness, and space across
