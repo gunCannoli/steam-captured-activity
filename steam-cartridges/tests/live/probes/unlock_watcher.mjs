@@ -163,6 +163,7 @@ if (only.has("files")) {
         join(LOCAL, "EpicGamesLauncher", "Saved", "Data"),
         join(PROGRAMDATA, "Epic", "EpicGamesLauncher", "Data"),
         join(LOCAL, "EOSOverlay"),
+        join(LOCAL, "Epic Games", "EOSOverlay"), // the Epic overlay: cef.log gets a line per toast, BrowserCache a new f_ file per toast image (ADR-0056 research)
         pk("Microsoft.GamingServices_8wekyb3d8bbwe"),
         pk("Microsoft.XboxGamingOverlay_8wekyb3d8bbwe"),
         pk("Microsoft.GamingApp_8wekyb3d8bbwe"),
@@ -172,7 +173,7 @@ if (only.has("files")) {
         ...values("--watch"),
         ...gameFolders(),
     ].filter((p, i, all) => existsSync(p) && all.indexOf(p) === i);
-    const TEXT = /\.(log|txt|json|xml|dat|ini|cfg|config|db|sqlite|etl|bin)$/i;
+    const TEXT = /(\.(log|txt|json|xml|dat|ini|cfg|config|db|sqlite|etl|bin)|[\/]f_[0-9a-f]{6})$/i;
     const readable = /\.(log|txt|json|xml|ini|cfg|config)$/i;
     const offsets = new Map();
     const lastEvent = new Map();
@@ -182,7 +183,15 @@ if (only.has("files")) {
         if (!st.isFile() || !TEXT.test(full)) return;
         const prev = offsets.get(full);
         offsets.set(full, st.size);
-        if (prev === undefined) { if (announce) log("files", "created", { file: full, size: st.size }, KEYWORDS.test(full)); return; }
+        if (prev === undefined) {
+            if (announce) {
+                // A new Chromium cache entry: say what it is (image type and size), the toast's image is one.
+                let magic;
+                try { const fd = openSync(full, "r"); const b = Buffer.alloc(12); readSync(fd, b, 0, 12, 0); closeSync(fd); magic = b.subarray(0, 4).toString("latin1").startsWith("GIF8") ? `GIF ${b.readUInt16LE(6)}x${b.readUInt16LE(8)}` : b.subarray(0, 4).toString("hex"); } catch { /* locked */ }
+                log("files", "created", { file: full.replace(LOCAL, "%LOCAL%"), size: st.size, magic }, KEYWORDS.test(full) || /EOSOverlay/i.test(full));
+            }
+            return;
+        }
         if (st.size === prev) return;
         const grew = st.size - prev;
         let lines = [];
@@ -196,7 +205,7 @@ if (only.has("files")) {
                 lines = text.split(/\r?\n/).filter(Boolean);
             } catch { /* locked: the size line below still says it changed */ }
         }
-        const hotLines = lines.filter((l) => KEYWORDS.test(l));
+        const hotLines = lines.filter((l) => KEYWORDS.test(l) || (/EOSOverlay/i.test(full) && /cef\.log$/i.test(full)));
         const shown = hotLines.length ? hotLines : lines.slice(0, 8);
         log("files", "append", { file: full.replace(LOCAL, "%LOCAL%"), grew, lines: lines.length, text: shown.map((l) => clip(l, 600)) }, hotLines.length > 0);
     };
