@@ -1,5 +1,5 @@
 {
-  "title": "PlayStation DNA Trophy Suite (3 Profiles x 10 Moods = 30 Sounds)",
+  "title": "PlayStation DNA Trophy Suite (3 Profiles x 21 Moods = 63 Sounds)",
   "description": "100% Original Audio Synthesis inspired by PlayStation Trophy wave movements (PS4, PS5, PS5 Platinum)",
   "profiles": [
     {
@@ -202,9 +202,9 @@
       "mp3_file": "trophy_ps4_medieval.mp3",
       "color": "#f59e0b",
       "tags": [
-        "dulcimer",
-        "carillon",
-        "dorian",
+        "sovereign-herald",
+        "royal-carillon",
+        "cathedral",
         "castle"
       ]
     },
@@ -220,9 +220,9 @@
       "mp3_file": "trophy_ps5_medieval.mp3",
       "color": "#f59e0b",
       "tags": [
-        "dulcimer",
-        "carillon",
-        "dorian",
+        "sovereign-herald",
+        "royal-carillon",
+        "cathedral",
         "castle"
       ]
     },
@@ -233,14 +233,14 @@
       "category": "Royal Castle Courtyard",
       "style_key": "platinum",
       "style_label": "PS5 Platinum DNA",
-      "duration_s": 2.2,
+      "duration_s": 2.25,
       "wav_file": "trophy_platinum_medieval.wav",
       "mp3_file": "trophy_platinum_medieval.mp3",
       "color": "#f59e0b",
       "tags": [
-        "dulcimer",
-        "carillon",
-        "dorian",
+        "sovereign-herald",
+        "royal-carillon",
+        "cathedral",
         "castle"
       ]
     },
@@ -566,6 +566,600 @@
         "kalimba",
         "balafon",
         "udu-clay"
+      ]
+    },
+    {
+      "id": "trophy_ps4_epic_fanfare",
+      "mood_id": "epic_fanfare",
+      "title": "Cinematic Orchestral II",
+      "category": "Sovereign Brass Fanfare",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_epic_fanfare.wav",
+      "mp3_file": "trophy_ps4_epic_fanfare.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "brass-choir",
+        "imperial",
+        "fanfare",
+        "timpani"
+      ]
+    },
+    {
+      "id": "trophy_ps5_epic_fanfare",
+      "mood_id": "epic_fanfare",
+      "title": "Cinematic Orchestral II",
+      "category": "Sovereign Brass Fanfare",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_epic_fanfare.wav",
+      "mp3_file": "trophy_ps5_epic_fanfare.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "brass-choir",
+        "imperial",
+        "fanfare",
+        "timpani"
+      ]
+    },
+    {
+      "id": "trophy_platinum_epic_fanfare",
+      "mood_id": "epic_fanfare",
+      "title": "Cinematic Orchestral II",
+      "category": "Sovereign Brass Fanfare",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.25,
+      "wav_file": "trophy_platinum_epic_fanfare.wav",
+      "mp3_file": "trophy_platinum_epic_fanfare.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "brass-choir",
+        "imperial",
+        "fanfare",
+        "timpani"
+      ]
+    },
+    {
+      "id": "trophy_ps4_fantasy_musicbox",
+      "mood_id": "fantasy_musicbox",
+      "title": "Enchanted Ethereal II",
+      "category": "Starlight Music Box",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_fantasy_musicbox.wav",
+      "mp3_file": "trophy_ps4_fantasy_musicbox.mp3",
+      "color": "#e879f9",
+      "tags": [
+        "music-box",
+        "glass-harmonica",
+        "starlight",
+        "celeste"
+      ]
+    },
+    {
+      "id": "trophy_ps5_fantasy_musicbox",
+      "mood_id": "fantasy_musicbox",
+      "title": "Enchanted Ethereal II",
+      "category": "Starlight Music Box",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_fantasy_musicbox.wav",
+      "mp3_file": "trophy_ps5_fantasy_musicbox.mp3",
+      "color": "#e879f9",
+      "tags": [
+        "music-box",
+        "glass-harmonica",
+        "starlight",
+        "celeste"
+      ]
+    },
+    {
+      "id": "trophy_platinum_fantasy_musicbox",
+      "mood_id": "fantasy_musicbox",
+      "title": "Enchanted Ethereal II",
+      "category": "Starlight Music Box",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_fantasy_musicbox.wav",
+      "mp3_file": "trophy_platinum_fantasy_musicbox.mp3",
+      "color": "#e879f9",
+      "tags": [
+        "music-box",
+        "glass-harmonica",
+        "starlight",
+        "celeste"
+      ]
+    },
+    {
+      "id": "trophy_ps4_guitar_12string",
+      "mood_id": "guitar_12string",
+      "title": "Acoustic Flageolet II",
+      "category": "12-String Resonance",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_guitar_12string.wav",
+      "mp3_file": "trophy_ps4_guitar_12string.mp3",
+      "color": "#fdba74",
+      "tags": [
+        "12-string",
+        "double-course",
+        "spanish",
+        "harmonics"
+      ]
+    },
+    {
+      "id": "trophy_ps5_guitar_12string",
+      "mood_id": "guitar_12string",
+      "title": "Acoustic Flageolet II",
+      "category": "12-String Resonance",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_guitar_12string.wav",
+      "mp3_file": "trophy_ps5_guitar_12string.mp3",
+      "color": "#fdba74",
+      "tags": [
+        "12-string",
+        "double-course",
+        "spanish",
+        "harmonics"
+      ]
+    },
+    {
+      "id": "trophy_platinum_guitar_12string",
+      "mood_id": "guitar_12string",
+      "title": "Acoustic Flageolet II",
+      "category": "12-String Resonance",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.1,
+      "wav_file": "trophy_platinum_guitar_12string.wav",
+      "mp3_file": "trophy_platinum_guitar_12string.mp3",
+      "color": "#fdba74",
+      "tags": [
+        "12-string",
+        "double-course",
+        "spanish",
+        "harmonics"
+      ]
+    },
+    {
+      "id": "trophy_ps4_harp_bardic",
+      "mood_id": "harp_bardic",
+      "title": "Celtic Concert Strings II",
+      "category": "Bardic High Flourish",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_harp_bardic.wav",
+      "mp3_file": "trophy_ps4_harp_bardic.mp3",
+      "color": "#6ee7b7",
+      "tags": [
+        "wire-harp",
+        "gaelic",
+        "pentatonic",
+        "bardic"
+      ]
+    },
+    {
+      "id": "trophy_ps5_harp_bardic",
+      "mood_id": "harp_bardic",
+      "title": "Celtic Concert Strings II",
+      "category": "Bardic High Flourish",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_harp_bardic.wav",
+      "mp3_file": "trophy_ps5_harp_bardic.mp3",
+      "color": "#6ee7b7",
+      "tags": [
+        "wire-harp",
+        "gaelic",
+        "pentatonic",
+        "bardic"
+      ]
+    },
+    {
+      "id": "trophy_platinum_harp_bardic",
+      "mood_id": "harp_bardic",
+      "title": "Celtic Concert Strings II",
+      "category": "Bardic High Flourish",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_harp_bardic.wav",
+      "mp3_file": "trophy_platinum_harp_bardic.mp3",
+      "color": "#6ee7b7",
+      "tags": [
+        "wire-harp",
+        "gaelic",
+        "pentatonic",
+        "bardic"
+      ]
+    },
+    {
+      "id": "trophy_ps4_afric_kora",
+      "mood_id": "afric_kora",
+      "title": "Earthen African Heritage II",
+      "category": "Sacred Kora & Gourd",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_afric_kora.wav",
+      "mp3_file": "trophy_ps4_afric_kora.mp3",
+      "color": "#34d399",
+      "tags": [
+        "kora",
+        "griot",
+        "calabash",
+        "west-african"
+      ]
+    },
+    {
+      "id": "trophy_ps5_afric_kora",
+      "mood_id": "afric_kora",
+      "title": "Earthen African Heritage II",
+      "category": "Sacred Kora & Gourd",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_afric_kora.wav",
+      "mp3_file": "trophy_ps5_afric_kora.mp3",
+      "color": "#34d399",
+      "tags": [
+        "kora",
+        "griot",
+        "calabash",
+        "west-african"
+      ]
+    },
+    {
+      "id": "trophy_platinum_afric_kora",
+      "mood_id": "afric_kora",
+      "title": "Earthen African Heritage II",
+      "category": "Sacred Kora & Gourd",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_afric_kora.wav",
+      "mp3_file": "trophy_platinum_afric_kora.mp3",
+      "color": "#34d399",
+      "tags": [
+        "kora",
+        "griot",
+        "calabash",
+        "west-african"
+      ]
+    },
+    {
+      "id": "trophy_ps4_space_galaxy",
+      "mood_id": "space_galaxy",
+      "title": "Space Galaxy",
+      "category": "Cosmic Nebula & Pulsars",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_space_galaxy.wav",
+      "mp3_file": "trophy_ps4_space_galaxy.mp3",
+      "color": "#818cf8",
+      "tags": [
+        "space",
+        "nebula",
+        "pulsar",
+        "dark-matter"
+      ]
+    },
+    {
+      "id": "trophy_ps5_space_galaxy",
+      "mood_id": "space_galaxy",
+      "title": "Space Galaxy",
+      "category": "Cosmic Nebula & Pulsars",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_space_galaxy.wav",
+      "mp3_file": "trophy_ps5_space_galaxy.mp3",
+      "color": "#818cf8",
+      "tags": [
+        "space",
+        "nebula",
+        "pulsar",
+        "dark-matter"
+      ]
+    },
+    {
+      "id": "trophy_platinum_space_galaxy",
+      "mood_id": "space_galaxy",
+      "title": "Space Galaxy",
+      "category": "Cosmic Nebula & Pulsars",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_space_galaxy.wav",
+      "mp3_file": "trophy_platinum_space_galaxy.mp3",
+      "color": "#818cf8",
+      "tags": [
+        "space",
+        "nebula",
+        "pulsar",
+        "dark-matter"
+      ]
+    },
+    {
+      "id": "trophy_ps4_robotic_droid",
+      "mood_id": "robotic_droid",
+      "title": "Robotic I: Cyber Droid",
+      "category": "Light Companion Droid",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_robotic_droid.wav",
+      "mp3_file": "trophy_ps4_robotic_droid.mp3",
+      "color": "#22d3ee",
+      "tags": [
+        "servo-clicks",
+        "vocoder",
+        "companion-droid",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "trophy_ps5_robotic_droid",
+      "mood_id": "robotic_droid",
+      "title": "Robotic I: Cyber Droid",
+      "category": "Light Companion Droid",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_robotic_droid.wav",
+      "mp3_file": "trophy_ps5_robotic_droid.mp3",
+      "color": "#22d3ee",
+      "tags": [
+        "servo-clicks",
+        "vocoder",
+        "companion-droid",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "trophy_platinum_robotic_droid",
+      "mood_id": "robotic_droid",
+      "title": "Robotic I: Cyber Droid",
+      "category": "Light Companion Droid",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.15,
+      "wav_file": "trophy_platinum_robotic_droid.wav",
+      "mp3_file": "trophy_platinum_robotic_droid.mp3",
+      "color": "#22d3ee",
+      "tags": [
+        "servo-clicks",
+        "vocoder",
+        "companion-droid",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "trophy_ps4_robotic_quantum",
+      "mood_id": "robotic_quantum",
+      "title": "Robotic II: Quantum AI Core",
+      "category": "Neural Supercomputer",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_robotic_quantum.wav",
+      "mp3_file": "trophy_ps4_robotic_quantum.mp3",
+      "color": "#06b6d4",
+      "tags": [
+        "laser-optic",
+        "quantum-phase",
+        "pure-sine",
+        "singularity"
+      ]
+    },
+    {
+      "id": "trophy_ps5_robotic_quantum",
+      "mood_id": "robotic_quantum",
+      "title": "Robotic II: Quantum AI Core",
+      "category": "Neural Supercomputer",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_robotic_quantum.wav",
+      "mp3_file": "trophy_ps5_robotic_quantum.mp3",
+      "color": "#06b6d4",
+      "tags": [
+        "laser-optic",
+        "quantum-phase",
+        "pure-sine",
+        "singularity"
+      ]
+    },
+    {
+      "id": "trophy_platinum_robotic_quantum",
+      "mood_id": "robotic_quantum",
+      "title": "Robotic II: Quantum AI Core",
+      "category": "Neural Supercomputer",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_robotic_quantum.wav",
+      "mp3_file": "trophy_platinum_robotic_quantum.mp3",
+      "color": "#06b6d4",
+      "tags": [
+        "laser-optic",
+        "quantum-phase",
+        "pure-sine",
+        "singularity"
+      ]
+    },
+    {
+      "id": "trophy_ps4_robotic_mech",
+      "mood_id": "robotic_mech",
+      "title": "Robotic III: Heavy Mech",
+      "category": "Titan Industrial Mech",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_robotic_mech.wav",
+      "mp3_file": "trophy_ps4_robotic_mech.mp3",
+      "color": "#64748b",
+      "tags": [
+        "hydraulic-purge",
+        "titanium-clamp",
+        "seismic-sub",
+        "reactor"
+      ]
+    },
+    {
+      "id": "trophy_ps5_robotic_mech",
+      "mood_id": "robotic_mech",
+      "title": "Robotic III: Heavy Mech",
+      "category": "Titan Industrial Mech",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_robotic_mech.wav",
+      "mp3_file": "trophy_ps5_robotic_mech.mp3",
+      "color": "#64748b",
+      "tags": [
+        "hydraulic-purge",
+        "titanium-clamp",
+        "seismic-sub",
+        "reactor"
+      ]
+    },
+    {
+      "id": "trophy_platinum_robotic_mech",
+      "mood_id": "robotic_mech",
+      "title": "Robotic III: Heavy Mech",
+      "category": "Titan Industrial Mech",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.25,
+      "wav_file": "trophy_platinum_robotic_mech.wav",
+      "mp3_file": "trophy_platinum_robotic_mech.mp3",
+      "color": "#64748b",
+      "tags": [
+        "hydraulic-purge",
+        "titanium-clamp",
+        "seismic-sub",
+        "reactor"
+      ]
+    },
+    {
+      "id": "trophy_ps4_retro_8bit",
+      "mood_id": "retro_8bit",
+      "title": "8-Bit Retro Gaming",
+      "category": "NES 2A03 Chiptune",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_retro_8bit.wav",
+      "mp3_file": "trophy_ps4_retro_8bit.mp3",
+      "color": "#ec4899",
+      "tags": [
+        "nes",
+        "chiptune",
+        "square-wave",
+        "8bit-victory"
+      ]
+    },
+    {
+      "id": "trophy_ps5_retro_8bit",
+      "mood_id": "retro_8bit",
+      "title": "8-Bit Retro Gaming",
+      "category": "NES 2A03 Chiptune",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_retro_8bit.wav",
+      "mp3_file": "trophy_ps5_retro_8bit.mp3",
+      "color": "#ec4899",
+      "tags": [
+        "nes",
+        "chiptune",
+        "square-wave",
+        "8bit-victory"
+      ]
+    },
+    {
+      "id": "trophy_platinum_retro_8bit",
+      "mood_id": "retro_8bit",
+      "title": "8-Bit Retro Gaming",
+      "category": "NES 2A03 Chiptune",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_retro_8bit.wav",
+      "mp3_file": "trophy_platinum_retro_8bit.mp3",
+      "color": "#ec4899",
+      "tags": [
+        "nes",
+        "chiptune",
+        "square-wave",
+        "8bit-victory"
+      ]
+    },
+    {
+      "id": "trophy_ps4_retro_16bit",
+      "mood_id": "retro_16bit",
+      "title": "16-Bit Classic Gaming",
+      "category": "SNES / Genesis RPG Victory",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_retro_16bit.wav",
+      "mp3_file": "trophy_ps4_retro_16bit.mp3",
+      "color": "#a855f7",
+      "tags": [
+        "snes",
+        "genesis",
+        "fm-brass",
+        "rpg-victory"
+      ]
+    },
+    {
+      "id": "trophy_ps5_retro_16bit",
+      "mood_id": "retro_16bit",
+      "title": "16-Bit Classic Gaming",
+      "category": "SNES / Genesis RPG Victory",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_retro_16bit.wav",
+      "mp3_file": "trophy_ps5_retro_16bit.mp3",
+      "color": "#a855f7",
+      "tags": [
+        "snes",
+        "genesis",
+        "fm-brass",
+        "rpg-victory"
+      ]
+    },
+    {
+      "id": "trophy_platinum_retro_16bit",
+      "mood_id": "retro_16bit",
+      "title": "16-Bit Classic Gaming",
+      "category": "SNES / Genesis RPG Victory",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_retro_16bit.wav",
+      "mp3_file": "trophy_platinum_retro_16bit.mp3",
+      "color": "#a855f7",
+      "tags": [
+        "snes",
+        "genesis",
+        "fm-brass",
+        "rpg-victory"
       ]
     }
   ]
