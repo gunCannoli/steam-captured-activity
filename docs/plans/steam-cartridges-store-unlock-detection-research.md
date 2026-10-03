@@ -72,6 +72,22 @@ polling in that run sat in `status: error` for the whole run (the first lookup o
 never repeated), so no API unlock was seen; the watcher now asks for the store part again until it answers, picks up shortcuts
 added while it runs, and treats the renderer's connections as a trigger.
 
+## First end-to-end runs: unlock to Steam toast (2026-10-03 18:13 and 18:15, `--steam`, both verified on screen by the user)
+
+| | Xbox, Microsoft Minesweeper "Happens to Everybody" | Epic, BURIED STARS "Basics of Conversation" |
+| --- | --- | --- |
+| Detected by | Windows push log (event-driven watcher) | overlay renderer's new connections (+1.3 s), then the API burst |
+| Unlock to detection | 0.94 s | 4.3 s (the API showed the unlock on its third check; Epic's own propagation is part of it) |
+| Detection to post | 0.04 s | 0 s |
+| Post to Steam showing the toast | 6 ms | 1 ms |
+| **Unlock to Steam toast** | **1.0 s** | **4.3 s** |
+| What the plugin's own API poll alone would have given | 5 s | up to 10 s (its periodic poll) |
+
+enhanced-notifications received both as real unlocks, but its captures were skipped for both: `Unlock captures skipped for appid ...:
+no-running-timeline`. Neither game was running under Steam's recording (not started from the Steam shortcut, or Steam has no timeline
+for a launcher-started game): open check 8 of the list below. Epic's polling floor can be lowered by checking every 0.5 s during
+the burst (a faster burst), at more requests to Epic; the 1.3 s trigger leaves about 3 s that only Epic's side explains.
+
 ## Posting the unlock to Steam as a native toast (verified 2026-10-03, `--steam --simulate`)
 
 `NotificationStore.OnNotification(id, achievementType, protobuf)` with the store's real achievement id is Steam's own toast
