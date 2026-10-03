@@ -95,6 +95,7 @@ One doc per layer, updated by every change that touches the layer.
 | Media service (community media) and its sources | [service-media.md](steam-cartridges/service-media.md) |
 | Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) |
 | Achievements service, sources, observer | [service-achievements.md](steam-cartridges/service-achievements.md) |
+| Store copies (Epic, Xbox): detection, sources, accounts, auto-add | [service-store.md](steam-cartridges/service-store.md) |
 | Freshness and ingestion | [service-freshness.md](steam-cartridges/service-freshness.md) |
 | Settings panels and the Game Data editor | [settings.md](steam-cartridges/settings.md) |
 | Live verification baseline, rollback, open known issues | [verification.md](steam-cartridges/verification.md) |

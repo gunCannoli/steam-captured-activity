@@ -7,6 +7,15 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Epic and Xbox games in steam-cartridges (ADR-0056, 2026-10-02)**: at the user's request. A shortcut that is an Epic
+  Games Store or Xbox copy is found from the PC's install data (Epic manifests; Store packages with an Xbox game config),
+  never typed. Without a Steam match it gets the store's Game Info and screenshots (store, then IGDB, then
+  ScreenScraper); the player's unlocks are synced (Epic: the public profile, no sign-in; Xbox: device-code sign-in), on
+  page open and at quit, no toast. Unlocks of every source now appear in the Activity feed (Steam's own "achieved"
+  card; the feed object is replaced so an open page updates). New Third-party settings section with per-store
+  auto-add (off by default). enhanced-notifications leaves store copies out of Reset Achievements. Live (the agent, 2026-10-03, two phases: backend p1-p4, then p5-p9): `test:live` passes in both plugins except the parity check, which fails identically on the pre-patch code (the test's Jotunnslayer page resolves to another app on this machine); Super Mario World's feed now logs "1 unlock(s) on 1 day(s)"; the new Epic and Xbox RPCs answer (Epic account found, Microsoft Jigsaw detected). Tests: steam-cartridges
+  TS 292, Lua 11 suites (new `test_store.lua`, 60 checks), enhanced-notifications 165. Live verification: see the plan § 10.
+
 - **enhanced-notifications: PlayStation DNA procedural trophy audio suite (30 variations across 3 reference profiles and 10 bespoke moods) (2026-10-03)**: at the user's request.
   Synthesized 100% original, copyright-clean procedural notification audio inspired by the acoustic DNA and wave movements of
   PlayStation's trophy sounds (`ps4_trophy.mp3`, `ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`). Deconstructed the reference profiles:

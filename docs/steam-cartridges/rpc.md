@@ -60,6 +60,9 @@ below matches the migration plan § 4.0 (M4.0) expected table exactly.
 | `GetNewShortcuts` | `record_rpc.lua` | live | M7a: shortcuts not seen before (first call seeds and returns none); M7b: `app/ingest.ts` calls it at start-up |
 | `MarkKnown` | `record_rpc.lua` | live | M7a: mark shortcuts handled; M7b: `app/ingest.ts` |
 | `CheckUnlocks` | `record_rpc.lua` | live | M6a: new unlocks since the last check (`{ new_unlocks }`, always a list, K1); M6b: `app/achievements.ts` polls it every 2 s while a game runs. The old `CartridgesAchievementsCheckUnlocks` alias was deleted in M9a |
+| `StoreInstalledGames` | `store_rpc.lua` (→ `store_service.installed_games`) | live | ADR-0056: installed Epic and Xbox games and whether the library has them; `app/store-sync` and the Third-party panel |
+| `StoreAccounts` | `store_rpc.lua` | live | ADR-0056: an Epic account found on this PC (and whether its achievements are private), the Xbox account; never a token or an id |
+| `XboxSignInStart` / `XboxSignInPoll` / `XboxSignOut` | `store_rpc.lua` (→ `xbox_live`) | live | ADR-0056: the device-code sign-in of the Third-party panel |
 | `GetAllRecords` | `record_rpc.lua` | live | M5a: disk-only bulk read (every DB record + every saved mapping + every shortcut with stored achievements, ADR-0045); `app/metadata.ts` `preload()` (M5b) and `app/achievements.ts` `preload()` (ADR-0045) each call it once at start-up |
 
 **Result:** 25 live (24 + 1 debug), 7 unwired, 0 dead (M4.0). M4b added 2 more

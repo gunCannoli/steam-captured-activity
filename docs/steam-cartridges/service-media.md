@@ -130,7 +130,11 @@ function M.download(url) end                 -- body, ext, width, height (maxwid
 2. `route.via == "pending"` → the stored media, else `pending`.
 3. Stored media younger than `fresh_policy.TTL.media_ok` (7 days) → `ok`, source `local`, no request. `force` or an
    older record asks again when a source may be asked.
-4. IGDB when `allowWeb` and `ctx.igdb_id`: one query by id (videos, screenshots, artworks). No igdb_id → no IGDB media.
+4. The copy's store first (ADR-0056) when the shortcut is an Epic or Xbox copy and that store is allowed (`ctx.allowEpic`
+   / `ctx.allowXbox`): its screenshots as `screenshot` items with public URLs (Epic `featuredMedia` with `?w=640&resize=1`
+   thumbnails, Xbox `Screenshot` images with `?w=640`), source `epic` / `xbox`. No trailers: the community card plays
+   YouTube ids only, and the stores' trailers are `.webm` files and HLS/DASH streams. Then IGDB when `allowWeb` and
+   `ctx.igdb_id`: one query by id (videos, screenshots, artworks). No igdb_id → no IGDB media.
 5. ScreenScraper when `allowScreenscraper`: `jeu_for` (memory-cached per session). `not-found` is a definite "no
    media"; `no-credentials` alone → `needs-setup`.
 6. No source answered: the stored media (freshness touched as `error`, due again in 30 min), else `pending` for a

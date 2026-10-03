@@ -13,7 +13,13 @@
   context is inert. Panels may import `domain/` for types and validators, never to evaluate policy (ADR-0044).
 - **Change notices** go through the settings store's own `onSettingChange` and `ingest.onProgress` (M10: the
   `steam-cartridges:rule-updated` window event is gone).
-- **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Achievements, Notifications, Activity Feed,
+- **Third-party** (`panels/third-party.tsx`, ADR-0056): per store (Epic Games Store, Xbox) a block with the store's
+  toggle (`services.epicEnabled` / `xboxEnabled`), its account (Epic: found on this PC, or "set Privacy > Achievements to
+  Everyone"; Xbox: Sign in / Sign out, the sign-in popup shows the code and polls), and **Auto-add installed games**
+  (`autoAddEpicGames` / `autoAddXboxGames`, off by default) with installed / in-library counts. It calls the backend
+  port only; the auto-add itself runs in `app/store-sync` when a toggle changes. Activity Feed gains **Achievements**
+  (`activityShowAchievements`).
+- **Panels** (`settings/panels/*.tsx`), in the order `panel.tsx` renders them: Metadata, Achievements, Third-party, Notifications, Activity Feed,
   Community & Media, Routing Rules, Library Audit (which holds the Game Data block); then the sticky `sync-progress.tsx` bar.
   Shared rows and the spacing system (`Blocks`, `ItemRow`, `ButtonRow`, `ToggleRow`, `FullWidthRows`) are in `components.tsx`; the layout rules are [plugins.md guardrail 18](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications).
 - **Community & Media** (`panels/community.tsx`, F2): two toggles, `communityShowTrailers` and `communityShowArtworks`;

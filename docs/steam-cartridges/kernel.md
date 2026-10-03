@@ -52,6 +52,9 @@ export interface Events {
     "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };   // M10: items
+    "achievements.synced": { appid: ShortcutId; items: UnlockedAchievement[] };   // ADR-0056: a store sync, no toast
+    "store.add-requested": { kind; key; title; launch; collection };   // ADR-0056: auto-add -> library-shortcuts
+    "store.shortcut-added": { kind; key; appid?; collection?; error? };   // ADR-0056: library-shortcuts' result
     "achievements.launch-toast": { appid: ShortcutId };                  // app/achievements -> toasts (M10)
     "captures.published": { appid: ShortcutId; hasContent: boolean };    // captures -> sections (M10)
     "artwork.applied": { appid; source; steamAppid?; attempted; kept; tried; written; icon? };  // artwork -> app (M10)
@@ -118,7 +121,7 @@ export interface GameRecord {
     media?: Part<CommunityMedia>;
     artwork?: Part<ArtworkPlan>;
 }
-export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork";   // "route" removed (ADR-0044)
+export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork" | "store";   // "route" removed (ADR-0044); "store" ADR-0056
 export interface RecordStore {
     get(appid: ShortcutId): GameRecord | undefined;
     upsert(base: Pick<GameRecord, "appid" | "gameid" | "title" | "exe">): GameRecord;

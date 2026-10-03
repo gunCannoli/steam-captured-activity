@@ -45,10 +45,20 @@ CheckUnlocks({ appid, native?, title? })    -- -> { new_unlocks = [...] }  (alwa
 
 | Source | `supports` | Fetch |
 | --- | --- | --- |
+| `epic` | `ctx.store.kind == "epic"` and `ctx.allowEpic ~= false` (ADR-0056) | `store_achievements.fetch`: Epic's list (sandbox = namespace) and the player's unlocks from the public profile |
+| `xbox` | `ctx.store.kind == "xbox"` and `ctx.allowXbox ~= false` (ADR-0056) | `store_achievements.fetch`: the list and unlocks from Xbox Live (signed in; signed out answers nothing) |
 | `steam` | `ctx.native > 0` | `steam_schema.get_or_fetch(appid, native)` (M10: moved out of the store) |
 | `rpcs3` | `ps3_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps3_trophies.get_or_fetch(appid)` |
 | `shadps4` | `ps4_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps4_trophies.get_or_fetch(appid)` |
 | `retroachievements` | `retroachievements.extract_rom_path(exe, launch_options)` is not nil | `retroachievements.get_or_fetch(appid, hardcore)` |
+
+**Store copies (ADR-0056):** `ctx.store` is the record's `store` part (this call's, else `store_service.saved`). A copy
+with a Steam match keeps Steam's own list when every store id is in it (Epic's `ACH_*` names are Steam's API names for
+Jotunnslayer) and gets the store's unlocks; any mismatch keeps the store's list. A sync replaces the stored unlocks (the
+store is the truth) and records the `source`; `local_part` returns it, and `fresh_policy` gives a synced part 15 minutes
+(`achievements_synced`) instead of 24 h. A private Epic profile keeps the last unlocks known and is remembered for the
+settings panel (lookup `epic:account`). No in-game polling and no toast for a copy: the frontend syncs on page open and
+with `force` after the game quits, announcing new unlocks as `achievements.synced` (Post-Game Summary only).
 
 **Outcomes:** the first supporting source that returns a schema is `ok`; a supporting source that returns
 `nil, err` (or throws) falls through to the next; no source supports the shortcut → `unsupported`, with **no log
@@ -67,7 +77,8 @@ so a PC game stays silent there too.
 | `backend/achievement_files.lua` | Pure readers and clearers of the unlock files: Steam emulator INI / Goldberg JSON, RPCS3 `TROPUSR.DAT`, shadPS4 trophy XML |
 | `backend/achievements_reset.lua` | `sources` (where a shortcut's unlocks also live) and `reset` (ADR-0054) |
 | `backend/steam_schema.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
-| `backend/achievements_store.lua` | The store (`achievements.json`); no network since M10 |
+| `backend/achievements_store.lua` | The store (`achievements.json`); no network since M10. `sync` (ADR-0056) replaces a store copy's unlocks and records its `source` |
+| `backend/store_achievements.lua` | Sources `epic` and `xbox` (ADR-0056, [service-store.md](service-store.md)) |
 
 ## Frontend (M6b)
 
@@ -101,6 +112,10 @@ files the observer reads unlocks back from, each copied to `<file>.bak-<yyyymmdd
 | `rpcs3` | `TROPUSR.DAT` in the trophy folder | RPCS3's own `LockTrophy`: state and both timestamps 0 in the type-6 table (entries are 0x70 bytes) |
 | `shadps4` | `<shadPS4>/[user/]home/<user>/trophy/<npcommid>.xml`, or the older in-folder `TROP*.XML` | `unlockstate="false"`, `timestamp` removed; shadNet may sync them back |
 | `retroachievements` | none: on the user's account | not resettable (its API has no reset); the source carries the game's page (`url`), where "Manage progress" resets it |
+
+An Epic or Xbox copy is not offered for a reset at all (ADR-0056): its unlocks are on the store's account and the next
+sync brings them back. `app/achievements.resettable(appid)` (public `achievementsResettable`) answers false for it, and
+enhanced-notifications leaves it out of Reset Achievements.
 
 A file that is not in the expected format is left alone and reported. The RPCS3 and shadPS4 paths are unit-tested only
 (no such files on the development machine); live testing is in TASK.md.
@@ -191,7 +206,7 @@ For a new emulator family or engine log reader see the Reference section "How to
 ```
 
 ### Core Invariants
-1. **Zero Third-Party Storefront APIs in Core:** `steam-cartridges` core never requires Epic Games OAuth, EA App tokens, or Xbox Live credentials. All detection is strictly local and out-of-process.
+1. **Third-party stores are synced, never observed (ADR-0056, replaces "zero third-party storefront APIs"):** an Epic or Xbox copy's unlocks come from that store's API after the fact (Epic: the public profile, no sign-in; Xbox: a one-time device-code sign-in whose refresh token is kept by `web_config`). Every other source stays local and out-of-process. No EA App or other store is used.
 2. **Never Inject into Game Binaries:** We never hook game memory, inject DLLs into running games, or create remote threads. All detection is passive (file watching, directory checks, engine log tailing, OS-level notifications).
 3. **Steam Native Components Only (ADR-0009 & ADR-0022):** We never render custom HTML recreation of achievements. We restore Steam's native `"achievements"` section in `CAppDetailsSections` and feed `AppDetailsStore.GetAchievements` so Steam's own React components render the UI.
 4. **Offline Resilience:** Local unlocks and cached schemas are saved in `<steam>/millennium/config/steam-cartridges/achievements.json`. Once fetched, achievements work completely offline.

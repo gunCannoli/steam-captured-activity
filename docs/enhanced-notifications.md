@@ -192,7 +192,7 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 | Notification `fnNotificationResolved` (banner popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
 | `NotificationStore.Test*` (previews) | `surfaces/preview/index.ts` | — |
 | Game Recording RPCs | `surfaces/captures/recording.ts` | — |
-| `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` / `achievementResetSources` / `resetAchievementsWithSources` | `surfaces/reset/index.ts` | — |
+| `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` / `achievementResetSources` / `resetAchievementsWithSources` / `achievementsResettable` | `surfaces/reset/index.ts` | — |
 
 ## Settings panel
 
@@ -267,3 +267,8 @@ on a row.
   `theme/placement.ts`, `surfaces/style/toast-window.ts`, feature id `placement`.
 - 2026-09-30 ADR-0047: enhanced-achievements' architecture ported (safety net, surfaces, architecture test), JSONC
   themes, the settings panel on its rows and spacing.
+
+**Reset Achievements and store copies (steam-cartridges ADR-0056):** a non-Steam game is offered only when steam-cartridges
+does not answer `achievementsResettable(appid) === false` (`surfaces/reset/reset.ts` `shortcutOffered`): an Epic or Xbox
+copy's unlocks live on the store's account and come back with the next sync. An older steam-cartridges without that
+function keeps offering every shortcut.

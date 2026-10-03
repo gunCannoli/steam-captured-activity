@@ -729,6 +729,28 @@ Achievement data for non-Steam games comes from providers
 ([ADR-0012](decisions.md#adr-0012-split-into-a-core-plugin-and-optional-provider-plugins)); where Steam renders it is
 [§ Achievements, notifications, recording & artwork](#achievements-notifications-recording--artwork).
 
+### Achievement events for a shortcut (verified live 2026-10-02, ADR-0056)
+
+Steam's achievement event is class `P` in module 12750 (found by the source string `m_rtOldestAchievement`), **not
+exported**: only the screenshot class `hO` is. It is built only inside the day class's `AddAchievementEvent`:
+
+```js
+class P extends E {
+  m_rgAchievements = []; m_rtOldestAchievement = undefined;
+  constructor(rtTime, steamIDActor, gameid) { super(); this.InitFromUserNewsEvent(AchievementUnlocked /* 2 */, gameid, rtTime, steamIDActor) }
+  AddAchievement(a, rtUnlocked) { /* push {...a, rtUnlocked, bAchieved: true}; keep the oldest time; comment thread "<oldest>","2" */ }
+  get achievements() { return this.m_rgAchievements }
+}
+// a live entry of m_rgAchievements: { strName, strDescription, strImage, flAchieved, strID, rtUnlocked, bAchieved }
+```
+
+An object on `E`'s prototype (`Object.getPrototypeOf(hO.prototype)`, `steam/stores.activityEventBase()`) with P's fields
+renders as Steam's own card for a shortcut: "SEPTEMBER 26 · cannoliGun achieved All Exits · 100% clear the game" with
+the RetroAchievements badge (Super Mario World, 2713503983). **The feed re-renders only on a new object:** the activity
+section keeps the `CAppActivity` it mounted with; `forceUpdate` on its components did nothing, and mutating the object's
+day map did nothing, but `appActivityStore.m_mapAppActivity.set(appid, newObject)` (a MobX observable map) updated the
+open feed within 2 s. So `captures` builds a new object on each publish and sets it only when the feed changed.
+
 ### Why we cannot feed the _stock_ screenshot/video events
 
 ```js

@@ -1175,3 +1175,47 @@ with `SteamClient.UI.ExitBigPictureMode()` from SharedJSContext (Steam restarts 
   [GetAchievementsEarnedOnDay](https://api-docs.retroachievements.org/v1/get-achievements-earned-on-day.html)
 - [Libretro: playlists & thumbnails](https://docs.libretro.com/guides/roms-playlists-thumbnails/) ·
   [directory config](https://docs.libretro.com/guides/change-directories/)
+
+## Part 10 — Epic Games Store and Xbox on this PC (verified 2026-10-02, ADR-0056)
+
+Research and evidence: [plans/steam-cartridges-store-copies-plan.md § 4](plans/steam-cartridges-store-copies-plan.md).
+The code that reads all of this: [steam-cartridges/service-store.md](steam-cartridges/service-store.md).
+
+**Epic, on disk.** `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item` (JSON per installed game:
+`InstallLocation`, `LaunchExecutable`, `DisplayName`, `CatalogNamespace` = the achievement sandbox, `CatalogItemId`,
+`AppName`; `MainGame*` name the game of an add-on). `%ProgramData%\Epic\UnrealEngineLauncher\LauncherInstalled.dat`
+(the installed list). `...\Data\Catalog\catcache.bin` (base64 JSON: catalog items of installed or recent namespaces
+only). `%LOCALAPPDATA%\EpicGamesLauncher\Saved\Data\<32 hex>.dat`: the file name is the signed-in account id.
+`HKCR\com.epicgames.launcher\shell\open\command` names the launcher exe; `HKLM\SOFTWARE\Epic Games\EpicGamesLauncher`
+`AppDataPath` the data folder. A shortcut may run the game's exe directly or `com.epicgames.launcher://apps/<id>`.
+
+**Epic, public API.** `POST https://store.epicgames.com/graphql`, anonymous, introspection off (a query naming an unknown
+field fails as a whole); `launcher.store.epicgames.com` answers a captcha redirect, `graphql.epicgames.com` is gone.
+`Catalog.catalogOffers(namespace)`, `Catalog.catalogOffer(namespace, id)` (`description` plain text, `longDescription`
+HTML; tags grouped `genre`, `feature`, `epicfeature`, `usersay`, `platform`; feature names `Single Player`,
+`Multiplayer`, `Co-op`, `Controller Support`, `Competitive`, `Cross Platform`), `Achievement.productAchievementsRecordBySandbox`,
+`PlayerProfile.playerProfile(epicAccountId).achievementsSummaries` / `.productAchievements(productId)` (union types: inline
+fragments `PlayerAchievementResponseSuccess` / `PlayerProductAchievementsResponseSuccess` / `ServiceError { status message }`;
+403 for a profile whose achievements are not public). `PlayerAchievement.playerAchievementGameRecordsBySandbox` answers
+`records: null` even for a public profile. Epic achievement names equal the Steam API names for Jotunnslayer. Image CDN
+resizes on request (`?w=640&resize=1`). Trailers are `com.epicgames.video://<uuid>`; egdata.app resolves them to `.webm`.
+
+**Xbox, on disk.** `reg query "HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages" /s /v PackageRootFolder`
+lists every package and folder (0.2 s). A UWP Xbox Live game ships `xboxservices.config` (JSON `TitleId`, decimal); a GDK
+game `MicrosoftGame.config` (`<TitleId>` hex, `<StoreId>`; not seen on a real install yet). `AppxManifest.xml`:
+`<Application Id Executable>`, `<DisplayName>` (often `ms-resource:`). Family name = `Name_PublisherId` of the full name;
+launch target `shell:AppsFolder\<family>!<app id>`. `<drive>:\.GamingRoot`: `RGBX`, a uint32 count, UTF-16 folder
+paths relative to the drive (the Xbox app's install folders; a UWP game is in `WindowsApps` instead).
+
+**Xbox, APIs.** Display catalog (`displaycatalog.mp.microsoft.com/v7.0/`, anonymous): `products/lookup` by
+`PackageFamilyName` or `XboxTitleId`, `products?bigIds=`; `ProductKind` tells a game from an app; image URIs start with
+`//` and resize with `?w=640`; trailers are HLS/DASH. Xbox Live (signed in): device code at `login.live.com` (client
+`00000000402b5328`, scope `service::user.auth.xboxlive.com::MBI_SSL`), `user.auth.xboxlive.com` (`RpsTicket` with no
+prefix), `xsts.auth.xboxlive.com` (`DisplayClaims.xui[1]` uhs, xid, gtg), then `achievements.xboxlive.com` (contract 2:
+`progressState`, `progression.timeUnlocked`), `titlehub.xboxlive.com` (every played title's progress in one call;
+`totalAchievements` 0 for newer titles), `userstats.xboxlive.com` (`MinutesPlayed`).
+
+**Steam, adding a shortcut.** `SteamClient.Apps.AddShortcut(name, exe, startDir, launchOptions)` resolves to the appid
+and writes `shortcuts.vdf` at once, but ignores the name and the launch options: set them with `SetShortcutName` and
+`SetShortcutLaunchOptions` (the appid stays). A URL as the exe is refused (`{ result: 2 }`). Backslashes are kept as
+given (a lost backslash is the caller's string escaping, seen while probing).

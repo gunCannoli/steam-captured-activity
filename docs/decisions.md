@@ -2083,7 +2083,7 @@ Lua backend cannot see it.
 
 ## ADR-0034: Achievement sourcing per bucket; locked-only for unowned Steam games
 
-**Status:** Accepted · 2026-09-24 · P0 trace T4 named the keyless schema source
+**Status:** Accepted · 2026-09-24 · P0 trace T4 named the keyless schema source · **Amended by [ADR-0056](#adr-0056-epic-and-xbox-copies-are-found-from-the-pc-filled-from-their-store-and-their-unlocks-are-synced)** (an Epic or Xbox copy's unlocks come from its store)
 
 ### Context
 
@@ -2283,7 +2283,7 @@ dropped them as "out of scope".
   native app's activity events (Steam's own `appActivityStore` objects) join the
   shortcut's feed. Steam fetches and renders all of it through its own transport.
 - The linker's scrapers stay dropped: no news-hub, community or persona scraping,
-  no Web API calls for news. Epic/Xbox stay dropped.
+  no Web API calls for news. Epic/Xbox stay dropped (reversed by ADR-0056: copies are found and filled from their stores; friends and news stay dropped).
 - A shortcut without a match gets Steam's stock behaviour for these sections
   (no links: a shortcut appid has no store page).
 - Owner-only surfaces (playtime, cloud, trading cards, DLC ownership, workshop
@@ -3175,7 +3175,7 @@ every Steam restart because log positions lived in memory. The confirm popup sai
 
 - A reset with "Also reset local achievements" sticks; without it the popup says the unlocks come back.
 - The first check after this update reads logs once from the start (no positions saved yet), as before.
-- Epic, Xbox and other stores' achievements are not seen by steam-cartridges, so they are neither listed nor reset.
+- Epic, Xbox and other stores' achievements are not seen by steam-cartridges, so they are neither listed nor reset. (ADR-0056: Epic and Xbox copies are synced now, and not offered for a reset at all.)
 
 ## ADR-0055: The notifications queue uses Steam's own "display alone" rule for every notification type
 
@@ -3204,3 +3204,46 @@ stack and blocks the stack while it shows.
   none on screen (steam-components.md, "Desktop stack: when it pops a toast").
 - A burst drains slowly: the last toast shows several display times after it arrived.
 - Big Picture is unchanged (it shows one toast at a time anyway).
+
+## ADR-0056: Epic and Xbox copies are found from the PC, filled from their store, and their unlocks are synced
+
+**Status:** Accepted · 2026-10-02 (the user's decisions) · **Amends [ADR-0034](#adr-0034-achievement-sourcing-per-bucket-locked-only-for-unowned-steam-games)** (unlocks also come from the copy's store) · **Amends [ADR-0037](#adr-0037-a-mapped-shortcut-borrows-its-native-apps-steam-sections-the-p5-gate-is-native-parity)** (Epic and Xbox are no longer dropped) · replaces invariant 1 of service-achievements.md
+
+### Context
+
+A non-Steam shortcut is often a copy of a game bought on the Epic Games Store or on Xbox (PC Game Pass). Those stores
+know the game and the player's unlocks; steam-cartridges ignored them ("Epic/Xbox stay dropped", ADR-0037, and "never
+requires Epic or Xbox credentials", service-achievements.md). Research (docs/plans/steam-cartridges-store-copies-plan.md,
+Appendix A) found every copy on disk (Epic manifests, Store packages with an Xbox game config), Epic's own GraphQL
+answering anonymously with game data, achievement lists and a public profile's unlocks, Microsoft's catalog answering
+anonymously, and Xbox Live unlocks after a device-code sign-in. Unlocks of no source reached the Activity feed.
+
+### Decision
+
+1. **A copy is found, never typed:** from the store's install data on this PC (`store` part, `store_service.lua`).
+2. **Steam first:** a copy with a Steam match keeps Steam's Game Info, art, community content and news. Without one: the
+   copy's store, then IGDB, then ScreenScraper, for Game Info and the Community tab (store screenshots; no store
+   trailers: Steam's card plays YouTube only). Art stays SteamGridDB.
+3. **Unlocks are synced, not observed:** sources `epic` and `xbox` come first for a copy; synced when the page opens (at
+   most every 15 min) and with `force` when the game quits. No launch toast, no polling, no unlock toast: the store's
+   overlay notifies; a sync's new unlocks go to the Post-Game Summary (`achievements.synced`). Steam's list is kept when
+   it covers every store id.
+4. **Credentials:** Epic needs none (the account id is on disk; the profile's achievements must be public, the panel
+   says how). Xbox stores only the refresh token, xuid and gamertag in the data folder's `.env` through `web_config`;
+   tokens and device codes are never logged. The public client ids (Microsoft's `00000000402b5328`) are constants; the
+   risk that a store blocks a borrowed client is accepted, and the source then fails silently (ADR-0014).
+5. **Not resettable:** an Epic or Xbox copy is not offered by Reset Achievements (`achievementsResettable`).
+6. **Unlocks of every source appear in the Activity feed** as Steam's own "achieved" event, one per day.
+7. **Auto-add:** per store, off by default; adds installed games without a shortcut (launcher link for Epic,
+   `shell:AppsFolder` for Xbox) into a collection named after the store; never removes one. The plugin may write the
+   user's library only through the `library-shortcuts` surface, and only when the user turned the toggle on.
+
+### Consequences
+
+- A store copy shows its store's Game Info and screenshots, and the player's store unlocks, with no setup (Epic) or one
+  sign-in (Xbox). A private Epic profile shows a locked list and a note.
+- Two new network services (Epic, Xbox) behind `net`'s breakers; one request per game for ids, remembered.
+- Activity days now include achievements for every shortcut; the feed object is replaced on each change.
+- The library can change on its own once the user turns auto-add on (new shortcuts, a new collection).
+- Not verified yet: a GDK game (`MicrosoftGame.config`), the collection API, and launching through the Epic link form;
+  the live checks in the plan cover them, and each fails open.

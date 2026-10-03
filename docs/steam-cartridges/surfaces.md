@@ -215,7 +215,14 @@ screenshots and clips, never rebuilt or re-encoded.
 | `jsx:activity-cards` | 2 |
 | `BPM.style#nsga-bpm-activity-thumbs` | 12 (Big Picture only, via `onPopupCreate`) |
 
-**reads:** `identity` (M4c). Also (M6b, K14) `addSessionAchievement(appid, item)`: the Post-Game Summary
+**reads:** `identity` (M4c), `achievements` (ADR-0056). **Achievements in the feed** (ADR-0056): each day with unlocks
+of any source becomes one Steam "achieved" event (`achievement-days.ts` groups, `activity.ts` builds it on the shared
+event base `steam/stores.activityEventBase()`, with Steam's achievement class fields: `m_rgAchievements`,
+`m_rtOldestAchievement`, an `achievements` getter, `eEventType` 2); setting `activityShowAchievements`. Every publish
+builds a **new** activity object and hands it to `AppActivityStore.m_mapAppActivity` only when the feed changed (a
+signature): the open feed re-renders when that observable map gets a new object, not when the old one is mutated
+(verified live 2026-10-02). `onSynced` adds a store sync's new unlocks to the Post-Game Summary like `onUnlocked`.
+Also (M6b, K14) `addSessionAchievement(appid, item)`: the Post-Game Summary
 session write (`appSpotlightStore.GetOrCreateAppData(appid).m_session.AddAchievement`) moved here from
 `features/achievements/observer-session.ts`, the last Steam write outside `surfaces/`. `index.tsx` calls it for each id of
 `achievements.unlocked`; fail-open, and off with the `captures` switch. `touches` gains `AppSpotlightStore.m_session.AddAchievement`.
@@ -589,3 +596,19 @@ Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K
   `sections` follows the record and `captures.published`; `achievements` fixes guardrail 8 and retries its own hook;
   `toasts` and `captures` take `achievements.unlocked`; `captures` styles the windows the view sensor reports;
   `game-info` writes the record's badges and refreshes on a new Steam match. One `jsxRuntime()` in `steam/modules`.
+
+## library-shortcuts
+
+**One job (ADR-0056):** add the shortcut app/store-sync asks for (auto-add of an installed Epic or Xbox game) and file it
+in its store's collection. Event-driven: `store.add-requested` in, `store.shortcut-added` out (its own result event).
+
+**touches:** `SteamClient.Apps.AddShortcut`, `SteamClient.Apps.SetShortcutName`, `SteamClient.Apps.SetShortcutLaunchOptions`,
+`collectionStore.NewUnsavedCollection`, `Collection.AsDragDropCollection.AddApps`.
+
+**reads:** none. **Kill switch:** `library-shortcuts`.
+
+**Facts (verified live 2026-10-02):** `AddShortcut(name, exe, startDir, launchOptions)` resolves to the new appid and
+writes `shortcuts.vdf` at once; it ignores the name (named after the exe) and the launch options (stored empty), so both
+are set right after; renaming keeps the appid. The collection calls are Steam UI's own and not yet verified on this
+build: fail-open (the shortcut is added, the log says the collection was skipped). `userCollections` is read only once
+`m_mapCollectionsFromStorage` exists (guardrail 13).
