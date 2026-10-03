@@ -1,5 +1,5 @@
 {
-  "title": "PlayStation DNA Trophy Suite (3 Profiles x 21 Moods = 63 Sounds)",
+  "title": "PlayStation DNA Trophy Suite (3 Profiles x 41 Moods = 123 Sounds)",
   "description": "100% Original Audio Synthesis inspired by PlayStation Trophy wave movements (PS4, PS5, PS5 Platinum)",
   "profiles": [
     {
@@ -44,7 +44,8 @@
         "timpani",
         "cinematic",
         "heroic"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_epic",
@@ -62,7 +63,8 @@
         "timpani",
         "cinematic",
         "heroic"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_epic",
@@ -80,7 +82,8 @@
         "timpani",
         "cinematic",
         "heroic"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_scifi",
@@ -98,7 +101,8 @@
         "cyber",
         "holographic",
         "crystal"
-      ]
+      ],
+      "group": "scifi"
     },
     {
       "id": "trophy_ps5_scifi",
@@ -116,7 +120,8 @@
         "cyber",
         "holographic",
         "crystal"
-      ]
+      ],
+      "group": "scifi"
     },
     {
       "id": "trophy_platinum_scifi",
@@ -134,7 +139,8 @@
         "cyber",
         "holographic",
         "crystal"
-      ]
+      ],
+      "group": "scifi"
     },
     {
       "id": "trophy_ps4_fantasy",
@@ -152,7 +158,8 @@
         "celesta",
         "fairy-dust",
         "lydian"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_fantasy",
@@ -170,7 +177,8 @@
         "celesta",
         "fairy-dust",
         "lydian"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_fantasy",
@@ -188,7 +196,8 @@
         "celesta",
         "fairy-dust",
         "lydian"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_medieval",
@@ -206,7 +215,8 @@
         "royal-carillon",
         "cathedral",
         "castle"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_medieval",
@@ -224,7 +234,8 @@
         "royal-carillon",
         "cathedral",
         "castle"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_medieval",
@@ -242,7 +253,8 @@
         "royal-carillon",
         "cathedral",
         "castle"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_religious",
@@ -260,7 +272,8 @@
         "choir",
         "organ",
         "sacred"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_religious",
@@ -278,7 +291,8 @@
         "choir",
         "organ",
         "sacred"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_religious",
@@ -296,7 +310,8 @@
         "choir",
         "organ",
         "sacred"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_arcaic",
@@ -314,7 +329,8 @@
         "lyre",
         "ancient",
         "phrygian"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_arcaic",
@@ -332,7 +348,8 @@
         "lyre",
         "ancient",
         "phrygian"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_arcaic",
@@ -350,7 +367,8 @@
         "lyre",
         "ancient",
         "phrygian"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_guitar",
@@ -368,7 +386,8 @@
         "acoustic",
         "flageolet",
         "spruce"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_guitar",
@@ -386,7 +405,8 @@
         "acoustic",
         "flageolet",
         "spruce"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_guitar",
@@ -404,7 +424,8 @@
         "acoustic",
         "flageolet",
         "spruce"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_harp",
@@ -422,7 +443,8 @@
         "celtic",
         "arpeggio",
         "concert-hall"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_harp",
@@ -440,7 +462,8 @@
         "celtic",
         "arpeggio",
         "concert-hall"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_harp",
@@ -458,7 +481,8 @@
         "celtic",
         "arpeggio",
         "concert-hall"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_drums",
@@ -476,7 +500,8 @@
         "rimshot",
         "sub-impact",
         "cinematic-percussion"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_drums",
@@ -494,7 +519,8 @@
         "rimshot",
         "sub-impact",
         "cinematic-percussion"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_drums",
@@ -512,7 +538,8 @@
         "rimshot",
         "sub-impact",
         "cinematic-percussion"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_afric_ancient",
@@ -530,7 +557,8 @@
         "kalimba",
         "balafon",
         "udu-clay"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps5_afric_ancient",
@@ -548,7 +576,8 @@
         "kalimba",
         "balafon",
         "udu-clay"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_platinum_afric_ancient",
@@ -566,7 +595,8 @@
         "kalimba",
         "balafon",
         "udu-clay"
-      ]
+      ],
+      "group": "original"
     },
     {
       "id": "trophy_ps4_epic_fanfare",
@@ -584,7 +614,8 @@
         "imperial",
         "fanfare",
         "timpani"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps5_epic_fanfare",
@@ -602,7 +633,8 @@
         "imperial",
         "fanfare",
         "timpani"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_platinum_epic_fanfare",
@@ -620,7 +652,8 @@
         "imperial",
         "fanfare",
         "timpani"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps4_fantasy_musicbox",
@@ -638,7 +671,8 @@
         "glass-harmonica",
         "starlight",
         "celeste"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps5_fantasy_musicbox",
@@ -656,7 +690,8 @@
         "glass-harmonica",
         "starlight",
         "celeste"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_platinum_fantasy_musicbox",
@@ -674,7 +709,8 @@
         "glass-harmonica",
         "starlight",
         "celeste"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps4_guitar_12string",
@@ -692,7 +728,8 @@
         "double-course",
         "spanish",
         "harmonics"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps5_guitar_12string",
@@ -710,7 +747,8 @@
         "double-course",
         "spanish",
         "harmonics"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_platinum_guitar_12string",
@@ -728,7 +766,8 @@
         "double-course",
         "spanish",
         "harmonics"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps4_harp_bardic",
@@ -746,7 +785,8 @@
         "gaelic",
         "pentatonic",
         "bardic"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps5_harp_bardic",
@@ -764,7 +804,8 @@
         "gaelic",
         "pentatonic",
         "bardic"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_platinum_harp_bardic",
@@ -782,7 +823,8 @@
         "gaelic",
         "pentatonic",
         "bardic"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps4_afric_kora",
@@ -800,7 +842,8 @@
         "griot",
         "calabash",
         "west-african"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps5_afric_kora",
@@ -818,7 +861,8 @@
         "griot",
         "calabash",
         "west-african"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_platinum_afric_kora",
@@ -836,7 +880,8 @@
         "griot",
         "calabash",
         "west-african"
-      ]
+      ],
+      "group": "expanded"
     },
     {
       "id": "trophy_ps4_space_galaxy",
@@ -854,7 +899,8 @@
         "nebula",
         "pulsar",
         "dark-matter"
-      ]
+      ],
+      "group": "scifi"
     },
     {
       "id": "trophy_ps5_space_galaxy",
@@ -872,7 +918,8 @@
         "nebula",
         "pulsar",
         "dark-matter"
-      ]
+      ],
+      "group": "scifi"
     },
     {
       "id": "trophy_platinum_space_galaxy",
@@ -890,7 +937,8 @@
         "nebula",
         "pulsar",
         "dark-matter"
-      ]
+      ],
+      "group": "scifi"
     },
     {
       "id": "trophy_ps4_robotic_droid",
@@ -908,7 +956,8 @@
         "vocoder",
         "companion-droid",
         "telemetry"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_ps5_robotic_droid",
@@ -926,7 +975,8 @@
         "vocoder",
         "companion-droid",
         "telemetry"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_platinum_robotic_droid",
@@ -944,7 +994,8 @@
         "vocoder",
         "companion-droid",
         "telemetry"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_ps4_robotic_quantum",
@@ -962,7 +1013,8 @@
         "quantum-phase",
         "pure-sine",
         "singularity"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_ps5_robotic_quantum",
@@ -980,7 +1032,8 @@
         "quantum-phase",
         "pure-sine",
         "singularity"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_platinum_robotic_quantum",
@@ -998,7 +1051,8 @@
         "quantum-phase",
         "pure-sine",
         "singularity"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_ps4_robotic_mech",
@@ -1016,7 +1070,8 @@
         "titanium-clamp",
         "seismic-sub",
         "reactor"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_ps5_robotic_mech",
@@ -1034,7 +1089,8 @@
         "titanium-clamp",
         "seismic-sub",
         "reactor"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_platinum_robotic_mech",
@@ -1052,7 +1108,8 @@
         "titanium-clamp",
         "seismic-sub",
         "reactor"
-      ]
+      ],
+      "group": "robotic"
     },
     {
       "id": "trophy_ps4_retro_8bit",
@@ -1070,7 +1127,8 @@
         "chiptune",
         "square-wave",
         "8bit-victory"
-      ]
+      ],
+      "group": "retro"
     },
     {
       "id": "trophy_ps5_retro_8bit",
@@ -1088,7 +1146,8 @@
         "chiptune",
         "square-wave",
         "8bit-victory"
-      ]
+      ],
+      "group": "retro"
     },
     {
       "id": "trophy_platinum_retro_8bit",
@@ -1106,7 +1165,8 @@
         "chiptune",
         "square-wave",
         "8bit-victory"
-      ]
+      ],
+      "group": "retro"
     },
     {
       "id": "trophy_ps4_retro_16bit",
@@ -1124,7 +1184,8 @@
         "genesis",
         "fm-brass",
         "rpg-victory"
-      ]
+      ],
+      "group": "retro"
     },
     {
       "id": "trophy_ps5_retro_16bit",
@@ -1142,7 +1203,8 @@
         "genesis",
         "fm-brass",
         "rpg-victory"
-      ]
+      ],
+      "group": "retro"
     },
     {
       "id": "trophy_platinum_retro_16bit",
@@ -1160,7 +1222,1148 @@
         "genesis",
         "fm-brass",
         "rpg-victory"
-      ]
+      ],
+      "group": "retro"
+    },
+    {
+      "id": "trophy_ps4_8bit_china",
+      "mood_id": "8bit_china",
+      "title": "8-Bit China Bells",
+      "category": "NES 2A03 Bianzhong Chimes",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_china.wav",
+      "mp3_file": "trophy_ps4_8bit_china.mp3",
+      "color": "#f43f5e",
+      "tags": [
+        "8bit-bell",
+        "china-bell",
+        "bianzhong",
+        "pentatonic"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_china",
+      "mood_id": "8bit_china",
+      "title": "8-Bit China Bells",
+      "category": "NES 2A03 Bianzhong Chimes",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_china.wav",
+      "mp3_file": "trophy_ps5_8bit_china.mp3",
+      "color": "#f43f5e",
+      "tags": [
+        "8bit-bell",
+        "china-bell",
+        "bianzhong",
+        "pentatonic"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_china",
+      "mood_id": "8bit_china",
+      "title": "8-Bit China Bells",
+      "category": "NES 2A03 Bianzhong Chimes",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_china.wav",
+      "mp3_file": "trophy_platinum_8bit_china.mp3",
+      "color": "#f43f5e",
+      "tags": [
+        "8bit-bell",
+        "china-bell",
+        "bianzhong",
+        "pentatonic"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_church",
+      "mood_id": "8bit_church",
+      "title": "8-Bit Church Bell",
+      "category": "NES 2A03 Cathedral Campanile",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_church.wav",
+      "mp3_file": "trophy_ps4_8bit_church.mp3",
+      "color": "#e11d48",
+      "tags": [
+        "8bit-bell",
+        "church-bell",
+        "gothic",
+        "triangle-bass"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_church",
+      "mood_id": "8bit_church",
+      "title": "8-Bit Church Bell",
+      "category": "NES 2A03 Cathedral Campanile",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_church.wav",
+      "mp3_file": "trophy_ps5_8bit_church.mp3",
+      "color": "#e11d48",
+      "tags": [
+        "8bit-bell",
+        "church-bell",
+        "gothic",
+        "triangle-bass"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_church",
+      "mood_id": "8bit_church",
+      "title": "8-Bit Church Bell",
+      "category": "NES 2A03 Cathedral Campanile",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_church.wav",
+      "mp3_file": "trophy_platinum_8bit_church.mp3",
+      "color": "#e11d48",
+      "tags": [
+        "8bit-bell",
+        "church-bell",
+        "gothic",
+        "triangle-bass"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_gong",
+      "mood_id": "8bit_gong",
+      "title": "8-Bit Temple Gong",
+      "category": "NES 2A03 Tam-Tam Crash",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_gong.wav",
+      "mp3_file": "trophy_ps4_8bit_gong.mp3",
+      "color": "#be123c",
+      "tags": [
+        "8bit-bell",
+        "temple-gong",
+        "tam-tam",
+        "noise-sweep"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_gong",
+      "mood_id": "8bit_gong",
+      "title": "8-Bit Temple Gong",
+      "category": "NES 2A03 Tam-Tam Crash",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_gong.wav",
+      "mp3_file": "trophy_ps5_8bit_gong.mp3",
+      "color": "#be123c",
+      "tags": [
+        "8bit-bell",
+        "temple-gong",
+        "tam-tam",
+        "noise-sweep"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_gong",
+      "mood_id": "8bit_gong",
+      "title": "8-Bit Temple Gong",
+      "category": "NES 2A03 Tam-Tam Crash",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_gong.wav",
+      "mp3_file": "trophy_platinum_8bit_gong.mp3",
+      "color": "#be123c",
+      "tags": [
+        "8bit-bell",
+        "temple-gong",
+        "tam-tam",
+        "noise-sweep"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_tingsha",
+      "mood_id": "8bit_tingsha",
+      "title": "8-Bit Tingsha Chimes",
+      "category": "NES 2A03 Tibetan Prayer Ping",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_tingsha.wav",
+      "mp3_file": "trophy_ps4_8bit_tingsha.mp3",
+      "color": "#fb7185",
+      "tags": [
+        "8bit-bell",
+        "tingsha",
+        "tibetan",
+        "crystal-pulse"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_tingsha",
+      "mood_id": "8bit_tingsha",
+      "title": "8-Bit Tingsha Chimes",
+      "category": "NES 2A03 Tibetan Prayer Ping",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_tingsha.wav",
+      "mp3_file": "trophy_ps5_8bit_tingsha.mp3",
+      "color": "#fb7185",
+      "tags": [
+        "8bit-bell",
+        "tingsha",
+        "tibetan",
+        "crystal-pulse"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_tingsha",
+      "mood_id": "8bit_tingsha",
+      "title": "8-Bit Tingsha Chimes",
+      "category": "NES 2A03 Tibetan Prayer Ping",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_tingsha.wav",
+      "mp3_file": "trophy_platinum_8bit_tingsha.mp3",
+      "color": "#fb7185",
+      "tags": [
+        "8bit-bell",
+        "tingsha",
+        "tibetan",
+        "crystal-pulse"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_gamelan",
+      "mood_id": "8bit_gamelan",
+      "title": "8-Bit Gamelan Bells",
+      "category": "NES 2A03 Bronze Pot Chimes",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_gamelan.wav",
+      "mp3_file": "trophy_ps4_8bit_gamelan.mp3",
+      "color": "#fda4af",
+      "tags": [
+        "8bit-bell",
+        "gamelan",
+        "indonesian",
+        "slendro"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_gamelan",
+      "mood_id": "8bit_gamelan",
+      "title": "8-Bit Gamelan Bells",
+      "category": "NES 2A03 Bronze Pot Chimes",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_gamelan.wav",
+      "mp3_file": "trophy_ps5_8bit_gamelan.mp3",
+      "color": "#fda4af",
+      "tags": [
+        "8bit-bell",
+        "gamelan",
+        "indonesian",
+        "slendro"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_gamelan",
+      "mood_id": "8bit_gamelan",
+      "title": "8-Bit Gamelan Bells",
+      "category": "NES 2A03 Bronze Pot Chimes",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_gamelan.wav",
+      "mp3_file": "trophy_platinum_8bit_gamelan.mp3",
+      "color": "#fda4af",
+      "tags": [
+        "8bit-bell",
+        "gamelan",
+        "indonesian",
+        "slendro"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_tubular",
+      "mood_id": "8bit_tubular",
+      "title": "8-Bit Tubular Bells",
+      "category": "NES 2A03 Orchestral Carillon",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_tubular.wav",
+      "mp3_file": "trophy_ps4_8bit_tubular.mp3",
+      "color": "#f472b6",
+      "tags": [
+        "8bit-bell",
+        "tubular-bells",
+        "westminster",
+        "chimes"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_tubular",
+      "mood_id": "8bit_tubular",
+      "title": "8-Bit Tubular Bells",
+      "category": "NES 2A03 Orchestral Carillon",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_tubular.wav",
+      "mp3_file": "trophy_ps5_8bit_tubular.mp3",
+      "color": "#f472b6",
+      "tags": [
+        "8bit-bell",
+        "tubular-bells",
+        "westminster",
+        "chimes"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_tubular",
+      "mood_id": "8bit_tubular",
+      "title": "8-Bit Tubular Bells",
+      "category": "NES 2A03 Orchestral Carillon",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_tubular.wav",
+      "mp3_file": "trophy_platinum_8bit_tubular.mp3",
+      "color": "#f472b6",
+      "tags": [
+        "8bit-bell",
+        "tubular-bells",
+        "westminster",
+        "chimes"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_glock",
+      "mood_id": "8bit_glock",
+      "title": "8-Bit Glockenspiel",
+      "category": "NES 2A03 Steel Bar Sparkle",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_glock.wav",
+      "mp3_file": "trophy_ps4_8bit_glock.mp3",
+      "color": "#ec4899",
+      "tags": [
+        "8bit-bell",
+        "glockenspiel",
+        "steel-bell",
+        "sparkle"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_glock",
+      "mood_id": "8bit_glock",
+      "title": "8-Bit Glockenspiel",
+      "category": "NES 2A03 Steel Bar Sparkle",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_glock.wav",
+      "mp3_file": "trophy_ps5_8bit_glock.mp3",
+      "color": "#ec4899",
+      "tags": [
+        "8bit-bell",
+        "glockenspiel",
+        "steel-bell",
+        "sparkle"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_glock",
+      "mood_id": "8bit_glock",
+      "title": "8-Bit Glockenspiel",
+      "category": "NES 2A03 Steel Bar Sparkle",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_glock.wav",
+      "mp3_file": "trophy_platinum_8bit_glock.mp3",
+      "color": "#ec4899",
+      "tags": [
+        "8bit-bell",
+        "glockenspiel",
+        "steel-bell",
+        "sparkle"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_windchimes",
+      "mood_id": "8bit_windchimes",
+      "title": "8-Bit Wind Chimes",
+      "category": "NES 2A03 Glass Breeze Cluster",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_windchimes.wav",
+      "mp3_file": "trophy_ps4_8bit_windchimes.mp3",
+      "color": "#db2777",
+      "tags": [
+        "8bit-bell",
+        "wind-chimes",
+        "cluster",
+        "flutter"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_windchimes",
+      "mood_id": "8bit_windchimes",
+      "title": "8-Bit Wind Chimes",
+      "category": "NES 2A03 Glass Breeze Cluster",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_windchimes.wav",
+      "mp3_file": "trophy_ps5_8bit_windchimes.mp3",
+      "color": "#db2777",
+      "tags": [
+        "8bit-bell",
+        "wind-chimes",
+        "cluster",
+        "flutter"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_windchimes",
+      "mood_id": "8bit_windchimes",
+      "title": "8-Bit Wind Chimes",
+      "category": "NES 2A03 Glass Breeze Cluster",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_windchimes.wav",
+      "mp3_file": "trophy_platinum_8bit_windchimes.mp3",
+      "color": "#db2777",
+      "tags": [
+        "8bit-bell",
+        "wind-chimes",
+        "cluster",
+        "flutter"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_rin",
+      "mood_id": "8bit_rin",
+      "title": "8-Bit Zen Rin Gong",
+      "category": "NES 2A03 Singing Bowl Drone",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_rin.wav",
+      "mp3_file": "trophy_ps4_8bit_rin.mp3",
+      "color": "#9d174d",
+      "tags": [
+        "8bit-bell",
+        "rin-gong",
+        "zen",
+        "vibrato-drone"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_rin",
+      "mood_id": "8bit_rin",
+      "title": "8-Bit Zen Rin Gong",
+      "category": "NES 2A03 Singing Bowl Drone",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_rin.wav",
+      "mp3_file": "trophy_ps5_8bit_rin.mp3",
+      "color": "#9d174d",
+      "tags": [
+        "8bit-bell",
+        "rin-gong",
+        "zen",
+        "vibrato-drone"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_rin",
+      "mood_id": "8bit_rin",
+      "title": "8-Bit Zen Rin Gong",
+      "category": "NES 2A03 Singing Bowl Drone",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_rin.wav",
+      "mp3_file": "trophy_platinum_8bit_rin.mp3",
+      "color": "#9d174d",
+      "tags": [
+        "8bit-bell",
+        "rin-gong",
+        "zen",
+        "vibrato-drone"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_8bit_ship",
+      "mood_id": "8bit_ship",
+      "title": "8-Bit Nautical Ship Bell",
+      "category": "NES 2A03 Maritime Double Strike",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_8bit_ship.wav",
+      "mp3_file": "trophy_ps4_8bit_ship.mp3",
+      "color": "#be185d",
+      "tags": [
+        "8bit-bell",
+        "ship-bell",
+        "nautical",
+        "double-strike"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps5_8bit_ship",
+      "mood_id": "8bit_ship",
+      "title": "8-Bit Nautical Ship Bell",
+      "category": "NES 2A03 Maritime Double Strike",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_8bit_ship.wav",
+      "mp3_file": "trophy_ps5_8bit_ship.mp3",
+      "color": "#be185d",
+      "tags": [
+        "8bit-bell",
+        "ship-bell",
+        "nautical",
+        "double-strike"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_platinum_8bit_ship",
+      "mood_id": "8bit_ship",
+      "title": "8-Bit Nautical Ship Bell",
+      "category": "NES 2A03 Maritime Double Strike",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_8bit_ship.wav",
+      "mp3_file": "trophy_platinum_8bit_ship.mp3",
+      "color": "#be185d",
+      "tags": [
+        "8bit-bell",
+        "ship-bell",
+        "nautical",
+        "double-strike"
+      ],
+      "group": "8bit-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_china",
+      "mood_id": "bell_china",
+      "title": "Imperial China Bells",
+      "category": "Acoustic Bianzhong Bronze",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_china.wav",
+      "mp3_file": "trophy_ps4_bell_china.mp3",
+      "color": "#d97706",
+      "tags": [
+        "acoustic-bell",
+        "bianzhong",
+        "bronze-chime",
+        "chinese-temple"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_china",
+      "mood_id": "bell_china",
+      "title": "Imperial China Bells",
+      "category": "Acoustic Bianzhong Bronze",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_china.wav",
+      "mp3_file": "trophy_ps5_bell_china.mp3",
+      "color": "#d97706",
+      "tags": [
+        "acoustic-bell",
+        "bianzhong",
+        "bronze-chime",
+        "chinese-temple"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_china",
+      "mood_id": "bell_china",
+      "title": "Imperial China Bells",
+      "category": "Acoustic Bianzhong Bronze",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_china.wav",
+      "mp3_file": "trophy_platinum_bell_china.mp3",
+      "color": "#d97706",
+      "tags": [
+        "acoustic-bell",
+        "bianzhong",
+        "bronze-chime",
+        "chinese-temple"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_church",
+      "mood_id": "bell_church",
+      "title": "Cathedral Campanile",
+      "category": "Acoustic Great Church Bell",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_church.wav",
+      "mp3_file": "trophy_ps4_bell_church.mp3",
+      "color": "#b45309",
+      "tags": [
+        "acoustic-bell",
+        "cathedral",
+        "campanile",
+        "bronze-carillon"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_church",
+      "mood_id": "bell_church",
+      "title": "Cathedral Campanile",
+      "category": "Acoustic Great Church Bell",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_church.wav",
+      "mp3_file": "trophy_ps5_bell_church.mp3",
+      "color": "#b45309",
+      "tags": [
+        "acoustic-bell",
+        "cathedral",
+        "campanile",
+        "bronze-carillon"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_church",
+      "mood_id": "bell_church",
+      "title": "Cathedral Campanile",
+      "category": "Acoustic Great Church Bell",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.25,
+      "wav_file": "trophy_platinum_bell_church.wav",
+      "mp3_file": "trophy_platinum_bell_church.mp3",
+      "color": "#b45309",
+      "tags": [
+        "acoustic-bell",
+        "cathedral",
+        "campanile",
+        "bronze-carillon"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_gong",
+      "mood_id": "bell_gong",
+      "title": "Temple Chau Gong",
+      "category": "Acoustic Orchestral Tam-Tam",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_gong.wav",
+      "mp3_file": "trophy_ps4_bell_gong.mp3",
+      "color": "#92400e",
+      "tags": [
+        "acoustic-bell",
+        "chau-gong",
+        "tam-tam",
+        "shimmer-wash"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_gong",
+      "mood_id": "bell_gong",
+      "title": "Temple Chau Gong",
+      "category": "Acoustic Orchestral Tam-Tam",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_gong.wav",
+      "mp3_file": "trophy_ps5_bell_gong.mp3",
+      "color": "#92400e",
+      "tags": [
+        "acoustic-bell",
+        "chau-gong",
+        "tam-tam",
+        "shimmer-wash"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_gong",
+      "mood_id": "bell_gong",
+      "title": "Temple Chau Gong",
+      "category": "Acoustic Orchestral Tam-Tam",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_gong.wav",
+      "mp3_file": "trophy_platinum_bell_gong.mp3",
+      "color": "#92400e",
+      "tags": [
+        "acoustic-bell",
+        "chau-gong",
+        "tam-tam",
+        "shimmer-wash"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_tingsha",
+      "mood_id": "bell_tingsha",
+      "title": "Tibetan Tingsha",
+      "category": "Acoustic Pure Prayer Cymbals",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_tingsha.wav",
+      "mp3_file": "trophy_ps4_bell_tingsha.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "acoustic-bell",
+        "tingsha",
+        "tibetan-prayer",
+        "binaural-chime"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_tingsha",
+      "mood_id": "bell_tingsha",
+      "title": "Tibetan Tingsha",
+      "category": "Acoustic Pure Prayer Cymbals",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_tingsha.wav",
+      "mp3_file": "trophy_ps5_bell_tingsha.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "acoustic-bell",
+        "tingsha",
+        "tibetan-prayer",
+        "binaural-chime"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_tingsha",
+      "mood_id": "bell_tingsha",
+      "title": "Tibetan Tingsha",
+      "category": "Acoustic Pure Prayer Cymbals",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_tingsha.wav",
+      "mp3_file": "trophy_platinum_bell_tingsha.mp3",
+      "color": "#f59e0b",
+      "tags": [
+        "acoustic-bell",
+        "tingsha",
+        "tibetan-prayer",
+        "binaural-chime"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_gamelan",
+      "mood_id": "bell_gamelan",
+      "title": "Javanese Gamelan",
+      "category": "Acoustic Bronze Metallophone",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_gamelan.wav",
+      "mp3_file": "trophy_ps4_bell_gamelan.mp3",
+      "color": "#fbbf24",
+      "tags": [
+        "acoustic-bell",
+        "gamelan",
+        "javanese",
+        "bronze-kettle"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_gamelan",
+      "mood_id": "bell_gamelan",
+      "title": "Javanese Gamelan",
+      "category": "Acoustic Bronze Metallophone",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_gamelan.wav",
+      "mp3_file": "trophy_ps5_bell_gamelan.mp3",
+      "color": "#fbbf24",
+      "tags": [
+        "acoustic-bell",
+        "gamelan",
+        "javanese",
+        "bronze-kettle"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_gamelan",
+      "mood_id": "bell_gamelan",
+      "title": "Javanese Gamelan",
+      "category": "Acoustic Bronze Metallophone",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_gamelan.wav",
+      "mp3_file": "trophy_platinum_bell_gamelan.mp3",
+      "color": "#fbbf24",
+      "tags": [
+        "acoustic-bell",
+        "gamelan",
+        "javanese",
+        "bronze-kettle"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_tubular",
+      "mood_id": "bell_tubular",
+      "title": "Symphonic Tubular Bells",
+      "category": "Acoustic Orchestral Chimes",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_tubular.wav",
+      "mp3_file": "trophy_ps4_bell_tubular.mp3",
+      "color": "#fcd34d",
+      "tags": [
+        "acoustic-bell",
+        "tubular-bells",
+        "orchestral",
+        "carillon"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_tubular",
+      "mood_id": "bell_tubular",
+      "title": "Symphonic Tubular Bells",
+      "category": "Acoustic Orchestral Chimes",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_tubular.wav",
+      "mp3_file": "trophy_ps5_bell_tubular.mp3",
+      "color": "#fcd34d",
+      "tags": [
+        "acoustic-bell",
+        "tubular-bells",
+        "orchestral",
+        "carillon"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_tubular",
+      "mood_id": "bell_tubular",
+      "title": "Symphonic Tubular Bells",
+      "category": "Acoustic Orchestral Chimes",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.25,
+      "wav_file": "trophy_platinum_bell_tubular.wav",
+      "mp3_file": "trophy_platinum_bell_tubular.mp3",
+      "color": "#fcd34d",
+      "tags": [
+        "acoustic-bell",
+        "tubular-bells",
+        "orchestral",
+        "carillon"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_glock",
+      "mood_id": "bell_glock",
+      "title": "Steel Glockenspiel",
+      "category": "Acoustic German Steel Bars",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_glock.wav",
+      "mp3_file": "trophy_ps4_bell_glock.mp3",
+      "color": "#fef08a",
+      "tags": [
+        "acoustic-bell",
+        "glockenspiel",
+        "steel-chime",
+        "crystalline"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_glock",
+      "mood_id": "bell_glock",
+      "title": "Steel Glockenspiel",
+      "category": "Acoustic German Steel Bars",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_glock.wav",
+      "mp3_file": "trophy_ps5_bell_glock.mp3",
+      "color": "#fef08a",
+      "tags": [
+        "acoustic-bell",
+        "glockenspiel",
+        "steel-chime",
+        "crystalline"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_glock",
+      "mood_id": "bell_glock",
+      "title": "Steel Glockenspiel",
+      "category": "Acoustic German Steel Bars",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_glock.wav",
+      "mp3_file": "trophy_platinum_bell_glock.mp3",
+      "color": "#fef08a",
+      "tags": [
+        "acoustic-bell",
+        "glockenspiel",
+        "steel-chime",
+        "crystalline"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_windchimes",
+      "mood_id": "bell_windchimes",
+      "title": "Crystal Wind Chimes",
+      "category": "Acoustic Brass & Glass Cluster",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_windchimes.wav",
+      "mp3_file": "trophy_ps4_bell_windchimes.mp3",
+      "color": "#cbd5e1",
+      "tags": [
+        "acoustic-bell",
+        "wind-chimes",
+        "glass-cluster",
+        "ethereal-air"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_windchimes",
+      "mood_id": "bell_windchimes",
+      "title": "Crystal Wind Chimes",
+      "category": "Acoustic Brass & Glass Cluster",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_windchimes.wav",
+      "mp3_file": "trophy_ps5_bell_windchimes.mp3",
+      "color": "#cbd5e1",
+      "tags": [
+        "acoustic-bell",
+        "wind-chimes",
+        "glass-cluster",
+        "ethereal-air"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_windchimes",
+      "mood_id": "bell_windchimes",
+      "title": "Crystal Wind Chimes",
+      "category": "Acoustic Brass & Glass Cluster",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_windchimes.wav",
+      "mp3_file": "trophy_platinum_bell_windchimes.mp3",
+      "color": "#cbd5e1",
+      "tags": [
+        "acoustic-bell",
+        "wind-chimes",
+        "glass-cluster",
+        "ethereal-air"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_rin",
+      "mood_id": "bell_rin",
+      "title": "Zen Rin Singing Bowl",
+      "category": "Acoustic Buddhist Prayer Bronze",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_rin.wav",
+      "mp3_file": "trophy_ps4_bell_rin.mp3",
+      "color": "#94a3b8",
+      "tags": [
+        "acoustic-bell",
+        "rin-bowl",
+        "singing-bowl",
+        "zen-acoustic"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_rin",
+      "mood_id": "bell_rin",
+      "title": "Zen Rin Singing Bowl",
+      "category": "Acoustic Buddhist Prayer Bronze",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_rin.wav",
+      "mp3_file": "trophy_ps5_bell_rin.mp3",
+      "color": "#94a3b8",
+      "tags": [
+        "acoustic-bell",
+        "rin-bowl",
+        "singing-bowl",
+        "zen-acoustic"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_rin",
+      "mood_id": "bell_rin",
+      "title": "Zen Rin Singing Bowl",
+      "category": "Acoustic Buddhist Prayer Bronze",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_rin.wav",
+      "mp3_file": "trophy_platinum_bell_rin.mp3",
+      "color": "#94a3b8",
+      "tags": [
+        "acoustic-bell",
+        "rin-bowl",
+        "singing-bowl",
+        "zen-acoustic"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps4_bell_ship",
+      "mood_id": "bell_ship",
+      "title": "Maritime Ship's Bell",
+      "category": "Acoustic High-Tensile Naval Brass",
+      "style_key": "ps4",
+      "style_label": "PS4 Chime DNA",
+      "duration_s": 0.95,
+      "wav_file": "trophy_ps4_bell_ship.wav",
+      "mp3_file": "trophy_ps4_bell_ship.mp3",
+      "color": "#64748b",
+      "tags": [
+        "acoustic-bell",
+        "naval-bell",
+        "ship-bell",
+        "maritime"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_ps5_bell_ship",
+      "mood_id": "bell_ship",
+      "title": "Maritime Ship's Bell",
+      "category": "Acoustic High-Tensile Naval Brass",
+      "style_key": "ps5",
+      "style_label": "PS5 Bloom DNA",
+      "duration_s": 1.4,
+      "wav_file": "trophy_ps5_bell_ship.wav",
+      "mp3_file": "trophy_ps5_bell_ship.mp3",
+      "color": "#64748b",
+      "tags": [
+        "acoustic-bell",
+        "naval-bell",
+        "ship-bell",
+        "maritime"
+      ],
+      "group": "acoustic-bells"
+    },
+    {
+      "id": "trophy_platinum_bell_ship",
+      "mood_id": "bell_ship",
+      "title": "Maritime Ship's Bell",
+      "category": "Acoustic High-Tensile Naval Brass",
+      "style_key": "platinum",
+      "style_label": "PS5 Platinum DNA",
+      "duration_s": 2.2,
+      "wav_file": "trophy_platinum_bell_ship.wav",
+      "mp3_file": "trophy_platinum_bell_ship.mp3",
+      "color": "#64748b",
+      "tags": [
+        "acoustic-bell",
+        "naval-bell",
+        "ship-bell",
+        "maritime"
+      ],
+      "group": "acoustic-bells"
     }
   ]
 }

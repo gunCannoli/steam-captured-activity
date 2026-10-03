@@ -1497,39 +1497,810 @@ def generate_retro_16bit(style='ps5'):
         dry = mix_tracks(horns * 0.85, crystals)
         return master_sound(apply_convolution_hall(dry, ir, mix_level=0.34, width=1.55, dry_level=0.75), target_duration=dur, target_rms_db=-16.0)
 
+
 # ---------------------------------------------------------------------------
-# Metadata Registry & Multi-Profile Suite
+# The 10 8-Bit Bell & Gong Instrument Variations (NES 2A03 Chiptune)
+# ---------------------------------------------------------------------------
+
+# 22. 8-Bit China Bells (Bianzhong Pentatonic Chimes)
+def generate_8bit_china(style='ps5'):
+    p_notes = [392.00, 440.00, 523.25, 587.33, 659.25, 783.99] # G4, A4, C5, D5, E5, G5
+    if style == 'ps4':
+        dur = 0.95
+        # Crisp 3-note ascending 8-bit pentatonic chime (G4 -> C5 -> D5) with noise strike
+        arp = synth_8bit_fast_arp([392.00, 523.25, 587.33], duration_s=0.85, speed_hz=40.0, duty=0.25)
+        click = synth_8bit_noise(0.025, period=16) * 0.4
+        dry = mix_tracks(arp * 0.85, click)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # 5-note pentatonic bloom with walking triangle bass and dual-pulse square harmony
+        layers = []
+        for i, f in enumerate(p_notes[:5]):
+            sig = synth_8bit_pulse(f, duration_s=1.0 - i*0.03, duty=0.25)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.04 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        lead = mix_tracks(*layers)
+        bass = synth_8bit_triangle(130.81, duration_s=1.1) * 0.65
+        dry = mix_tracks(lead, bass)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        # Imperial Chinese royal chiptune fanfare across 2 octaves
+        full_scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 1046.50]
+        layers = []
+        for i, f in enumerate(full_scale):
+            sig = synth_8bit_pulse(f, duration_s=1.6 - i*0.04, duty=0.25)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.035 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.50
+            layers.append(p)
+        arp = synth_8bit_fast_arp([523.25, 659.25, 783.99, 1046.50], duration_s=1.5, speed_hz=55.0, duty=0.125) * 0.45
+        aligned_arp = np.zeros((int(dur * SR), 2))
+        st_arp = int(0.35 * SR)
+        aligned_arp[st_arp:st_arp + len(arp)] = arp[:min(len(arp), len(aligned_arp) - st_arp)]
+        bass = synth_8bit_triangle(130.81, duration_s=1.8) * 0.70
+        snare = synth_8bit_noise(0.10, period=28) * 0.45
+        dry = mix_tracks(mix_tracks(*layers), aligned_arp, bass, snare)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+# 23. 8-Bit Cathedral Church Bell
+def generate_8bit_church(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # Deep triangle toll on 130Hz + pulse strike on 261Hz
+        bass = synth_8bit_triangle(130.81, duration_s=0.85) * 0.8
+        pulse = synth_8bit_pulse(261.63, duration_s=0.80, duty=0.5) * 0.6
+        dry = mix_tracks(bass, pulse)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # Solemn 2-bell chiptune toll (C3 + G3) with Gothic pulse sustain
+        b1 = synth_8bit_triangle(130.81, duration_s=1.2) * 0.75
+        b2 = synth_8bit_triangle(196.00, duration_s=1.1) * 0.65
+        p1 = synth_8bit_pulse(261.63, duration_s=1.1, duty=0.5) * 0.55
+        p2 = synth_8bit_pulse(392.00, duration_s=1.0, duty=0.5) * 0.45
+        dry = mix_tracks(b1, b2, p1, p2)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        # Grand Castlevania-style Gothic cathedral carillon fanfare
+        chords = [
+            (0.00, 130.81, 261.63),
+            (0.12, 196.00, 392.00),
+            (0.24, 261.63, 523.25),
+            (0.36, 329.63, 659.25),
+            (0.48, 392.00, 783.99),
+        ]
+        layers = []
+        for st_s, f_tri, f_pulse in chords:
+            tri = synth_8bit_triangle(f_tri, duration_s=1.6 - st_s) * 0.7
+            pul = synth_8bit_pulse(f_pulse, duration_s=1.6 - st_s, duty=0.5) * 0.55
+            p = np.zeros((int(dur * SR), 2))
+            st = int(st_s * SR)
+            mix_toll = mix_tracks(tri, pul)
+            p[st:st + len(mix_toll)] = mix_toll[:min(len(mix_toll), len(p) - st)]
+            layers.append(p)
+        timp = synth_8bit_noise(0.12, period=32) * 0.55
+        dry = mix_tracks(mix_tracks(*layers), timp)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+# 24. 8-Bit Temple Gong & Tam-Tam
+def generate_8bit_gong(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # Punchy chiptune gong strike: low triangle pitch drop (130 -> 65Hz) + metallic noise burst
+        t_tri = np.linspace(0, dur, int(dur * SR))
+        f_drop = 130.0 * np.exp(-12.0 * t_tri) + 65.0
+        tri_sig = 2.0 * np.abs(2.0 * ((np.cumsum(f_drop)/SR) % 1.0 - 0.5)) - 1.0
+        tri = np.repeat((tri_sig * np.exp(-5.5 * t_tri))[:, None], 2, axis=1) * 0.8
+        crash = synth_8bit_noise(0.15, period=24) * 0.6
+        dry = mix_tracks(tri, crash)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # Resonant temple gong swell: blooming metallic noise shimmer into warm triangle undertone
+        t_tri = np.linspace(0, dur, int(dur * SR))
+        f_drop = 110.0 * np.exp(-8.0 * t_tri) + 55.0
+        tri_sig = 2.0 * np.abs(2.0 * ((np.cumsum(f_drop)/SR) % 1.0 - 0.5)) - 1.0
+        tri = np.repeat((tri_sig * np.exp(-4.2 * t_tri))[:, None], 2, axis=1) * 0.85
+        crash = synth_8bit_noise(0.35, period=20) * 0.55
+        square_shimmer = synth_8bit_pulse(110.0, duration_s=1.2, duty=0.125) * 0.35
+        dry = mix_tracks(tri, crash, square_shimmer)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        # Colossal 8-bit boss-battle tam-tam gong: deep seismic sweep + shimmering wash
+        t_tri = np.linspace(0, dur, int(dur * SR))
+        f_drop = 140.0 * np.exp(-6.0 * t_tri) + 48.0
+        tri_sig = 2.0 * np.abs(2.0 * ((np.cumsum(f_drop)/SR) % 1.0 - 0.5)) - 1.0
+        tri = np.repeat((tri_sig * np.exp(-3.5 * t_tri))[:, None], 2, axis=1) * 0.90
+        crash1 = synth_8bit_noise(0.45, period=16) * 0.60
+        crash2 = synth_8bit_noise(0.60, period=28) * 0.40
+        sq1 = synth_8bit_pulse(96.0, duration_s=1.8, duty=0.125) * 0.35
+        sq2 = synth_8bit_pulse(144.0, duration_s=1.7, duty=0.25) * 0.30
+        dry = mix_tracks(tri, crash1, crash2, sq1, sq2)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+# 25. 8-Bit Tibetan Tingsha Chimes
+def generate_8bit_tingsha(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # High crystalline 2A03 ping at 2637Hz (12.5% duty)
+        p1 = synth_8bit_pulse(2637.02, duration_s=0.85, duty=0.125) * 0.75
+        p2 = synth_8bit_pulse(2644.00, duration_s=0.85, duty=0.125) * 0.70 # binaural beating
+        dry = mix_tracks(p1, p2)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        # Dual-tingsha strike with gentle 6Hz beating and floating triangle base
+        p1 = synth_8bit_pulse(2637.02, duration_s=1.2, duty=0.125) * 0.70
+        p2 = synth_8bit_pulse(2643.00, duration_s=1.2, duty=0.125) * 0.65
+        p3 = synth_8bit_pulse(3951.07, duration_s=1.0, duty=0.125) * 0.40
+        tri = synth_8bit_triangle(659.25, duration_s=1.1) * 0.35
+        dry = mix_tracks(p1, p2, p3, tri)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        # Celestial chiptune meditation bell cascade
+        tones = [1975.53, 2637.02, 3135.96, 3951.07, 5274.04]
+        layers = []
+        for i, f in enumerate(tones):
+            sig1 = synth_8bit_pulse(f, duration_s=1.8 - i*0.05, duty=0.125) * 0.55
+            sig2 = synth_8bit_pulse(f + 5.0, duration_s=1.8 - i*0.05, duty=0.125) * 0.50
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.04 * SR)
+            t_mix = mix_tracks(sig1, sig2)
+            p[st:st + len(t_mix)] = t_mix[:min(len(t_mix), len(p) - st)]
+            layers.append(p)
+        tri = synth_8bit_triangle(329.63, duration_s=1.8) * 0.40
+        dry = mix_tracks(mix_tracks(*layers), tri)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+
+# 26. 8-Bit Indonesian Gamelan
+def generate_8bit_gamelan(style='ps5'):
+    slendro = [261.63, 293.66, 349.23, 392.00, 466.16, 523.25] # C, D, F, G, Bb, C
+    if style == 'ps4':
+        dur = 0.95
+        # Snappy 8-bit bronze pot strike with wooden mallet transient
+        p1 = synth_8bit_pulse(349.23, duration_s=0.80, duty=0.5) * 0.75
+        p2 = synth_8bit_pulse(523.25, duration_s=0.75, duty=0.25) * 0.65
+        click = synth_8bit_noise(0.02, period=18) * 0.45
+        dry = mix_tracks(p1, p2, click)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # Interlocking Slendro chiptune run with resonant percussive decay
+        layers = []
+        for i, f in enumerate(slendro[:5]):
+            sig = synth_8bit_pulse(f, duration_s=1.0 - i*0.03, duty=0.5)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.035 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.6
+            layers.append(p)
+        bass = synth_8bit_triangle(130.81, duration_s=1.1) * 0.6
+        dry = mix_tracks(mix_tracks(*layers), bass)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        # Celebratory Gamelan royal festival fanfare: rapid interlocking polyrhythms
+        full_slendro = [130.81, 174.61, 261.63, 293.66, 349.23, 392.00, 466.16, 523.25, 587.33, 698.46]
+        layers = []
+        for i, f in enumerate(full_slendro):
+            sig = synth_8bit_pulse(f, duration_s=1.6 - i*0.03, duty=0.25)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.032 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        arp = synth_8bit_fast_arp([349.23, 466.16, 523.25, 698.46], duration_s=1.5, speed_hz=50.0, duty=0.5) * 0.45
+        aligned_arp = np.zeros((int(dur * SR), 2))
+        st_arp = int(0.32 * SR)
+        aligned_arp[st_arp:st_arp + len(arp)] = arp[:min(len(arp), len(aligned_arp) - st_arp)]
+        bass = synth_8bit_triangle(130.81, duration_s=1.8) * 0.70
+        snare = synth_8bit_noise(0.08, period=24) * 0.40
+        dry = mix_tracks(mix_tracks(*layers), aligned_arp, bass, snare)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+# 27. 8-Bit Tubular Orchestral Bells
+def generate_8bit_tubular(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # Crisp 8-bit orchestral bell stab on C5 with octave overtone
+        p1 = synth_8bit_pulse(523.25, duration_s=0.85, duty=0.5) * 0.75
+        p2 = synth_8bit_pulse(1046.50, duration_s=0.80, duty=0.25) * 0.55
+        p3 = synth_8bit_pulse(1567.98, duration_s=0.75, duty=0.125) * 0.35
+        dry = mix_tracks(p1, p2, p3)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # Westminster-style chiptune bell melody (E5 -> C5 -> D5 -> G4)
+        melody = [(0.0, 659.25), (0.08, 523.25), (0.16, 587.33), (0.24, 392.00)]
+        layers = []
+        for st_s, f in melody:
+            sig = synth_8bit_pulse(f, duration_s=1.0 - st_s, duty=0.5)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(st_s * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.6
+            layers.append(p)
+        bass = synth_8bit_triangle(196.00, duration_s=1.1) * 0.55
+        dry = mix_tracks(mix_tracks(*layers), bass)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        # Triumphant symphonic chiptune victory carillon
+        carillon = [
+            (0.00, 523.25), (0.07, 659.25), (0.14, 783.99), (0.21, 1046.50),
+            (0.28, 1318.51), (0.35, 1567.98), (0.42, 2093.00)
+        ]
+        layers = []
+        for st_s, f in carillon:
+            p1 = synth_8bit_pulse(f, duration_s=1.6 - st_s, duty=0.5) * 0.55
+            p2 = synth_8bit_pulse(f * 2.0, duration_s=1.5 - st_s, duty=0.25) * 0.35
+            mix_bell = mix_tracks(p1, p2)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(st_s * SR)
+            p[st:st + len(mix_bell)] = mix_bell[:min(len(mix_bell), len(p) - st)]
+            layers.append(p)
+        bass = synth_8bit_triangle(130.81, duration_s=1.8) * 0.70
+        snare = synth_8bit_noise(0.12, period=32) * 0.45
+        dry = mix_tracks(mix_tracks(*layers), bass, snare)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+# 28. 8-Bit Steel Glockenspiel
+def generate_8bit_glock(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # Snappy 3-note glockenspiel flourish with bright 50% pulse sparkle
+        notes = [1318.51, 1661.22, 1975.53] # E6, G#6, B6
+        layers = []
+        for i, f in enumerate(notes):
+            sig = synth_8bit_pulse(f, duration_s=0.75 - i*0.02, duty=0.5)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.025 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.65
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        # Shimmering steel bell arpeggio with high harmonic sparkle
+        scale = [987.77, 1318.51, 1661.22, 1975.53, 2637.02]
+        layers = []
+        for i, f in enumerate(scale):
+            sig = synth_8bit_pulse(f, duration_s=1.1 - i*0.03, duty=0.5)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.03 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        # Fairy-tale retro victory fanfare with glockenspiel runs and bassline
+        run = [987.77, 1318.51, 1661.22, 1975.53, 2637.02, 3322.44, 3951.07]
+        layers = []
+        for i, f in enumerate(run):
+            sig = synth_8bit_pulse(f, duration_s=1.6 - i*0.03, duty=0.5)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.03 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.50
+            layers.append(p)
+        arp = synth_8bit_fast_arp([1975.53, 2637.02, 3322.44, 3951.07], duration_s=1.5, speed_hz=60.0, duty=0.25) * 0.4
+        aligned_arp = np.zeros((int(dur * SR), 2))
+        st_arp = int(0.24 * SR)
+        aligned_arp[st_arp:st_arp + len(arp)] = arp[:min(len(arp), len(aligned_arp) - st_arp)]
+        bass = synth_8bit_triangle(329.63, duration_s=1.8) * 0.60
+        dry = mix_tracks(mix_tracks(*layers), aligned_arp, bass)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+# 29. 8-Bit Glass & Metal Wind Chimes
+def generate_8bit_windchimes(style='ps5'):
+    cluster = [1760.00, 2093.00, 2637.02, 3135.96, 3520.00, 4186.01]
+    if style == 'ps4':
+        dur = 0.95
+        # Quick 4-ping wind chime flutter
+        layers = []
+        for i, f in enumerate(cluster[:4]):
+            sig = synth_8bit_pulse(f, duration_s=0.75 - i*0.02, duty=0.125)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.02 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.65
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # Cascading multi-pitch cluster with spatial stereo delay
+        layers = []
+        for i, f in enumerate(cluster):
+            sig = synth_8bit_pulse(f, duration_s=1.1 - i*0.03, duty=0.125)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.025 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        # Enchanted wind chime storm: swirling celestial chiptune pings
+        layers = []
+        for i in range(12):
+            f = cluster[i % len(cluster)] * (1.0 + (i // len(cluster)) * 0.25)
+            sig = synth_8bit_pulse(f, duration_s=1.6 - i*0.03, duty=0.125)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.022 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.45
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+
+# 30. 8-Bit Zen Rin Singing Gong
+def generate_8bit_rin(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # Pure 440Hz triangle strike with subtle high pulse ring
+        tri = synth_8bit_triangle(440.0, duration_s=0.85) * 0.8
+        pulse = synth_8bit_pulse(880.0, duration_s=0.80, duty=0.25) * 0.4
+        dry = mix_tracks(tri, pulse)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        # Resonant Rin gong strike with singing 3Hz tremolo pulsation
+        t_tri = np.linspace(0, dur, int(dur * SR))
+        tri_sig = 2.0 * np.abs(2.0 * ((t_tri * 440.0) % 1.0 - 0.5)) - 1.0
+        trem = 0.8 + 0.2 * np.sin(2 * np.pi * 3.5 * t_tri)
+        tri = np.repeat((tri_sig * np.exp(-3.5 * t_tri) * trem)[:, None], 2, axis=1) * 0.8
+        pulse = synth_8bit_pulse(880.0, duration_s=1.2, duty=0.25) * 0.4
+        dry = mix_tracks(tri, pulse)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        # Deep meditative chiptune gong ceremony: resonant drone and celestial pulse
+        t_tri = np.linspace(0, dur, int(dur * SR))
+        tri_sig = 2.0 * np.abs(2.0 * ((t_tri * 220.0) % 1.0 - 0.5)) - 1.0
+        trem = 0.85 + 0.15 * np.sin(2 * np.pi * 3.0 * t_tri)
+        tri = np.repeat((tri_sig * np.exp(-2.8 * t_tri) * trem)[:, None], 2, axis=1) * 0.85
+        p1 = synth_8bit_pulse(440.0, duration_s=1.8, duty=0.25) * 0.45
+        p2 = synth_8bit_pulse(880.0, duration_s=1.7, duty=0.125) * 0.35
+        p3 = synth_8bit_pulse(1320.0, duration_s=1.5, duty=0.125) * 0.25
+        dry = mix_tracks(tri, p1, p2, p3)
+        return master_sound(dry, target_duration=dur, target_rms_db=-16.0)
+
+# 31. 8-Bit Nautical Ship's Bell
+def generate_8bit_ship(style='ps5'):
+    if style == 'ps4':
+        dur = 0.95
+        # Crisp single ship's bell strike with clapper click
+        p1 = synth_8bit_pulse(1567.98, duration_s=0.85, duty=0.125) * 0.8
+        click = synth_8bit_noise(0.015, period=16) * 0.5
+        dry = mix_tracks(p1, click)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        # Classic naval double-strike ("ding-ding", 70ms apart)
+        p1 = synth_8bit_pulse(1567.98, duration_s=1.1, duty=0.125) * 0.75
+        p2 = synth_8bit_pulse(1567.98, duration_s=1.0, duty=0.125) * 0.75
+        p = np.zeros((int(dur * SR), 2))
+        p[:len(p1)] += p1
+        st = int(0.075 * SR)
+        p[st:st + len(p2)] += p2
+        click = synth_8bit_noise(0.02, period=16) * 0.4
+        dry = mix_tracks(p, click)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        # Royal maritime salute: four rhythmic double-strikes ringing out
+        hits = [0.0, 0.075, 0.22, 0.295]
+        layers = []
+        for st_s in hits:
+            sig = synth_8bit_pulse(1567.98, duration_s=1.6 - st_s, duty=0.125) * 0.65
+            p = np.zeros((int(dur * SR), 2))
+            st = int(st_s * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)]
+            layers.append(p)
+        overtone = synth_8bit_pulse(3135.96, duration_s=1.5, duty=0.125) * 0.40
+        aligned_over = np.zeros((int(dur * SR), 2))
+        st_o = int(0.295 * SR)
+        aligned_over[st_o:st_o + len(overtone)] = overtone[:min(len(overtone), len(aligned_over) - st_o)]
+        dry = mix_tracks(mix_tracks(*layers), aligned_over)
+        return master_sound(dry, target_duration=dur, target_rms_db=-15.5)
+
+
+# ---------------------------------------------------------------------------
+# The 10 Non-8-Bit Acoustic Bell & Gong Instrument Variations (Physical Modal DSP)
+# ---------------------------------------------------------------------------
+
+# 32. Imperial Chinese Bianzhong (Acoustic)
+def generate_bell_china(style='ps5'):
+    bian_modes = [(1.0, 1.0, 2.4), (1.19, 0.75, 3.2), (2.0, 0.45, 4.0), (2.75, 0.35, 5.0), (3.6, 0.2, 6.5)]
+    scale = [392.00, 440.00, 523.25, 587.33, 659.25]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.8, tone_hz=6000, pre_delay_ms=8, seed=3201)
+        b1 = synth_modal_bar(523.25, duration_s=0.85, modes=bian_modes, decay_mult=0.95)
+        dry = b1
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.22, width=1.10, dry_level=0.82), target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.4, tone_hz=5800, pre_delay_ms=10, seed=3202)
+        layers = []
+        for i, f in enumerate(scale[:4]):
+            sig = synth_modal_bar(f, duration_s=1.2 - i*0.03, modes=bian_modes, decay_mult=1.1)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.035 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.6
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.30, width=1.38, dry_level=0.78), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.2, tone_hz=5800, pre_delay_ms=14, seed=3203)
+        full_bian = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99]
+        layers = []
+        for i, f in enumerate(full_bian):
+            sig = synth_modal_bar(f, duration_s=1.8 - i*0.04, modes=bian_modes, decay_mult=1.3)
+            pan = -0.55 + 1.1 * (i / (len(full_bian) - 1))
+            panned = np.zeros_like(sig)
+            panned[:, 0] = sig[:, 0] * (1.0 - pan) * 0.5
+            panned[:, 1] = sig[:, 1] * (1.0 + pan) * 0.5
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.03 * SR)
+            p[st:st + len(panned)] = panned[:min(len(panned), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.36, width=1.60, dry_level=0.74), target_duration=dur, target_rms_db=-16.0)
+
+# 33. Great Cathedral Campanile Bell (Acoustic)
+def generate_bell_church(style='ps5'):
+    campanile_modes = [
+        (0.500, 0.85, 1.8), (1.000, 1.00, 2.5), (1.189, 0.65, 3.2),
+        (1.498, 0.55, 3.8), (2.000, 0.80, 4.5), (2.750, 0.30, 6.0)
+    ]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.9, tone_hz=5000, pre_delay_ms=10, seed=3301)
+        b = synth_modal_bar(261.63, duration_s=0.85, modes=campanile_modes, decay_mult=0.95)
+        dry = b
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.25, width=1.10, dry_level=0.80), target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.5, tone_hz=4800, pre_delay_ms=14, seed=3302)
+        b1 = synth_modal_bar(196.00, duration_s=1.3, modes=campanile_modes, decay_mult=1.2)
+        b2 = synth_modal_bar(261.63, duration_s=1.2, modes=campanile_modes, decay_mult=1.1) * 0.8
+        dry = mix_tracks(b1, b2)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.32, width=1.40, dry_level=0.76), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.25
+        ir = generate_diffuse_reverb_ir(decay_s=2.3, tone_hz=4600, pre_delay_ms=18, seed=3303)
+        b_root = synth_modal_bar(130.81, duration_s=2.2, modes=campanile_modes, decay_mult=1.5)
+        b_fifth = synth_modal_bar(196.00, duration_s=2.0, modes=campanile_modes, decay_mult=1.4) * 0.8
+        b_oct = synth_modal_bar(261.63, duration_s=1.8, modes=campanile_modes, decay_mult=1.3) * 0.75
+        dry = mix_tracks(b_root, b_fifth, b_oct)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.38, width=1.60, dry_level=0.74), target_duration=dur, target_rms_db=-16.0)
+
+# 34. Deep Temple Chau Gong & Tam-Tam (Acoustic)
+def generate_bell_gong(style='ps5'):
+    gong_modes = [
+        (1.00, 1.00, 2.0), (1.42, 0.75, 2.8), (1.95, 0.80, 3.5),
+        (2.61, 0.65, 4.5), (3.30, 0.50, 5.5), (4.80, 0.40, 7.0)
+    ]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.85, tone_hz=4800, pre_delay_ms=8, seed=3401)
+        g = synth_modal_bar(110.00, duration_s=0.85, modes=gong_modes, decay_mult=0.95)
+        dry = g
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.22, width=1.10, dry_level=0.82), target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.4, tone_hz=4600, pre_delay_ms=12, seed=3402)
+        g1 = synth_modal_bar(82.41, duration_s=1.3, modes=gong_modes, decay_mult=1.2)
+        g2 = synth_modal_bar(123.47, duration_s=1.2, modes=gong_modes, decay_mult=1.1) * 0.75
+        dry = mix_tracks(g1, g2)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.30, width=1.40, dry_level=0.78), target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.2, tone_hz=4500, pre_delay_ms=16, seed=3403)
+        g_deep = synth_modal_bar(65.41, duration_s=2.1, modes=gong_modes, decay_mult=1.5)
+        g_mid = synth_modal_bar(98.00, duration_s=2.0, modes=gong_modes, decay_mult=1.4) * 0.8
+        g_high = synth_modal_bar(146.83, duration_s=1.8, modes=gong_modes, decay_mult=1.3) * 0.7
+        dry = mix_tracks(g_deep, g_mid, g_high)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.38, width=1.60, dry_level=0.74), target_duration=dur, target_rms_db=-15.5)
+
+# 35. Tibetan Tingsha Prayer Bells (Acoustic)
+def generate_bell_tingsha(style='ps5'):
+    tingsha_modes = [(1.0, 1.0, 2.0), (2.05, 0.4, 3.5), (3.75, 0.15, 6.0)]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.9, tone_hz=8500, pre_delay_ms=6, seed=3501)
+        t1 = synth_modal_bar(2637.02, duration_s=0.85, modes=tingsha_modes, decay_mult=1.0)
+        dry = t1
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.20, width=1.15, dry_level=0.82), target_duration=dur, target_rms_db=-16.0)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.4, tone_hz=8500, pre_delay_ms=8, seed=3502)
+        t1 = synth_modal_bar(2637.02, duration_s=1.25, modes=tingsha_modes, decay_mult=1.2)
+        t2 = synth_modal_bar(2643.00, duration_s=1.25, modes=tingsha_modes, decay_mult=1.2) * 0.9 # acoustic beating
+        dry = mix_tracks(t1 * 0.55, t2 * 0.55)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.28, width=1.45, dry_level=0.78), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.2, tone_hz=8500, pre_delay_ms=12, seed=3503)
+        t1 = synth_modal_bar(2637.02, duration_s=1.9, modes=tingsha_modes, decay_mult=1.4)
+        t2 = synth_modal_bar(2643.00, duration_s=1.9, modes=tingsha_modes, decay_mult=1.4) * 0.85
+        t3 = synth_modal_bar(3951.07, duration_s=1.6, modes=tingsha_modes, decay_mult=1.3) * 0.60
+        dry = mix_tracks(t1 * 0.5, t2 * 0.5, t3)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.35, width=1.60, dry_level=0.75), target_duration=dur, target_rms_db=-16.0)
+
+# 36. Javanese Gamelan Bronze Metallophone (Acoustic)
+def generate_bell_gamelan(style='ps5'):
+    gamelan_modes = [(1.0, 1.0, 2.8), (2.78, 0.45, 4.5), (5.4, 0.20, 7.5)]
+    pelog = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.8, tone_hz=6200, pre_delay_ms=8, seed=3601)
+        b1 = synth_modal_bar(392.00, duration_s=0.85, modes=gamelan_modes, decay_mult=0.95)
+        dry = b1
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.22, width=1.10, dry_level=0.82), target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.35, tone_hz=6000, pre_delay_ms=10, seed=3602)
+        layers = []
+        for i, f in enumerate(pelog[:4]):
+            sig = synth_modal_bar(f, duration_s=1.2 - i*0.03, modes=gamelan_modes, decay_mult=1.1)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.035 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.6
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.28, width=1.38, dry_level=0.78), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.1, tone_hz=6000, pre_delay_ms=14, seed=3603)
+        layers = []
+        for i, f in enumerate(pelog):
+            sig = synth_modal_bar(f, duration_s=1.8 - i*0.04, modes=gamelan_modes, decay_mult=1.3)
+            pan = -0.5 + 1.0 * (i / (len(pelog) - 1))
+            panned = np.zeros_like(sig)
+            panned[:, 0] = sig[:, 0] * (1.0 - pan) * 0.5
+            panned[:, 1] = sig[:, 1] * (1.0 + pan) * 0.5
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.032 * SR)
+            p[st:st + len(panned)] = panned[:min(len(panned), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.35, width=1.55, dry_level=0.75), target_duration=dur, target_rms_db=-16.0)
+
+# 37. Symphonic Tubular Carillon Chimes (Acoustic)
+def generate_bell_tubular(style='ps5'):
+    tubular_modes = [(1.0, 1.0, 2.5), (2.76, 0.60, 3.8), (5.4, 0.35, 5.5), (8.9, 0.15, 7.5)]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.85, tone_hz=6500, pre_delay_ms=8, seed=3701)
+        ch = synth_modal_bar(523.25, duration_s=0.85, modes=tubular_modes, decay_mult=0.95)
+        dry = ch
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.22, width=1.10, dry_level=0.82), target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.4, tone_hz=6200, pre_delay_ms=10, seed=3702)
+        ch1 = synth_modal_bar(392.00, duration_s=1.2, modes=tubular_modes, decay_mult=1.2)
+        ch2 = synth_modal_bar(523.25, duration_s=1.1, modes=tubular_modes, decay_mult=1.1) * 0.85
+        ch3 = synth_modal_bar(659.25, duration_s=1.0, modes=tubular_modes, decay_mult=1.0) * 0.75
+        dry = mix_tracks(ch1, ch2, ch3)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.30, width=1.40, dry_level=0.78), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.25
+        ir = generate_diffuse_reverb_ir(decay_s=2.2, tone_hz=6200, pre_delay_ms=14, seed=3703)
+        chimes = [
+            (0.00, 261.63), (0.06, 392.00), (0.12, 523.25),
+            (0.18, 659.25), (0.24, 783.99), (0.30, 1046.50)
+        ]
+        layers = []
+        for st_s, f in chimes:
+            sig = synth_modal_bar(f, duration_s=1.8 - st_s, modes=tubular_modes, decay_mult=1.3)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(st_s * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.36, width=1.60, dry_level=0.75), target_duration=dur, target_rms_db=-16.0)
+
+# 38. Orchestral Steel Glockenspiel (Acoustic)
+def generate_bell_glock(style='ps5'):
+    glock_modes = [(1.0, 1.0, 3.2), (2.75, 0.40, 5.0), (5.4, 0.15, 8.0)]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.8, tone_hz=7800, pre_delay_ms=6, seed=3801)
+        g = synth_modal_bar(1567.98, duration_s=0.85, modes=glock_modes, decay_mult=0.95)
+        dry = g
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.20, width=1.15, dry_level=0.82), target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.35, tone_hz=7500, pre_delay_ms=8, seed=3802)
+        notes = [1046.50, 1318.51, 1567.98, 2093.00]
+        layers = []
+        for i, f in enumerate(notes):
+            sig = synth_modal_bar(f, duration_s=1.1 - i*0.03, modes=glock_modes, decay_mult=1.1)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.03 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.28, width=1.40, dry_level=0.78), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.1, tone_hz=7500, pre_delay_ms=12, seed=3803)
+        run = [1046.50, 1318.51, 1567.98, 2093.00, 2637.02, 3135.96]
+        layers = []
+        for i, f in enumerate(run):
+            sig = synth_modal_bar(f, duration_s=1.8 - i*0.04, modes=glock_modes, decay_mult=1.3)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.028 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.50
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.35, width=1.55, dry_level=0.75), target_duration=dur, target_rms_db=-16.0)
+
+# 39. Celestial Brass & Crystal Wind Chimes (Acoustic)
+def generate_bell_windchimes(style='ps5'):
+    chime_modes = [(1.0, 1.0, 2.6), (2.75, 0.35, 4.5), (5.2, 0.15, 7.5)]
+    cluster = [1318.51, 1661.22, 1975.53, 2637.02, 3322.44, 3951.07]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.9, tone_hz=8200, pre_delay_ms=6, seed=3901)
+        layers = []
+        for i, f in enumerate(cluster[:4]):
+            sig = synth_modal_bar(f, duration_s=0.8 - i*0.02, modes=chime_modes, decay_mult=0.95)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.02 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.6
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.24, width=1.20, dry_level=0.80), target_duration=dur, target_rms_db=-16.0)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.4, tone_hz=8000, pre_delay_ms=10, seed=3902)
+        layers = []
+        for i, f in enumerate(cluster):
+            sig = synth_modal_bar(f, duration_s=1.2 - i*0.03, modes=chime_modes, decay_mult=1.2)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.025 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.55
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.30, width=1.45, dry_level=0.76), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.2, tone_hz=8000, pre_delay_ms=14, seed=3903)
+        layers = []
+        for i in range(12):
+            f = cluster[i % len(cluster)] * (1.0 + (i // len(cluster)) * 0.15)
+            sig = synth_modal_bar(f, duration_s=1.8 - i*0.03, modes=chime_modes, decay_mult=1.4)
+            p = np.zeros((int(dur * SR), 2))
+            st = int(i * 0.022 * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)] * 0.45
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.38, width=1.60, dry_level=0.74), target_duration=dur, target_rms_db=-16.0)
+
+# 40. Japanese Buddhist Rin Singing Bowl (Acoustic)
+def generate_bell_rin(style='ps5'):
+    rin_modes = [(1.0, 1.0, 2.0), (2.05, 0.45, 3.5), (3.8, 0.20, 6.0)]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.9, tone_hz=5200, pre_delay_ms=8, seed=4001)
+        r = synth_modal_bar(440.00, duration_s=0.85, modes=rin_modes, decay_mult=1.0)
+        dry = r
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.22, width=1.10, dry_level=0.82), target_duration=dur, target_rms_db=-15.5)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.4, tone_hz=5000, pre_delay_ms=12, seed=4002)
+        r1 = synth_modal_bar(329.63, duration_s=1.25, modes=rin_modes, decay_mult=1.2)
+        r2 = synth_modal_bar(493.88, duration_s=1.20, modes=rin_modes, decay_mult=1.1) * 0.75
+        dry = mix_tracks(r1, r2)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.30, width=1.38, dry_level=0.78), target_duration=dur, target_rms_db=-16.0)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.2, tone_hz=4800, pre_delay_ms=16, seed=4003)
+        r1 = synth_modal_bar(220.00, duration_s=2.0, modes=rin_modes, decay_mult=1.5)
+        r2 = synth_modal_bar(329.63, duration_s=1.8, modes=rin_modes, decay_mult=1.4) * 0.8
+        r3 = synth_modal_bar(440.00, duration_s=1.7, modes=rin_modes, decay_mult=1.3) * 0.7
+        dry = mix_tracks(r1, r2, r3)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.36, width=1.60, dry_level=0.75), target_duration=dur, target_rms_db=-16.0)
+
+# 41. High-Tensile Maritime Ship's Bell (Acoustic)
+def generate_bell_ship(style='ps5'):
+    ship_modes = [(1.0, 1.0, 2.2), (2.1, 0.65, 3.5), (3.8, 0.35, 5.5), (6.2, 0.15, 8.0)]
+    if style == 'ps4':
+        dur = 0.95
+        ir = generate_diffuse_reverb_ir(decay_s=0.85, tone_hz=6800, pre_delay_ms=6, seed=4101)
+        b = synth_modal_bar(1567.98, duration_s=0.85, modes=ship_modes, decay_mult=0.95)
+        dry = b
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.20, width=1.10, dry_level=0.82), target_duration=dur, target_rms_db=-15.0)
+    elif style == 'ps5':
+        dur = 1.40
+        ir = generate_diffuse_reverb_ir(decay_s=1.35, tone_hz=6500, pre_delay_ms=8, seed=4102)
+        b1 = synth_modal_bar(1567.98, duration_s=1.1, modes=ship_modes, decay_mult=1.1)
+        b2 = synth_modal_bar(1567.98, duration_s=1.0, modes=ship_modes, decay_mult=1.1)
+        p = np.zeros((int(dur * SR), 2))
+        p[:len(b1)] += b1 * 0.7
+        st = int(0.075 * SR)
+        p[st:st + len(b2)] += b2 * 0.75
+        dry = p
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.28, width=1.35, dry_level=0.78), target_duration=dur, target_rms_db=-15.5)
+    else: # platinum
+        dur = 2.20
+        ir = generate_diffuse_reverb_ir(decay_s=2.1, tone_hz=6500, pre_delay_ms=12, seed=4103)
+        hits = [0.0, 0.075, 0.22, 0.295]
+        layers = []
+        for st_s in hits:
+            sig = synth_modal_bar(1567.98, duration_s=1.6 - st_s, modes=ship_modes, decay_mult=1.2) * 0.65
+            p = np.zeros((int(dur * SR), 2))
+            st = int(st_s * SR)
+            p[st:st + len(sig)] = sig[:min(len(sig), len(p) - st)]
+            layers.append(p)
+        dry = mix_tracks(*layers)
+        return master_sound(apply_convolution_hall(dry, ir, mix_level=0.35, width=1.55, dry_level=0.75), target_duration=dur, target_rms_db=-15.5)
+
+
+# ---------------------------------------------------------------------------
+# Metadata Registry & Multi-Profile Suite (41 Total Mood Suites)
 # ---------------------------------------------------------------------------
 
 MOOD_DEFINITIONS = [
-    # Original 10 DNA Moods
-    ("epic", "Epic", "Cinematic Orchestral", "#e5a93c", ["brass", "timpani", "cinematic", "heroic"], generate_epic),
-    ("scifi", "Sci-Fi", "Futuristic Cybernetic", "#38bdf8", ["fm-synth", "cyber", "holographic", "crystal"], generate_scifi),
-    ("fantasy", "Fantasiac", "Enchanted Ethereal", "#c084fc", ["glass", "celesta", "fairy-dust", "lydian"], generate_fantasy),
-    ("medieval", "Medieval", "Royal Castle Courtyard", "#f59e0b", ["sovereign-herald", "royal-carillon", "cathedral", "castle"], generate_medieval),
-    ("religious", "Religious", "Cathedral Sanctuary", "#facc15", ["cathedral-bell", "choir", "organ", "sacred"], generate_religious),
-    ("arcaic", "Arcaic", "Ancient Mediterranean", "#d97706", ["bronze-bowl", "lyre", "ancient", "phrygian"], generate_arcaic),
-    ("guitar", "Guitar", "Acoustic Flageolet", "#fb923c", ["harmonics", "acoustic", "flageolet", "spruce"], generate_guitar),
-    ("harp", "Harp", "Celtic Concert Strings", "#a7f3d0", ["plucked-strings", "celtic", "arpeggio", "concert-hall"], generate_harp),
-    ("drums", "Drums", "Cinematic Percussion", "#ef4444", ["taiko", "rimshot", "sub-impact", "cinematic-percussion"], generate_drums),
-    ("afric_ancient", "Afric Ancient", "Earthen African Heritage", "#10b981", ["mbira", "kalimba", "balafon", "udu-clay"], generate_afric_ancient),
+    # 1-10: Original DNA Moods
+    ("epic", "Epic", "Cinematic Orchestral", "#e5a93c", ["brass", "timpani", "cinematic", "heroic"], "original", generate_epic),
+    ("scifi", "Sci-Fi", "Futuristic Cybernetic", "#38bdf8", ["fm-synth", "cyber", "holographic", "crystal"], "scifi", generate_scifi),
+    ("fantasy", "Fantasiac", "Enchanted Ethereal", "#c084fc", ["glass", "celesta", "fairy-dust", "lydian"], "original", generate_fantasy),
+    ("medieval", "Medieval", "Royal Castle Courtyard", "#f59e0b", ["sovereign-herald", "royal-carillon", "cathedral", "castle"], "original", generate_medieval),
+    ("religious", "Religious", "Cathedral Sanctuary", "#facc15", ["cathedral-bell", "choir", "organ", "sacred"], "original", generate_religious),
+    ("arcaic", "Arcaic", "Ancient Mediterranean", "#d97706", ["bronze-bowl", "lyre", "ancient", "phrygian"], "original", generate_arcaic),
+    ("guitar", "Guitar", "Acoustic Flageolet", "#fb923c", ["harmonics", "acoustic", "flageolet", "spruce"], "original", generate_guitar),
+    ("harp", "Harp", "Celtic Concert Strings", "#a7f3d0", ["plucked-strings", "celtic", "arpeggio", "concert-hall"], "original", generate_harp),
+    ("drums", "Drums", "Cinematic Percussion", "#ef4444", ["taiko", "rimshot", "sub-impact", "cinematic-percussion"], "original", generate_drums),
+    ("afric_ancient", "Afric Ancient", "Earthen African Heritage", "#10b981", ["mbira", "kalimba", "balafon", "udu-clay"], "original", generate_afric_ancient),
 
-    # 5 Expanded Favorite Variations
-    ("epic_fanfare", "Cinematic Orchestral II", "Sovereign Brass Fanfare", "#f59e0b", ["brass-choir", "imperial", "fanfare", "timpani"], generate_epic_fanfare),
-    ("fantasy_musicbox", "Enchanted Ethereal II", "Starlight Music Box", "#e879f9", ["music-box", "glass-harmonica", "starlight", "celeste"], generate_fantasy_musicbox),
-    ("guitar_12string", "Acoustic Flageolet II", "12-String Resonance", "#fdba74", ["12-string", "double-course", "spanish", "harmonics"], generate_guitar_12string),
-    ("harp_bardic", "Celtic Concert Strings II", "Bardic High Flourish", "#6ee7b7", ["wire-harp", "gaelic", "pentatonic", "bardic"], generate_harp_bardic),
-    ("afric_kora", "Earthen African Heritage II", "Sacred Kora & Gourd", "#34d399", ["kora", "griot", "calabash", "west-african"], generate_afric_kora),
+    # 11-15: Expanded Favorite Variations
+    ("epic_fanfare", "Cinematic Orchestral II", "Sovereign Brass Fanfare", "#f59e0b", ["brass-choir", "imperial", "fanfare", "timpani"], "expanded", generate_epic_fanfare),
+    ("fantasy_musicbox", "Enchanted Ethereal II", "Starlight Music Box", "#e879f9", ["music-box", "glass-harmonica", "starlight", "celeste"], "expanded", generate_fantasy_musicbox),
+    ("guitar_12string", "Acoustic Flageolet II", "12-String Resonance", "#fdba74", ["12-string", "double-course", "spanish", "harmonics"], "expanded", generate_guitar_12string),
+    ("harp_bardic", "Celtic Concert Strings II", "Bardic High Flourish", "#6ee7b7", ["wire-harp", "gaelic", "pentatonic", "bardic"], "expanded", generate_harp_bardic),
+    ("afric_kora", "Earthen African Heritage II", "Sacred Kora & Gourd", "#34d399", ["kora", "griot", "calabash", "west-african"], "expanded", generate_afric_kora),
 
-    # Space & Robotics
-    ("space_galaxy", "Space Galaxy", "Cosmic Nebula & Pulsars", "#818cf8", ["space", "nebula", "pulsar", "dark-matter"], generate_space_galaxy),
-    ("robotic_droid", "Robotic I: Cyber Droid", "Light Companion Droid", "#22d3ee", ["servo-clicks", "vocoder", "companion-droid", "telemetry"], generate_robotic_droid),
-    ("robotic_quantum", "Robotic II: Quantum AI Core", "Neural Supercomputer", "#06b6d4", ["laser-optic", "quantum-phase", "pure-sine", "singularity"], generate_robotic_quantum),
-    ("robotic_mech", "Robotic III: Heavy Mech", "Titan Industrial Mech", "#64748b", ["hydraulic-purge", "titanium-clamp", "seismic-sub", "reactor"], generate_robotic_mech),
+    # 16-19: Space & Robotics
+    ("space_galaxy", "Space Galaxy", "Cosmic Nebula & Pulsars", "#818cf8", ["space", "nebula", "pulsar", "dark-matter"], "scifi", generate_space_galaxy),
+    ("robotic_droid", "Robotic I: Cyber Droid", "Light Companion Droid", "#22d3ee", ["servo-clicks", "vocoder", "companion-droid", "telemetry"], "robotic", generate_robotic_droid),
+    ("robotic_quantum", "Robotic II: Quantum AI Core", "Neural Supercomputer", "#06b6d4", ["laser-optic", "quantum-phase", "pure-sine", "singularity"], "robotic", generate_robotic_quantum),
+    ("robotic_mech", "Robotic III: Heavy Mech", "Titan Industrial Mech", "#64748b", ["hydraulic-purge", "titanium-clamp", "seismic-sub", "reactor"], "robotic", generate_robotic_mech),
 
-    # Retro & Classic Gaming
-    ("retro_8bit", "8-Bit Retro Gaming", "NES 2A03 Chiptune", "#ec4899", ["nes", "chiptune", "square-wave", "8bit-victory"], generate_retro_8bit),
-    ("retro_16bit", "16-Bit Classic Gaming", "SNES / Genesis RPG Victory", "#a855f7", ["snes", "genesis", "fm-brass", "rpg-victory"], generate_retro_16bit),
+    # 20-21: Retro & Classic Gaming Foundations
+    ("retro_8bit", "8-Bit Retro Gaming", "NES 2A03 Chiptune", "#ec4899", ["nes", "chiptune", "square-wave", "8bit-victory"], "retro", generate_retro_8bit),
+    ("retro_16bit", "16-Bit Classic Gaming", "SNES / Genesis RPG Victory", "#a855f7", ["snes", "genesis", "fm-brass", "rpg-victory"], "retro", generate_retro_16bit),
+
+    # 22-31: The 10 8-Bit Bell Variations
+    ("8bit_china", "8-Bit China Bells", "NES 2A03 Bianzhong Chimes", "#f43f5e", ["8bit-bell", "china-bell", "bianzhong", "pentatonic"], "8bit-bells", generate_8bit_china),
+    ("8bit_church", "8-Bit Church Bell", "NES 2A03 Cathedral Campanile", "#e11d48", ["8bit-bell", "church-bell", "gothic", "triangle-bass"], "8bit-bells", generate_8bit_church),
+    ("8bit_gong", "8-Bit Temple Gong", "NES 2A03 Tam-Tam Crash", "#be123c", ["8bit-bell", "temple-gong", "tam-tam", "noise-sweep"], "8bit-bells", generate_8bit_gong),
+    ("8bit_tingsha", "8-Bit Tingsha Chimes", "NES 2A03 Tibetan Prayer Ping", "#fb7185", ["8bit-bell", "tingsha", "tibetan", "crystal-pulse"], "8bit-bells", generate_8bit_tingsha),
+    ("8bit_gamelan", "8-Bit Gamelan Bells", "NES 2A03 Bronze Pot Chimes", "#fda4af", ["8bit-bell", "gamelan", "indonesian", "slendro"], "8bit-bells", generate_8bit_gamelan),
+    ("8bit_tubular", "8-Bit Tubular Bells", "NES 2A03 Orchestral Carillon", "#f472b6", ["8bit-bell", "tubular-bells", "westminster", "chimes"], "8bit-bells", generate_8bit_tubular),
+    ("8bit_glock", "8-Bit Glockenspiel", "NES 2A03 Steel Bar Sparkle", "#ec4899", ["8bit-bell", "glockenspiel", "steel-bell", "sparkle"], "8bit-bells", generate_8bit_glock),
+    ("8bit_windchimes", "8-Bit Wind Chimes", "NES 2A03 Glass Breeze Cluster", "#db2777", ["8bit-bell", "wind-chimes", "cluster", "flutter"], "8bit-bells", generate_8bit_windchimes),
+    ("8bit_rin", "8-Bit Zen Rin Gong", "NES 2A03 Singing Bowl Drone", "#9d174d", ["8bit-bell", "rin-gong", "zen", "vibrato-drone"], "8bit-bells", generate_8bit_rin),
+    ("8bit_ship", "8-Bit Nautical Ship Bell", "NES 2A03 Maritime Double Strike", "#be185d", ["8bit-bell", "ship-bell", "nautical", "double-strike"], "8bit-bells", generate_8bit_ship),
+
+    # 32-41: The 10 Acoustic (Non-8-Bit) Physical Modal Bells
+    ("bell_china", "Imperial China Bells", "Acoustic Bianzhong Bronze", "#d97706", ["acoustic-bell", "bianzhong", "bronze-chime", "chinese-temple"], "acoustic-bells", generate_bell_china),
+    ("bell_church", "Cathedral Campanile", "Acoustic Great Church Bell", "#b45309", ["acoustic-bell", "cathedral", "campanile", "bronze-carillon"], "acoustic-bells", generate_bell_church),
+    ("bell_gong", "Temple Chau Gong", "Acoustic Orchestral Tam-Tam", "#92400e", ["acoustic-bell", "chau-gong", "tam-tam", "shimmer-wash"], "acoustic-bells", generate_bell_gong),
+    ("bell_tingsha", "Tibetan Tingsha", "Acoustic Pure Prayer Cymbals", "#f59e0b", ["acoustic-bell", "tingsha", "tibetan-prayer", "binaural-chime"], "acoustic-bells", generate_bell_tingsha),
+    ("bell_gamelan", "Javanese Gamelan", "Acoustic Bronze Metallophone", "#fbbf24", ["acoustic-bell", "gamelan", "javanese", "bronze-kettle"], "acoustic-bells", generate_bell_gamelan),
+    ("bell_tubular", "Symphonic Tubular Bells", "Acoustic Orchestral Chimes", "#fcd34d", ["acoustic-bell", "tubular-bells", "orchestral", "carillon"], "acoustic-bells", generate_bell_tubular),
+    ("bell_glock", "Steel Glockenspiel", "Acoustic German Steel Bars", "#fef08a", ["acoustic-bell", "glockenspiel", "steel-chime", "crystalline"], "acoustic-bells", generate_bell_glock),
+    ("bell_windchimes", "Crystal Wind Chimes", "Acoustic Brass & Glass Cluster", "#cbd5e1", ["acoustic-bell", "wind-chimes", "glass-cluster", "ethereal-air"], "acoustic-bells", generate_bell_windchimes),
+    ("bell_rin", "Zen Rin Singing Bowl", "Acoustic Buddhist Prayer Bronze", "#94a3b8", ["acoustic-bell", "rin-bowl", "singing-bowl", "zen-acoustic"], "acoustic-bells", generate_bell_rin),
+    ("bell_ship", "Maritime Ship's Bell", "Acoustic High-Tensile Naval Brass", "#64748b", ["acoustic-bell", "naval-bell", "ship-bell", "maritime"], "acoustic-bells", generate_bell_ship),
 ]
 
 STYLE_DEFINITIONS = [
@@ -1564,7 +2335,6 @@ STYLE_DEFINITIONS = [
 # ---------------------------------------------------------------------------
 
 def build_sequence_zip(mood_id, title, cat, variations):
-    """Builds a dedicated ZIP archive containing all 3 variations of this specific mood."""
     zip_fn = f"sequence_{mood_id}.zip"
     zip_path = os.path.join(ZIPS_DIR, zip_fn)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
@@ -1584,7 +2354,7 @@ def build_preview_html(results_by_mood):
     
     rows_html = []
     for m in results_by_mood:
-        mood_id, title, cat, color, tags, variations, zip_rel = m["id"], m["title"], m["category"], m["color"], m["tags"], m["variations"], m["zip_rel"]
+        mood_id, title, cat, color, tags, group, variations, zip_rel = m["id"], m["title"], m["category"], m["color"], m["tags"], m["group"], m["variations"], m["zip_rel"]
         badges = "".join([f'<span class="badge">{t}</span>' for t in tags])
         
         cards_cols = []
@@ -1621,7 +2391,7 @@ def build_preview_html(results_by_mood):
         cards_row = "\n".join(cards_cols)
         
         rows_html.append(f"""
-        <div class="mood-row" style="--accent:{color}" data-mood="{mood_id}">
+        <div class="mood-row group-{group}" style="--accent:{color}" data-mood="{mood_id}" data-group="{group}">
           <div class="mood-info">
             <span class="cat">{cat}</span>
             <h3>{title}</h3>
@@ -1644,7 +2414,7 @@ def build_preview_html(results_by_mood):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PlayStation DNA Trophy Suite · 3 Profiles &times; 21 Moods (63 Sounds)</title>
+<title>PlayStation DNA Trophy Suite · 3 Profiles &times; 41 Moods (123 Sounds)</title>
 <style>
   :root {{
     --bg: #090c12;
@@ -1724,29 +2494,33 @@ def build_preview_html(results_by_mood):
     font-size: 13px;
     color: var(--text-dim);
   }}
-  .now-playing {{ color: #fff; font-weight: 600; }}
 
-  /* Filter Bar */
-  .filter-bar {{
+  /* Filter Bars */
+  .filters-container {{
     display: flex;
+    flex-direction: column;
     gap: 10px;
     margin-bottom: 24px;
+  }}
+  .filter-bar {{
+    display: flex;
+    gap: 8px;
     flex-wrap: wrap;
     background: #0f131d;
-    padding: 10px 14px;
+    padding: 8px 14px;
     border-radius: 8px;
     border: 1px solid var(--border);
     align-items: center;
   }}
-  .filter-label {{ font-size: 13px; color: var(--text-dim); font-weight: 600; margin-right: 4px; }}
+  .filter-label {{ font-size: 12px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px; }}
   .filter-btn {{
     background: #171d2b;
     color: #94a3b8;
     border: 1px solid #27344c;
     border-radius: 6px;
-    padding: 6px 14px;
+    padding: 5px 12px;
     font: inherit;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -1759,15 +2533,15 @@ def build_preview_html(results_by_mood):
   }}
 
   /* Mood Matrix Rows */
-  .matrix-container {{ display: flex; flex-direction: column; gap: 16px; }}
+  .matrix-container {{ display: flex; flex-direction: column; gap: 14px; }}
   .mood-row {{
     background: var(--card);
     border: 1px solid var(--border);
     border-left: 5px solid var(--accent);
     border-radius: 10px;
-    padding: 18px 20px;
+    padding: 16px 20px;
     display: grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 280px 1fr;
     gap: 20px;
     align-items: center;
     transition: background 0.15s ease;
@@ -1775,13 +2549,13 @@ def build_preview_html(results_by_mood):
   .mood-row:hover {{ background: var(--card-hover); }}
   .mood-info {{ display: flex; flex-direction: column; gap: 6px; }}
   .mood-info .cat {{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 700; }}
-  .mood-info h3 {{ font-size: 18px; color: #fff; font-weight: 700; }}
-  .mood-info .tags {{ display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }}
+  .mood-info h3 {{ font-size: 17px; color: #fff; font-weight: 700; }}
+  .mood-info .tags {{ display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }}
   .badge {{
-    font-size: 11px;
+    font-size: 10px;
     background: #1a2233;
     color: #94a3b8;
-    padding: 2px 7px;
+    padding: 2px 6px;
     border-radius: 4px;
     border: 1px solid #27344a;
   }}
@@ -1810,7 +2584,7 @@ def build_preview_html(results_by_mood):
   .tiers-grid {{
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
+    gap: 12px;
   }}
   .tier-card {{
     background: #0d111a;
@@ -1966,10 +2740,10 @@ def build_preview_html(results_by_mood):
   <div class="top-row">
     <h1>
       PlayStation DNA Trophy Suite
-      <span>3 Profiles &times; 21 Moods (63 Sounds)</span>
+      <span>3 Profiles &times; 41 Moods (123 Sounds)</span>
     </h1>
     <div style="display:flex;gap:10px">
-      <a href="DNA_Trophies_Complete_Suite.zip" download style="color:#000;font-weight:700;font-size:13px;text-decoration:none;background:#38bdf8;padding:8px 14px;border-radius:6px">&darr; Download All 63 (ZIP)</a>
+      <a href="DNA_Trophies_Complete_Suite.zip" download style="color:#000;font-weight:700;font-size:13px;text-decoration:none;background:#38bdf8;padding:8px 14px;border-radius:6px">&darr; Download All 123 (ZIP)</a>
       <a href="../preview.html" style="color:#38bdf8;font-size:13px;text-decoration:none;background:#151e2e;padding:8px 14px;border-radius:6px;border:1px solid #23344d">&larr; Back to SteamStation</a>
     </div>
   </div>
@@ -1994,12 +2768,26 @@ def build_preview_html(results_by_mood):
   </div>
 </div>
 
-<div class="filter-bar">
-  <span class="filter-label">Filter Profile:</span>
-  <button class="filter-btn active" data-filter="all">All 63 Variations</button>
-  <button class="filter-btn" data-filter="ps4">PS4 Chime DNA (~0.95s)</button>
-  <button class="filter-btn" data-filter="ps5">PS5 Bloom DNA (~1.40s)</button>
-  <button class="filter-btn" data-filter="platinum">PS5 Platinum DNA (~2.20s)</button>
+<div class="filters-container">
+  <div class="filter-bar">
+    <span class="filter-label">Category Filter:</span>
+    <button class="filter-btn group-btn active" data-group="all">All 41 Suites (123 Sounds)</button>
+    <button class="filter-btn group-btn" data-group="8bit-bells">8-Bit Bells &amp; Gongs (10)</button>
+    <button class="filter-btn group-btn" data-group="acoustic-bells">Acoustic Bells &amp; Gongs (10)</button>
+    <button class="filter-btn group-btn" data-group="original">Original DNA (10)</button>
+    <button class="filter-btn group-btn" data-group="expanded">Expanded Favorites (5)</button>
+    <button class="filter-btn group-btn" data-group="robotic">Robotics (3)</button>
+    <button class="filter-btn group-btn" data-group="scifi">Sci-Fi &amp; Space (2)</button>
+    <button class="filter-btn group-btn" data-group="retro">Retro Foundations (2)</button>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-label">Profile Filter:</span>
+    <button class="filter-btn profile-btn active" data-profile="all">All 3 Profiles</button>
+    <button class="filter-btn profile-btn" data-profile="ps4">PS4 Chime DNA (~0.95s)</button>
+    <button class="filter-btn profile-btn" data-profile="ps5">PS5 Bloom DNA (~1.40s)</button>
+    <button class="filter-btn profile-btn" data-profile="platinum">PS5 Platinum DNA (~2.20s)</button>
+  </div>
 </div>
 
 <main class="matrix-container">
@@ -2046,6 +2834,28 @@ def build_preview_html(results_by_mood):
   const toast = document.getElementById('simToast');
   const toastTitle = document.getElementById('toastTitle');
   const toastDesc = document.getElementById('toastDesc');
+
+  let activeGroup = 'all';
+  let activeProfile = 'all';
+
+  function applyFilters() {{
+    document.querySelectorAll('.mood-row').forEach(row => {{
+      const rowGroup = row.getAttribute('data-group');
+      const matchesGroup = (activeGroup === 'all' || rowGroup === activeGroup);
+      if (matchesGroup) {{
+        row.style.display = 'grid';
+        row.querySelectorAll('.tier-card').forEach(card => {{
+          if (activeProfile === 'all' || card.classList.contains('style-' + activeProfile)) {{
+            card.style.display = 'flex';
+          }} else {{
+            card.style.display = 'none';
+          }}
+        }});
+      }} else {{
+        row.style.display = 'none';
+      }}
+    }});
+  }}
 
   function triggerToast(title, desc, color) {{
     clearTimeout(toastTimer);
@@ -2214,20 +3024,23 @@ def build_preview_html(results_by_mood):
     }});
   }});
 
-  // Filter Buttons
-  document.querySelectorAll('.filter-btn').forEach(fBtn => {{
-    fBtn.addEventListener('click', () => {{
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      fBtn.classList.add('active');
-      const filter = fBtn.getAttribute('data-filter');
+  // Category Filter Buttons
+  document.querySelectorAll('.group-btn').forEach(gBtn => {{
+    gBtn.addEventListener('click', () => {{
+      document.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+      gBtn.classList.add('active');
+      activeGroup = gBtn.getAttribute('data-group');
+      applyFilters();
+    }});
+  }});
 
-      document.querySelectorAll('.tier-card').forEach(tc => {{
-        if (filter === 'all' || tc.classList.contains('style-' + filter)) {{
-          tc.style.display = 'flex';
-        }} else {{
-          tc.style.display = 'none';
-        }}
-      }});
+  // Profile Filter Buttons
+  document.querySelectorAll('.profile-btn').forEach(pBtn => {{
+    pBtn.addEventListener('click', () => {{
+      document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
+      pBtn.classList.add('active');
+      activeProfile = pBtn.getAttribute('data-profile');
+      applyFilters();
     }});
   }});
 
@@ -2259,7 +3072,7 @@ def build_zip_bundle(all_tracks):
 
 def build_manifest(all_tracks):
     manifest = {
-        "title": "PlayStation DNA Trophy Suite (3 Profiles x 21 Moods = 63 Sounds)",
+        "title": "PlayStation DNA Trophy Suite (3 Profiles x 41 Moods = 123 Sounds)",
         "description": "100% Original Audio Synthesis inspired by PlayStation Trophy wave movements (PS4, PS5, PS5 Platinum)",
         "profiles": STYLE_DEFINITIONS,
         "tracks": all_tracks
@@ -2276,7 +3089,7 @@ def main():
     args = parser.parse_args()
 
     print("=====================================================================")
-    print("  DNA Trophy Sound Designer - 3 Profiles x 21 Moods (63 Sounds)")
+    print("  DNA Trophy Sound Designer - 3 Profiles x 41 Moods (123 Sounds)")
     print("  1. PS4 Profile       (based on ps4_trophy.mp3, ~0.95s)")
     print("  2. PS5 Profile       (based on ps5_trophy.mp3, ~1.40s)")
     print("  3. Platinum Profile  (based on ps5_trophy_platinum.mp3, ~2.20s)")
@@ -2286,7 +3099,7 @@ def main():
     all_tracks = []
     results_by_mood = []
 
-    for mood_id, title, cat, color, tags, gen_func in MOOD_DEFINITIONS:
+    for mood_id, title, cat, color, tags, group, gen_func in MOOD_DEFINITIONS:
         print(f"\n--- Mood: [{title}] ({cat}) ---")
         mood_variations = []
         for s_def in STYLE_DEFINITIONS:
@@ -2307,7 +3120,8 @@ def main():
                 "wav_file": os.path.basename(wav_path),
                 "mp3_file": os.path.basename(mp3_path),
                 "color": color,
-                "tags": tags
+                "tags": tags,
+                "group": group
             }
             mood_variations.append(var_data)
             all_tracks.append(var_data)
@@ -2321,6 +3135,7 @@ def main():
             "category": cat,
             "color": color,
             "tags": tags,
+            "group": group,
             "variations": mood_variations,
             "zip_rel": zip_rel
         })
@@ -2330,7 +3145,7 @@ def main():
     html_path = build_preview_html(results_by_mood)
     zip_path = build_zip_bundle(all_tracks)
 
-    print("\n[SUCCESS] All 63 bespoke trophy sounds synthesized and verified!")
+    print("\n[SUCCESS] All 123 bespoke trophy sounds synthesized and verified!")
     print(f"Preview HTML: {html_path}")
     print(f"Manifest:     {manifest_path}")
     print(f"ZIP Bundle:   {zip_path}")

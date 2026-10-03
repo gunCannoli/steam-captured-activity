@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PlayStation DNA Trophy Suite · 3 Profiles &times; 21 Moods (63 Sounds)</title>
+<title>PlayStation DNA Trophy Suite · 3 Profiles &times; 41 Moods (123 Sounds)</title>
 <style>
   :root {
     --bg: #090c12;
@@ -83,29 +83,33 @@
     font-size: 13px;
     color: var(--text-dim);
   }
-  .now-playing { color: #fff; font-weight: 600; }
 
-  /* Filter Bar */
-  .filter-bar {
+  /* Filter Bars */
+  .filters-container {
     display: flex;
+    flex-direction: column;
     gap: 10px;
     margin-bottom: 24px;
+  }
+  .filter-bar {
+    display: flex;
+    gap: 8px;
     flex-wrap: wrap;
     background: #0f131d;
-    padding: 10px 14px;
+    padding: 8px 14px;
     border-radius: 8px;
     border: 1px solid var(--border);
     align-items: center;
   }
-  .filter-label { font-size: 13px; color: var(--text-dim); font-weight: 600; margin-right: 4px; }
+  .filter-label { font-size: 12px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px; }
   .filter-btn {
     background: #171d2b;
     color: #94a3b8;
     border: 1px solid #27344c;
     border-radius: 6px;
-    padding: 6px 14px;
+    padding: 5px 12px;
     font: inherit;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -118,15 +122,15 @@
   }
 
   /* Mood Matrix Rows */
-  .matrix-container { display: flex; flex-direction: column; gap: 16px; }
+  .matrix-container { display: flex; flex-direction: column; gap: 14px; }
   .mood-row {
     background: var(--card);
     border: 1px solid var(--border);
     border-left: 5px solid var(--accent);
     border-radius: 10px;
-    padding: 18px 20px;
+    padding: 16px 20px;
     display: grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 280px 1fr;
     gap: 20px;
     align-items: center;
     transition: background 0.15s ease;
@@ -134,13 +138,13 @@
   .mood-row:hover { background: var(--card-hover); }
   .mood-info { display: flex; flex-direction: column; gap: 6px; }
   .mood-info .cat { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 700; }
-  .mood-info h3 { font-size: 18px; color: #fff; font-weight: 700; }
-  .mood-info .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .mood-info h3 { font-size: 17px; color: #fff; font-weight: 700; }
+  .mood-info .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
   .badge {
-    font-size: 11px;
+    font-size: 10px;
     background: #1a2233;
     color: #94a3b8;
-    padding: 2px 7px;
+    padding: 2px 6px;
     border-radius: 4px;
     border: 1px solid #27344a;
   }
@@ -169,7 +173,7 @@
   .tiers-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
+    gap: 12px;
   }
   .tier-card {
     background: #0d111a;
@@ -325,10 +329,10 @@
   <div class="top-row">
     <h1>
       PlayStation DNA Trophy Suite
-      <span>3 Profiles &times; 21 Moods (63 Sounds)</span>
+      <span>3 Profiles &times; 41 Moods (123 Sounds)</span>
     </h1>
     <div style="display:flex;gap:10px">
-      <a href="DNA_Trophies_Complete_Suite.zip" download style="color:#000;font-weight:700;font-size:13px;text-decoration:none;background:#38bdf8;padding:8px 14px;border-radius:6px">&darr; Download All 63 (ZIP)</a>
+      <a href="DNA_Trophies_Complete_Suite.zip" download style="color:#000;font-weight:700;font-size:13px;text-decoration:none;background:#38bdf8;padding:8px 14px;border-radius:6px">&darr; Download All 123 (ZIP)</a>
       <a href="../preview.html" style="color:#38bdf8;font-size:13px;text-decoration:none;background:#151e2e;padding:8px 14px;border-radius:6px;border:1px solid #23344d">&larr; Back to SteamStation</a>
     </div>
   </div>
@@ -353,17 +357,31 @@
   </div>
 </div>
 
-<div class="filter-bar">
-  <span class="filter-label">Filter Profile:</span>
-  <button class="filter-btn active" data-filter="all">All 63 Variations</button>
-  <button class="filter-btn" data-filter="ps4">PS4 Chime DNA (~0.95s)</button>
-  <button class="filter-btn" data-filter="ps5">PS5 Bloom DNA (~1.40s)</button>
-  <button class="filter-btn" data-filter="platinum">PS5 Platinum DNA (~2.20s)</button>
+<div class="filters-container">
+  <div class="filter-bar">
+    <span class="filter-label">Category Filter:</span>
+    <button class="filter-btn group-btn active" data-group="all">All 41 Suites (123 Sounds)</button>
+    <button class="filter-btn group-btn" data-group="8bit-bells">8-Bit Bells &amp; Gongs (10)</button>
+    <button class="filter-btn group-btn" data-group="acoustic-bells">Acoustic Bells &amp; Gongs (10)</button>
+    <button class="filter-btn group-btn" data-group="original">Original DNA (10)</button>
+    <button class="filter-btn group-btn" data-group="expanded">Expanded Favorites (5)</button>
+    <button class="filter-btn group-btn" data-group="robotic">Robotics (3)</button>
+    <button class="filter-btn group-btn" data-group="scifi">Sci-Fi &amp; Space (2)</button>
+    <button class="filter-btn group-btn" data-group="retro">Retro Foundations (2)</button>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-label">Profile Filter:</span>
+    <button class="filter-btn profile-btn active" data-profile="all">All 3 Profiles</button>
+    <button class="filter-btn profile-btn" data-profile="ps4">PS4 Chime DNA (~0.95s)</button>
+    <button class="filter-btn profile-btn" data-profile="ps5">PS5 Bloom DNA (~1.40s)</button>
+    <button class="filter-btn profile-btn" data-profile="platinum">PS5 Platinum DNA (~2.20s)</button>
+  </div>
 </div>
 
 <main class="matrix-container">
   
-        <div class="mood-row" style="--accent:#e5a93c" data-mood="epic">
+        <div class="mood-row group-original" style="--accent:#e5a93c" data-mood="epic" data-group="original">
           <div class="mood-info">
             <span class="cat">Cinematic Orchestral</span>
             <h3>Epic</h3>
@@ -444,7 +462,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#38bdf8" data-mood="scifi">
+        <div class="mood-row group-scifi" style="--accent:#38bdf8" data-mood="scifi" data-group="scifi">
           <div class="mood-info">
             <span class="cat">Futuristic Cybernetic</span>
             <h3>Sci-Fi</h3>
@@ -525,7 +543,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#c084fc" data-mood="fantasy">
+        <div class="mood-row group-original" style="--accent:#c084fc" data-mood="fantasy" data-group="original">
           <div class="mood-info">
             <span class="cat">Enchanted Ethereal</span>
             <h3>Fantasiac</h3>
@@ -606,7 +624,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#f59e0b" data-mood="medieval">
+        <div class="mood-row group-original" style="--accent:#f59e0b" data-mood="medieval" data-group="original">
           <div class="mood-info">
             <span class="cat">Royal Castle Courtyard</span>
             <h3>Medieval</h3>
@@ -687,7 +705,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#facc15" data-mood="religious">
+        <div class="mood-row group-original" style="--accent:#facc15" data-mood="religious" data-group="original">
           <div class="mood-info">
             <span class="cat">Cathedral Sanctuary</span>
             <h3>Religious</h3>
@@ -768,7 +786,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#d97706" data-mood="arcaic">
+        <div class="mood-row group-original" style="--accent:#d97706" data-mood="arcaic" data-group="original">
           <div class="mood-info">
             <span class="cat">Ancient Mediterranean</span>
             <h3>Arcaic</h3>
@@ -849,7 +867,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#fb923c" data-mood="guitar">
+        <div class="mood-row group-original" style="--accent:#fb923c" data-mood="guitar" data-group="original">
           <div class="mood-info">
             <span class="cat">Acoustic Flageolet</span>
             <h3>Guitar</h3>
@@ -930,7 +948,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#a7f3d0" data-mood="harp">
+        <div class="mood-row group-original" style="--accent:#a7f3d0" data-mood="harp" data-group="original">
           <div class="mood-info">
             <span class="cat">Celtic Concert Strings</span>
             <h3>Harp</h3>
@@ -1011,7 +1029,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#ef4444" data-mood="drums">
+        <div class="mood-row group-original" style="--accent:#ef4444" data-mood="drums" data-group="original">
           <div class="mood-info">
             <span class="cat">Cinematic Percussion</span>
             <h3>Drums</h3>
@@ -1092,7 +1110,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#10b981" data-mood="afric_ancient">
+        <div class="mood-row group-original" style="--accent:#10b981" data-mood="afric_ancient" data-group="original">
           <div class="mood-info">
             <span class="cat">Earthen African Heritage</span>
             <h3>Afric Ancient</h3>
@@ -1173,7 +1191,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#f59e0b" data-mood="epic_fanfare">
+        <div class="mood-row group-expanded" style="--accent:#f59e0b" data-mood="epic_fanfare" data-group="expanded">
           <div class="mood-info">
             <span class="cat">Sovereign Brass Fanfare</span>
             <h3>Cinematic Orchestral II</h3>
@@ -1254,7 +1272,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#e879f9" data-mood="fantasy_musicbox">
+        <div class="mood-row group-expanded" style="--accent:#e879f9" data-mood="fantasy_musicbox" data-group="expanded">
           <div class="mood-info">
             <span class="cat">Starlight Music Box</span>
             <h3>Enchanted Ethereal II</h3>
@@ -1335,7 +1353,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#fdba74" data-mood="guitar_12string">
+        <div class="mood-row group-expanded" style="--accent:#fdba74" data-mood="guitar_12string" data-group="expanded">
           <div class="mood-info">
             <span class="cat">12-String Resonance</span>
             <h3>Acoustic Flageolet II</h3>
@@ -1416,7 +1434,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#6ee7b7" data-mood="harp_bardic">
+        <div class="mood-row group-expanded" style="--accent:#6ee7b7" data-mood="harp_bardic" data-group="expanded">
           <div class="mood-info">
             <span class="cat">Bardic High Flourish</span>
             <h3>Celtic Concert Strings II</h3>
@@ -1497,7 +1515,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#34d399" data-mood="afric_kora">
+        <div class="mood-row group-expanded" style="--accent:#34d399" data-mood="afric_kora" data-group="expanded">
           <div class="mood-info">
             <span class="cat">Sacred Kora & Gourd</span>
             <h3>Earthen African Heritage II</h3>
@@ -1578,7 +1596,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#818cf8" data-mood="space_galaxy">
+        <div class="mood-row group-scifi" style="--accent:#818cf8" data-mood="space_galaxy" data-group="scifi">
           <div class="mood-info">
             <span class="cat">Cosmic Nebula & Pulsars</span>
             <h3>Space Galaxy</h3>
@@ -1659,7 +1677,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#22d3ee" data-mood="robotic_droid">
+        <div class="mood-row group-robotic" style="--accent:#22d3ee" data-mood="robotic_droid" data-group="robotic">
           <div class="mood-info">
             <span class="cat">Light Companion Droid</span>
             <h3>Robotic I: Cyber Droid</h3>
@@ -1740,7 +1758,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#06b6d4" data-mood="robotic_quantum">
+        <div class="mood-row group-robotic" style="--accent:#06b6d4" data-mood="robotic_quantum" data-group="robotic">
           <div class="mood-info">
             <span class="cat">Neural Supercomputer</span>
             <h3>Robotic II: Quantum AI Core</h3>
@@ -1821,7 +1839,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#64748b" data-mood="robotic_mech">
+        <div class="mood-row group-robotic" style="--accent:#64748b" data-mood="robotic_mech" data-group="robotic">
           <div class="mood-info">
             <span class="cat">Titan Industrial Mech</span>
             <h3>Robotic III: Heavy Mech</h3>
@@ -1902,7 +1920,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#ec4899" data-mood="retro_8bit">
+        <div class="mood-row group-retro" style="--accent:#ec4899" data-mood="retro_8bit" data-group="retro">
           <div class="mood-info">
             <span class="cat">NES 2A03 Chiptune</span>
             <h3>8-Bit Retro Gaming</h3>
@@ -1983,7 +2001,7 @@
         </div>
         
 
-        <div class="mood-row" style="--accent:#a855f7" data-mood="retro_16bit">
+        <div class="mood-row group-retro" style="--accent:#a855f7" data-mood="retro_16bit" data-group="retro">
           <div class="mood-info">
             <span class="cat">SNES / Genesis RPG Victory</span>
             <h3>16-Bit Classic Gaming</h3>
@@ -2063,6 +2081,1626 @@
           </div>
         </div>
         
+
+        <div class="mood-row group-8bit-bells" style="--accent:#f43f5e" data-mood="8bit_china" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Bianzhong Chimes</span>
+            <h3>8-Bit China Bells</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">china-bell</span><span class="badge">bianzhong</span><span class="badge">pentatonic</span></div>
+            <a href="zips/sequence_8bit_china.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_china.mp3" data-title="8-Bit China Bells (PS4 Chime DNA)" data-color="#f43f5e">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_china.mp3" data-title="8-Bit China Bells &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#f43f5e" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_china.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_china.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_china.mp3" data-title="8-Bit China Bells (PS5 Bloom DNA)" data-color="#f43f5e">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_china.mp3" data-title="8-Bit China Bells &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#f43f5e" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_china.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_china.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_china.mp3" data-title="8-Bit China Bells (PS5 Platinum DNA)" data-color="#f43f5e">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_china.mp3" data-title="8-Bit China Bells &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#f43f5e" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_china.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_china.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#e11d48" data-mood="8bit_church" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Cathedral Campanile</span>
+            <h3>8-Bit Church Bell</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">church-bell</span><span class="badge">gothic</span><span class="badge">triangle-bass</span></div>
+            <a href="zips/sequence_8bit_church.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_church.mp3" data-title="8-Bit Church Bell (PS4 Chime DNA)" data-color="#e11d48">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_church.mp3" data-title="8-Bit Church Bell &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#e11d48" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_church.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_church.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_church.mp3" data-title="8-Bit Church Bell (PS5 Bloom DNA)" data-color="#e11d48">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_church.mp3" data-title="8-Bit Church Bell &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#e11d48" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_church.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_church.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_church.mp3" data-title="8-Bit Church Bell (PS5 Platinum DNA)" data-color="#e11d48">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_church.mp3" data-title="8-Bit Church Bell &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#e11d48" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_church.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_church.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#be123c" data-mood="8bit_gong" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Tam-Tam Crash</span>
+            <h3>8-Bit Temple Gong</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">temple-gong</span><span class="badge">tam-tam</span><span class="badge">noise-sweep</span></div>
+            <a href="zips/sequence_8bit_gong.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_gong.mp3" data-title="8-Bit Temple Gong (PS4 Chime DNA)" data-color="#be123c">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_gong.mp3" data-title="8-Bit Temple Gong &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#be123c" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_gong.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_gong.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_gong.mp3" data-title="8-Bit Temple Gong (PS5 Bloom DNA)" data-color="#be123c">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_gong.mp3" data-title="8-Bit Temple Gong &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#be123c" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_gong.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_gong.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_gong.mp3" data-title="8-Bit Temple Gong (PS5 Platinum DNA)" data-color="#be123c">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_gong.mp3" data-title="8-Bit Temple Gong &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#be123c" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_gong.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_gong.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#fb7185" data-mood="8bit_tingsha" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Tibetan Prayer Ping</span>
+            <h3>8-Bit Tingsha Chimes</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">tingsha</span><span class="badge">tibetan</span><span class="badge">crystal-pulse</span></div>
+            <a href="zips/sequence_8bit_tingsha.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_tingsha.mp3" data-title="8-Bit Tingsha Chimes (PS4 Chime DNA)" data-color="#fb7185">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_tingsha.mp3" data-title="8-Bit Tingsha Chimes &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#fb7185" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_tingsha.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_tingsha.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_tingsha.mp3" data-title="8-Bit Tingsha Chimes (PS5 Bloom DNA)" data-color="#fb7185">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_tingsha.mp3" data-title="8-Bit Tingsha Chimes &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#fb7185" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_tingsha.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_tingsha.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_tingsha.mp3" data-title="8-Bit Tingsha Chimes (PS5 Platinum DNA)" data-color="#fb7185">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_tingsha.mp3" data-title="8-Bit Tingsha Chimes &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#fb7185" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_tingsha.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_tingsha.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#fda4af" data-mood="8bit_gamelan" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Bronze Pot Chimes</span>
+            <h3>8-Bit Gamelan Bells</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">gamelan</span><span class="badge">indonesian</span><span class="badge">slendro</span></div>
+            <a href="zips/sequence_8bit_gamelan.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_gamelan.mp3" data-title="8-Bit Gamelan Bells (PS4 Chime DNA)" data-color="#fda4af">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_gamelan.mp3" data-title="8-Bit Gamelan Bells &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#fda4af" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_gamelan.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_gamelan.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_gamelan.mp3" data-title="8-Bit Gamelan Bells (PS5 Bloom DNA)" data-color="#fda4af">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_gamelan.mp3" data-title="8-Bit Gamelan Bells &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#fda4af" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_gamelan.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_gamelan.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_gamelan.mp3" data-title="8-Bit Gamelan Bells (PS5 Platinum DNA)" data-color="#fda4af">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_gamelan.mp3" data-title="8-Bit Gamelan Bells &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#fda4af" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_gamelan.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_gamelan.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#f472b6" data-mood="8bit_tubular" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Orchestral Carillon</span>
+            <h3>8-Bit Tubular Bells</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">tubular-bells</span><span class="badge">westminster</span><span class="badge">chimes</span></div>
+            <a href="zips/sequence_8bit_tubular.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_tubular.mp3" data-title="8-Bit Tubular Bells (PS4 Chime DNA)" data-color="#f472b6">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_tubular.mp3" data-title="8-Bit Tubular Bells &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#f472b6" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_tubular.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_tubular.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_tubular.mp3" data-title="8-Bit Tubular Bells (PS5 Bloom DNA)" data-color="#f472b6">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_tubular.mp3" data-title="8-Bit Tubular Bells &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#f472b6" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_tubular.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_tubular.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_tubular.mp3" data-title="8-Bit Tubular Bells (PS5 Platinum DNA)" data-color="#f472b6">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_tubular.mp3" data-title="8-Bit Tubular Bells &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#f472b6" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_tubular.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_tubular.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#ec4899" data-mood="8bit_glock" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Steel Bar Sparkle</span>
+            <h3>8-Bit Glockenspiel</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">glockenspiel</span><span class="badge">steel-bell</span><span class="badge">sparkle</span></div>
+            <a href="zips/sequence_8bit_glock.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_glock.mp3" data-title="8-Bit Glockenspiel (PS4 Chime DNA)" data-color="#ec4899">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_glock.mp3" data-title="8-Bit Glockenspiel &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#ec4899" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_glock.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_glock.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_glock.mp3" data-title="8-Bit Glockenspiel (PS5 Bloom DNA)" data-color="#ec4899">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_glock.mp3" data-title="8-Bit Glockenspiel &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#ec4899" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_glock.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_glock.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_glock.mp3" data-title="8-Bit Glockenspiel (PS5 Platinum DNA)" data-color="#ec4899">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_glock.mp3" data-title="8-Bit Glockenspiel &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#ec4899" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_glock.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_glock.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#db2777" data-mood="8bit_windchimes" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Glass Breeze Cluster</span>
+            <h3>8-Bit Wind Chimes</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">wind-chimes</span><span class="badge">cluster</span><span class="badge">flutter</span></div>
+            <a href="zips/sequence_8bit_windchimes.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_windchimes.mp3" data-title="8-Bit Wind Chimes (PS4 Chime DNA)" data-color="#db2777">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_windchimes.mp3" data-title="8-Bit Wind Chimes &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#db2777" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_windchimes.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_windchimes.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_windchimes.mp3" data-title="8-Bit Wind Chimes (PS5 Bloom DNA)" data-color="#db2777">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_windchimes.mp3" data-title="8-Bit Wind Chimes &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#db2777" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_windchimes.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_windchimes.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_windchimes.mp3" data-title="8-Bit Wind Chimes (PS5 Platinum DNA)" data-color="#db2777">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_windchimes.mp3" data-title="8-Bit Wind Chimes &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#db2777" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_windchimes.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_windchimes.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#9d174d" data-mood="8bit_rin" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Singing Bowl Drone</span>
+            <h3>8-Bit Zen Rin Gong</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">rin-gong</span><span class="badge">zen</span><span class="badge">vibrato-drone</span></div>
+            <a href="zips/sequence_8bit_rin.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_rin.mp3" data-title="8-Bit Zen Rin Gong (PS4 Chime DNA)" data-color="#9d174d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_rin.mp3" data-title="8-Bit Zen Rin Gong &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#9d174d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_rin.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_rin.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_rin.mp3" data-title="8-Bit Zen Rin Gong (PS5 Bloom DNA)" data-color="#9d174d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_rin.mp3" data-title="8-Bit Zen Rin Gong &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#9d174d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_rin.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_rin.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_rin.mp3" data-title="8-Bit Zen Rin Gong (PS5 Platinum DNA)" data-color="#9d174d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_rin.mp3" data-title="8-Bit Zen Rin Gong &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#9d174d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_rin.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_rin.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-8bit-bells" style="--accent:#be185d" data-mood="8bit_ship" data-group="8bit-bells">
+          <div class="mood-info">
+            <span class="cat">NES 2A03 Maritime Double Strike</span>
+            <h3>8-Bit Nautical Ship Bell</h3>
+            <div class="tags"><span class="badge">8bit-bell</span><span class="badge">ship-bell</span><span class="badge">nautical</span><span class="badge">double-strike</span></div>
+            <a href="zips/sequence_8bit_ship.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_8bit_ship.mp3" data-title="8-Bit Nautical Ship Bell (PS4 Chime DNA)" data-color="#be185d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_8bit_ship.mp3" data-title="8-Bit Nautical Ship Bell &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#be185d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_8bit_ship.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_8bit_ship.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_8bit_ship.mp3" data-title="8-Bit Nautical Ship Bell (PS5 Bloom DNA)" data-color="#be185d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_8bit_ship.mp3" data-title="8-Bit Nautical Ship Bell &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#be185d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_8bit_ship.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_8bit_ship.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_8bit_ship.mp3" data-title="8-Bit Nautical Ship Bell (PS5 Platinum DNA)" data-color="#be185d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_8bit_ship.mp3" data-title="8-Bit Nautical Ship Bell &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#be185d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_8bit_ship.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_8bit_ship.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#d97706" data-mood="bell_china" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Bianzhong Bronze</span>
+            <h3>Imperial China Bells</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">bianzhong</span><span class="badge">bronze-chime</span><span class="badge">chinese-temple</span></div>
+            <a href="zips/sequence_bell_china.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_china.mp3" data-title="Imperial China Bells (PS4 Chime DNA)" data-color="#d97706">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_china.mp3" data-title="Imperial China Bells &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#d97706" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_china.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_china.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_china.mp3" data-title="Imperial China Bells (PS5 Bloom DNA)" data-color="#d97706">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_china.mp3" data-title="Imperial China Bells &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#d97706" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_china.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_china.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_china.mp3" data-title="Imperial China Bells (PS5 Platinum DNA)" data-color="#d97706">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_china.mp3" data-title="Imperial China Bells &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#d97706" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_china.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_china.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#b45309" data-mood="bell_church" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Great Church Bell</span>
+            <h3>Cathedral Campanile</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">cathedral</span><span class="badge">campanile</span><span class="badge">bronze-carillon</span></div>
+            <a href="zips/sequence_bell_church.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_church.mp3" data-title="Cathedral Campanile (PS4 Chime DNA)" data-color="#b45309">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_church.mp3" data-title="Cathedral Campanile &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#b45309" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_church.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_church.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_church.mp3" data-title="Cathedral Campanile (PS5 Bloom DNA)" data-color="#b45309">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_church.mp3" data-title="Cathedral Campanile &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#b45309" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_church.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_church.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.25s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_church.mp3" data-title="Cathedral Campanile (PS5 Platinum DNA)" data-color="#b45309">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_church.mp3" data-title="Cathedral Campanile &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#b45309" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_church.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_church.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#92400e" data-mood="bell_gong" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Orchestral Tam-Tam</span>
+            <h3>Temple Chau Gong</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">chau-gong</span><span class="badge">tam-tam</span><span class="badge">shimmer-wash</span></div>
+            <a href="zips/sequence_bell_gong.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_gong.mp3" data-title="Temple Chau Gong (PS4 Chime DNA)" data-color="#92400e">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_gong.mp3" data-title="Temple Chau Gong &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#92400e" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_gong.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_gong.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_gong.mp3" data-title="Temple Chau Gong (PS5 Bloom DNA)" data-color="#92400e">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_gong.mp3" data-title="Temple Chau Gong &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#92400e" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_gong.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_gong.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_gong.mp3" data-title="Temple Chau Gong (PS5 Platinum DNA)" data-color="#92400e">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_gong.mp3" data-title="Temple Chau Gong &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#92400e" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_gong.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_gong.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#f59e0b" data-mood="bell_tingsha" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Pure Prayer Cymbals</span>
+            <h3>Tibetan Tingsha</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">tingsha</span><span class="badge">tibetan-prayer</span><span class="badge">binaural-chime</span></div>
+            <a href="zips/sequence_bell_tingsha.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_tingsha.mp3" data-title="Tibetan Tingsha (PS4 Chime DNA)" data-color="#f59e0b">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_tingsha.mp3" data-title="Tibetan Tingsha &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#f59e0b" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_tingsha.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_tingsha.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_tingsha.mp3" data-title="Tibetan Tingsha (PS5 Bloom DNA)" data-color="#f59e0b">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_tingsha.mp3" data-title="Tibetan Tingsha &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#f59e0b" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_tingsha.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_tingsha.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_tingsha.mp3" data-title="Tibetan Tingsha (PS5 Platinum DNA)" data-color="#f59e0b">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_tingsha.mp3" data-title="Tibetan Tingsha &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#f59e0b" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_tingsha.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_tingsha.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#fbbf24" data-mood="bell_gamelan" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Bronze Metallophone</span>
+            <h3>Javanese Gamelan</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">gamelan</span><span class="badge">javanese</span><span class="badge">bronze-kettle</span></div>
+            <a href="zips/sequence_bell_gamelan.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_gamelan.mp3" data-title="Javanese Gamelan (PS4 Chime DNA)" data-color="#fbbf24">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_gamelan.mp3" data-title="Javanese Gamelan &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#fbbf24" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_gamelan.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_gamelan.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_gamelan.mp3" data-title="Javanese Gamelan (PS5 Bloom DNA)" data-color="#fbbf24">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_gamelan.mp3" data-title="Javanese Gamelan &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#fbbf24" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_gamelan.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_gamelan.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_gamelan.mp3" data-title="Javanese Gamelan (PS5 Platinum DNA)" data-color="#fbbf24">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_gamelan.mp3" data-title="Javanese Gamelan &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#fbbf24" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_gamelan.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_gamelan.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#fcd34d" data-mood="bell_tubular" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Orchestral Chimes</span>
+            <h3>Symphonic Tubular Bells</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">tubular-bells</span><span class="badge">orchestral</span><span class="badge">carillon</span></div>
+            <a href="zips/sequence_bell_tubular.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_tubular.mp3" data-title="Symphonic Tubular Bells (PS4 Chime DNA)" data-color="#fcd34d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_tubular.mp3" data-title="Symphonic Tubular Bells &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#fcd34d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_tubular.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_tubular.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_tubular.mp3" data-title="Symphonic Tubular Bells (PS5 Bloom DNA)" data-color="#fcd34d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_tubular.mp3" data-title="Symphonic Tubular Bells &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#fcd34d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_tubular.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_tubular.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.25s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_tubular.mp3" data-title="Symphonic Tubular Bells (PS5 Platinum DNA)" data-color="#fcd34d">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_tubular.mp3" data-title="Symphonic Tubular Bells &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#fcd34d" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_tubular.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_tubular.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#fef08a" data-mood="bell_glock" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic German Steel Bars</span>
+            <h3>Steel Glockenspiel</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">glockenspiel</span><span class="badge">steel-chime</span><span class="badge">crystalline</span></div>
+            <a href="zips/sequence_bell_glock.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_glock.mp3" data-title="Steel Glockenspiel (PS4 Chime DNA)" data-color="#fef08a">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_glock.mp3" data-title="Steel Glockenspiel &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#fef08a" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_glock.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_glock.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_glock.mp3" data-title="Steel Glockenspiel (PS5 Bloom DNA)" data-color="#fef08a">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_glock.mp3" data-title="Steel Glockenspiel &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#fef08a" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_glock.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_glock.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_glock.mp3" data-title="Steel Glockenspiel (PS5 Platinum DNA)" data-color="#fef08a">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_glock.mp3" data-title="Steel Glockenspiel &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#fef08a" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_glock.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_glock.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#cbd5e1" data-mood="bell_windchimes" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Brass & Glass Cluster</span>
+            <h3>Crystal Wind Chimes</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">wind-chimes</span><span class="badge">glass-cluster</span><span class="badge">ethereal-air</span></div>
+            <a href="zips/sequence_bell_windchimes.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_windchimes.mp3" data-title="Crystal Wind Chimes (PS4 Chime DNA)" data-color="#cbd5e1">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_windchimes.mp3" data-title="Crystal Wind Chimes &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#cbd5e1" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_windchimes.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_windchimes.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_windchimes.mp3" data-title="Crystal Wind Chimes (PS5 Bloom DNA)" data-color="#cbd5e1">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_windchimes.mp3" data-title="Crystal Wind Chimes &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#cbd5e1" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_windchimes.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_windchimes.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_windchimes.mp3" data-title="Crystal Wind Chimes (PS5 Platinum DNA)" data-color="#cbd5e1">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_windchimes.mp3" data-title="Crystal Wind Chimes &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#cbd5e1" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_windchimes.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_windchimes.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#94a3b8" data-mood="bell_rin" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic Buddhist Prayer Bronze</span>
+            <h3>Zen Rin Singing Bowl</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">rin-bowl</span><span class="badge">singing-bowl</span><span class="badge">zen-acoustic</span></div>
+            <a href="zips/sequence_bell_rin.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_rin.mp3" data-title="Zen Rin Singing Bowl (PS4 Chime DNA)" data-color="#94a3b8">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_rin.mp3" data-title="Zen Rin Singing Bowl &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#94a3b8" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_rin.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_rin.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_rin.mp3" data-title="Zen Rin Singing Bowl (PS5 Bloom DNA)" data-color="#94a3b8">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_rin.mp3" data-title="Zen Rin Singing Bowl &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#94a3b8" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_rin.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_rin.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_rin.mp3" data-title="Zen Rin Singing Bowl (PS5 Platinum DNA)" data-color="#94a3b8">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_rin.mp3" data-title="Zen Rin Singing Bowl &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#94a3b8" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_rin.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_rin.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
+
+        <div class="mood-row group-acoustic-bells" style="--accent:#64748b" data-mood="bell_ship" data-group="acoustic-bells">
+          <div class="mood-info">
+            <span class="cat">Acoustic High-Tensile Naval Brass</span>
+            <h3>Maritime Ship's Bell</h3>
+            <div class="tags"><span class="badge">acoustic-bell</span><span class="badge">naval-bell</span><span class="badge">ship-bell</span><span class="badge">maritime</span></div>
+            <a href="zips/sequence_bell_ship.zip" download class="seq-dl-btn" title="Download all 3 variations of this mood as ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trio (ZIP)</span>
+            </a>
+          </div>
+          <div class="tiers-grid">
+            
+            <div class="tier-card style-ps4">
+              <div class="tier-head">
+                <span class="tier-tag">PS4 Chime DNA</span>
+                <span class="dur">0.95s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps4_bell_ship.mp3" data-title="Maritime Ship's Bell (PS4 Chime DNA)" data-color="#64748b">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps4_bell_ship.mp3" data-title="Maritime Ship's Bell &bull; PS4 Chime DNA" data-desc="Procedural DNA Audio" data-color="#64748b" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps4_bell_ship.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps4_bell_ship.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-ps5">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Bloom DNA</span>
+                <span class="dur">1.40s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_ps5_bell_ship.mp3" data-title="Maritime Ship's Bell (PS5 Bloom DNA)" data-color="#64748b">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_ps5_bell_ship.mp3" data-title="Maritime Ship's Bell &bull; PS5 Bloom DNA" data-desc="Procedural DNA Audio" data-color="#64748b" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_ps5_bell_ship.wav" download title="WAV">WAV</a>
+                  <a href="trophy_ps5_bell_ship.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+
+            <div class="tier-card style-platinum">
+              <div class="tier-head">
+                <span class="tier-tag">PS5 Platinum DNA</span>
+                <span class="dur">2.20s</span>
+              </div>
+              <div class="tier-btns">
+                <button class="play-btn" data-src="trophy_platinum_bell_ship.mp3" data-title="Maritime Ship's Bell (PS5 Platinum DNA)" data-color="#64748b">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <span>Play</span>
+                </button>
+                <button class="toast-btn" data-src="trophy_platinum_bell_ship.mp3" data-title="Maritime Ship's Bell &bull; PS5 Platinum DNA" data-desc="Procedural DNA Audio" data-color="#64748b" title="Simulate notification toast">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                  <span>Toast</span>
+                </button>
+                <div class="dl-links">
+                  <a href="trophy_platinum_bell_ship.wav" download title="WAV">WAV</a>
+                  <a href="trophy_platinum_bell_ship.mp3" download title="MP3">MP3</a>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        
 </main>
 
 <div class="orig-section">
@@ -2105,6 +3743,28 @@
   const toast = document.getElementById('simToast');
   const toastTitle = document.getElementById('toastTitle');
   const toastDesc = document.getElementById('toastDesc');
+
+  let activeGroup = 'all';
+  let activeProfile = 'all';
+
+  function applyFilters() {
+    document.querySelectorAll('.mood-row').forEach(row => {
+      const rowGroup = row.getAttribute('data-group');
+      const matchesGroup = (activeGroup === 'all' || rowGroup === activeGroup);
+      if (matchesGroup) {
+        row.style.display = 'grid';
+        row.querySelectorAll('.tier-card').forEach(card => {
+          if (activeProfile === 'all' || card.classList.contains('style-' + activeProfile)) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
 
   function triggerToast(title, desc, color) {
     clearTimeout(toastTimer);
@@ -2273,20 +3933,23 @@
     });
   });
 
-  // Filter Buttons
-  document.querySelectorAll('.filter-btn').forEach(fBtn => {
-    fBtn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      fBtn.classList.add('active');
-      const filter = fBtn.getAttribute('data-filter');
+  // Category Filter Buttons
+  document.querySelectorAll('.group-btn').forEach(gBtn => {
+    gBtn.addEventListener('click', () => {
+      document.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+      gBtn.classList.add('active');
+      activeGroup = gBtn.getAttribute('data-group');
+      applyFilters();
+    });
+  });
 
-      document.querySelectorAll('.tier-card').forEach(tc => {
-        if (filter === 'all' || tc.classList.contains('style-' + filter)) {
-          tc.style.display = 'flex';
-        } else {
-          tc.style.display = 'none';
-        }
-      });
+  // Profile Filter Buttons
+  document.querySelectorAll('.profile-btn').forEach(pBtn => {
+    pBtn.addEventListener('click', () => {
+      document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
+      pBtn.classList.add('active');
+      activeProfile = pBtn.getAttribute('data-profile');
+      applyFilters();
     });
   });
 

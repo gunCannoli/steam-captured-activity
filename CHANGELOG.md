@@ -16,26 +16,38 @@ This repo is private and unversioned; entries are grouped by date.
   auto-add (off by default). enhanced-notifications leaves store copies out of Reset Achievements. Live (the agent, 2026-10-03, two phases: backend p1-p4, then p5-p9): `test:live` passes in both plugins except the parity check, which first failed because the test's Jotunnslayer shortcut had been removed for the auto-add test (identical on the pre-patch code); after Epic auto-add re-created it (appid 4202674849, the live tests now use it) parity is 17/17 and `test:live` 13/13; Xbox auto-add added Microsoft Jigsaw; Super Mario World's feed now logs "1 unlock(s) on 1 day(s)"; the new Epic and Xbox RPCs answer (Epic account found, Microsoft Jigsaw detected). Tests: steam-cartridges
   TS 292, Lua 11 suites (new `test_store.lua`, 60 checks), enhanced-notifications 165. Live verification: see the plan § 10.
 
-- **enhanced-notifications: PlayStation DNA procedural trophy audio suite expansion (63 variations across 3 reference profiles & 21 moods) (2026-10-03)**: at the user's request.
-  Expanded the 100% original, copyright-clean procedural notification audio suite inspired by PlayStation's acoustic DNA
-  (`ps4_trophy.mp3`, `ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`) from 10 to 21 comprehensive musical suites (63 bespoke tracks total):
-  (1) **Medieval Rework**: preserved baseline PS4 chime (dulcimer + carillon), dramatically elevated majesty for PS5 Bloom (royal
-  herald brass fanfare in D Major + cascading castle carillons) and PS5 Platinum (multi-stage royal coronation fanfare motif,
-  colossal cathedral bell tower chords, sovereign timpani strike, and stone-keep hall reverberation);
-  (2) **5 Expanded Favorite Variations**: added bespoke sequels for top favorites: Epic II (Sovereign Brass Fanfare & heroic timpani),
-  Fantasiac II (Starlight Music Box with glass reeds & singing glass harmonica aura), Guitar II (12-String Resonance with double-course
-  flageolets & Spanish acoustic body sustain), Harp II (Bardic High Flourish with Gaelic wire-strung clarsach & soaring pentatonic run),
-  and Afric Ancient II (Sacred Kora & Gourd with 21-string West African harp-lute, calabash knock & earthen clay pulse);
-  (3) **Space Galaxy Sci-Fi**: cosmic nebula filter risers, pulsar radio beacons, dark matter sub-bass, and stardust crystal chords;
-  (4) **3 Robotic Style Variations**: Robotic I (Cyber Droid companion with servo micro-clicks, vocoder chirps & telemetry logic),
-  Robotic II (Quantum AI Core with sharp laser optic pings, quantum phase-shift harmonics & holographic sine epiphany), and
-  Robotic III (Heavy Industrial Mech with hydraulic pneumatic purges, titanium clamp locks & seismic sub-bass thump);
-  (5) **Retro & Classic Gaming**: 8-Bit Retro Gaming (authentic NES 2A03 variable-duty pulse waves, 60Hz rapid arpeggios, triangle bass
-  & 15-bit shift-register noise) and 16-Bit Classic Gaming (authentic SNES SPC700 / Genesis YM2612 4-operator FM brass, marimba bells
-  & 90s JRPG victory fanfare);
-  (6) **Per-Sequence Trio ZIP Downloads**: added 21 individual sequence ZIP downloads (`sequence_<id>.zip`) containing all 3 tiers
-  (both WAV & MP3) on each mood row in `preview_dna_trophies.html`, alongside the full 63-track `DNA_Trophies_Complete_Suite.zip` master archive.
-  Synced all assets to both `themes/SteamStation/sfx/dna_trophies/` and `themes/assets/sfx/dna_trophies/`.
+- **enhanced-notifications: PlayStation DNA procedural trophy audio suite expansion (123 variations across 3 reference profiles & 41 moods) (2026-10-03)**: at the user's request.
+  Massively expanded the 100% original, copyright-clean procedural notification audio suite inspired by PlayStation's acoustic DNA
+  (`ps4_trophy.mp3`, `ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`) from 21 to **41 complete musical suites (123 bespoke sounds total)**,
+  specifically introducing 10 dedicated 8-bit bell instrument suites and 10 corresponding non-8-bit acoustic physical modal bell suites:
+  (1) **10 8-Bit Bell & Gong Instrument Suites (NES 2A03 Chiptune)**: synthesized using authentic variable-duty square waves (50%, 25%, 12.5%),
+  stepped triangle basslines, 60Hz rapid arpeggios, and 15-bit shift-register noise:
+  - 8-Bit China Bells (Bianzhong pentatonic chimes),
+  - 8-Bit Church Bell (Cathedral campanile with deep triangle toll),
+  - 8-Bit Temple Gong (Tam-Tam crash with sweeping triangle sub),
+  - 8-Bit Tingsha Chimes (Tibetan prayer ping with 6Hz binaural beating),
+  - 8-Bit Gamelan Bells (Indonesian bronze pot chimes in Slendro scale),
+  - 8-Bit Tubular Bells (Symphonic Westminster-style carillons),
+  - 8-Bit Glockenspiel (Pure bright steel bar bell sparkle runs),
+  - 8-Bit Wind Chimes (Cascading glass and metal breeze cluster),
+  - 8-Bit Zen Rin Gong (Singing bowl triangle drone with 3Hz tremolo),
+  - 8-Bit Nautical Ship Bell (Maritime high-tensile double-strike);
+  (2) **10 Non-8-Bit Acoustic Bell & Gong Suites (Physical Modal DSP)**: full-fidelity 48kHz stereo physical modal synthesis with authentic
+  bronze/steel/brass ratios, strike transient physics, decorrelated stereo diffusion, and spacious cathedral/temple acoustics:
+  - Imperial China Bells (Acoustic dual-pitch Bianzhong bronze),
+  - Cathedral Campanile (Acoustic 2-ton bronze church bell with sub-octave hum),
+  - Temple Chau Gong (Acoustic 36" orchestral Tam-Tam with blossoming wash),
+  - Tibetan Tingsha (Acoustic pure 2640Hz brass prayer cymbals),
+  - Javanese Gamelan (Acoustic bronze metallophone in Pelog scale),
+  - Symphonic Tubular Bells (Acoustic rawhide hammer striking hollow brass tubes),
+  - Steel Glockenspiel (Acoustic German steel bars with crystalline projection),
+  - Crystal Wind Chimes (Acoustic hanging glass & brass cluster in the breeze),
+  - Zen Rin Singing Bowl (Acoustic Buddhist prayer bronze with leather striker hum),
+  - Maritime Ship's Bell (Acoustic high-tensile naval brass double-strike);
+  (3) **Reworked Medieval**: preserved baseline PS4 chime, elevated PS5 Bloom (royal herald trumpets + castle carillons) and PS5 Platinum (coronation fanfare motif + timpani);
+  (4) **Expanded Favorites**: sequels for Epic II (Sovereign Brass Fanfare), Fantasiac II (Starlight Music Box), Guitar II (12-String Resonance), Harp II (Bardic High Flourish), and Afric Ancient II (Sacred Kora & Gourd);
+  (5) **Space Galaxy & 3 Robotics**: Cosmic Nebula & Pulsars, Cyber Droid, Quantum AI Core, and Heavy Industrial Mech;
+  (6) **Interactive Preview Player & Packaging**: updated `preview_dna_trophies.html` with category filter pills (8-Bit Bells, Acoustic Bells, Original DNA, Expanded, Robotics, Sci-Fi, Retro) and profile filter buttons. Generated 41 self-contained sequence Trio ZIPs (`sequence_<id>.zip`) for instant per-suite downloads, plus the 123-track `DNA_Trophies_Complete_Suite.zip` master archive. Synced to both `themes/SteamStation/sfx/dna_trophies/` and `themes/assets/sfx/dna_trophies/`.
 - **enhanced-notifications: SteamStation 100% bespoke trophy sound suite (2026-10-02)**: at the user's request.
   Removed all PlayStation audio files from the synthesis pipeline to eliminate any bootleg character, creating completely
   original, bespoke sound design from scratch using physical modal synthesis and procedural ambient atmospheres:
