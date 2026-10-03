@@ -33,10 +33,10 @@ function rig(addShortcut: (...a: any[]) => any) {
     g.appStore = { GetAppOverviewByAppID: (id: number) => (id === 3235712508 ? overview : undefined) };
     g.collectionStore = {
         m_mapCollectionsFromStorage: new Map(),
-        userCollections: [],
+        userCollections: [{ displayName: 'Favorites' }],
         NewUnsavedCollection: (name: string) => ({ displayName: name, Save: async () => {}, AsDragDropCollection: () => ({ AddApps: (list: any[]) => added.push([name, list]) }) }),
     };
-    const surface = createLibraryShortcutsSurface({ isEnabled: () => true, reportError: () => {}, bus });
+    const surface = createLibraryShortcutsSurface({ isEnabled: () => true, reportError: () => {}, bus, retryMs: 1 });
     return { surface, results, calls, added };
 }
 
@@ -64,4 +64,24 @@ test('library-shortcuts: without a ready collection store the shortcut is still 
     await onAddRequested(REQUEST);
     assert.equal(r.results[0].appid, 3235712508);
     assert.equal(r.results[0].collection, undefined);
+});
+
+test('library-shortcuts: a collection store that is not loaded yet is waited for, and the shortcut is filed once', async () => {
+    const r = rig(() => 3235712508);
+    const store = g.collectionStore;
+    let reads = 0;
+    // The storage map is there but the user's collections load a moment later (the first add after a restart).
+    Object.defineProperty(store, 'userCollections', { get: () => (reads++ < 3 ? [] : [{ displayName: 'Favorites' }]) });
+    await onAddRequested(REQUEST);
+    assert.equal(r.added.length, 1, 'filed exactly once, not once per attempt');
+    assert.equal(r.results[0].collection, 'Epic Games');
+});
+
+test('library-shortcuts: collections that never load leave the shortcut added, unfiled, after a bounded wait', async () => {
+    const r = rig(() => 3235712508);
+    g.collectionStore = { m_mapCollectionsFromStorage: new Map(), userCollections: [] };
+    await onAddRequested(REQUEST);
+    assert.equal(r.results[0].appid, 3235712508);
+    assert.equal(r.results[0].collection, undefined);
+    assert.equal(r.added.length, 0);
 });

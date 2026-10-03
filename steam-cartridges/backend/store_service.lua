@@ -36,19 +36,25 @@ local function entry_of(appid)
   return require("registry").shortcut(appid)
 end
 
---- The installed games of both stores, read once per session (the installs change rarely; a new game needs a restart
---- to be found, like a new shortcut's capture folder).
+--- The installed games of both stores. The list is remembered for INSTALLED_TTL seconds (a page view asks for it once per
+--- shortcut, and reading it costs a registry query and the manifests), and `installed_games` always reads it afresh: a game
+--- installed while Steam runs must be found by the auto-add check and the settings panel (a once-per-session cache hid every
+--- game installed after Steam started, found 2026-10-03).
+local INSTALLED_TTL = 60
 local installed_cache = nil
+local installed_at = 0
 function M._reset() installed_cache = nil end
 
-local function installed()
-  if installed_cache then return installed_cache end
+local function installed(fresh)
+  local t = (M.deps.now or os.time)()
+  if installed_cache and not fresh and t - installed_at < INSTALLED_TTL then return installed_cache end
   local okE, epic_games = pcall(function() return epic_local().installed() end)
   local okX, xbox_games = pcall(function() return xbox_local().installed() end)
   installed_cache = {
     epic = okE and type(epic_games) == "table" and epic_games or {},
     xbox = okX and type(xbox_games) == "table" and xbox_games or {},
   }
+  installed_at = t
   return installed_cache
 end
 
@@ -148,7 +154,7 @@ end
 --- package names a resource, not a title, so the catalog is asked once (ctx.allowXbox, remembered like any lookup).
 function M.installed_games(ctx)
   ctx = ctx or {}
-  local games = installed()
+  local games = installed(true)
   local owned = {}
   for _, e in ipairs(all_entries()) do
     local c = M.detect(e)

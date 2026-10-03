@@ -16,16 +16,31 @@ import type { Surface, SurfaceDeps } from "../../kernel/surface";
 
 interface Deps extends SurfaceDeps {
     bus: Pick<EventBus, "emit">;
+    /** Pause between attempts to file a shortcut in its collection (default 1000 ms; tests pass a few). */
+    retryMs?: number;
 }
 
 const deps: Deps = { isEnabled: () => true, reportError: () => {}, bus: { emit: () => {} } };
 
+/** At start-up Steam's collections load a moment after its storage map exists: how often, and how long, to wait for them. */
+const COLLECTION_TRIES = 8;
+
 const steamApps = (): any => (window as any).SteamClient?.Apps;
 
-/** Guardrail 13: userCollections is a keepAlive computed that throws (and stays poisoned) before its storage exists. */
+/**
+ * Guardrail 13: userCollections is a keepAlive computed that throws (and stays poisoned) before its storage exists, so the
+ * storage map is checked first. Then the user's collections must have loaded (every library has some): a list still empty
+ * would make us create a second "Epic Games" collection instead of finding the first (found live 2026-10-03: the first
+ * add after a restart could not be filed).
+ */
 function collectionStoreReady(store: any): boolean {
     const m = store?.m_mapCollectionsFromStorage;
-    return !!m && typeof m.values === "function";
+    if (!m || typeof m.values !== "function") return false;
+    try {
+        return Array.isArray(store.userCollections) && store.userCollections.length > 0;
+    } catch {
+        return false;
+    }
 }
 
 /** Put a shortcut in the named user collection, creating the collection when missing. false when Steam's API is not there. */
@@ -72,10 +87,14 @@ export async function onAddRequested(e: Events["store.add-requested"]): Promise<
         apps.SetShortcutLaunchOptions?.(appid, e.launch.launch_options);
         let filed = false;
         if (e.collection && (await overviewReady(appid))) {
-            try {
-                filed = await addToCollection(appid, e.collection);
-            } catch (err) {
-                deps.reportError("library-shortcuts", err);
+            for (let i = 0; i < COLLECTION_TRIES && !filed; i++) {
+                try {
+                    filed = await addToCollection(appid, e.collection);
+                } catch (err) {
+                    deps.reportError("library-shortcuts", err);
+                    break;
+                }
+                if (!filed) await new Promise((r) => setTimeout(r, deps.retryMs ?? 1000));
             }
             if (!filed) logger.warn(`Added "${e.title}" but could not put it in the "${e.collection}" collection.`);
         }
@@ -90,6 +109,7 @@ export function createLibraryShortcutsSurface(d: Deps): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
     deps.bus = d.bus;
+    deps.retryMs = d.retryMs;
     return {
         id: "library-shortcuts",
         touches: [

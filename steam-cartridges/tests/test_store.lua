@@ -356,6 +356,26 @@ check("installed games say which ones the library has", list.epic[1].inLibrary =
 check("... with a launch spec for the ones it does not", list.epic[1].launch.exe == '"C:\\L\\EpicGamesLauncher.exe"' and list.xbox[1].title == "Microsoft Jigsaw")
 ENTRIES[4000000001] = nil
 check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)
+-- A game installed after the first read (found 2026-10-03: a once-per-session cache hid every later install)
+local EXTRA_EPIC = { app_name = "newgame1", title = "New Game", install_location = "C:\\Games\\New", launch_exe = "New.exe", namespace = "ns2", item_id = "i2", addon = false, incomplete = false }
+local installed_now = { EPIC_GAME }
+svc.deps.epic_local = setmetatable({ installed = function() return installed_now end, launcher_exe = function() return "C:\\L\\EpicGamesLauncher.exe" end }, { __index = epic_local })
+svc._reset()
+check("the list before the install has one Epic game", #svc.installed_games({}).epic == 1)
+installed_now = { EPIC_GAME, EXTRA_EPIC }
+check("a game installed afterwards is found by the very next call", #svc.installed_games({}).epic == 2)
+check("... and installed_games reads afresh every time", (function() installed_now = { EPIC_GAME }; return #svc.installed_games({}).epic == 1 end)())
+-- the per-shortcut detection keeps its cache for 60 s, then reads again
+local clock = 5000
+svc.deps.now = function() return clock end
+svc._reset()
+installed_now = { EPIC_GAME }
+svc.detect(ENTRIES[4000000002])
+installed_now = { EPIC_GAME, EXTRA_EPIC }
+ENTRIES[4000000009] = { appid = 4000000009, exe = '"C:\\Games\\New\\New.exe"', launch_options = "" }
+check("a cached list is kept inside its 60 s (no registry query per page view)", svc.detect(ENTRIES[4000000009]) == nil)
+clock = clock + 61
+check("... and read again after it: the new game's shortcut is a store copy", svc.detect(ENTRIES[4000000009]) ~= nil)
 os.remove(copies._path)
 
 -- ======================================================================

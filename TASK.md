@@ -163,6 +163,16 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Considerations (decided later, not scheduled)
 
+- **Auto-add and a shortcut the user deleted (needs a decision before auto-add is called finished, found 2026-10-03).** Today it is
+  inconsistent: a game is requested once per session (`requested` in `app/store-sync.ts`), so a shortcut the user deletes stays gone
+  until Steam restarts, then comes back at every restart while the toggle is on; and nothing restores one deleted by mistake.
+  Options: **A.** a persistent list of games auto-added (backend data file), never added again even after a restart; an entry is
+  dropped when the game is no longer installed, so uninstall then reinstall counts as new and is added again. **B.** restore controls
+  in Settings → Third-party: each installed game shows "In library" / "Not in library" with an **Add** button, plus "Add all
+  missing" (the panel already lists installed games and their library state). **C.** re-add on every 60 s check: rejected, it fights a
+  deliberate deletion. **D.** keep today's behaviour. Recommended: **A and B together** (A makes a deletion stick, B is the easy
+  undo; without B, A makes a mistaken deletion permanent). Questions: should a reinstall bring the shortcut back by itself (leaning
+  yes), and should Add also appear on the game's own page (leaning no, settings only). Plan and an ADR amendment first.
 - **Before publishing enhanced-notifications as its own public repo:** `themes/PlayStation/` and parts of
   `themes/SteamStation/` hold Sony's PlayStation trophy art and sounds (`trophy_ps4.mp3`, `trophy_ps5.mp3`,
   `platinum_trophy_ps5.mp3`, the bronze/silver/gold trophy images, `*_playstation.png`). Fine in this private repo;
