@@ -41,7 +41,10 @@ a real install is still to be seen, note-list items 1-4).
 (2026-10-03): what is built and deployed, every finding, the decisions taken and open (D1-D7), the options, and the ordered next steps.**
 Latest finding and next work: Steam launches the launcher or Explorer, not the game, so Big Picture focus, the overlay and Steam's
 recording (`no-running-timeline`) cannot see it; options (direct exe for Epic without the exchange code, Steam-started launcher,
-wrapper script, GDK direct exe, COM-activation wrapper) and four small experiments are in section 4 of the handoff.
+wrapper script, GDK direct exe, COM-activation wrapper) and four small experiments are in section 4 of the handoff; **section 4b
+holds the SISR / GlosSI research**: Steam's overlay and in-game toast need a Steam-launched process that renders, and an
+"overlay carrier" (a transparent topmost window the shortcut's exe owns, as SISR and GlosSI do) is the known way to get them over
+a game Steam did not render; the plan is to prototype our own minimal carrier (decision D8, experiments C0-C2).
 
 **Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
 agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer

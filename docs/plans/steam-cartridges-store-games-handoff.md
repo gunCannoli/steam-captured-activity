@@ -120,6 +120,7 @@ are not offered by Reset Achievements; the Epic native toast should be hideable 
 | D4 | Epic overlay mute | manual documented step (edits Program Files, needs admin) or a button with a warning | manual step, decide later |
 | D5 | Epic detection speed | poll the API every 0.5 s during the burst (more requests to Epic) or keep 1.5 s | try 0.5 s |
 | D6 | **How the shortcut launches the game** (section 4) | see options below | decide after the experiments |
+| D8 | **Overlay carrier** (section 4b): how Steam's overlay, in-game toasts, screenshots and focus reach a game the shortcut does not render | use SISR as is; reuse GlosSI (Apache-2.0, archived); build our own minimal carrier and launcher; or accept desktop-only toasts | prototype our own small carrier (experiment C1) before choosing |
 | D7 | ADR | supersede ADR-0056 decision 3 ("no toast") with: store unlocks post Steam's native toast, per-store setting | write it before the build |
 
 ## 4. The launch problem: options and experiments (next work)
@@ -152,12 +153,66 @@ Steam, Big Picture focus, screenshots and recordings cannot see the game. Goal: 
   with a different Exe (a different shortcut appid).
 
 **Experiments, in order (each cheap):**
-1. T1 (no code): fully quit the Epic launcher, start BURIED STARS from its Steam shortcut. Check with the watcher (`process+` parent
+1. T1 (no code): **done by the user, does not work** (the shortcut still targets the Epic launcher, which is not the process that
+   renders the game, so the overlay and the toast do not follow; see section 4b). Original wording: fully quit the Epic launcher, start BURIED STARS from its Steam shortcut. Check with the watcher (`process+` parent
    chain), Steam's own state, `window.g_GRS.m_mapActiveTimelines`, Shift+Tab, Big Picture focus, and whether unlock captures run
    (enhanced-notifications log: no more `no-running-timeline`).
 2. T3: Fortress Merge as a direct-exe shortcut (test shortcut, then remove): does it start, sign in to Xbox, unlock, and is it in the tree?
 3. T2/T4: prototype the wrapper scripts for Epic (launcher running) and UWP Xbox, repeat the checks of T1.
 4. Decide D6 from the results, write the ADR (D7) and a plan under `docs/plans/` with patches (the plan standard).
+
+## 4b. SISR and the overlay carrier (researched 2026-10-03, at the user's request)
+
+**The user's rule, confirmed and made precise:** Steam's overlay (Shift+Tab, in-game toasts such as the achievement toast, overlay
+screenshots) lives inside a process that Steam launched and that **renders** the game: Steam injects `GameOverlayRenderer64.dll` into
+the Steam-launched process tree and it hooks that process's graphics presents. A shortcut whose exe only starts a launcher (Epic) or
+forwards to COM activation (Xbox UWP) has no such renderer, so Steam has nothing to draw the overlay or an in-game toast on. Our
+native toast is posted correctly (verified), but it can only appear as Steam's desktop toast window, which a fullscreen game covers.
+
+**What SISR is** (https://github.com/Alia5/SISR, docs https://alia5.github.io/SISR/): Steam Input System Redirector, by Alia5,
+written in Go, **GPLv3**, "a toy project ... a work in progress", the successor of GlosSI. Its purpose is **controllers**: it takes the
+controllers Steam Input provides and re-emulates them to the OS as Xbox 360 / DualShock 4 pads (through VIIPER, which needs USBIP and a
+driver), so Steam Input layouts apply to games Steam did not launch (anti-cheat games, emulators, **Windows Store games**).
+
+**How it relates to the overlay (the part that matters here):**
+- SISR is added to Steam as a non-Steam shortcut with launch options `--w --f`. Steam launches **SISR itself**.
+- `--f` / `--window.fullscreen` "creates a transparent, borderless, always-on-top overlay window"; `--w` / `--window.show` with
+  fullscreen "will enable Steam Overlay" (CLI reference). So SISR's own window is the renderer Steam's overlay hooks, and it sits on
+  top of whatever runs below. If SISR is not launched by Steam it loads `GameOverlayRenderer64.dll` itself (maintainer, discussion
+  #32). The overlay toggle for SISR's own UI is Ctrl+Shift+Alt+S or LB+RB+BACK+A.
+- **SISR does not launch games** ("SISR does not launch games for you!"): the user starts the game separately, outside Steam. (GlosSI
+  could launch targets.) So with SISR, Steam's running app is SISR, not the game.
+- Not documented, so **unknown**: Steam's recording and F12 screenshots with such a carrier (they would capture what the carrier's
+  window presents, probably a transparent frame), Big Picture focus, exclusive-fullscreen games (a topmost overlay window cannot cover
+  exclusive fullscreen; borderless or windowed games only), and whether the in-game achievement toast then draws in the carrier.
+
+**GlosSI** (https://github.com/Alia5/GlosSI, **Apache-2.0**, archived 2025-11-23 because ViGEm, its virtual-controller driver, is end
+of life; C++ with Qt 6 and a modified SFML): "provides the Steam Overlay in an (always on top) transparent window" and has target
+configurations that can launch an application and manage the Steam shortcut. It supports UWP/Windows Store titles and emulators.
+This is the model our shortcuts need: **one shortcut per game whose exe is a carrier that starts the real game and stays alive**.
+
+**Options for D8:**
+1. *Use SISR as is.* Two shortcuts (SISR plus the game), and Steam's running app is SISR, so playtime, recording and a toast
+   `appid` would belong to the wrong entry; needs VIIPER, USBIP and a driver on every user's PC; GPLv3 forbids bundling its code in
+   an MIT plugin (users could install it separately). Not recommended as the product, but a good way to **test the theory** now.
+2. *Reuse GlosSI.* Apache-2.0 allows reuse, but it is archived, needs ViGEm/HidHide (EOL driver) and Qt/SFML.
+3. *Our own minimal carrier plus launcher*, no controller emulation: a tiny native program Steam launches as the shortcut's exe. It
+   (a) starts the real game through the launcher link / `IApplicationActivationManager` (or the game exe for GDK), (b) opens a
+   transparent topmost window with a graphics swap chain so Steam's overlay has something to hook, (c) waits for the game process
+   and exits with it. One shortcut per game, the right appid for playtime, toast and recording. Needs a build or an `Add-Type` C#
+   script that P/Invokes Win32 and OpenGL (no extra dependency); controller focus in Big Picture would stay unsolved (that is what
+   SISR's re-emulation is for) and is a separate decision. New artifact in the plugin: Millennium plugins are Lua and TypeScript,
+   so an executable or script shipped to the user's data folder is a new kind of file (antivirus, signing, updates).
+4. *Accept desktop-only toasts* and no recording for launcher-started games: cheapest, the user already finds it insufficient.
+
+**Experiments for D8, in order:**
+- C0 (the user, optional, installs drivers): install SISR, add it to Steam with `--w --f`, launch it, start BURIED STARS **borderless**
+  from the Epic launcher, post a test toast with `unlock_watcher.mjs --steam --simulate <appid>`: does Steam's toast draw over the
+  game; do F12 and Steam's recording capture the game; what does Big Picture do.
+- C1 (the agent): write the smallest transparent topmost OpenGL or Direct3D window as a PowerShell `Add-Type` script, add it as a
+  test shortcut (Steam-launched), repeat C0's checks without SISR. This isolates whether **our own carrier suffices**.
+- C2: add the launch-and-wait part (launcher link for Epic, `IApplicationActivationManager` for Xbox UWP, the exe for GDK) and
+  check playtime, the running state, `window.g_GRS.m_mapActiveTimelines` and enhanced-notifications' captures.
 
 ## 5. Full list of what is still to test or build
 
