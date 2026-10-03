@@ -15,6 +15,20 @@ export interface AppFacts {
     isShortcut: boolean;
 }
 
+/**
+ * Is a non-Steam game offered for a reset? Only with steam-cartridges loaded, and not when it says the game's unlocks
+ * cannot be reset: an Epic or Xbox copy, whose unlocks live on the store's account and come back with the next sync
+ * (steam-cartridges ADR-0056). An older steam-cartridges without `achievementsResettable` keeps offering every shortcut.
+ */
+export function shortcutOffered(cartridges: { achievementsResettable?(appid: number): boolean } | null, appid: number): boolean {
+    if (!cartridges) return false;
+    try {
+        return cartridges.achievementsResettable?.(appid) !== false;
+    } catch {
+        return true; // its answer is advice: a throw keeps today's behaviour
+    }
+}
+
 /** Games with at least one unlocked achievement, sorted by name. */
 export function buildCandidates(apps: readonly AppFacts[], progress: (app: AppFacts) => { unlocked: number; total: number } | undefined): ResetCandidate[] {
     const out: ResetCandidate[] = [];

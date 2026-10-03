@@ -4,7 +4,7 @@
 // backend's TTLs (fresh_policy.lua) decide whether anything is fetched, so a fresh page costs no
 // network. A Steam render never starts a view (M0a): views come from sensors/view.
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
-import type { ArtworkPlan, GameMetadata, Identity, Part, Route } from "../kernel/record";
+import type { ArtworkPlan, GameMetadata, Identity, Part, Route, StoreCopy } from "../kernel/record";
 
 export interface ViewDeps {
     routing: {
@@ -12,6 +12,8 @@ export interface ViewDeps {
         waitForCollections(timeoutMs?: number): Promise<boolean>;
     };
     identity: { ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>> };
+    /** The Epic or Xbox copy behind the shortcut (ADR-0056); asked first, so every later part sees it. */
+    store: { ensure(appid: ShortcutId, route: Route): Promise<Part<StoreCopy>> };
     metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
     artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
     achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
@@ -51,6 +53,9 @@ export function createView(deps: ViewDeps): View {
                 await deps.metadata.ensure(id, route, undefined);
                 return;
             }
+            // ADR-0056: the store copy first (local files, then the store's ids once per game); the backend's
+            // metadata, media and achievements read it from disk. A route of "none" asks nothing at all.
+            if (bucket !== "none") await deps.store.ensure(id, route);
             if (bucket === "steam-store") {
                 // ADR-0036: Steam Store first; no Steam match -> the web tier (metadata); not known yet
                 // (title missing) -> local Game Info only.

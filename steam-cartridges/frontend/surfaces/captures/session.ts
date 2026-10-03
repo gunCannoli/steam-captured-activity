@@ -40,6 +40,14 @@ export function addSessionAchievement(appid: number, item: SessionAchievement): 
     }
 }
 
+/**
+ * Unlocks a store sync found after the game quit (achievements.synced, ADR-0056): the Post-Game Summary lists them like
+ * any unlock; nothing toasts (the store's overlay already did).
+ */
+export function onSynced({ appid, items }: Events["achievements.synced"]): void {
+    onUnlocked({ appid, ids: items.map((i) => i.id), items });
+}
+
 /** Each new unlock also goes into the Post-Game Summary session (achievements.unlocked, M10). */
 export function onUnlocked({ appid, items }: Events["achievements.unlocked"]): void {
     for (const a of items) {

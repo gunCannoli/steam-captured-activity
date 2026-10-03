@@ -1,7 +1,7 @@
 // Reset Achievements decisions (pure).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCandidates, createReset, type AppFacts } from '../frontend/surfaces/reset/reset.ts';
+import { buildCandidates, createReset, shortcutOffered, type AppFacts } from '../frontend/surfaces/reset/reset.ts';
 import { filterCandidates, isResetPage, resetWarning, type ResetCandidate, type ResetSource } from '../frontend/kernel/reset.ts';
 
 const apps: AppFacts[] = [
@@ -132,4 +132,15 @@ test('reset warning: with its switch on, RetroAchievements says its page opens a
     const withUrl: ResetSource = { ...ra, url: 'https://retroachievements.org/game/228' };
     assert.match(resetWarning(shortcut, [withUrl], new Set(['retroachievements'])), /game page opens after the reset; press Manage progress/);
     assert.match(resetWarning(shortcut, [withUrl], new Set()), /RetroAchievements: Reset them on retroachievements.org/);
+});
+
+test('reset: an Epic or Xbox copy is not offered; any other shortcut is, and only with steam-cartridges (ADR-0056 there)', () => {
+    const cartridges = { achievementsResettable: (appid: number) => appid !== 3 };
+    assert.equal(shortcutOffered(cartridges, 3), false, 'steam-cartridges says the store copy cannot be reset');
+    assert.equal(shortcutOffered(cartridges, 5), true);
+    assert.equal(shortcutOffered({}, 3), true, 'an older steam-cartridges keeps offering every shortcut');
+    assert.equal(shortcutOffered(null, 5), false, 'no steam-cartridges, no shortcut');
+    assert.equal(shortcutOffered({ achievementsResettable: () => { throw new Error('x'); } }, 5), true, 'a throw keeps today\'s behaviour');
+    const list = buildCandidates(apps, (a) => (a.isShortcut && !shortcutOffered(cartridges, a.appid) ? undefined : { unlocked: 1, total: 1 }));
+    assert.ok(!list.some((c) => c.appid === 3), 'the store copy is left out of the list');
 });

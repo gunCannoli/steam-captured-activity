@@ -2,7 +2,7 @@ import type { Surface } from '../../kernel/surface';
 import { isResetPage, type AchievementResetApi, type ResetResult, type ResetSource, type ResetSourceOutcome } from '../../kernel/reset';
 import { progressFor } from '../../steam/notification-store';
 import { isEnabled, reportError } from '../../safety/runtime';
-import { buildCandidates, createReset, type AppFacts } from './reset';
+import { buildCandidates, createReset, shortcutOffered, type AppFacts } from './reset';
 
 /** Steam's app type for a non-Steam shortcut (AppOverview.app_type). */
 const SHORTCUT_APP_TYPE = 1073741824;
@@ -21,6 +21,8 @@ interface Cartridges {
     /** Newer steam-cartridges (ADR-0054): where a shortcut's unlocks also live, and a reset that clears them too. */
     achievementResetSources?(appid: number): Promise<ResetSource[]>;
     resetAchievementsWithSources?(appid: number, sources: string[]): Promise<{ ok: boolean; sources: ResetSourceOutcome[] }>;
+    /** Newer steam-cartridges (its ADR-0056): false for an Epic or Xbox copy, whose unlocks cannot be reset. Synchronous. */
+    achievementsResettable?(appid: number): boolean;
 }
 
 const steamConsole = (): SteamConsole | undefined => Reflect.get(globalThis, 'SteamClient')?.Console;
@@ -73,10 +75,11 @@ export const achievementReset: AchievementResetApi = {
     candidates() {
         try {
             // Every game from Steam's own progress cache: steam-cartridges fills it for its shortcuts at start-up, as
-            // Steam does for an owned game (ADR-0045). A shortcut is offered only when steam-cartridges can reset it.
-            const shortcutsResettable = cartridges() !== null;
+            // Steam does for an owned game (ADR-0045). A shortcut is offered only when steam-cartridges can reset it,
+            // never an Epic or Xbox copy (steam-cartridges ADR-0056).
+            const c = cartridges();
             return buildCandidates(libraryApps(), (app) => {
-                if (app.isShortcut && !shortcutsResettable) return undefined;
+                if (app.isShortcut && !shortcutOffered(c, app.appid)) return undefined;
                 const p = progressFor(app.appid);
                 return typeof p?.unlocked === 'number' ? { unlocked: p.unlocked, total: Number(p.total) || 0 } : undefined;
             });

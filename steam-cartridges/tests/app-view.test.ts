@@ -9,6 +9,7 @@ function setup(getBucket: () => { bucket: string; via: string }, opts: { collect
     const view = createView({
         routing: { getBucket: getBucket as any, waitForCollections: async () => opts.collections ?? true },
         identity: { async ensure() { log.push('identity'); return { status: 'ok', data: { native: { appid: 77, source: 'search' } } } as any; } },
+        store: { async ensure() { log.push('store'); return { status: 'unsupported' } as any; } },
         metadata: { async ensure(_a: any, _r: any, id: any) { log.push('metadata:' + (id ? 'identity' : 'none')); return { status: 'ok' } as any; } },
         artwork: { async ensure() { log.push('artwork'); return { status: 'ok' } as any; } },
         achievements: { async ensure() { log.push('achievements'); } },
@@ -19,18 +20,25 @@ function setup(getBucket: () => { bucket: string; via: string }, opts: { collect
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-test('a steam-store shortcut runs identity, metadata, artwork, media, achievements in order', async () => {
+test('a steam-store shortcut runs store, identity, metadata, artwork, media, achievements in order', async () => {
     const s = setup(() => ({ bucket: 'steam-store', via: 'default' }));
     await s.view.onSourceView(SC);
     await tick();
-    assert.deepEqual(s.log, ['identity', 'metadata:identity', 'artwork', 'media:identity', 'achievements']);
+    assert.deepEqual(s.log, ['store', 'identity', 'metadata:identity', 'artwork', 'media:identity', 'achievements']);
 });
 
-test('a web-scraping shortcut skips identity and the store', async () => {
+test('a web-scraping shortcut skips identity (the Steam match) but still finds its store copy first (ADR-0056)', async () => {
     const s = setup(() => ({ bucket: 'web-scraping', via: 'default' }));
     await s.view.onSourceView(SC);
     await tick();
-    assert.deepEqual(s.log, ['metadata:none', 'artwork', 'media:none', 'achievements']);
+    assert.deepEqual(s.log, ['store', 'metadata:none', 'artwork', 'media:none', 'achievements']);
+});
+
+test('a shortcut routed to none asks for no store copy (ADR-0056)', async () => {
+    const s = setup(() => ({ bucket: 'none', via: 'default' }));
+    await s.view.onSourceView(SC);
+    await tick();
+    assert.ok(!s.log.includes('store'));
 });
 
 test('a native appid is not a shortcut view', async () => {
@@ -51,7 +59,7 @@ test('a pending route is local metadata only, replayed once collections are read
     release(true);
     await tick();
     await tick();
-    assert.deepEqual(s.log, ['metadata:none', 'metadata:none', 'artwork', 'media:none', 'achievements']);
+    assert.deepEqual(s.log, ['metadata:none', 'store', 'metadata:none', 'artwork', 'media:none', 'achievements']);
 });
 
 test('leaving the steam-store bucket stops resolving identity', async () => {

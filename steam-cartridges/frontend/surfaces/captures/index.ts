@@ -3,7 +3,7 @@
 // own captures (ADR-0022). Takes over the kill switches `captures`, `store-cache`,
 // `headline` and `activity-cards` (plan § 7.0 D6).
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
-import { ensureStoreCacheHooked, setNativeActivitySource } from "./activity";
+import { ensureStoreCacheHooked, setAchievementSource, setNativeActivitySource } from "./activity";
 import { installActivityCardsPatch } from "./activity-cards";
 import { deps } from "./deps";
 import { installHeadlinePatch } from "./headline";
@@ -11,7 +11,7 @@ import { patch, unpatch } from "./publish";
 
 export { patch, refresh, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
-export { addSessionAchievement, onUnlocked } from "./session";
+export { addSessionAchievement, onSynced, onUnlocked } from "./session";
 export { onWindowClosed, onWindowOpened } from "./bpm-style";
 export { registerSummaryProvider } from "./summary";
 export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
@@ -47,16 +47,18 @@ export function createCapturesSurface(d: SurfaceDeps & Pick<typeof deps, "activi
             "jsx:activity-cards",
             "BPM.style#nsga-bpm-activity-thumbs",
         ],
-        reads: ["identity"],
+        reads: ["identity", "achievements"],
         install() {
             part("store-cache", ensureStoreCacheHooked);
             part("headline", installHeadlinePatch);
             part("activity-cards", installActivityCardsPatch);
         },
         render(appid, record) {
-            // Captures are Steam's own data, read live (ADR-0022); only the native
-            // activity source (a mapped shortcut's Steam Store match) is record-driven.
+            // Captures are Steam's own data, read live (ADR-0022); the native activity source (a mapped shortcut's
+            // Steam Store match) and the unlocks (ADR-0056) are record-driven.
             setNativeActivitySource(appid, record?.identity?.data?.native?.appid);
+            const ach = record?.achievements;
+            setAchievementSource(appid, ach?.status === "ok" ? ach.data : undefined);
             void patch(appid);
         },
         clear: (appid) => unpatch(appid),

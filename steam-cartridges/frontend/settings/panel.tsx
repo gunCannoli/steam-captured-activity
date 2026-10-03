@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { MetadataSection } from "./panels/metadata";
 import { AchievementsSection } from "./panels/achievements";
+import { ThirdPartySection } from "./panels/third-party";
 import { NotificationsSection } from "./panels/notifications";
 import { ActivitySection } from "./panels/activity";
 import { CommunitySection } from "./panels/community";
@@ -22,6 +23,7 @@ export function SettingsPanel() {
         <div style={{ paddingBottom: "70px", position: "relative" }}>
             <MetadataSection />
             <AchievementsSection />
+            <ThirdPartySection />
             <NotificationsSection />
             <ActivitySection />
             <CommunitySection />

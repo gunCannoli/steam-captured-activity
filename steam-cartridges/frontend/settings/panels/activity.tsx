@@ -12,6 +12,7 @@ export function ActivitySection() {
     const [showFirstPlayed, setShowFirstPlayed] = useSetting(
         "activityShowFirstPlayed",
     );
+    const [showAchievements, setShowAchievements] = useSetting("activityShowAchievements");
 
     return (
         <PanelSection title="Activity Feed">
@@ -28,6 +29,12 @@ export function ActivitySection() {
                         description="Card when game is played for first time"
                         value={showFirstPlayed}
                         onChange={setShowFirstPlayed}
+                    />
+                    <ToggleRow
+                        label="Achievements"
+                        description="Card for each day achievements were unlocked, from every source"
+                        value={showAchievements}
+                        onChange={setShowAchievements}
                     />
                 </>
             </Blocks>

@@ -4,6 +4,7 @@ import {
     createCapturesSurface,
     patch as patchLibraryApp,
     refresh as refreshLibraryApp,
+    onSynced as capturesOnSynced,
     onUnlocked as capturesOnUnlocked,
     onWindowClosed as capturesWindowClosed,
     onWindowOpened as capturesWindowOpened,
@@ -31,6 +32,7 @@ import { createRouting } from "./app/routing";
 import { createRecords } from "./app/records";
 import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
+import { createStoreCopy } from "./app/store-copy";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
 import { createMedia } from "./app/media";
@@ -39,6 +41,8 @@ import { createLibraryStats } from "./app/library-stats";
 import { fetchImage, objectUrl, objectUrlToBase64, releaseObjectUrl } from "./ports/image";
 import { pdfRenderer } from "./ports/pdf";
 import { createAchievements } from "./app/achievements";
+import { createStoreSync } from "./app/store-sync";
+import { createLibraryShortcutsSurface, onAddRequested as libraryShortcutsOnAddRequested } from "./surfaces/library-shortcuts";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
 import { createFeatureSwitches, type FeatureId } from "./safety/features";
@@ -142,6 +146,18 @@ const identity = createIdentity({
     titleOf: shortcutTitle,
 });
 
+/** Which store APIs may be asked (settings services.epicEnabled / xboxEnabled, ADR-0056). */
+const stores = () => ({ epic: setting("services").epicEnabled !== false, xbox: setting("services").xboxEnabled !== false });
+
+/** Store copies (app/store-copy.ts, ADR-0056): the Epic or Xbox copy behind a shortcut, found from the PC's install data. */
+const storeCopy = createStoreCopy({
+    backend,
+    records: records.store,
+    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+    titleOf: shortcutTitle,
+    stores,
+});
+
 /** Controller support inferred from each shortcut's emulator (app/controller.ts). */
 const controller = createController({ backend });
 
@@ -160,6 +176,7 @@ const metadata = createMetadata({
         defaultFull: setting("defaultFullController"),
         override: lookupStored(setting("controllerOverrides"), appid),
     }),
+    stores,
 });
 
 /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
@@ -174,6 +191,7 @@ const achievements = createAchievements({
     hardcore: () => setting("raHardcoreMode"),
     launchPolicy: () => setting("localAchievementsNotifyOnLaunch"),
     observerEnabled: () => features.isEnabled("achievements-observer"),
+    stores,
     now: () => Date.now(),
 });
 
@@ -214,6 +232,7 @@ const media = createMedia({
     cacheDays: () => setting("mediaCacheDays"),
     objectUrl,
     log: (message) => logger.info(message),
+    stores,
 });
 
 /** Manual pages as object URLs (kernel/manual-shelf, features plan F2c): app/manuals puts, surfaces/community reads. */
@@ -234,7 +253,7 @@ const manuals = createManuals({
 });
 
 /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
-const view = createView({ routing, identity, metadata, artwork, achievements, media });
+const view = createView({ routing, identity, store: storeCopy, metadata, artwork, achievements, media });
 
 /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
 const steamStore = createSteamStore({ backend, identity, metadata, artwork });
@@ -252,6 +271,17 @@ const gameEditor = createGameEditor({
 
 /** Capture stats for the library grid (app/library-stats.ts): loaded at start-up and after a game quits. */
 const libraryStats = createLibraryStats({ backend });
+
+/** Auto-add (app/store-sync.ts, ADR-0056): installed Epic and Xbox games without a shortcut, when the toggles are on. */
+const storeSync = createStoreSync({
+    backend,
+    bus,
+    autoAdd: () => ({ epic: setting("autoAddEpicGames") === true, xbox: setting("autoAddXboxGames") === true }),
+    allowXbox: () => stores().xbox,
+});
+onSettingChange((key) => {
+    if (key === "autoAddEpicGames" || key === "autoAddXboxGames") void storeSync.run();
+});
 
 /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
 const ingest = createIngest({
@@ -313,6 +343,12 @@ export const resetAchievementsWithSources = (shortcutAppId: number, sources: str
 
 /** Where a shortcut's unlocks come from besides the plugin's store, and which can be reset. */
 export const achievementResetSources = (shortcutAppId: number) => achievements.resetSources(shortcutAppId as ShortcutId);
+
+/**
+ * Can a shortcut's achievements be reset at all? false for an Epic or Xbox copy: its unlocks are on the store's account
+ * and come back with the next sync, so enhanced-notifications leaves it out of Reset Achievements (ADR-0056). Synchronous.
+ */
+export const achievementsResettable = (shortcutAppId: number) => achievements.resettable(shortcutAppId);
 
 /** One unlock check against the backend observer; resolves to the number of new unlocks. */
 export const checkObserverUnlocks = (shortcutAppId: number, nativeAppId: number, gameTitle?: string) =>
@@ -441,6 +477,7 @@ async function init() {
             activityOptions: () => ({
                 showAdded: setting("activityShowAddedToLibrary") !== false,
                 showFirstPlayed: setting("activityShowFirstPlayed") !== false,
+                showAchievements: setting("activityShowAchievements") !== false,
             }),
             bus,
         }),
@@ -477,11 +514,19 @@ async function init() {
     runner.register(createToastsSurface(surfaceDeps));
     runner.installAll();
     features.run("achievements", () => initAchievements());
+    // Auto-add (ADR-0056): the library-shortcuts surface adds what app/store-sync asks for, once collections are ready.
+    runner.register(createLibraryShortcutsSurface({ ...surfaceDeps, bus }));
+    runner.installAll();
+    bus.on("store.add-requested", (e) => void libraryShortcutsOnAddRequested(e));
+    storeSync.install();
+    void routing.waitForCollections().then(() => storeSync.run());
     // Flow C (launch toast, unlock polling, quit reload) and the unlock announcements.
     achievements.install();
     // Each new unlock: a toast and a Post-Game Summary line; a launch with achievements: the launch toast.
     bus.on("achievements.unlocked", toastsOnUnlocked);
     bus.on("achievements.unlocked", capturesOnUnlocked);
+    // A store sync's new unlocks (ADR-0056): the Post-Game Summary only, never a toast.
+    bus.on("achievements.synced", capturesOnSynced);
     bus.on("achievements.launch-toast", toastsOnLaunch);
 
     // ===== Game Info (surfaces/game-info, plan M3.3; record-driven from M5b) =====

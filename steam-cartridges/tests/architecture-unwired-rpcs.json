@@ -1,9 +1,4 @@
 {
   "GetDiagnostics": "debug: called from the SharedJSContext console and tests/live/probes/http_calls.mjs",
-  "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it",
-  "StoreInstalledGames": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
-  "StoreAccounts": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
-  "XboxSignInStart": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
-  "XboxSignInPoll": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts",
-  "XboxSignOut": "docs/plans/steam-cartridges-store-copies-plan.md step 5 (p5) wires it in ports/backend.ts"
+  "SteamStoreRejectSuggestion": "features plan F1 (Game Data editor) wires it"
 }

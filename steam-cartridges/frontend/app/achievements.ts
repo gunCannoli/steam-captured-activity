@@ -29,6 +29,8 @@ export interface AchievementsDeps {
     launchPolicy(): LaunchPolicy;
     /** Kill switch `achievements-observer`: gates the launch toast and the polling session. */
     observerEnabled(): boolean;
+    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
+    stores?(): { epic: boolean; xbox: boolean };
     timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(handle: unknown): void };
     now(): number;
 }
@@ -50,6 +52,11 @@ export interface AchievementsService {
     resetSources(appid: ShortcutId): Promise<AchievementResetSource[]>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
+    /**
+     * Can this shortcut's achievements be reset? false for an Epic or Xbox copy: its unlocks live on the store's account
+     * and the next sync brings them back (ADR-0056, decision 7). Record only, synchronous.
+     */
+    resettable(appid: number): boolean;
     /**
      * Start-up: every stored achievements part of a shortcut into its record (disk only, no
      * request), so the achievements surface fills Steam's stores for every shortcut, as Steam does for an owned
@@ -81,6 +88,16 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
 
     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
 
+    /**
+     * An Epic or Xbox copy (ADR-0056): its unlocks are synced from the store, which already notified the player in game,
+     * so there is no launch toast and no in-game polling (decision 4). The record's store part, or a synced source.
+     */
+    const isSynced = (appid: ShortcutId) => {
+        const rec = deps.records.get(appid);
+        const source = rec?.achievements?.source;
+        return (rec?.store?.status === "ok" && !!rec.store.data) || source === "epic" || source === "xbox";
+    };
+
     /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
     async function resolveNative(appid: ShortcutId): Promise<number> {
         const known = deps.records.get(appid)?.identity?.data?.native?.appid;
@@ -102,7 +119,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         deps.bus.emit("achievements.unlocked", { appid, ids, items });
     }
 
-    async function load(appid: ShortcutId, route: Route, native?: number): Promise<Part<AchievementSet>> {
+    async function load(appid: ShortcutId, route: Route, native?: number, force?: boolean): Promise<Part<AchievementSet>> {
         deps.ensureBase(appid);
         const known = deps.records.get(appid)?.identity;
         const identity = native && !known?.data?.native
@@ -113,6 +130,9 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             route,
             identity,
             hardcore: deps.hardcore(),
+            allowEpic: deps.stores?.().epic ?? true,
+            allowXbox: deps.stores?.().xbox ?? true,
+            force,
         });
         const raw = res.error ? undefined : (res.parts.achievements as Part<AchievementSet> | undefined);
         const part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
@@ -125,7 +145,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         return part;
     }
 
-    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number } = {}) {
+    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number; force?: boolean } = {}) {
         if (route.bucket === "none") {
             const part: Part<AchievementSet> = { status: "unsupported" };
             deps.ensureBase(appid);
@@ -134,7 +154,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         }
         const existing = inflight.get(appid);
         if (existing) return existing;
-        const promise = load(appid, route, opts.native).finally(() => inflight.delete(appid));
+        const promise = load(appid, route, opts.native, opts.force).finally(() => inflight.delete(appid));
         inflight.set(appid, promise);
         return promise;
     }
@@ -179,6 +199,27 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         return stop;
     }
 
+    /**
+     * A store sync after the game quit (ADR-0056): ask the store now (force), and announce what it found that the record
+     * did not have, for the Post-Game Summary. No toast: the store's overlay already showed each unlock in game.
+     */
+    async function syncAfterQuit(appid: ShortcutId): Promise<void> {
+        const before = new Set(Object.keys(current(appid)?.data?.unlocks ?? {}));
+        const part = await ensure(appid, deps.routeOf(appid), { force: true });
+        const set = part.data;
+        if (part.status !== "ok" || !set) return;
+        const items: UnlockedAchievement[] = [];
+        for (const [id, u] of Object.entries(set.unlocks ?? {})) {
+            if (before.has(id)) continue;
+            const a = set.schema.achievements.find((x) => String(x.id) === id);
+            if (!a) continue;
+            items.push({ id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: u.unlocked_time || Math.floor(deps.now() / 1000) });
+        }
+        if (items.length === 0) return;
+        logger.info(`Store sync found ${items.length} new unlock(s) for shortcut ${appid}: ${items.map((i) => i.id).join(", ")}`);
+        deps.bus.emit("achievements.synced", { appid, items });
+    }
+
     function launchToast(appid: ShortcutId): void {
         const policy = deps.launchPolicy();
         if (policy === "off") return;
@@ -195,6 +236,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         install() {
             deps.bus.on("shortcut.launched", ({ appid, name }) => {
                 if (!deps.observerEnabled()) return;
+                if (isSynced(appid)) return; // the store's overlay notifies; synced when the game quits (ADR-0056)
                 running.add(appid);
                 launchToast(appid);
                 void resolveNative(appid).then((n) => {
@@ -206,6 +248,10 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 running.delete(appid);
                 const stop = sessions.get(appid);
                 stop?.();
+                if (isSynced(appid)) {
+                    void syncAfterQuit(appid);
+                    return;
+                }
                 // New captures and unlocks: reload what the record holds for this shortcut.
                 void ensure(appid, deps.routeOf(appid));
             });
@@ -297,6 +343,10 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 n++;
             }
             return n;
+        },
+        resettable(appid) {
+            const id = toShortcutId(appid);
+            return id === undefined || !isSynced(id);
         },
         summary(appid) {
             const id = toShortcutId(appid); // the panel hands Steam's appids, signed or not

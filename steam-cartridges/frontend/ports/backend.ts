@@ -16,6 +16,17 @@ export interface AchievementResetSource {
     url?: string;
 }
 
+/** An installed Epic or Xbox game (backend store_service.installed_games, ADR-0056). */
+export interface InstalledStoreGame {
+    /** Epic AppName or Xbox package family name. */
+    key: string;
+    title: string;
+    /** The shortcut appid when the library already has one for it. */
+    inLibrary?: number;
+    /** How a shortcut for it is set up; absent when it cannot be (no Epic launcher found). */
+    launch?: { exe: string; start_dir: string; launch_options: string };
+}
+
 /** What a reset did to one source. */
 export interface ResetSourceResult {
     id: string;
@@ -115,6 +126,9 @@ export interface FreshContext {
     igdb_id?: number;
     /** Media only (ADR-0051): setting mediaCacheDays; more than 0 counts this page open for the disk cache. */
     cacheDays?: number;
+    /** Store copies (ADR-0056): settings services.epicEnabled / xboxEnabled. false = that store's API is never asked. */
+    allowEpic?: boolean;
+    allowXbox?: boolean;
 }
 
 /** One ScreenScraper image of the media part (features plan F2b): the bytes, never the URL. */
@@ -213,6 +227,25 @@ export const backend = {
     /** Downloaded media on disk (ADR-0051): delete the downloads of every game not opened in the last `days` days (all for 0). */
     pruneMediaCache(days: number): Promise<{ removed?: number; kept?: number; error?: string }> {
         return call<{ removed?: number; kept?: number; error?: string }>("PruneMediaCache", { days });
+    },
+    /** Store copies (ADR-0056): every installed Epic and Xbox game and whether the library has it. */
+    storeInstalledGames(allowXbox: boolean) {
+        return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox });
+    },
+    /** Store copies (ADR-0056): an Epic account on this PC (and whether its achievements are private); the Xbox account. */
+    storeAccounts() {
+        return call<{ epic: { found: boolean; private: boolean }; xbox: { signed_in: boolean; gamertag?: string }; error?: string }>("StoreAccounts", {});
+    },
+    /** Xbox sign-in, step 1: a code to type at the returned address. */
+    xboxSignInStart() {
+        return call<{ user_code?: string; verification_uri?: string; device_code?: string; interval?: number; expires_in?: number; error?: string }>("XboxSignInStart", {});
+    },
+    /** Xbox sign-in, step 2: poll every `interval` seconds until `ok` (or an error). */
+    xboxSignInPoll(deviceCode: string) {
+        return call<{ pending?: boolean; ok?: boolean; gamertag?: string; error?: string }>("XboxSignInPoll", { device_code: deviceCode });
+    },
+    xboxSignOut() {
+        return call<{ ok?: boolean; error?: string }>("XboxSignOut", {});
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

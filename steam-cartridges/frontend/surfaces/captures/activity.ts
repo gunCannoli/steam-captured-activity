@@ -1,7 +1,10 @@
 import { logger } from "../../logger";
 import { isShortcutAppId } from "../../kernel/appid";
+import type { AchievementSet } from "../../kernel/record";
 import { deps } from "./deps";
+import { achievementDays, type ActivityAchievementDay } from "./achievement-days";
 import {
+    activityEventBase,
     appActivityStore,
     clipsSince,
     friendStore,
@@ -139,6 +142,57 @@ export function setNativeActivitySource(appid: number, nativeAppid: number | und
 }
 
 /**
+ * Shortcut appid -> its achievements (the record's part, ADR-0056): every unlock with a time becomes Steam's own
+ * "achieved" event on its day, whatever the source (emulator saves, trophy files, RetroAchievements, Epic, Xbox).
+ */
+const achievementSource = new Map<number, AchievementSet>();
+
+export function setAchievementSource(appid: number, set: AchievementSet | undefined): void {
+    if (set) achievementSource.set(appid, set);
+    else achievementSource.delete(appid);
+}
+
+/** What the feed last published per app, so an unchanged feed writes nothing (guardrail 17.2). */
+const publishedSignature = new Map<number, string>();
+
+/**
+ * One day's unlocks as Steam's achievement event: P's fields (module 12750) on the shared event base. One event per
+ * day, as Steam groups a user's unlocks of a day (`AddAchievementEvent`), timed at the day's newest unlock.
+ */
+function achievementEvent(appid: number, day: ActivityAchievementDay, actor: unknown): any {
+    const base = activityEventBase();
+    const ev = Object.create(base ?? Object.prototype);
+    ev.gameid = appid.toString();
+    Object.defineProperty(ev, "appid", { get: () => appid, configurable: true });
+    ev.unUniqueID = `ach_${appid}_${day.day}`;
+    ev.rtEventTime = day.latest;
+    ev.steamIDActor = actor;
+    ev.steamIDTarget = actor;
+    ev.eEventType = 2; // AchievementUnlocked
+    ev.bIsGameActivity = false;
+    ev.bIsNonSteam = true;
+    ev.commentThreads = [];
+    ev.activeThread = 0;
+    ev.m_rtOldestAchievement = day.oldest;
+    ev.m_rgAchievements = day.items.map((i) => ({
+        strID: i.id,
+        strName: i.name,
+        strDescription: i.description,
+        strImage: i.icon,
+        flAchieved: i.globalPct,
+        rtUnlocked: i.unlockedAt,
+        bAchieved: true,
+    }));
+    Object.defineProperty(ev, "achievements", { get() { return this.m_rgAchievements; }, configurable: true });
+    ev.BIsValid = () => true;
+    ev.GetParentalFeature = () => 0;
+    ev.BSupportsCommentThreads = () => false;
+    ev.BUserCanDelete = () => false;
+    ev.GetActiveCommentThread = () => null;
+    return ev;
+}
+
+/**
  * Steam's own activity for a native app, as [day key, day] pairs. `GetAppActivity`
  * makes Steam restore its cache and fetch from the server (verified live
  * 2026-09-25: unowned 2820820 returned one partner event, type 1002). A native
@@ -222,14 +276,15 @@ export async function publishActivity(
     appid: number,
     gameid: string,
 ): Promise<number> {
-    const { showAdded, showFirstPlayed } = deps.activityOptions();
+    const { showAdded, showFirstPlayed, showAchievements } = deps.activityOptions();
 
     const [screenshots, clips, nativeDays] = await Promise.all([
         screenshotsSince(appid, 0),
         clipsSince(gameid, 0),
         nativeActivityDays(nativeActivitySource.get(appid)),
     ]);
-    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0 && !showAdded && !showFirstPlayed) return 0;
+    const achDays = showAchievements ? achievementDays(achievementSource.get(appid), getLocalMidnight) : [];
+    if (screenshots.length === 0 && clips.length === 0 && nativeDays.length === 0 && achDays.length === 0 && !showAdded && !showFirstPlayed) return 0;
 
     const actStore = appActivityStore();
     const storeCache = storeItemCache();
@@ -285,11 +340,10 @@ export async function publishActivity(
     // 2. Resolve event class constructor
     const V = screenshotEventClass();
 
-    // 3. Obtain or instantiate CAppActivity
-    let appActivity = actStore.m_mapAppActivity.get(appid);
-    // An entry that is not a real activity (no day map) is dropped and rebuilt: a plain-object fallback
-    // used as the constructor sample once produced a Number wrapper here.
-    if (appActivity && !(appActivity.m_mapActivityByDay instanceof Map)) appActivity = undefined;
+    // 3. A new CAppActivity on every publish (ADR-0056): Steam's feed keeps the object it mounted with and re-renders
+    // when the store's observable map is given a new object for the app, not when the old one is mutated (verified live
+    // 2026-10-02: unlocks that arrive after the page opened showed up within 2 s). It is set at the end, once full.
+    let appActivity: AppActivity | undefined;
     // The constructor sample must be Steam's own class: never a plain object (our fallback literal).
     const sampleEntry = [...actStore.m_mapAppActivity.values()].find(
         (e) => e?.m_mapActivityByDay instanceof Map && e.constructor !== Object,
@@ -325,7 +379,6 @@ export async function publishActivity(
                 },
             };
         }
-        actStore.m_mapAppActivity.set(appid, appActivity!);
     }
     if (!appActivity) return 0;
 
@@ -461,6 +514,21 @@ export async function publishActivity(
         day.SortEvents?.();
     }
 
+    // Achievements (ADR-0056): one "achieved" event per day with unlocks, from the record's part.
+    for (const d of achDays) {
+        const dayBegin = d.day;
+        let day = appActivity.m_mapActivityByDay.get(dayBegin);
+        if (!day) {
+            day = createActivityDay(dayBegin);
+            appActivity.m_mapActivityByDay.set(dayBegin, day);
+        }
+        if (!Array.isArray(day.m_rgEvents)) {
+            day.m_rgEvents = [];
+        }
+        day.m_rgEvents.push(achievementEvent(appid, d, currentSteamID));
+    }
+    const achievementCount = achDays.reduce((n, d) => n + d.items.length, 0);
+
     // 6. Synthetic native activity events: Added to Library and Played First Time
     let syntheticCount = 0;
     if (showAdded || showFirstPlayed) {
@@ -588,14 +656,29 @@ export async function publishActivity(
     }
 
     registeredFilesByApp.set(appid, fileIdsForApp);
+
+    // Hand Steam the new object only when the feed changed (guardrail 17.2): same captures, native events, unlocks and
+    // synthetic events -> nothing is written, nothing re-renders.
+    const signature = JSON.stringify([
+        mediaItems.map((m) => m.id),
+        nativeDays.map(([k, d]) => [k, (d.m_rgEvents ?? []).length]),
+        achDays.map((d) => [d.day, d.items.map((i) => `${i.id}:${i.unlockedAt}`)]),
+        [...appActivity.m_mapActivityByDay.values()].map((d) => (d.m_rgEvents ?? []).map((e: any) => `${e.eEventType}:${e.rtEventTime}`)),
+    ]);
+    const previous = actStore.m_mapAppActivity.get(appid);
+    if (publishedSignature.get(appid) !== signature || !(previous?.m_mapActivityByDay instanceof Map)) {
+        actStore.m_mapAppActivity.set(appid, appActivity);
+        publishedSignature.set(appid, signature);
+    }
     logger.info(
-        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
+        `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), ${achievementCount} unlock(s) on ${achDays.length} day(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
     );
-    return mediaItems.length + nativeEvents + syntheticCount;
+    return mediaItems.length + nativeEvents + achievementCount + syntheticCount;
 }
 
 /** Drop an app's activity feed entries and associated fake store/workshop records. */
 export function clearActivity(appid: number): void {
+    publishedSignature.delete(appid);
     const actStore = appActivityStore();
     if (actStore) {
         actStore.m_mapAppActivity.delete(appid);

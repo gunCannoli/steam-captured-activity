@@ -280,6 +280,17 @@ export function screenshotEventClass(): any | undefined {
     ]);
 }
 
+/**
+ * The prototype every activity event shares (`E` in module 12750: InitFromUserNewsEvent, BIsValid, GetParentalFeature,
+ * comment threads), reached as the parent of the exported screenshot class. Steam's achievement event class (`P`) is
+ * not exported; an object on this prototype with P's fields (m_rgAchievements, m_rtOldestAchievement, an
+ * `achievements` getter) renders as Steam's own "achieved" card (verified live 2026-10-02, ADR-0056).
+ */
+export function activityEventBase(): object | undefined {
+    const proto = screenshotEventClass()?.prototype;
+    return proto ? (Object.getPrototypeOf(proto) as object | undefined) ?? undefined : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Data sources
 // ---------------------------------------------------------------------------

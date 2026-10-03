@@ -1,0 +1,110 @@
+// Surface `library-shortcuts` (ADR-0056): the only code that adds a shortcut to the user's library. It runs what
+// app/store-sync decided (an installed Epic or Xbox game that has no shortcut yet, with the "Auto-add" toggle on)
+// and reports the result as its own event; it decides nothing and fetches nothing.
+//
+// Verified live 2026-10-02 (plan § 4.8, step 0.7): SteamClient.Apps.AddShortcut(name, exe, startDir, launchOptions)
+// resolves to the new appid and writes shortcuts.vdf at once, but ignores the name (the shortcut is named after the
+// exe) and the launch options (stored empty): both are set right after with SetShortcutName and
+// SetShortcutLaunchOptions, which keep the appid. Exe and start dir are stored as given.
+//
+// The collection: Steam's collectionStore (NewUnsavedCollection, a collection's Save and AsDragDropCollection().AddApps,
+// the calls Steam's own UI makes); read only once its storage map exists (guardrail 13). Not verified on this build:
+// fail-open, the shortcut is added either way and the log says the collection was skipped.
+import { logger } from "../../logger.ts";
+import type { Events, EventBus } from "../../kernel/events";
+import type { Surface, SurfaceDeps } from "../../kernel/surface";
+
+interface Deps extends SurfaceDeps {
+    bus: Pick<EventBus, "emit">;
+}
+
+const deps: Deps = { isEnabled: () => true, reportError: () => {}, bus: { emit: () => {} } };
+
+const steamApps = (): any => (window as any).SteamClient?.Apps;
+
+/** Guardrail 13: userCollections is a keepAlive computed that throws (and stays poisoned) before its storage exists. */
+function collectionStoreReady(store: any): boolean {
+    const m = store?.m_mapCollectionsFromStorage;
+    return !!m && typeof m.values === "function";
+}
+
+/** Put a shortcut in the named user collection, creating the collection when missing. false when Steam's API is not there. */
+async function addToCollection(appid: number, name: string): Promise<boolean> {
+    const store = (window as any).collectionStore;
+    if (!name || !collectionStoreReady(store)) return false;
+    const overview = (window as any).appStore?.GetAppOverviewByAppID?.(appid);
+    if (!overview) return false;
+    let collection = (Array.isArray(store.userCollections) ? store.userCollections : []).find((c: any) => c?.displayName === name);
+    if (!collection && typeof store.NewUnsavedCollection === "function") {
+        collection = store.NewUnsavedCollection(name, undefined, []);
+        await collection?.Save?.();
+    }
+    const target = collection?.AsDragDropCollection?.();
+    if (typeof target?.AddApps !== "function") return false;
+    target.AddApps([overview]);
+    return true;
+}
+
+/** Waits for Steam to know the new shortcut (its overview appears a moment after AddShortcut resolves). */
+async function overviewReady(appid: number, tries = 20): Promise<boolean> {
+    for (let i = 0; i < tries; i++) {
+        if ((window as any).appStore?.GetAppOverviewByAppID?.(appid)) return true;
+        await new Promise((r) => setTimeout(r, 250));
+    }
+    return false;
+}
+
+/** `store.add-requested` (index.tsx subscribes it): add the shortcut, name it, set its launch options, file it. */
+export async function onAddRequested(e: Events["store.add-requested"]): Promise<void> {
+    if (!deps.isEnabled("library-shortcuts")) return;
+    const apps = steamApps();
+    if (typeof apps?.AddShortcut !== "function") {
+        deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, error: "SteamClient.Apps.AddShortcut not found" });
+        return;
+    }
+    try {
+        const appid = await apps.AddShortcut(e.title, e.launch.exe, e.launch.start_dir, e.launch.launch_options);
+        if (typeof appid !== "number") {
+            deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, error: `AddShortcut answered ${JSON.stringify(appid)}` });
+            return;
+        }
+        apps.SetShortcutName?.(appid, e.title);
+        apps.SetShortcutLaunchOptions?.(appid, e.launch.launch_options);
+        let filed = false;
+        if (e.collection && (await overviewReady(appid))) {
+            try {
+                filed = await addToCollection(appid, e.collection);
+            } catch (err) {
+                deps.reportError("library-shortcuts", err);
+            }
+            if (!filed) logger.warn(`Added "${e.title}" but could not put it in the "${e.collection}" collection.`);
+        }
+        deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, appid, collection: filed ? e.collection : undefined });
+    } catch (err) {
+        deps.reportError("library-shortcuts", err);
+        deps.bus.emit("store.shortcut-added", { kind: e.kind, key: e.key, error: String(err) });
+    }
+}
+
+export function createLibraryShortcutsSurface(d: Deps): Surface {
+    deps.isEnabled = d.isEnabled;
+    deps.reportError = d.reportError;
+    deps.bus = d.bus;
+    return {
+        id: "library-shortcuts",
+        touches: [
+            "SteamClient.Apps.AddShortcut",
+            "SteamClient.Apps.SetShortcutName",
+            "SteamClient.Apps.SetShortcutLaunchOptions",
+            "collectionStore.NewUnsavedCollection",
+            "Collection.AsDragDropCollection.AddApps",
+        ],
+        reads: [],
+        install() {},
+        render() {
+            /* event-driven (store.add-requested), never per record */
+        },
+        clear() {},
+        uninstall() {},
+    };
+}

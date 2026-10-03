@@ -8,6 +8,8 @@ export interface ActivityOptions {
     showAdded: boolean;
     /** Show Steam's "Played for the first time" event (setting activityShowFirstPlayed). */
     showFirstPlayed: boolean;
+    /** Show Steam's "achieved" event for each day with unlocks (setting activityShowAchievements, ADR-0056). */
+    showAchievements: boolean;
 }
 
 export const deps: SurfaceDeps & {
@@ -17,6 +19,6 @@ export const deps: SurfaceDeps & {
 } = {
     isEnabled: () => true,
     reportError: () => {},
-    activityOptions: () => ({ showAdded: true, showFirstPlayed: true }),
+    activityOptions: () => ({ showAdded: true, showFirstPlayed: true, showAchievements: true }),
     bus: { emit: () => {} },
 };

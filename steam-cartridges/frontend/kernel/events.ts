@@ -2,7 +2,7 @@
 // Sensors emit, app/ and surfaces subscribe. A handler that throws is logged and
 // skipped; it never stops the other handlers or the emitter.
 import type { ShortcutId } from "./appid";
-import type { RecordPart } from "./record";
+import type { RecordPart, StoreKind } from "./record";
 
 export interface Events {
     /** The user opened a shortcut's page (desktop route or Big Picture), deduplicated per appid. */
@@ -42,6 +42,19 @@ export interface Events {
         icon?: { path: string; previous: string };
     };
     "settings.changed": { key: string };
+    /**
+     * Auto-add (app/store-sync, ADR-0056): add this installed store game as a shortcut, in `collection`. The
+     * library-shortcuts surface writes it and answers with `store.shortcut-added`.
+     */
+    "store.add-requested": {
+        kind: StoreKind;
+        key: string;
+        title: string;
+        launch: { exe: string; start_dir: string; launch_options: string };
+        collection: string;
+    };
+    /** What the library-shortcuts surface did: the new appid (and the collection it is in), or an error. */
+    "store.shortcut-added": { kind: StoreKind; key: string; appid?: number; collection?: string; error?: string };
     /** The community surface showed Steam's viewer for a manual card (features plan F2c): app/manuals renders its pages. */
     "community.manual-opened": { appid: ShortcutId; key: string };
 }

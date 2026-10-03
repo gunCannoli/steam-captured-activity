@@ -20,6 +20,8 @@ export interface MetadataDeps {
     allowScreenscraper(appid: ShortcutId): boolean;
     /** What decides the controller badge without Steam Store data (app/controller + setting defaultFullController). */
     controller(appid: ShortcutId): ControllerContext;
+    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
+    stores?(): { epic: boolean; xbox: boolean };
 }
 
 export interface MetadataResolver {
@@ -57,6 +59,8 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
             storeItem: storeItem ?? undefined,
             allowWeb: deps.allowWeb(appid),
             allowScreenscraper: deps.allowScreenscraper(appid),
+            allowEpic: deps.stores?.().epic ?? true,
+            allowXbox: deps.stores?.().xbox ?? true,
             noNetwork: opts.noNetwork,
         });
 

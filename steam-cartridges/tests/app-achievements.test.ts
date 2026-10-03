@@ -241,3 +241,84 @@ test('rerenderAll: emits record.updated(achievements) for every record with an o
     assert.equal(ach.rerenderAll(), 1);
     assert.deepEqual(updated, [SC]);
 });
+
+// ---------- store copies: synced, not observed (ADR-0056) ----------
+
+/** A record that is an Epic copy, whose backend answers with the store's unlocks (one call per ensure). */
+function storeSetup(answers: Record<string, { unlocked_time: number }>[]) {
+    const bus = createEventBus();
+    const records = createRecordStore(bus);
+    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
+    records.update(SC, { store: { status: 'ok', data: { kind: 'epic', namespace: 'ns', via: 'manifest' } } as any });
+    records.update(SC, { achievements: { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 5 } } } } });
+    const contexts: any[] = [];
+    const synced: any[] = [];
+    const unlocked: any[] = [];
+    const toasts: number[] = [];
+    const timers: any[] = [];
+    let n = 0;
+    bus.on('achievements.synced', (e) => synced.push(e));
+    bus.on('achievements.unlocked', (e) => unlocked.push(e));
+    bus.on('achievements.launch-toast', () => toasts.push(1));
+    const ach = createAchievements({
+        backend: {
+            async ensureFresh(_a: number, _p: string[], ctx: any) {
+                contexts.push(ctx);
+                const unlocks = answers[Math.min(n++, answers.length - 1)];
+                return { appid: SC, parts: { achievements: { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks } } } };
+            },
+            async checkUnlocks() { throw new Error('a synced copy is never polled'); },
+            async steamStoreGetMapping() { return { mapping: null }; },
+        } as any,
+        records,
+        bus,
+        ensureBase: () => {},
+        titleOf: () => 'Game',
+        routeOf: () => ({ bucket: 'steam-store', via: 'default' }),
+        hardcore: () => true,
+        launchPolicy: () => 'all_runs',
+        observerEnabled: () => true,
+        stores: () => ({ epic: true, xbox: false }),
+        timers: { setInterval: (fn: () => void, ms: number) => { timers.push(ms); return 1; }, clearInterval: () => {} },
+        now: () => 1000,
+    });
+    ach.install();
+    return { ach, bus, contexts, synced, unlocked, toasts, timers };
+}
+
+test('a store copy gets no launch toast and no in-game polling (the store notifies)', async () => {
+    const s = storeSetup([{ A: { unlocked_time: 5 } }]);
+    s.bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
+    await tick();
+    assert.deepEqual(s.toasts, []);
+    assert.deepEqual(s.timers, []);
+});
+
+test('after a store copy quits, a forced sync announces only the new unlocks, never as a toast', async () => {
+    const s = storeSetup([{ A: { unlocked_time: 5 }, B: { unlocked_time: 900 } }]);
+    s.bus.emit('shortcut.quit', { appid: SC, name: 'Game' });
+    await tick();
+    await tick();
+    assert.equal(s.contexts.length, 1);
+    assert.equal(s.contexts[0].force, true, 'the quit sync ignores the 15 min freshness');
+    assert.equal(s.contexts[0].allowEpic, true);
+    assert.equal(s.contexts[0].allowXbox, false);
+    assert.equal(s.synced.length, 1);
+    assert.deepEqual(s.synced[0].items.map((i: any) => [i.id, i.name, i.unlockedAt]), [['B', 'Beta', 900]]);
+    assert.equal(s.unlocked.length, 0, 'achievements.unlocked (which toasts) is never emitted for a sync');
+});
+
+test('a sync that finds nothing new announces nothing', async () => {
+    const s = storeSetup([{ A: { unlocked_time: 5 } }]);
+    s.bus.emit('shortcut.quit', { appid: SC, name: 'Game' });
+    await tick();
+    await tick();
+    assert.equal(s.synced.length, 0);
+});
+
+test('a store copy is not resettable; any other shortcut is', () => {
+    const s = storeSetup([{}]);
+    assert.equal(s.ach.resettable(SC), false);
+    const other = setup();
+    assert.equal(other.ach.resettable(SC), true);
+});
