@@ -297,7 +297,7 @@ test('architecture: backend services use no RPC module as a library, and no stor
     const bad: string[] = [];
     for (const name of readdirSync(dir).filter((n) => n.endsWith('.lua') && n !== 'main.lua')) {
         const src = readFileSync(join(dir, name), 'utf8');
-        if (/require\("(web_rpc|steam_store_rpc|record_rpc|achievements_rpc)"\)/.test(src)) bad.push(`${name}: requires an RPC module`);
+        if (/require\("(web_rpc|steam_store_rpc|record_rpc|achievements_rpc|store_rpc)"\)/.test(src)) bad.push(`${name}: requires an RPC module`);
         if (/(_store|_db)\.lua$|^(fresh_policy|registry)\.lua$/.test(name) && /require\("net"\)/.test(src)) bad.push(`${name}: a store that fetches`);
     }
     assert.deepEqual(bad, []);

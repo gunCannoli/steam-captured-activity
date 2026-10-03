@@ -65,3 +65,11 @@ test('community media: the section shows with cards, and while the media is bein
     assert.ok(!wantsCommunitySection({ status: 'unsupported' }));
     assert.ok(!wantsCommunitySection({ status: 'needs-setup' }));
 });
+
+test('community media: a store copy\'s own screenshots come before ScreenScraper and IGDB images (ADR-0056)', () => {
+    const epic = { kind: 'screenshot', source: 'epic', url: 'https://cdn2.unrealengine.com/a.jpg', width: 1920, height: 1080 } as any;
+    const xbox = { kind: 'screenshot', source: 'xbox', url: 'https://store-images.s-microsoft.com/b', width: 1920, height: 1080 } as any;
+    assert.ok(isShowable(epic) && isShowable(xbox), 'a store screenshot is a card when it has a URL');
+    const media = { items: [shot(1), ssArt, epic, video(), xbox] };
+    assert.deepEqual(visibleMedia(media, ON), [video(), epic, xbox, ssArt, shot(1)]);
+});

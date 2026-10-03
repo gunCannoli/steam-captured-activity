@@ -6,6 +6,7 @@ local resolve_identity  = require("resolve_identity")
 local metadata_service  = require("metadata_service")
 local art_service       = require("art_service")
 local media_service     = require("media_service")
+local store_service     = require("store_service")
 local metadata_db       = require("web_metadata_db")
 local steam_store_store = require("steam_store_store")
 
@@ -56,6 +57,10 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
         end
       end
       ctx.identity = parts.identity -- later parts of this same call see the fresh identity
+    elseif name == "store" then
+      -- The Epic or Xbox copy behind the shortcut (ADR-0056): local detection, then the store's ids once per game.
+      parts.store = store_service.ensure(appid, ctx)
+      ctx.store = parts.store -- later parts of this same call see the copy
     elseif name == "metadata" then
       parts.metadata = metadata_service.ensure(appid, ctx)
     elseif name == "artwork" then
@@ -98,10 +103,15 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
       if cached and not ctx.force and not fresh().is_stale(appid, "achievements", cached, now_ms()) then
         parts.achievements = cached
       else
+        -- The store copy (ADR-0056): this call's fresh part, else the saved one.
+        local copy = ctx.store or store_service.saved(appid)
         parts.achievements = ach().ensure(appid, {
           native = native and native.appid or nil,
           hardcore = ctx.hardcore ~= false,
           title = ctx.title,
+          store = copy and copy.data or nil,
+          allowEpic = ctx.allowEpic,
+          allowXbox = ctx.allowXbox,
         })
         local st = parts.achievements.status
         if st == "ok" or st == "error" then fresh().touch(appid, "achievements", now_ms(), st) end

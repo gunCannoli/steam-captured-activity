@@ -635,5 +635,34 @@ fsx.remove_all(CACHE_DIR)
 cache.deps = {}
 cache._reset()
 media.deps.ss_jeu, media.deps.download, media.deps.download_document = saved_jeu, saved_download, nil
+
+-- ---------- store copies: the store's own screenshots first (ADR-0056) ----------
+print("store copies")
+wipe()
+local MCOPY = { kind = "xbox", pfn = "Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe", storeId = "9WZDNCRFJ9X2" }
+local store_item_calls = 0
+media.deps.store_copy = function() return MCOPY end
+media.deps.store_items = function()
+  store_item_calls = store_item_calls + 1
+  return { { kind = "screenshot", source = "xbox", url = "https://s/1", thumb = "https://s/1?w=640", width = 1366, height = 768 } }
+end
+igdb_answer = { IGDB_GAME }; jeu_answer, jeu_err = JEU, nil
+r = media.ensure(SC, { title = "Jigsaw", route = ROUTE_WEB, allowWeb = true, igdb_id = 1234, allowScreenscraper = true })
+check("a store copy's screenshots are asked first, then IGDB and ScreenScraper", r.status == "ok" and r.data.items[1].source == "xbox" and r.source == "xbox+igdb+screenscraper" and store_item_calls == 1, tostring(r.source))
+wipe()
+r = media.ensure(SC, { title = "Jigsaw", route = ROUTE_WEB })
+check("the store alone is enough to ask (no IGDB id, no ScreenScraper)", r.status == "ok" and r.source == "xbox" and #r.data.items == 1, tostring(r.status))
+wipe()
+r = media.ensure(SC, { title = "Jigsaw", route = ROUTE_WEB, allowXbox = false })
+check("Xbox switched off and no other source: unsupported, the store is not asked", r.status == "unsupported" and store_item_calls == 2)
+wipe()
+r = media.ensure(SC, { title = "Jigsaw", route = ROUTE_STORE, identity = { status = "ok", data = { native = { appid = 1 } } } })
+check("a copy with a Steam match keeps Steam's own community content", r.status == "unsupported" and r.message == "steam" and store_item_calls == 2)
+media.deps.store_items = function() error("catalog down") end
+wipe()
+r = media.ensure(SC, { title = "Jigsaw", route = ROUTE_WEB, allowWeb = true, igdb_id = 1234 })
+check("a failing store is silent: IGDB still answers", r.status == "ok" and r.source == "igdb")
+media.deps.store_copy, media.deps.store_items = nil, nil
+wipe()
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

@@ -17,11 +17,16 @@
     "steamgriddbEnabled": true,
     "retroachievementsEnabled": true,
     "emulatorsEnabled": true,
-    "rpcs3Enabled": true
+    "rpcs3Enabled": true,
+    "epicEnabled": true,
+    "xboxEnabled": true
   },
   "controllerOverrides": {},
   "activityShowAddedToLibrary": true,
   "activityShowFirstPlayed": true,
+  "activityShowAchievements": true,
+  "autoAddEpicGames": false,
+  "autoAddXboxGames": false,
   "communityShowTrailers": true,
   "communityShowManuals": true,
   "communityShowArtworks": true,

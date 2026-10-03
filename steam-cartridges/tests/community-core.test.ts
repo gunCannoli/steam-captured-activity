@@ -262,3 +262,16 @@ test('community core: a first page is held until released (or the limit), then a
     assert.deepEqual(await third, { appid: 3 });
     assert.deepEqual(EMPTY_ANSWER().vecContent, []);
 });
+
+test('community core: an Epic or Xbox screenshot is a URL card with its store as the author (ADR-0056)', () => {
+    const [epic, xbox] = toFeedItems(SC, [
+        { kind: 'screenshot', source: 'epic', url: 'https://cdn2.unrealengine.com/a.jpg', width: 1920, height: 1080 },
+        { kind: 'screenshot', source: 'xbox', url: 'https://store-images.s-microsoft.com/b', width: 1920, height: 1080 },
+    ], none);
+    assert.equal(epic!.full_image_url, 'https://cdn2.unrealengine.com/a.jpg');
+    assert.deepEqual(epic!.creator, { name: 'Epic Games Store', steamid: CREATOR_STEAMIDS.epic, avatar: CREATOR_AVATARS.epic, online_state: 0 });
+    assert.equal(xbox!.creator.name, 'Xbox');
+    assert.equal(sourceOfAccount(2147483103), 'epic');
+    assert.equal(sourceOfAccount(2147483104), 'xbox');
+    assert.equal(BigInt(CREATOR_STEAMIDS.xbox) - 76561197960265728n, 2147483104n, 'the 64-bit id is the account id plus the individual base');
+});

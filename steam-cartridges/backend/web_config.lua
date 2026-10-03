@@ -145,6 +145,18 @@ function config.get_screenscraper_credentials()
   return nil
 end
 
+--- The Xbox account (ADR-0056): the Microsoft refresh token and whose it is, or nil when signed out. Written by
+--- xbox_live.lua through save_credentials (keys xbox_refresh_token, xbox_xuid, xbox_gamertag); never logged.
+---@return table|nil { refresh_token = string, xuid = string, gamertag = string }
+function config.get_xbox_account()
+  local env_map = get_env_map()
+  local token = env_map["xbox_refresh_token"]
+  if token and #token > 0 then
+    return { refresh_token = token, xuid = env_map["xbox_xuid"] or "", gamertag = env_map["xbox_gamertag"] or "" }
+  end
+  return nil
+end
+
 --- Save key-value pairs into data_dir .env
 function config.save_credentials(map)
   if type(map) ~= "table" then return false end

@@ -53,7 +53,8 @@ end
 function M._reset() state = nil end
 
 local function to_schema_key(id)
-  if type(id) == "string" and id:match("^ra_") then
+  -- A source's own list: "ra_<game>", "epic_<namespace>", "xbox_<title id>" (ADR-0056); a number is a native appid.
+  if type(id) == "string" and (id:match("^ra_") or id:match("^epic_") or id:match("^xbox_")) then
     return id
   end
   return tostring(math.floor(tonumber(id) or 0))
@@ -98,6 +99,8 @@ function M.get_state(shortcut_appid, native_appid)
   return {
     schema = schema,
     unlocks = sc and sc.unlocks or {},
+    -- The source that wrote the unlocks when it is a synced store ("epic", "xbox"; ADR-0056), else nil.
+    source = sc and sc.source or nil,
   }
 end
 
@@ -132,6 +135,20 @@ function M.unlock(shortcut_appid, achievement_id, unlock_time)
   }
   save()
   return { ok = true, unlocks = sc.unlocks }
+end
+
+--- A store sync (ADR-0056): the shortcut's list and its unlocks as the store reports them (the store is the truth,
+--- so the unlocks are replaced, not merged), and which store wrote them.
+function M.sync(shortcut_appid, schema_id, unlocks, source)
+  local s = load()
+  local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))
+  local sc = s.shortcuts[sc_key] or {}
+  sc.schema_appid = schema_id
+  sc.unlocks = unlocks or {}
+  sc.source = source
+  s.shortcuts[sc_key] = sc
+  save()
+  return sc
 end
 
 function M.reset(shortcut_appid)

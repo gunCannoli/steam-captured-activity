@@ -2,6 +2,9 @@
 ---
 --- Sources, in this order (the chain CartridgesAchievementsGet used to hard-code), each with a
 --- `supports` rule so a source is only asked when the shortcut can be one of its games:
+---   epic, xbox        the shortcut is that store's copy (ctx.store, ADR-0056) and the store is enabled: the
+---                     player's own unlocks, synced (store_achievements.lua); a copy with a Steam match keeps
+---                     Steam's list when it covers the store's ids
 ---   steam             the shortcut has a Steam match (ctx.native > 0)
 ---   rpcs3             a PS3 trophy directory is found from the launch command
 ---   shadps4           a PS4 trophy directory is found from the launch command
@@ -24,6 +27,7 @@ M.deps = {
   ps3_dir = nil,  -- fun(exe, launch_options) -> dir | nil ; nil = ps3_trophies.find_trophy_dir
   ps4_dir = nil,  -- fun(exe, launch_options) -> dir | nil ; nil = ps4_trophies.find_trophy_dir
   rom_path = nil, -- fun(exe, launch_options) -> path | nil ; nil = retroachievements.extract_rom_path
+  store_fetch = nil, -- fun(appid, copy, native) -> res, err ; nil = store_achievements.fetch (ADR-0056)
   now = function() return os.time() end,
 }
 
@@ -39,7 +43,21 @@ local function dep(name, module_name, fn_name)
   return M.deps[name] or function(...) return require(module_name)[fn_name](...) end
 end
 
+local function store_row(kind, allow_key)
+  return {
+    name = kind,
+    supports = function(ctx)
+      return type(ctx.store) == "table" and ctx.store.kind == kind and ctx[allow_key] ~= false
+    end,
+    fetch = function(appid, ctx)
+      return dep("store_fetch", "store_achievements", "fetch")(appid, ctx.store, tonumber(ctx.native) or 0)
+    end,
+  }
+end
+
 local SOURCES = {
+  store_row("epic", "allowEpic"),
+  store_row("xbox", "allowXbox"),
   {
     name = "steam",
     supports = function(ctx) return (tonumber(ctx.native) or 0) > 0 end,
@@ -69,7 +87,7 @@ local SOURCES = {
 }
 
 --- Resolve, returning the part and the raw source result (the old RPC's response shape).
---- ctx = { native = number|nil, hardcore = boolean|nil, title = string }
+--- ctx = { native = number|nil, hardcore = boolean|nil, title = string, store = StoreCopy|nil, allowEpic?, allowXbox? }
 function M._resolve(appid, ctx)
   ctx = ctx or {}
   local entry = (M.deps.entry or default_entry)(appid)
@@ -105,7 +123,8 @@ end
 function M.local_part(appid)
   local st = store.get_state(appid)
   if not st or not st.schema then return nil end
-  return { status = "ok", data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
+  -- `source` tells a synced store part (its freshness is short, fresh_policy) from a local one.
+  return { status = "ok", source = st.source, data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
 end
 
 --- Every shortcut appid (a number) the store holds an entry for, with or without a schema. Disk only;

@@ -21,6 +21,7 @@ local WEB_RPC = require("web_rpc")
 local STORE_RPC = require("steam_store_rpc")
 local ACH_RPC   = require("achievements_rpc")
 local RECORD_RPC = require("record_rpc")
+local STORE_RPC_3P = require("store_rpc")
 
 -- Millennium exposes globals to the frontend as callable methods.
 GetLibraryStats = RPC.GetLibraryStats
@@ -65,6 +66,13 @@ GetManualCover = RECORD_RPC.GetManualCover
 SaveManualCover = RECORD_RPC.SaveManualCover
 -- Downloaded media on disk (ADR-0051): drop the games not opened within the setting's days.
 PruneMediaCache = RECORD_RPC.PruneMediaCache
+
+-- Third-party stores (ADR-0056): installed Epic and Xbox games, the accounts, the Xbox sign-in.
+StoreInstalledGames = STORE_RPC_3P.StoreInstalledGames
+StoreAccounts       = STORE_RPC_3P.StoreAccounts
+XboxSignInStart     = STORE_RPC_3P.XboxSignInStart
+XboxSignInPoll      = STORE_RPC_3P.XboxSignInPoll
+XboxSignOut         = STORE_RPC_3P.XboxSignOut
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

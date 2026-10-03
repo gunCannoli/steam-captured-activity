@@ -18,6 +18,11 @@ export interface Events {
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
     /** New unlocks (app/achievements), with what the toast and the Post-Game Summary show. */
     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };
+    /**
+     * New unlocks a store sync found (Epic, Xbox; ADR-0056): the store's own overlay already showed them, so there is
+     * no toast; the Post-Game Summary shows them.
+     */
+    "achievements.synced": { appid: ShortcutId; items: UnlockedAchievement[] };
     /** The launch toast policy (app/achievements) decided a launch gets the "Achievements Enabled" toast. */
     "achievements.launch-toast": { appid: ShortcutId };
     /** The captures surface published (or cleared) a shortcut's summary and activity (sections drops the placeholder). */

@@ -10,7 +10,7 @@
 import type { MediaItem } from "../../kernel/record";
 import type { MediaImage } from "../../kernel/media-bin";
 import { toShortcutId } from "../../kernel/appid.ts";
-import { IGDB_ICON, SCREENSCRAPER_ICON } from "./icons.ts";
+import { EPIC_ICON, IGDB_ICON, SCREENSCRAPER_ICON, XBOX_ICON } from "./icons.ts";
 
 export const FILE_TYPE = { artwork: 3, video: 4, screenshot: 5 } as const;
 
@@ -25,17 +25,22 @@ export function feedId(appid: number, index: number): string {
     return String(FEED_ID_BASE + appid * MAX_ITEMS + index);
 }
 
-export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper" };
+export const CREATOR_NAMES: Record<MediaItem["source"], string> = { igdb: "IGDB", screenscraper: "ScreenScraper", epic: "Epic Games Store", xbox: "Xbox" };
 
 /**
- * Each source is a made-up Steam account (public individual accounts 2147483101 and 2147483102, at the top of the signed
+ * Each source is a made-up Steam account (public individual accounts 2147483101 to 2147483104, at the top of the signed
  * int32 range), so `new SteamID(...)` is valid and Steam's own author and "Created by" components accept it. They must
  * stay below 2^31: Steam converts an account id with signed bit operations when it opens a comment thread, and a
  * protobuf uint32 writer then asserts on the negative value (verified live 2026-09-30, guardrail 1). The 64-bit ids are
  * decimal strings because they exceed 2^53.
  */
-export const CREATOR_STEAMIDS: Record<MediaItem["source"], string> = { igdb: "76561200107748829", screenscraper: "76561200107748830" };
-const ACCOUNT_SOURCE: Record<number, MediaItem["source"]> = { 2147483101: "igdb", 2147483102: "screenscraper" };
+export const CREATOR_STEAMIDS: Record<MediaItem["source"], string> = {
+    igdb: "76561200107748829",
+    screenscraper: "76561200107748830",
+    epic: "76561200107748831",
+    xbox: "76561200107748832",
+};
+const ACCOUNT_SOURCE: Record<number, MediaItem["source"]> = { 2147483101: "igdb", 2147483102: "screenscraper", 2147483103: "epic", 2147483104: "xbox" };
 
 /** The source whose made-up account this is, or undefined for any real account. O(1). */
 export function sourceOfAccount(accountId: unknown): MediaItem["source"] | undefined {
@@ -46,6 +51,8 @@ export function sourceOfAccount(accountId: unknown): MediaItem["source"] | undef
 export const CREATOR_AVATARS: Record<MediaItem["source"], string> = {
     igdb: IGDB_ICON,
     screenscraper: SCREENSCRAPER_ICON,
+    epic: EPIC_ICON,
+    xbox: XBOX_ICON,
 };
 
 /** One item of Steam's community feed, as its card components read it. */

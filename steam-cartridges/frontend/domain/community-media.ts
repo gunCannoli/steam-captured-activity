@@ -25,14 +25,19 @@ export function isShowable(item: MediaItem | undefined): item is MediaItem {
 
 /**
  * The items to show: allowed by the toggles, complete, at most MAX_PER_KIND per kind. Order: the manual first (the user
- * wants it as the top-left card, features plan F2c), then trailers, then the images
- * ScreenScraper has for this exact game (chosen by ROM and console, so the most specific), then IGDB's. The ScreenScraper
- * images go first so IGDB's larger sets can neither crowd them out of the cap nor leave them at the end of the grid, where
- * Steam's row layout drops a card that fits no row.
+ * wants it as the top-left card, features plan F2c), then trailers, then the screenshots of the store the copy was bought
+ * on (Epic, Xbox: the game's own, ADR-0056), then the images ScreenScraper has for this exact game (chosen by ROM and
+ * console, so the most specific), then IGDB's. The ScreenScraper images go before IGDB's so IGDB's larger sets can neither
+ * crowd them out of the cap nor leave them at the end of the grid, where Steam's row layout drops a card that fits no row.
  */
 export function visibleMedia(media: CommunityMedia | undefined, toggles: MediaToggles): MediaItem[] {
     const counts: Record<string, number> = {};
-    const rank = (item: MediaItem) => (item.kind === "manual" ? -1 : item.kind === "video" ? 0 : item.source === "screenscraper" ? 1 : 2);
+    const rank = (item: MediaItem) =>
+        item.kind === "manual" ? -1
+        : item.kind === "video" ? 0
+        : item.source === "epic" || item.source === "xbox" ? 1
+        : item.source === "screenscraper" ? 2
+        : 3;
     const wanted = asList<MediaItem>(media?.items)
         .filter(isShowable)
         .filter((item) => (item.kind === "video" ? toggles.trailers : item.kind === "manual" ? toggles.manuals : toggles.artworks))

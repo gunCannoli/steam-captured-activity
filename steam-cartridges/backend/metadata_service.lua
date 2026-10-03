@@ -23,6 +23,8 @@ M.deps = {
                              -- M.screenscraper_to_metadata; fun(appid, title, shortcut_info) -> meta|nil
   igdb_fetch = nil,       -- nil = igdb.fetch_game_metadata
   appdetails_fetch = nil, -- nil = appdetails.fetch
+  store_copy = nil,       -- fun(appid) -> StoreCopy | nil ; nil = store_service.saved (ADR-0056)
+  store_fetch = nil,      -- fun(copy, appid, title) -> meta | nil ; nil = the copy's store (epic_graphql, xbox_catalog)
   shortcut_info = nil,    -- nil = registry.shortcut (the shortcuts.vdf entry)
   now = function() return os.time() end,
 }
@@ -159,6 +161,43 @@ local function fresh()
   return M.deps.fresh or require("fresh_policy")
 end
 
+--- The store copy behind the shortcut (ADR-0056): this call's part, else the saved one.
+local function store_copy(appid, ctx)
+  if ctx.store and ctx.store.data then return ctx.store.data end
+  if M.deps.store_copy then return M.deps.store_copy(appid) end
+  local part = require("store_service").saved(appid)
+  return part and part.data or nil
+end
+
+--- May the copy's store be asked? (settings services.epicEnabled / xboxEnabled, sent as ctx.allowEpic / allowXbox)
+local function store_allowed(copy, ctx)
+  if not copy then return false end
+  if copy.kind == "epic" then return ctx.allowEpic ~= false and copy.namespace ~= nil and copy.offerId ~= nil end
+  if copy.kind == "xbox" then return ctx.allowXbox ~= false and (copy.storeId ~= nil or copy.pfn ~= nil) end
+  return false
+end
+
+--- The store's own Game Info for a copy, or nil (ADR-0014: a failing store is silent, the next tier runs).
+local function default_store_fetch(copy, appid, title)
+  if copy.kind == "epic" then
+    local g = require("epic_graphql")
+    local offer = g.offer(copy.namespace, copy.offerId)
+    return offer and g.to_metadata(offer, appid, title) or nil
+  end
+  local catalog = require("xbox_catalog")
+  local product = (copy.storeId and catalog.by_store_id(copy.storeId)) or catalog.by_pfn(copy.pfn)
+  return product and catalog.to_metadata(product, appid, title) or nil
+end
+
+local function store_fetch(copy, appid, title)
+  local ok, meta = pcall(M.deps.store_fetch or default_store_fetch, copy, appid, title)
+  if ok and type(meta) == "table" then
+    meta.store_source = copy.kind -- the record remembers which store wrote it (a copy found later replaces others)
+    return meta
+  end
+  return nil
+end
+
 local function now_ms()
   return math.floor((M.deps.now or os.time)() * 1000)
 end
@@ -273,12 +312,17 @@ function M.ensure(appid, ctx)
   end
 
   -- web-scraping, or steam-store identity ok without a native match:
-  -- the local record while it is fresh, else igdb -> screenscraper -> the fallback record.
-  local can_fetch = (ctx.allowWeb or ctx.allowScreenscraper) and not ctx.noNetwork
+  -- the local record while it is fresh, else the copy's store (Epic, Xbox: the game's own data, ADR-0056) -> igdb ->
+  -- screenscraper -> the fallback record.
+  local copy = store_copy(appid, ctx)
+  local use_store = store_allowed(copy, ctx)
+  local can_fetch = (ctx.allowWeb or ctx.allowScreenscraper or use_store) and not ctx.noNetwork
   if local_rec then
     -- Stale (M7a: 24 h, or ctx.force) records are refreshed when a source may be asked. A custom_override
-    -- record never reaches here (K15), so a manual edit is never refreshed.
+    -- record never reaches here (K15), so a manual edit is never refreshed. A record its store did not write is due
+    -- as soon as the copy is known (the store comes first).
     local due = ctx.force or fresh().is_stale(appid, "metadata", { status = "ok", source = "local_db" }, now_ms())
+      or (use_store and local_rec.store_source ~= copy.kind)
     if not (due and can_fetch) then
       return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() }
     end
@@ -290,7 +334,11 @@ function M.ensure(appid, ctx)
   -- IGDB first when the user has it (a plain ScreenScraper account is the easy one, so it fills
   -- in when IGDB is not configured or finds no match), then the fallback record (M5d).
   local meta, source
-  if ctx.allowWeb then
+  if use_store then
+    meta = store_fetch(copy, appid, title)
+    if meta then source = copy.kind end
+  end
+  if not meta and ctx.allowWeb then
     meta = igdb_fetch(appid, title, info)
     if meta then source = "igdb" end
   end
