@@ -57,6 +57,14 @@ function WindowText($hwnd) {
     return $out
   } catch { return @("(uia failed: $($_.Exception.Message))") }
 }
+# Windows' DNS client cache: name -> addresses (and CNAME chains). A new connection's address is looked up here, so the log says
+# "api.epicgames.dev" and not just an IP; a new cache entry is itself a trace (something resolved a name).
+function DnsMap {
+  $ip = @{}; $cname = @{}
+  Get-DnsClientCache | ForEach-Object { if ($_.Type -eq 5) { $cname[$_.Data] = $_.Name } elseif ($_.Data) { $ip[$_.Data] = $_.Name } }
+  foreach ($k in @($ip.Keys)) { $n = $ip[$k]; $guard = 0; $chain = @($n); while ($cname.ContainsKey($n) -and $guard++ -lt 6) { $n = $cname[$n]; $chain += $n }; $ip[$k] = ($chain[($chain.Count - 1)..0] -join ' <- ') }
+  return $ip
+}
 function Conns {
   $m = @{}; $names = @{}; Get-Process | ForEach-Object { $names[[int]$_.Id] = $_.ProcessName }
   Get-NetTCPConnection -State Established | Where-Object { $_.RemoteAddress -notmatch '^(127\.|::1|0\.0\.0\.0)' } | ForEach-Object {
@@ -66,6 +74,7 @@ function Conns {
 $prevW = Snapshot
 $prevP = @{}; Get-CimInstance Win32_Process | ForEach-Object { $prevP["$($_.ProcessId)"] = $_ }
 $prevC = Conns
+$prevD = DnsMap
 Emit @{ kind = 'baseline'; windows = $prevW.Count; processes = $prevP.Count; connections = $prevC.Count }
 $tick = 0
 while ($true) {
@@ -96,8 +105,10 @@ while ($true) {
   $prevP = $curP
   if ($tick % 4 -eq 0) {
     $curC = Conns
-    foreach ($k in $curC.Keys) { if (-not $prevC.ContainsKey($k)) { Emit @{ kind = 'conn+'; c = $curC[$k] } } }
+    $curD = DnsMap
+    foreach ($k in $curD.Keys) { if (-not $prevD.ContainsKey($k)) { Emit @{ kind = 'dns+'; address = $k; name = $curD[$k] } } }
+    foreach ($k in $curC.Keys) { if (-not $prevC.ContainsKey($k)) { $c = $curC[$k]; $addr = $c.remote -replace ':\d+$', '' -replace '^\[|\]$', ''; $c.host = $curD[$addr]; if (-not $c.host) { $c.host = $prevD[$addr] }; Emit @{ kind = 'conn+'; c = $c } } }
     foreach ($k in $prevC.Keys) { if (-not $curC.ContainsKey($k)) { Emit @{ kind = 'conn-'; c = $prevC[$k] } } }
-    $prevC = $curC
+    $prevC = $curC; $prevD = $curD
   }
 }

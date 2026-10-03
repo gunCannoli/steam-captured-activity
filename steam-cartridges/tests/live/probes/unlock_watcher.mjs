@@ -64,13 +64,20 @@ if (only.has("windows")) {
         try {
             const o = JSON.parse(l);
             const { kind, ...rest } = o;
+            if (kind === "dns+") {
+                log("dns", "resolved", { address: rest.address, name: rest.name }, /epicgames|epicdata|eos|xboxlive|xbox\.com|microsoft\.com|playfab|gamepass/i.test(rest.name ?? ""));
+                return;
+            }
             if (kind === "conn+" || kind === "conn-") {
                 const c = rest.c;
                 const hotProc = /epic|eos|xbox|gaming|jotunn|jigsaw|gamebar|msedgewebview|WebHelper/i.test(c.proc ?? "");
-                const emit = (host) => log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, hotProc && kind === "conn+");
+                const emit = (host) => log("net", kind, { proc: c.proc, pid: c.pid, remote: c.remote, host, localPort: c.local }, kind === "conn+" && (hotProc || /epicgames|eos|xboxlive|xbox\.com|playfab/i.test(host ?? "")));
                 if (kind === "conn+") {
-                    const ip = c.remote.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
-                    Promise.race([dns.reverse(ip).then((h) => h[0]), new Promise((r) => setTimeout(() => r(undefined), 1500))]).catch(() => undefined).then(emit);
+                    if (c.host) emit(c.host);
+                    else {
+                        const ip = c.remote.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+                        Promise.race([dns.reverse(ip).then((h) => h[0]), new Promise((r) => setTimeout(() => r(undefined), 1500))]).catch(() => undefined).then(emit);
+                    }
                 } else emit(undefined);
                 return;
             }
@@ -283,8 +290,8 @@ if (only.has("api") && !flag("--no-api")) {
                   return JSON.stringify({ status: a?.status, source: a?.source ?? a?.data?.source, unlocked: found.sort() }); } catch (e) { return JSON.stringify({ error: String(e).slice(0,150) }); } })()`);
                 const now = JSON.parse(res ?? "{}");
                 const key = JSON.stringify(now.unlocked ?? now);
-                if (last.get(t.id) === undefined) log("api", "baseline", { appid: t.id, kind: t.kind, status: now.status, source: now.source, unlockedCount: now.unlocked?.length, error: now.error });
-                else if (last.get(t.id) !== key) log("api", "CHANGED", { appid: t.id, kind: t.kind, status: now.status, unlocked: now.unlocked }, true);
+                if (last.get(t.id) === undefined) log("api", "baseline", { appid: t.id, store: t.kind, status: now.status, source: now.source, unlockedCount: now.unlocked?.length, error: now.error });
+                else if (last.get(t.id) !== key) log("api", "CHANGED", { appid: t.id, store: t.kind, status: now.status, unlocked: now.unlocked }, true);
                 last.set(t.id, key);
             }
         };
