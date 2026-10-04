@@ -5,7 +5,7 @@
 // Modes: e0 (who Steam tracks), reap (option R, run outside Steam), epic (option W), uwp (U1), pkg (U2), carrier (C), pkgof, ps.
 // Runs: take the Steam lock (AGENTS.md Routine 0); `node lt.mjs add "LT-<name>" <exe> <startDir> <options>` makes a throwaway
 // shortcut (lt.mjs refuses to edit or remove one not named LT-), then e1.ps1 (R), e2.ps1 (W), e3.ps1 (U1/U0), e4.ps1 / e4b.ps1 (U2),
-// e5.ps1 (G), e6.ps1 / e6c.ps1 (C and its control); e7_matching.lua is offline. Remove the LT- shortcuts and release the lock after.
+// e5.ps1 (G), e6.ps1 / e6c.ps1 (C and its control), e8_play.ps1 (P, Play interception); e7_matching.lua is offline. Remove the LT- shortcuts and release the lock after.
 // Every line goes to ltprobe.log next to the exe. Command lines of other processes are never logged
 // (an Epic game's carries a live exchange code); only image paths, pids and times.
 using System;

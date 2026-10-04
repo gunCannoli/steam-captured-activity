@@ -1,7 +1,7 @@
 # Plan: make Steam track Epic and Xbox games (launch tracking, drop-with-the-game, UWP) (investigation, then decision, then build)
 
-**Status:** investigation **done 2026-10-03 21:21-22:05** (§ 7: results, verdicts, recommendation, the reaper design); **waiting for
-the user's answers in § 8; no product code before them**. **Audience:** an agent that can run
+**Status:** investigation **done 2026-10-03 21:21-22:05** (§ 7: results, verdicts, recommendation, the reaper design); Play interception E8 22:47; **the user answered § 8 A-D (2026-10-03),
+E (and the confirmations in it) is open; no product code before the build plan**. **Audience:** an agent that can run
 experiments on the live Steam client (Routine 0, the Steam lock) and write findings back into this file. **Owner of the decisions:** the
 user. **Context in one paragraph:** steam-cartridges adds installed Epic and Xbox games as shortcuts. Steam launches the shortcut's exe and
 tracks that process **and its descendants** (verified, § 2). For Epic the exe is the launcher; for Xbox it is Explorer. When the game is not a
@@ -82,6 +82,10 @@ descendant, Steam cannot show its overlay (so no in-game toast, no Shift+Tab), h
 - **K. Keep the manual rule (P1).** Document "close the Epic launcher first" in the settings text; ship R for P2. The baseline to beat.
 - **U0. UWP exe as the shortcut's Exe, no program of ours (P3, partly; added during the investigation, F16).** Exe = `C:\Program Files\WindowsApps\<PackageFullName>\<Executable>`;
   Windows' `SystemUWPLauncher` becomes Steam's child and lives as long as the game. Same expected gains and limits as U1, plus: the path carries the package version.
+- **P. Intercept Steam's Play (P1 without an exe; added 2026-10-03 after the first § 7 pass).** `SteamClient.Apps.RunGame` is an own, writable, configurable
+  property, and Steam's Play paths call it by lookup at call time (module `5808`, the library Play action, with the Big Picture branch in the same function;
+  module `59718`, the game list). A surface wraps it: for an Epic launcher-link copy it holds the launch, the backend closes a running launcher (never with a
+  download pending), then Steam's original runs. Launches that bypass Steam's UI (a desktop shortcut, a `steam://rungameid` link) are not seen.
 - **T. Trick Steam itself (the user's question, 2026-10-03).** Re-target Steam's process tracking or its overlay through Millennium hooks or `SteamClient` APIs, so a game
   Steam did not start counts as the shortcut's renderer.
 
@@ -142,6 +146,8 @@ Tools: a probe program compiled with `csc` (modes `e0`, `reap`, `epic`, `uwp`, `
 | E6 | 2026-10-03 22:00-22:03 | **C: the overlay attaches, the toast does not reach it.** A transparent, click-through, never-activated topmost OpenGL window in the wrapper: Steam's overlay **attached to the carrier** 1 s after start (no such line without it). A test toast (`NotificationStore.TestAchievement(appid)`) still opened a **desktop** toast window, as without the carrier, because the foreground was Minesweeper's frame; the in-tree control (Jotunnslayer focused) opened the in-game window `notificationtoasts_uid2342770011-10015`. Recording starts on the carrier (`rec: true`), so it would record the carrier's empty frames, not the game (not verified: no clip saved). F12 and Big Picture focus not run: F12 goes to the focused, unhooked game; Big Picture would take over the user's screen. Exclusive fullscreen cannot be covered by a window. | `console_log.txt` 22:00:33 `GameOverlay: started ... for game process 18352` (the carrier); CDP targets after the toast: `notificationtoasts_..._desktop` (carrier, baseline) vs `notificationtoasts_uid...` (control) |
 | E7 | 2026-10-03 22:04 | **Matching:** every legacy form and the new dashed link match; `installed_games` lists each Epic game once. **Not matched (would be added again by auto-add):** wrapper with `--app` only, wrapper with `--aumid`, U0 after an app update (old version in the path), GDK direct exe (library folder behind the link), GDK wrapper with `--aumid`. A wrapper whose arguments carry `--link <dashed link>` (Epic) or `shell:AppsFolder\<PFN>!<App>` (Xbox) matches with no change to `match`. | hermetic Lua run over this PC's manifests (`e7_matching.lua`): 12 forms, 7 matched, 5 `NOT MATCHED`; `FAIL xbox Fortress Merge listed once and in the library` |
 
+| E8 (P) | 2026-10-03 22:47 | **P passes.** Epic launcher opened outside Steam first (pid 29420, as from the tray); a temporary wrap of `RunGame` in SharedJSContext; **Steam's own Play button** clicked on an `LT-` shortcut's page (desktop). The wrap caught the launch 0.47 s after the click, the launcher was closed 0.24 s later (`taskkill /T`, run by the script in place of the backend), Steam's original `RunGame` ran: **hold 0.69 s** in all. The game ran in Steam's tree (parent = the Steam-started launcher 16748) and **the overlay attached to it**; after the game the reaper ended the launcher after Epic's cloud sync and the entry left the running list 8 s after the game. Not run: Big Picture's Play (same function, unverified live), launches from outside Steam's UI. | `e8_play.ps1`; `console_log.txt` 22:48:27 `GameOverlay: started ... for game process 20212`; `gameprocess_log.txt` 22:48:17 `+ 25688 EpicGamesLauncher.exe` ... `Remove -1755641712 from running list` 22:48:54; wrap removed (`RunGame` back to native) |
+
 ### Verdicts
 
 | Option | Verdict | Why (experiment) |
@@ -153,15 +159,16 @@ Tools: a probe program compiled with `csc` (modes `e0`, `reap`, `epic`, `uwp`, `
 | **U2** packaged child | **fails** | Error 575 / 87 (E4); activation-created children are not tracked (E5c). |
 | **G** GDK direct exe | **fails** (Fortress Merge) | The game relaunches through activation; Steam loses it in 2 s (E5a-b). Other GDK games may differ; test per game before trusting it. |
 | **C** overlay carrier | **fails for its purpose** | The overlay attaches but toasts go to the desktop unless the carrier is the focused window, and focusing it would take the game's input; recording would capture the carrier (E6). Big Picture and exclusive fullscreen unsolved. |
+| **P** Play interception | **works** | Solves P1 with no exe and no new shortcut, keeps the overlay (E8). Limits: launches outside Steam's UI are not seen (then the K rule applies); Big Picture to verify. Closes the user's launcher at each Epic launch (same cost as W). |
 | **K** manual rule | **works** (baseline) | With the dashed link and the launcher closed first, everything works in the tree (E1, E2a); the launcher lingers without R. |
 | **T** trick Steam | **fails** (no API) | Nothing in Millennium or `SteamClient` touches native tracking or overlay injection (F20). The only levers left are native: injecting `GameOverlayRenderer64.dll` into the game (WSGM's way: anti-cheat ban risk, an AppContainer may not even load it) or patching `steam.exe`; both out of scope for a Millennium plugin. The carrier (C) is the legal form of the trick, and E6 shows its limit. |
 
 ### Recommendation (ranked)
 
-1. **Epic: ship R now** (no new file kind; answers the user's priority P2), with the dashed link already coded for new shortcuts, and **K's sentence** in the
-   Third-party settings ("Close the Epic launcher before starting a game from Steam, or Steam cannot see the game"). The in-tree route already gives the
-   overlay, in-game toasts and recording (E1, E6 control), so TASK item 2 (captures on a real unlock) can be tested right after.
-2. **Epic P1 later, only if the manual rule proves annoying: W**, with the two fixes above and R kept as the safety net.
+1. **Epic: P + R** behind one setting (after E8; before it, the recommendation was R with K's sentence). No exe, no new shortcut; the in-tree route gives the
+   overlay, in-game toasts and recording (E1, E6 control, E8), so TASK item 2 (captures on a real unlock) can be tested right after. Keep K's sentence for launches
+   from outside Steam's UI.
+2. **W only if P proves insufficient** (e.g. many launches from desktop shortcuts), with the two fixes above and R kept as the safety net.
 3. **Xbox UWP and GDK: U1** if a plugin-compiled exe is accepted (version-proof, one route for both kinds), else **U0 for UWP only** (no exe, but an app update
    breaks the shortcut; the plugin would have to offer a new one). Both give the running state, playtime and a timeline; **neither gives the overlay, in-game
    toasts, screenshots or clips** (recording needs a hooked process, E3/E6). Say this in the settings text.
@@ -187,6 +194,19 @@ Tools: a probe program compiled with `csc` (modes `e0`, `reap`, `epic`, `uwp`, `
   logged first), Stop pressed during play (the launcher is still ended), a launcher already open before the launch (left alone), and Routine 1-3 of AGENTS.md.
 
 ## 8. Decisions for the user (ask after § 7, with the recommendation)
+
+**The goal, restated by the user (2026-10-03): the Steam overlay on non-Steam games.** For Epic it works whenever the launcher is closed at Play, so P1
+matters more than P2; for Xbox UWP and GDK no clean route exists (§ 7). **Answers so far (2026-10-03):**
+
+| # | Decision | Answer |
+| --- | --- | --- |
+| A | Epic, launcher closed at Play | **P, Play interception** (tested: E8 passes) |
+| B | Epic, launcher closed after the game | **R**, as an **"Epic Steam Overlay Workaround"** setting, **off by default**; on for our tests. Assumed (to confirm): the same setting turns on P, since both close the launcher |
+| C | Xbox UWP | **No overlay; running state, playtime, timeline** (U1 or U0) |
+| D | Xbox GDK | **Same route as UWP**. U0 cannot serve GDK (F18), so one route for both means **U1** (a plugin-compiled exe): to confirm |
+| E | New shortcuts only, or a convert button | open (P and R need no shortcut change; U1 does) |
+
+The original questions, kept for the record:
 
 1. Ship **R** now (P2 only, no new file) or wait for **W**? Recommendation: **R now** (E1: the entry ends 8-13 s after the game).
 2. Accept ending the Epic launcher by force when the game is gone, Epic's cloud sync is logged and no download is pending, as a **default-on** setting (Epic has no

@@ -47,8 +47,9 @@ for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with
    leaves the launcher; **UWP and GDK games cannot join Steam's tree** (package-identity child refused, error 575; Fortress Merge's direct exe relaunches itself
    outside it), so an activation wrapper (U1) or the UWP exe as the shortcut's Exe (U0, Windows' `SystemUWPLauncher` waits for the game) gives the running state,
    playtime and a timeline but **no overlay, in-game toast, screenshot or clip** (recording needs a hooked process); an overlay carrier window (C) gets the overlay
-   but toasts still go to the desktop; no Millennium or `SteamClient` API can re-target tracking or the overlay (T). Recommended: R now for Epic plus the
-   "close the launcher first" sentence; U1 (or U0) for Xbox; no carrier. Still open: BURIED STARS's direct exe (EOS login and unlocks), other GDK games, Big Picture focus.
+   but toasts still go to the desktop; no Millennium or `SteamClient` API can re-target tracking or the overlay (T). **Decided by the user (plan § 8):** Epic: a
+   Play interception (tested live: Steam's Play held 0.7 s while the open launcher is closed, then the overlay works in the game) plus the reaper, one "Epic Steam
+   Overlay Workaround" setting, off by default; Xbox UWP and GDK: no overlay, running state (U1, a compiled exe: to confirm); new shortcuts or a convert button: open. Still open: BURIED STARS's direct exe (EOS login and unlocks), other GDK games, Big Picture focus.
 2. **Captures under the working Epic route:** the in-tree game has a running timeline, Steam's in-game toast window and a recording that starts (plan § 7, E1 and
    the E6 control); still to do: a real unlock with `unlock_watcher.mjs --steam`, with the user's recording mode on (it is **Manual** on this PC, so captures skip
    with `recording-not-active` until a recording runs).

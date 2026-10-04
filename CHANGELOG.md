@@ -14,7 +14,9 @@ This repo is private and unversioned; entries are grouped by date.
   launcher; UWP and GDK games cannot be put in Steam's tree (error 575; Fortress Merge's exe relaunches itself), so activation (U1) or the UWP exe as the Exe
   (U0, Windows' `SystemUWPLauncher`) give a running state and timeline but no overlay, in-game toast or recording; an overlay carrier gets the overlay but not
   the toasts; Millennium and `SteamClient` offer no way to re-target tracking or the overlay. Recommendation and the user's questions: plan § 7-8; handoff
-  D6/D8 updated. Probe sources: `steam-cartridges/tests/live/probes/launch_tracking/`. No product code.
+  D6/D8 updated. Then, with the user's goal restated as "the Steam overlay on non-Steam games": a wrap of `SteamClient.Apps.RunGame` held Steam's own Play
+  0.7 s while the open Epic launcher was closed, and the overlay attached to the game (E8); the user chose it plus the reaper as one "Epic Steam Overlay
+  Workaround" setting (off by default), and no overlay but a running state for Xbox. Probe sources: `steam-cartridges/tests/live/probes/launch_tracking/`. No product code.
 
 - **Plans cleanup (2026-10-03)**: the six implemented plans and their patch folders are deleted (enhanced-notifications achievements merge, architecture port and Big Picture toast fix; steam-cartridges Game Data editor, manuals and store copies). They stay readable in git at `9a7df2b` (`git show 9a7df2b:docs/plans/<file>`); every link and comment that named them now points there. Kept: the features plan (a draft), the community crash investigation (open checks), the Epic/Xbox handoff, the unlock research and the new launch-tracking plan.
 
