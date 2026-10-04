@@ -250,6 +250,12 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
+- **enhanced-notifications Theme Creator (designed 2026-10-04, nothing coded).** A big modal from the Theme section
+  (above Reload): start from a bundled template, edit a user theme or start fresh; live in-modal preview of four toasts
+  (chosen, random, achievement tiers, mixed) with sounds; "Test on screen" with real toasts; the 17 AI sound packs as a
+  bundled library (Chime / Bloom / Fanfare, no ps4/ps5/platinum names). Design, decisions D1-D12, spikes S1-S8 and
+  phases P1-P10: [docs/plans/enhanced-notifications-theme-creator-plan.md](docs/plans/enhanced-notifications-theme-creator-plan.md).
+  **Waiting on the user's answers to its § 3.2 (Q1-Q7)**, then P1 (sound library) and P2 (pure groundwork) can start.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.
