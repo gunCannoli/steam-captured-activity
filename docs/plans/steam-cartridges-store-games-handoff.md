@@ -270,6 +270,68 @@ dashed link, the dash-less link and a hand-made dashed shortcut all match their 
 4. The Xbox stores still need their own route (GDK direct exe, UWP COM-activation wrapper); the SISR/GlosSI carrier (4b) stays the
    fallback for what has no Steam-tree route.
 
+## 4d. The store launcher wrapper (design discussion 2026-10-03; nothing built yet)
+
+**Goal:** one small program that Steam launches as the shortcut's exe, so Steam tracks the right process tree, the running state ends
+when the game ends, and (stage 2) packaged Xbox games get something Steam can overlay. It replaces "launcher exe plus a link" and
+"explorer plus shell:AppsFolder".
+
+**Why now:** the verified Epic route (4c-result) has two defects the wrapper removes. (1) The launcher must be closed first, or the
+game starts outside the tree. (2) The launcher lingers after the game, so Steam shows the entry running forever (live right now:
+the launcher started inside Steam's chain, pid 30812, is still alive and tracked after the game exited).
+
+**Form (recommended): a C# program compiled by the plugin.** `csc.exe` (.NET Framework 4, `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\`)
+ships with Windows 10/11; the plugin keeps the source in the repo, compiles it once into its data folder
+(`<data>\store-launcher.exe`, a WinExe: no console flash) and writes shortcuts that run it. No SDK, no binary in git, fast start,
+COM interop is native. Alternative: a PowerShell script (`powershell.exe -WindowStyle Hidden -File`, 0.5 s start, a console flash,
+`Add-Type` recompiles C# on every launch). Third option rejected: a prebuilt exe in the repo (signing, antivirus, updates).
+
+**Arguments (one shortcut per game; the shortcut's launch options carry them):**
+`store-launcher.exe epic --app <AppName> --link <launch link> --root <InstallLocation> [--grace 30]` and
+`store-launcher.exe xbox --aumid <PFN!App> --root <package root>`.
+
+**Epic flow**
+1. If `EpicGamesLauncher.exe` runs: skip closing when a download or install is pending (`Manifests\Pending` not empty, or a manifest with
+   `bIsIncompleteInstall: true`) and say so in a log, else close it (the tray app ignores a polite close: end its process tree; Epic has no exit switch).
+2. Start `EpicGamesLauncher.exe -com.epicgames.launcher://apps/...?action=launch&silent=true` as the wrapper's child: Steam, wrapper, launcher, game.
+3. Wait for a process whose image is under `--root` (poll once a second, give up after 3 minutes: login, update or an Epic error).
+4. Wait until no such process has existed for 5 s (the game may re-spawn through a crash handler or helper).
+5. Wait for the launcher log line `Cloud Sync: Upload Complete <ns>:<item>:<app>` for this game (cap `--grace` seconds), then end the launcher
+   tree and exit. Steam sees the exit: the running state, playtime and the recording session end with the game.
+6. Never kill anything else; if the game never started, leave the launcher alone and exit with a non-zero code.
+
+**Xbox flows**
+- *UWP* (`EntryPoint` is an app class, e.g. Minesweeper, Sudoku, Wordament): activate with `IApplicationActivationManager.ActivateApplication(aumid, null, 0, out pid)`
+  (it returns the process id, SteamedPass does the same), then wait on that pid (and the package's other processes) and exit with it. Steam gets a stable parent:
+  running state, playtime, Stop button, a recording session. **Not** the overlay: UWP processes run in an AppContainer, the game is not Steam's
+  child, and WSGM only gets an overlay by injection (out of scope).
+- *GDK / Win32 packaged* (`MicrosoftGame.config`, e.g. Fortress Merge: `C:\game\gamepass\<Game>\Content\<Game>.exe`): try the plain exe as the shortcut first
+  (needs no wrapper if Xbox sign-in and achievements still work); else activate through the wrapper like UWP.
+
+**Stage 2, the overlay carrier (decision D8):** the same exe can also open a transparent, borderless, topmost window with a graphics swap chain
+(OpenGL through P/Invoke, no dependency) so Steam's overlay has a renderer to hook, as SISR and GlosSI do. Only for games that cannot join the tree
+(UWP, GDK launched by activation). Works over borderless and windowed games, not exclusive fullscreen; its effect on Steam's recording and F12 is unknown (experiment C1).
+
+**Plugin integration (a plan and an ADR first):** `library-shortcuts` writes shortcuts whose Exe is the wrapper (a different Exe gives a different appid, so
+this applies to **new** shortcuts only; the policy of never editing an existing shortcut stands); `store_epic_local.match` and `store_xbox_local.match` learn the
+wrapper form (`--app <AppName>`, `--aumid <PFN!App>`), keeping the legacy launcher-link and `shell:AppsFolder` forms matched, so nothing is duplicated; a
+backend step compiles the source when the exe is missing or the source's hash changed; a setting "Close the Epic launcher before launching and after the game"
+(default on); safety feature id for the compile and for the wrapper shortcuts; unit tests for the argument parsing and the matching (Lua), a live test per route.
+
+**Risks and open questions**
+- Closing the launcher is a hard kill (no exit switch): refuse when a download or install is pending; a game that saves late can lose data if killed before its
+  own flush, hence the cloud-sync wait. The user's other Epic activity (store browsing, chat) ends at each launch: a setting, and say it in the panel.
+- An Epic update, login prompt or "game needs an update" window keeps the game from starting: the 3-minute timeout and a clear log line.
+- Steam's Stop button ends the wrapper (and the tracked tree); verify that it also ends the game.
+- An unsigned exe the plugin compiles: antivirus may flag unknown executables in a data folder (check Defender; locally compiled csc output normally passes).
+- The wrapper adds a layer between Steam and the launcher: verify the overlay still reaches the game (4c-result was with the launcher as Steam's direct child).
+- Epic's exchange code stays the launcher's business (the wrapper never touches credentials, which keeps decision "no Epic sign-in" intact).
+- Anti-cheat games or ones that refuse a parent other than the launcher: unknown, test per game.
+
+**Staged plan:** (1) prototype the Epic mode by hand (compile with csc, a test shortcut for Jotunnslayer): check the tree in `gameprocess_log.txt`, the overlay, the running state
+after exit, an unlock under the watcher with captures; (2) prototype the UWP mode on Minesweeper: running state, playtime, Stop, `window.g_GRS.m_mapActiveTimelines`,
+captures; (3) try GDK direct exe on Fortress Merge; (4) only then the carrier window (C1); (5) the plan, ADR, plugin integration and tests.
+
 ## 5. Full list of what is still to test or build
 
 **Live checks still open** (also in the research note):
