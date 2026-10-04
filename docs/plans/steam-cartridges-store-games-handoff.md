@@ -270,6 +270,12 @@ dashed link, the dash-less link and a hand-made dashed shortcut all match their 
 4. The Xbox stores still need their own route (GDK direct exe, UWP COM-activation wrapper); the SISR/GlosSI carrier (4b) stays the
    fallback for what has no Steam-tree route.
 
+> **Update 2026-10-03 (the user):** the Epic shortcut's exe stays the launcher and the overlay still works, so the exe need not be the
+> renderer, only the renderer must be in the tracked tree. Jotunnslayer still shows as running after the game exited (the launcher lingers):
+> the requirement is that **dropping the game drops the launcher too**. The investigation, the options (a plugin-only "reaper", a compiled
+> wrapper, UWP activation or package-identity child launch, GDK direct exe, an overlay carrier), the exact experiments and the decisions are in
+> [steam-cartridges-store-launch-tracking-plan.md](steam-cartridges-store-launch-tracking-plan.md), written so another agent can run it.
+
 ## 4d. The store launcher wrapper (design discussion 2026-10-03; nothing built yet)
 
 **Goal:** one small program that Steam launches as the shortcut's exe, so Steam tracks the right process tree, the running state ends
