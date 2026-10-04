@@ -232,6 +232,18 @@ export const backend = {
     storeInstalledGames(allowXbox: boolean) {
         return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox });
     },
+    /** Epic Steam Overlay Workaround (ADR-0057): the shortcuts that are an Epic copy started through the launcher link. */
+    storeEpicLaunchShortcuts() {
+        return call<{ appids?: number[]; error?: string }>("StoreEpicLaunchShortcuts", {});
+    },
+    /** Epic Steam Overlay Workaround (ADR-0057): before Steam launches the shortcut, close a running Epic launcher. `heldAt`: when Play was held (ms). */
+    storeEpicPrelaunch(appid: number, heldAt: number) {
+        return call<{ epic: boolean; closed?: boolean; reason?: string; error?: string }>("StoreEpicPrelaunch", { appid, heldAt });
+    },
+    /** Epic Steam Overlay Workaround (ADR-0057): the launcher reaper; `start`, then `tick` every few seconds, or `stop`. */
+    storeEpicReap(appid: number, act: "start" | "tick" | "stop") {
+        return call<{ active: boolean; phase?: string; reason?: string; error?: string }>("StoreEpicReap", { appid, act });
+    },
     /** Store copies (ADR-0056): an Epic account on this PC (and whether its achievements are private); the Xbox account. */
     storeAccounts() {
         return call<{ epic: { found: boolean; private: boolean }; xbox: { signed_in: boolean; gamertag?: string }; error?: string }>("StoreAccounts", {});

@@ -27,6 +27,7 @@
   "activityShowAchievements": true,
   "autoAddEpicGames": false,
   "autoAddXboxGames": false,
+  "epicOverlayWorkaround": false,
   "communityShowTrailers": true,
   "communityShowManuals": true,
   "communityShowArtworks": true,

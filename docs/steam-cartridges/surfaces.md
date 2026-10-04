@@ -612,3 +612,20 @@ writes `shortcuts.vdf` at once; it ignores the name (named after the exe) and th
 are set right after; renaming keeps the appid. The collection calls are Steam UI's own and not yet verified on this
 build: fail-open (the shortcut is added, the log says the collection was skipped). `userCollections` is read only once
 `m_mapCollectionsFromStorage` exists (guardrail 13).
+
+## launch-hold
+
+**One job (ADR-0057, Epic Steam Overlay Workaround):** hold Steam's launch of an Epic shortcut while app/epic-launcher has a
+running Epic launcher closed, so Steam starts the launcher itself and its overlay reaches the game. Event-driven:
+`launch.hold-mode` (the appids to hold: the Epic launcher-link copies while the setting is on, else none) and `launch.release`
+in, `launch.held` out. Every other launch goes to Steam untouched. It decides nothing and fetches nothing.
+
+**touches:** `SteamClient.Apps.RunGame`.
+
+**reads:** none. **Kill switch:** `launch-hold` (off = Steam launches at once; the reaper still runs).
+
+**Facts (verified live 2026-10-03, launch-tracking plan E8):** `RunGame` is an own, writable, configurable property of
+`SteamClient.Apps`; Steam's Play paths look it up when called (the library Play action with its Big Picture branch, module
+`5808`; the game list, `59718`) and ignore its return value. Holding it 0.7 s while the launcher closed worked from Steam's
+own Play button. A launch from outside Steam's UI does not pass through it. Fail-open: a held launch goes on after 10 s; a
+second Play press while held is dropped (the first goes on). Uninstall restores Steam's original.

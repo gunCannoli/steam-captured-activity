@@ -118,6 +118,7 @@ global where Steam exposes one.
 | Game Info feature badges → store category ids | module with `n$` + the `#AppDetails_Feature_*` table ([mapping](#store-categories-and-feature-badges)) | `features/game-info/category-policy.ts` |
 | `CWorkshopStore`              | `m_mapPublishedFiles` (keyed by published file id) or `window.WorkshopStore`                         | `surfaces/captures` (activity cards) |
 | Community Content loader (`ae`, not exported) | the section class `oe`: jsx element with `{ appid, labelId }` whose prototype has `BindInnerContainer`, `AutoLoadAdditionalContent`, `CheckAndLoadInitialContent`; its `m_loader`'s prototype | `surfaces/community` (features plan F2) |
+| Steam's Play (launch)         | `SteamClient.Apps.RunGame(gameid, "", -1, launchSource)`: an own, writable, configurable property, looked up at call time by the library Play action (with its Big Picture branch) and the game list; the return value is ignored. Wrapping it holds a launch (verified live 2026-10-03, launch-tracking plan E8). A `steam://rungameid` or desktop-shortcut launch does not pass through it | `steam-cartridges/frontend/surfaces/launch-hold` |
 
 The store singletons are long-lived MobX objects: resolve once and cache.
 

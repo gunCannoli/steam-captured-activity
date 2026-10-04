@@ -38,18 +38,17 @@ Epic downloads in progress are skipped; Xbox games without a game config are fou
 the Xbox sign-in popup (clickable link, click-to-copy code). *Proven in the probe only* (`unlock_watcher.mjs --steam`, nothing of it is in the plugin): an unlock becomes Steam's
 native achievement toast, **Xbox 1.0 s** (Windows' push log carries the full achievement) and **Epic 4.3 s** (overlay-renderer trigger plus the API); enhanced-notifications takes it
 for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with the launcher closed first makes Steam track the game under the shortcut and shows the Steam overlay.
-*Coded, not deployed (needs the next Steam restart):* new Epic shortcuts carry the dash.
+*Deployed 2026-10-03:* new Epic shortcuts carry the dash.
 
 *Missing, in order of importance:*
-1. **Launch tracking: investigated live 2026-10-03 (the plan § 7), waiting for the user's answers to its § 8.** Verified: Steam tracks what a tracked process
-   *creates* (not the job, not a parent pid set by Windows); a plugin-only **reaper** (R) ends the Epic launcher after the game and Epic's cloud sync, and the
-   entry stops running **8-13 s** after the game (twice, overlay unaffected); a wrapper (W) also removes the "close the launcher first" rule but Steam's Stop then
-   leaves the launcher; **UWP and GDK games cannot join Steam's tree** (package-identity child refused, error 575; Fortress Merge's direct exe relaunches itself
-   outside it), so an activation wrapper (U1) or the UWP exe as the shortcut's Exe (U0, Windows' `SystemUWPLauncher` waits for the game) gives the running state,
-   playtime and a timeline but **no overlay, in-game toast, screenshot or clip** (recording needs a hooked process); an overlay carrier window (C) gets the overlay
-   but toasts still go to the desktop; no Millennium or `SteamClient` API can re-target tracking or the overlay (T). **Decided by the user (plan § 8):** Epic: a
-   Play interception (tested live: Steam's Play held 0.7 s while the open launcher is closed, then the overlay works in the game) plus the reaper, one "Epic Steam
-   Overlay Workaround" setting, off by default; Xbox UWP and GDK: no overlay, running state (U1, a compiled exe: to confirm); new shortcuts or a convert button: open. Still open: BURIED STARS's direct exe (EOS login and unlocks), other GDK games, Big Picture focus.
+1. **Launch tracking (plan § 7-8).** *Epic: shipped 2026-10-03 (ADR-0057), the "Epic Steam Overlay Workaround" setting (Third-party, off by
+   default; on on this PC for testing).* Pressing Play on an Epic launcher-link shortcut closes an open launcher first (Steam's launch waits about 1 s), so
+   Steam starts the launcher and its overlay reaches the game; after the game and Epic's cloud sync the launcher is ended and the entry stops running.
+   Live (E9, the real Jotunnslayer shortcut, Steam's own Play button): launcher closed at Play, overlay attached to the game, entry ended 10 s after the
+   game; a non-Epic shortcut is never held. BURIED STARS was converted back to the launcher with the dashed link (appid kept). Left: Big Picture's Play (same
+   code path, not run live), a desktop-shortcut launch (not held: the reaper still ends the launcher), Steam's Stop during play. *Xbox: open*, the user is weighing
+   the options (running state through U1 or U0, or SISR for controller input; no route gives Xbox UWP/GDK games the overlay). Verified facts and
+   measurements: the plan § 2 and § 7.
 2. **Captures under the working Epic route:** the in-tree game has a running timeline, Steam's in-game toast window and a recording that starts (plan § 7, E1 and
    the E6 control); still to do: a real unlock with `unlock_watcher.mjs --steam`, with the user's recording mode on (it is **Manual** on this PC, so captures skip
    with `recording-not-active` until a recording runs).

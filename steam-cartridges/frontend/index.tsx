@@ -42,7 +42,9 @@ import { fetchImage, objectUrl, objectUrlToBase64, releaseObjectUrl } from "./po
 import { pdfRenderer } from "./ports/pdf";
 import { createAchievements } from "./app/achievements";
 import { createStoreSync } from "./app/store-sync";
+import { createEpicLauncher } from "./app/epic-launcher";
 import { createLibraryShortcutsSurface, onAddRequested as libraryShortcutsOnAddRequested } from "./surfaces/library-shortcuts";
+import { createLaunchHoldSurface, onHoldMode as launchHoldOnMode, onRelease as launchHoldOnRelease } from "./surfaces/launch-hold";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
 import { createFeatureSwitches, type FeatureId } from "./safety/features";
@@ -284,6 +286,12 @@ onSettingChange((key) => {
     if (key === "autoAddEpicGames" || key === "autoAddXboxGames") void storeSync.run();
 });
 
+/** Epic Steam Overlay Workaround (app/epic-launcher.ts, ADR-0057): the launcher closed at Play and after the game. */
+const epicLauncher = createEpicLauncher({ backend, bus, enabled: () => setting("epicOverlayWorkaround") === true });
+onSettingChange((key) => {
+    if (key === "epicOverlayWorkaround") epicLauncher.settingChanged();
+});
+
 /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
 const ingest = createIngest({
     backend,
@@ -520,6 +528,13 @@ async function init() {
     runner.installAll();
     bus.on("store.add-requested", (e) => void libraryShortcutsOnAddRequested(e));
     storeSync.install();
+    // Epic Steam Overlay Workaround (ADR-0057): the launch-hold surface holds Steam's Play while app/epic-launcher closes
+    // a running Epic launcher, and the app's reaper ends the launcher after the game.
+    runner.register(createLaunchHoldSurface({ ...surfaceDeps, bus }));
+    runner.installAll();
+    bus.on("launch.hold-mode", launchHoldOnMode);
+    bus.on("launch.release", launchHoldOnRelease);
+    epicLauncher.install();
     // The first look at start-up, then one a minute, so a game installed while Steam runs is added without a restart
     // (the tick returns at once while both toggles are off).
     void routing.waitForCollections().then(() => {

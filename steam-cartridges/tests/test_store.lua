@@ -368,6 +368,10 @@ check("with Epic switched off the local copy is still found, and the API is not 
 local list = svc.installed_games({})
 check("installed games say which ones the library has", list.epic[1].inLibrary == 4000000001 and list.xbox[1].inLibrary == 4000000002 and list.epicLauncher == true)
 check("... with a launch spec for the ones it does not", list.epic[1].launch.exe == '"C:\\L\\EpicGamesLauncher.exe"' and list.xbox[1].title == "Microsoft Jigsaw")
+ENTRIES[4000000010] = { appid = 4000000010, exe = '"C:\\L\\EpicGamesLauncher.exe"', launch_options = "-com.epicgames.launcher://apps/" .. EPIC_GAME.namespace .. "%3A" .. EPIC_GAME.item_id .. "%3A" .. EPIC_GAME.app_name .. "?action=launch&silent=true" }
+local held = svc.epic_launcher_shortcuts()
+check("epic_launcher_shortcuts lists the launcher-link copies only (ADR-0057: not the direct-exe copy, not Xbox)", #held == 1 and held[1] == 4000000010, table.concat(held, ","))
+ENTRIES[4000000010] = nil
 ENTRIES[4000000001] = nil
 check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)
 -- A game installed after the first read (found 2026-10-03: a once-per-session cache hid every later install)

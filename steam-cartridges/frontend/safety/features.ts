@@ -24,6 +24,7 @@ export const FEATURE_IDS = [
     "artwork",
     "community",
     "library-shortcuts",
+    "launch-hold",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

@@ -148,6 +148,8 @@ Tools: a probe program compiled with `csc` (modes `e0`, `reap`, `epic`, `uwp`, `
 
 | E8 (P) | 2026-10-03 22:47 | **P passes.** Epic launcher opened outside Steam first (pid 29420, as from the tray); a temporary wrap of `RunGame` in SharedJSContext; **Steam's own Play button** clicked on an `LT-` shortcut's page (desktop). The wrap caught the launch 0.47 s after the click, the launcher was closed 0.24 s later (`taskkill /T`, run by the script in place of the backend), Steam's original `RunGame` ran: **hold 0.69 s** in all. The game ran in Steam's tree (parent = the Steam-started launcher 16748) and **the overlay attached to it**; after the game the reaper ended the launcher after Epic's cloud sync and the entry left the running list 8 s after the game. Not run: Big Picture's Play (same function, unverified live), launches from outside Steam's UI. | `e8_play.ps1`; `console_log.txt` 22:48:27 `GameOverlay: started ... for game process 20212`; `gameprocess_log.txt` 22:48:17 `+ 25688 EpicGamesLauncher.exe` ... `Remove -1755641712 from running list` 22:48:54; wrap removed (`RunGame` back to native) |
 
+| E9 (shipped) | 2026-10-03 23:08 and 23:16 | **The shipped workaround (ADR-0057) passes**, twice, on the real Jotunnslayer shortcut with the setting on and the launcher opened first as from the tray, through Steam's own Play button and with no help from the test: the plugin logged "launcher closed before 4202674849 starts", the game ran under the Steam-started launcher with the overlay attached, and after the game the plugin logged "finished (synced)" and Steam dropped the entry 9-10 s after the game. Found and fixed between the two runs: a non-Epic shortcut waited out the 8 s cap when the backend was busy (a freshly opened page fetching metadata); now only the Epic launcher-link shortcuts are held (a plain shortcut started 0.74 s after Play on a fresh page) and the backend closes nothing for a request older than 3 s. `npm run test:live` 13/13. | `e9_product.ps1`; `console_log.txt` 23:16:39 `GameOverlay: started ... for game process 32148`; `gameprocess_log.txt` 23:17:13 `Remove -92292447 from running list`; webhelper_js `Epic overlay workaround:` lines |
+
 ### Verdicts
 
 | Option | Verdict | Why (experiment) |
@@ -200,7 +202,7 @@ matters more than P2; for Xbox UWP and GDK no clean route exists (§ 7). **Answe
 
 | # | Decision | Answer |
 | --- | --- | --- |
-| A | Epic, launcher closed at Play | **P, Play interception** (tested: E8 passes) |
+| A | Epic, launcher closed at Play | **P, Play interception**: **shipped** (ADR-0057; E8, E9) |
 | B | Epic, launcher closed after the game | **R**, as an **"Epic Steam Overlay Workaround"** setting, **off by default**; on for our tests. **One setting turns on both P and R** (confirmed) |
 | C | Xbox UWP | **No overlay; running state, playtime, timeline** (U1 or U0) |
 | D | Xbox GDK | **Same route as UWP**. U0 cannot serve GDK (F18), so one route for both means **U1** (a plugin-compiled exe), **or S** below: the user is weighing S |

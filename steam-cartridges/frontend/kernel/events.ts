@@ -55,6 +55,14 @@ export interface Events {
     };
     /** What the library-shortcuts surface did: the new appid (and the collection it is in), or an error. */
     "store.shortcut-added": { kind: StoreKind; key: string; appid?: number; collection?: string; error?: string };
+    /**
+     * Epic Steam Overlay Workaround (ADR-0057). app/epic-launcher tells the launch-hold surface which shortcuts to hold at
+     * Play (the Epic launcher-link copies while the user's setting is on; empty = none); the surface reports a held launch;
+     * the app answers `launch.release` once the backend has closed a running Epic launcher, and the surface lets Steam go on.
+     */
+    "launch.hold-mode": { appids: ShortcutId[] };
+    "launch.held": { appid: ShortcutId };
+    "launch.release": { appid: ShortcutId };
     /** The community surface showed Steam's viewer for a manual card (features plan F2c): app/manuals renders its pages. */
     "community.manual-opened": { appid: ShortcutId; key: string };
 }

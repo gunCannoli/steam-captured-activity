@@ -91,6 +91,8 @@ memory and nothing logs a token or a device code. The public client ids are cons
 | `frontend/app/store-copy.ts` | `EnsureFresh(["store"])` once per shortcut per session (first in `app/view`) |
 | `frontend/app/store-sync.ts` | Auto-add: which installed games get a shortcut, in which collection |
 | `frontend/sensors/installs/index.ts` | The 60 s tick that re-runs auto-add, so a game installed while Steam runs needs no restart |
+| `backend/store_launch.lua` | Epic Steam Overlay Workaround (ADR-0057): `prelaunch` closes a running Epic launcher before Steam launches an Epic launcher-link copy; `reap` ends the launcher after the game and Epic's cloud sync |
+| `frontend/app/epic-launcher.ts` | Sends the `launch-hold` surface the Epic launcher-link copies to hold (`StoreEpicLaunchShortcuts`, read at start-up, when the setting turns on, after an Epic auto-add and after each launch), answers held launches after `StoreEpicPrelaunch`, ticks `StoreEpicReap` every 3 s while such a game runs |
 
 **When auto-add runs:** once at start-up (after the collections are ready), when a toggle changes, and every 60 s
 (`sensors/installs`). A game is requested once per session (`requested` in `store-sync`): a shortcut the user deletes is not
@@ -99,7 +101,18 @@ added again until Steam restarts, and a game whose add failed is not retried in 
 
 ## Steam targets touched
 
-None here. Auto-add writes through the `library-shortcuts` surface ([surfaces.md](surfaces.md#library-shortcuts)).
+None here. Auto-add writes through the `library-shortcuts` surface ([surfaces.md](surfaces.md#library-shortcuts)); the Epic
+workaround holds Steam's Play through the `launch-hold` surface ([surfaces.md](surfaces.md#launch-hold)).
+
+**The Epic Steam Overlay Workaround (ADR-0057)** takes part only for a shortcut that is an Epic copy started through the
+launcher link (`detect` says `via = "launch-link"`; `store_service.epic_launcher_shortcuts` lists them). Prelaunch closes nothing
+for a request older than 3 s (`LATE`: the frontend lets Steam go on after 10 s). Else `tasklist` for `EpicGamesLauncher.exe`; with no download
+pending, `taskkill /T /F /IM EpicGamesLauncher.exe` and up to 4 s for it to go. The reaper's phases: `waiting` (up to 180 s for the
+manifest's `LaunchExecutable` image; then it gives up and leaves the launcher alone), `running`, `gone` after 5 s without the
+image (back to `running` if the image comes back), then Epic's `Cloud Sync: Upload Complete <ns>:<item>:<AppName>` line in
+`%LOCALAPPDATA%\EpicGamesLauncher\Saved\Logs\EpicGamesLauncher.log` written after the game was last seen (cap 30 s), then
+`taskkill /T /F /PID` of each launcher started at or after the launch (PowerShell `Get-Process` start times, UTC; 15 s of slack
+when the launch was not held). A pending download stops both steps. No command line is logged.
 
 ## Tests
 
@@ -107,7 +120,8 @@ None here. Auto-add writes through the `library-shortcuts` surface ([surfaces.md
 manifests): the local readers, each source over injected HTTP, the service's once-per-game lookups and `installed_games`.
 `tests/test_ach_service.lua` (store rows, `store_achievements`), `tests/test_metadata_service.lua` and
 `tests/test_media_service.lua` (store tiers). Frontend: `tests/app-store-copy.test.ts`, `tests/store-sync.test.ts`,
-`tests/library-shortcuts.test.ts`, `tests/app-achievements.test.ts` (synced copies).
+`tests/library-shortcuts.test.ts`, `tests/app-achievements.test.ts` (synced copies). Epic workaround: `tests/test_store_launch.lua`
+(parsers, prelaunch, every reaper phase, pending, slack), `tests/launch-hold.test.ts`, `tests/epic-launcher.test.ts`.
 
 ## How to add a store
 

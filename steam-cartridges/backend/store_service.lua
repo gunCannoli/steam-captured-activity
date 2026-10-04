@@ -148,6 +148,17 @@ local function unsigned(id)
   return n
 end
 
+--- The shortcuts (unsigned appids) that are an Epic copy started through the launcher link: the ones the Epic Steam
+--- Overlay Workaround holds at Play (ADR-0057). Local data only.
+function M.epic_launcher_shortcuts()
+  local out = {}
+  for _, e in ipairs(all_entries()) do
+    local c = M.detect(e)
+    if c and c.kind == "epic" and c.via == "launch-link" then out[#out + 1] = unsigned(e.appid) end
+  end
+  return out
+end
+
 --- Every installed game and whether the library already has a shortcut for it (Third-party settings, auto-add).
 --- { epic = { { key, title, inLibrary, launch } }, xbox = { ... }, epicLauncher = bool }: `launch` = { exe, start_dir,
 --- launch_options } for SteamClient.Apps.AddShortcut. Local data, except an Xbox game whose name is unknown: its

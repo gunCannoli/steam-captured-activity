@@ -73,6 +73,9 @@ StoreAccounts       = STORE_RPC_3P.StoreAccounts
 XboxSignInStart     = STORE_RPC_3P.XboxSignInStart
 XboxSignInPoll      = STORE_RPC_3P.XboxSignInPoll
 XboxSignOut         = STORE_RPC_3P.XboxSignOut
+StoreEpicLaunchShortcuts = STORE_RPC_3P.StoreEpicLaunchShortcuts
+StoreEpicPrelaunch  = STORE_RPC_3P.StoreEpicPrelaunch
+StoreEpicReap       = STORE_RPC_3P.StoreEpicReap
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

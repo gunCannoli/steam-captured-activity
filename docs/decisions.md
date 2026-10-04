@@ -3248,3 +3248,46 @@ anonymously, and Xbox Live unlocks after a device-code sign-in. Unlocks of no so
 - The library can change on its own once the user turns auto-add on (new shortcuts, a new collection).
 - Not verified yet: a GDK game (`MicrosoftGame.config`), the collection API, and launching through the Epic link form;
   the live checks in the plan cover them, and each fails open.
+
+## ADR-0057: The Epic Steam Overlay Workaround closes the Epic launcher at Steam's Play and after the game
+
+**Status:** Accepted · 2026-10-03 (the user's decisions A, B and E of the [launch-tracking plan § 8](plans/steam-cartridges-store-launch-tracking-plan.md#8-decisions-for-the-user-ask-after--7-with-the-recommendation))
+
+### Context
+
+Steam's overlay reaches a non-Steam game only when Steam created it: Steam tracks, and injects its overlay into, what a
+process it started creates (plan § 2 F12). An Epic shortcut runs the Epic Games Launcher with the game's dashed launch
+link; when the launcher is already running (it starts with Windows by default), the new instance only forwards the link and
+the game starts outside Steam's tree: no overlay, no in-game toast, no recording. When Steam did start the launcher, it
+keeps showing the game as running after the game exits, because the launcher lingers. No Millennium or `SteamClient` API can
+re-target Steam's tracking or overlay (F20). Measured (plan § 7): a wrap of `SteamClient.Apps.RunGame` held Steam's own
+Play for 0.7 s while an open launcher was closed, and the overlay attached to the game (E8); ending the launcher after the
+game and Epic's cloud sync ended the running state 8-13 s after the game (E1).
+
+### Decision
+
+1. **One setting, `epicOverlayWorkaround` ("Epic Steam Overlay Workaround", Third-party), off by default.** It turns on both steps.
+2. **At Play:** the `launch-hold` surface wraps `SteamClient.Apps.RunGame` and holds only the shortcuts `app/epic-launcher`
+   lists in `launch.hold-mode` (the Epic copies started through the launcher link, `StoreEpicLaunchShortcuts`, while the setting is
+   on); every other launch goes to Steam untouched. The app asks the backend (`StoreEpicPrelaunch`) to close a running launcher,
+   then answers `launch.release`. Fail-open: a held launch goes on after 10 s, a failed backend call releases it at once, and the
+   backend closes nothing for a request older than 3 s (a queued request must never close the launcher Steam has just started,
+   found live: a busy backend delayed an answer 9 s).
+3. **After the game:** a reaper (`StoreEpicReap`, ticked every 3 s by `app/epic-launcher` only while such a game runs) waits until
+   the game's image has been gone 5 s, then for Epic's `Cloud Sync: Upload Complete` line (cap 30 s), then ends only the launcher
+   processes started for this launch (`taskkill /T /F` by pid, start time at or after the launch).
+4. **Never** with a download or install pending (`Manifests\Pending` not empty or a manifest with `bIsIncompleteInstall`), in
+   either step. No command line is logged (the game's carries an exchange code).
+5. **Existing Epic shortcuts are converted** to the launcher with the dashed link (the plugin is not released yet; the user's
+   decision E). New shortcuts already use it (`store_epic_local.launch_spec`).
+
+### Consequences
+
+- The overlay, in-game toasts and Steam's recording work for Epic games launched from Steam's UI, and the running state ends
+  with the game.
+- The user's Epic launcher (store, friends) is closed at each Epic launch and after the game while the setting is on.
+- A launch from outside Steam's UI (a desktop shortcut, a `steam://rungameid` link) is not held: the overlay then needs the
+  launcher closed by hand; the reaper still ends the launcher after the game (it counts a launcher started up to 15 s before
+  the launch event).
+- Steam's Stop still ends the entry: the reaper sees the game gone and ends the launcher.
+- Xbox games are not covered (no route puts them in Steam's tree; plan § 7).

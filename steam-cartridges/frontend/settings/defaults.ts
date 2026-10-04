@@ -59,6 +59,8 @@ export interface Settings {
     autoAddEpicGames: boolean;
     /** Add every installed Xbox PC game that is not in the library yet as a shortcut (ADR-0056). Default false. */
     autoAddXboxGames: boolean;
+    /** Epic Steam Overlay Workaround (ADR-0057): close a running Epic launcher when Play is pressed, and again after the game. Default false. */
+    epicOverlayWorkaround: boolean;
     /** Show trailers carousel on community tab. Default true. */
     communityShowTrailers: boolean;
     /** Show digital game manuals on community tab. Default true. */
@@ -94,6 +96,7 @@ export const DEFAULTS: Settings = {
     activityShowAchievements: true,
     autoAddEpicGames: false,
     autoAddXboxGames: false,
+    epicOverlayWorkaround: false,
     communityShowTrailers: true,
     communityShowManuals: true,
     communityShowArtworks: true,

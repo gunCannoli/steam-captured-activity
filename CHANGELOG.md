@@ -7,6 +7,11 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Epic Steam Overlay Workaround shipped (2026-10-03, ADR-0057)**: the launch-tracking plan's chosen route for
+  Epic (decisions A, B, E): one setting, off by default, holds Steam's Play while a running Epic launcher is closed, and ends the
+  launcher after the game and Epic's cloud sync. The user's existing Epic shortcuts were converted to the launcher with the
+  dashed link. Details and live results: [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md), the plan § 7-8.
+
 - **Launch-tracking investigation for Epic and Xbox shortcuts (2026-10-03)**: the experiments E0-E7 of
   [the launch-tracking plan](docs/plans/steam-cartridges-store-launch-tracking-plan.md) run live under the Steam lock with throwaway `LT-` shortcuts (all
   removed). Findings (plan § 2 F12-F20, § 7): Steam tracks the processes a tracked process creates, not its job; a reaper that ends the Epic launcher after

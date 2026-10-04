@@ -30,6 +30,7 @@ export function ThirdPartySection() {
     const [services, setServices] = useSetting("services");
     const [autoEpic, setAutoEpic] = useSetting("autoAddEpicGames");
     const [autoXbox, setAutoXbox] = useSetting("autoAddXboxGames");
+    const [epicOverlay, setEpicOverlay] = useSetting("epicOverlayWorkaround");
     const [accounts, setAccounts] = useState<Accounts | null>(null);
     const [installed, setInstalled] = useState<Installed | null>(null);
 
@@ -132,6 +133,14 @@ export function ThirdPartySection() {
                             value={autoEpic}
                             disabled={!!installed && !installed.epicLauncher}
                             onChange={setAutoEpic}
+                        />
+                    )}
+                    {epicOn && (
+                        <ToggleRow
+                            label="Epic Steam Overlay Workaround"
+                            description="Steam's overlay reaches an Epic game only when Steam starts the Epic Games Launcher. When you press Play, a running launcher is closed first (never during a download), and it is closed again after the game, once Epic's cloud sync is done, so Steam stops showing the game as running. Your Epic store and friends windows close with it. A game started from a desktop shortcut is not covered: close the launcher yourself first."
+                            value={epicOverlay}
+                            onChange={setEpicOverlay}
                         />
                     )}
                 </>
