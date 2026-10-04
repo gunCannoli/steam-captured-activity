@@ -176,6 +176,11 @@ epic_local.deps.getenv, epic_local.deps.list, epic_local.deps.mtime = nil, nil, 
 check("the URL handler names the launcher exe", epic_local.parse_handler('HKEY_CLASSES_ROOT\\com.epicgames.launcher\\shell\\open\\command\n    (Default)    REG_SZ    "C:\\Program Files\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe" %1\n') == "C:\\Program Files\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe")
 local spec = epic_local.launch_spec(g, "C:\\L\\EpicGamesLauncher.exe")
 check("a launch spec runs the launcher with the game's link", spec.exe == '"C:\\L\\EpicGamesLauncher.exe"' and spec.launch_options:find("apps/d8a39ea2f35e49b58f18c2b96aec276a%3A193ae706e4ef468aa030326aa0781efe%3A05cc0386", 1, true) ~= nil)
+check("the launch link starts with a dash, so Steam tracks the game the launcher starts (verified live 2026-10-03)", spec.launch_options:sub(1, 1) == "-" and spec.launch_options:sub(2, 31) == "com.epicgames.launcher://apps/")
+local md, viad = epic_local.match({ exe = '"C:\\Launcher\\EpicGamesLauncher.exe"', launch_options = spec.launch_options }, { g })
+check("a shortcut with the dashed link (ours, or one made by hand from the Steam guide) still matches its game: no duplicate", md == g and viad == "launch-link")
+local mu = epic_local.match({ exe = '"C:\\Launcher\\EpicGamesLauncher.exe"', launch_options = "com.epicgames.launcher://apps/" .. g.namespace .. "%3A" .. g.item_id .. "%3A" .. g.app_name .. "?action=launch&silent=true" }, { g })
+check("... and so does the same link without the dash (shortcuts made before this change)", mu == g)
 
 -- ======================================================================
 -- store_xbox_local (pure parts; fixtures from this PC's Microsoft Jigsaw)

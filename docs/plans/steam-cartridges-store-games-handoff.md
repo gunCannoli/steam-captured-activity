@@ -244,6 +244,32 @@ without the launcher's `-AUTH_*` exchange code, does the game still log in to EO
 `no-running-timeline`. Then decide: add the dash to `launch_spec` for new shortcuts (never edit existing ones, policy D2), and whether a
 wrapper that closes the launcher first and after the game is worth building (D6).
 
+### 4c-result. Verified 2026-10-03 21:00 (the user): the guide's recipe works, the Steam overlay shows over the game
+
+Test: Jotunnslayer's shortcut with the dashed link (`-com.epicgames.launcher://apps/...`), the Epic launcher quit first, started from
+Steam. **The Steam overlay appeared over the game.** Steam's own `gameprocess_log.txt` shows why: for the shortcut's game id
+(18050351032210292736 = Jotunnslayer's appid 4202674849 shifted into a 64-bit id) it tracked, in order, `EpicGamesLauncher.exe
+-com.epicgames.launcher://...` (the Steam-started launcher), the launcher's `-forwarduri -silent` instance, `EOSBootStrapper`, the
+launcher's web helpers, the EOS overlay renderers, and finally **`Jotunnslayer.exe -AUTH_LOGIN=...` and `UnityCrashHandler64`**: the
+game is a tracked descendant, so Steam treats it as the running app. (Before, the game's parent was the already-running launcher,
+outside Steam's tree.) The game exited at 21:01:41; the watcher was not running, so no unlock, toast or capture was tested in this run.
+
+Done in code (not yet deployed, a backend change needs the next Steam restart): `store_epic_local.launch_spec` now puts the leading dash on
+the link for **new** shortcuts; existing shortcuts are untouched (the user already added the dash to Jotunnslayer by hand). Tests: the
+dashed link, the dash-less link and a hand-made dashed shortcut all match their game, so there is no duplicate (Lua 11 suites pass).
+
+**Still open for Epic (in this order):**
+1. **Unlock under this launch mode:** run `unlock_watcher.mjs --steam` (elevated), quit the launcher, start Jotunnslayer from Steam, unlock
+   something: does Steam's toast now draw **inside the game** (overlay), and do enhanced-notifications' captures run (no more
+   `no-running-timeline`)? Does EOS still work (it did: the launcher supplied the exchange code)?
+2. **The launcher must be closed first** and lingers after the game (Steam keeps the entry running until the launcher exits). Options: document it;
+   a wrapper script that quits the launcher before starting it and again after the game exits (after a cloud-sync grace); or a plugin step on
+   `shortcut.launched` that cannot help (too late). The wrapper is a new kind of file shipped by the plugin (D6).
+3. **BURIED STARS** still has the direct-exe shortcut; decide whether to put it back on the launcher recipe (the plugin never edits an
+   existing shortcut, policy D2) and compare E1 (direct exe) with E5 for overlay, captures and achievements.
+4. The Xbox stores still need their own route (GDK direct exe, UWP COM-activation wrapper); the SISR/GlosSI carrier (4b) stays the
+   fallback for what has no Steam-tree route.
+
 ## 5. Full list of what is still to test or build
 
 **Live checks still open** (also in the research note):

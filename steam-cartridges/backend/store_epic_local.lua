@@ -166,11 +166,14 @@ function M.launcher_exe()
 end
 
 --- How a shortcut for an installed game is set up (ADR-0056): the launcher, with the game's launch link as its
---- argument, so the launcher's updates, cloud saves and overlay run as when the user starts it from Epic.
+--- argument, so the launcher's updates, cloud saves and overlay run as when the user starts it from Epic. The link carries a
+--- leading dash (a command-line switch): verified live 2026-10-03, with the launcher closed first, Steam then tracks the launcher
+--- AND the game it starts under the shortcut's id (gameprocess_log), so the Steam overlay and in-game toasts work; without the
+--- dash the launcher only forwards the link and the game starts outside Steam's process tree.
 function M.launch_spec(game, launcher)
   if not game or not launcher or launcher == "" then return nil end
   local dir = launcher:match("^(.*)\\[^\\]+$") or ""
-  local link = "com.epicgames.launcher://apps/" .. game.namespace .. "%3A" .. game.item_id .. "%3A" .. game.app_name
+  local link = "-com.epicgames.launcher://apps/" .. game.namespace .. "%3A" .. game.item_id .. "%3A" .. game.app_name
     .. "?action=launch&silent=true"
   return { exe = '"' .. launcher .. '"', start_dir = dir ~= "" and ('"' .. dir .. '\\"') or "", launch_options = link }
 end

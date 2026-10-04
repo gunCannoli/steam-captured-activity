@@ -45,6 +45,9 @@ wrapper script, GDK direct exe, COM-activation wrapper) and four small experimen
 holds the SISR / GlosSI research**: Steam's overlay and in-game toast need a Steam-launched process that renders, and an
 "overlay carrier" (a transparent topmost window the shortcut's exe owns, as SISR and GlosSI do) is the known way to get them over
 a game Steam did not render; the plan is to prototype our own minimal carrier (decision D8, experiments C0-C2).
+**Epic launch route verified (2026-10-03):** a dash-prefixed launch link with the Epic launcher closed first makes Steam track the game under
+the shortcut and shows the Steam overlay (handoff 4c-result). New Epic shortcuts now carry the dash (code and tests done, deploys at the next
+Steam restart). Next: an unlock test under this route (toast in-game, captures), then the launcher-lingers / wrapper decision, then Xbox.
 
 **Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
 agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer

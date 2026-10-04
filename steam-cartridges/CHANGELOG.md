@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: new Epic shortcuts start the launcher with a dashed link (2026-10-03)**: `-com.epicgames.launcher://apps/...`. With the Epic launcher closed, Steam then tracks the launcher and the game it starts under the shortcut, so the Steam overlay works over the game (verified live). Shortcuts made earlier are left as they are; both forms still match their game, so nothing is duplicated.
 - **Fixed: Xbox games without a game config were not found (2026-10-03)**: Microsoft Sudoku ships neither `XboxServices.config` nor `MicrosoftGame.config`; its manifest's `xboxliveapp-` protocol now counts, and the catalog supplies its title id.
 - **Fixed: a game installed while Steam runs was never found (2026-10-03)**: the install list was read once per session; the auto-add check and the Third-party panel now read it afresh, and a page view's cached copy expires after 60 s. A new shortcut waits for Steam's collections to load before it is filed.
 - **Added: games installed while Steam runs are added without a restart (2026-10-03, ADR-0056)**: with an Auto-add toggle on, a 60 s check (`sensors/installs`) adds an Epic or Xbox game installed after Steam started. An Epic download still in progress (`bIsIncompleteInstall`) is no longer taken for an installed game.
