@@ -7,6 +7,15 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Launch-tracking investigation for Epic and Xbox shortcuts (2026-10-03)**: the experiments E0-E7 of
+  [the launch-tracking plan](docs/plans/steam-cartridges-store-launch-tracking-plan.md) run live under the Steam lock with throwaway `LT-` shortcuts (all
+  removed). Findings (plan § 2 F12-F20, § 7): Steam tracks the processes a tracked process creates, not its job; a reaper that ends the Epic launcher after
+  the game and Epic's cloud sync ends the running state 8-13 s after the game; a wrapper also removes "close the launcher first" but Steam's Stop leaves the
+  launcher; UWP and GDK games cannot be put in Steam's tree (error 575; Fortress Merge's exe relaunches itself), so activation (U1) or the UWP exe as the Exe
+  (U0, Windows' `SystemUWPLauncher`) give a running state and timeline but no overlay, in-game toast or recording; an overlay carrier gets the overlay but not
+  the toasts; Millennium and `SteamClient` offer no way to re-target tracking or the overlay. Recommendation and the user's questions: plan § 7-8; handoff
+  D6/D8 updated. Probe sources: `steam-cartridges/tests/live/probes/launch_tracking/`. No product code.
+
 - **Plans cleanup (2026-10-03)**: the six implemented plans and their patch folders are deleted (enhanced-notifications achievements merge, architecture port and Big Picture toast fix; steam-cartridges Game Data editor, manuals and store copies). They stay readable in git at `9a7df2b` (`git show 9a7df2b:docs/plans/<file>`); every link and comment that named them now points there. Kept: the features plan (a draft), the community crash investigation (open checks), the Epic/Xbox handoff, the unlock research and the new launch-tracking plan.
 
 - **Epic and Xbox games in steam-cartridges (ADR-0056, 2026-10-02)**: at the user's request. A shortcut that is an Epic

@@ -41,12 +41,17 @@ for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with
 *Coded, not deployed (needs the next Steam restart):* new Epic shortcuts carry the dash.
 
 *Missing, in order of importance:*
-1. **Launch tracking (open plan, an agent should investigate first):** Jotunnslayer keeps showing as running after the game exits (the launcher lingers: when the game is dropped the
-   launcher must be dropped too); the launcher must be closed by hand before launching; **UWP Xbox games** (Minesweeper, Sudoku, Wordament) are COM-activated outside any tree Steam tracks, so
-   no overlay, no recording and no in-game toast (the exe need not be the renderer, only the renderer must be in the tracked tree: can a UWP game be put there?); GDK games (Fortress Merge)
-   need a direct-exe test; BURIED STARS runs its exe directly (changed by hand): does it still log in to Epic and unlock? Options and experiments E0-E7: the plan.
-2. **Captures still untested under the working route:** unlock a game started from Steam with the dashed link and the launcher closed, with `unlock_watcher.mjs --steam` running:
-   does the toast draw inside the game and does enhanced-notifications take the screenshot and clip (it said `no-running-timeline` in both earlier runs)?
+1. **Launch tracking: investigated live 2026-10-03 (the plan § 7), waiting for the user's answers to its § 8.** Verified: Steam tracks what a tracked process
+   *creates* (not the job, not a parent pid set by Windows); a plugin-only **reaper** (R) ends the Epic launcher after the game and Epic's cloud sync, and the
+   entry stops running **8-13 s** after the game (twice, overlay unaffected); a wrapper (W) also removes the "close the launcher first" rule but Steam's Stop then
+   leaves the launcher; **UWP and GDK games cannot join Steam's tree** (package-identity child refused, error 575; Fortress Merge's direct exe relaunches itself
+   outside it), so an activation wrapper (U1) or the UWP exe as the shortcut's Exe (U0, Windows' `SystemUWPLauncher` waits for the game) gives the running state,
+   playtime and a timeline but **no overlay, in-game toast, screenshot or clip** (recording needs a hooked process); an overlay carrier window (C) gets the overlay
+   but toasts still go to the desktop; no Millennium or `SteamClient` API can re-target tracking or the overlay (T). Recommended: R now for Epic plus the
+   "close the launcher first" sentence; U1 (or U0) for Xbox; no carrier. Still open: BURIED STARS's direct exe (EOS login and unlocks), other GDK games, Big Picture focus.
+2. **Captures under the working Epic route:** the in-tree game has a running timeline, Steam's in-game toast window and a recording that starts (plan § 7, E1 and
+   the E6 control); still to do: a real unlock with `unlock_watcher.mjs --steam`, with the user's recording mode on (it is **Manual** on this PC, so captures skip
+   with `recording-not-active` until a recording runs).
 3. **The unlock feature is not in the plugin.** To build (needs a plan, an ADR superseding ADR-0056 decision 3 "no toast", and tests): a push-log reader in the Lua backend
    (nothing on a timer while no store game runs: start on `shortcut.launched`, stop on `quit`), an Epic trigger, a `store-unlock` sensor, the `toasts` surface posting through
    `NotificationStore.OnNotification` (the existing launch toast calls it wrongly: see the Wuchang entry below), per-store settings, Xbox lite and full modes.
@@ -59,9 +64,9 @@ for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with
    a console unlock (must not toast); a second Epic sample (does the toast GIF and the `cef.log` line recur); two unlocks in one second; a game with no shortcut (logged, no toast); the user's by-hand
    list from ADR-0056: H5 (play the new shortcuts), H8 (an unlock shows in the Post-Game Summary and feed, no duplicate), H9 (Reset Achievements lists neither store), a Big Picture look at the pages and the Third-party panel.
 
-*Next, in order:* (1) an agent runs the launch-tracking investigation and fills its § 7; (2) the user answers its § 8 (and handoff D1-D8); (3) ship the cheapest chosen fix first
-(the plan recommends a plugin-only "reaper" that ends the launcher when the game's processes are gone), then re-run item 2 above; (4) write the plans and ADR for the unlock feature (item 3) and the
-auto-add policy (item 4); (5) build, test (unit, Lua, live), Routines 1 to 3 of AGENTS.md. The old "Seeing an unlock" and "Epic launch route" entries are folded into this block.
+*Next, in order:* (1) the user answers the launch-tracking plan's § 8 (and handoff D1-D8); (2) ship the cheapest chosen fix first
+(the reaper, designed in the plan § 7), then re-run item 2 above; (3) write the plans and ADR for the unlock feature (item 3) and the
+auto-add policy (item 4); (4) build, test (unit, Lua, live), Routines 1 to 3 of AGENTS.md. The old "Seeing an unlock" and "Epic launch route" entries are folded into this block.
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
