@@ -67,9 +67,9 @@ for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with
    a console unlock (must not toast); a second Epic sample (does the toast GIF and the `cef.log` line recur); two unlocks in one second; a game with no shortcut (logged, no toast); the user's by-hand
    list from ADR-0056: H5 (play the new shortcuts), H8 (an unlock shows in the Post-Game Summary and feed, no duplicate), H9 (Reset Achievements lists neither store), a Big Picture look at the pages and the Third-party panel.
 
-*Next, in order:* (1) the user answers the launch-tracking plan's § 8 (and handoff D1-D8); (2) ship the cheapest chosen fix first
-(the reaper, designed in the plan § 7), then re-run item 2 above; (3) write the plans and ADR for the unlock feature (item 3) and the
-auto-add policy (item 4); (4) build, test (unit, Lua, live), Routines 1 to 3 of AGENTS.md. The old "Seeing an unlock" and "Epic launch route" entries are folded into this block.
+*Next, in order:* (1) re-run item 2 (captures on a real Epic unlock, now that the game runs in Steam's tree); (2) the user decides the
+auto-add policy (item 4) and handoff D1-D5; (3) plans and ADRs for the unlock feature (item 3) and the auto-add policy; (4) build, test (unit, Lua,
+live), Routines 1 to 3 of AGENTS.md.
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
