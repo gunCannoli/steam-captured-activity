@@ -28,38 +28,40 @@ add the clear counter to the suite, run it with the queue off to see whether the
 user: use the queue for a while and say if a notification ever goes missing; look at the ps5 toasts (padding fix,
 `"gap": [10, 2]`).
 
-**Seeing an Epic or Xbox unlock as it happens (research, 2026-10-03):** [the research note](docs/plans/steam-cartridges-store-unlock-detection-research.md),
-which ends with the **list of everything left to test and build** (10 live checks, then the backend, sensor, toast surface,
-settings and ADR). Xbox: Windows' push log carries the full achievement ~1 s after the unlock (no account link of ours needed;
-the sign-in only adds the locked list, totals and history). Epic: a trigger (the game's `api.epicgames.dev` connection, the
-overlay's traces) plus the API. The probe `tests/live/probes/unlock_watcher.mjs --steam` posts the unlock as Steam's native
-toast (183 ms after the call, verified) and `--mute-epic-overlay` hides Epic's own (untested on the real files, elevated shell).
-**Games installed while Steam runs are now added within a minute** (`sensors/installs`, verified: the tick runs every 60.0 s;
-a real install is still to be seen, note-list items 1-4).
+**Epic and Xbox games in steam-cartridges: where we are, what is missing, what is next (2026-10-03).** Full state, findings and decisions:
+[the handoff](docs/plans/steam-cartridges-store-games-handoff.md); evidence and timings: [the unlock research](docs/plans/steam-cartridges-store-unlock-detection-research.md);
+the open investigation: [the launch-tracking plan](docs/plans/steam-cartridges-store-launch-tracking-plan.md).
 
-**Epic and Xbox games: full handoff in [steam-cartridges-store-games-handoff.md](docs/plans/steam-cartridges-store-games-handoff.md)
-(2026-10-03): what is built and deployed, every finding, the decisions taken and open (D1-D7), the options, and the ordered next steps.**
-Latest finding and next work: Steam launches the launcher or Explorer, not the game, so Big Picture focus, the overlay and Steam's
-recording (`no-running-timeline`) cannot see it; options (direct exe for Epic without the exchange code, Steam-started launcher,
-wrapper script, GDK direct exe, COM-activation wrapper) and four small experiments are in section 4 of the handoff; **section 4b
-holds the SISR / GlosSI research**: Steam's overlay and in-game toast need a Steam-launched process that renders, and an
-"overlay carrier" (a transparent topmost window the shortcut's exe owns, as SISR and GlosSI do) is the known way to get them over
-a game Steam did not render; the plan is to prototype our own minimal carrier (decision D8, experiments C0-C2).
-**Launch tracking and drop-with-the-game (open plan for an investigating agent, 2026-10-03):**
-[steam-cartridges-store-launch-tracking-plan.md](docs/plans/steam-cartridges-store-launch-tracking-plan.md). Requirement: when the Epic game is dropped the
-launcher is dropped too (Jotunnslayer still shows as running); the exe need not be the renderer, only in the tracked tree; UWP games are the open question.
+*Done and deployed (live-checked by the agent):* ADR-0056 store copies (Epic and Xbox found from the PC, store Game Info and screenshots, synced unlocks, unlocks in the
+Activity feed, Third-party settings, auto-add, Reset filter; `test:live` 13/13); auto-add of games installed while Steam runs (60 s tick; the install list is read afresh;
+Epic downloads in progress are skipped; Xbox games without a game config are found by their `xboxliveapp-` protocol: Sudoku; a new shortcut waits for Steam's collections);
+the Xbox sign-in popup (clickable link, click-to-copy code). *Proven in the probe only* (`unlock_watcher.mjs --steam`, nothing of it is in the plugin): an unlock becomes Steam's
+native achievement toast, **Xbox 1.0 s** (Windows' push log carries the full achievement) and **Epic 4.3 s** (overlay-renderer trigger plus the API); enhanced-notifications takes it
+for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with the launcher closed first makes Steam track the game under the shortcut and shows the Steam overlay.
+*Coded, not deployed (needs the next Steam restart):* new Epic shortcuts carry the dash.
 
-**Epic launch route verified (2026-10-03):** a dash-prefixed launch link with the Epic launcher closed first makes Steam track the game under
-the shortcut and shows the Steam overlay (handoff 4c-result). New Epic shortcuts now carry the dash (code and tests done, deploys at the next
-Steam restart). Next: an unlock test under this route (toast in-game, captures), then the launcher-lingers / wrapper decision, then Xbox.
+*Missing, in order of importance:*
+1. **Launch tracking (open plan, an agent should investigate first):** Jotunnslayer keeps showing as running after the game exits (the launcher lingers: when the game is dropped the
+   launcher must be dropped too); the launcher must be closed by hand before launching; **UWP Xbox games** (Minesweeper, Sudoku, Wordament) are COM-activated outside any tree Steam tracks, so
+   no overlay, no recording and no in-game toast (the exe need not be the renderer, only the renderer must be in the tracked tree: can a UWP game be put there?); GDK games (Fortress Merge)
+   need a direct-exe test; BURIED STARS runs its exe directly (changed by hand): does it still log in to Epic and unlock? Options and experiments E0-E7: the plan.
+2. **Captures still untested under the working route:** unlock a game started from Steam with the dashed link and the launcher closed, with `unlock_watcher.mjs --steam` running:
+   does the toast draw inside the game and does enhanced-notifications take the screenshot and clip (it said `no-running-timeline` in both earlier runs)?
+3. **The unlock feature is not in the plugin.** To build (needs a plan, an ADR superseding ADR-0056 decision 3 "no toast", and tests): a push-log reader in the Lua backend
+   (nothing on a timer while no store game runs: start on `shortcut.launched`, stop on `quit`), an Epic trigger, a `store-unlock` sensor, the `toasts` surface posting through
+   `NotificationStore.OnNotification` (the existing launch toast calls it wrongly: see the Wuchang entry below), per-store settings, Xbox lite and full modes.
+4. **Auto-add policy (decide, then plan):** a deleted shortcut (today forgotten each restart and re-added at the next; options A persistent added-list, B restore controls in Settings,
+   C re-add every check (rejected), D keep; recommended A and B); shortcuts added by hand or before the plugin (title fallback, re-check before adding, never edit an existing shortcut,
+   first enable asks first, a collection button, Steam-owned games); a re-added game gets a new appid (loses its playtime). Details: the two auto-add entries under Considerations.
+5. **Small open decisions:** Epic overlay mute (`--mute-epic-overlay` works only in an elevated shell, untested on the real files: manual step or a button); a registered Microsoft app
+   instead of the borrowed "Minecraft Launcher" client id; Epic's API burst at 0.5 s instead of 1.5 s.
+6. **Live checks still open:** a real install while Steam runs gets its shortcut within a minute (Epic and Xbox, a download in progress is not added); Xbox with the Xbox app closed, Game Bar off,
+   a console unlock (must not toast); a second Epic sample (does the toast GIF and the `cef.log` line recur); two unlocks in one second; a game with no shortcut (logged, no toast); the user's by-hand
+   list from ADR-0056: H5 (play the new shortcuts), H8 (an unlock shows in the Post-Game Summary and feed, no duplicate), H9 (Reset Achievements lists neither store), a Big Picture look at the pages and the Third-party panel.
 
-**Epic and Xbox games (ADR-0056, 2026-10-03): code committed in two phases (backend `3e39ce2`, frontend `5dfc40e`), live-verified by the
-agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Done live: H2 (Third-party panel), H4 (auto-add made Jotunnslayer
-4202674849 in "Epic Games" and Microsoft Jigsaw 2366742765 in "Xbox"), H6 (Jotunnslayer: Steam Game Info, parity 17/17, achievements `epic 1/38`,
-the unlock in the Activity feed), H7 partly (Jigsaw's Game Info from the Xbox catalog; the catalog has no developer, only publisher "Xbox Game Studios"),
-H10 (`Store copy ...: epic (launch-link)`, no error budget). Left for the user: H3 (Xbox sign-in, needs the code typed at microsoft.com/link), then
-Jigsaw's achievements 1/20 and H8 (unlock one more, quit, no toast, Post-Game Summary lists it), H5 (play both new shortcuts; the Epic link form is
-unverified), H9 (Reset Achievements lists neither; unit-tested only), Big Picture look. (The plan is deleted: its § 10 is at https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-store-copies-plan.md; the handoff holds what is left.)
+*Next, in order:* (1) an agent runs the launch-tracking investigation and fills its § 7; (2) the user answers its § 8 (and handoff D1-D8); (3) ship the cheapest chosen fix first
+(the plan recommends a plugin-only "reaper" that ends the launcher when the game's processes are gone), then re-run item 2 above; (4) write the plans and ADR for the unlock feature (item 3) and the
+auto-add policy (item 4); (5) build, test (unit, Lua, live), Routines 1 to 3 of AGENTS.md. The old "Seeing an unlock" and "Epic launch route" entries are folded into this block.
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
