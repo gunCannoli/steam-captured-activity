@@ -89,7 +89,7 @@ memory and nothing logs a token or a device code. The public client ids are cons
 | `backend/iso_date.lua` | Store dates to Unix seconds |
 | `backend/store_rpc.lua` | The Third-party section's RPCs |
 | `frontend/app/store-copy.ts` | `EnsureFresh(["store"])` once per shortcut per session (first in `app/view`) |
-| `frontend/app/store-sync.ts` | Auto-add: which installed games get a shortcut, in which collection |
+| `frontend/app/store-sync.ts` | Auto-add: which installed games get a shortcut, in which collection; the U0 repair of Xbox UWP shortcuts after an app update (ADR-0058) |
 | `frontend/sensors/installs/index.ts` | The 60 s tick that re-runs auto-add, so a game installed while Steam runs needs no restart |
 | `backend/store_launch.lua` | Epic Steam Overlay Workaround (ADR-0057): `prelaunch` closes a running Epic launcher before Steam launches an Epic launcher-link copy; `reap` ends the launcher after the game and Epic's cloud sync |
 | `frontend/app/epic-launcher.ts` | Sends the `launch-hold` surface the Epic launcher-link copies to hold (`StoreEpicLaunchShortcuts`, read at start-up, when the setting turns on, after an Epic auto-add and after each launch), answers held launches after `StoreEpicPrelaunch`, ticks `StoreEpicReap` every 3 s while such a game runs |
@@ -103,6 +103,13 @@ added again until Steam restarts, and a game whose add failed is not retried in 
 
 None here. Auto-add writes through the `library-shortcuts` surface ([surfaces.md](surfaces.md#library-shortcuts)); the Epic
 workaround holds Steam's Play through the `launch-hold` surface ([surfaces.md](surfaces.md#launch-hold)).
+
+**Xbox UWP shortcuts (ADR-0058, U0):** `store_xbox_local.launch_spec` gives a UWP game (manifest `EntryPoint` is an app class)
+its own exe in the package folder (`u0_spec`); GDK/Win32 packages keep `explorer.exe shell:AppsFolder\<pfn>!<app>`. After an app
+update the folder name changes: `store_service.xbox_repairs` lists every shortcut whose exe is in a `WindowsApps` folder of an
+installed UWP game (`pfn_from_path`, any version) but is not the current exe; `app/store-sync.repair` (start-up and the 60 s
+install tick, while the Xbox store is on) has the `library-shortcuts` surface repoint it. `match` also accepts an older
+version's folder, so an outdated shortcut is never a missing game.
 
 **The Epic Steam Overlay Workaround (ADR-0057)** takes part only for a shortcut that is an Epic copy started through the
 launcher link (`detect` says `via = "launch-link"`; `store_service.epic_launcher_shortcuts` lists them). Prelaunch closes nothing
@@ -121,7 +128,8 @@ manifests): the local readers, each source over injected HTTP, the service's onc
 `tests/test_ach_service.lua` (store rows, `store_achievements`), `tests/test_metadata_service.lua` and
 `tests/test_media_service.lua` (store tiers). Frontend: `tests/app-store-copy.test.ts`, `tests/store-sync.test.ts`,
 `tests/library-shortcuts.test.ts`, `tests/app-achievements.test.ts` (synced copies). Epic workaround: `tests/test_store_launch.lua`
-(parsers, prelaunch, every reaper phase, pending, slack), `tests/launch-hold.test.ts`, `tests/epic-launcher.test.ts`.
+(parsers, prelaunch, every reaper phase, pending, slack), `tests/launch-hold.test.ts`, `tests/epic-launcher.test.ts`. U0: `test_store.lua`
+(entry point, `pfn_from_path`, older-version match, UWP vs GDK launch spec, `xbox_repairs`), `tests/store-sync.test.ts`, `tests/library-shortcuts.test.ts`.
 
 ## How to add a store
 

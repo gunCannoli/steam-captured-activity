@@ -148,6 +148,32 @@ local function unsigned(id)
   return n
 end
 
+--- U0 shortcuts out of date after an app update (ADR-0058): a shortcut whose exe is inside a WindowsApps package folder
+--- of an installed UWP game, but not the current version's exe. { { appid, title, exe, start_dir } } to repoint; the
+--- library-shortcuts surface writes them (the appid stays, so playtime and activity stay). A shortcut that runs anything
+--- else (Explorer, another exe) is never listed. Local data only.
+function M.xbox_repairs()
+  local xbox = xbox_local()
+  local games = installed(true).xbox
+  local function norm(p) return (tostring(p or ""):gsub('"', ""):gsub("/", "\\"):lower()) end
+  local out = {}
+  for _, e in ipairs(all_entries()) do
+    local pfn = xbox.pfn_from_path(e.exe)
+    if pfn then
+      for _, g in ipairs(games) do
+        if g.pfn and g.pfn:lower() == pfn:lower() then
+          local want = xbox.u0_spec(g)
+          if want and norm(want.exe) ~= norm(e.exe) then
+            out[#out + 1] = { appid = unsigned(e.appid), title = g.title or g.pfn, exe = want.exe, start_dir = want.start_dir }
+          end
+          break
+        end
+      end
+    end
+  end
+  return out
+end
+
 --- The shortcuts (unsigned appids) that are an Epic copy started through the launcher link: the ones the Epic Steam
 --- Overlay Workaround holds at Play (ADR-0057). Local data only.
 function M.epic_launcher_shortcuts()

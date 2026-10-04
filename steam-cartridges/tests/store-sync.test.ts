@@ -60,3 +60,32 @@ test('auto-add: two runs at the same time share one backend call', async () => {
     assert.equal(s.calls(), 1);
     assert.equal(s.asked.length, 2);
 });
+
+// U0 repair (ADR-0058): the backend's list of outdated Xbox shortcuts becomes repair requests, once each, only with Xbox on.
+function repairRig(allowXbox = true) {
+    const bus = createEventBus();
+    const asked: any[] = [];
+    bus.on('store.repair-requested', (e) => asked.push(e));
+    const REPAIR = { appid: 2663546656, title: 'Microsoft Minesweeper', exe: '"C:\Program Files\WindowsApps\M_4.8.0.0_x64__p\Minesweeper.exe"', start_dir: '"C:\Program Files\WindowsApps\M_4.8.0.0_x64__p\\"' };
+    let calls = 0;
+    const sync = createStoreSync({
+        backend: { async storeInstalledGames() { return {}; }, async storeXboxRepairs() { calls++; return { repairs: [REPAIR] }; } } as any,
+        bus,
+        autoAdd: () => ({ epic: false, xbox: false }),
+        allowXbox: () => allowXbox,
+    });
+    return { sync, asked, calls: () => calls, REPAIR };
+}
+
+test('U0 repair: an outdated Xbox shortcut is requested once with the current exe, also with auto-add off', async () => {
+    const r = repairRig();
+    assert.equal(await r.sync.repair(), 1);
+    assert.equal(await r.sync.repair(), 0, 'the same repair is not asked again this session');
+    assert.deepEqual(r.asked, [r.REPAIR]);
+});
+
+test('U0 repair: nothing while the Xbox store is off', async () => {
+    const r = repairRig(false);
+    assert.equal(await r.sync.repair(), 0);
+    assert.equal(r.calls(), 0);
+});

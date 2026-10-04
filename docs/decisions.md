@@ -3291,3 +3291,41 @@ game and Epic's cloud sync ended the running state 8-13 s after the game (E1).
   the launch event).
 - Steam's Stop still ends the entry: the reaper sees the game gone and ends the launcher.
 - Xbox games are not covered (no route puts them in Steam's tree; plan § 7).
+
+## ADR-0058: Xbox UWP shortcuts run the game's own exe, and the plugin repoints them after an app update
+
+**Status:** Accepted · 2026-10-04 (the user's decision C of the [launch-tracking plan § 8](plans/steam-cartridges-store-launch-tracking-plan.md#8-decisions-for-the-user-ask-after--7-with-the-recommendation), option U0)
+
+### Context
+
+An Xbox shortcut ran `explorer.exe shell:AppsFolder\<package>!App` (ADR-0056): Explorer exits at once, so Steam showed the
+game as running for a second, counted no playtime and kept no timeline. Measured (plan § 7, F16, E3c-d): when anything starts
+a UWP game's exe in its `WindowsApps` package folder, Windows starts `SystemUWPLauncher.exe` as that process's child, which
+activates the game and lives exactly as long as it. As a shortcut's exe it gives Steam the running state, playtime and a
+timeline for the whole game. It gives no overlay (the game still runs under Windows' activation service; no route puts a UWP
+game in Steam's tree, plan § 7). The folder name holds the package version, so an app update leaves the shortcut pointing at
+a folder that no longer exists. A GDK/Win32 package (Fortress Merge) relaunches itself outside Steam's tree from its exe (F18).
+
+### Decision
+
+1. **New UWP shortcuts run the game's own exe** (`store_xbox_local.u0_spec`: package root + the manifest's `Executable`, no
+   launch options). A package is UWP when its manifest's `EntryPoint` is an app class, not `Windows.FullTrustApplication`. GDK
+   and Win32 packages keep the Explorer launch.
+2. **Repair after an app update:** at start-up and on the 60 s install tick (while the Xbox store is on), the backend lists the
+   shortcuts whose exe is inside a `WindowsApps` folder of an installed UWP game but is not the current version's exe
+   (`store_service.xbox_repairs`); `app/store-sync` asks the `library-shortcuts` surface to point them at the current exe and
+   start folder (`SetShortcutExe`, `SetShortcutStartDir`; the appid stays, so playtime and activity stay). A request is made once
+   per shortcut and target per session.
+3. **Only shortcuts that already run a package's exe are repointed.** An Explorer shortcut or any other target is never changed
+   by the repair. The user's existing UWP shortcuts were converted once by hand (decision E: the plugin is not released yet).
+4. **Matching ignores the version:** an exe inside any version's package folder matches its game (`pfn_from_path`), so an
+   outdated shortcut is not taken for a missing game and auto-add adds no duplicate.
+
+### Consequences
+
+- Steam shows Xbox UWP games running for as long as they run, with playtime and a timeline (enhanced-notifications no longer
+  reports `no-running-timeline` for them; screenshots and clips still need a recording, which Steam does not make for a game
+  outside its tree).
+- No overlay, no in-game toast for these games; Steam's Stop ends `SystemUWPLauncher`, not the game.
+- After an app update that happens while Steam runs, a launch within the next minute can fail once; the next tick repairs it.
+- The plugin now changes a shortcut it did not just add; limited to package-exe shortcuts and logged per repair.

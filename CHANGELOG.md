@@ -7,6 +7,10 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Xbox UWP shortcuts run the game's exe and follow app updates (2026-10-04, ADR-0058)**: option U0 of the
+  launch-tracking plan. Steam now shows Minesweeper, Sudoku and Ultimate Word Games running for the whole session (playtime, a
+  timeline); the plugin repoints a shortcut after an app update. No overlay for Xbox games. The user's three shortcuts were converted.
+
 - **steam-cartridges: Epic Steam Overlay Workaround shipped (2026-10-03, ADR-0057)**: the launch-tracking plan's chosen route for
   Epic (decisions A, B, E): one setting, off by default, holds Steam's Play while a running Epic launcher is closed, and ends the
   launcher after the game and Epic's cloud sync. The user's existing Epic shortcuts were converted to the launcher with the

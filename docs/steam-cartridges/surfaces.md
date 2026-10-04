@@ -599,11 +599,13 @@ Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K
 
 ## library-shortcuts
 
-**One job (ADR-0056):** add the shortcut app/store-sync asks for (auto-add of an installed Epic or Xbox game) and file it
-in its store's collection. Event-driven: `store.add-requested` in, `store.shortcut-added` out (its own result event).
+**One job (ADR-0056, ADR-0058):** add the shortcut app/store-sync asks for (auto-add of an installed Epic or Xbox game) and file it
+in its store's collection; and repoint an Xbox UWP shortcut to the current version's exe after an app update. Event-driven:
+`store.add-requested` in, `store.shortcut-added` out; `store.repair-requested` in, `store.shortcut-repaired` out.
 
 **touches:** `SteamClient.Apps.AddShortcut`, `SteamClient.Apps.SetShortcutName`, `SteamClient.Apps.SetShortcutLaunchOptions`,
-`collectionStore.NewUnsavedCollection`, `Collection.AsDragDropCollection.AddApps`.
+`SteamClient.Apps.SetShortcutExe`, `SteamClient.Apps.SetShortcutStartDir`, `collectionStore.NewUnsavedCollection`,
+`Collection.AsDragDropCollection.AddApps`.
 
 **reads:** none. **Kill switch:** `library-shortcuts`.
 
@@ -611,7 +613,8 @@ in its store's collection. Event-driven: `store.add-requested` in, `store.shortc
 writes `shortcuts.vdf` at once; it ignores the name (named after the exe) and the launch options (stored empty), so both
 are set right after; renaming keeps the appid. The collection calls are Steam UI's own and not yet verified on this
 build: fail-open (the shortcut is added, the log says the collection was skipped). `userCollections` is read only once
-`m_mapCollectionsFromStorage` exists (guardrail 13).
+`m_mapCollectionsFromStorage` exists (guardrail 13). `SetShortcutExe` / `SetShortcutStartDir` keep the appid (verified live
+2026-10-03 on BURIED STARS, appid 4069313383 unchanged).
 
 ## launch-hold
 

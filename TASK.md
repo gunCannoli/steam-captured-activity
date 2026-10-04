@@ -46,9 +46,12 @@ for a real unlock. *Verified by the user:* a dash-prefixed Epic launch link with
    Steam starts the launcher and its overlay reaches the game; after the game and Epic's cloud sync the launcher is ended and the entry stops running.
    Live (E9, the real Jotunnslayer shortcut, Steam's own Play button): launcher closed at Play, overlay attached to the game, entry ended 10 s after the
    game; a non-Epic shortcut is never held. BURIED STARS was converted back to the launcher with the dashed link (appid kept). Left: Big Picture's Play (same
-   code path, not run live), a desktop-shortcut launch (not held: the reaper still ends the launcher), Steam's Stop during play. *Xbox: open*, the user is weighing
-   the options (running state through U1 or U0, or SISR for controller input; no route gives Xbox UWP/GDK games the overlay). Verified facts and
-   measurements: the plan § 2 and § 7.
+   code path, not run live), a desktop-shortcut launch (not held: the reaper still ends the launcher), Steam's Stop during play. *Xbox UWP: shipped
+   2026-10-04 (ADR-0058, U0)*: Minesweeper, Sudoku and Ultimate Word Games run their own exe (converted, appids kept), so Steam shows them running with
+   playtime and a timeline for the whole session (live: Minesweeper 18 s, ended 2 s after the game); after an app update the plugin repoints the
+   shortcut within a minute (live: a simulated update repaired in 37 s, no duplicate). No overlay for Xbox games (no route; plan § 7). Left: a real Store
+   update; Sudoku and Word Games launched from Steam (same mechanism, only Minesweeper run live); Fortress Merge (GDK) stays on Explorer, no running
+   state (U1, a compiled wrapper, was not built); SISR for controller layouts: a later option. Verified facts and measurements: the plan § 2 and § 7.
 2. **Captures under the working Epic route:** the in-tree game has a running timeline, Steam's in-game toast window and a recording that starts (plan § 7, E1 and
    the E6 control); still to do: a real unlock with `unlock_watcher.mjs --steam`, with the user's recording mode on (it is **Manual** on this PC, so captures skip
    with `recording-not-active` until a recording runs).

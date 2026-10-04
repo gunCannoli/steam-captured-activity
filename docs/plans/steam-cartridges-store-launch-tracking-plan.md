@@ -150,6 +150,8 @@ Tools: a probe program compiled with `csc` (modes `e0`, `reap`, `epic`, `uwp`, `
 
 | E9 (shipped) | 2026-10-03 23:08 and 23:16 | **The shipped workaround (ADR-0057) passes**, twice, on the real Jotunnslayer shortcut with the setting on and the launcher opened first as from the tray, through Steam's own Play button and with no help from the test: the plugin logged "launcher closed before 4202674849 starts", the game ran under the Steam-started launcher with the overlay attached, and after the game the plugin logged "finished (synced)" and Steam dropped the entry 9-10 s after the game. Found and fixed between the two runs: a non-Epic shortcut waited out the 8 s cap when the backend was busy (a freshly opened page fetching metadata); now only the Epic launcher-link shortcuts are held (a plain shortcut started 0.74 s after Play on a fresh page) and the backend closes nothing for a request older than 3 s. `npm run test:live` 13/13. | `e9_product.ps1`; `console_log.txt` 23:16:39 `GameOverlay: started ... for game process 32148`; `gameprocess_log.txt` 23:17:13 `Remove -92292447 from running list`; webhelper_js `Epic overlay workaround:` lines |
 
+| E10 (shipped) | 2026-10-04 00:21 | **U0 with the repair passes** on the user's converted Minesweeper shortcut: Steam's own Play started the game in 1.2 s (parent svchost, as expected), Steam showed it running with a timeline for the whole session and dropped it 2 s after the game ended; the shortcut pointed at an older version's folder was repointed by the plugin's next 60 s check (37 s), appid unchanged, one shortcut only (auto-add on). `npm run test:live` 13/13. | `e10_u0.ps1`; webhelper_js `Xbox shortcut "Microsoft Minesweeper" (2663546656) now runs the updated game.` |
+
 ### Verdicts
 
 | Option | Verdict | Why (experiment) |
@@ -204,7 +206,7 @@ matters more than P2; for Xbox UWP and GDK no clean route exists (§ 7). **Answe
 | --- | --- | --- |
 | A | Epic, launcher closed at Play | **P, Play interception**: **shipped** (ADR-0057; E8, E9) |
 | B | Epic, launcher closed after the game | **R**, as an **"Epic Steam Overlay Workaround"** setting, **off by default**; on for our tests. **One setting turns on both P and R** (confirmed) |
-| C | Xbox UWP | **No overlay; running state, playtime, timeline** (U1 or U0) |
+| C | Xbox UWP | **No overlay; running state, playtime, timeline: U0, shipped 2026-10-04** with the auto-repair after app updates (ADR-0058; E10: Play gives the running state for the whole session, a simulated update repaired in 37 s) |
 | D | Xbox GDK | **Same route as UWP**. U0 cannot serve GDK (F18), so one route for both means **U1** (a plugin-compiled exe), **or S** below: the user is weighing S |
 | E | New shortcuts only, or a convert button | **Convert the existing store shortcuts in the user's library to the chosen format, and new games follow it** (the plugin is not released, so no playtime to protect) |
 

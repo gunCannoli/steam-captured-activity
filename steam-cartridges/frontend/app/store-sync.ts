@@ -11,7 +11,7 @@ import type { backend as Backend, InstalledStoreGame } from "../ports/backend";
 export const STORE_COLLECTIONS: Record<StoreKind, string> = { epic: "Epic Games", xbox: "Xbox" };
 
 export interface StoreSyncDeps {
-    backend: Pick<typeof Backend, "storeInstalledGames">;
+    backend: Pick<typeof Backend, "storeInstalledGames" | "storeXboxRepairs">;
     bus: Pick<EventBus, "emit" | "on">;
     /** Settings autoAddEpicGames / autoAddXboxGames. */
     autoAdd(): Record<StoreKind, boolean>;
@@ -24,6 +24,11 @@ export interface StoreSync {
     install(): void;
     /** Add what is missing; resolves to how many shortcuts were requested. One run at a time. */
     run(): Promise<number>;
+    /**
+     * U0 repair (ADR-0058): ask the backend for Xbox shortcuts that run an older version's exe and have the surface repoint
+     * them. At start-up and on the 60 s install tick; only while the Xbox store is on. Resolves to how many were requested.
+     */
+    repair(): Promise<number>;
     /** The installed games of both stores, for the Third-party settings section. */
     installed(): Promise<{ epic: InstalledStoreGame[]; xbox: InstalledStoreGame[]; epicLauncher: boolean }>;
 }
@@ -61,8 +66,29 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
         return n;
     }
 
+    /** Repairs requested this session (appid -> exe): the same one is not asked twice if Steam did not take it. */
+    const repaired = new Map<number, string>();
+
+    async function repair(): Promise<number> {
+        if (!deps.allowXbox()) return 0;
+        const res = await deps.backend.storeXboxRepairs().catch(() => undefined);
+        let n = 0;
+        for (const r of Array.isArray(res?.repairs) ? res!.repairs! : []) {
+            if (repaired.get(r.appid) === r.exe) continue;
+            repaired.set(r.appid, r.exe);
+            deps.bus.emit("store.repair-requested", r);
+            n++;
+        }
+        return n;
+    }
+
     return {
+        repair,
         install() {
+            deps.bus.on("store.shortcut-repaired", (e) => {
+                if (e.error) logger.warn(`Xbox shortcut "${e.title}" (${e.appid}) still runs an older version: ${e.error}`);
+                else logger.info(`Xbox shortcut "${e.title}" (${e.appid}) now runs the updated game.`);
+            });
             deps.bus.on("store.shortcut-added", (e) => {
                 if (e.error) logger.warn(`Auto-add: ${e.kind} game ${e.key} was not added: ${e.error}`);
                 else logger.info(`Auto-add: ${e.kind} game ${e.key} is shortcut ${e.appid}${e.collection ? ` in "${e.collection}"` : ""}.`);

@@ -207,6 +207,19 @@ check("a shortcut running the package's exe matches by folder", x2 == xg[1] and 
 xbox_local.deps.getenv = function(n) if n == "SystemRoot" then return "C:\\Windows" end end
 local xs = xbox_local.launch_spec(xg[1])
 check("a launch spec opens the app through Explorer", xs.exe == '"C:\\Windows\\explorer.exe"' and xs.launch_options == "shell:AppsFolder\\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App")
+-- U0 (ADR-0058): a UWP game's shortcut runs its own exe; a shortcut for an older version still names its game
+local MS_ROOT = [[C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe]]
+local OLD_EXE = [["C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.8000.0_x64__8wekyb3d8bbwe\Minesweeper.exe"]]
+check("the manifest's entry point is read", xbox_local.parse_appx_manifest('<Application Id="App" Executable="Minesweeper.exe" EntryPoint="Microsoft.MicrosoftMinesweeper.App">').entry_point == "Microsoft.MicrosoftMinesweeper.App")
+check("pfn_from_path names the family of any version's package folder", xbox_local.pfn_from_path(OLD_EXE) == "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe")
+check("... and nothing outside WindowsApps", xbox_local.pfn_from_path([["C:\game\gamepass\Fortress Merge\Content\Fortress Merge.exe"]]) == nil and xbox_local.pfn_from_path([["C:\Windows\explorer.exe"]]) == nil)
+local MS = { pfn = "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe", root = MS_ROOT, app_id = "App", executable = "Minesweeper.exe", uwp = true, title = "Microsoft Minesweeper" }
+local FM = { pfn = "QubicGames.FortressMerge_e3x7kyz1wvfw4", root = [[C:\Program Files\WindowsApps\QubicGames.FortressMerge_1.0.11.0_x64__e3x7kyz1wvfw4]], app_id = "Game", executable = "GameLaunchHelper.exe", uwp = false }
+local mo, mov = xbox_local.match({ exe = OLD_EXE }, { MS })
+check("a shortcut for an older version matches its game (no duplicate after an update)", mo == MS and mov == "package")
+local u0 = xbox_local.launch_spec(MS)
+check("a UWP game's launch spec runs its own exe (U0)", u0.exe == '"' .. MS_ROOT .. [[\Minesweeper.exe"]] and u0.start_dir == '"' .. MS_ROOT .. [[\"]] and u0.launch_options == "")
+check("a GDK game keeps the Explorer launch", xbox_local.launch_spec(FM).exe == '"C:\\Windows\\explorer.exe"')
 -- An Xbox Live game with no game config, marked only by its xboxliveapp- protocol (Microsoft Sudoku)
 check("the manifest's xboxliveapp- protocol marks an Xbox Live game", xbox_local.parse_appx_manifest('<uap:Protocol Name="xboxliveapp-1297292189" />').xbox_live == true and xbox_local.parse_appx_manifest('<uap:Protocol Name="myapp" />').xbox_live == false)
 xbox_local.deps.read = function(p)
@@ -372,6 +385,18 @@ ENTRIES[4000000010] = { appid = 4000000010, exe = '"C:\\L\\EpicGamesLauncher.exe
 local held = svc.epic_launcher_shortcuts()
 check("epic_launcher_shortcuts lists the launcher-link copies only (ADR-0057: not the direct-exe copy, not Xbox)", #held == 1 and held[1] == 4000000010, table.concat(held, ","))
 ENTRIES[4000000010] = nil
+-- U0 repairs (ADR-0058): only a WindowsApps-exe shortcut of an installed UWP game whose exe is not the current one
+local MS_GAME = { pfn = "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe", root = [[C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe]], app_id = "App", executable = "Minesweeper.exe", uwp = true, title = "Microsoft Minesweeper" }
+local xbox_before = svc.deps.xbox_local
+svc.deps.xbox_local = setmetatable({ installed = function() return { XBOX_GAME, MS_GAME } end }, { __index = xbox_local })
+ENTRIES[4000000011] = { appid = 4000000011, exe = [["C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.8000.0_x64__8wekyb3d8bbwe\Minesweeper.exe"]], launch_options = "" }
+ENTRIES[4000000012] = { appid = 4000000012, exe = [["C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe\Minesweeper.exe"]], launch_options = "" }
+ENTRIES[4000000013] = { appid = 4000000013, exe = '"C:\\Windows\\explorer.exe"', launch_options = "shell:AppsFolder\\Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App" }
+local rep = svc.xbox_repairs()
+check("xbox_repairs lists the shortcut that runs an older version, with the current exe", #rep == 1 and rep[1].appid == 4000000011 and rep[1].exe == [["C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe\Minesweeper.exe"]], #rep)
+check("... not the up-to-date one, not the Explorer one (never converted silently)", #rep == 1)
+ENTRIES[4000000011], ENTRIES[4000000012], ENTRIES[4000000013] = nil, nil, nil
+svc.deps.xbox_local = xbox_before
 ENTRIES[4000000001] = nil
 check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)
 -- A game installed after the first read (found 2026-10-03: a once-per-session cache hid every later install)

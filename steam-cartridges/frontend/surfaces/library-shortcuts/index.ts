@@ -1,4 +1,5 @@
-// Surface `library-shortcuts` (ADR-0056): the only code that adds a shortcut to the user's library. It runs what
+// Surface `library-shortcuts` (ADR-0056, ADR-0058): the only code that adds a shortcut to the user's library, or repoints
+// one of the plugin's Xbox shortcuts after an app update. It runs what
 // app/store-sync decided (an installed Epic or Xbox game that has no shortcut yet, with the "Auto-add" toggle on)
 // and reports the result as its own event; it decides nothing and fetches nothing.
 //
@@ -105,6 +106,28 @@ export async function onAddRequested(e: Events["store.add-requested"]): Promise<
     }
 }
 
+/**
+ * `store.repair-requested` (index.tsx subscribes it, ADR-0058): point an Xbox U0 shortcut at the current version's exe after an
+ * app update. SetShortcutExe / SetShortcutStartDir keep the appid (verified live 2026-10-03 on an Epic shortcut), so the
+ * game's playtime and activity stay.
+ */
+export function onRepairRequested(e: Events["store.repair-requested"]): void {
+    if (!deps.isEnabled("library-shortcuts")) return;
+    const apps = steamApps();
+    if (typeof apps?.SetShortcutExe !== "function" || typeof apps?.SetShortcutStartDir !== "function") {
+        deps.bus.emit("store.shortcut-repaired", { appid: e.appid, title: e.title, error: "SteamClient.Apps.SetShortcutExe not found" });
+        return;
+    }
+    try {
+        apps.SetShortcutExe(e.appid, e.exe);
+        apps.SetShortcutStartDir(e.appid, e.start_dir);
+        deps.bus.emit("store.shortcut-repaired", { appid: e.appid, title: e.title });
+    } catch (err) {
+        deps.reportError("library-shortcuts", err);
+        deps.bus.emit("store.shortcut-repaired", { appid: e.appid, title: e.title, error: String(err) });
+    }
+}
+
 export function createLibraryShortcutsSurface(d: Deps): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
@@ -116,13 +139,15 @@ export function createLibraryShortcutsSurface(d: Deps): Surface {
             "SteamClient.Apps.AddShortcut",
             "SteamClient.Apps.SetShortcutName",
             "SteamClient.Apps.SetShortcutLaunchOptions",
+            "SteamClient.Apps.SetShortcutExe",
+            "SteamClient.Apps.SetShortcutStartDir",
             "collectionStore.NewUnsavedCollection",
             "Collection.AsDragDropCollection.AddApps",
         ],
         reads: [],
         install() {},
         render() {
-            /* event-driven (store.add-requested), never per record */
+            /* event-driven (store.add-requested, store.repair-requested), never per record */
         },
         clear() {},
         uninstall() {},

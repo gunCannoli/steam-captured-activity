@@ -56,6 +56,12 @@ export interface Events {
     /** What the library-shortcuts surface did: the new appid (and the collection it is in), or an error. */
     "store.shortcut-added": { kind: StoreKind; key: string; appid?: number; collection?: string; error?: string };
     /**
+     * U0 repair (app/store-sync, ADR-0058): an Xbox shortcut runs an older version's exe after an app update; the
+     * library-shortcuts surface points it at the current one (the appid stays) and answers with `store.shortcut-repaired`.
+     */
+    "store.repair-requested": { appid: number; title: string; exe: string; start_dir: string };
+    "store.shortcut-repaired": { appid: number; title: string; error?: string };
+    /**
      * Epic Steam Overlay Workaround (ADR-0057). app/epic-launcher tells the launch-hold surface which shortcuts to hold at
      * Play (the Epic launcher-link copies while the user's setting is on; empty = none); the surface reports a held launch;
      * the app answers `launch.release` once the backend has closed a running Epic launcher, and the surface lets Steam go on.

@@ -88,17 +88,19 @@ function M.parse_game_config(text)
   }
 end
 
---- AppxManifest.xml text -> { app_id, executable, title } (pure). The title may be an ms-resource reference: nil then.
+--- AppxManifest.xml text -> { app_id, executable, entry_point, title } (pure). The title may be an ms-resource reference: nil
+--- then. entry_point is an app class for a UWP app, "Windows.FullTrustApplication" for a Win32/GDK one.
 function M.parse_appx_manifest(text)
   if not text then return nil end
   local app = text:match("<Application%s[^>]-Id=\"([^\"]+)\"")
   local exe = text:match("<Application%s[^>]-Executable=\"([^\"]+)\"")
+  local entry = text:match("<Application%s[^>]-EntryPoint=\"([^\"]+)\"")
   local title = text:match("<DisplayName>%s*([^<]-)%s*</DisplayName>")
   if title and title:match("^ms%-resource:") then title = nil end
   -- An Xbox Live game that ships no game config (Microsoft Sudoku, found 2026-10-03) registers a protocol
   -- `xboxliveapp-<number>`: the one local mark that its achievements exist. Its title id comes from the catalog.
   local live = text:find('Name="xboxliveapp%-%d+"') ~= nil
-  return { app_id = app, executable = exe, title = title, xbox_live = live }
+  return { app_id = app, executable = exe, entry_point = entry, title = title, xbox_live = live }
 end
 
 --- Every installed Xbox Live game: a package with an Xbox game config, or an `xboxliveapp-` protocol in its manifest.
@@ -124,6 +126,9 @@ function M.installed()
         store_id = store_id,
         app_id = manifest.app_id or "App",
         executable = manifest.executable,
+        -- UWP (an app class as entry point): Windows starts it by activation whatever runs it, and its exe can be the
+        -- shortcut's (U0, ADR-0058). A GDK/Win32 package relaunches itself outside Steam's tree from its exe (plan F18).
+        uwp = manifest.entry_point ~= nil and manifest.entry_point ~= "Windows.FullTrustApplication",
         title = manifest.title,
         via = title_id and "config" or "protocol",
       }
@@ -143,8 +148,18 @@ function M.pfn_from_target(text)
   return tostring(text or ""):match("[Ss][Hh][Ee][Ll][Ll]:[Aa][Pp][Pp][Ss][Ff][Oo][Ll][Dd][Ee][Rr]\\([^!%s\"]+)!")
 end
 
+--- The package family name of an exe inside a WindowsApps package folder, whatever its version, or nil (pure):
+--- ...\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe\Minesweeper.exe -> Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe.
+--- A shortcut made for an older version still names its game after an app update.
+function M.pfn_from_path(text)
+  local full = tostring(text or ""):gsub("/", "\\"):match("[Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss]\\([^\\\"]+)\\")
+  if not full or not full:find("_", 1, true) then return nil end
+  return M.family_name(full)
+end
+
 --- The installed game a shortcut runs (pure over `games`): its shell:AppsFolder target, else its exe inside a
---- package folder. Returns the game and how it matched ("launch-link" | "package"), or nil.
+--- package folder (the current one, or an older version's). Returns the game and how it matched ("launch-link" |
+--- "package"), or nil.
 function M.match(entry, games)
   if type(entry) ~= "table" then return nil end
   local pfn = M.pfn_from_target(entry.launch_options) or M.pfn_from_target(entry.exe)
@@ -159,13 +174,31 @@ function M.match(entry, games)
     local root = norm_path(g.root)
     if root ~= "" and exe:sub(1, #root + 1) == root .. "\\" then return g, "package" end
   end
+  local from_path = M.pfn_from_path(entry.exe)
+  if from_path then
+    for _, g in ipairs(games or {}) do
+      if g.pfn and g.pfn:lower() == from_path:lower() then return g, "package" end
+    end
+  end
   return nil
 end
 
---- How a shortcut for an installed game is set up (ADR-0056): Windows Explorer opening the package's app, the way the
---- Xbox app and the Start menu start it (the game's own exe cannot be run directly from a protected package folder).
+--- U0 (ADR-0058): the shortcut of a UWP game runs the game's own exe in its package folder. Windows then starts
+--- SystemUWPLauncher, which activates the game and lives exactly as long as it, so Steam shows the game running,
+--- counts its playtime and keeps a timeline (launch-tracking plan F16, E3c). nil for a GDK/Win32 package or a package
+--- whose manifest names no exe.
+function M.u0_spec(game)
+  if not game or not game.uwp or not game.executable or not game.root or game.root == "" then return nil end
+  local root = tostring(game.root):gsub("\\+$", "")
+  return { exe = '"' .. root .. "\\" .. tostring(game.executable):gsub("/", "\\") .. '"', start_dir = '"' .. root .. '\\"', launch_options = "" }
+end
+
+--- How a shortcut for an installed game is set up: a UWP game runs its own exe (U0, ADR-0058); any other package
+--- (GDK/Win32) is opened by Windows Explorer, the way the Xbox app and the Start menu start it (ADR-0056).
 function M.launch_spec(game)
   if not game or not game.pfn then return nil end
+  local u0 = M.u0_spec(game)
+  if u0 then return u0 end
   local windir = getenv("SystemRoot") or getenv("windir")
   if not windir or windir == "" then return nil end
   return {

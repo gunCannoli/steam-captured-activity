@@ -232,6 +232,10 @@ export const backend = {
     storeInstalledGames(allowXbox: boolean) {
         return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox });
     },
+    /** U0 Xbox shortcuts (ADR-0058) whose exe is an older version's: the current exe and start folder to repoint them to. */
+    storeXboxRepairs() {
+        return call<{ repairs?: { appid: number; title: string; exe: string; start_dir: string }[]; error?: string }>("StoreXboxRepairs", {});
+    },
     /** Epic Steam Overlay Workaround (ADR-0057): the shortcuts that are an Epic copy started through the launcher link. */
     storeEpicLaunchShortcuts() {
         return call<{ appids?: number[]; error?: string }>("StoreEpicLaunchShortcuts", {});

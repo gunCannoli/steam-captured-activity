@@ -4,6 +4,7 @@
 ---                        and whether an Xbox account is signed in (its gamertag). Never a token or an account id.
 ---   XboxSignInStart / XboxSignInPoll / XboxSignOut   the device-code sign-in (xbox_live.lua)
 ---   StoreEpicLaunchShortcuts / StoreEpicPrelaunch / StoreEpicReap   the Epic Steam Overlay Workaround (store_launch.lua, ADR-0057)
+---   StoreXboxRepairs     U0 Xbox shortcuts to repoint after an app update (ADR-0058)
 
 local core          = require("rpc")
 local store_service = require("store_service")
@@ -40,6 +41,11 @@ end)
 
 RPC.XboxSignOut = method("XboxSignOut", function(_)
   return xbox_live.sign_out()
+end)
+
+--- {}: the U0 Xbox shortcuts whose exe is an older version's (ADR-0058), with the current exe and start folder.
+RPC.StoreXboxRepairs = method("StoreXboxRepairs", function(_)
+  return { repairs = store_service.xbox_repairs() }
 end)
 
 --- {}: the shortcuts that are an Epic copy started through the launcher link (the ones held at Play).

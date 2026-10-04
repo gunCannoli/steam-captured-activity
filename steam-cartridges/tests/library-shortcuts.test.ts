@@ -85,3 +85,19 @@ test('library-shortcuts: collections that never load leave the shortcut added, u
     assert.equal(r.results[0].collection, undefined);
     assert.equal(r.added.length, 0);
 });
+
+test('library-shortcuts: a repair request repoints the shortcut (exe and start dir) and reports it', async () => {
+    const { onRepairRequested } = await import('../frontend/surfaces/library-shortcuts/index.ts');
+    const r = rig(() => 3235712508);
+    const set: any[] = [];
+    g.SteamClient.Apps.SetShortcutExe = (...a: any[]) => set.push(['exe', ...a]);
+    g.SteamClient.Apps.SetShortcutStartDir = (...a: any[]) => set.push(['dir', ...a]);
+    const bus = createEventBus();
+    const results: any[] = [];
+    bus.on('store.shortcut-repaired', (e) => results.push(e));
+    createLibraryShortcutsSurface({ isEnabled: () => true, reportError: () => {}, bus, retryMs: 1 });
+    onRepairRequested({ appid: 2663546656, title: 'Microsoft Minesweeper', exe: '"X\Minesweeper.exe"', start_dir: '"X\\"' });
+    assert.deepEqual(set, [['exe', 2663546656, '"X\Minesweeper.exe"'], ['dir', 2663546656, '"X\\"']]);
+    assert.deepEqual(results, [{ appid: 2663546656, title: 'Microsoft Minesweeper' }]);
+    assert.ok(r.surface.touches.includes('SteamClient.Apps.SetShortcutExe') && r.surface.touches.includes('SteamClient.Apps.SetShortcutStartDir'));
+});
