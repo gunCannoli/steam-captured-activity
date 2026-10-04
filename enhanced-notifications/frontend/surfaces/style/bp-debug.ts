@@ -5,8 +5,7 @@ import { TYPE_SOURCES, type TypeSource } from './type-source';
  * Big Picture toast debugging (off by default, never persisted): a trace of what the style surface saw and did for
  * Big Picture's one toast view, and a switch for where the Big Picture toast type comes from, so alternatives can be
  * compared live without a rebuild. Read by tests/probes/bp-toast-trace.mjs, which merges this trace with what Steam
- * does (SetBounds / SetVisible on the toast view, the placeholder's rect). Investigation: docs/plans/
- * enhanced-notifications-bigpicture-toast-fix-plan.md.
+ * does (SetBounds / SetVisible on the toast view, the placeholder's rect). Investigation (a deleted plan, in git history): git show 9a7df2b:docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md.
  *
  * From the SharedJSContext console:
  *   PLUGIN_LIST['enhanced-notifications-dev'].debugBigPicture({ enabled: true, echo: true })

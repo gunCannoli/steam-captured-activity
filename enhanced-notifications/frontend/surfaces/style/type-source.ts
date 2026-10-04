@@ -8,7 +8,7 @@
  *   fallback when Steam has no `PopNextToastNotification`.
  * - `arrival`: NotificationStore's current toast, which changes when a toast ARRIVES, also while another one is on
  *   screen: a queued toast restyled the one showing, and Steam's own 300 px slide-in restarted (verified live
- *   2026-10-01, docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md). Kept only as a debug switch that
+ *   2026-10-01, git show 9a7df2b:docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md). Kept only as a debug switch that
  *   reproduces that; like the old code, it also takes `shown`.
  * - `manual`: neither; a probe sets the type (./bp-debug.ts `debugBigPictureType`).
  */

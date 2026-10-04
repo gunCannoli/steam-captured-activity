@@ -1,7 +1,7 @@
 // Which signal sets the type of the toast on screen (surfaces/style/type-source.ts) and the
 // PopNextToastNotification wrapper that provides the `pop` signal (steam/toast-pop.ts).
 // Regression guard for the Big Picture flicker: a toast that ARRIVES while another is on screen
-// must never restyle it (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
+// must never restyle it (git show 9a7df2b:docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { takesSignal, TYPE_SOURCES } from '../frontend/surfaces/style/type-source.ts';

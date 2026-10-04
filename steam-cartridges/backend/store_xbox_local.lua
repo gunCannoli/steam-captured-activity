@@ -1,7 +1,7 @@
 --- Xbox (PC Game Pass / Microsoft Store) copies on this PC (ADR-0056): the installed packages from the registry and the
 --- Xbox Live game config each game ships. Disk and registry reads only, never the network.
 ---
---- Facts verified on this machine (2026-10-02, docs/plans/steam-cartridges-store-copies-plan.md § 4.7):
+--- Facts verified on this machine (2026-10-02, git show 9a7df2b:docs/plans/steam-cartridges-store-copies-plan.md § 4.7):
 ---   reg query "HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages"
 ---       /s /v PackageRootFolder  lists every installed package (361 here) with its folder, in about 0.2 s.
 ---   <folder>\xboxservices.config     a UWP Xbox Live game (Microsoft Jigsaw): JSON with TitleId (decimal).

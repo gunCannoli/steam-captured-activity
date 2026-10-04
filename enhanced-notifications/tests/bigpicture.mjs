@@ -2,7 +2,7 @@
 // a temporary theme with position, margin, padding and animation (deleted afterwards). Checks that Big Picture's toast
 // view moves to the theme corner (it follows the placeholder in the Big Picture window), that the theme animation
 // replaces Steam's on the toast template, that the restyle applies, and that the `placement` kill switch gives
-// Steam's place back. Then the flicker regressions (docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md):
+// Steam's place back. Then the flicker regressions (git show 9a7df2b:docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md):
 // a toast queued behind the one on screen never restyles it, in both orders (the temporary theme has no
 // `achievements` block, so the achievement is styled like every toast; tests/achievements-bigpicture.mjs covers the
 // banner), every place Steam sends the view is the theme's, and the placement style is in place before Steam

@@ -120,4 +120,4 @@ GOG Galaxy fits this shape (its local database holds the games and the unlocks).
 
 ## History
 
-- 2026-10-02 (ADR-0056): created, with research rounds 1 and 2 in [the plan](../plans/steam-cartridges-store-copies-plan.md).
+- 2026-10-02 (ADR-0056): created, with research rounds 1 and 2 in [the plan](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-store-copies-plan.md).

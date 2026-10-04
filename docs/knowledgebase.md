@@ -1178,7 +1178,7 @@ with `SteamClient.UI.ExitBigPictureMode()` from SharedJSContext (Steam restarts 
 
 ## Part 10 — Epic Games Store and Xbox on this PC (verified 2026-10-02, ADR-0056)
 
-Research and evidence: [plans/steam-cartridges-store-copies-plan.md § 4](plans/steam-cartridges-store-copies-plan.md).
+Research and evidence: [git show 9a7df2b:docs/plans/steam-cartridges-store-copies-plan.md § 4](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-store-copies-plan.md).
 The code that reads all of this: [steam-cartridges/service-store.md](steam-cartridges/service-store.md).
 
 **Epic, on disk.** `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item` (JSON per installed game:

@@ -59,7 +59,7 @@ agent (steam-cartridges `test:live` 13/13, enhanced-notifications passes).** Don
 the unlock in the Activity feed), H7 partly (Jigsaw's Game Info from the Xbox catalog; the catalog has no developer, only publisher "Xbox Game Studios"),
 H10 (`Store copy ...: epic (launch-link)`, no error budget). Left for the user: H3 (Xbox sign-in, needs the code typed at microsoft.com/link), then
 Jigsaw's achievements 1/20 and H8 (unlock one more, quit, no toast, Post-Game Summary lists it), H5 (play both new shortcuts; the Epic link form is
-unverified), H9 (Reset Achievements lists neither; unit-tested only), Big Picture look. Then delete the plan and its patch folder.
+unverified), H9 (Reset Achievements lists neither; unit-tested only), Big Picture look. (The plan is deleted: its § 10 is at https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-store-copies-plan.md; the handoff holds what is left.)
 
 **Reset Achievements reaches emulator and trophy files (ADR-0054, 2026-10-02): deployed, live-checked read-only.**
 Left: (1) the user: open Reset Achievements for WUCHANG and look at the popup (warning, "Also reset local achievements
@@ -102,23 +102,18 @@ When both pass, delete the investigation plan. Do not re-introduce parallel back
 request at a time).
 
 **enhanced-achievements merged into enhanced-notifications (ADR-0050, 2026-10-01): code committed, waiting for the live
-verification in [its plan § 9](docs/plans/enhanced-notifications-achievements-merge-plan.md)** (the user: disable
+verification in [its plan § 9](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-achievements-merge-plan.md)** (the user: disable
 enhanced-achievements, move the ps5 theme and settings, deploy, `npm run test:live`, the by-hand checks). It supersedes
 the live steps of the architecture-port and Big Picture fix plans that use enhanced-achievements as a separate plugin;
-their by-hand checks are folded into § 9. When § 9 passes, delete all three plans and their patch folders. Entries
+their by-hand checks are folded into § 9. The three plans are deleted (2026-10-03, implemented; still readable at `9a7df2b`). Entries
 below that name enhanced-achievements now mean enhanced-notifications' achievement banner; "Force achievement position
 in Big Picture" no longer exists.
 
-**Merge enhanced-achievements into enhanced-notifications (ADR-0050, the user's decisions 2026-10-01): plan ready to
-execute, dry-run on `080b5d4`:** [enhanced-notifications-achievements-merge-plan.md](docs/plans/enhanced-notifications-achievements-merge-plan.md)
-(six patches, then a live verification that is the user's). Any change to either toast plugin before it runs makes its
-patches stale: land those first or re-cut the plan.
-
 **enhanced-notifications sibling port (ADR-0047): code committed (2026-09-30), waiting for the live verification in
-[its plan § 9](docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
+[its plan § 9](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-architecture-port-plan.md).** Deploy both toast plugins with `dev.ps1`, then
 `npm run test:live` in both, then the by-hand checks.
 
-**Big Picture toasts (2026-10-01): flicker fixed and "Force achievement position in Big Picture" added (ADR-0049); scripted live checks pass.** Left for a human, in Big Picture with it in front: the by-hand checks H1-H4 in [the fix plan § 11](docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md) (Preview pressed quickly with a `top_left` / `ps5` theme; an achievement right after a download; first toast after re-entering Big Picture; a possible one-frame flash after a LowBattery toast), and the new toggle: on, an achievement goes to enhanced-achievements' corner and the next toast back to enhanced-notifications'. Then delete the plan and its patch folder. Small follow-up: give enhanced-achievements' `tiers`, `safety` and `queue-stress` a Big Picture SKIP (they wait for the persistent toast window to close).
+**Big Picture toasts (2026-10-01): flicker fixed and "Force achievement position in Big Picture" added (ADR-0049); scripted live checks pass.** Left for a human, in Big Picture with it in front: the by-hand checks H1-H4 in [the fix plan § 11](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md) (Preview pressed quickly with a `top_left` / `ps5` theme; an achievement right after a download; first toast after re-entering Big Picture; a possible one-frame flash after a LowBattery toast), and the new toggle: on, an achievement goes to enhanced-achievements' corner and the next toast back to enhanced-notifications'. Then delete the plan and its patch folder. Small follow-up: give enhanced-achievements' `tiers`, `safety` and `queue-stress` a Big Picture SKIP (they wait for the persistent toast window to close).
 
 **enhanced-notifications: one style for every notification, random Preview, position / animation in Big Picture too (2026-10-01): done,
 live-verified** on desktop and in Big Picture with test toasts (`test:live` 5/5 in each). Left for a human: look at it (a theme with
@@ -145,7 +140,7 @@ order (the user, or an agent with the user's go-ahead):
    "Scroll down to view the manual", fonts released, `test:live` 13/13); still open: **Steam places cards with a
    `Math.random` template shuffle, so the manual is not guaranteed the top-left cell** (decide: leave it, or wrap the
    loader's `AddCommunityContent` to move its cell first); a game whose media was cached before manuals has none for
-   7 days (`media_ok`; decide whether to bump the cache); and the rest of [the plan § 11](docs/plans/steam-cartridges-f2c-manuals-plan.md)
+   7 days (`media_ok`; decide whether to bump the cache); and the rest of [the plan § 11](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-f2c-manuals-plan.md)
    in Big Picture (D-pad scrolling, Routine 2).
    ScreenScraper videos and IGDB links are not started; ScreenScraper stays limited to its image types and the manual
    (title screen, screenshot, fanart, boxes, mixes, cartridge, flyer, HyperSpin theme) by the user's decisions (2026-09-30).

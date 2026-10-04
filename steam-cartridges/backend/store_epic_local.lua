@@ -2,7 +2,7 @@
 --- the launcher is signed in with. Disk and registry reads only, never the network. Every path comes from the
 --- environment (%ProgramData%, %LOCALAPPDATA%) or the registry, never a hardcoded install folder (ADR-0011).
 ---
---- Facts verified on this machine (2026-10-02, docs/plans/steam-cartridges-store-copies-plan.md § 4):
+--- Facts verified on this machine (2026-10-02, git show 9a7df2b:docs/plans/steam-cartridges-store-copies-plan.md § 4):
 ---   %ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\*.item  one JSON per installed game: InstallLocation,
 ---       LaunchExecutable, DisplayName, CatalogNamespace (= the achievement sandbox), CatalogItemId, AppName;
 ---       MainGameCatalogNamespace / MainGameAppName are set for an add-on and empty for a game.

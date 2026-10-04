@@ -2,7 +2,7 @@
 
 **Read this first if you pick the work up later.** It records what is built and deployed, what was learned, every decision
 (taken and open), the options, and the next steps in order. Deeper evidence: [the unlock-detection research](steam-cartridges-store-unlock-detection-research.md)
-(timelines, tables, samples), [the store-copies plan](steam-cartridges-store-copies-plan.md) (ADR-0056, applied),
+(timelines, tables, samples), [the store-copies plan](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-store-copies-plan.md) (ADR-0056, applied),
 [service-store.md](../steam-cartridges/service-store.md), [TASK.md](../../TASK.md). Times below are the user's local time (UTC-3)
 unless a log is named; the watcher's logs are UTC.
 

@@ -31,7 +31,7 @@ new surface with declared `touches` (disjoint from every other surface; a test e
 
 | # | Feature | Why this order |
 | --- | --- | --- |
-| F1 | Game Data editor: manual metadata and manual Steam link (settings popup) | Small, no new Steam write. Fixes wrong data and unwanted suggestions today. **Code done 2026-09-30 (rebuilt on top of M10; live verification pending)** ([F1 plan](steam-cartridges-f1-game-data-editor-plan.md)). |
+| F1 | Game Data editor: manual metadata and manual Steam link (settings popup) | Small, no new Steam write. Fixes wrong data and unwanted suggestions today. **Code done 2026-09-30 (rebuilt on top of M10; live verification pending)** ([F1 plan](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-f1-game-data-editor-plan.md)). |
 | F2 | Media in the Community tab | Larger: new record part, new service, new surface. **Code done 2026-09-30 (live verification pending)** (F2 plan (plan removed once done: `git show 585cc5c:docs/plans/steam-cartridges-f2-community-media-plan.md`)). |
 
 Each feature ships separately (own commit series, own live verification, own CHANGELOG entry).
@@ -40,7 +40,7 @@ Each feature ships separately (own commit series, own live verification, own CHA
 
 ## F1: Game Data editor (manual Game Info and manual linking)
 
-**Detailed, executable plan:** [steam-cartridges-f1-game-data-editor-plan.md](steam-cartridges-f1-game-data-editor-plan.md)
+**Detailed, executable plan:** [steam-cartridges-f1-game-data-editor-plan.md](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-f1-game-data-editor-plan.md)
 (five verified patches, preconditions, expected outputs, live checklist). This section keeps the scope and the decisions.
 
 ### What the user sees

@@ -12,7 +12,7 @@ Two questions, in this order:
    cards; the user's wish: parallel loading). Question 2 depends on question 1: the backend may not take concurrent calls.
 
 Read first: [AGENTS.md](../../AGENTS.md) (Routine 0, the Steam lock, applies to everything below that touches Steam),
-[TASK.md](../../TASK.md), [steam-cartridges-f2c-manuals-plan.md](steam-cartridges-f2c-manuals-plan.md),
+[TASK.md](../../TASK.md), [steam-cartridges-f2c-manuals-plan.md](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/steam-cartridges-f2c-manuals-plan.md),
 [ADR-0046 / ADR-0048](../decisions.md), [steam-cartridges/service-media.md](../steam-cartridges/service-media.md),
 [knowledgebase.md § Backend RPC crash trap](../knowledgebase.md) (an unregistered method name, or an `error()` that escapes,
 crashes the backend with an access violation).

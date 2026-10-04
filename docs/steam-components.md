@@ -1443,7 +1443,7 @@ handles `enhanced-notifications` resolves by. Probes: `enhanced-notifications/te
 
 **✅ Verified live 2026-10-01** (Steam build of Sep 5 2026; source read from modules `48197` toast containers,
 `73375` BrowserView placeholder, `26711` class map; traced with `enhanced-notifications/tests/probes/bp-toast-trace.mjs`).
-Investigation and fix: [enhanced-notifications-bigpicture-toast-fix-plan.md](plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
+Investigation and fix: [enhanced-notifications-bigpicture-toast-fix-plan.md](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
 
 - **Which toast is on screen.** Big Picture's container (`pe` in `48197`) keeps its own display list (`Ce`, max 1)
   and fills it in an effect with `NotificationStore.PopNextToastNotification(context)` (context `0`; an appid for

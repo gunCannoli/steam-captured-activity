@@ -2851,7 +2851,7 @@ fetch them (no CORS), and Millennium's Lua `http.get` cuts binary bodies.
 
 ## ADR-0047: enhanced-notifications uses enhanced-achievements' architecture and shares its notification hook
 
-**Status:** Accepted · 2026-09-30 · Plan: [enhanced-notifications-architecture-port-plan.md](plans/enhanced-notifications-architecture-port-plan.md) · Decisions 3 and 4 (copies shared between the two toast plugins) ended with [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) · Applies [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) to a second plugin
+**Status:** Accepted · 2026-09-30 · Plan: [enhanced-notifications-architecture-port-plan.md](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-architecture-port-plan.md) · Decisions 3 and 4 (copies shared between the two toast plugins) ended with [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) · Applies [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) to a second plugin
 
 ### Context
 
@@ -2892,7 +2892,7 @@ method, each with its own code: nothing checked that the two wrappers compose, a
 
 ## ADR-0049: Big Picture has one toast position: enhanced-notifications' theme by default, enhanced-achievements' when forced
 
-**Status:** Superseded by [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) (2026-10-01: one plugin, the theme decides) · Investigation: [enhanced-notifications-bigpicture-toast-fix-plan.md](plans/enhanced-notifications-bigpicture-toast-fix-plan.md) · Extends [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook) (ADR-0048 is reserved by the F2c manuals plan)
+**Status:** Superseded by [ADR-0050](#adr-0050-enhanced-achievements-merges-into-enhanced-notifications) (2026-10-01: one plugin, the theme decides) · Investigation: [enhanced-notifications-bigpicture-toast-fix-plan.md](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md) · Extends [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook) (ADR-0048 is reserved by the F2c manuals plan)
 
 ### Context
 
@@ -3004,7 +3004,7 @@ so a ROM shortcut never matched (the test game, Captain Commando, answered `not-
 
 ## ADR-0050: enhanced-achievements merges into enhanced-notifications
 
-**Status:** Accepted · 2026-10-01 · Plan: [enhanced-notifications-achievements-merge-plan.md](plans/enhanced-notifications-achievements-merge-plan.md) · Supersedes [ADR-0049](#adr-0049-big-picture-has-one-toast-position-enhanced-notifications-theme-by-default-enhanced-achievements-when-forced); ends decisions 3 and 4 of [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook); [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) holds in the merged plugin · Decision 2 amended by [ADR-0052](#adr-0052-one-theme-one-look-achievements-inherit-the-themes-settings-popup-and-text)
+**Status:** Accepted · 2026-10-01 · Plan: [enhanced-notifications-achievements-merge-plan.md](https://github.com/gunCannoli/millennium-plugins/blob/9a7df2b/docs/plans/enhanced-notifications-achievements-merge-plan.md) · Supersedes [ADR-0049](#adr-0049-big-picture-has-one-toast-position-enhanced-notifications-theme-by-default-enhanced-achievements-when-forced); ends decisions 3 and 4 of [ADR-0047](#adr-0047-enhanced-notifications-uses-enhanced-achievements-architecture-and-shares-its-notification-hook); [ADR-0043](#adr-0043-enhanced-achievements-has-one-owner-per-steam-target-and-a-safety-net) holds in the merged plugin · Decision 2 amended by [ADR-0052](#adr-0052-one-theme-one-look-achievements-inherit-the-themes-settings-popup-and-text)
 
 ### Context
 
@@ -3213,7 +3213,7 @@ stack and blocks the stack while it shows.
 
 A non-Steam shortcut is often a copy of a game bought on the Epic Games Store or on Xbox (PC Game Pass). Those stores
 know the game and the player's unlocks; steam-cartridges ignored them ("Epic/Xbox stay dropped", ADR-0037, and "never
-requires Epic or Xbox credentials", service-achievements.md). Research (docs/plans/steam-cartridges-store-copies-plan.md,
+requires Epic or Xbox credentials", service-achievements.md). Research (git show 9a7df2b:docs/plans/steam-cartridges-store-copies-plan.md,
 Appendix A) found every copy on disk (Epic manifests, Store packages with an Xbox game config), Epic's own GraphQL
 answering anonymously with game data, achievement lists and a public profile's unlocks, Microsoft's catalog answering
 anonymously, and Xbox Live unlocks after a device-code sign-in. Unlocks of no source reached the Activity feed.
