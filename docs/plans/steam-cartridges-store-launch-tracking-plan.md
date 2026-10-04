@@ -201,10 +201,22 @@ matters more than P2; for Xbox UWP and GDK no clean route exists (§ 7). **Answe
 | # | Decision | Answer |
 | --- | --- | --- |
 | A | Epic, launcher closed at Play | **P, Play interception** (tested: E8 passes) |
-| B | Epic, launcher closed after the game | **R**, as an **"Epic Steam Overlay Workaround"** setting, **off by default**; on for our tests. Assumed (to confirm): the same setting turns on P, since both close the launcher |
+| B | Epic, launcher closed after the game | **R**, as an **"Epic Steam Overlay Workaround"** setting, **off by default**; on for our tests. **One setting turns on both P and R** (confirmed) |
 | C | Xbox UWP | **No overlay; running state, playtime, timeline** (U1 or U0) |
-| D | Xbox GDK | **Same route as UWP**. U0 cannot serve GDK (F18), so one route for both means **U1** (a plugin-compiled exe): to confirm |
-| E | New shortcuts only, or a convert button | open (P and R need no shortcut change; U1 does) |
+| D | Xbox GDK | **Same route as UWP**. U0 cannot serve GDK (F18), so one route for both means **U1** (a plugin-compiled exe), **or S** below: the user is weighing S |
+| E | New shortcuts only, or a convert button | **Convert the existing store shortcuts in the user's library to the chosen format, and new games follow it** (the plugin is not released, so no playtime to protect) |
+
+**S. SISR route for UWP (the user's proposal, 2026-10-03: a plugin or a steam-cartridges extension that generates SISR shortcuts for UWP games and runs SISR for them).**
+What SISR's docs say (v0.6.1, `docs/guides/multi_configs.md`, `usage.md`, `getting-started/installation.md` in Alia5/SISR, GPL-3.0): a Steam shortcut to `SISR.exe --w --f`
+per game gives per-game Steam Input and Steam overlay features in a transparent window; **SISR does not launch the game**; Windows Store games are the case where the
+game is started *outside* SISR; and the tray menu row "Enable Steam Overlay" says it **"does currently also not work with UWP games"** (and never in exclusive
+fullscreen). Install: `irm https://alia5.github.io/SISR/stable/install.ps1 | iex` puts SISR in `%LOCALAPPDATA%\SISR\`, VIIPER in `%LOCALAPPDATA%\VIIPER\`, installs
+the USBIP-Win2 **kernel driver** and turns on Steam's CEF remote debugging. So for UWP, S gives **Steam Input** (controller layouts via an emulated pad), not the overlay,
+matching E6. Shape if chosen: inside steam-cartridges (it needs the store-copy data and the shortcut writer; a separate plugin would need the unbuilt provider
+contract), active only when SISR is found installed (never installed or bundled by us: driver, GPL); the game's shortcut runs SISR, the backend activates the game
+on `shortcut.launched` (`shell:AppsFolder`, no exe of ours) and ends SISR when the game is gone (R's loop), so Steam's running state, playtime and timeline follow
+the game, as U1. Matching: SISR's Exe names no game, so the plugin keeps its own appid-to-game map. To test before deciding (the user installs SISR): Minesweeper
+through such a shortcut: controller input in the game, the overlay (expected absent), a test toast's window, running state, ending with the game.
 
 The original questions, kept for the record:
 
