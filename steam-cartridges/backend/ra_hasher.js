@@ -222,27 +222,85 @@ function getRomMd5(filePath) {
     }
   }
 
+function extractZipRom(zipBuf) {
+  if (zipBuf.length < 30 || zipBuf.readUInt32LE(0) !== 0x04034b50) {
+    return { error: 'invalid_zip' };
+  }
+  const eocd = zipBuf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (eocd === -1) {
+    return { error: 'eocd_not_found' };
+  }
+  const totalEntries = zipBuf.readUInt16LE(eocd + 10);
+  const cdOffset = zipBuf.readUInt32LE(eocd + 16);
+  let pos = cdOffset;
+  const entries = [];
+
+  for (let i = 0; i < totalEntries && pos < eocd; i++) {
+    if (zipBuf.readUInt32LE(pos) !== 0x02014b50) break;
+    const method = zipBuf.readUInt16LE(pos + 10);
+    const compSize = zipBuf.readUInt32LE(pos + 20);
+    const uncompSize = zipBuf.readUInt32LE(pos + 24);
+    const fnLen = zipBuf.readUInt16LE(pos + 28);
+    const extraLen = zipBuf.readUInt16LE(pos + 30);
+    const commentLen = zipBuf.readUInt16LE(pos + 32);
+    const localHeaderOffset = zipBuf.readUInt32LE(pos + 42);
+    const fn = zipBuf.subarray(pos + 46, pos + 46 + fnLen).toString('utf8');
+    entries.push({ fn, method, compSize, uncompSize, localHeaderOffset });
+    pos += 46 + fnLen + extraLen + commentLen;
+  }
+
+  if (entries.length === 0) return { error: 'no_entries' };
+
+  // Detect arcade romsets: multiple chip dumps with no single recognized console rom
+  const romExts = ['.sfc', '.smc', '.nes', '.gba', '.gbc', '.gb', '.z64', '.n64', '.v64', '.gen', '.smd', '.md', '.bin', '.iso'];
+  let chosen = entries[0];
+  for (const e of entries) {
+    const ext = path.extname(e.fn).toLowerCase();
+    if (romExts.includes(ext)) {
+      chosen = e;
+      break;
+    }
+  }
+
+  if (entries.length > 3 && !entries.some(e => ['.sfc', '.smc', '.nes', '.gba', '.z64'].includes(path.extname(e.fn).toLowerCase()))) {
+    return { format: 'arcade_zip', files: entries.length, md5: null };
+  }
+
+  const lhPos = chosen.localHeaderOffset;
+  if (lhPos + 30 > zipBuf.length || zipBuf.readUInt32LE(lhPos) !== 0x04034b50) {
+    return { error: 'invalid_local_header' };
+  }
+  const lFnLen = zipBuf.readUInt16LE(lhPos + 26);
+  const lExtraLen = zipBuf.readUInt16LE(lhPos + 28);
+  const dataStart = lhPos + 30 + lFnLen + lExtraLen;
+
+  try {
+    let bytes;
+    if (chosen.method === 8) {
+      bytes = zlib.inflateRawSync(zipBuf.subarray(dataStart, dataStart + chosen.compSize));
+    } else if (chosen.method === 0) {
+      bytes = zipBuf.subarray(dataStart, dataStart + chosen.uncompSize);
+    } else {
+      return { error: 'unsupported_method_' + chosen.method };
+    }
+    return { bytes, fn: chosen.fn };
+  } catch (err) {
+    return { error: 'inflate_failed: ' + err.message };
+  }
+}
+
   // 4. In-memory .zip stream deflation
   let romBytes;
   if (filePath.toLowerCase().endsWith('.zip')) {
     const zipBuf = fs.readFileSync(filePath);
-    if (zipBuf.length < 30 || zipBuf.readUInt32LE(0) !== 0x04034b50) {
-      return { error: 'invalid_zip' };
+    const extracted = extractZipRom(zipBuf);
+    if (extracted.error) {
+      return { error: extracted.error };
     }
-    const compMethod = zipBuf.readUInt16LE(8);
-    const compSize = zipBuf.readUInt32LE(18);
-    const uncompSize = zipBuf.readUInt32LE(22);
-    const fnLen = zipBuf.readUInt16LE(26);
-    const extraLen = zipBuf.readUInt16LE(28);
-    const dataStart = 30 + fnLen + extraLen;
-
-    if (compMethod === 8) {
-      romBytes = zlib.inflateRawSync(zipBuf.subarray(dataStart, dataStart + compSize));
-    } else if (compMethod === 0) {
-      romBytes = zipBuf.subarray(dataStart, dataStart + uncompSize);
-    } else {
-      return { error: 'unsupported_compression_' + compMethod };
+    if (extracted.format === 'arcade_zip') {
+      return extracted;
     }
+    romBytes = extracted.bytes;
   } else {
     // Guard against loading gigantic files (> 100MB) directly into memory
     if (stat.size > 104857600) {

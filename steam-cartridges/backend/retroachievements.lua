@@ -511,33 +511,49 @@ function M.get_credentials(exe_hint)
     prioritized = read_ra
   end
 
+  local web_cfg = require("web_config")
+  local env_creds = web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()
+
+  local found = nil
   if prioritized then
-    local res = prioritized()
-    if res then return res end
+    found = prioritized()
   end
 
-  -- Check all candidates in order
-  local all = { read_ra, read_duckstation, read_pcsx2, read_dolphin, read_ppsspp }
-  for _, fn in ipairs(all) do
-    if fn ~= prioritized then
-      local res = fn()
-      if res then return res end
+  if not found then
+    local all = { read_ra, read_duckstation, read_pcsx2, read_dolphin, read_ppsspp }
+    for _, fn in ipairs(all) do
+      if fn ~= prioritized then
+        found = fn()
+        if found then break end
+      end
     end
   end
 
-  -- Check .env credentials if no emulator config had tokens
-  local web_cfg = require("web_config")
-  local env_creds = web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()
-  if env_creds and env_creds.token and #env_creds.token > 0 then
-    return {
-      username = env_creds.username,
-      token = env_creds.token,
-      emulator = "env",
-      cfg_path = ".env",
-    }
+  if found then
+    if env_creds then
+      found.api_key = env_creds.api_key or env_creds.token
+      if (not found.username or #found.username == 0) and env_creds.username and #env_creds.username > 0 then
+        found.username = env_creds.username
+      end
+    end
+    return found
   end
 
-  return { username = nil, token = nil, emulator = nil }
+  -- Check .env credentials if no emulator config had tokens
+  if env_creds and (env_creds.token or env_creds.api_key) then
+    local k = env_creds.api_key or env_creds.token
+    if #k > 0 then
+      return {
+        username = env_creds.username,
+        token = env_creds.token,
+        api_key = k,
+        emulator = "env",
+        cfg_path = ".env",
+      }
+    end
+  end
+
+  return { username = nil, token = nil, api_key = nil, emulator = nil }
 end
 
 --- Extracts the ROM path from a shortcut's command line or launch options
@@ -653,6 +669,10 @@ function M.get_game_id_by_md5(md5)
     return nil, "game not found on RetroAchievements"
   end
 
+  if tonumber(data.GameID) and tonumber(data.GameID) >= 1000000000 then
+    return nil, "graveyard entry on RetroAchievements"
+  end
+
   return data.GameID
 end
 
@@ -661,7 +681,9 @@ local games_list_cache = {}
 --- Detects RetroAchievements console ID from shortcut exe or launch options
 function M.detect_console_id(cmd, launch_options)
   local full = (tostring(cmd or "") .. " " .. tostring(launch_options or "")):lower()
-  if full:find("swanstation") or full:find("duckstation") or full:find("pcsx") or full:find("[/\\]psx[/\\]") or full:find("%.chd") then
+  if full:find("pcsx2") or full:find("[/\\]ps2[/\\]") then
+    return 21 -- PlayStation 2
+  elseif full:find("swanstation") or full:find("duckstation") or full:find("pcsx") or full:find("[/\\]psx[/\\]") or full:find("%.chd") then
     return 12 -- PlayStation
   elseif full:find("snes9x") or full:find("bsnes") or full:find("[/\\]snes[/\\]") or full:find("%.sfc") or full:find("%.smc") then
     return 3  -- SNES
@@ -679,15 +701,138 @@ function M.detect_console_id(cmd, launch_options)
     return 16 -- GameCube
   elseif full:find("ppsspp") or full:find("[/\\]psp[/\\]") then
     return 41 -- PSP
+  elseif full:find("flycast") or full:find("dreamcast") or full:find("[/\\]dreamcast[/\\]") or full:find("%.gdi") or full:find("%.cdi") then
+    return 18 -- Dreamcast
+  elseif full:find("beetle_saturn") or full:find("yabause") or full:find("kronos") or full:find("[/\\]saturn[/\\]") then
+    return 39 -- Saturn
+  elseif full:find("gambatte") or full:find("gearboy") or full:find("[/\\]gbc[/\\]") or full:find("[/\\]gb[/\\]") or full:find("%.gbc") or full:find("%.gb") then
+    return 4  -- Game Boy / Game Boy Color
+  elseif full:find("melonds") or full:find("desmume") or full:find("[/\\]nds[/\\]") or full:find("%.nds") then
+    return 19 -- Nintendo DS
+  elseif full:find("mednafen_pce") or full:find("[/\\]pce[/\\]") or full:find("%.pce") then
+    return 8  -- PC Engine / TurboGrafx-16
+  elseif full:find("sms") or full:find("gearsystem") or full:find("[/\\]sms[/\\]") then
+    return 9  -- Master System
   end
   return nil
 end
 
---- Normalizes a string for title comparison (lowercase, alphanumeric only)
+local function clean_shortcut_candidates(s)
+  local cleaned = tostring(s or ""):gsub("%s*%b()", ""):gsub("%s*%b[]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local candidates = { cleaned }
+  if cleaned:find(" / ", 1, true) then
+    for part in cleaned:gmatch("[^/]+") do
+      local p = part:gsub("^%s+", ""):gsub("%s+$", "")
+      if #p > 0 then
+        table.insert(candidates, p)
+      end
+    end
+  end
+  if cleaned:find(" - ", 1, true) then
+    local before = cleaned:match("^(.-)%s*%-")
+    if before then
+      local b = before:gsub("^%s+", ""):gsub("%s+$", "")
+      if #b > 0 then
+        table.insert(candidates, b)
+      end
+    end
+  end
+  return candidates
+end
+
 local function normalize_title(s)
   if not s then return "" end
-  local str = tostring(s):gsub("\xc2\xa0", " "):gsub("\xe2\x80[\x90-\x95]", "-")
-  return (str:lower():gsub("[^%w]", ""))
+  local str = " " .. tostring(s):gsub("\xc2\xa0", " "):gsub("\xe2\x80[\x90-\x95]", "-"):lower():gsub("[^%w]", " ") .. " "
+  str = str:gsub("%s+part%s*(%d+)%s+", " %1 ")
+  str = str:gsub("%s+part%s*i%s+", " 1 ")
+  str = str:gsub("%s+part%s*ii%s+", " 2 ")
+  str = str:gsub("%s+part%s*iii%s+", " 3 ")
+  str = str:gsub("%s+part%s*iv%s+", " 4 ")
+  str = str:gsub("%s+part%s*v%s+", " 5 ")
+  str = str:gsub("%s+ii%s+", " 2 ")
+  str = str:gsub("%s+iii%s+", " 3 ")
+  str = str:gsub("%s+iv%s+", " 4 ")
+  str = str:gsub("%s+v%s+", " 5 ")
+  str = str:gsub("%s+aliens%s+", " alien ")
+  return (str:gsub("%s+", ""))
+end
+
+local function extract_number(norm)
+  return norm:match("(%d+)")
+end
+
+local function extract_entry(k, v)
+  if type(v) == "table" then
+    return tonumber(v.ID or v.id or k), tostring(v.Title or v.title or "")
+  elseif type(v) == "string" then
+    return tonumber(k), v
+  end
+  return nil, ""
+end
+
+local function is_collection_title(s)
+  local l = tostring(s or ""):lower()
+  return l:find("trilogy", 1, true) ~= nil
+      or l:find("collection", 1, true) ~= nil
+      or l:find("anthology", 1, true) ~= nil
+      or l:find("compilation", 1, true) ~= nil
+end
+
+local function match_single(cand_title, list)
+  local norm_target = normalize_title(cand_title)
+  if #norm_target < 3 then return nil end
+  local target_num = extract_number(norm_target)
+  local lower_cand = cand_title:lower()
+  local is_hack_target = lower_cand:find("hack", 1, true) ~= nil or lower_cand:find("edition", 1, true) ~= nil
+  local is_col_target = is_collection_title(cand_title)
+
+  local best_match = nil
+  local best_score = -1
+
+  for k, v in pairs(list) do
+    local gid, gtitle = extract_entry(k, v)
+    if gid then
+      local lower_g = gtitle:lower()
+      if not (lower_g:find("^unsupported game version") or gid >= 1000000000) then
+        local norm_g = normalize_title(gtitle)
+        local g_num = extract_number(norm_g)
+        local is_hack_g = gtitle:find("^~Hack~") ~= nil
+        local is_col_g = is_collection_title(gtitle)
+
+        if norm_target == norm_g then
+          return { id = gid, title = gtitle, score = 100, is_exact = true }
+        end
+
+        local number_ok = true
+        if target_num ~= nil and g_num ~= nil and target_num ~= g_num then
+          number_ok = false
+        elseif target_num ~= nil and g_num == nil then
+          number_ok = false
+        elseif target_num == nil and g_num ~= nil then
+          number_ok = false
+        end
+
+        if (is_col_target and not is_col_g) or (not is_col_target and is_col_g) then
+          number_ok = false
+        end
+
+        if number_ok then
+          if is_hack_target or not is_hack_g then
+            if #norm_g >= 5 and (norm_target:find(norm_g, 1, true) or norm_g:find(norm_target, 1, true)) then
+              local len_diff = math.abs(#norm_target - #norm_g)
+              local score = 80 - len_diff
+              if score > best_score then
+                best_score = score
+                best_match = { id = gid, title = gtitle, score = score, is_exact = false }
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return best_match
 end
 
 --- Queries RetroAchievements games list for a console and matches by title
@@ -700,7 +845,7 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
   if not list then
     local url = "https://retroachievements.org/dorequest.php?r=gameslist&c=" .. tostring(console_id)
     local ok, res = pcall(net.get, url, {
-    source = "retroachievements",
+      source = "retroachievements",
       user_agent = "RetroArch/1.19.0",
       headers = {
         ["User-Agent"] = "RetroArch/1.19.0",
@@ -719,50 +864,156 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
 
   if not list or type(list) ~= "table" then return nil end
 
-  local norm_target = normalize_title(target_title)
-  if #norm_target == 0 then return nil end
-
-  local function extract_entry(k, v)
-    if type(v) == "table" then
-      return tonumber(v.ID or v.id or k), tostring(v.Title or v.title or "")
-    elseif type(v) == "string" then
-      return tonumber(k), v
-    end
-    return nil, ""
-  end
-
-  -- 1. Exact match on normalized title
-  for k, v in pairs(list) do
-    local gid, gtitle = extract_entry(k, v)
-    if gid and normalize_title(gtitle) == norm_target then
-      return gid
+  local candidates = clean_shortcut_candidates(target_title)
+  for _, cand in ipairs(candidates) do
+    local res = match_single(cand, list)
+    if res and res.is_exact then
+      return res.id
     end
   end
 
-  -- 2. Substring match (either target inside title or title inside target)
-  for k, v in pairs(list) do
-    local gid, gtitle = extract_entry(k, v)
-    if gid then
-      local norm_g = normalize_title(gtitle)
-      if #norm_g >= 5 and (norm_target:find(norm_g, 1, true) or norm_g:find(norm_target, 1, true)) then
-        return gid
+  local best_res = nil
+  for _, cand in ipairs(candidates) do
+    local res = match_single(cand, list)
+    if res then
+      if not best_res or res.score > best_res.score then
+        best_res = res
       end
     end
+  end
+
+  if best_res then
+    return best_res.id
   end
 
   return nil
 end
 
 --- Fetches full game schema and user unlocks from RetroAchievements
-function M.fetch_game_data(game_id, username, token, hardcore)
+function M.fetch_game_data(game_id, username, token, hardcore, api_key)
   local gid = tonumber(game_id) or 0
   if gid <= 0 then return nil, "invalid game id" end
   local u = tostring(username or "")
   local t = tostring(token or "")
+  local k = tostring(api_key or "")
+  if #k == 0 then
+    local web_cfg = require("web_config")
+    local env_creds = web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()
+    if env_creds and env_creds.api_key and #env_creds.api_key > 0 then
+      k = env_creds.api_key
+    elseif env_creds and env_creds.token and #env_creds.token > 0 then
+      k = env_creds.token
+    end
+    if #u == 0 and env_creds and env_creds.username and #env_creds.username > 0 then
+      u = env_creds.username
+    end
+  end
+
   local is_hardcore = (hardcore ~= false)
   local h_val = is_hardcore and 1 or 0
 
-  -- 1. Fetch Game Schema (Titles, Badges, Points, Conditions)
+  local achievements = {}
+  local unlocks = {}
+  local game_title = ""
+
+  local function parse_iso_time(s)
+    if not s or type(s) ~= "string" then return nil end
+    local yr, mo, da, hr, mn, sc = s:match("^(%d+)-(%d+)-(%d+)%s+(%d+):(%d+):(%d+)")
+    if yr and mo and da and hr and mn and sc then
+      return os.time({
+        year = tonumber(yr),
+        month = tonumber(mo),
+        day = tonumber(da),
+        hour = tonumber(hr),
+        min = tonumber(mn),
+        sec = tonumber(sc),
+      })
+    end
+    return nil
+  end
+
+  -- Strategy A: Official Web API (if api_key available)
+  if #k > 0 then
+    local url = nil
+    if #u > 0 then
+      url = string.format(
+        "https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?y=%s&u=%s&g=%d",
+        utils.url_encode(k), utils.url_encode(u), gid
+      )
+    else
+      url = string.format(
+        "https://retroachievements.org/API/API_GetGameExtended.php?y=%s&i=%d",
+        utils.url_encode(k), gid
+      )
+    end
+
+    local ok, res = pcall(net.get, url, {
+      source = "retroachievements",
+      user_agent = "RetroArch/1.19.0",
+      headers = {
+        ["User-Agent"] = "RetroArch/1.19.0",
+        ["Accept"] = "application/json",
+      },
+      timeout = 10,
+    })
+
+    if ok and res and res.status == 200 and res.body then
+      local decode_ok, data = pcall(json.decode, res.body)
+      if decode_ok and type(data) == "table" and data.Title then
+        game_title = tostring(data.Title or "")
+        local raw_achs = data.Achievements or {}
+        local num_players = tonumber(data.NumDistinctPlayers) or 0
+
+        for ach_k, a in pairs(raw_achs) do
+          if type(a) == "table" and (a.ID or a.id) then
+            local aid = tostring(a.ID or a.id)
+            local badge = tostring(a.BadgeName or "00000")
+            local pts = tonumber(a.Points) or 0
+            local awarded = tonumber(a.NumAwarded or a.NumAwardedHardcore) or 0
+            local pct = 10
+            if num_players > 0 and awarded > 0 then
+              pct = math.min(100, math.max(0, math.floor((awarded * 100) / num_players)))
+            elseif pts > 0 then
+              pct = pts
+            end
+
+            table.insert(achievements, {
+              id = aid,
+              name = tostring(a.Title or a.name or ""),
+              description = tostring(a.Description or a.description or ""),
+              icon = string.format("https://media.retroachievements.org/Badge/%s.png", badge),
+              icon_locked = string.format("https://media.retroachievements.org/Badge/%s_lock.png", badge),
+              points = pts,
+              global_pct = pct,
+            })
+
+            local earned = is_hardcore and (a.DateEarnedHardcore or a.DateEarned) or (a.DateEarned or a.DateEarnedHardcore)
+            if earned and type(earned) == "string" and #earned > 0 then
+              unlocks[aid] = {
+                unlocked_time = parse_iso_time(earned) or os.time(),
+              }
+            end
+          end
+        end
+
+        table.sort(achievements, function(x, y) return tonumber(x.id) < tonumber(y.id) end)
+
+        local schema = {
+          ra_game_id = gid,
+          native_appid = 0,
+          title = game_title,
+          total = #achievements,
+          fetched_at = os.time(),
+          hardcore = is_hardcore,
+          achievements = achievements,
+        }
+        return schema, unlocks
+      end
+    end
+    logger:warn(string.format("RetroAchievements Web API failed for game %d; trying legacy patch endpoint", gid))
+  end
+
+  -- Strategy B: Legacy dorequest.php endpoint (fallback)
   local patch_url = "https://retroachievements.org/dorequest.php?r=patch&g=" .. tostring(gid)
   if #u > 0 and #t > 0 then
     patch_url = patch_url .. "&u=" .. utils.url_encode(u) .. "&t=" .. utils.url_encode(t)
@@ -793,7 +1044,6 @@ function M.fetch_game_data(game_id, username, token, hardcore)
   end
 
   local patch = patch_data.PatchData
-  local achievements = {}
   local raw_achs = patch.Achievements or {}
 
   for _, a in ipairs(raw_achs) do
@@ -808,15 +1058,13 @@ function M.fetch_game_data(game_id, username, token, hardcore)
     })
   end
 
-  -- 2. Fetch User Unlocks (h=1 for Hardcore, h=0 for Softcore)
-  local unlocks = {}
   if #u > 0 and #t > 0 then
     local unl_url = string.format(
       "https://retroachievements.org/dorequest.php?r=unlocks&g=%d&h=%d&u=%s&t=%s",
       gid, h_val, utils.url_encode(u), utils.url_encode(t)
     )
     local u_ok, u_res = pcall(net.get, unl_url, {
-    source = "retroachievements",
+      source = "retroachievements",
       headers = { ["User-Agent"] = "RetroArch/1.19.0" },
       timeout = 10,
     })
@@ -857,9 +1105,12 @@ function M.get_or_fetch(shortcut_appid, hardcore)
 
   -- 1. Check existing state in achievements.json
   local st = store.get_state(s_appid)
-  if st and st.schema and st.schema.ra_game_id and st.schema.ra_game_id > 0 then
-    if st.schema.hardcore == nil or st.schema.hardcore == is_hardcore then
-      return st
+  if st and st.schema and st.schema.ra_game_id and st.schema.ra_game_id > 0 and st.schema.ra_game_id < 1000000000 then
+    local s_title = tostring(st.schema.title or ""):lower()
+    if not s_title:find("^unsupported game version") and (st.schema.total or 0) > 0 then
+      if st.schema.hardcore == nil or st.schema.hardcore == is_hardcore then
+        return st
+      end
     end
   end
 
@@ -910,7 +1161,7 @@ function M.get_or_fetch(shortcut_appid, hardcore)
   end
 
   -- 7. Fetch full Schema & Unlocks (works with or without credentials)
-  local schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore)
+  local schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore, creds.api_key)
   if not schema then
     return nil, "cannot fetch game data"
   end

@@ -12,11 +12,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   Millennium's backend Lua VM is single-threaded; concurrent RPC dispatches from background ingestion and user navigation caused stack frame and non-volatile register corruption.
   Title search queries now also normalize non-breaking spaces (`\xc2\xa0`) and Unicode dashes in `screenscraper_media.lua` (e.g. "Final Fantasy VI - Ted Woolsey Edition"), ensuring base titles match cleanly and avoiding slow fallback loops.
 
-- **Fixed: RetroAchievements missing for emulator games (RetroArch 1.19+ keychain support) (2026-10-05)**:
-  RetroArch 1.19+ encrypts credentials in `retroarch-keychain.cfg` + `retroarch-keychain.key` instead of writing plaintext tokens to `retroarch.cfg`.
-  When plaintext tokens were missing, credential discovery previously fell back to DuckStation, which held a stale token returning 401 Unauthorized for all emulator shortcuts.
-  `retroachievements.lua` now decrypts the RetroArch keychain at runtime using pure LuaJIT/FFI with Windows CNG (`bcrypt.dll`) and `advapi32.dll` (RFC 5869 HKDF-SHA256 + ChaCha20-Poly1305 with MachineGuid), requiring zero external dependencies or processes.
-  Unmatched titles and arcade romsets (e.g., SNK vs. Capcom: SVC Chaos, GameID 11769; Jurassic Park Part 2: The Chaos Continues, GameID 970) now successfully load full achievement schemas and user unlocks.
+- **Fixed: RetroAchievements schema & unlock fetching via official Web API (2026-10-05)**:
+  `retroachievements.lua` now queries the official RetroAchievements Web API (`API_GetGameExtended.php` and `API_GetGameInfoAndUserProgress.php`)
+  using the user's configured Web API key (`retroachievements_api` in `.env` or plugin settings) without requiring emulator session tokens or local emulator logins.
+  Falls back gracefully to legacy `dorequest.php?r=patch` if an API key is not configured.
+  Fixed in-memory ZIP decompression in `ra_hasher.js`: replaced naive local file header parsing with a full Central Directory parser that supports streaming ZIPs
+  (zero-byte local descriptor sizes that previously triggered `Z_BUF_ERROR`), wrapped inflation in try/catch, and added arcade multi-file zip detection.
+  Hardened title matching against false positives and sequels:
+  - Discards dummy placeholder sets starting with `Unsupported Game Version (...)` and dummy IDs >= 1,000,000,000.
+  - Normalizes Roman numerals ("II", "III", "IV", "V"), "Part X" phrases, and plurals ("aliens" -> "alien").
+  - Enforces strict number mismatch guards so sequels never match prequels (e.g., Aero Fighters 2/3 no longer match Aero Fighters 1; The Lion King II cleanly avoids The Lion King 1).
+  - Guards collection/compilation titles ("trilogy", "collection", "anthology") against matching single games (e.g., Metroid Prime Trilogy avoids Metroid Prime 1).
+  - Splits multi-title shortcuts on `" / "` and `" - "` (e.g., "Aero Fighters 3 / Sonic Wings 3", "Choplifter III - Rescue-Survive").
+  - Expanded console auto-detection for PS2 (console 21), Saturn (39), Dreamcast (18), Game Boy (4), DS (19), PC Engine (8), and Master System (9).
+  - Purged 11 stale false positive mappings and 6 graveyard dummy schemas from `achievements.json`.
+  Verified live: SNK vs. Capcom: SVC Chaos (#11769, 106 achs), Jurassic Park Part 2 (#970, 37 achs), Aero Fighters 2 (#11774, 42 achs), Aero Fighters 3 (#12766, 46 achs),
+  Choplifter III (#856, 36 achs), Super Star Wars: The Empire Strikes Back (#1424, 46 achs), Super Star Wars: Return of the Jedi (#1237, 34 achs),
+  and The Death and Return of Superman (#315, 31 achs).
 
 
 - **Changed: a shortcut without a Steam match always gets SteamGridDB's icon (2026-10-04)**: Steam shows an exe's icon as a pixelated 32×32 image, so a shortcut whose icon is still the exe's (or unset) now gets SteamGridDB's icon even when all its artwork is already set (one icon-only request; a game SteamGridDB has no icon for is not asked again for 7 days). A Steam match still uses Steam's icon, and an icon you chose is never replaced.
