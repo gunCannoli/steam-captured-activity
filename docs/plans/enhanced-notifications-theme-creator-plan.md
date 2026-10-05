@@ -167,249 +167,351 @@ Opened with `showDialog(<ThemeCreator …/>, { strTitle: "Theme Creator", popupW
 `popupWidth = clamp(1280, 1100, 0.92 × screen.availWidth)`, `popupHeight = clamp(860, 720, 0.9 × screen.availHeight)`
 (spike S6 checks the window can be that size and whether it can be resized).
 
-Three columns (R13), fixed widths at 1280 px: **navigation 200 (left), preview 560 (middle), editor 480 (right)**,
-gutters 40. The preview is between the page list and the page it shows, so what is edited and its result sit side by
-side, and it never changes when the page changes.
+Three columns (R13): **navigation 200 (left), preview 560 (middle), editor 480 (right)**, then one **action row**
+across the bottom. The preview is between the page list and the page it shows, so what is edited and its result sit
+side by side, and it never changes when the page changes. Each column is its own panel and follows the settings
+panel's rules (§ 4.3): the editor and the preview are each a thin column of `PanelSection`s and `Blocks`, exactly like
+the plugin's settings panel.
 
 ```
-┌ Theme Creator ─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ my_theme.jsonc   ● Unsaved      from template: steam_tiers           [ Undo ][ Redo ]  [ Save ▾ ]  [ Close ]│
+┌ Theme Creator: my_theme ────────────────────────────────────────────────────────────────────────────────────┐
 ├──────────────┬──────────────────────────────────────────────────┬──────────────────────────────────────────┤
-│ Start        │  PREVIEW                                         │  CARD                                     │
-│ ──────────── │  [ Gallery | On screen ]   [ Desktop | Big Pic. ]│                                           │
-│ Placement    │  Set  [ Achievement tiers (4)               ▾ ]  │  Background                               │
-│ Card         │                                                  │   ○ Steam's own   ● Colour   ○ Gradient   │
-│ Text         │  ┌────────────────────────────────────┐  🔊      │   [■ #1F1F1F] [■ #0F0F0F] [+ stop]        │
-│ Icons        │  │ 🏆 ◆ First Steps            [Steam]│  Normal  │   Angle ───────●──────── 90°              │
-│ Sound        │  │      Finish the tutorial            │          │                                           │
-│ ──────────── │  └────────────────────────────────────┘          │  Border                                   │
-│ Achievements │  ┌────────────────────────────────────┐  🔊      │   Width ──●────────── 2 px                │
-│   Layout     │  │ 🏆 ◆ Night Owl              [Steam]│  Magic   │   Colour [■ #cd7f32]   Radius ──●── 8 px  │
-│   Normal     │  └────────────────────────────────────┘          │                                           │
-│   Magic      │  ┌ … Rare … ┐                          🔊        │  Glow                                     │
-│   Rare       │  ┌ … Exc. … ┐                          🔊        │   [■ #cd7f32]  Spread ─●─ 40  Pulse ─ 0ms │
-│   Exceptional│                                                  │                                           │
-│ ──────────── │  [ ▶ Replay ]  [ ⟲ Loop exit ]                  │  Margin   ⛓ linked  ──●── 10 px            │
-│ Code         │  [ Test on screen ]                              │  Padding  ⛓ linked  ──●── 10 px            │
-│              │  ⚠ 1 warning ▸                                   │  Gap      icon→text ─●─ 10  rows ●─ 2      │
-│              │                                                  │  Steam watermark                  [toggle] │
-└──────────────┴──────────────────────────────────────────────────┴──────────────────────────────────────────┘
+│ Start        │ ┌──────────────── stage (sticky) ──────────────┐ │ CARD                                     │
+│ ──────────── │ │ ┌──────────────────────────────────┐         │ │ ┌──────────────────────────────────────┐ │
+│ Placement    │ │ │ 🏆 ◆ First Steps          [Steam]│         │ │ │ Background                      [↺]  │ │
+│ Card       ◀ │ │ │      Finish the tutorial          │         │ │ │ Set by this theme                    │ │
+│ Text         │ │ └──────────────────────────────────┘         │ │ │ [ Gradient                       ▾ ] │ │
+│ Icons        │ │ ┌ … Magic … ┐                                │ │ │ Colour 1                     [■][✕]  │ │
+│ Sound        │ │ ┌ … Rare … ┐                                 │ │ │ #1F1F1F                              │ │
+│ ──────────── │ │ ┌ … Exceptional … ┐                          │ │ │ Colour 2                     [■][✕]  │ │
+│ Achievements │ └───────────────────────────────────────────────┘ │ │ #0F0F0F                              │ │
+│   Layout     │                                                   │ │ Add a colour                  [Add]  │ │
+│   Normal     │ PREVIEW                                           │ │ Angle                          90°   │ │
+│   Magic      │ ┌──────────────────────────────────────────────┐ │ │ ─────────────●───────────────        │ │
+│   Rare       │ │ Preview set                                  │ │ └──────────────────────────────────────┘ │
+│   Exceptional│ │ What the stage shows                         │ │                 22 px                    │
+│ ──────────── │ │ [ Achievement tiers (4)                  ▾ ] │ │ ┌──────────────────────────────────────┐ │
+│ Code         │ └──────────────────────────────────────────────┘ │ │ Border                          [↺]  │ │
+│              │                   22 px                          │ │ From the template                    │ │
+│              │ ┌──────────────────────────────────────────────┐ │ │ Width                           2 px │ │
+│              │ │ On screen                          [toggle]  │ │ │ ──●─────────────────────────         │ │
+│              │ │ Big Picture look                   [toggle]  │ │ │ Colour                       [■]     │ │
+│              │ └──────────────────────────────────────────────┘ │ │ #cd7f32                              │ │
+│              │   … Sounds, Replay, Test on screen (§ 4.6) …     │ │   … (scrolls)                        │ │
+├──────────────┴──────────────────────────────────────────────────┴──────────────────────────────────────────┤
+│ ● Unsaved changes                                                  [↶] [↷]  [ Save as… ]  [ Save ]  [ Close ]│
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Navigation** is a `Focusable` page list on the left, styled with the classes of Steam's own Settings sidebar
-  (resolved in the same start-up scan as the toast selectors, `steam/selectors.ts`, and injected; spike S7). Steam's `SidebarNavigation` is not used as-is: it renders the list and
-  the page content as one unit, so nothing can sit between them, and the preview would remount (and replay) on every
-  page change. The selected page is creator state; the preview is a sibling that never remounts.
-- **Editor** (right) scrolls on its own; the preview column does not scroll (four banners at 1:1 fit in 560 × 700).
-- **Header**: the file name (editable in Save as), a dirty marker, where it came from (template / my theme / fresh),
-  Undo / Redo (Ctrl+Z / Ctrl+Y, 100 steps), **Save ▾**, Close. For a user theme the menu is Save, Save as…, Save and
-  use. For a template or a fresh theme it is Save as… and Save as and use only (R15); after that first Save as, the
-  draft is a user theme and Save appears.
-- **Close with unsaved changes** opens a confirm: "Discard changes to my_theme?" (Discard / Keep editing). The draft is
-  in `localStorage` anyway (D12).
+  (resolved in the same start-up scan as the toast selectors, `steam/selectors.ts`, and injected; spike S7). Steam's
+  `SidebarNavigation` is not used as-is: it renders the list and the page content as one unit, so nothing can sit
+  between them, and the preview would remount (and replay) on every page change. The selected page is creator state;
+  the preview is a sibling that never remounts.
+- **Preview** (middle): the **stage** (the toasts, § 4.5) is `position: sticky` at the top of the column; the preview's
+  own rows under it scroll. The stage is a canvas, not settings rows: it draws Steam's toasts at Steam's sizes.
+- **Editor** (right) scrolls on its own.
+- **Action row** (guardrail 18.6: a popup's own buttons are its last `ActionRow`, status left, buttons right), across
+  all three columns:
+  - Status message, in `ActionRow`'s colours: "● Unsaved changes", "Saving...", "✓ Saved as my_theme", or an error.
+  - `IconButton`s ↶ / ↷ (Undo / Redo, also Ctrl+Z / Ctrl+Y, 100 steps).
+  - **Save as…**: always. It opens a small popup (§ 4.3 rules): `FullWidthRows` "Name" (`TextField`), a toggle row
+    "Use it now" (sets the `theme` setting after saving), the warning row "This hides the bundled theme <name>" when
+    the name is a bundled theme's, and its own `ActionRow` (Cancel, Save).
+  - **Save**: only for a user theme (R15). Not shown for a template or a fresh theme until their first Save as.
+  - **Close**: with unsaved changes it opens a confirm, "Discard changes to my_theme?" (Discard / Keep editing). The
+    draft is in `localStorage` anyway (D12).
 - **Errors** never blank the modal: an error boundary around each column shows "This section failed" plus the error,
   and is logged (no feature id, § 6.9).
 
-### 4.3 The Start page (R3)
+### 4.3 Every column follows the settings panel's rules (guardrail 18)
 
-Shown first when the modal opens (and from the navigation's **Start**). Three cards, then lists:
+The plugin's settings panel is one thin column; the creator is three of them side by side. Guardrail 18
+([plugins.md](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications)) applies to **each column on its
+own**, and to every popup the creator opens (Save as, the colour picker, the sound picker, Delete):
+
+| Guardrail 18 | In the creator |
+| --- | --- |
+| 18.1 Steam's components | `PanelSection`, `Field`, `Toggle`, `DialogButton`, `Dropdown`, `TextField`, `SliderField`, through the shared rows of `settings/rows.tsx`. No hand-made rows, notes or checkboxes |
+| 18.2 Two columns at most | A row is label + description on the left, and on the right **one** toggle or **one or two small** buttons. Never a slider and a button, never two sliders, never a colour and a slider in one row |
+| 18.3 A control that needs room gets the full row | Every `Dropdown` and `TextField` is `FullWidthRows` (label, description, then the control across the column). The Code page's text area too |
+| 18.4 Spacing is a system | Blocks are `BLOCK_GAP` (22 px) apart, set only by `<Blocks>`; rows inside a block touch; `ItemRow trailing` cancels Steam's own trailing space; controls inside a custom card are `CONTROL_GAP` (8 px) apart on `CARD_BACKGROUND`. No margin on a single row, anywhere |
+| 18.5 Group by meaning | **One block per theme key** (or per key group: border width, colour and radius are one block). A button that opens a popup is its own block. "Add a colour" is a `ButtonRow` |
+| 18.6 Popups follow the same rules | Each popup is `PanelSection` + `Blocks`, ending in an `ActionRow`. The modal itself ends in one (§ 4.2) |
+| 18.7 No empty-state rows, one icon-button size | A block with nothing to show is left out of `<Blocks>` (warnings, the Restore row, tier sounds without a banner). ↺, ✕, ▶, ↶, ↷ and the colour swatch are all `IconButton`, one size |
+| 18.8 No diagnostics | No error counters or kill switches. Theme warnings are not diagnostics: they are what the existing "Theme problems" popup shows, about the user's own file (§ 4.5) |
+
+Two patterns, used for every key so the pages read the same:
+
+- **A key with a few values** (position, animation, text alignment, hover, watermark, header icon, the sound mode, a
+  tier icon's source): one `FullWidthRows` `Dropdown` whose **first option is "Steam's own"** (or "From Normal" on a
+  tier page), exactly as the panel's theme dropdown starts with "Steam default". Choosing it unsets the key. No ↺.
+- **A key with a composite value** (colours, sizes, edges, text styles, icon scale and ripple): a block that starts
+  with a **header row**: label = the key's name, description = where its value comes from ("Set by this theme",
+  "Steam's own", "From Normal", "From All tiers", "From the card"), and on the right one `IconButton` ↺ that unsets it
+  (only while the key is set here). While unset, the header row's button is **Customize** instead: it writes the value
+  shown (Steam's or the inherited one) to this key, and the block's control rows appear under it. An unset block is one
+  row.
+
+Shared rows the creator needs, all in `settings/rows.tsx` so the panel and the creator look the same:
+
+- `FullWidthRows`, `ActionRow`, `IconButton`, `BUTTON_STYLE`: copied from steam-cartridges'
+  `frontend/settings/components.tsx` unchanged (guardrail 18 names that file as the other copy).
+- `ToggleRow` and `SliderRow` read a setting key today. They get **controlled** twins (`value`, `onChange`, and for
+  the slider `min`, `max`, `step`, `suffix`), and the key-bound ones become thin wrappers over the twins, so there is
+  one look for both.
+- `ColourRow` (in `settings/creator/controls.tsx`, built on `Field`): label, description = the hex value, on the right
+  the swatch `IconButton` (filled with the colour) and, where the colour can be removed (a gradient stop), ✕. The
+  swatch opens `ColorPickerModal`; the hex is typed in that popup's own `FullWidthRows` `TextField`, never in the row.
+
+Column widths and inner padding match the plugin's settings panel: spike S9 measures the panel's horizontal padding
+and row heights live, and each column uses the same. Columns are divided by a 1 px line in Steam's separator colour,
+not by extra gutters.
+
+### 4.4 The Start page (R3)
+
+Shown first when the modal opens (and from the navigation's **Start**), in the editor column. **Focusing or hovering
+a row previews that theme on the stage** (loaded read-only, 300 ms after focus settles), so the user sees a template
+before picking it.
 
 ```
-  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-  │  From a template   │  │  Edit my themes    │  │  Start fresh       │
-  │  A bundled theme,  │  │  Themes in your    │  │  Steam's own look; │
-  │  saved as a copy   │  │  themes folder     │  │  change what you   │
-  │                    │  │                    │  │  want              │
-  └────────────────────┘  └────────────────────┘  └────────────────────┘
-
-  Templates (bundled)               My themes
-  ● steam_midnight   [Use]          ● my_theme          [Edit] [Duplicate] [Delete]
-  ● steam_tiers      [Use]          ● night_owl (jsonc) [Edit] [Duplicate] [Delete]
-  ● …                               (every user theme from ListThemes, source "user")
-  (every bundled theme from ListThemes, source "bundled"; the user makes the shipped ones, Q7)
-
-  ↺ Restore unsaved theme "my_theme" (edited 12 min ago)    [Restore] [Forget]     (only when a draft is stored)
+ ┌──────────────────────────────────────┐   only when a draft is stored
+ │ Unsaved theme: my_theme              │
+ │ Edited 12 min ago  [Restore][Forget] │
+ └──────────────────────────────────────┘
+ NEW
+ ┌──────────────────────────────────────┐
+ │ Start fresh                 [Start]  │
+ │ Steam's own look; change what you    │
+ │ want                                 │
+ └──────────────────────────────────────┘
+ TEMPLATES
+ ┌──────────────────────────────────────┐
+ │ steam_midnight                [Use]  │
+ │ Bundled, saved as a copy             │
+ │ steam_tiers                   [Use]  │
+ │ Bundled, saved as a copy             │
+ └──────────────────────────────────────┘
+ MY THEMES
+ ┌──────────────────────────────────────┐
+ │ my_theme               [Edit] [🗑]   │
+ │ Yours, edited 2 Oct                  │
+ │ night_owl (jsonc)      [Edit] [🗑]   │
+ └──────────────────────────────────────┘
 ```
 
-- **Template** → loads the bundled file, name suggestion `<template>_custom` (first free one), origin `template`.
-  It is never saved over: Save as only (R15, D4). Templates have no Edit and no Delete.
-- **Edit** → user themes only; loads the file; Save overwrites it (with the `.bak` of D4 if it had comments).
-- **Fresh** → `{}` (every key unset = Steam's look), name suggestion `my_theme`; Save as only until first saved.
-- **Duplicate** → like Template, from a user theme.
-- **Delete** (Q6) → user themes only. Confirm dialog, with a toggle "Also delete its assets folder" (`<name>/`, on by
+Each list is one block (its rows read as one card); each row is a `ButtonRow` (Templates) or a `Field` with two small
+buttons (My themes: Edit and an `IconButton` 🗑), never three.
+
+- **Use** (template) → loads the bundled file, name suggestion `<template>_custom` (first free one), origin
+  `template`. It is never saved over: Save as only (R15, D4). Templates have no Edit and no Delete. Templates are every
+  bundled theme `ListThemes` returns; the user makes the shipped ones (Q7).
+- **Edit** → user themes only; loads the file; Save overwrites it (with the `.bak` of D4 if it had comments). To copy
+  one of your own themes, Edit it and Save as (there is no separate Duplicate button: it would be a third button).
+- **Start fresh** → `{}` (every key unset = Steam's look), name suggestion `my_theme`; Save as only until first saved.
+- **🗑** (Q6) → user themes only. Confirm popup with a toggle row "Also delete its assets folder" (`<name>/`, on by
   default when the creator made it). If it was the active theme, the setting goes back to Steam default. The backend
   refuses a bundled theme whatever the frontend sends (§ 6.6).
 - A theme the creator cannot parse opens in the **Code** page with the parse error, never silently as `{}`.
-- If the user picks a name equal to a bundled theme's: "This hides the bundled theme <name> from the list" (user
-  themes shadow bundled ones, `find_theme` in `backend/main.lua`).
 
-### 4.4 Editor pages and their controls (R11)
+### 4.5 Editor pages and their controls (R11)
 
-Every control edits one JSON path of the draft. Every row has a **"Steam's own" state**: an unset key shows the value
-Steam would use, greyed, and a ↺ IconButton on the row unsets the key. Rows use Steam's `Field` and the shared rows
-(guardrail 18.6); sliders are `SliderRow`. Colours are a swatch button that opens `ColorPickerModal` (HSL converted
-to hex by a pure helper) plus a hex `TextField` (`#rgb`, `#rrggbb`, `#rrggbbaa`, validated by the same regex as
-`theme/theme.ts`).
+Every control edits one JSON path of the draft, through one of the two patterns of § 4.3. "Rows" below lists a
+block's rows top to bottom; "header" is the composite-key header row (↺ / Customize). Sliders are the controlled
+`SliderRow` (label and value above the track).
 
 **Placement** (`settings`)
 
-| Key | Control | Range / options |
+| Key | Rows | Range / options |
 | --- | --- | --- |
-| `settings.position` | Dropdown + a 16:9 corner map that highlights the corner | `POSITIONS` |
-| `settings.animation` | "Same in and out" toggle; one dropdown, or two (In, Out) | `ANIMATIONS` |
-| `settings.display_time_ms` | Slider | 1,000-60,000, step 500 |
-| `settings.text_align` | Dropdown | `TEXT_ALIGNS` |
-| `settings.hover` | Dropdown Steam's / None / Colour, + colour | `true` / `false` / `[true, "#hex"]` |
+| `settings.position` | `FullWidthRows` Dropdown (Steam's own, then `POSITIONS`). The stage's On screen mode shows the corner | `POSITIONS` |
+| `settings.animation` | Toggle row "Same in and out"; then one `FullWidthRows` Dropdown, or two (In, Out) | Steam's own, `ANIMATIONS` |
+| `settings.display_time_ms` | Header; slider | 1,000-60,000, step 500 |
+| `settings.text_align` | `FullWidthRows` Dropdown | Steam's own (left), `TEXT_ALIGNS` |
+| `settings.hover` | `FullWidthRows` Dropdown (Steam's own / None / Colour); with Colour, a `ColourRow` | `true` / `false` / `[true, "#hex"]` |
 
-**Card** (`popup`, plus `font_family`)
+**Card** (`popup`, plus `font_family`), one `PanelSection` "Card":
 
-| Key | Control | Range / options |
+| Key | Rows | Range / options |
 | --- | --- | --- |
-| `popup.background` | Steam's / Colour / Gradient; 1-4 colour stops, add / remove | |
-| `popup.gradient_angle` | Slider, shown with 2+ stops | 0-360 |
-| `popup.border` | Width slider, colour, radius slider | 0-8 px, 0-32 px |
-| `popup.glow` | Colour, spread slider, pulse slider (0 = steady) | 0-120, 0-5,000 ms |
-| `popup.watermark` | Toggle | |
-| `popup.margin`, `popup.padding` | "Linked" toggle: one slider, or four (top, right, bottom, left) | 0-64 px |
-| `popup.gap` | Two sliders: icon to text, between rows. Hint under rows: "Keep it small: 10 px crops a three-row toast" (themes.md) | 0-32, 0-12 |
-| `popup.scale`, `width`, `height` | Under "Achievement banner size" (banner only today) | 25-400 %, px |
-| `font_family` | Dropdown of fonts Steam ships plus "Custom…" text | |
+| `popup.background` | Header; `FullWidthRows` Dropdown (Colour / Gradient); one `ColourRow` per stop (✕ on each with 2+ stops); `ButtonRow` "Add a colour" (up to 4); with 2+ stops a slider "Angle" (`popup.gradient_angle`, 0-360) | |
+| `popup.border` | Header; slider Width (0-8 px); `ColourRow`; slider Radius (0-32 px) | |
+| `popup.glow` | Header; `ColourRow`; slider Spread (0-120); slider Pulse (0-5,000 ms, 0 = steady) | |
+| `popup.watermark` | `FullWidthRows` Dropdown (Steam's own / Shown / Hidden) | |
+| `popup.margin`, `popup.padding` | One block each: header; toggle row "Same on every side"; one slider "All sides", or four (Top, Right, Bottom, Left) | 0-64 px |
+| `popup.gap` | Header (description: "Keep Between rows small: 10 px crops a three-row toast", themes.md); slider Icon to text (0-32); slider Between rows (0-12) | |
+| `font_family` | `FullWidthRows` Dropdown (Steam's own, fonts Steam ships, Custom…); with Custom, a `FullWidthRows` `TextField` | |
 
-**Text** (`text.title`, `text.body`, `text.subtext`): per line, colour, size slider (50-200 %), style dropdown
-(regular / bold / italic). A line under each names where it appears ("Title: the toast's first line, and the
-achievement's name").
+A second `PanelSection` "Achievement banner size" (banner only today): `popup.scale`, `width`, `height`, each a
+header and slider(s) (25-400 %, px).
 
-**Icons**: `game_icon` (toggle + radius slider 0-32), `header_icon` (toggle).
+**Text**: one `PanelSection`, one block per line (`text.title`, `text.body`, `text.subtext`): header (description
+names where the line appears: "The toast's first line, and the achievement's name"); `ColourRow`; slider Size
+(50-200 %); `FullWidthRows` Dropdown Style (regular / bold / italic).
 
-**Sound** (`sound`): three choices, **Steam's chime** (unset), **Mute** (`false`), **A sound**; with a sound, a
-picker (§ 4.6) and a volume slider (0-100) with ▶ next to it. Below it, the **Sound pack** panel (§ 4.6), which sets
-the notification sound and every tier's sound from one pack in one place.
+**Icons**: block `game_icon`: `FullWidthRows` Dropdown (Steam's own / Shown / Hidden); when Shown, header and slider
+Corner radius (0-32). Block `header_icon`: `FullWidthRows` Dropdown (Steam's own / Shown / Hidden).
 
-**Achievements**: a toggle "Themed achievement banner" (adds or removes the `achievements` block; removing asks first
-when the block has content). With it on:
+**Sound** (`sound`), one `PanelSection` "Notification sound":
 
-- **Layout**: preset dropdown (`LAYOUT_PRESETS`) or "Custom": three dropdowns placing `achievement`, `system`,
-  `rarity` (outer zones and the four text anchors, themes.md § achievements.layout). Block-level popup overrides
-  (`achievements.padding` etc.) are here too, under "All tiers".
-- **Normal / Magic / Rare / Exceptional** pages, one per tier. Each starts with a line "Inherits from: Normal ← All tiers ←
-  Card", and each row shows **where its value comes from** (this tier, Normal, All tiers, Card, Steam's own) with a ↺
-  that unsets it **on this tier only**. Rows: threshold (Magic and Rare only, slider 0.1-50 %, with the rule "Rare
-  needs a lower threshold than Magic" as a warning), every `BANNER_KEYS` popup key, the three icon slots
-  (Steam's / Hidden / Image + scale 25-300 % + ripple 0-5,000 ms), the tier sound (§ 4.6), and on Exceptional (the 100% toast) only the title
-  and description texts.
+- Block: `FullWidthRows` Dropdown (Steam's chime / Mute / A sound).
+- With A sound, block: a `Field` row, label = the sound ("Celtic Harp · Subtle"), description = its length, right:
+  `IconButton` ▶; then slider Volume (0-100).
+- With A sound, block: `ButtonRow` "Choose a sound" [Choose…] (opens the single sound picker, § 4.7; its own block,
+  18.5).
 
-**Code**: the generated JSONC in a monospace `TextField` (multi-line). Editable: on "Apply", it is parsed with
-`parseJsonc`; a parse error is shown and nothing changes; a good parse replaces the draft (one undo step). "Copy"
-copies it to the clipboard.
+Under it, the `PanelSection` "Sound pack" (§ 4.7), which sets the notification sound and every tier's sound from one
+pack.
 
-**Warnings strip** (under the preview): `resolveTheme(draft).warnings`, the same texts the "Theme problems" popup shows
-today, plus creator-only checks (Rare threshold above Magic's, a row gap of 10 px or more, an asset over 8 MB). Clicking a warning
-opens the page that owns the key.
+**Achievements** (Layout page): block: toggle row "Themed achievement banner" (adds or removes the `achievements`
+block; turning it off asks first when the block has content). With it on:
 
-### 4.5 The preview (R4, R5)
+- Block: `FullWidthRows` Dropdown Layout (`LAYOUT_PRESETS`, Custom). With Custom, one block of three `FullWidthRows`
+  Dropdowns placing `achievement`, `system`, `rarity` (outer zones and the four text anchors, themes.md §
+  achievements.layout).
+- `PanelSection` "All tiers": the block-level popup overrides (`achievements.padding` etc.), each a block like on the
+  Card page, with "From the card" as the unset source.
 
-**Sets** (Dropdown "Set"):
+**Normal / Magic / Rare / Exceptional** pages, one per tier, each a stack of `PanelSection`s. The first row of the page
+is a `Field` "Inherits from: Normal ← All tiers ← Card" (no control). Every header row's description names where its
+value comes from, and ↺ unsets it **on this tier only**.
+
+| Section | Blocks |
+| --- | --- |
+| Rule (Magic, Rare) | Header; slider Threshold (0.1-50 %). "Rare needs a lower threshold than Magic" is a theme warning (§ 4.6) |
+| Card | One block per `BANNER_KEYS` key, as on the Card page |
+| Icons | One block per slot (`achievement`, `system`, `rarity`): `FullWidthRows` Dropdown source (From Normal / Steam's / Hidden / Image); with Image, a `Field` with the file name and a separate block `ButtonRow` "Choose an image" [Choose…]; slider Scale (25-300 %); slider Ripple (0-5,000 ms) |
+| Sound | As the Sound page's first three blocks, with "From Normal" (or "Notification sound") as the first dropdown option |
+| Text (Exceptional only) | `FullWidthRows` `TextField` Title; `FullWidthRows` `TextField` Description |
+
+**Code**: one block: `FullWidthRows` `TextField` (multi-line, monospace) with the generated JSONC. Then one block of
+two `ButtonRow`s: "Apply changes" [Apply] (parses with `parseJsonc`; a parse error goes to the action row's status
+and nothing changes; a good parse replaces the draft, one undo step) and "Copy to clipboard" [Copy].
+
+### 4.6 The preview (R4, R5)
+
+**Sets** (`FullWidthRows` Dropdown "Preview set"):
 
 | Set | Shows |
 | --- | --- |
-| Choose 4 notifications | Four dropdowns (`previewOptions()` minus Achievement), defaults: Download complete, Clip saved, Cloud sync failed, Low battery |
-| 4 random notifications | Four distinct types, re-rolled with 🎲 (`pickPreview`, never the same type twice in a set) |
-| Achievement tiers | Normal, Magic, Rare, Exceptional. Without an `achievements` block: four achievement toasts in the notification style, with a note "No banner: achievements look like every toast" |
+| Choose 4 notifications | The four types picked in a small popup (`ButtonRow` "Choose notifications" [Choose…], its own block): four `FullWidthRows` Dropdowns (`previewOptions()` minus Achievement) and an `ActionRow`. Defaults: Download complete, Clip saved, Cloud sync failed, Low battery |
+| 4 random notifications | Four distinct types; `ButtonRow` "New random set" [Shuffle] (`pickPreview`, never the same type twice in a set) |
+| Achievement tiers | Normal, Magic, Rare, Exceptional. Without an `achievements` block: four achievement toasts in the notification style, and the set's description says "No banner: achievements look like every toast" |
 | Mixed | Two notifications and two tiers (Normal, Rare) |
 | Stack of one type | The same type four times, to judge stacking and the queue |
 
-**Modes**:
+**The preview column, top to bottom:**
 
-- **Gallery**: the four toasts in a column at 1:1, each with its label (type or tier) and a 🔊 button. For comparing
-  looks.
-- **On screen**: a scaled 16:9 "screen" (the column's width, 560 × 315) with the toasts placed and stacked as Steam
-  would: the theme's corner and margin, newest at the corner (`theme/placement.ts` `placeToast`, `banner/geometry.ts`
-  `placeBanner`), drawn at the screen's scale. With the user's "Notifications queue" on, a note "Queue on: one at a
-  time" and only the newest is drawn. For judging position and margin.
-- **Desktop / Big Picture** look toggle: Desktop draws Steam's 283 × 70 desktop template; Big Picture draws its short
-  40 px template and the banner in Steam's 300 × 80 frame (themes.md § Known limitations: no `scale` there).
-
-**Controls**: **▶ Replay** remounts the toasts (entrance, then the glow pulse and icon ripples run); **⟲ Loop exit**
-replays entrance, display time and exit in a loop with the real timings (`ANIMATION_MS`, `bannerTiming`); the mouse
-hovers a toast to see `settings.hover`.
+1. **Stage** (sticky; a canvas, § 4.2).
+   - **Gallery** (default): the four toasts in a column at 1:1, for comparing looks.
+   - **On screen**: a scaled 16:9 "screen" (560 × 315) with the toasts placed and stacked as Steam would: the theme's
+     corner and margin, newest at the corner (`theme/placement.ts` `placeToast`, `banner/geometry.ts` `placeBanner`),
+     drawn at the screen's scale. With the user's "Notifications queue" on, only the newest is drawn.
+   - **Big Picture look**: Steam's short 40 px template, and the banner in Steam's 300 × 80 frame (themes.md § Known
+     limitations: no `scale` there). Otherwise Steam's 283 × 70 desktop template.
+   - The mouse hovers a toast to see `settings.hover`.
+2. `PanelSection` **Preview**: block "Preview set" (the dropdown, plus the set's own Choose / Shuffle block when it has
+   one); block of two toggle rows "On screen" and "Big Picture look" (each with its description).
+3. `PanelSection` **Sounds**: one block, **one row per toast on the stage**: label = the type or tier, description =
+   what it plays ("Celtic Harp · Grand, 100 %", "Steam's chime", "Muted"), right: `IconButton` ▶. It plays exactly
+   what that toast would (§ 4.7).
+4. `PanelSection` **Animation**: block of a `ButtonRow` "Replay" [Replay] (remounts the toasts: entrance, then the
+   glow pulse and icon ripples) and a toggle row "Loop entrance and exit" (with the real timings, `ANIMATION_MS`,
+   `bannerTiming`).
+5. Block: `ButtonRow` "Test on screen" [Test], description "Shows this set as real Steam toasts" (§ 4.8).
+6. `PanelSection` **Theme warnings**, only when there are some (18.7): one row per warning, label = the key, description
+   = the message, right: a small button **Go** that opens the page owning the key. The messages are
+   `resolveTheme(draft).warnings` (the same texts the "Theme problems" popup shows today), plus creator-only checks:
+   Rare threshold above Magic's, a row gap of 10 px or more, an asset over 8 MB.
 
 **What the toasts show**: sample text per type (Download complete: "Download complete" / the game's name / "Ready to
-play"; Clip saved: "Clip saved" / "15 seconds"; and so on, a table in `settings/creator/model.ts`), the icon of a real game in
-the library (the same appid `preview()` picks from `appAchievementProgressCache`, else a neutral bundled placeholder),
-and for achievements that game's first achievement's icon, name and description when available, else "First Steps" /
-"Finish the tutorial" with a placeholder icon.
+play"; Clip saved: "Clip saved" / "15 seconds"; and so on, a table in `settings/creator/model.ts`), the icon of a real
+game in the library (the same appid `preview()` picks from `appAchievementProgressCache`, else a neutral bundled
+placeholder), and for achievements that game's first achievement's icon, name and description when available, else
+"First Steps" / "Finish the tutorial" with a placeholder icon.
 
 **How a toast is drawn** (decided by spike S1/S2):
 
-- **Notification toasts**: a mock of Steam's toast DOM using **Steam's own hashed classes** (from
-  `resolveToastSelectors`, one class per part), inside a stage element marked `data-en-type`, plus the theme's CSS from
+- **Notification toasts**: a mock of Steam's toast DOM using **Steam's own hashed classes** (the injected selectors,
+  one class per part), inside a stage element marked `data-en-type`, plus the theme's CSS from
   `buildCss(style, sel, root)` and `buildAnimationCss(theme, sel, root)` scoped to the stage (§ 6.3). If S1 finds
   Steam's toast stylesheet is not in the modal's document, the stage also gets a small baseline stylesheet with the
   values measured live (template 70 px, padding 10, Steam's colours, fonts), written down in steam-components.md.
 - If S2 finds Steam's own toast dispatcher (the component `setSteamToast` already receives) renders a synthetic
   notification outside a toast window, the stage renders **that** instead of the mock: Steam's real markup.
-- **Achievement banners**: `BannerCard` (§ 6.4) with the draft's resolved achievement theme. The same markup as the
-  real banner.
+- **Achievement banners**: the injected `BannerCard` (§ 6.4) with the draft's resolved achievement theme. The same
+  markup as the real banner.
 
-### 4.6 Sounds (R6, R7)
+### 4.7 Sounds (R6, R7)
 
-Two places pick sounds, built from the same parts:
+Two places pick sounds, built from the same rows:
 
-**1. The Sound pack panel** (on the Sound page; R14). Pick a pack, then pick a cue **for each row**:
-
-```
- Sound pack
- [ Celtic Harp                                    ▾ ]   Strings · Celtic concert strings
-   ▶ Subtle 0.95 s     ▶ Distinct 1.4 s     ▶ Grand 2.2 s            (listen to the pack)
-
-                    Cue                                         Volume
- Notification   ( Keep | Subtle | Distinct | Grand )        ──────●──── 60   [▶]
- Normal         ( Keep | Subtle | Distinct | Grand )        ───────●─── 80   [▶]
- Magic          ( Keep | Subtle | Distinct | Grand )        ────────●── 85   [▶]
- Rare           ( Keep | Subtle | Distinct | Grand )        ────────●── 90   [▶]
- Exceptional    ( Keep | Subtle | Distinct | Grand )        ─────────●─ 100  [▶]
-                                                                         [ Apply ]
-```
-
-- Each row is a four-way choice. **Keep** leaves that sound as it is now (whatever it is: another pack, a file, Steam's
-  chime, mute). Subtle / Distinct / Grand set it to that cue of the chosen pack.
-- Nothing is preselected for the user: every row starts on **Keep**, and the rows only show a hint of a common pairing
-  ("often: Subtle" for Normal and Magic, "Distinct" for Rare, "Grand" for Exceptional) as greyed text.
-- The four tier rows show only when the theme has an `achievements` block; otherwise a line "Turn on the achievement
-  banner to give each tier its own sound".
-- ▶ on a row plays that row's choice at that volume. **Apply** writes the rows that are not Keep (one undo step).
-- A row whose current sound is already a cue of the chosen pack opens on that cue, so reopening the panel shows the
-  current choices.
-
-**2. The single sound picker** (a "Choose…" button on the notification sound row and on each tier page's sound row),
-for one sound at a time, from any pack or from a file:
+**1. The Sound pack panel** (`PanelSection` "Sound pack" on the Sound page; R14). Pick a pack, then pick a cue for
+each target, one block per target:
 
 ```
- Choose a sound                                          [ Library | This theme's files ]
- ┌────────────────────────────────────────────────────────────────────────────┐
- │ Celtic Harp       Celtic concert strings   [▶ Subtle][▶ Distinct][▶ Grand] │
- │ Bardic Harp       Bardic high flourish     [▶ Subtle][▶ Distinct][▶ Grand] │
- │ 8-Bit Chiptune    NES-style chiptune       [▶ Subtle][▶ Distinct][▶ Grand] │
- │ …                                                                          │
- └────────────────────────────────────────────────────────────────────────────┘
- Selected: Celtic Harp · Distinct (1.4 s)       Volume ──────●── 85    [▶]      [ Use ]
+ SOUND PACK
+ ┌──────────────────────────────────────┐
+ │ Pack                                 │
+ │ Strings · Celtic concert strings     │
+ │ [ Celtic Harp                    ▾ ] │
+ └──────────────────────────────────────┘
+ ┌──────────────────────────────────────┐
+ │ Subtle                         [▶]   │
+ │ 0.95 s                               │
+ │ Distinct                       [▶]   │
+ │ 1.4 s                                │
+ │ Grand                          [▶]   │
+ │ 2.2 s                                │
+ └──────────────────────────────────────┘
+ ┌──────────────────────────────────────┐
+ │ Normal                         [▶]   │
+ │ Now: Steam's chime · often Subtle    │
+ │ [ Keep                           ▾ ] │   Keep / Subtle / Distinct / Grand
+ │ Volume                          80   │
+ │ ───────────────●──────────           │
+ └──────────────────────────────────────┘
+   … the same block for Notification, Magic, Rare, Exceptional …
+ ┌──────────────────────────────────────┐
+ │ Apply to the theme           [Apply] │
+ │ Changes the rows not set to Keep     │
+ └──────────────────────────────────────┘
 ```
 
-- **Library**: the 17 packs from `library.json` (§ 5), each cue playable in place. Filter by category (Chiptune,
-  Bells, Strings, Orchestral, World, Synth).
-- **This theme's files**: `.mp3` and `.wav` (and `.ogg`, which themes already accept) in the theme's own folder
-  (backend `ListThemeAssets`, § 6.7), and **Import…** (spike S4: Steam's file dialog; if there is none, "Open the
-  theme's folder" and a Rescan button). Mixing packs (Normal from one pack, Rare from another) is done here.
-- **Playback** goes through `audio()` (the plugin's one `AudioContext`); each clip is decoded once and cached for the
-  modal's life. Playing a new clip stops the previous one. A click resumes a suspended context (a user gesture), as
-  `preview()` does.
-- **Steam's chime** (an unset sound): ▶ plays Steam's own toast sound if spike S5 finds its URL; otherwise the button
-  is disabled with "Plays with Test on screen".
-- Every 🔊 in the preview plays exactly what that toast would play, using the plugin's sound decision: the tier's clip,
-  else the notification sound, else Steam's chime, `false` = nothing (`surfaces/sound/sound.ts`; the creator calls a pure
-  `soundFor(draft, kind, tier)` in `theme/` that mirrors it, unit-tested against the same cases).
+- Blocks: the `FullWidthRows` "Pack" dropdown; the three cues to listen to (one `Field` row each with ▶); one block per
+  target (**Notification**, then **Normal, Magic, Rare, Exceptional**): a header `Field` (label = the target,
+  description = "Now: <its current sound>", right: ▶ playing the new choice at that volume), a `FullWidthRows`
+  Dropdown **Keep / Subtle / Distinct / Grand**, and a Volume slider (disabled on Keep); last, a `ButtonRow` "Apply to
+  the theme" [Apply] (one undo step).
+- **Keep** leaves that sound as it is now (another pack, a file, Steam's chime, mute). Every target starts on Keep;
+  nothing is preselected. While on Keep, the description adds a hint of a common pairing ("often Subtle" for Normal
+  and Magic, "often Distinct" for Rare, "often Grand" for Exceptional).
+- A target whose current sound is already a cue of the chosen pack opens on that cue, so reopening shows the current
+  choices.
+- The four tier blocks show only when the theme has an `achievements` block (18.7); otherwise one `Field` row "Turn
+  on the achievement banner to give each tier its own sound".
 
-### 4.7 Test on screen (D5, D6)
+**2. The single sound picker**, a popup (18.6) opened by "Choose a sound" on the Sound page and on each tier page, for
+one sound from any pack or from a file:
+
+- Block: `FullWidthRows` Dropdown Source (Library / This theme's files).
+- Library: block of `FullWidthRows` Dropdowns Category (All, Chiptune, Bells, Strings, Orchestral, World, Synth),
+  Pack, Cue (Subtle / Distinct / Grand); then a block with a `Field` "Listen" (description: the length) and ▶, and the
+  Volume slider.
+- This theme's files: `FullWidthRows` Dropdown File (`.mp3` and `.wav`, and `.ogg`, which themes already accept, in
+  the theme's own folder, backend `ListThemeAssets`, § 6.7); then a block `ButtonRow` "Import a file" [Import…] (spike
+  S4: Steam's file dialog), or, without one, a `Field` "Theme folder" with two small buttons [Open] [Rescan].
+- `ActionRow`: status = the selection ("Celtic Harp · Distinct, 1.4 s"), buttons Cancel and Use.
+- Mixing packs (Normal from one pack, Rare from another) is done here.
+
+**Playback** goes through `audio()` (the plugin's one `AudioContext`); each clip is decoded once and cached for the
+modal's life. Playing a new clip stops the previous one. A click resumes a suspended context (a user gesture), as
+`preview()` does. **Steam's chime** (an unset sound): ▶ plays Steam's own toast sound if spike S5 finds its URL;
+otherwise the ▶ is disabled and the description says "Plays with Test on screen". Every ▶ in the preview's Sounds
+section plays exactly what that toast would play: the tier's clip, else the notification sound, else Steam's chime,
+`false` = nothing (`theme/theme.ts` `soundSpecFor`, which agrees with `surfaces/sound/sound.ts`, § 10).
+
+### 4.8 Test on screen (D5, D6)
 
 "Test on screen" shows the current set as **real Steam toasts** with the draft, one after another, then the active
 theme comes back:
@@ -548,11 +650,12 @@ caught by its own error boundary and logged; it cannot affect a toast.
 | `frontend/settings/creator/model.ts` | settings | **yes** | Sample texts, preview sets, `currentCues` / `applyPack`, HSL ↔ hex |
 | `frontend/theme/draft.ts` | theme | **yes** | `set` / `unset` by path, history, `effectiveSource`, `serialize` (JSONC out), `copyPlan` (§ 6.6). One file; split only past ~400 lines |
 | `frontend/theme/theme.ts` | theme | yes | `buildCss` / `buildAnimationCss` take an optional `root` (default `body[data-en-type]`, output unchanged); `soundSpecFor(theme, tier)` |
-| `frontend/theme/active-theme.ts` | theme | no | `loadDraft(text, dir)` / `clearDraft()` (§ 4.7) |
+| `frontend/theme/active-theme.ts` | theme | no | `loadDraft(text, dir)` / `clearDraft()` (§ 4.8) |
 | `frontend/surfaces/banner/banner-card.tsx` | surfaces/banner | no | The banner's markup, moved out of `ThemedBanner` (D7) |
 | `frontend/surfaces/banner/themed-toast.tsx` | surfaces/banner | no | Renders `BannerCard`; queue, pin, hold and timing unchanged |
 | `frontend/surfaces/banner/index.ts` | surfaces/banner | no | Exports `BannerCard` for `index.tsx` |
 | `frontend/settings/settings-panel.tsx` | settings | no | The "Theme Creator" block; passes the injected `creator` deps on |
+| `frontend/settings/rows.tsx` | settings | no | `FullWidthRows`, `ActionRow`, `IconButton`, `BUTTON_STYLE` copied from steam-cartridges' `settings/components.tsx`; controlled twins of `ToggleRow` / `SliderRow`, the key-bound ones becoming wrappers (§ 4.3). The panel looks the same after |
 | `frontend/rpc.ts` | rpc | no | `saveTheme`, `deleteTheme`, `listThemeAssets`, `soundLibrary` |
 | `frontend/index.tsx` | composition root | no | Builds the one `creator` deps object (below) and passes it to `SettingsPanel` |
 | `backend/main.lua` | backend | — | `SaveTheme`, `DeleteTheme`, `ListThemeAssets`, `SoundLibrary` |
@@ -679,14 +782,14 @@ neither changes. Two non-Steam writers, documented in prose in enhanced-notifica
 
 - Theme files in the user folder: only `backend/main.lua` `SaveTheme` / `DeleteTheme`.
 - The draft as the active theme: only `theme/active-theme.ts` `loadDraft` / `clearDraft`, called only from
-  `settings/creator/`. One architecture test line checks no other file calls `loadDraft` (the leak guard of § 4.7).
+  `settings/creator/`. One architecture test line checks no other file calls `loadDraft` (the leak guard of § 4.8).
 
 ### 6.9 Safety
 
 - No feature id (§ 6.0). Each column of the modal has an error boundary that shows "This section failed" and logs;
   the modal and the toasts cannot take each other down.
 - Test on screen is gated by the existing `preview` id and by the surfaces' own ids, like any preview.
-- The draft load is bounded (§ 4.7) and cleared in a `finally` and on unmount.
+- The draft load is bounded (§ 4.8) and cleared in a `finally` and on unmount.
 - Safe mode: nothing is hooked, so Test on screen does nothing (the injected `preview` returns null); the rest of the
   creator (editing, saving) still works, as the rest of the settings panel does.
 
@@ -734,6 +837,7 @@ steam-components.md (or knowledgebase.md for SDK facts) before the phase that de
 | S6 | Max `popupWidth` / `popupHeight` for `showDialog`, and is the window resizable? | Open at 1280 × 860 and 1600 × 1000 | The modal's size rule |
 | S7 | Which CSS module holds Steam's Settings sidebar classes (page list, selected page, separators), and do they style a plain `Focusable` list in the popout? | Find the module by its keys (as `steam/selectors.ts` does), render a three-item list | The navigation's look; fallback: a small own stylesheet in Steam's colours |
 | S8 | `ListThemes` and the existing panel keep working with a `themes/sounds/` folder present | Offline: Lua test | Phase 1 safety |
+| S9 | The settings panel's inner horizontal padding, row heights and `PanelSection` title spacing in Millennium's sidebar, and whether `Field` / `PanelSection` render the same in the popout | Measure both with `getBoundingClientRect` / computed styles, the way guardrail 18's values were measured | Each column's padding (§ 4.3); a fix-up only if the popout differs |
 
 ---
 
@@ -748,8 +852,8 @@ committed. A phase's mechanical plan is written when it starts.
 | **P2 Pure groundwork** | `theme/draft.ts` (paths, history, `effectiveSource`, `serialize`, `copyPlan`), `theme/theme.ts` (`root` param, `soundSpecFor`), `settings/creator/model.ts`; both new files in `PURE`; unit tests | `npm test`: new tests pass; `serialize(parseJsonc(x))` re-resolves to the same `resolveTheme` result for every bundled theme |
 | **P3 BannerCard refactor** | `surfaces/banner/banner-card.tsx`, `themed-toast.tsx` uses it, exported from `surfaces/banner/index.ts`; no layer rule change | `npm test`; deploy; `npm run test:live` achievement checks pass as before (with the lock) |
 | **P4 Backend writes** | `SaveTheme`, `DeleteTheme`, `ListThemeAssets`; Lua tests (name validation, path escape refused, copy refused for a disallowed type, atomic write) | Lua tests pass; architecture test (RPCs registered) |
-| **P5 Spikes S1-S7** | § 8 | Findings written into the docs |
-| **P6 Modal shell** | Entry button, modal at its size, Start page, header, Save / Save as / Save and use / Delete, unsaved guard, `localStorage` draft, Code page | Live: open, start from each source, save a copy of `ps5`, it loads in the dropdown and its assets resolve from the user folder |
+| **P5 Spikes S1-S7, S9** | § 8 | Findings written into the docs |
+| **P6 Modal shell** | `rows.tsx` additions (§ 4.3; the settings panel unchanged, checked live by eye and by `achievements-settings`), entry button, modal at its size, the three columns and the action row, Start page, header, Save / Save as / Save and use / Delete, unsaved guard, `localStorage` draft, Code page | Live: open, start from each source, save a copy of `ps5`, it loads in the dropdown and its assets resolve from the user folder |
 | **P7 Editor pages** | Placement, Card, Text, Icons, Sound (without the library picker), Achievements Layout and tiers with "inherited from" | Live by hand: each control changes the saved file as expected; ↺ removes the key |
 | **P8 Preview** | Stage (Gallery, On screen, Desktop / Big Picture look), sets, Replay, Loop exit, warnings strip, 🔊, sound picker with the library | Live: the four sets render; changing a colour updates the preview in under 100 ms; each 🔊 plays the expected clip |
 | **P9 Test on screen** | `loadDraft` / `clearDraft`, bounds, the `loadDraft` caller check | `tests/creator.mjs` passes; after a test the active theme's CSS and durations are back (compared before/after) |
@@ -800,7 +904,7 @@ Prints `PASS creator`.
 | [12 (popup hooks)](../plugins.md#12-popup-hooks-do-not-see-every-window) | The preview's CSS is a `<style>` inside the stage element, never injected by a window hook |
 | [15 (never weaken a check)](../plugins.md#15-never-weaken-a-verification-check-to-match-new-behaviour) | P3's refactor must pass the achievement live checks unchanged |
 | [17 (a render never starts work)](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components) | RPCs, asset loads and decoding run in effects and click handlers; render only resolves and builds CSS (pure) |
-| [18 (panel layout)](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications) | The entry button is its own block; the modal's editor pages use `Field`, the shared rows and `Blocks` (18.6); the preview stage is a canvas, not settings rows |
+| [18 (panel layout)](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications) | Applied to **each column** of the modal and to every popup, as if each were the settings panel (§ 4.3, rule by rule): Steam's components through `rows.tsx`, two columns per row at most, dropdowns and text fields full width, `Blocks` spacing only, one block per key, `ActionRow` last, no empty-state rows, one icon-button size. The entry button is its own block. Exempt: the navigation list (Steam's sidebar look) and the stage (a canvas of toasts) |
 | Architecture test / hexagon | No new area or layer: one added edge (`settings -> banner`, pure domain), two files added to `PURE`, empty allowlist kept, `OWNERS` and `FEATURE_IDS` unchanged (§ 6.0) |
 
 ---
@@ -815,7 +919,7 @@ Prints `PASS creator`.
 | A save half-written | Copies first, theme file last through tmp + rename; any refusal writes nothing |
 | `.bak` files pile up | One `.bak` per theme, overwritten each time |
 | Users expect comments kept | D4 warning before the first save; the Code page shows exactly what will be written |
-| Name clash with a bundled theme hides it | Warning on Save as (§ 4.3) |
+| Name clash with a bundled theme hides it | Warning on Save as (§ 4.2) |
 
 ---
 
