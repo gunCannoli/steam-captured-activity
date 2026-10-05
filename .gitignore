@@ -43,4 +43,5 @@ cache/
 library_metadata.json
 sgdb_key.txt
 __pycache__/
-*.pyc
+# Scratch session logs
+scratch/*.jsonl

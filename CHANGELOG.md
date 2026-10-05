@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Xbox UWP Steam Overlay research & investigation plan (2026-10-04)**:
+  deep technical research into why Steam's native overlay fails on Xbox UWP games (COM activation, AppContainer ACLs,
+  kernel object isolation, and `GetForegroundWindow()` toast routing) and evaluation of candidate solutions (SISR controller
+  redirection vs overlay limitations, GlosSI WindowBands, Mirrored Presenter wrapper via `Windows.Graphics.Capture`,
+  and Millennium-native overlay HUD). Documented in [docs/plans/steam-cartridges-uwp-overlay-research-plan.md](docs/plans/steam-cartridges-uwp-overlay-research-plan.md).
+
 - **steam-cartridges: SteamGridDB icon for every unmatched shortcut (2026-10-04, the user's choice)**: icon order is the Steam match's
   icon (184 px, then 32 px), else SteamGridDB's; the exe's own icon is never kept on purpose (Steam renders it as a 32×32 BMP). The icon
   used to ride along only with a slot lookup; now `web_sgdb.fetch_icon_url` asks for it alone when every slot is set, with a
