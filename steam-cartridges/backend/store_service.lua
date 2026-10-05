@@ -185,10 +185,20 @@ function M.epic_launcher_shortcuts()
   return out
 end
 
+--- Is an Xbox package's display name an identifier, not the game's name? Some publishers put one there
+--- ("worldoftanks_blitz" for World of Tanks Blitz, found 2026-10-04); Steam's store search cannot match it.
+local function identifier_title(title, pfn)
+  if type(title) ~= "string" or title == "" then return true end
+  if title:find("%s") then return false end
+  local name = tostring(pfn or ""):match("^([^_]+)_") or ""
+  return title:find("_", 1, true) ~= nil or title:lower() == name:lower()
+end
+
 --- Every installed game and whether the library already has a shortcut for it (Third-party settings, auto-add).
 --- { epic = { { key, title, inLibrary, launch } }, xbox = { ... }, epicLauncher = bool }: `launch` = { exe, start_dir,
---- launch_options } for SteamClient.Apps.AddShortcut. Local data, except an Xbox game whose name is unknown: its
---- package names a resource, not a title, so the catalog is asked once (ctx.allowXbox, remembered like any lookup).
+--- launch_options } for SteamClient.Apps.AddShortcut. Local data, except an Xbox game whose package names a resource or
+--- an identifier instead of a title: the catalog is asked once (ctx.allowXbox, remembered like any lookup), so the new
+--- shortcut carries the name Steam's store search can match.
 function M.installed_games(ctx)
   ctx = ctx or {}
   local games = installed(true)
@@ -207,7 +217,7 @@ function M.installed_games(ctx)
   end
   for _, g in ipairs(games.xbox) do
     local copy = { kind = "xbox", title = g.title, pfn = g.pfn, titleId = g.title_id, storeId = g.store_id }
-    if not g.title then pcall(fill_xbox, copy, ctx) end
+    if identifier_title(g.title, g.pfn) then pcall(fill_xbox, copy, ctx) end
     local known = store.lookup("xbox:" .. tostring(g.pfn)) or {}
     out.xbox[#out.xbox + 1] = {
       key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = owned[g.pfn],

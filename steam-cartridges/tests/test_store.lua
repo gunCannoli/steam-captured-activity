@@ -381,6 +381,24 @@ check("with Epic switched off the local copy is still found, and the API is not 
 local list = svc.installed_games({})
 check("installed games say which ones the library has", list.epic[1].inLibrary == 4000000001 and list.xbox[1].inLibrary == 4000000002 and list.epicLauncher == true)
 check("... with a launch spec for the ones it does not", list.epic[1].launch.exe == '"C:\\L\\EpicGamesLauncher.exe"' and list.xbox[1].title == "Microsoft Jigsaw")
+-- An Xbox package whose display name is an identifier gets the catalog's title (World of Tanks Blitz, 2026-10-04).
+local WOT = { pfn = "7458BE2C.546184C62B2A0_x4tje2y229k00", root = [[C:\WOT]], app_id = "App", executable = "wotblitz.exe", title = "worldoftanks_blitz", store_id = "9MWBFDRGH1SW" }
+local SPACED = { pfn = "Some.Spaced_abc", root = [[C:\SP]], app_id = "App", executable = "sp.exe", title = "Spaced Game" }
+local xbox_prev, catalog_prev, asked = svc.deps.xbox_local, svc.deps.xbox_catalog, {}
+svc.deps.xbox_local = setmetatable({ installed = function() return { WOT, SPACED } end }, { __index = xbox_local })
+svc.deps.xbox_catalog = setmetatable({
+  by_store_id = function(id) asked[#asked + 1] = id; return { id = id } end,
+  by_pfn = function(pfn) asked[#asked + 1] = pfn; return { id = pfn } end,
+  ids = function(p) return p.id == "9MWBFDRGH1SW" and { store_id = "9MWBFDRGH1SW", title = "World of Tanks Blitz", is_game = true, title_id = "1881083876" } or { store_id = "X", title = "Other", is_game = true } end,
+}, { __index = catalog })
+local named = {}
+for _, g in ipairs(svc.installed_games({}).xbox) do named[g.key] = g.title end
+check("an Xbox package named by an identifier gets the catalog's title", named[WOT.pfn] == "World of Tanks Blitz", named[WOT.pfn])
+check("... a real display name keeps it, and the catalog is not asked for it", named[SPACED.pfn] == "Spaced Game" and #asked == 1, #asked)
+asked = {}; os.remove(copies._path); copies._reset()
+svc.installed_games({ allowXbox = false })
+check("... and with Xbox switched off the catalog is never asked", #asked == 0)
+svc.deps.xbox_local, svc.deps.xbox_catalog = xbox_prev, catalog_prev
 ENTRIES[4000000010] = { appid = 4000000010, exe = '"C:\\L\\EpicGamesLauncher.exe"', launch_options = "-com.epicgames.launcher://apps/" .. EPIC_GAME.namespace .. "%3A" .. EPIC_GAME.item_id .. "%3A" .. EPIC_GAME.app_name .. "?action=launch&silent=true" }
 local held = svc.epic_launcher_shortcuts()
 check("epic_launcher_shortcuts lists the launcher-link copies only (ADR-0057: not the direct-exe copy, not Xbox)", #held == 1 and held[1] == 4000000010, table.concat(held, ","))

@@ -19,6 +19,7 @@ local M = {}
 M.deps = {
   http_get = nil,    -- nil = steam_store_throttle.http_get (search.search's default)
   is_emulator = nil, -- nil = launches_emulator(appid), moved here from steam_store_rpc.lua
+  store_copy = nil,  -- nil = store_copies_store.get(appid): the Epic or Xbox copy saved by the `store` part
   now = function() return os.time() end,
 }
 
@@ -69,8 +70,28 @@ local function match_owned(appid, title, owned)
   return nil
 end
 
---- Full resolution: saved mapping -> owned candidates -> store search. Returns a Part (table).
---- ctx = { title = string, owned = { {appid=, name=}, ... } | nil, route = { bucket=, via= } }
+--- The titles to match, best first: the shortcut's name, then its store copy's title (ADR-0056) when that differs
+--- after normalizing. An Xbox shortcut can carry the package's own name ("worldoftanks_blitz") while the catalog
+--- names the game ("World of Tanks Blitz"); Steam's search finds only the second.
+local function titles_of(appid, ctx)
+  local out, seen = {}, {}
+  local function add(t)
+    t = type(t) == "string" and t or ""
+    local norm = normalize.normalize(t)
+    if norm ~= "" and not seen[norm] then seen[norm] = true; out[#out + 1] = t end
+  end
+  add(ctx.title)
+  local copy = ctx.store and ctx.store.data
+  if not copy then
+    local ok, saved = pcall(M.deps.store_copy or function(id) return require("store_copies_store").get(id) end, appid)
+    copy = ok and saved or nil
+  end
+  if type(copy) == "table" then add(copy.title) end
+  return out
+end
+
+--- Full resolution: saved mapping -> owned candidates -> store search, for each title (titles_of). Returns a Part.
+--- ctx = { title = string, owned = { {appid=, name=}, ... } | nil, route = { bucket=, via= }, store = Part? }
 function M.ensure(appid, ctx)
   ctx = ctx or {}
   local route = ctx.route or {}
@@ -86,58 +107,55 @@ function M.ensure(appid, ctx)
     return { status = "unsupported", checkedAt = now_ms() }
   end
 
-  local title = ctx.title or ""
-  if title == "" then
+  local titles = titles_of(appid, ctx)
+  if #titles == 0 then
     return { status = "pending", checkedAt = now_ms() }
   end
 
-  local owned = match_owned(appid, title, ctx.owned)
-  if owned then
-    local mapping, err = store.set_mapping(appid, owned.appid, owned.name, "owned")
-    if mapping then
-      return {
-        status = "ok",
-        data = { native = { appid = mapping.steam_appid, source = mapping.source } },
-        source = "owned",
-        checkedAt = now_ms(),
-      }
-    end
-    if err ~= "rejected" then
-      return { status = "error", message = err, checkedAt = now_ms() }
+  for _, title in ipairs(titles) do
+    local owned = match_owned(appid, title, ctx.owned)
+    if owned then
+      local mapping, err = store.set_mapping(appid, owned.appid, owned.name, "owned")
+      if mapping then
+        return {
+          status = "ok",
+          data = { native = { appid = mapping.steam_appid, source = mapping.source } },
+          source = "owned",
+          checkedAt = now_ms(),
+        }
+      end
+      if err ~= "rejected" then
+        return { status = "error", message = err, checkedAt = now_ms() }
+      end
     end
   end
 
   local http_get = M.deps.http_get or throttle.http_get
-  local result = search.search(title, http_get, store)
+  for _, title in ipairs(titles) do
+    local result = search.search(title, http_get, store)
 
-  if result.error then
-    return { status = "error", message = result.error, checkedAt = now_ms() }
-  end
-
-  if result.exact then
-    local mapping = store.set_mapping(appid, result.exact.appid, result.exact.name, "search")
-    if mapping then
-      store.remove_suggestion(appid, result.exact.appid)
-      return {
-        status = "ok",
-        data = { native = { appid = mapping.steam_appid, source = mapping.source } },
-        source = "search",
-        checkedAt = now_ms(),
-      }
+    if result.error then
+      return { status = "error", message = result.error, checkedAt = now_ms() }
     end
-    -- exact hit already rejected: ok without a native match.
-    return { status = "ok", data = {}, source = "search", checkedAt = now_ms() }
+
+    if result.exact then
+      local mapping = store.set_mapping(appid, result.exact.appid, result.exact.name, "search")
+      if mapping then
+        store.remove_suggestion(appid, result.exact.appid)
+        return {
+          status = "ok",
+          data = { native = { appid = mapping.steam_appid, source = mapping.source } },
+          source = "search",
+          checkedAt = now_ms(),
+        }
+      end
+      -- exact hit already rejected: the next title may still match another game.
+    elseif result.suggestions and #result.suggestions > 0 then
+      store.add_suggestions(appid, result.suggestions)
+    end
   end
 
-  if result.skipped == "negative" then
-    return { status = "ok", data = {}, source = "search", checkedAt = now_ms() }
-  end
-
-  if result.suggestions and #result.suggestions > 0 then
-    store.add_suggestions(appid, result.suggestions)
-  end
-
-  -- suggestions only, or no hit at all: ok without a native match.
+  -- suggestions only, a rejected or negative hit, or no hit at all: ok without a native match.
   return { status = "ok", data = {}, source = "search", checkedAt = now_ms() }
 end
 

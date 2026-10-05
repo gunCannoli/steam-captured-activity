@@ -7,6 +7,11 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: store copies match Steam by their store title too (2026-10-04)**: World of Tanks Blitz (Xbox, auto-added as
+  `worldoftanks_blitz`, the package's display name) never matched its Steam app 444200, so its page used the Xbox Store's data although
+  ADR-0056 says Steam first. `resolve_identity` now tries the copy's catalog title after the shortcut name; auto-add names an Xbox game
+  from the catalog when the manifest's name is an identifier. Lua 14/14, TS 314, `test:live` 13/13; the shortcut renamed (the user's request).
+
 - **steam-cartridges: Xbox UWP shortcuts run the game's exe and follow app updates (2026-10-04, ADR-0058)**: option U0 of the
   launch-tracking plan. Steam now shows Minesweeper, Sudoku and Ultimate Word Games running for the whole session (playtime, a
   timeline); the plugin repoints a shortcut after an app update. No overlay for Xbox games. The user's three shortcuts were converted.
