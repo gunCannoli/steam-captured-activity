@@ -103,12 +103,12 @@ theme and rewrite the paths** (§ 6.6). The same holds for the sound library.
 | D3 | The draft **is the raw theme JSON**, edited by path (`set` / `unset`). The preview runs the plugin's own `resolveTheme` on it | One pipeline, no second model to drift. Unknown or future keys survive a round trip |
 | D4 | The creator writes its own formatted JSONC. **Save** exists only for the user's own themes; a bundled theme (a template) only has **Save as** (R15). Opening a user theme with comments shows "Saving rewrites this file; its comments are not kept", and the first save writes `<name>.jsonc.bak` | A JSONC round trip that keeps comments is a parser project of its own. Backup makes it safe |
 | D5 | The preview renders **inside the modal** (mock toasts at real pixel size); a separate **"Test on screen"** button shows real Steam toasts with the draft | Inline: instant, side by side, no Steam state touched (R12). Real: final truth for placement, animation timing and Big Picture |
-| D6 | "Test on screen" uses an **in-memory draft override** in `theme/active-theme.ts`, never the `theme` setting and never a file | Nothing persists if Steam crashes mid-test; cleared on close and by a 2-minute timeout |
-| D7 | The banner's markup moves to a presentational `BannerCard` component (new area `frontend/ui/`) that both the banner surface and the creator render | The creator must not import a surface (layer rules); one markup, so the preview cannot drift from the real banner |
+| D6 | "Test on screen" loads the draft **in memory** through `theme/active-theme.ts` `loadDraft` (the same load path as a theme file), never the `theme` setting and never a file | Nothing persists if Steam crashes mid-test; cleared on close and by a 2-minute timeout |
+| D7 | The banner's markup moves to a presentational `BannerCard` component in `surfaces/banner/`, which `index.tsx` injects into the creator | The settings panel never imports a surface; one markup, so the preview cannot drift from the real banner; no new area (§ 6.0) |
 | D8 | Sound packs ship as **WAV** in `themes/sounds/<pack>/{subtle,distinct,grand}.wav` with a `themes/sounds/library.json` manifest. The source zips (and their MP3s) leave the plugin folder | The user's choice (R16): lossless, ≈ 15 MB. A user's own sounds stay `.mp3` or `.wav` (`.ogg` too, already allowed by themes.md, not removed) |
 | D9 | Cue names: **Subtle** (~0.95 s), **Distinct** (~1.4 s), **Grand** (~2.2 s). No ps4 / ps5 / platinum anywhere: file names, manifest, UI | R8; the user's names |
 | D10 | Desktop only: Millennium's plugin settings panel exists only in desktop mode, so the creator needs no Big Picture handling | The preview still has a Big Picture **look** toggle, because toasts do show in Big Picture |
-| D11 | New feature id **`creator`** (kill switch and error budget), though it writes nothing into Steam | An error boundary that counts failures and a way to switch the button off, like every other feature |
+| D11 | **No new layer, area or feature id.** The creator lives in the Settings panel layer (`frontend/settings/creator/`), its theme-editing logic in the pure domain (`theme/draft.ts`), and everything it needs from surfaces or start-up is injected by `index.tsx` (§ 6.0) | enhanced-notifications.md: feature ids are for writes into Steam, and the creator writes none; the existing layers already have a home for every piece |
 | D12 | Unsaved work is kept in SharedJSContext `localStorage` (`enhanced-notifications.creator.draft`) on every change; the next open offers "Restore unsaved theme" | A popout window can be closed by its own X, which the dialog cannot intercept |
 
 ### 3.2 The user's answers (2026-10-04)
@@ -155,8 +155,8 @@ Theme
 ```
 
 `ButtonRow label="Theme Creator" description="Make a new theme or edit one of yours, with a live preview"
-buttonLabel="Open"`. Disabled when `creator` is switched off or in safe mode.
-The panel does not import the creator: `index.tsx` injects `onOpenCreator` like `onPreview`.
+buttonLabel="Open"`. The creator is part of the settings panel (`settings/creator/`, same area), so the panel opens it
+directly; what the creator needs from surfaces comes in one injected `creator` deps object (§ 6.1).
 
 After a save, the creator calls the same `refresh()` + `reloadTheme()` path as Reload, and if the saved theme is the
 active one it reloads it; if the user pressed **Save and use**, it sets the `theme` setting to the new id.
@@ -197,7 +197,7 @@ side, and it never changes when the page changes.
 ```
 
 - **Navigation** is a `Focusable` page list on the left, styled with the classes of Steam's own Settings sidebar
-  (resolved like the toast selectors, spike S7). Steam's `SidebarNavigation` is not used as-is: it renders the list and
+  (resolved in the same start-up scan as the toast selectors, `steam/selectors.ts`, and injected; spike S7). Steam's `SidebarNavigation` is not used as-is: it renders the list and
   the page content as one unit, so nothing can sit between them, and the preview would remount (and replay) on every
   page change. The selected page is creator state; the preview is a sibling that never remounts.
 - **Editor** (right) scrolls on its own; the preview column does not scroll (four banners at 1:1 fit in 560 × 700).
@@ -208,7 +208,7 @@ side, and it never changes when the page changes.
 - **Close with unsaved changes** opens a confirm: "Discard changes to my_theme?" (Discard / Keep editing). The draft is
   in `localStorage` anyway (D12).
 - **Errors** never blank the modal: an error boundary around each column shows "This section failed" plus the error,
-  and counts against `creator` (`reportError('creator', e)`).
+  and is logged (no feature id, § 6.9).
 
 ### 4.3 The Start page (R3)
 
@@ -334,7 +334,7 @@ replays entrance, display time and exit in a loop with the real timings (`ANIMAT
 hovers a toast to see `settings.hover`.
 
 **What the toasts show**: sample text per type (Download complete: "Download complete" / the game's name / "Ready to
-play"; Clip saved: "Clip saved" / "15 seconds"; and so on, a table in `creator/samples.ts`), the icon of a real game in
+play"; Clip saved: "Clip saved" / "15 seconds"; and so on, a table in `settings/creator/model.ts`), the icon of a real game in
 the library (the same appid `preview()` picks from `appAchievementProgressCache`, else a neutral bundled placeholder),
 and for achievements that game's first achievement's icon, name and description when available, else "First Steps" /
 "Finish the tutorial" with a placeholder icon.
@@ -414,11 +414,11 @@ for one sound at a time, from any pack or from a file:
 "Test on screen" shows the current set as **real Steam toasts** with the draft, one after another, then the active
 theme comes back:
 
-1. The creator calls the injected `testDraft(draftRaw, assets, ids)`.
-2. `active-theme.ts` `setDraftOverride(resolved)`: `activeTheme()`, `achievementTheme()`, `themeCss()` etc. now answer
+1. The creator calls `active-theme.ts` `loadDraft(text, dir)` (the settings area may import `theme`).
+2. The draft goes through the same load path as a theme file (resolve, assets, decoded sounds), without the RPC: `activeTheme()`, `achievementTheme()`, `themeCss()` etc. now answer
    the draft; listeners fire (style, duration and queue surfaces react as on any theme change).
-3. The preview surface fires the set: `preview(id)` for notifications, `previewTier(tier)` for tiers.
-4. The override is cleared after the last toast's lifetime + 2 s, on modal close, on the next Test, or after 2 minutes,
+3. The injected `preview(id)` and `previewTier(tier)` fire the set.
+4. `clearDraft()` reloads the active theme after the last toast's lifetime + 2 s, on modal close, on the next Test, or after 2 minutes,
    whichever is first. Clearing fires listeners again (durations restored to the active theme's).
 
 Disabled while the `preview` feature is off, while Steam's toasts are off (`usePanelDisabled`), and in safe mode.
@@ -512,51 +512,94 @@ ships.
 
 ## 6. Architecture
 
+### 6.0 Where it sits: no new layer, no new area
+
+The creator adds **no layer, no area, no feature id and no Steam target**. Every piece goes into a layer
+[enhanced-notifications.md § Layers](../enhanced-notifications.md#layers) already has, by what it does:
+
+| Piece | Layer it belongs to | Why there |
+| --- | --- | --- |
+| The modal and its pages, preview stage, pickers | **Settings panel** (`frontend/settings/creator/`) | It is UI the user opens from the settings panel. `areaOf` puts every file under `settings/` in the `settings` area, so the creator is part of that area, not a new one |
+| Small pure helpers only the modal needs (sample texts, preview sets, the Sound pack rows, HSL ↔ hex) | **Settings panel**, one pure file `settings/creator/model.ts` | UI logic, not theme logic: keeping it out of `theme/` keeps the pure domain about themes |
+| Editing a theme document: set / unset by path, history, "inherited from", serialise to JSONC, the asset copy plan | **Pure domain**, one file `theme/draft.ts` | It is the theme format, the same domain as `resolveTheme` and `parseJsonc` |
+| The CSS root parameter on `buildCss` / `buildAnimationCss` | **Pure domain** (`theme/theme.ts`, existing functions) | No new file |
+| Which sound a toast plays, for the preview's 🔊 | **Pure domain**, one function `soundSpecFor(theme, tier)` in `theme/theme.ts` | The resolved theme already holds both sounds; no new file |
+| "Test on screen": the draft as the active theme for a moment | **Pure domain's loader** (`theme/active-theme.ts`) | It is one more way to load a theme; every surface already follows `onThemeChange` |
+| The banner's markup, shared by the real banner and the preview | **Surface** `surfaces/banner/` (new file `banner-card.tsx`), **injected** into the panel by `index.tsx` | The panel never imports a surface (`onPreview` etc. are injected today); a separate `ui/` area for one component would be a new layer |
+| Steam's toast class names for the mock toasts | Already resolved once at start-up by `index.tsx` (`resolveToastSelectors`), **injected** | Guardrail 3 (single-pass webpack scan): the creator never scans webpack again |
+| Opening the dialog | `steam/modal.ts` `showDialog` | The panel already imports it (`settings -> steam`, read-only helpers) |
+| Reading and writing theme files | **Backend** `backend/main.lua` | Already "owns only what the frontend cannot do itself: reading theme files"; it now also writes them, in the user folder only |
+
+**Why no feature id.** enhanced-notifications.md § How to add a feature, step 1: a feature id is for something that
+**writes into Steam**. The creator writes theme files; "Test on screen" shows toasts through the existing `preview`
+surface (gated by `preview`) and changes looks through the existing surfaces (gated by theirs). A crash in the modal is
+caught by its own error boundary and logged; it cannot affect a toast.
+
 ### 6.1 New and changed files
 
-| File | Area | Pure | Job |
+| File | Layer (area) | Pure | Job |
 | --- | --- | --- | --- |
-| `frontend/creator/index.tsx` | creator | no | `openThemeCreator(deps)`: sizes and opens the dialog |
-| `frontend/creator/theme-creator.tsx` | creator | no | The modal: header, navigation, columns, error boundaries |
-| `frontend/creator/pages/*.tsx` | creator | no | Start, Placement, Card, Text, Icons, Sound, Achievements (Layout, tiers), Code |
-| `frontend/creator/preview/stage.tsx` | creator | no | Gallery and On screen modes, Replay, Loop |
-| `frontend/creator/preview/mock-toast.tsx` | creator | no | Steam's toast DOM, with Steam's classes |
-| `frontend/creator/sound-picker.tsx` | creator | no | Library and theme files, playback |
-| `frontend/creator/controls.tsx` | creator | no | Colour swatch, linked edges, "inherited from" row, ↺ unset |
-| `frontend/creator/samples.ts` | creator | yes | Sample texts per notification type and tier |
-| `frontend/creator/preview-set.ts` | creator | yes | Which four toasts a set shows (uses `pickPreview`'s rule) |
-| `frontend/creator/sound-pack.ts` | creator | yes | The Sound pack panel: `currentCues(draft, pack)` (which row is already which cue) and `applyPack(draft, pack, rows)` (writes the non-Keep rows and their `pendingCopies`) |
-| `frontend/theme/draft.ts` | theme | yes | `get/set/unset(raw, path)`, undo/redo history, `effectiveSource(raw, tier, key)` for "inherited from" |
-| `frontend/theme/serialize.ts` | theme | yes | Draft → JSONC text: fixed key order (settings, popup, text, font_family, game_icon, header_icon, sound, achievements; tiers in `TIERS` order), 4-space indent, tuples on one line, a header comment |
-| `frontend/theme/assets.ts` | theme | yes | Every asset path in a raw theme, the copy plan for a save (§ 6.6), path rewrite |
-| `frontend/theme/sound-choice.ts` | theme | yes | `soundFor(theme, kind, tier)`: the sound decision for a preview toast |
-| `frontend/theme/color.ts` | theme | yes | HSL(A) ↔ hex for `ColorPickerModal` |
-| `frontend/theme/theme.ts` | theme | yes | `buildCss` and `buildAnimationCss` take an optional `root` (default `body[data-en-type]`, output unchanged) |
-| `frontend/theme/active-theme.ts` | theme | no | `setDraftOverride(loaded \| null)` (§ 4.7) |
-| `frontend/ui/banner-card.tsx` | ui (new) | no | The banner's markup, from `ThemedBanner` (D7) |
-| `frontend/surfaces/banner/themed-toast.tsx` | surfaces/banner | no | Renders `BannerCard`; keeps queue, pin, hold, timing |
-| `frontend/settings/settings-panel.tsx` | settings | no | The "Theme Creator" block; `onOpenCreator` prop |
+| `frontend/settings/creator/index.tsx` | settings | no | `openThemeCreator(deps)`: sizes and opens the dialog |
+| `frontend/settings/creator/theme-creator.tsx` | settings | no | The modal: header, navigation, columns, error boundaries |
+| `frontend/settings/creator/pages/*.tsx` | settings | no | Start, Placement, Card, Text, Icons, Sound, Achievements (Layout, tiers), Code |
+| `frontend/settings/creator/preview.tsx` | settings | no | The stage: Gallery and On screen, Replay, Loop, mock toasts with Steam's classes |
+| `frontend/settings/creator/sounds.tsx` | settings | no | The Sound pack panel, the single sound picker, playback |
+| `frontend/settings/creator/controls.tsx` | settings | no | Colour swatch, linked edges, "inherited from" row, ↺ unset |
+| `frontend/settings/creator/model.ts` | settings | **yes** | Sample texts, preview sets, `currentCues` / `applyPack`, HSL ↔ hex |
+| `frontend/theme/draft.ts` | theme | **yes** | `set` / `unset` by path, history, `effectiveSource`, `serialize` (JSONC out), `copyPlan` (§ 6.6). One file; split only past ~400 lines |
+| `frontend/theme/theme.ts` | theme | yes | `buildCss` / `buildAnimationCss` take an optional `root` (default `body[data-en-type]`, output unchanged); `soundSpecFor(theme, tier)` |
+| `frontend/theme/active-theme.ts` | theme | no | `loadDraft(text, dir)` / `clearDraft()` (§ 4.7) |
+| `frontend/surfaces/banner/banner-card.tsx` | surfaces/banner | no | The banner's markup, moved out of `ThemedBanner` (D7) |
+| `frontend/surfaces/banner/themed-toast.tsx` | surfaces/banner | no | Renders `BannerCard`; queue, pin, hold and timing unchanged |
+| `frontend/surfaces/banner/index.ts` | surfaces/banner | no | Exports `BannerCard` for `index.tsx` |
+| `frontend/settings/settings-panel.tsx` | settings | no | The "Theme Creator" block; passes the injected `creator` deps on |
 | `frontend/rpc.ts` | rpc | no | `saveTheme`, `deleteTheme`, `listThemeAssets`, `soundLibrary` |
-| `frontend/safety/features.ts` | safety | yes | Append `creator` to `FEATURE_IDS` |
-| `frontend/index.tsx` | index | no | Wires `onOpenCreator` and `testDraft` |
+| `frontend/index.tsx` | composition root | no | Builds the one `creator` deps object (below) and passes it to `SettingsPanel` |
 | `backend/main.lua` | backend | — | `SaveTheme`, `DeleteTheme`, `ListThemeAssets`, `SoundLibrary` |
 | `themes/sounds/**`, `tools/import-sfx.mjs` | — | — | § 5 |
-| `tests/creator.test.ts`, `tests/draft.test.ts`, `tests/serialize.test.ts` | tests | — | § 10 |
+| `tests/draft.test.ts`, `tests/creator.test.ts` | tests | — | § 10 |
 | `tests/creator.mjs` | tests (live) | — | § 10 |
 
-### 6.2 Layer rules (`tests/architecture.test.ts` `LAYER_RULES`)
+What is **not** added, on purpose: no `frontend/creator/` or `frontend/ui/` area, no `FEATURE_IDS` entry, no surface,
+no sensor, no kernel type, no new `touches`, no `OWNERS` row.
 
-Two new areas, three new rules; the allowlist stays empty:
+The injected deps, one object, so `SettingsPanel`'s props grow by one:
 
 ```ts
-[/^creator$/, /^(rpc|theme|banner|ui|settings|steam)$/], // the modal: theme pipeline, RPC, Steam's dialog (steam/modal.ts) and selectors
-[/^ui$/, /^(theme|banner)$/],                               // presentational components over the pure theme and banner types
-[/^surfaces\//, /^(steam|theme|banner|capture|settings|ui)$/], // (extends the existing rule with ui)
+/** index.tsx → SettingsPanel → openThemeCreator. Everything the creator needs from a surface or from start-up. */
+interface CreatorDeps {
+    selectors: ToastSelectors;                         // resolved once at start-up (kernel type)
+    sidebarClasses: Record<string, string>;            // Steam's Settings sidebar classes, same start-up scan (S7)
+    previewOptions: PreviewOption[];                   // already injected today
+    pickPreview: (ids: readonly string[], last: string | null) => string | null;
+    preview: (id: string) => Promise<unknown>;         // Test on screen, notifications
+    previewTier: (tier: Tier) => Promise<void>;        // Test on screen, achievements
+    BannerCard: React.ComponentType<BannerCardProps>;  // the real banner's markup
+}
 ```
 
-`creator` never imports a surface: the preview list, `preview()` and `previewTier()` reach it through `index.tsx`
-(`deps`), like the settings panel. `settings` never imports `creator` (`onOpenCreator` is injected).
-`ui/` is not pure (React) and is not listed as pure.
+`ToastSelectors` is a kernel type (every layer may use the kernel). `BannerCardProps` is declared in
+`settings/creator/` as the props the creator passes, and `banner-card.tsx` is typed against the same shape through the
+injection in `index.tsx` (the composition root may import both), so neither side imports the other.
+
+### 6.2 Layer rules (`tests/architecture.test.ts`)
+
+**One** change to `LAYER_RULES`: the settings panel may read the pure banner domain (the creator's On screen mode
+places banners with `banner/geometry.ts` `bannerSize` / `placeBanner`, and times Loop exit with `banner/timing.ts`).
+
+```ts
+// before
+[/^settings$/, /^(rpc|theme|capture|steam)$/], // previews are injected as a prop; capture holds the sliders' ranges; steam is the read-only toasts-off flag
+// after
+[/^settings$/, /^(rpc|theme|capture|steam|banner)$/], // ... ; banner: the pure banner domain (geometry, timing) for the Theme Creator's preview
+```
+
+`banner/` is pure domain; the surfaces and `capture` already read it. The allowlist stays empty. The rules test gains
+`'settings -> banner'` in `allowed` and `'settings -> surfaces/banner'` in `forbidden` (next to the existing
+`'settings -> surfaces/preview'`), so the injection cannot quietly turn into an import.
+
+`PURE` gains two files: `theme/draft.ts` and `settings/creator/model.ts`. Both may import only other pure files at
+runtime (the existing purity test enforces it).
 
 ### 6.3 Scoping the preview CSS
 
@@ -572,15 +615,16 @@ default) so Loop exit uses the real timings.
 
 `BannerCard({ theme, tier, assets, title, description, imageUrl, phase, onClick, rootRef })` returns the markup that
 `ThemedBanner` renders today after its `phase === 'waiting'` branch (the root `div.ea-banner` with its CSS variables,
-`<style>{BANNER_CSS}</style>`, and the layout switch for `ps5` / custom / classic). `ThemedBanner` keeps every hook,
-the queue, the pin, the hold and the timing, and passes its values in. A pure refactor: the achievement live suite
-(`achievements-smoke`, `-tiers`, `-queue`, `-bigpicture`) must pass unchanged before anything else in the creator lands.
+`<style>{BANNER_CSS}</style>`, and the layout switch for `ps5` / custom / classic). It stays in `surfaces/banner/`, the
+banner's own folder: it is markup and writes nothing into Steam. `ThemedBanner` keeps every hook, the queue, the pin,
+the hold and the timing, and passes its values in. A pure refactor: the achievement live suite (`achievements-smoke`,
+`-tiers`, `-queue`, `-bigpicture`) must pass unchanged before anything else in the creator lands.
 
 ### 6.5 The draft
 
 ```ts
 interface CreatorDraft {
-    name: string;                         // file stem, [a-z0-9_-]{1,40}
+    name: string;                         // file stem, [A-Za-z0-9_-]{1,40}
     origin: { kind: 'fresh' } | { kind: 'template' | 'user'; id: string; dir: string; hadComments: boolean };
     raw: Record<string, unknown>;         // the theme JSON, edited by path
     pendingCopies: Record<string, AssetSource>;  // saved path → where it is now
@@ -588,14 +632,14 @@ interface CreatorDraft {
 type AssetSource = { kind: 'library'; pack: string; cue: string } | { kind: 'dir'; dir: string; path: string };
 ```
 
-Every edit is `draft.ts` `set(raw, path, value)` / `unset(raw, path)` and returns a new object (history = an array of
-snapshots, 100 deep). `useMemo(() => resolveTheme(raw), [raw])` gives the preview what the plugin would use (guardrail
-17: resolving is pure work in render; asset loading is an effect keyed by the set of asset paths, debounced 250 ms,
-cached by `(dir, path)`).
+The type lives in `theme/draft.ts` (pure). Every edit is `set(raw, path, value)` / `unset(raw, path)` and returns a
+new object (history = an array of snapshots, 100 deep). `useMemo(() => resolveTheme(raw), [raw])` gives the preview
+what the plugin would use (guardrail 17: resolving is pure work in render; asset loading is an effect keyed by the set
+of asset paths, debounced 250 ms, cached by `(dir, path)`).
 
 ### 6.6 Saving
 
-`SaveTheme` is called with the final text and a copy list, built by `theme/assets.ts` `copyPlan(draft)`:
+`SaveTheme` is called with the final text and a copy list, built by `theme/draft.ts` `copyPlan(draft)`:
 
 1. Collect every asset path in `raw` (the same walk `resolveTheme` uses for `assetPaths`).
 2. For each relative path: if it already lies under `<name>/` and the draft is a user theme with that name, keep it.
@@ -607,7 +651,7 @@ cached by `(dir, path)`).
 Backend `SaveTheme { name, text, overwrite, backup, copies: [{ from: 'bundled' | 'user' | 'library', path, to }] }`:
 
 - `name` must match `^[A-Za-z0-9_-]{1,40}$`; the file is `<userDir>/<name>.jsonc`; nothing outside `<userDir>` is ever
-  written (checked after joining, like `find_theme`'s `..` check).
+  written (checked after joining, like `find_theme`'s `..` check). The bundled folder is never a target (R15).
 - `overwrite: false` and the file exists → `{ error = "exists" }` (the creator asks, then calls again with `true`).
 - `backup: true` → copy the old file to `<name>.jsonc.bak` first.
 - Each copy: the source resolves inside the bundled themes folder, the user themes folder or `themes/sounds/`; its
@@ -628,40 +672,49 @@ refuses anything not in `<userDir>`.
 
 Each is registered in `backend/main.lua` (architecture test rule 4) and wrapped by `method()`.
 
-### 6.8 Owners table (enhanced-notifications.md and `OWNERS`)
+### 6.8 Owners
 
-| Target | Owner |
-| --- | --- |
-| The user themes folder: writing and deleting theme files and their asset folders | `backend/main.lua` `SaveTheme` / `DeleteTheme` (called only from `creator/`) |
-| The active theme's draft override | `theme/active-theme.ts` `setDraftOverride` (called only through `index.tsx` `testDraft`) |
+The "Steam targets and their one owner" table and `OWNERS` are for **writes into Steam**; the creator adds none, so
+neither changes. Two non-Steam writers, documented in prose in enhanced-notifications.md (§ 6.10), not in that table:
 
-No new Steam target. "Test on screen" uses the existing preview surface and `previewTier`.
+- Theme files in the user folder: only `backend/main.lua` `SaveTheme` / `DeleteTheme`.
+- The draft as the active theme: only `theme/active-theme.ts` `loadDraft` / `clearDraft`, called only from
+  `settings/creator/`. One architecture test line checks no other file calls `loadDraft` (the leak guard of § 4.7).
 
 ### 6.9 Safety
 
-- `creator` in `FEATURE_IDS`. Off: the button is disabled. Errors in the modal's boundaries call
-  `reportError('creator', e)`; past the budget the button disables for the session.
-- The override is bounded (§ 4.7) and cleared in a `finally` and on unmount.
-- Safe mode: the button is disabled (nothing is hooked anyway).
+- No feature id (§ 6.0). Each column of the modal has an error boundary that shows "This section failed" and logs;
+  the modal and the toasts cannot take each other down.
+- Test on screen is gated by the existing `preview` id and by the surfaces' own ids, like any preview.
+- The draft load is bounded (§ 4.7) and cleared in a `finally` and on unmount.
+- Safe mode: nothing is hooked, so Test on screen does nothing (the injected `preview` returns null); the rest of the
+  creator (editing, saving) still works, as the rest of the settings panel does.
+
+### 6.10 Doc changes this implies (P10)
+
+enhanced-notifications.md: the **Layers** table's Settings panel row gains `settings/creator/` ("the Theme Creator
+modal; `model.ts` is pure"); the **Pure domain** row gains `theme/draft.ts`; the Settings panel section gains a short
+"Theme Creator" paragraph (what is injected, Save-as-only templates, the two non-Steam writers). No new row in the
+Safety net or Steam targets tables; "How to add a feature" is unchanged.
 
 ---
 
 ## 7. Data flow
 
 ```
-Settings panel ── onOpenCreator ──► creator/index.tsx ── showDialog ──► ThemeCreator (modal)
-                                                                         │
-     rpc.listThemes / loadTheme / soundLibrary / listThemeAssets ◄──────┤ Start page, pickers
-                                                                         │
-     draft.raw ──► resolveTheme (pure) ──► style, achievements, warnings │
-                       │                                                 │
-                       ├─► buildCss(root=stage) ─► <style> in the stage  │ Preview: mock toasts
-                       ├─► BannerCard (ui/)                              │          banners
-                       └─► soundFor ─► audio() ─► 🔊                    │          sounds
-                                                                         │
-     Save ─► copyPlan + serialize ─► rpc.saveTheme ─► backend writes ────┤
-                                     └─► refresh list, reloadTheme (and set `theme` on "Save and use")
-     Test on screen ─► index.tsx testDraft ─► setDraftOverride ─► preview()/previewTier() ─► real toasts ─► cleared
+index.tsx ── creator deps (selectors, previews, BannerCard) ──► SettingsPanel ──► settings/creator (modal)
+                                                                                    │
+     rpc.listThemes / loadTheme / soundLibrary / listThemeAssets ◄─────────────────┤ Start page, pickers
+                                                                                    │
+     draft.raw ──► resolveTheme (theme/, pure) ──► style, achievements, warnings    │
+                       │                                                            │
+                       ├─► buildCss(root=stage) ─► <style> in the stage             │ Preview: mock toasts
+                       ├─► BannerCard (injected)                                    │          banners
+                       └─► soundSpecFor ─► audio() ─► 🔊                           │          sounds
+                                                                                    │
+     Save ─► copyPlan + serialize (theme/draft.ts) ─► rpc.saveTheme ─► backend writes the user folder
+                                     └─► refresh list, reloadTheme (and set `theme` on "Save as and use")
+     Test on screen ─► active-theme loadDraft ─► injected preview()/previewTier() ─► real toasts ─► clearDraft
 ```
 
 ---
@@ -692,14 +745,14 @@ committed. A phase's mechanical plan is written when it starts.
 | Phase | Scope | Exit check |
 | --- | --- | --- |
 | **P1 Sound library** | `tools/import-sfx.mjs`; `themes/sounds/` (17 packs × 3 WAV, `library.json`); move the zips to `assets-src/sfx/`; `.gitignore`; themes.md § "Sound library" (how a bundled theme refers to `sounds/<pack>/<cue>.wav`); `SoundLibrary` RPC | The import script prints 17 packs, 51 files, all lengths in range; `npm test`; Lua test: `ListThemes` unchanged with `themes/sounds/` present. By ear (the user): a template theme the user writes with library sounds plays them on the tier previews |
-| **P2 Pure groundwork** | `theme/draft.ts`, `theme/serialize.ts`, `theme/assets.ts`, `theme/sound-choice.ts`, `theme/color.ts`, `buildCss`/`buildAnimationCss` `root` param, `creator/samples.ts`, `creator/preview-set.ts`; unit tests | `npm test`: new tests pass; `serialize(parseJsonc(x))` re-resolves to the same `resolveTheme` result for every bundled theme |
-| **P3 BannerCard refactor** | `ui/banner-card.tsx`, `themed-toast.tsx` uses it, layer rule for `ui` | `npm test`; deploy; `npm run test:live` achievement checks pass as before (with the lock) |
+| **P2 Pure groundwork** | `theme/draft.ts` (paths, history, `effectiveSource`, `serialize`, `copyPlan`), `theme/theme.ts` (`root` param, `soundSpecFor`), `settings/creator/model.ts`; both new files in `PURE`; unit tests | `npm test`: new tests pass; `serialize(parseJsonc(x))` re-resolves to the same `resolveTheme` result for every bundled theme |
+| **P3 BannerCard refactor** | `surfaces/banner/banner-card.tsx`, `themed-toast.tsx` uses it, exported from `surfaces/banner/index.ts`; no layer rule change | `npm test`; deploy; `npm run test:live` achievement checks pass as before (with the lock) |
 | **P4 Backend writes** | `SaveTheme`, `DeleteTheme`, `ListThemeAssets`; Lua tests (name validation, path escape refused, copy refused for a disallowed type, atomic write) | Lua tests pass; architecture test (RPCs registered) |
 | **P5 Spikes S1-S7** | § 8 | Findings written into the docs |
-| **P6 Modal shell** | Entry button, `creator` feature id, modal at its size, Start page, header, Save / Save as / Save and use / Delete, unsaved guard, `localStorage` draft, Code page | Live: open, start from each source, save a copy of `ps5`, it loads in the dropdown and its assets resolve from the user folder |
+| **P6 Modal shell** | Entry button, modal at its size, Start page, header, Save / Save as / Save and use / Delete, unsaved guard, `localStorage` draft, Code page | Live: open, start from each source, save a copy of `ps5`, it loads in the dropdown and its assets resolve from the user folder |
 | **P7 Editor pages** | Placement, Card, Text, Icons, Sound (without the library picker), Achievements Layout and tiers with "inherited from" | Live by hand: each control changes the saved file as expected; ↺ removes the key |
 | **P8 Preview** | Stage (Gallery, On screen, Desktop / Big Picture look), sets, Replay, Loop exit, warnings strip, 🔊, sound picker with the library | Live: the four sets render; changing a colour updates the preview in under 100 ms; each 🔊 plays the expected clip |
-| **P9 Test on screen** | `setDraftOverride`, `testDraft`, bounds | `tests/creator.mjs` passes; after a test the active theme's CSS and durations are back (compared before/after) |
+| **P9 Test on screen** | `loadDraft` / `clearDraft`, bounds, the `loadDraft` caller check | `tests/creator.mjs` passes; after a test the active theme's CSS and durations are back (compared before/after) |
 | **P10 Docs** | ADR-0059, enhanced-notifications.md (layers, owners, feature id, Theme Creator section), themes.md (sound library, "made with the Theme Creator"), CHANGELOG, TASK | Docs review |
 
 P1 and P2 can run in parallel; P3 before P8; P4 before P6.
@@ -710,18 +763,20 @@ P1 and P2 can run in parallel; P3 before P8; P4 before P6.
 
 **Unit (`npm test`)**
 
-- `draft.test.ts`: set / unset create and prune empty objects; undo / redo; `effectiveSource` for every tier and
-  `BANNER_KEYS` key (Normal → All tiers → Card → Steam's own).
-- `serialize.test.ts`: for each bundled theme, `resolveTheme(parseJsonc(serialize(raw)))` deep-equals
-  `resolveTheme(raw)`; key order; tuples on one line; unknown keys kept.
-- `creator.test.ts`: `copyPlan` (template paths copied and rewritten, clashes numbered, absolute kept, library picks);
-  `soundFor` matches `surfaces/sound/sound.ts` on the same cases; `preview-set` (four distinct, never Achievement in
-  the notification sets); `color` round trips; `applyPack` (a Keep row is untouched whatever it held, each cue writes
+- `draft.test.ts` (`theme/draft.ts`): set / unset create and prune empty objects; undo / redo; `effectiveSource` for
+  every tier and `BANNER_KEYS` key (Normal → All tiers → Card → Steam's own); for each bundled theme,
+  `resolveTheme(parseJsonc(serialize(raw)))` deep-equals `resolveTheme(raw)`; key order; tuples on one line; unknown
+  keys kept; `copyPlan` (template paths copied and rewritten, clashes numbered, absolute kept, library picks).
+- `creator.test.ts` (`settings/creator/model.ts`): preview sets (four distinct, never Achievement in the notification
+  sets); HSL ↔ hex round trips; `applyPack` (a Keep row is untouched whatever it held, each cue writes
   `<theme>/<pack>_<cue>.wav` with its volume and one `pendingCopies` entry, tier rows ignored without an
   `achievements` block) and `currentCues` (reopening the panel shows what Apply wrote).
-- `theme.test.ts` (extended): `buildCss` / `buildAnimationCss` with the default root produce exactly today's output.
-- `architecture.test.ts`: the new `LAYER_RULES`; `creator` and `ui` never import a surface; `OWNERS` gains the two
-  rows of § 6.8; the four new RPCs registered.
+- `theme.test.ts` (extended): `buildCss` / `buildAnimationCss` with the default root produce exactly today's output;
+  `soundSpecFor` agrees with `surfaces/sound/sound.ts` on the same cases (tier clip, else notification sound, `false`
+  mutes, else Steam's).
+- `architecture.test.ts`: `'settings -> banner'` allowed, `'settings -> surfaces/banner'` forbidden; `PURE` gains
+  `theme/draft.ts` and `settings/creator/model.ts`; only `theme/active-theme.ts` and `settings/creator/` mention
+  `loadDraft`; the four new RPCs registered. `OWNERS`, `FEATURE_IDS` and the allowlist unchanged.
 
 **Lua (`tests/test_backend.lua`, new for this plugin, in the style of steam-cartridges')**: `SaveTheme` refuses
 `../x`, `a/b`, an empty or 41-character name, a `.exe` copy, a 9 MB copy, a source outside the three roots; writes
@@ -740,12 +795,13 @@ Prints `PASS creator`.
 
 | Guardrail | How the design keeps it |
 | --- | --- |
-| [2 (hot paths O(1))](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) | The override is a pointer swap; toast-time reads stay cached values |
+| [2 (hot paths O(1))](../plugins.md#2-zero-expensive-operations-in-hot-prototype-methods-o1-strictly-enforced) | The draft is loaded like any theme, before a toast; toast-time reads stay cached values |
+| [3 (single-pass webpack scan)](../plugins.md#3-single-pass-webpack-module-pre-caching) | The creator gets Steam's toast selectors from start-up through injection; it never scans webpack (S7's sidebar classes are resolved in the same start-up pass) |
 | [12 (popup hooks)](../plugins.md#12-popup-hooks-do-not-see-every-window) | The preview's CSS is a `<style>` inside the stage element, never injected by a window hook |
 | [15 (never weaken a check)](../plugins.md#15-never-weaken-a-verification-check-to-match-new-behaviour) | P3's refactor must pass the achievement live checks unchanged |
 | [17 (a render never starts work)](../plugins.md#17-a-render-never-starts-work-a-refresh-never-leaves-its-own-components) | RPCs, asset loads and decoding run in effects and click handlers; render only resolves and builds CSS (pure) |
 | [18 (panel layout)](../plugins.md#18-settings-panel-layout-reference-enhanced-notifications) | The entry button is its own block; the modal's editor pages use `Field`, the shared rows and `Blocks` (18.6); the preview stage is a canvas, not settings rows |
-| Architecture test | Two new areas with explicit rules, empty allowlist kept |
+| Architecture test / hexagon | No new area or layer: one added edge (`settings -> banner`, pure domain), two files added to `PURE`, empty allowlist kept, `OWNERS` and `FEATURE_IDS` unchanged (§ 6.0) |
 
 ---
 
