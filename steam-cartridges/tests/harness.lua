@@ -141,7 +141,15 @@ function utils.write_file(path, content)
   f:close()
   return true
 end
+function utils.url_encode(str)
+  if not str then return "" end
+  return (string.gsub(tostring(str), "([^%w_%-%.~])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
+end
 package.loaded["utils"] = utils
+
+
 
 -- ---------- stub: http ----------
 -- A test must never reach the network.

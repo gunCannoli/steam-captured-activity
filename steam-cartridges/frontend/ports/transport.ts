@@ -1,6 +1,9 @@
 // The one function that calls the backend (migration plan M4c; moved from rpc.ts
 // verbatim). rpc.ts and ports/backend.ts both call through this.
-export async function call<R>(name: string, payload: object = {}): Promise<R> {
+
+let callQueue: Promise<unknown> = Promise.resolve();
+
+async function executeCall<R>(name: string, payload: object = {}): Promise<R> {
   const millennium = (window as any)['Millennium'];
   const callFn = millennium ? millennium['callServerMethod'] : undefined;
   const candidatePlugins = ['steam-cartridges-dev', 'steam-cartridges'];
@@ -23,3 +26,13 @@ export async function call<R>(name: string, payload: object = {}): Promise<R> {
   }
   throw lastError;
 }
+
+export function call<R>(name: string, payload: object = {}): Promise<R> {
+  const task = callQueue.then(() => executeCall<R>(name, payload));
+  callQueue = task.then(
+    () => {},
+    () => {},
+  );
+  return task;
+}
+

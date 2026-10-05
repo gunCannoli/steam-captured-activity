@@ -7,6 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: backend crash (EXCEPTION_ACCESS_VIOLATION in millennium.luavm64.exe) on concurrent frontend RPC calls (2026-10-05)**:
+  the frontend transport (`ports/transport.ts`) now serializes all calls to `Millennium.callServerMethod` via a FIFO Promise queue.
+  Millennium's backend Lua VM is single-threaded; concurrent RPC dispatches from background ingestion and user navigation caused stack frame and non-volatile register corruption.
+  Title search queries now also normalize non-breaking spaces (`\xc2\xa0`) and Unicode dashes in `screenscraper_media.lua` (e.g. "Final Fantasy VI - Ted Woolsey Edition"), ensuring base titles match cleanly and avoiding slow fallback loops.
+
+- **Fixed: RetroAchievements missing for emulator games (RetroArch 1.19+ keychain support) (2026-10-05)**:
+  RetroArch 1.19+ encrypts credentials in `retroarch-keychain.cfg` + `retroarch-keychain.key` instead of writing plaintext tokens to `retroarch.cfg`.
+  When plaintext tokens were missing, credential discovery previously fell back to DuckStation, which held a stale token returning 401 Unauthorized for all emulator shortcuts.
+  `retroachievements.lua` now decrypts the RetroArch keychain at runtime using pure LuaJIT/FFI with Windows CNG (`bcrypt.dll`) and `advapi32.dll` (RFC 5869 HKDF-SHA256 + ChaCha20-Poly1305 with MachineGuid), requiring zero external dependencies or processes.
+  Unmatched titles and arcade romsets (e.g., SNK vs. Capcom: SVC Chaos, GameID 11769; Jurassic Park Part 2: The Chaos Continues, GameID 970) now successfully load full achievement schemas and user unlocks.
+
+
 - **Changed: a shortcut without a Steam match always gets SteamGridDB's icon (2026-10-04)**: Steam shows an exe's icon as a pixelated 32×32 image, so a shortcut whose icon is still the exe's (or unset) now gets SteamGridDB's icon even when all its artwork is already set (one icon-only request; a game SteamGridDB has no icon for is not asked again for 7 days). A Steam match still uses Steam's icon, and an icon you chose is never replaced.
 
 - **Fixed: a Steam-matched shortcut kept the Explorer (or exe) icon when Steam's large icon is missing (2026-10-04)**: the library icon was taken only from the 184 px community icon, which Steam's CDN does not serve for some apps (World of Tanks Blitz, 444200: 404) although the store item still names it. The 32 px community icon (the size Steam's own sidebar uses) is now tried next. Live: World of Tanks Blitz got its Steam icon.

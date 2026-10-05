@@ -122,11 +122,12 @@ function config.get_retroachievements_credentials()
   local env_map = get_env_map()
   local api = env_map["retroachievements_api"] or env_map["ra_api_key"] or env_map["ra_key"]
   local user = env_map["retroachievements_user"] or env_map["ra_username"] or env_map["ra_user"]
-  if api and #api > 0 then
-    return { token = api, username = (user and #user > 0) and user or "RetroAchievementsUser" }
+  if api and #api > 0 and user and #user > 0 then
+    return { token = api, username = user }
   end
   return nil
 end
+
 
 --- Resolve ScreenScraper credentials from .env if provided
 ---@return table|nil { user = string, pass = string, dev_user = string, dev_pw = string }

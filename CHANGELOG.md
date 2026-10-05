@@ -7,7 +7,13 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
-- **steam-cartridges: Xbox UWP Steam Overlay research & investigation plan (2026-10-04)**:
+- **steam-cartridges: backend crash fix (RPC concurrency) and RetroArch 1.19+ keychain support (2026-10-05)**:
+  fixed backend crash (`EXCEPTION_ACCESS_VIOLATION` in `millennium.luavm64.exe` at `0x1087c`) by serializing all frontend
+  RPC calls via a FIFO Promise queue in `ports/transport.ts`. Normalized non-breaking spaces (`\xc2\xa0`) and Unicode dashes in
+  `screenscraper_media.lua` to extract base titles cleanly. Added zero-dependency runtime decryption of RetroArch 1.19+ encrypted
+  keychain (`retroarch-keychain.cfg` + `retroarch-keychain.key` using HKDF-SHA256 and ChaCha20-Poly1305 via Windows CNG `bcrypt.dll`
+  and LuaJIT FFI), fixing RetroAchievements missing achievements across all emulator shortcuts (verified live for JP2 and SVC Chaos).
+
   deep technical research into why Steam's native overlay fails on Xbox UWP games (COM activation, AppContainer ACLs,
   kernel object isolation, and `GetForegroundWindow()` toast routing) and evaluation of candidate solutions (SISR controller
   redirection vs overlay limitations, GlosSI WindowBands, Mirrored Presenter wrapper via `Windows.Graphics.Capture`,

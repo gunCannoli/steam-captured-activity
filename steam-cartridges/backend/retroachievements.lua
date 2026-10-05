@@ -17,8 +17,10 @@ local data_dir    = require("data_dir")
 local steam_paths = require("steam_paths")
 local shortcuts   = require("shortcuts")
 local store       = require("achievements_store")
+local bit         = require("bit")
 
 local M = {}
+
 
 --- Default RetroArch install directory on this machine
 local DEFAULT_RA_DIR = "C:/emu/RetroArch"
@@ -61,6 +63,217 @@ function M.parse_ini(text)
     end
   end
   return data
+end
+
+--- Decrypts RetroArch 1.19+ credentials from retroarch-keychain.cfg and retroarch-keychain.key
+--- using Windows CNG (bcrypt.dll) and advapi32.dll (RFC 5869 HKDF-SHA256 + ChaCha20-Poly1305).
+local function read_retroarch_keychain(base_dir)
+  local ok, res = pcall(function()
+    local f_key = io.open(base_dir .. "/retroarch-keychain.key", "r")
+    if not f_key then return nil end
+    local key_hex = f_key:read("*l")
+    f_key:close()
+    if not key_hex or #key_hex < 64 then return nil end
+
+    local f_cfg = io.open(base_dir .. "/retroarch-keychain.cfg", "r")
+    if not f_cfg then return nil end
+    local cfg_text = f_cfg:read("*a")
+    f_cfg:close()
+    if not cfg_text then return nil end
+
+    local ffi = require("ffi")
+
+    pcall(ffi.cdef, [[
+      typedef void* BCRYPT_ALG_HANDLE;
+      typedef void* BCRYPT_KEY_HANDLE;
+      typedef void* BCRYPT_HASH_HANDLE;
+      typedef void* HKEY;
+      typedef unsigned long DWORD;
+      typedef long LSTATUS;
+
+      LSTATUS RegOpenKeyExA(HKEY hKey, const char* lpSubKey, DWORD ulOptions, DWORD samDesired, HKEY* phkResult);
+      LSTATUS RegQueryValueExA(HKEY hKey, const char* lpValueName, DWORD* lpReserved, DWORD* lpType, unsigned char* lpData, DWORD* lpcbData);
+      LSTATUS RegCloseKey(HKEY hKey);
+
+      long BCryptOpenAlgorithmProvider(BCRYPT_ALG_HANDLE *phAlgorithm, const wchar_t *pszAlgId, const wchar_t *pszImplementation, unsigned long dwFlags);
+      long BCryptCloseAlgorithmProvider(BCRYPT_ALG_HANDLE hAlgorithm, unsigned long dwFlags);
+      long BCryptGenerateSymmetricKey(BCRYPT_ALG_HANDLE hAlgorithm, BCRYPT_KEY_HANDLE *phKey, unsigned char *pbKeyObject, unsigned long cbKeyObject, unsigned char *pbSecret, unsigned long cbSecret, unsigned long dwFlags);
+      long BCryptDestroyKey(BCRYPT_KEY_HANDLE hKey);
+
+      long BCryptCreateHash(BCRYPT_ALG_HANDLE hAlgorithm, BCRYPT_HASH_HANDLE *phHash, unsigned char *pbHashObject, unsigned long cbHashObject, unsigned char *pbSecret, unsigned long cbSecret, unsigned long dwFlags);
+      long BCryptHashData(BCRYPT_HASH_HANDLE hHash, unsigned char *pbInput, unsigned long cbInput, unsigned long dwFlags);
+      long BCryptFinishHash(BCRYPT_HASH_HANDLE hHash, unsigned char *pbOutput, unsigned long cbOutput, unsigned long dwFlags);
+      long BCryptDestroyHash(BCRYPT_HASH_HANDLE hHash);
+
+      typedef struct _BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO {
+        unsigned long cbSize;
+        unsigned long dwInfoVersion;
+        unsigned char *pbNonce;
+        unsigned long cbNonce;
+        unsigned char *pbAuthData;
+        unsigned long cbAuthData;
+        unsigned char *pbTag;
+        unsigned long cbTag;
+        unsigned char *pbMacContext;
+        unsigned long cbMacContext;
+        unsigned long cbAAD;
+        unsigned long long cbData;
+        unsigned long dwFlags;
+      } BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO;
+
+      long BCryptDecrypt(
+        BCRYPT_KEY_HANDLE hKey,
+        unsigned char *pbInput,
+        unsigned long cbInput,
+        void *pPaddingInfo,
+        unsigned char *pbIV,
+        unsigned long cbIV,
+        unsigned char *pbOutput,
+        unsigned long cbOutput,
+        unsigned long *pcbResult,
+        unsigned long dwFlags
+      );
+    ]])
+
+    local advapi = ffi.load("advapi32.dll")
+    local bcrypt = ffi.load("bcrypt.dll")
+
+    local function to_wide(str)
+      local w = ffi.new("wchar_t[?]", #str + 1)
+      for i = 1, #str do w[i-1] = string.byte(str, i) end
+      w[#str] = 0
+      return w
+    end
+
+    local function get_guid()
+      local HKEY_LOCAL_MACHINE = ffi.cast("HKEY", ffi.cast("uintptr_t", 0x80000002))
+      local KEY_READ = 0x20019
+      local KEY_WOW64_64KEY = 0x0100
+      local phk = ffi.new("HKEY[1]")
+      local res = advapi.RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", 0, KEY_READ + KEY_WOW64_64KEY, phk)
+      if res ~= 0 then return nil end
+      local buf = ffi.new("char[128]")
+      local len = ffi.new("DWORD[1]", 128)
+      local t = ffi.new("DWORD[1]")
+      res = advapi.RegQueryValueExA(phk[0], "MachineGuid", nil, t, ffi.cast("unsigned char*", buf), len)
+      advapi.RegCloseKey(phk[0])
+      if res ~= 0 then return nil end
+      return ffi.string(buf, len[0] - 1)
+    end
+
+    local function hmac(key, data)
+      local hAlg = ffi.new("BCRYPT_ALG_HANDLE[1]")
+      if bcrypt.BCryptOpenAlgorithmProvider(hAlg, to_wide("SHA256"), nil, 0x00000008) ~= 0 then return nil end
+      local hHash = ffi.new("BCRYPT_HASH_HANDLE[1]")
+      if bcrypt.BCryptCreateHash(hAlg[0], hHash, nil, 0, ffi.cast("unsigned char*", key), #key, 0) ~= 0 then
+        bcrypt.BCryptCloseAlgorithmProvider(hAlg[0], 0)
+        return nil
+      end
+      bcrypt.BCryptHashData(hHash[0], ffi.cast("unsigned char*", data), #data, 0)
+      local out = ffi.new("unsigned char[32]")
+      bcrypt.BCryptFinishHash(hHash[0], out, 32, 0)
+      bcrypt.BCryptDestroyHash(hHash[0])
+      bcrypt.BCryptCloseAlgorithmProvider(hAlg[0], 0)
+      return ffi.string(out, 32)
+    end
+
+    local function decrypt_field(derived_key, blob, aad)
+      if #blob < 28 then return nil end
+      local nonce = blob:sub(1, 12)
+      local ct = blob:sub(13, #blob - 16)
+      local tag = blob:sub(#blob - 15)
+
+      local hAlg = ffi.new("BCRYPT_ALG_HANDLE[1]")
+      if bcrypt.BCryptOpenAlgorithmProvider(hAlg, to_wide("CHACHA20_POLY1305"), nil, 0) ~= 0 then return nil end
+      local hKey = ffi.new("BCRYPT_KEY_HANDLE[1]")
+      if bcrypt.BCryptGenerateSymmetricKey(hAlg[0], hKey, nil, 0, ffi.cast("unsigned char*", derived_key), #derived_key, 0) ~= 0 then
+        bcrypt.BCryptCloseAlgorithmProvider(hAlg[0], 0)
+        return nil
+      end
+      local auth_info = ffi.new("BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO")
+      auth_info.cbSize = ffi.sizeof("BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO")
+      auth_info.dwInfoVersion = 1
+      auth_info.pbNonce = ffi.cast("unsigned char*", nonce)
+      auth_info.cbNonce = #nonce
+      auth_info.pbAuthData = ffi.cast("unsigned char*", aad)
+      auth_info.cbAuthData = #aad
+      auth_info.pbTag = ffi.cast("unsigned char*", tag)
+      auth_info.cbTag = #tag
+
+      local out = ffi.new("unsigned char[?]", #ct)
+      local pcbResult = ffi.new("unsigned long[1]")
+      local st = bcrypt.BCryptDecrypt(hKey[0], ffi.cast("unsigned char*", ct), #ct, auth_info, nil, 0, out, #ct, pcbResult, 0)
+      bcrypt.BCryptDestroyKey(hKey[0])
+      bcrypt.BCryptCloseAlgorithmProvider(hAlg[0], 0)
+      if st ~= 0 then return nil end
+      return ffi.string(out, pcbResult[0])
+    end
+
+    local b64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    local b64_lookup = {}
+    for i = 1, 64 do b64_lookup[b64_chars:sub(i, i)] = i - 1 end
+    local function b64_decode(data)
+      local clean = data:gsub("[^A-Za-z0-9+/=]", "")
+      local out = {}
+      local len = #clean
+      local i = 1
+      while i <= len do
+        local c1 = b64_lookup[clean:sub(i, i)]
+        local c2 = b64_lookup[clean:sub(i+1, i+1)]
+        local ch3 = clean:sub(i+2, i+2)
+        local ch4 = clean:sub(i+3, i+3)
+        local c3 = ch3 ~= "=" and b64_lookup[ch3] or 0
+        local c4 = ch4 ~= "=" and b64_lookup[ch4] or 0
+        if c1 and c2 then
+          local b1 = bit.bor(bit.lshift(c1, 2), bit.rshift(c2, 4))
+          table.insert(out, string.char(b1))
+          if ch3 ~= "=" and c3 then
+            local b2 = bit.bor(bit.lshift(bit.band(c2, 0x0F), 4), bit.rshift(c3, 2))
+            table.insert(out, string.char(b2))
+            if ch4 ~= "=" and c4 then
+              local b3 = bit.bor(bit.lshift(bit.band(c3, 0x03), 6), c4)
+              table.insert(out, string.char(b3))
+            end
+          end
+        end
+        i = i + 4
+      end
+      return table.concat(out)
+    end
+
+    local guid = get_guid()
+    if not guid then return nil end
+
+    local salt = ""
+    for i = 1, #key_hex, 2 do
+      local byte = tonumber(key_hex:sub(i, i+1), 16)
+      if not byte then return nil end
+      salt = salt .. string.char(byte)
+    end
+    if #salt ~= 32 then return nil end
+
+    local prk = hmac(salt, guid)
+    if not prk then return nil end
+    local derived_key = hmac(prk, "retroarch-keychain-v1" .. string.char(1)):sub(1, 32)
+
+    local username, token
+    for line in cfg_text:gmatch("[^\r\n]+") do
+      local k, b64 = line:match('^([%w_]+)%s*=%s*"?%$kc1%$(.-)"?$')
+      if k and b64 then
+        b64 = b64:gsub('"', '')
+        local raw = b64_decode(b64)
+        if k == "cheevos_username" then
+          username = decrypt_field(derived_key, raw, "cheevos_username")
+        elseif k == "cheevos_token" then
+          token = decrypt_field(derived_key, raw, "cheevos_token")
+        end
+      end
+    end
+    return { username = username, token = token }
+  end)
+
+  if ok and res then return res.username, res.token end
+  return nil
 end
 
 --- Locate retroarch.cfg and parse credentials + paths
@@ -120,8 +333,18 @@ function M.get_retroarch_config()
     end
   end
 
+  -- RetroArch 1.19+ encrypted keychain fallback if plaintext credentials not in retroarch.cfg
+  if not conf.username or not conf.token then
+    local k_user, k_token = read_retroarch_keychain(base_dir)
+    if k_user and #k_user > 0 and k_token and #k_token > 0 then
+      conf.username = k_user
+      conf.token = k_token
+    end
+  end
+
   return conf
 end
+
 
 --- Discovers RetroAchievements credentials from installed emulators
 --- (RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP).
@@ -462,7 +685,9 @@ end
 
 --- Normalizes a string for title comparison (lowercase, alphanumeric only)
 local function normalize_title(s)
-  return (tostring(s or ""):lower():gsub("[^%w]", ""))
+  if not s then return "" end
+  local str = tostring(s):gsub("\xc2\xa0", " "):gsub("\xe2\x80[\x90-\x95]", "-")
+  return (str:lower():gsub("[^%w]", ""))
 end
 
 --- Queries RetroAchievements games list for a console and matches by title
@@ -553,11 +778,17 @@ function M.fetch_game_data(game_id, username, token, hardcore)
   })
 
   if not p_ok or not p_res or p_res.status ~= 200 or not p_res.body then
+    if p_res and p_res.status == 401 then
+      logger:warn(string.format("RetroAchievements API returned 401 Unauthorized for user %q (token invalid/stale)", u))
+    end
     return nil, "cannot fetch game patch"
   end
 
   local ok_patch, patch_data = pcall(json.decode, p_res.body)
   if not ok_patch or type(patch_data) ~= "table" or not patch_data.Success or not patch_data.PatchData then
+    if type(patch_data) == "table" and patch_data.Error then
+      logger:warn(string.format("RetroAchievements API error for game %d: %s", gid, tostring(patch_data.Error)))
+    end
     return nil, "invalid patch response"
   end
 
@@ -599,6 +830,8 @@ function M.fetch_game_data(game_id, username, token, hardcore)
           }
         end
       end
+    elseif u_res and u_res.status == 401 then
+      logger:warn(string.format("RetroAchievements unlocks returned 401 Unauthorized for user %q", u))
     end
   end
 

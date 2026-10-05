@@ -125,15 +125,25 @@ end
 
 -- ---------- Name matching (a game with no ROM file) ----------
 
+local function clean_unicode_spaces(s)
+  if type(s) ~= "string" then return "" end
+  -- Replace UTF-8 non-breaking spaces (\xc2\xa0) and common Unicode spaces with standard space
+  s = s:gsub("\xc2\xa0", " ")
+  -- Replace Unicode hyphens/dashes with standard dash
+  s = s:gsub("\xe2\x80[\x90-\x95]", "-")
+  return s
+end
+
 --- A title reduced to comparable words: lower case, punctuation and bracketed tags dropped, a leading "the" dropped.
 function M.normalize_name(name)
   if type(name) ~= "string" then return "" end
-  local s = name:lower()
+  local s = clean_unicode_spaces(name):lower()
   s = s:gsub("%b()", " "):gsub("%b[]", " ")
   s = s:gsub("[^%w]+", " ")
   s = s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("^the%s+", "")
   return s
 end
+
 
 local function words(s)
   local set, n = {}, 0
@@ -189,12 +199,14 @@ M.PART_SCORE = 0.85
 
 local function title_parts(title)
   local parts = {}
-  local head = title:match("^(.-)%s+[%-:]%s") or title:match("^(.-):")
-  local tail = title:match("^.-%s+[%-:]%s+(.+)$")
+  local t = clean_unicode_spaces(title)
+  local head = t:match("^(.-)%s+[%-:]%s") or t:match("^(.-):")
+  local tail = t:match("^.-%s+[%-:]%s+(.+)$")
   if head and head ~= "" then parts[#parts + 1] = head end
   if tail and tail ~= "" then parts[#parts + 1] = tail end
   return parts
 end
+
 
 function M.best_match(title, games, console_id)
   local best, best_score
@@ -278,7 +290,10 @@ function M.search_jeu(appid, title, system_id)
     if q ~= "" and not seen[q] then seen[q] = true; queries[#queries + 1] = q end
   end
   add_query(title)
-  add_query(title:match("^(.-)%s+[%-:]%s") or title:match("^(.-):"))
+  local cleaned = clean_unicode_spaces(title)
+  if cleaned ~= title then add_query(cleaned) end
+  add_query(cleaned:match("^(.-)%s+[%-:]%s") or cleaned:match("^(.-):"))
+
   trace.queries = {}
   local game, score, games
   for _, q in ipairs(queries) do
