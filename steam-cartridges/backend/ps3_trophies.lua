@@ -144,12 +144,20 @@ function M.find_trophy_dir(cmd, launch_options)
     end
   end
 
-  -- Check default RPCS3 install paths
+  -- Check RPCS3 install paths (first next to exe, then appdata, then fallback)
   local appdata = (os.getenv("APPDATA") or ""):gsub("\\", "/")
   local default_rpcs3_trophies = {
-    "C:/emu/rpcs3/dev_hdd0/home/00000001/trophy",
     appdata .. "/rpcs3/dev_hdd0/home/00000001/trophy",
+    "C:/emu/rpcs3/dev_hdd0/home/00000001/trophy",
   }
+
+  for _, p in ipairs(candidates) do
+    if p:lower():find("rpcs3") then
+      local dir = p:match("^(.*)[/\\][^/\\]+$") or p
+      table.insert(default_rpcs3_trophies, 1, dir .. "/dev_hdd0/home/00000001/trophy")
+    end
+  end
+
   for _, r_path in ipairs(default_rpcs3_trophies) do
     local f = io.open(r_path, "r")
     if f then
