@@ -168,14 +168,20 @@ function sgdb.fetch_artwork_urls(game_id, key, want_icon)
   end
 
   -- 5. Library icon (PNG or ICO; Steam draws both for a shortcut)
-  if want_icon then
-    local icons = api_get("https://www.steamgriddb.com/api/v2/icons/game/" .. tostring(game_id) .. "?types=static&nsfw=false&mimes=image/png,image/vnd.microsoft.icon", key)
-    if type(icons) == "table" and icons[1] and icons[1].url then
-      out.icon = icons[1].url
-    end
-  end
+  if want_icon then out.icon = sgdb.fetch_icon_url(game_id, key) end
 
   return out
+end
+
+--- The library icon alone (PNG or ICO; Steam draws both for a shortcut): one request, for a shortcut whose slots
+--- are all set. nil when SteamGridDB has none.
+---@param game_id number
+---@param key string
+---@return string|nil url
+function sgdb.fetch_icon_url(game_id, key)
+  local icons = api_get("https://www.steamgriddb.com/api/v2/icons/game/" .. tostring(game_id) .. "?types=static&nsfw=false&mimes=image/png,image/vnd.microsoft.icon", key)
+  if type(icons) == "table" and icons[1] and icons[1].url then return icons[1].url end
+  return nil
 end
 
 return sgdb

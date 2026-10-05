@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: a shortcut without a Steam match always gets SteamGridDB's icon (2026-10-04)**: Steam shows an exe's icon as a pixelated 32×32 image, so a shortcut whose icon is still the exe's (or unset) now gets SteamGridDB's icon even when all its artwork is already set (one icon-only request; a game SteamGridDB has no icon for is not asked again for 7 days). A Steam match still uses Steam's icon, and an icon you chose is never replaced.
+
 - **Fixed: a Steam-matched shortcut kept the Explorer (or exe) icon when Steam's large icon is missing (2026-10-04)**: the library icon was taken only from the 184 px community icon, which Steam's CDN does not serve for some apps (World of Tanks Blitz, 444200: 404) although the store item still names it. The 32 px community icon (the size Steam's own sidebar uses) is now tried next. Live: World of Tanks Blitz got its Steam icon.
 
 - **Fixed: an Epic or Xbox copy of a Steam game did not use Steam's page data (2026-10-04, ADR-0056 "Steam first")**: the Steam match searched only the shortcut's name, and some Xbox packages name themselves by an identifier (`worldoftanks_blitz`), which Steam's store search cannot find. The match now also tries the copy's store title ("World of Tanks Blitz" -> 444200), so the game gets Steam's Game Info, art, community content and news. New Xbox shortcuts are named with the catalog's title when the package's display name is an identifier (has `_` and no space, or equals the package name). Live: World of Tanks Blitz matched 444200; its shortcut was renamed by hand to "World of Tanks Blitz" (appid kept).

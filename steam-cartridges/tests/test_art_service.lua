@@ -360,8 +360,23 @@ check("steamgriddb: no icon asked for when the user chose one", r.data.iconEligi
 art.deps.grid_exists = function() return true end
 vdf_icon(EXE)
 requests = 0
+local icon_requests = 0
+art.deps.fetch_icon = function() icon_requests = icon_requests + 1; return "https://cdn2.steamgriddb.com/only.png" end
 r = art.ensure(SC, { title = "Some Game", route = ROUTE_WEB, allowSgdb = true })
-check("steamgriddb: an eligible icon alone never makes a request", requests == 0 and r.data.iconEligible == true and next(r.data.urls) == nil)
+check("steamgriddb: every slot set, an eligible icon is asked alone (no slot fetch)", requests == 0 and icon_requests == 1 and r.data.iconEligible == true and r.data.urls.icon == "https://cdn2.steamgriddb.com/only.png" and r.data.urls.portrait == nil)
+art.deps.fetch_icon = function() icon_requests = icon_requests + 1; return nil end
+icon_requests = 0
+r = art.ensure(SC, { title = "Iconless Game", route = ROUTE_WEB, allowSgdb = true })
+r = art.ensure(SC, { title = "Iconless Game", route = ROUTE_WEB, allowSgdb = true })
+check("steamgriddb: an icon miss is remembered (one request for two views)", icon_requests == 1 and next(r.data.urls) == nil, icon_requests)
+vdf_icon(USER_PNG)
+icon_requests = 0
+r = art.ensure(SC, { title = "Other Game", route = ROUTE_WEB, allowSgdb = true })
+check("steamgriddb: every slot set and the user's icon: no request at all", requests == 0 and icon_requests == 0)
+vdf_icon(EXE)
+r = art.ensure(SC, { title = "Other Game", route = ROUTE_WEB, allowSgdb = false })
+check("steamgriddb: switched off, the icon is not asked either", icon_requests == 0)
+art.deps.fetch_icon = nil
 art.deps.grid_exists = function() return false end
 vdf_icon(nil)
 art.deps.fetch = function(id, key) requests = requests + 1; return URLS end

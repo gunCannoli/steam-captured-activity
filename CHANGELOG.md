@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: SteamGridDB icon for every unmatched shortcut (2026-10-04, the user's choice)**: icon order is the Steam match's
+  icon (184 px, then 32 px), else SteamGridDB's; the exe's own icon is never kept on purpose (Steam renders it as a 32×32 BMP). The icon
+  used to ride along only with a slot lookup; now `web_sgdb.fetch_icon_url` asks for it alone when every slot is set, with a
+  `sgdb-icon:<title>` negative entry. No shortcut on this PC was eligible for the new path (all have an icon of the user's or ours), so it
+  is unit-tested only; BURIED STARS got its Steam icon through the 32 px fallback live. Lua 14/14, TS 315, `test:live` 13/13.
+
 - **steam-cartridges: library icon falls back to Steam's 32 px icon (2026-10-04)**: World of Tanks Blitz kept the Explorer icon after its
   Steam match because the 184 px `GetCommunityIconURL_Full` returns 404 for 444200 ("library icon not fetched"; appid 4069313383 logged
   the same). `storeIcon` now tries `GetCommunityIconURL` next. TS 315, `test:live` 13/13, the icon set live.

@@ -22,7 +22,7 @@ routing (ADR-0040): the evaluated route and `allowSgdb` arrive as context.
 
 ```lua
 -- backend/art_service.lua
-M.deps = { api_key, search, fetch, grid_exists, shortcut_icon, now }   -- nil = the real dependency
+M.deps = { api_key, search, fetch, fetch_icon, grid_exists, shortcut_icon, now }   -- nil = the real dependency
 function M.cdn_urls(steam_appid) end
 --- ctx = { title, route = {bucket, via}, identity?, artUrls?, allowSgdb?, noNetwork? }
 --- data = { urls, source = "steam-cdn" | "steamgriddb", steamAppid?, applied?, emptySlots, iconEligible }
@@ -55,8 +55,10 @@ function M.icon_eligible(appid, source, steam_appid) end
    `icon_eligible`: unknown field → no; no entry of ours → only while the field is the exe; ours still in the
    field → only for another source or native app; field back at `previous` (our write never landed) → as no
    entry; anything else → the user chose an icon: `released`, never touched again (until Clear). Steam CDN:
-   `artUrls.icon` (StoreItemCache `GetCommunityIconURL_Full`, 184 px). SteamGridDB: the icons endpoint, asked
-   only inside a slot lookup (`fetch(id, key, want_icon)`); an eligible icon alone never makes a request.
+   `artUrls.icon` (StoreItemCache `GetCommunityIconURL_Full`, 184 px). SteamGridDB: the icons endpoint, inside a slot lookup
+   (`fetch(id, key, want_icon)`), or alone when every slot is set (`fetch_icon(id, key)`, one request; a miss is
+   remembered as the negative `sgdb-icon:<title>`, 7 days). A shortcut without a Steam match always gets SteamGridDB's
+   icon while it is eligible (the user's choice 2026-10-04: Steam shows an exe's icon as a pixelated 32×32 BMP).
 
 `app/artwork.ts` turns the part into an `ArtworkPlan` with the pure `domain/art-plan.ts`
 (`artworkPlan` for `steam-cdn`, `sgdbPlan` for `steamgriddb`) and writes it to `record.artwork`;

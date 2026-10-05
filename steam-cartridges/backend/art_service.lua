@@ -33,6 +33,7 @@ M.deps = {
   api_key = nil,     -- nil = web_config.get_api_key
   search = nil,      -- nil = web_sgdb.search_game(title, key)
   fetch = nil,       -- nil = web_sgdb.fetch_artwork_urls(game_id, key)
+  fetch_icon = nil,  -- nil = web_sgdb.fetch_icon_url(game_id, key)
   grid_exists = nil, -- nil = files in <user>/config/grid
   shortcut_icon = nil, -- nil = the shortcut's `icon` field in shortcuts.vdf (M.current_icon)
   now = function() return os.time() end,
@@ -180,14 +181,16 @@ function M.ensure(appid, ctx)
     return { status = "pending", checkedAt = now_ms() }
   end
 
-  -- No Steam match: SteamGridDB, empty slots only. The icon rides along with a slot lookup; it
-  -- never triggers a SteamGridDB request on its own (a library whose slots are all set makes none).
+  -- No Steam match: SteamGridDB, empty slots only, and the library icon whenever it may be set (the user's choice
+  -- 2026-10-04: a shortcut without a Steam match always gets SteamGridDB's icon, never the exe's 32x32 one). The icon
+  -- rides along with a slot lookup; with every slot set it is asked alone, and a miss is remembered (negative cache).
   local tried = applied and applied.source == "steamgriddb" and applied.tried or {}
   local eligible = without(empty_slots(appid, exists), tried)
   local icon_ok = M.icon_eligible(appid, "steamgriddb", nil)
   local base = { urls = {}, source = "steamgriddb", emptySlots = eligible, iconEligible = icon_ok }
+  local icon_only = #eligible == 0 and icon_ok == true
 
-  if ctx.allowSgdb == false or ctx.noNetwork or #eligible == 0 then
+  if ctx.allowSgdb == false or ctx.noNetwork or (#eligible == 0 and not icon_only) then
     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
   end
 
@@ -200,7 +203,9 @@ function M.ensure(appid, ctx)
   local norm = normalize.normalize(title)
   if norm == "" then return { status = "pending", checkedAt = now_ms() } end
   local neg = "sgdb:" .. norm
-  if store.is_negative(neg, (M.deps.now or os.time)()) then
+  local neg_icon = "sgdb-icon:" .. norm
+  if store.is_negative(neg, (M.deps.now or os.time)())
+    or (icon_only and store.is_negative(neg_icon, (M.deps.now or os.time)())) then
     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
   end
 
@@ -211,6 +216,17 @@ function M.ensure(appid, ctx)
   if not game or not game.id then
     store.set_negative(neg, (M.deps.now or os.time)())
     return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
+  end
+
+  if icon_only then
+    local oki, icon = pcall(M.deps.fetch_icon or sgdb.fetch_icon_url, game.id, key)
+    if not oki then return { status = "error", message = "SteamGridDB icon fetch failed", checkedAt = now_ms() } end
+    if type(icon) ~= "string" or icon == "" then
+      store.set_negative(neg_icon, (M.deps.now or os.time)())
+      return { status = "ok", source = "steamgriddb", data = base, checkedAt = now_ms() }
+    end
+    base.urls = { icon = icon }
+    return { status = "ok", source = "steamgriddb", data = base, fetchedAt = now_ms(), checkedAt = now_ms() }
   end
 
   local okf, urls = pcall(fetch, game.id, key, icon_ok)
