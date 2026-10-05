@@ -1,6 +1,7 @@
 # enhanced-notifications: Theme Creator (design and phased plan)
 
-**Status (2026-10-04):** design, nothing coded. Waiting for the user's answers to § 3.2, then the spikes in § 8.
+**Status (2026-10-04):** design, nothing coded. The user answered § 3.2 the same day; P1 (sound library) and P2 (pure
+groundwork) can start, the spikes in § 8 before P6.
 **This plan's job:** what the Theme Creator is, how it looks, how it fits the plugin's architecture, and the order it
 is built in. It is the **feature design**. Each phase in § 9 gets its own mechanical plan (literal before/after blocks,
 the [plan writing standard](README.md)) when it starts, written against the files as they are then. Writing those
@@ -24,6 +25,10 @@ Read first: [docs/enhanced-notifications.md](../enhanced-notifications.md) (laye
 | R6 | **Sounds can be previewed** |
 | R7 | The AI-generated sound packs in `enhanced-notifications/themes/SteamStation/custom/sfx/` are offered in the creator |
 | R8 | Those sounds are **not named ps4 / ps5 / platinum** (proprietary names, only ever a reference) |
+| R13 | Layout: **navigation on the left, preview in the middle, editor on the right**; the preview stays visible on every page |
+| R14 | With a sound pack, the user **picks the cue for each tier** (and the notification sound): Subtle, Distinct or Grand |
+| R15 | Bundled themes are **templates only**: "Save as", never saved over. Only the user's own themes are edited, and deleted |
+| R16 | The library ships as **WAV**; a user's own sounds may be **MP3 or WAV** |
 
 Implied by the plugin's rules (not asked, but required):
 
@@ -76,7 +81,9 @@ three cues, each as WAV (48 kHz, 16-bit stereo) and MP3, plus a README:
 | `PS5/…/trophy_ps5_<mood>` | ~1.40 s | warm swell, open chord bloom |
 | `PLATINUM/…/trophy_platinum_<mood>` | ~2.20 s | multi-stage fanfare |
 
-MP3 per pack ≈ 190 KB (all 17: ≈ 3.2 MB). WAV per pack ≈ 870 KB (all 17: ≈ 15 MB).
+MP3 per pack ≈ 190 KB (all 17: ≈ 3.2 MB). WAV per pack ≈ 875 KB (all 17: ≈ 15 MB). The library ships the WAVs
+(R16); the largest file (a Grand cue, 432 KB) is far under the backend's 8 MB asset cap, and about 580 KB as the
+base64 data URL `LoadAssets` returns.
 
 **The trap this design avoids:** a theme's relative paths resolve against **its own folder** (themes.md § File paths).
 A bundled template such as `ps5.jsonc` points at `PlayStation/bronze.png` inside the bundled folder. Saved as-is into
@@ -94,27 +101,32 @@ theme and rewrite the paths** (§ 6.6). The same holds for the sound library.
 | D1 | The creator saves to `<userDir>/<name>.jsonc`, its assets to `<userDir>/<name>/`. Never the bundled folder | R9. The pair is the "one folder to share" unit themes.md already describes |
 | D2 | Saving **copies every asset the theme references** from outside `<userDir>/<name>/` into it and rewrites the paths to `<name>/<file>`. Absolute paths the user wrote by hand stay as they are | Fixes the trap in § 2; the saved theme is self-contained and shareable (R10) |
 | D3 | The draft **is the raw theme JSON**, edited by path (`set` / `unset`). The preview runs the plugin's own `resolveTheme` on it | One pipeline, no second model to drift. Unknown or future keys survive a round trip |
-| D4 | The creator writes its own formatted JSONC. Opening a hand-written file with comments shows "Saving rewrites this file; its comments are not kept", and the first save writes `<name>.jsonc.bak` | A JSONC round trip that keeps comments is a parser project of its own. Backup makes it safe |
+| D4 | The creator writes its own formatted JSONC. **Save** exists only for the user's own themes; a bundled theme (a template) only has **Save as** (R15). Opening a user theme with comments shows "Saving rewrites this file; its comments are not kept", and the first save writes `<name>.jsonc.bak` | A JSONC round trip that keeps comments is a parser project of its own. Backup makes it safe |
 | D5 | The preview renders **inside the modal** (mock toasts at real pixel size); a separate **"Test on screen"** button shows real Steam toasts with the draft | Inline: instant, side by side, no Steam state touched (R12). Real: final truth for placement, animation timing and Big Picture |
 | D6 | "Test on screen" uses an **in-memory draft override** in `theme/active-theme.ts`, never the `theme` setting and never a file | Nothing persists if Steam crashes mid-test; cleared on close and by a 2-minute timeout |
 | D7 | The banner's markup moves to a presentational `BannerCard` component (new area `frontend/ui/`) that both the banner surface and the creator render | The creator must not import a surface (layer rules); one markup, so the preview cannot drift from the real banner |
-| D8 | Sound packs ship as **MP3 only** in `themes/sounds/<pack>/{chime,bloom,fanfare}.mp3` with a `themes/sounds/library.json` manifest. The zips and WAVs leave the plugin folder | 3.2 MB instead of 18 MB in every install; MP3 is already an allowed theme sound |
-| D9 | Cue names: **Chime** (~0.95 s), **Bloom** (~1.4 s), **Fanfare** (~2.2 s). No ps4 / ps5 / platinum anywhere: file names, manifest, UI | R8 |
-| D10 | The creator is **desktop only** in v1. In Big Picture the row is shown disabled with "Open Steam on the desktop to use the Theme Creator" | Editing colours and sliders with a controller in a 1280 px dialog is a separate design. The preview still has a Big Picture look toggle |
+| D8 | Sound packs ship as **WAV** in `themes/sounds/<pack>/{subtle,distinct,grand}.wav` with a `themes/sounds/library.json` manifest. The source zips (and their MP3s) leave the plugin folder | The user's choice (R16): lossless, ≈ 15 MB. A user's own sounds stay `.mp3` or `.wav` (`.ogg` too, already allowed by themes.md, not removed) |
+| D9 | Cue names: **Subtle** (~0.95 s), **Distinct** (~1.4 s), **Grand** (~2.2 s). No ps4 / ps5 / platinum anywhere: file names, manifest, UI | R8; the user's names |
+| D10 | Desktop only: Millennium's plugin settings panel exists only in desktop mode, so the creator needs no Big Picture handling | The preview still has a Big Picture **look** toggle, because toasts do show in Big Picture |
 | D11 | New feature id **`creator`** (kill switch and error budget), though it writes nothing into Steam | An error boundary that counts failures and a way to switch the button off, like every other feature |
 | D12 | Unsaved work is kept in SharedJSContext `localStorage` (`enhanced-notifications.creator.draft`) on every change; the next open offers "Restore unsaved theme" | A popout window can be closed by its own X, which the dialog cannot intercept |
 
-### 3.2 Questions for the user (each has a recommendation; the plan assumes it)
+### 3.2 The user's answers (2026-10-04)
 
-| # | Question | Recommended |
+| # | Question | Answer |
 | --- | --- | --- |
-| Q1 | Sound pack display names (table in § 5.1): keep, or rename some? | As in § 5.1 |
-| Q2 | Cue names Chime / Bloom / Fanfare? | Yes |
-| Q3 | Ship MP3 only, and move the source zips and WAVs out of the plugin (to `assets-src/sfx/` at the workspace root, git-tracked or ignored)? | MP3 only; zips to `assets-src/sfx/`, **ignored** by git (15 MB of regenerable audio) |
-| Q4 | Desktop only for v1 (D10)? | Yes |
-| Q5 | Saving over a hand-written theme: rewrite with a `.bak` (D4), or refuse and force "Save as"? | Rewrite with `.bak` |
-| Q6 | Should the creator also be able to **delete** a user theme? | Yes, with a confirm dialog, user themes only |
-| Q7 | Add a bundled theme that uses the library out of the box (for example `steam_chimes.jsonc`: Steam's look, "Celtic Harp" sounds per tier)? | Yes, in phase 1; it proves the library works without the creator |
+| Q1 | Sound pack display names (§ 5.1) | Kept as proposed |
+| Q2 | Cue names | **Subtle / Distinct / Grand** (not Chime / Bloom / Fanfare) |
+| Q3 | Library format | **WAV**. A user's own sounds may be MP3 or WAV |
+| Q4 | Big Picture | Not needed: Millennium plugins (their settings) are desktop only |
+| Q5 | Saving over a theme | Only the user's own themes are edited and saved over; bundled themes are templates, **Save as** only |
+| Q6 | Delete | Yes, user-created themes only |
+| Q7 | A bundled theme using the library | No: **the user makes the bundled template themes**. The creator lists whatever bundled themes exist |
+| Q8 | Column order | **Navigation left, preview middle, editor right** |
+| Q9 | Sound pack assignment | Not one fixed mapping: the user **picks Subtle, Distinct or Grand for each tier** (and the notification sound) |
+
+Still open, decided by the plan unless the user objects: the zips move out of the plugin to `assets-src/sfx/` at the
+workspace root, ignored by git (regenerable, and the WAVs are already extracted into `themes/sounds/`).
 
 ---
 
@@ -143,7 +155,7 @@ Theme
 ```
 
 `ButtonRow label="Theme Creator" description="Make a new theme or edit one of yours, with a live preview"
-buttonLabel="Open"`. Disabled when `creator` is switched off, or in Big Picture (D10, the description then says why).
+buttonLabel="Open"`. Disabled when `creator` is switched off or in safe mode.
 The panel does not import the creator: `index.tsx` injects `onOpenCreator` like `onPreview`.
 
 After a save, the creator calls the same `refresh()` + `reloadTheme()` path as Reload, and if the saved theme is the
@@ -155,38 +167,44 @@ Opened with `showDialog(<ThemeCreator …/>, { strTitle: "Theme Creator", popupW
 `popupWidth = clamp(1280, 1100, 0.92 × screen.availWidth)`, `popupHeight = clamp(860, 720, 0.9 × screen.availHeight)`
 (spike S6 checks the window can be that size and whether it can be resized).
 
-Three columns, fixed widths at 1280 px: navigation 200, editor 480, preview 560, gutters 40.
+Three columns (R13), fixed widths at 1280 px: **navigation 200 (left), preview 560 (middle), editor 480 (right)**,
+gutters 40. The preview is between the page list and the page it shows, so what is edited and its result sit side by
+side, and it never changes when the page changes.
 
 ```
 ┌ Theme Creator ─────────────────────────────────────────────────────────────────────────────────────────────┐
 │ my_theme.jsonc   ● Unsaved      from template: steam_tiers           [ Undo ][ Redo ]  [ Save ▾ ]  [ Close ]│
-├──────────────┬──────────────────────────────────────────┬──────────────────────────────────────────────────┤
-│ Start        │  CARD                                     │  PREVIEW                                         │
-│ ──────────── │                                           │  [ Gallery | On screen ]   [ Desktop | Big Pic. ]│
-│ Placement    │  Background                               │  Set  [ Achievement tiers (4)               ▾ ]  │
-│ Card         │   ○ Steam's own   ● Colour   ○ Gradient   │                                                  │
-│ Text         │   [■ #1F1F1F] [■ #0F0F0F] [+ stop]        │  ┌────────────────────────────────────┐  🔊      │
-│ Icons        │   Angle ───────●──────── 90°              │  │ 🏆 ◆ First Steps            [Steam]│  Normal  │
-│ Sound        │                                           │  │      Finish the tutorial            │          │
-│ ──────────── │  Border                                   │  └────────────────────────────────────┘          │
-│ Achievements │   Width ──●────────── 2 px                │  ┌────────────────────────────────────┐  🔊      │
-│   Layout     │   Colour [■ #cd7f32]   Radius ──●── 8 px  │  │ 🏆 ◆ Night Owl              [Steam]│  Magic   │
-│   Normal     │                                           │  └────────────────────────────────────┘          │
-│   Magic      │  Glow                                     │  ┌ … Rare … ┐                          🔊        │
-│   Rare       │   [■ #cd7f32]  Spread ─●─ 40  Pulse ─ 0ms │  ┌ … Exc. … ┐                          🔊        │
-│   Exceptional│                                           │                                                  │
-│ ──────────── │  Margin   ⛓ linked  ──●── 10 px            │  [ ▶ Replay ]  [ ⟲ Loop exit ]                  │
-│ Code         │  Padding  ⛓ linked  ──●── 10 px            │  [ Test on screen ]                              │
-│              │  Gap      icon→text ─●─ 10  rows ●─ 2      │  ⚠ 1 warning ▸                                   │
-│              │  Steam watermark                  [toggle] │                                                  │
-└──────────────┴──────────────────────────────────────────┴──────────────────────────────────────────────────┘
+├──────────────┬──────────────────────────────────────────────────┬──────────────────────────────────────────┤
+│ Start        │  PREVIEW                                         │  CARD                                     │
+│ ──────────── │  [ Gallery | On screen ]   [ Desktop | Big Pic. ]│                                           │
+│ Placement    │  Set  [ Achievement tiers (4)               ▾ ]  │  Background                               │
+│ Card         │                                                  │   ○ Steam's own   ● Colour   ○ Gradient   │
+│ Text         │  ┌────────────────────────────────────┐  🔊      │   [■ #1F1F1F] [■ #0F0F0F] [+ stop]        │
+│ Icons        │  │ 🏆 ◆ First Steps            [Steam]│  Normal  │   Angle ───────●──────── 90°              │
+│ Sound        │  │      Finish the tutorial            │          │                                           │
+│ ──────────── │  └────────────────────────────────────┘          │  Border                                   │
+│ Achievements │  ┌────────────────────────────────────┐  🔊      │   Width ──●────────── 2 px                │
+│   Layout     │  │ 🏆 ◆ Night Owl              [Steam]│  Magic   │   Colour [■ #cd7f32]   Radius ──●── 8 px  │
+│   Normal     │  └────────────────────────────────────┘          │                                           │
+│   Magic      │  ┌ … Rare … ┐                          🔊        │  Glow                                     │
+│   Rare       │  ┌ … Exc. … ┐                          🔊        │   [■ #cd7f32]  Spread ─●─ 40  Pulse ─ 0ms │
+│   Exceptional│                                                  │                                           │
+│ ──────────── │  [ ▶ Replay ]  [ ⟲ Loop exit ]                  │  Margin   ⛓ linked  ──●── 10 px            │
+│ Code         │  [ Test on screen ]                              │  Padding  ⛓ linked  ──●── 10 px            │
+│              │  ⚠ 1 warning ▸                                   │  Gap      icon→text ─●─ 10  rows ●─ 2      │
+│              │                                                  │  Steam watermark                  [toggle] │
+└──────────────┴──────────────────────────────────────────────────┴──────────────────────────────────────────┘
 ```
 
-- **Navigation** is Steam's `SidebarNavigation` (the same component as Steam's own Settings dialog), pages listed below.
-  The preview column sits outside it, so it stays visible on every page. If spike S7 shows `SidebarNavigation` cannot
-  share its row with a third column, the navigation is a plain `Focusable` list styled like it.
+- **Navigation** is a `Focusable` page list on the left, styled with the classes of Steam's own Settings sidebar
+  (resolved like the toast selectors, spike S7). Steam's `SidebarNavigation` is not used as-is: it renders the list and
+  the page content as one unit, so nothing can sit between them, and the preview would remount (and replay) on every
+  page change. The selected page is creator state; the preview is a sibling that never remounts.
+- **Editor** (right) scrolls on its own; the preview column does not scroll (four banners at 1:1 fit in 560 × 700).
 - **Header**: the file name (editable in Save as), a dirty marker, where it came from (template / my theme / fresh),
-  Undo / Redo (Ctrl+Z / Ctrl+Y, 100 steps), **Save ▾** (Save, Save as…, Save and use), Close.
+  Undo / Redo (Ctrl+Z / Ctrl+Y, 100 steps), **Save ▾**, Close. For a user theme the menu is Save, Save as…, Save and
+  use. For a template or a fresh theme it is Save as… and Save as and use only (R15); after that first Save as, the
+  draft is a user theme and Save appears.
 - **Close with unsaved changes** opens a confirm: "Discard changes to my_theme?" (Discard / Keep editing). The draft is
   in `localStorage` anyway (D12).
 - **Errors** never blank the modal: an error boundary around each column shows "This section failed" plus the error,
@@ -204,24 +222,23 @@ Shown first when the modal opens (and from the navigation's **Start**). Three ca
   │                    │  │                    │  │  want              │
   └────────────────────┘  └────────────────────┘  └────────────────────┘
 
-  Templates                         My themes
+  Templates (bundled)               My themes
   ● steam_midnight   [Use]          ● my_theme          [Edit] [Duplicate] [Delete]
   ● steam_tiers      [Use]          ● night_owl (jsonc) [Edit] [Duplicate] [Delete]
-  ● ps5              [Use]
-  ● SteamStation     [Use]
-  ● steam_chimes     [Use]          (Q7)
-  ● theme_example    [Use]
+  ● …                               (every user theme from ListThemes, source "user")
+  (every bundled theme from ListThemes, source "bundled"; the user makes the shipped ones, Q7)
 
   ↺ Restore unsaved theme "my_theme" (edited 12 min ago)    [Restore] [Forget]     (only when a draft is stored)
 ```
 
-- **Template** → loads the bundled file, name suggestion `<template>_custom` (first free one), source `bundled`.
-  The first save is always a Save as into the user folder.
-- **Edit** → loads the user file; Save overwrites it (with the `.bak` of D4 if it had comments).
-- **Fresh** → `{}` (every key unset = Steam's look), name suggestion `my_theme`.
+- **Template** → loads the bundled file, name suggestion `<template>_custom` (first free one), origin `template`.
+  It is never saved over: Save as only (R15, D4). Templates have no Edit and no Delete.
+- **Edit** → user themes only; loads the file; Save overwrites it (with the `.bak` of D4 if it had comments).
+- **Fresh** → `{}` (every key unset = Steam's look), name suggestion `my_theme`; Save as only until first saved.
 - **Duplicate** → like Template, from a user theme.
-- **Delete** (Q6) → confirm dialog, then the backend deletes `<name>.jsonc` and, after a second confirm line
-  "Also delete its assets folder", `<name>/`. If it was the active theme, the setting goes back to Steam default.
+- **Delete** (Q6) → user themes only. Confirm dialog, with a toggle "Also delete its assets folder" (`<name>/`, on by
+  default when the creator made it). If it was the active theme, the setting goes back to Steam default. The backend
+  refuses a bundled theme whatever the frontend sends (§ 6.6).
 - A theme the creator cannot parse opens in the **Code** page with the parse error, never silently as `{}`.
 - If the user picks a name equal to a bundled theme's: "This hides the bundled theme <name> from the list" (user
   themes shadow bundled ones, `find_theme` in `backend/main.lua`).
@@ -265,7 +282,8 @@ achievement's name").
 **Icons**: `game_icon` (toggle + radius slider 0-32), `header_icon` (toggle).
 
 **Sound** (`sound`): three choices, **Steam's chime** (unset), **Mute** (`false`), **A sound**; with a sound, a
-picker (§ 4.6) and a volume slider (0-100) with ▶ next to it.
+picker (§ 4.6) and a volume slider (0-100) with ▶ next to it. Below it, the **Sound pack** panel (§ 4.6), which sets
+the notification sound and every tier's sound from one pack in one place.
 
 **Achievements**: a toggle "Themed achievement banner" (adds or removes the `achievements` block; removing asks first
 when the block has content). With it on:
@@ -335,35 +353,53 @@ and for achievements that game's first achievement's icon, name and description 
 
 ### 4.6 Sounds (R6, R7)
 
-A **sound picker**, the same for the notification sound and each tier's sound, opened from the row's "Choose…" button
-as a second dialog (or an inline drawer on the Sound page):
+Two places pick sounds, built from the same parts:
+
+**1. The Sound pack panel** (on the Sound page; R14). Pick a pack, then pick a cue **for each row**:
+
+```
+ Sound pack
+ [ Celtic Harp                                    ▾ ]   Strings · Celtic concert strings
+   ▶ Subtle 0.95 s     ▶ Distinct 1.4 s     ▶ Grand 2.2 s            (listen to the pack)
+
+                    Cue                                         Volume
+ Notification   ( Keep | Subtle | Distinct | Grand )        ──────●──── 60   [▶]
+ Normal         ( Keep | Subtle | Distinct | Grand )        ───────●─── 80   [▶]
+ Magic          ( Keep | Subtle | Distinct | Grand )        ────────●── 85   [▶]
+ Rare           ( Keep | Subtle | Distinct | Grand )        ────────●── 90   [▶]
+ Exceptional    ( Keep | Subtle | Distinct | Grand )        ─────────●─ 100  [▶]
+                                                                         [ Apply ]
+```
+
+- Each row is a four-way choice. **Keep** leaves that sound as it is now (whatever it is: another pack, a file, Steam's
+  chime, mute). Subtle / Distinct / Grand set it to that cue of the chosen pack.
+- Nothing is preselected for the user: every row starts on **Keep**, and the rows only show a hint of a common pairing
+  ("often: Subtle" for Normal and Magic, "Distinct" for Rare, "Grand" for Exceptional) as greyed text.
+- The four tier rows show only when the theme has an `achievements` block; otherwise a line "Turn on the achievement
+  banner to give each tier its own sound".
+- ▶ on a row plays that row's choice at that volume. **Apply** writes the rows that are not Keep (one undo step).
+- A row whose current sound is already a cue of the chosen pack opens on that cue, so reopening the panel shows the
+  current choices.
+
+**2. The single sound picker** (a "Choose…" button on the notification sound row and on each tier page's sound row),
+for one sound at a time, from any pack or from a file:
 
 ```
  Choose a sound                                          [ Library | This theme's files ]
- ┌──────────────────────────────────────────────────────────────────────────┐
- │ Celtic Harp           Celtic concert strings     [▶ Chime][▶ Bloom][▶ Fanfare] │
- │ Bardic Harp           Bardic high flourish       [▶ Chime][▶ Bloom][▶ Fanfare] │
- │ 8-Bit Chiptune        NES-style chiptune         [▶ Chime][▶ Bloom][▶ Fanfare] │
+ ┌────────────────────────────────────────────────────────────────────────────┐
+ │ Celtic Harp       Celtic concert strings   [▶ Subtle][▶ Distinct][▶ Grand] │
+ │ Bardic Harp       Bardic high flourish     [▶ Subtle][▶ Distinct][▶ Grand] │
+ │ 8-Bit Chiptune    NES-style chiptune       [▶ Subtle][▶ Distinct][▶ Grand] │
  │ …                                                                          │
- └──────────────────────────────────────────────────────────────────────────┘
- Selected: Celtic Harp · Bloom (1.4 s)       Volume ──────●── 85    [▶]
-                                  [ Use for this tier ]  [ Use this pack for every tier ]
+ └────────────────────────────────────────────────────────────────────────────┘
+ Selected: Celtic Harp · Distinct (1.4 s)       Volume ──────●── 85    [▶]      [ Use ]
 ```
 
 - **Library**: the 17 packs from `library.json` (§ 5), each cue playable in place. Filter by category (Chiptune,
   Bells, Strings, Orchestral, World, Synth).
-- **This theme's files**: `.mp3`, `.wav`, `.ogg` in the theme's own folder (backend `ListThemeAssets`, § 6.7), and
-  **Import…** (spike S4: Steam's file dialog; if there is none, "Open the theme's folder" and a Rescan button).
-- **"Use this pack for every tier"** sets the default mapping:
-
-  | Tier | Cue | Volume |
-  | --- | --- | --- |
-  | Normal | Chime | 80 |
-  | Magic | Chime | 90 |
-  | Rare | Bloom | 90 |
-  | Exceptional | Fanfare | 100 |
-
-  and offers "Also as the notification sound" (Chime, 60). The volumes are a starting point the user changes.
+- **This theme's files**: `.mp3` and `.wav` (and `.ogg`, which themes already accept) in the theme's own folder
+  (backend `ListThemeAssets`, § 6.7), and **Import…** (spike S4: Steam's file dialog; if there is none, "Open the
+  theme's folder" and a Rescan button). Mixing packs (Normal from one pack, Rare from another) is done here.
 - **Playback** goes through `audio()` (the plugin's one `AudioContext`); each clip is decoded once and cached for the
   modal's life. Playing a new clip stops the previous one. A click resumes a suspended context (a user gesture), as
   `preview()` does.
@@ -413,17 +449,18 @@ Disabled while the `preview` feature is off, while Steam's toasts are off (`useP
 | `afric_kora` | `kora_and_gourd` | Kora and Gourd | World |
 | `robotic_quantum` | `quantum_core` | Quantum Core | Synth |
 
-Cue files: `PS4/MP3/trophy_ps4_<x>.mp3` → `chime.mp3`, `PS5/MP3/trophy_ps5_<x>.mp3` → `bloom.mp3`,
-`PLATINUM/MP3/trophy_platinum_<x>.mp3` → `fanfare.mp3`. The READMEs are not shipped (they say "PS4 Chime" etc.).
+Cue files (Q2, Q3): `PS4/WAV/trophy_ps4_<x>.wav` → `subtle.wav`, `PS5/WAV/trophy_ps5_<x>.wav` → `distinct.wav`,
+`PLATINUM/WAV/trophy_platinum_<x>.wav` → `grand.wav`. The MP3s and the READMEs are not shipped (the READMEs say
+"PS4 Chime" etc.).
 
 ### 5.2 Files and manifest
 
 ```
 enhanced-notifications/themes/sounds/
   library.json
-  celtic_harp/chime.mp3
-  celtic_harp/bloom.mp3
-  celtic_harp/fanfare.mp3
+  celtic_harp/subtle.wav
+  celtic_harp/distinct.wav
+  celtic_harp/grand.wav
   …
 ```
 
@@ -433,9 +470,9 @@ enhanced-notifications/themes/sounds/
 {
   "version": 1,
   "cues": [
-    { "id": "chime",   "label": "Chime",   "seconds": 0.95 },
-    { "id": "bloom",   "label": "Bloom",   "seconds": 1.4 },
-    { "id": "fanfare", "label": "Fanfare", "seconds": 2.2 }
+    { "id": "subtle",   "label": "Subtle",   "seconds": 0.95 },
+    { "id": "distinct", "label": "Distinct", "seconds": 1.4 },
+    { "id": "grand",    "label": "Grand",    "seconds": 2.2 }
   ],
   "packs": [
     { "id": "celtic_harp", "label": "Celtic Harp", "category": "Strings", "description": "Celtic concert strings" }
@@ -450,17 +487,19 @@ lists `library`.)
 ### 5.3 Import script
 
 `enhanced-notifications/tools/import-sfx.mjs` (Node, no dependencies; uses the system `tar`, which reads zips on
-Windows 10+): reads the zips from a source folder, extracts only the three MP3s, writes them under the pack id, and
-writes `library.json` from a table in the script (§ 5.1). Re-runnable; it refuses to overwrite a pack folder whose
-files differ unless `--force`. The source zips then move to `assets-src/sfx/` (Q3).
+Windows 10+): reads the zips from a source folder, extracts only the three WAVs, writes them under the pack id as
+`subtle.wav` / `distinct.wav` / `grand.wav`, checks each is a readable 48 kHz WAV of the expected length (± 0.1 s),
+and writes `library.json` from a table in the script (§ 5.1). Re-runnable; it refuses to overwrite a pack folder whose
+files differ unless `--force`. The source zips then move to `assets-src/sfx/` (§ 3.2).
 
 ### 5.4 How a theme uses a library sound
 
 In the creator, a library pick is stored in the draft as the path it **will** have after saving,
-`<theme>/<pack>_<cue>.mp3`, and a side table `pendingCopies` maps it to its source (`library:<pack>/<cue>.mp3`). The
+`<theme>/<pack>_<cue>.wav`, and a side table `pendingCopies` maps it to its source (`library:<pack>/<cue>.wav`). The
 preview loads the source; Save copies it (§ 6.6). A saved theme therefore never points into the bundled folder, and
-stays valid when the plugin updates. A bundled theme (Q7) uses `sounds/<pack>/<cue>.mp3`, relative to the bundled
-folder, which is its own folder.
+stays valid when the plugin updates. A bundled template theme the user makes (Q7) can use `sounds/<pack>/<cue>.wav`
+directly, relative to the bundled folder, which is its own folder; a Save as from it copies those files like any other
+template asset.
 
 ### 5.5 Licensing
 
@@ -486,6 +525,7 @@ ships.
 | `frontend/creator/controls.tsx` | creator | no | Colour swatch, linked edges, "inherited from" row, ↺ unset |
 | `frontend/creator/samples.ts` | creator | yes | Sample texts per notification type and tier |
 | `frontend/creator/preview-set.ts` | creator | yes | Which four toasts a set shows (uses `pickPreview`'s rule) |
+| `frontend/creator/sound-pack.ts` | creator | yes | The Sound pack panel: `currentCues(draft, pack)` (which row is already which cue) and `applyPack(draft, pack, rows)` (writes the non-Keep rows and their `pendingCopies`) |
 | `frontend/theme/draft.ts` | theme | yes | `get/set/unset(raw, path)`, undo/redo history, `effectiveSource(raw, tier, key)` for "inherited from" |
 | `frontend/theme/serialize.ts` | theme | yes | Draft → JSONC text: fixed key order (settings, popup, text, font_family, game_icon, header_icon, sound, achievements; tiers in `TIERS` order), 4-space indent, tuples on one line, a header comment |
 | `frontend/theme/assets.ts` | theme | yes | Every asset path in a raw theme, the copy plan for a save (§ 6.6), path rewrite |
@@ -584,7 +624,7 @@ refuses anything not in `<userDir>`.
 - `ListThemeAssets { dir }` → images and sounds under the theme's folder (one level of subfolders), each with size;
   `dir` must be the bundled or the user themes folder or a subfolder of them.
 - `SoundLibrary {}` → `{ dir, manifest }` (the parsed `library.json`). The creator then loads cues with the existing
-  `LoadAssets(dir, ['celtic_harp/chime.mp3'])`.
+  `LoadAssets(dir, ['celtic_harp/subtle.wav'])`.
 
 Each is registered in `backend/main.lua` (architecture test rule 4) and wrapped by `method()`.
 
@@ -639,7 +679,7 @@ steam-components.md (or knowledgebase.md for SDK facts) before the phase that de
 | S4 | Is there a native file dialog reachable from SharedJSContext (`SteamClient.System.OpenFileDialog`, `SteamClient.Window`…)? | Enumerate `SteamClient.*` for `File` / `Dialog` methods; try one | "Import…" in the asset pickers, or folder + Rescan only |
 | S5 | Where is Steam's toast chime (URL in `steamloopback.host` / `ChooseSound`'s result)? | Read `ChooseSound` on the store for a type | Whether "Steam's chime" plays in the preview |
 | S6 | Max `popupWidth` / `popupHeight` for `showDialog`, and is the window resizable? | Open at 1280 × 860 and 1600 × 1000 | The modal's size rule |
-| S7 | Can `SidebarNavigation` sit in a row with a third column, or does it take the whole dialog? | Render it in a flex row | Navigation component |
+| S7 | Which CSS module holds Steam's Settings sidebar classes (page list, selected page, separators), and do they style a plain `Focusable` list in the popout? | Find the module by its keys (as `steam/selectors.ts` does), render a three-item list | The navigation's look; fallback: a small own stylesheet in Steam's colours |
 | S8 | `ListThemes` and the existing panel keep working with a `themes/sounds/` folder present | Offline: Lua test | Phase 1 safety |
 
 ---
@@ -651,7 +691,7 @@ committed. A phase's mechanical plan is written when it starts.
 
 | Phase | Scope | Exit check |
 | --- | --- | --- |
-| **P1 Sound library** | `tools/import-sfx.mjs`; `themes/sounds/` (17 packs × 3 MP3, `library.json`); move the zips (Q3); `.gitignore`; optional `steam_chimes.jsonc` (Q7); themes.md § "Sound library"; `SoundLibrary` RPC | The import script prints 17 packs, 51 files; `npm test`; with `steam_chimes` active, the four tier previews play the four cues (by ear, the user) |
+| **P1 Sound library** | `tools/import-sfx.mjs`; `themes/sounds/` (17 packs × 3 WAV, `library.json`); move the zips to `assets-src/sfx/`; `.gitignore`; themes.md § "Sound library" (how a bundled theme refers to `sounds/<pack>/<cue>.wav`); `SoundLibrary` RPC | The import script prints 17 packs, 51 files, all lengths in range; `npm test`; Lua test: `ListThemes` unchanged with `themes/sounds/` present. By ear (the user): a template theme the user writes with library sounds plays them on the tier previews |
 | **P2 Pure groundwork** | `theme/draft.ts`, `theme/serialize.ts`, `theme/assets.ts`, `theme/sound-choice.ts`, `theme/color.ts`, `buildCss`/`buildAnimationCss` `root` param, `creator/samples.ts`, `creator/preview-set.ts`; unit tests | `npm test`: new tests pass; `serialize(parseJsonc(x))` re-resolves to the same `resolveTheme` result for every bundled theme |
 | **P3 BannerCard refactor** | `ui/banner-card.tsx`, `themed-toast.tsx` uses it, layer rule for `ui` | `npm test`; deploy; `npm run test:live` achievement checks pass as before (with the lock) |
 | **P4 Backend writes** | `SaveTheme`, `DeleteTheme`, `ListThemeAssets`; Lua tests (name validation, path escape refused, copy refused for a disallowed type, atomic write) | Lua tests pass; architecture test (RPCs registered) |
@@ -676,7 +716,9 @@ P1 and P2 can run in parallel; P3 before P8; P4 before P6.
   `resolveTheme(raw)`; key order; tuples on one line; unknown keys kept.
 - `creator.test.ts`: `copyPlan` (template paths copied and rewritten, clashes numbered, absolute kept, library picks);
   `soundFor` matches `surfaces/sound/sound.ts` on the same cases; `preview-set` (four distinct, never Achievement in
-  the notification sets); `color` round trips.
+  the notification sets); `color` round trips; `applyPack` (a Keep row is untouched whatever it held, each cue writes
+  `<theme>/<pack>_<cue>.wav` with its volume and one `pendingCopies` entry, tier rows ignored without an
+  `achievements` block) and `currentCues` (reopening the panel shows what Apply wrote).
 - `theme.test.ts` (extended): `buildCss` / `buildAnimationCss` with the default root produce exactly today's output.
 - `architecture.test.ts`: the new `LAYER_RULES`; `creator` and `ui` never import a surface; `OWNERS` gains the two
   rows of § 6.8; the four new RPCs registered.
@@ -725,8 +767,9 @@ Prints `PASS creator`.
 
 - Do not change any surface's behaviour, `steam/*`, the notification hook, the banner queue or the toast patch,
   except P3's markup move (no logic change) and P9's override reader.
-- Do not edit the bundled themes (`ps5.jsonc`, `SteamStation.json`, `steam_tiers.json`, `steam_midnight.json`,
-  `theme_example.jsonc`) or anything under `themes/PlayStation/`, `themes/SteamStation/`, `themes/assets/`.
+- Do not edit, add or remove bundled themes (`themes/*.json`, `themes/*.jsonc`): the user makes the shipped templates
+  (Q7). Do not touch anything under `themes/PlayStation/`, `themes/SteamStation/` (except moving the `custom/sfx/`
+  zips in P1), `themes/assets/`.
 - Banned: deploy or Steam restart outside the Steam lock; SharedJSContext reload; edits to Millennium's `config.json`;
   `npm install` / upgrades; `git push --force`; `--no-verify`; AI attribution in commits (AGENTS.md Routine 6).
 - Failure rule: a failing command at most twice, then stop and record it in TASK.md § Active failures.
