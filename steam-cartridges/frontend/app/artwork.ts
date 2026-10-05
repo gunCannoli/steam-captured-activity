@@ -64,9 +64,15 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
         );
     }
 
-    /** Store the icon file through the backend (refused unless still eligible); the plan gets its path. */
-    async function storeIcon(appid: ShortcutId, url: string, plan: ArtworkPlan): Promise<ArtworkPlan["icon"]> {
-        const image = await deps.fetchImage(url).catch(() => null);
+    /** Store the icon file through the backend (refused unless still eligible); the plan gets its path. The 32 px
+     *  `fallback` is fetched when the 184 px `url` is not served (a 404 on Steam's CDN for some apps). */
+    async function storeIcon(appid: ShortcutId, first: string, plan: ArtworkPlan, fallback?: string): Promise<ArtworkPlan["icon"]> {
+        let url = first;
+        let image = await deps.fetchImage(url).catch(() => null);
+        if (!image && fallback) {
+            url = fallback;
+            image = await deps.fetchImage(url).catch(() => null);
+        }
         if (!image) {
             logger.warn(`Artwork ${appid}: library icon not fetched`);
             return undefined;
@@ -109,11 +115,11 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
 
         let part: Part<ArtworkPlan>;
         if (raw?.status === "ok" && raw.data) {
-            const { plan, iconUrl } = buildPlan(raw.data, deps.now());
+            const { plan, iconUrl, iconFallback } = buildPlan(raw.data, deps.now());
             // The bytes and the icon file exist before the plan reaches the record (and the surface).
             await fetchSlots(appid, plan);
             if (iconUrl) {
-                const icon = await storeIcon(appid, iconUrl, plan);
+                const icon = await storeIcon(appid, iconUrl, plan, iconFallback);
                 if (icon) plan.icon = icon;
             }
             part = { status: "ok", source: raw.source, checkedAt: raw.checkedAt, data: plan };

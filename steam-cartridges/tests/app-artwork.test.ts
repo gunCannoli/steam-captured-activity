@@ -84,6 +84,22 @@ test('icon: an eligible icon url comes with either plan; not eligible means no i
     assert.equal(no.iconUrl, undefined);
 });
 
+test('icon: a 404 on the 184 px icon falls back to the 32 px one (World of Tanks Blitz, 444200)', async () => {
+    const urls = { ...URLS, icon: 'full', iconSmall: 'small' };
+    const plan = buildPlan({ urls, source: 'steam-cdn', steamAppid: 444200, iconEligible: true }, 5);
+    assert.equal(plan.iconUrl, 'full');
+    assert.equal(plan.iconFallback, 'small');
+    const ok = { appid: SC, parts: { artwork: { status: 'ok', data: { urls, source: 'steamgriddb', emptySlots: [0], iconEligible: true } } } };
+    const a = setup({ response: ok, failUrl: 'full' });
+    const part: any = await a.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.deepEqual(a.fetched.filter(([u]) => u === 'full' || u === 'small').map(([u]) => u), ['full', 'small']);
+    assert.deepEqual(a.saved, [[SC, 'small', 'steamgriddb', undefined, 'QUJD']]);
+    assert.deepEqual(part.data.icon, { path: 'C:/icons/1.jpg', previous: 'game.exe' });
+    const b = setup({ response: ok });
+    await b.art.ensure(SC, { bucket: 'web-scraping', via: 'x' } as any, undefined);
+    assert.equal(b.fetched.some(([u]) => u === 'small'), false);
+});
+
 test('icon: clearSlots with only a restore still writes a plan; without either it does nothing', () => {
     const { art, records } = setup();
     art.clearSlots(SC, [], '');

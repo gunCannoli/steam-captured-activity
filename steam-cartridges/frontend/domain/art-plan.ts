@@ -73,8 +73,10 @@ export function sgdbPlan(urls: ArtworkUrls, emptySlots: unknown): ArtPlan {
  * The library icon (icon plan): written only when the backend called it eligible (Steam draws it
  * from the exe, or it is still ours) and there is a url. Anything but `true` is not eligible.
  */
-export function iconPlan(urls: ArtworkUrls, eligible: unknown): { url: string } | undefined {
-    return eligible === true && typeof urls.icon === 'string' && urls.icon !== '' ? { url: urls.icon } : undefined;
+export function iconPlan(urls: ArtworkUrls, eligible: unknown): { url: string; fallback?: string } | undefined {
+    if (eligible !== true || typeof urls.icon !== 'string' || urls.icon === '') return undefined;
+    const small = urls.iconSmall;
+    return typeof small === 'string' && small !== '' && small !== urls.icon ? { url: urls.icon, fallback: small } : { url: urls.icon };
 }
 
 /** Clear's `icon_restore` (backend/steam_store_rpc.lua): the icon path to put back; anything but a string = none. */
@@ -99,15 +101,18 @@ export interface RawArtwork {
  * from which URLs, and the icon URL to store when the icon is eligible (app/artwork stores it; the plan
  * gets its path).
  */
-export function buildPlan(raw: RawArtwork, at: number): { plan: ArtworkPlan; iconUrl?: string } {
+export function buildPlan(raw: RawArtwork, at: number): { plan: ArtworkPlan; iconUrl?: string; iconFallback?: string } {
     const applied = raw.applied && typeof raw.applied === 'object' ? raw.applied : null;
-    const iconUrl = iconPlan(raw.urls ?? {}, raw.iconEligible)?.url;
+    const icon = iconPlan(raw.urls ?? {}, raw.iconEligible);
+    const iconUrl = icon?.url;
+    const iconFallback = icon?.fallback;
     if (raw.source === 'steam-cdn' && raw.steamAppid !== undefined) {
         const plan = artworkPlan(applied, raw.steamAppid, false);
         const kept = applied && applied.steam_appid === raw.steamAppid ? slotList(applied.slots) : [];
         return {
             plan: { source: 'steam-cdn', steamAppid: raw.steamAppid, urls: pickUrls(raw.urls, plan.write), write: plan.write, clear: plan.clear, tried: [], kept, at },
             iconUrl,
+            iconFallback,
         };
     }
     const plan = sgdbPlan(raw.urls, raw.emptySlots);
@@ -123,6 +128,7 @@ export function buildPlan(raw: RawArtwork, at: number): { plan: ArtworkPlan; ico
             at,
         },
         iconUrl,
+        iconFallback,
     };
 }
 

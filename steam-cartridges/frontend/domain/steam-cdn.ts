@@ -9,7 +9,7 @@ import type { ArtworkUrls } from '../kernel/record';
  * need hashed URLs from StoreItemCache `GetAssets()`, which the view prefers.
  * No icon: its URL always needs StoreItemCache's hash (icon plan).
  */
-export function cdnArtworkUrls(steamAppid: number): Required<Omit<ArtworkUrls, 'icon'>> {
+export function cdnArtworkUrls(steamAppid: number): Required<Omit<ArtworkUrls, 'icon' | 'iconSmall'>> {
     const base = `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppid}`;
     return {
         portrait: `${base}/library_600x900.jpg`,

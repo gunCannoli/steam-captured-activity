@@ -51,6 +51,8 @@ test('icon: written only when eligible is exactly true and there is a url', () =
     assert.deepEqual(iconPlan({ icon: 'https://i/full.jpg' }, true), { url: 'https://i/full.jpg' });
     assert.equal(iconPlan({ icon: 'https://i/full.jpg' }, false), undefined);
     assert.equal(iconPlan({ icon: 'https://i/full.jpg' }, 'true'), undefined);
+    assert.deepEqual(iconPlan({ icon: 'https://i/full.jpg', iconSmall: 'https://i/s.jpg' }, true), { url: 'https://i/full.jpg', fallback: 'https://i/s.jpg' });
+    assert.deepEqual(iconPlan({ iconSmall: 'https://i/s.jpg' }, true), undefined);
     assert.equal(iconPlan({ icon: 'https://i/full.jpg' }, undefined), undefined);
     assert.equal(iconPlan({ icon: '' }, true), undefined);
     assert.equal(iconPlan({ portrait: 'p' }, true), undefined);

@@ -146,6 +146,9 @@ export interface ArtworkUrls {
     wide?: string;
     /** The library icon: not a SetCustomArtworkForApp slot, written with SetShortcutIcon (icon plan). */
     icon?: string;
+    /** The 32 px community icon, tried when `icon` (184 px) fails: Steam's CDN lacks the large one for some apps
+     *  (World of Tanks Blitz, 444200: 404, found 2026-10-04). */
+    iconSmall?: string;
 }
 
 /** Field shapes are filled in by the service steps (M4-M7); kept open until then. */
