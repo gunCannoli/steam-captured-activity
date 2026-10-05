@@ -132,7 +132,11 @@ end
 function metadata_db.save()
   if not db then return true end
 
-  local encoded = format_json(db)
+  local ok, encoded = pcall(json.encode, db)
+  if not ok or not encoded then
+    logger:error("Failed to encode metadata db to JSON: " .. tostring(encoded))
+    return false
+  end
   local path = get_db_path()
   local written, err = utils.write_file(path, encoded)
   if not written then

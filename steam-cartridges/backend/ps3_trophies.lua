@@ -230,14 +230,10 @@ function M.get_or_fetch(shortcut_appid)
     achievements = parsed_schema.achievements,
   }
 
-  -- 6. Save in achievements_store
+  -- 6. Save in achievements_store (batched sync)
   local schema_key = "ps3_" .. tostring(parsed_schema.title_id)
   store.save_schema(schema_key, schema)
-  store.bind_schema(s_appid, schema_key)
-
-  for id, info in pairs(unlocks) do
-    store.unlock(s_appid, id, info.unlocked_time)
-  end
+  store.sync(s_appid, schema_key, unlocks, "rpcs3")
 
   local final_state = store.get_state(s_appid)
   final_state.schema = schema

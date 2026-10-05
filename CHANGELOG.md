@@ -7,6 +7,17 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: performance optimization and Luavm64 crash fix (2026-10-05)**:
+  diagnosed and resolved `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` in `millennium.luavm64.exe` (`+0x1087C`, `movdqu [r15], xmm0`)
+  triggered on loading games with large achievement sets (such as *Lufia II: Rise of the Sinistrals* with 107 achievements).
+  The root cause was un-batched `store.unlock()` calls that synchronously serialized and rewrote the 2.57 MB `achievements.json`
+  file over 100 times in a tight loop (~275 MB of redundant disk I/O), stalling the Lua VM and corrupting Millennium's IPC
+  return buffer pointer. Replaced with atomic `store.sync()` in `retroachievements.lua`, `ps3_trophies.lua`, and `ps4_trophies.lua`,
+  reducing disk writes on game view by over 98%. Replaced recursive Lua pretty-printing in `web_metadata_db.lua` with compiled
+  `json.encode` to eliminate GC allocation pressure, and added view-departure cancellation in `frontend/app/media.ts` to halt
+  unneeded ScreenScraper image downloads when the user navigates away from a game.
+  Created optimization plan at `docs/plans/steam-cartridges-performance-and-stability-optimization-plan.md`.
+
 - **steam-cartridges: RetroAchievements Web API integration and hardened title matching (2026-10-05)**:
   fixed missing achievements on emulator games (e.g. SNK vs. Capcom: SVC Chaos, Jurassic Park Part 2: The Chaos Continues)
   by querying the official RetroAchievements Web API (`API_GetGameExtended.php` and `API_GetGameInfoAndUserProgress.php`)

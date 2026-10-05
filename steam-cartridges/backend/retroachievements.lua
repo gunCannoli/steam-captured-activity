@@ -1166,15 +1166,10 @@ function M.get_or_fetch(shortcut_appid, hardcore)
     return nil, "cannot fetch game data"
   end
 
-  -- 8. Save schema & unlocks in achievements_store
+  -- 8. Save schema & unlocks in achievements_store (batched sync, ADR-0056)
   local schema_key = "ra_" .. tostring(game_id)
   store.save_schema(schema_key, schema)
-  store.bind_schema(s_appid, schema_key)
-
-  -- Record shortcut mapping
-  for id, info in pairs(unlocks) do
-    store.unlock(s_appid, id, info.unlocked_time)
-  end
+  store.sync(s_appid, schema_key, unlocks, "retroachievements")
 
   local final_state = store.get_state(s_appid)
   final_state.schema = schema

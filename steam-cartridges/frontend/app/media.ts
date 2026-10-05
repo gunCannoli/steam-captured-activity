@@ -66,7 +66,10 @@ export function createMedia(deps: MediaDeps): MediaResolver {
         return { ...item, width: res.width ?? item.width, height: res.height ?? item.height };
     }
 
+    let latestAppid: ShortcutId | null = null;
+
     async function ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<CommunityMedia>> {
+        latestAppid = appid;
         if (identity?.data?.native) {
             const part: Part<CommunityMedia> = { status: "unsupported", message: "steam" };
             deps.records.update(appid, { media: part });
@@ -93,6 +96,10 @@ export function createMedia(deps: MediaDeps): MediaResolver {
             let next = 0;
             const worker = async () => {
                 while (next < visible.length) {
+                    if (latestAppid !== appid) {
+                        deps.log?.(`Community media ${appid}: view moved away, skipping remaining downloads`);
+                        break;
+                    }
                     const index = next++;
                     shown[index] = await withImage(appid, visible[index]!);
                 }

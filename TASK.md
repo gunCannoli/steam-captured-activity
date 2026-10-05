@@ -16,6 +16,9 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges performance & stability optimization (2026-10-05, [plan](docs/plans/steam-cartridges-performance-and-stability-optimization-plan.md)): Phase 1 deployed and verified live.**
+Resolved `0xC0000005` access violation crashes in `millennium.luavm64.exe` caused by unbatched `store.unlock` loops serializing 2.57 MB `achievements.json` on games with large achievement sets (e.g. Lufia II, 107 achievements). Replaced with atomic `store.sync()` across RA, PS3, and PS4 loaders (-98% disk writes). Optimized `web_metadata_db.lua` serialization to fast compiled `json.encode`. Added navigation departure cancellation to `app/media.ts`. Lufia II verified live via CDP with 67 achievements loaded and zero crashes. Next: persistent ROM MD5 caching and EnsureFresh roundtrip batching.
+
 **enhanced-notifications notifications queue (ADR-0055, 2026-10-02): deployed; one open issue.** Works live (one
 toast at a time, Steam's `displayToastAlone`; the stack stall it caused is fixed by refreshing Steam's fullscreen
 query when the stack empties, `steam/toast-stack.ts`). **Open: toasts sometimes vanish in the full live suite**, one
