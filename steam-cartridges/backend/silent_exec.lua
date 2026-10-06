@@ -4,7 +4,8 @@
 
 local ffi = require("ffi")
 
-ffi.cdef[[
+if not _G.__SILENT_EXEC_CDEF_LOADED then
+  ffi.cdef[[
 typedef struct _SECURITY_ATTRIBUTES {
   unsigned long  nLength;
   void* lpSecurityDescriptor;
@@ -54,7 +55,9 @@ int CreateProcessA(
 
 unsigned long WaitForSingleObject(void* hHandle, unsigned long dwMilliseconds);
 int CloseHandle(void* hObject);
-]]
+  ]]
+  _G.__SILENT_EXEC_CDEF_LOADED = true
+end
 
 local M = {}
 

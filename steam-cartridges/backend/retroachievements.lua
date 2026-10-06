@@ -67,7 +67,111 @@ end
 
 --- Decrypts RetroArch 1.19+ credentials from retroarch-keychain.cfg and retroarch-keychain.key
 --- using Windows CNG (bcrypt.dll) and advapi32.dll (RFC 5869 HKDF-SHA256 + ChaCha20-Poly1305).
+local _keychain_ffi_ready = false
+local _advapi = nil
+local _bcrypt = nil
+local _ffi = nil
+
+local function init_keychain_ffi()
+  if _keychain_ffi_ready then return true end
+  if _G.__RA_KEYCHAIN_FFI_INITIALIZED then
+    _advapi = _G.__RA_KEYCHAIN_ADVAPI
+    _bcrypt = _G.__RA_KEYCHAIN_BCRYPT
+    _ffi = _G.__RA_KEYCHAIN_FFI
+    _keychain_ffi_ready = (_advapi ~= nil and _bcrypt ~= nil and _ffi ~= nil)
+    return _keychain_ffi_ready
+  end
+
+  local ok, ffi = pcall(require, "ffi")
+  if not ok or not ffi then return false end
+  _ffi = ffi
+
+  if not _G.__RA_KEYCHAIN_CDEF_LOADED then
+    ffi.cdef[[
+        typedef void* BCRYPT_ALG_HANDLE;
+        typedef void* BCRYPT_KEY_HANDLE;
+        typedef void* BCRYPT_HASH_HANDLE;
+        typedef void* HKEY;
+        typedef unsigned long DWORD;
+        typedef long LSTATUS;
+
+        LSTATUS RegOpenKeyExA(HKEY hKey, const char* lpSubKey, DWORD ulOptions, DWORD samDesired, HKEY* phkResult);
+        LSTATUS RegQueryValueExA(HKEY hKey, const char* lpValueName, DWORD* lpReserved, DWORD* lpType, unsigned char* lpData, DWORD* lpcbData);
+        LSTATUS RegCloseKey(HKEY hKey);
+
+        long BCryptOpenAlgorithmProvider(BCRYPT_ALG_HANDLE *phAlgorithm, const wchar_t *pszAlgId, const wchar_t *pszImplementation, unsigned long dwFlags);
+        long BCryptCloseAlgorithmProvider(BCRYPT_ALG_HANDLE hAlgorithm, unsigned long dwFlags);
+        long BCryptGenerateSymmetricKey(BCRYPT_ALG_HANDLE hAlgorithm, BCRYPT_KEY_HANDLE *phKey, unsigned char *pbKeyObject, unsigned long cbKeyObject, unsigned char *pbSecret, unsigned long cbSecret, unsigned long dwFlags);
+        long BCryptDestroyKey(BCRYPT_KEY_HANDLE hKey);
+
+        long BCryptCreateHash(BCRYPT_ALG_HANDLE hAlgorithm, BCRYPT_HASH_HANDLE *phHash, unsigned char *pbHashObject, unsigned long cbHashObject, unsigned char *pbSecret, unsigned long cbSecret, unsigned long dwFlags);
+        long BCryptHashData(BCRYPT_HASH_HANDLE hHash, unsigned char *pbInput, unsigned long cbInput, unsigned long dwFlags);
+        long BCryptFinishHash(BCRYPT_HASH_HANDLE hHash, unsigned char *pbOutput, unsigned long cbOutput, unsigned long dwFlags);
+        long BCryptDestroyHash(BCRYPT_HASH_HANDLE hHash);
+
+        typedef struct _BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO {
+          unsigned long cbSize;
+          unsigned long dwInfoVersion;
+          unsigned char *pbNonce;
+          unsigned long cbNonce;
+          unsigned char *pbAuthData;
+          unsigned long cbAuthData;
+          unsigned char *pbTag;
+          unsigned long cbTag;
+          unsigned char *pbMacContext;
+          unsigned long cbMacContext;
+          unsigned char *pbAAD;
+          unsigned long long cbData;
+          unsigned long dwFlags;
+        } BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO;
+
+        long BCryptDecrypt(
+          BCRYPT_KEY_HANDLE hKey,
+          unsigned char *pbInput,
+          unsigned long cbInput,
+          void *pPaddingInfo,
+          unsigned char *pbIV,
+          unsigned long cbIV,
+          unsigned char *pbOutput,
+          unsigned long cbOutput,
+          unsigned long *pcbResult,
+          unsigned long dwFlags
+        );
+      ]]
+    _G.__RA_KEYCHAIN_CDEF_LOADED = true
+  end
+
+  local ok_advapi, advapi = pcall(ffi.load, "advapi32.dll")
+  local ok_bcrypt, bcrypt = pcall(ffi.load, "bcrypt.dll")
+  if ok_advapi and ok_bcrypt then
+    _advapi = advapi
+    _bcrypt = bcrypt
+    _G.__RA_KEYCHAIN_ADVAPI = advapi
+    _G.__RA_KEYCHAIN_BCRYPT = bcrypt
+    _G.__RA_KEYCHAIN_FFI = ffi
+    _G.__RA_KEYCHAIN_FFI_INITIALIZED = true
+    _keychain_ffi_ready = true
+    return true
+  end
+  return false
+end
+
+-- In-memory cache for decrypted keychain credentials across shortcut lookups
+local _cached_keychain_user = nil
+local _cached_keychain_token = nil
+local _cached_keychain_base_dir = nil
+local _cached_ra_confs = {}
+
 local function read_retroarch_keychain(base_dir)
+  if _cached_keychain_user and _cached_keychain_token and _cached_keychain_base_dir == base_dir then
+    return _cached_keychain_user, _cached_keychain_token
+  end
+
+  if not init_keychain_ffi() then return nil end
+  local ffi = _ffi
+  local advapi = _advapi
+  local bcrypt = _bcrypt
+
   local ok, res = pcall(function()
     local f_key = io.open(base_dir .. "/retroarch-keychain.key", "r")
     if not f_key then return nil end
@@ -80,63 +184,6 @@ local function read_retroarch_keychain(base_dir)
     local cfg_text = f_cfg:read("*a")
     f_cfg:close()
     if not cfg_text then return nil end
-
-    local ffi = require("ffi")
-
-    pcall(ffi.cdef, [[
-      typedef void* BCRYPT_ALG_HANDLE;
-      typedef void* BCRYPT_KEY_HANDLE;
-      typedef void* BCRYPT_HASH_HANDLE;
-      typedef void* HKEY;
-      typedef unsigned long DWORD;
-      typedef long LSTATUS;
-
-      LSTATUS RegOpenKeyExA(HKEY hKey, const char* lpSubKey, DWORD ulOptions, DWORD samDesired, HKEY* phkResult);
-      LSTATUS RegQueryValueExA(HKEY hKey, const char* lpValueName, DWORD* lpReserved, DWORD* lpType, unsigned char* lpData, DWORD* lpcbData);
-      LSTATUS RegCloseKey(HKEY hKey);
-
-      long BCryptOpenAlgorithmProvider(BCRYPT_ALG_HANDLE *phAlgorithm, const wchar_t *pszAlgId, const wchar_t *pszImplementation, unsigned long dwFlags);
-      long BCryptCloseAlgorithmProvider(BCRYPT_ALG_HANDLE hAlgorithm, unsigned long dwFlags);
-      long BCryptGenerateSymmetricKey(BCRYPT_ALG_HANDLE hAlgorithm, BCRYPT_KEY_HANDLE *phKey, unsigned char *pbKeyObject, unsigned long cbKeyObject, unsigned char *pbSecret, unsigned long cbSecret, unsigned long dwFlags);
-      long BCryptDestroyKey(BCRYPT_KEY_HANDLE hKey);
-
-      long BCryptCreateHash(BCRYPT_ALG_HANDLE hAlgorithm, BCRYPT_HASH_HANDLE *phHash, unsigned char *pbHashObject, unsigned long cbHashObject, unsigned char *pbSecret, unsigned long cbSecret, unsigned long dwFlags);
-      long BCryptHashData(BCRYPT_HASH_HANDLE hHash, unsigned char *pbInput, unsigned long cbInput, unsigned long dwFlags);
-      long BCryptFinishHash(BCRYPT_HASH_HANDLE hHash, unsigned char *pbOutput, unsigned long cbOutput, unsigned long dwFlags);
-      long BCryptDestroyHash(BCRYPT_HASH_HANDLE hHash);
-
-      typedef struct _BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO {
-        unsigned long cbSize;
-        unsigned long dwInfoVersion;
-        unsigned char *pbNonce;
-        unsigned long cbNonce;
-        unsigned char *pbAuthData;
-        unsigned long cbAuthData;
-        unsigned char *pbTag;
-        unsigned long cbTag;
-        unsigned char *pbMacContext;
-        unsigned long cbMacContext;
-        unsigned long cbAAD;
-        unsigned long long cbData;
-        unsigned long dwFlags;
-      } BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO;
-
-      long BCryptDecrypt(
-        BCRYPT_KEY_HANDLE hKey,
-        unsigned char *pbInput,
-        unsigned long cbInput,
-        void *pPaddingInfo,
-        unsigned char *pbIV,
-        unsigned long cbIV,
-        unsigned char *pbOutput,
-        unsigned long cbOutput,
-        unsigned long *pcbResult,
-        unsigned long dwFlags
-      );
-    ]])
-
-    local advapi = ffi.load("advapi32.dll")
-    local bcrypt = ffi.load("bcrypt.dll")
 
     local function to_wide(str)
       local w = ffi.new("wchar_t[?]", #str + 1)
@@ -272,16 +319,27 @@ local function read_retroarch_keychain(base_dir)
     return { username = username, token = token }
   end)
 
-  if ok and res then return res.username, res.token end
+  if ok and res and res.username and res.token then
+    _cached_keychain_user = res.username
+    _cached_keychain_token = res.token
+    _cached_keychain_base_dir = base_dir
+    return res.username, res.token
+  end
   return nil
 end
 
 --- Locate retroarch.cfg and parse credentials + paths
-function M.get_retroarch_config()
-  local candidates = {
-    DEFAULT_RA_DIR .. "/retroarch.cfg",
-    (os.getenv("APPDATA") or "") .. "/RetroArch/retroarch.cfg",
-  }
+function M.get_retroarch_config(override_dir)
+  local target_key = override_dir or "default"
+  if _cached_ra_confs[target_key] then
+    return _cached_ra_confs[target_key]
+  end
+  local candidates = {}
+  if override_dir and #override_dir > 0 then
+    table.insert(candidates, override_dir .. "/retroarch.cfg")
+  end
+  table.insert(candidates, DEFAULT_RA_DIR .. "/retroarch.cfg")
+  table.insert(candidates, (os.getenv("APPDATA") or "") .. "/RetroArch/retroarch.cfg")
 
   local cfg_path = nil
   for _, p in ipairs(candidates) do
@@ -342,6 +400,10 @@ function M.get_retroarch_config()
     end
   end
 
+  if conf.username and conf.token then
+    _cached_ra_confs[conf.base_dir] = conf
+    _cached_ra_confs[target_key] = conf
+  end
   return conf
 end
 

@@ -19,16 +19,18 @@ local wininet = nil
 local function load()
   if wininet ~= nil then return wininet end
   wininet = false
-  if not ffi_ok then return false end
-  -- pcall: another module may have declared the same prototypes; a redefinition error is harmless.
-  pcall(ffi.cdef, [[
-    void* InternetOpenA(const char* agent, unsigned long access, const char* proxy, const char* bypass, unsigned long flags);
-    void* InternetOpenUrlA(void* session, const char* url, const char* headers, unsigned long headers_len, unsigned long flags, uintptr_t context);
-    int InternetReadFile(void* handle, void* buffer, unsigned long to_read, unsigned long* read);
-    int InternetCloseHandle(void* handle);
-    int InternetSetOptionA(void* handle, unsigned long option, void* buffer, unsigned long length);
-    int HttpQueryInfoA(void* request, unsigned long level, void* buffer, unsigned long* length, unsigned long* index);
-  ]])
+  if not ffi_ok or not ffi then return false end
+  if not _G.__WININET_CDEF_LOADED then
+    ffi.cdef[[
+      void* InternetOpenA(const char* agent, unsigned long access, const char* proxy, const char* bypass, unsigned long flags);
+      void* InternetOpenUrlA(void* session, const char* url, const char* headers, unsigned long headers_len, unsigned long flags, uintptr_t context);
+      int InternetReadFile(void* handle, void* buffer, unsigned long to_read, unsigned long* read);
+      int InternetCloseHandle(void* handle);
+      int InternetSetOptionA(void* handle, unsigned long option, void* buffer, unsigned long length);
+      int HttpQueryInfoA(void* request, unsigned long level, void* buffer, unsigned long* length, unsigned long* index);
+    ]]
+    _G.__WININET_CDEF_LOADED = true
+  end
   local ok, lib = pcall(ffi.load, "wininet")
   if ok then wininet = lib end
   return wininet
