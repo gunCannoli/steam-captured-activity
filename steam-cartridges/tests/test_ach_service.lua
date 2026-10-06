@@ -282,6 +282,49 @@ observer.check_unlocks(SC, 0, "Sonic")
 check("three polls ask the sources once", calls.ra == 1, calls.ra)
 observer._reset_resolved()
 
+print("RetroAchievements: a known game's unlocks are asked again on a page open (ADR-0060 amendment)")
+local ra = require("retroachievements")
+local registry = require("registry")
+registry.deps.entries = function() return { { appid = SC, exe = "C:/emu/RetroArch/retroarch.exe", launch_options = "" } } end
+local RA_SCHEMA = { ra_game_id = 77, title = "Game", total = 2, hardcore = true,
+  achievements = { { id = "1", name = "a", points = 5, global_pct = 10 }, { id = "2", name = "b", points = 10, global_pct = 3 } } }
+local saved_fetch, saved_creds, saved_hash = ra.fetch_game_data, ra.get_credentials, ra.compute_rom_md5
+local ra_fetches, hashes = 0, 0
+ra.get_credentials = function() return { username = "me", token = "t", api_key = "k" } end
+ra.compute_rom_md5 = function() hashes = hashes + 1; return "md5" end
+
+wipe(); fresh()
+store.save_schema_and_sync(SC, "ra_77", RA_SCHEMA, { ["1"] = { unlocked_time = 100 } }, "retroachievements")
+ra.fetch_game_data = function(gid)
+  ra_fetches = ra_fetches + 1
+  return RA_SCHEMA, { ["1"] = { unlocked_time = 999 }, ["2"] = { unlocked_time = 200 } }
+end
+local got = ra.get_or_fetch(SC, true)
+check("a stored game asks its profile again by GameID, without hashing the ROM", ra_fetches == 1 and hashes == 0)
+check("an unlock earned on another device is added", got.unlocks["2"] and got.unlocks["2"].unlocked_time == 200)
+check("an unlock already known keeps its time", got.unlocks["1"].unlocked_time == 100)
+check("... and is stored", store.get_state(SC).unlocks["2"] ~= nil and store.get_state(SC).source == "retroachievements")
+
+ra.fetch_game_data = function() ra_fetches = ra_fetches + 1; return nil, "offline" end
+got = ra.get_or_fetch(SC, true)
+check("offline: the stored unlocks are answered", ra_fetches == 2 and got.unlocks["1"] ~= nil and got.unlocks["2"] ~= nil)
+
+ra.fetch_game_data = function() return RA_SCHEMA, {} end
+got = ra.get_or_fetch(SC, true)
+check("a profile without an unlock never drops one known here (merge, not replace)", got.unlocks["1"] ~= nil and got.unlocks["2"] ~= nil)
+
+wipe(); fresh()
+store.save_schema(  "ra_77", RA_SCHEMA); store.bind_schema(SC, "ra_77")
+local lp_ra = ach.local_part(SC)
+check("an entry stored before its source was recorded counts as RetroAchievements (ra_ list)", lp_ra.source == "retroachievements")
+local t_ra = os.time() * 1000
+fresh_policy.touch(SC, "achievements", t_ra, "ok")
+check("RetroAchievements unlocks come due after 5 min, not 24 h",
+  not fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 4 * 60000) and fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 5 * 60000))
+
+ra.fetch_game_data, ra.get_credentials, ra.compute_rom_md5 = saved_fetch, saved_creds, saved_hash
+registry.deps.entries = nil
+
 print("GetAllRecords")
 wipe(); fresh()
 store.save_schema(77, SCHEMA); store.bind_schema(SC, 77)

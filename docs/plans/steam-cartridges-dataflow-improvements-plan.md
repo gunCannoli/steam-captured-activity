@@ -335,5 +335,10 @@ Verification: `npm run check` clean; `npm run test:ts` 326 pass, 0 fail (was 317
 ALL PASS; build OK; deployed with `dev.ps1`; `steam-health` PASS; `npm run test:live` 13/13 PASS (navigation cycle and
 tabs included, Routines 1-3); the timing probe PASS on two RetroAchievements games.
 
+**Amendment (the user's review, same day):** a stored RetroAchievements game never asked its profile again (a
+pre-existing gap: `get_or_fetch` returned the stored copy, whatever the TTL). Now its part comes due after 5 min and the
+refresh is one request by GameID, merged into the stored unlocks (`refresh_unlocks`, ADR-0060 amendment), so unlocks
+earned on another device show on the next page open.
+
 Open, not caused by this change: Steam logs `Uncaught (in promise) Error: Assertion failed` plus a Millennium error
 boundary catch right after the captures surface publishes activity events (299 in the previous log, since 2026-10-05).

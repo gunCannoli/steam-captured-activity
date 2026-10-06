@@ -13,6 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
   - Games without achievements, or that RetroAchievements does not know, are no longer looked up again on every page visit (remembered 24 h / 30 min; Sync now and Fetch still ask).
   - ROM hashes and RetroAchievements game ids are kept on disk, so a Steam restart no longer re-hashes every ROM.
   - The in-game unlock check no longer piles up while the backend is busy.
+  - RetroAchievements unlocks are fetched from your profile when a game's page opens (at most every 5 minutes), so an achievement earned on another device or on the website shows up. Before, a game's unlocks were never asked again once its list was stored.
 
 - **Fixed: emulator controller support inference and background achievements ingestion (2026-10-06)**:
   - Controller support inference is now loaded at start-up (`controller.load()`), and `metadata.rebadge()` re-evaluates all loaded shortcuts upon completion.

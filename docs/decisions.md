@@ -3398,5 +3398,15 @@ record twice.
 - A page's own calls wait at most for the one call already running, never for background work queued before them.
 - A known game's Game Info and achievements show after one short disk read each.
 - A setting that would make an `unsupported` game supported (new credentials, a changed launch command) takes effect
-  after 24 h or a forced fetch, not on the next view.
+  after 24 h or a forced fetch, not on the next view. This only covers games with **nothing stored** and no source
+  (no ROM path, trophy folder or Steam match), so RetroAchievements is not involved.
+
+**Amendment (2026-10-06, the user's review): RetroAchievements unlocks are asked on every page open.** One
+RetroAchievements profile is played on several devices (and the website), so an unlock earned elsewhere must show when
+the page opens. Before this, a game whose list was stored never asked its profile again (`get_or_fetch` returned the
+stored copy). Now a stored RetroAchievements part comes due after 5 min (`TTL.achievements_ra`; the gap only absorbs
+Steam reporting one view several times), and its refresh is one request by the stored GameID (no ROM hash, no title
+search). The profile's unlocks are **merged** into the stored ones (an unlock seen here but not yet on the server is
+kept); offline, the stored unlocks are answered. The refresh runs after the paint, so the page still shows what is stored
+at once.
 - Not done: splitting `achievements.json` so an unlock does not re-encode 2.6 MB (needs a migration; its own plan).

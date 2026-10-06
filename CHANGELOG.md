@@ -15,6 +15,7 @@ This repo is private and unversioned; entries are grouped by date.
   - *RetroAchievements lookups persist*: new `ra_cache.lua` (`ra_cache.json`): ROM MD5 by path, size and mtime; GameID by MD5 (a miss for 7 days).
   - *Start-up*: one shared `GetAllRecords` for both preloads, before the library grid; controller inference and routing profiles load once; ingest waits for the preloads, runs in the background lane, one part per call.
   - *Live*: first view of an RA game: Game Info and achievements in the record 11-45 ms after the view event; longest wait of a view call 251 ms (behind its own Game Info refresh). `test:live` 13/13; TS 326 pass; Lua 12/12 suites.
+  - *Amendment (the user's review)*: RetroAchievements unlocks are now asked on every page open (at most every 5 min, one request by the stored GameID, merged, offline-safe). Before, a game's unlocks were never asked again once its list was stored, so unlocks from other devices never arrived.
   - *Corrected*: the audit's "shortcuts.vdf parsed on every call" was wrong (already mtime-cached). Fixed a test that leaked an open file handle so later wipes failed on Windows.
 
 - **steam-cartridges: IGDB search & link, Super Bomberman 5 RA resolution, and Millennium luavm64 R15 hot-patch (2026-10-06)**:

@@ -46,6 +46,8 @@ RPCs (`record_rpc.lua`): `GetNewShortcuts()` → `{ shortcuts }`; `MarkKnown({ a
 | identity `ok` without a native match | 7 days | same as the store search's negative cache |
 | metadata `ok` (igdb / screenscraper / fallback) | 24 h | Flow B |
 | achievements `ok` | 24 h (the schema; unlocks are read by their own channels, Flow C) | |
+| achievements `ok`, source `retroachievements` | 5 min | one profile plays on several devices: a page open asks the profile's unlocks again (ADR-0060 amendment); the gap absorbs Steam reporting one view several times |
+| achievements `ok`, source `epic` / `xbox` | 15 min | the store's unlocks, synced on open (ADR-0056) |
 | media `ok` (igdb / screenscraper) | 7 days | trailers and art rarely change (features plan F2) |
 | any part, `error` | 30 min | retry soon, never in a loop |
 | `unsupported` | 24 h | a route, setting or credential may change |

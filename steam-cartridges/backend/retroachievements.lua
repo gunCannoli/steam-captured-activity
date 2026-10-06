@@ -1251,6 +1251,37 @@ function M.fetch_game_data(game_id, username, token, hardcore, api_key)
   return schema, unlocks
 end
 
+--- A known game's unlocks, asked again (ADR-0060 amendment): one RetroAchievements profile is played on several devices,
+--- so an unlock earned elsewhere must reach this PC when the page opens. Reached only when the stored part is due
+--- (fresh_policy: a few minutes for RetroAchievements). One request by the stored GameID: no ROM hash, no title search.
+--- The answer is merged into the stored unlocks (an unlock seen here but not yet on the server is kept); a failed
+--- request returns what is stored, so the page keeps working offline.
+function M.refresh_unlocks(s_appid, st, is_hardcore)
+  local entry = require("registry").shortcut(s_appid)
+  local creds = M.get_credentials(entry and entry.exe or "")
+  local game_id = st.schema.ra_game_id
+  local ok, schema, unlocks = pcall(M.fetch_game_data, game_id, creds.username, creds.token, is_hardcore, creds.api_key)
+  if not ok or type(schema) ~= "table" or (schema.total or 0) == 0 or type(unlocks) ~= "table" then
+    return st
+  end
+  local merged, added = {}, 0
+  for id, info in pairs(st.unlocks or {}) do merged[id] = info end
+  for id, info in pairs(unlocks) do
+    if not merged[id] then
+      merged[id] = info
+      added = added + 1
+    end
+  end
+  store.save_schema_and_sync(s_appid, "ra_" .. tostring(game_id), schema, merged, "retroachievements")
+  if added > 0 then
+    logger:info(string.format("RetroAchievements: %d unlock(s) for shortcut %d came from the profile (another device or the website)", added, s_appid))
+  end
+  local final_state = store.get_state(s_appid)
+  final_state.schema = schema
+  final_state.unlocks = merged
+  return final_state
+end
+
 --- Main entry point: gets cached or fetches RetroAchievements data for a shortcut
 function M.get_or_fetch(shortcut_appid, hardcore)
   local s_appid = tonumber(shortcut_appid) or 0
@@ -1276,7 +1307,7 @@ function M.get_or_fetch(shortcut_appid, hardcore)
     local s_title = tostring(st.schema.title or ""):lower()
     if not s_title:find("^unsupported game version") and (st.schema.total or 0) > 0 then
       if not is_legacy_schema(st.schema) and (st.schema.hardcore == nil or st.schema.hardcore == is_hardcore) then
-        return st
+        return M.refresh_unlocks(s_appid, st, is_hardcore)
       end
     end
   end

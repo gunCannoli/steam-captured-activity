@@ -130,8 +130,11 @@ function M.local_part(appid)
   if st.source == "none" or st.schema_appid == "none" then
     return { status = "none", source = "none", data = { schema = st.schema, unlocks = {} }, checkedAt = now_ms() }
   end
-  -- `source` tells a synced store part (its freshness is short, fresh_policy) from a local one.
-  return { status = "ok", source = st.source, data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
+  -- `source` tells a synced part (a store's, or RetroAchievements': its freshness is short, fresh_policy) from a local
+  -- one. Entries written before the source was stored are RetroAchievements' when their list is ("ra_<game>").
+  local source = st.source
+  if not source and type(st.schema_appid) == "string" and st.schema_appid:match("^ra_") then source = "retroachievements" end
+  return { status = "ok", source = source, data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
 end
 
 --- Every shortcut appid (a number) the store holds an entry for, with or without a schema. Disk only;
