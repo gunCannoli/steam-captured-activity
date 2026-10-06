@@ -25,8 +25,7 @@ Permanently eliminated recurring `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` crash
 **steam-cartridges page data first (ADR-0060, 2026-10-06, [plan](docs/plans/steam-cartridges-dataflow-improvements-plan.md)): deployed and live-verified by the agent.**
 Priority lanes in the call queue, paint from disk then refresh, remembered empty lookups, persistent RA hash/GameID cache, one start-up
 read. Left for the user: open a few RetroAchievements games and a game never opened before, and say whether achievements now show with the
-page. Open, not caused by it: Steam logs `Assertion failed` + a Millennium error-boundary catch right after the captures surface publishes
-activity events (since 2026-10-05). Follow-up: split `achievements.json` (schemas vs unlocks) so an unlock stops re-encoding 2.6 MB (needs a plan).
+page. Follow-up: split `achievements.json` (schemas vs unlocks) so an unlock stops re-encoding 2.6 MB (needs a plan).
 
 **steam-cartridges controller inference restoration & background RetroAchievements ingestion (2026-10-06): deployed and verified live.**
 Fixed regression where emulator shortcuts lacked controller support badges and showed "Unknown controller" in Library Analytics (root cause: `createController` never called `controller.load()` at start-up). Added `controller.load()` at start-up, hooked `onLoaded` to `metadata.rebadge()`, and expanded backend emulator lists to 24 standalone emulators (`snes9x`, `mgba`, `vbam`, `ares`, `project64`, etc.) with command-line ROM extension inspection. Live CDP probe confirmed 218/228 shortcuts populated with `xbox_support: 2` and category `28`. Fixed missing RetroAchievements across library by extending `app/ingest.ts` with `needsFetch` to ingest existing shortcuts lacking metadata or achievements schemas sequentially in the background (300 ms pacing). Added per-game "Fetch" and batch "Fetch All" in Review modal. Live verification confirmed 218 shortcuts populated in `achievements.json`.

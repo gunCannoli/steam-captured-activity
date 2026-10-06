@@ -340,5 +340,5 @@ pre-existing gap: `get_or_fetch` returned the stored copy, whatever the TTL). No
 refresh is one request by GameID, merged into the stored unlocks (`refresh_unlocks`, ADR-0060 amendment), so unlocks
 earned on another device show on the next page open.
 
-Open, not caused by this change: Steam logs `Uncaught (in promise) Error: Assertion failed` plus a Millennium error
-boundary catch right after the captures surface publishes activity events (299 in the previous log, since 2026-10-05).
+The `Assertion failed` rejections noted here were later traced to the captures surface's activity-feed entries and
+fixed (2026-10-06; CHANGELOG, knowledgebase Part 8).

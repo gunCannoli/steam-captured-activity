@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: "Uncaught (in promise) Error: Assertion failed" on non-Steam game pages (2026-10-06)**: the activity feed entries the plugin publishes now carry the fields Steam's activity store reads, and Steam no longer sends server activity requests for a shortcut.
+
 - **Changed: a game's page shows its own data first (ADR-0060, 2026-10-06)**:
   - Stored Game Info and achievements show as soon as the page opens; sources are asked afterwards, and only for what is missing or due.
   - Backend calls still run one at a time (the 2026-10-05 fix stands), but in priority order: the open page, then other actions, then community media, then background jobs (ingest, store sync). Achievements no longer wait for artwork, community media or a background sync.

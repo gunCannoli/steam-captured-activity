@@ -118,6 +118,24 @@ export interface AppActivityDay {
 /** Per-app activity state. */
 export interface AppActivity {
     m_unAppID: number;
+    /** Steam's CAppActivity time bounds (rtime32): read by FetchLatestActivityFromServer / FetchActivityHistory. */
+    m_rtEarliestUserNewsTime?: number;
+    m_rtEarliestGameActivityTime?: number;
+    m_rtLatestUserNewsTime?: number;
+    m_rtLatestGameActivityTime?: number;
+    m_rgCachedUserNewsEvents?: unknown[];
+    m_rgCachedGameActivityEvents?: unknown[];
+    m_bNoMoreHistoryAvailable?: boolean;
+    readonly earliest_user_news_time?: number;
+    readonly earliest_game_activity_time?: number;
+    readonly latest_user_news_time?: number;
+    readonly latest_game_activity_time?: number;
+    /** What FetchLatestActivityFromServer calls on the entry after the requests answer. */
+    MergeUserNews?(body: unknown): Promise<void>;
+    MergeGameActivity?(body: unknown, steamid?: unknown): void;
+    GetAchievementMapCache?(): string;
+    GetUserNewsCache?(): unknown[];
+    GetGameActivityCache?(): unknown[];
     m_mapActivityByDay: Map<number, AppActivityDay>;
     appActivityByDay: AppActivityDay[];
     lastAddedEventType?: number;
@@ -128,6 +146,8 @@ export interface AppActivity {
 /** Steam's `CAppActivityStore` singleton. */
 export interface AppActivityStore {
     m_mapAppActivity: Map<number, AppActivity>;
+    /** Apps whose server fetch is in flight; FetchLatestActivity returns at once for an app in it. */
+    m_setAppFetchRequested?: Set<number>;
     GetAppActivity(appid: number): AppActivity | undefined;
     RestoreActivity(appid: number): Promise<void>;
 }

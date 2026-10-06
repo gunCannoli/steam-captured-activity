@@ -356,8 +356,29 @@ export async function publishActivity(
         if (CAppActivity) {
             appActivity = new CAppActivity(appid);
         } else {
+            // No Steam-made entry to borrow the class from (common right after start-up). Steam's activity store
+            // reads these fields from any entry (FetchLatestActivityFromServer / FetchActivityHistory build protobuf
+            // requests from them); without them `undefined + 1` is NaN and jspb's writeUint32 throws "Assertion
+            // failed" (found live 2026-10-06). Same initial values as Steam's CAppActivity.
             appActivity = {
                 m_unAppID: appid,
+                m_rtEarliestUserNewsTime: 4294967295,
+                m_rtEarliestGameActivityTime: 4294967295,
+                m_rtLatestUserNewsTime: 0,
+                m_rtLatestGameActivityTime: 0,
+                m_rgCachedUserNewsEvents: [],
+                m_rgCachedGameActivityEvents: [],
+                get earliest_user_news_time() { return this.m_rtEarliestUserNewsTime; },
+                get earliest_game_activity_time() { return this.m_rtEarliestGameActivityTime; },
+                get latest_user_news_time() { return this.m_rtLatestUserNewsTime; },
+                get latest_game_activity_time() { return this.m_rtLatestGameActivityTime; },
+                // A fetch Steam queued before this entry existed (RestoreActivity) still runs against it: the merge and
+                // cache steps CAppActivity has, as no-ops (a shortcut has no server news; the next publish rebuilds the feed).
+                async MergeUserNews() {},
+                MergeGameActivity() {},
+                GetAchievementMapCache: () => "[]",
+                GetUserNewsCache: () => [],
+                GetGameActivityCache: () => [],
                 m_mapActivityByDay: new Map(),
                 get lastAddedEventType() {
                     const first = this.appActivityByDay?.[0];
@@ -381,6 +402,9 @@ export async function publishActivity(
         }
     }
     if (!appActivity) return 0;
+    // A shortcut has no activity on Steam's servers: the feed's "show more" must not ask for history (it would send
+    // a request for an appid the server does not know).
+    appActivity.m_bNoMoreHistoryAvailable = true;
 
     // 4. Combine and group captures by local midnight
     const mediaItems: MediaItem[] = [
@@ -670,6 +694,11 @@ export async function publishActivity(
         actStore.m_mapAppActivity.set(appid, appActivity);
         publishedSignature.set(appid, signature);
     }
+    // Steam's feed calls FetchLatestActivity(appid) 500 ms after it mounts; for an app it has an entry for, that sends
+    // GetUserNews and GetActivity for the appid. A shortcut has nothing there, and the requests were built from our entry
+    // (the "Assertion failed" rejections). FetchLatestActivity returns at once for an app already in this set, the only
+    // thing the set is used for besides the fetch itself; this feed is ours (the captures surface publishes it).
+    actStore.m_setAppFetchRequested?.add(appid);
     logger.info(
         `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), ${achievementCount} unlock(s) on ${achDays.length} day(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
     );

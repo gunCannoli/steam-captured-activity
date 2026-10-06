@@ -450,7 +450,7 @@ node steam-health.mjs --wait 120   # right after a restart: poll until healthy o
 | Line | Meaning |
 | ---- | ------- |
 | `FAIL` (exit 1) | `steam.exe` not running; running without CDP; SharedJSContext does not answer in 5 s (Trap 10); an enabled plugin (`config.json` `enabledPlugins`) missing from `PLUGIN_LIST`; the desktop / Big Picture window empty, or visible but not painting; a surface that `exceeded its error budget` since this start |
-| `WARN` | plugin `ERROR` lines and Millennium `ErrorBoundaryHook` catches since this start (Steam's own `Uncaught (in promise) Error: Assertion failed` is old noise: 200+ lines since 2026-09-30) |
+| `WARN` | plugin `ERROR` lines and Millennium `ErrorBoundaryHook` catches since this start (`Uncaught (in promise) Error: Assertion failed` was **not** noise: steam-cartridges' activity-feed entries, fixed 2026-10-06, see [knowledgebase](knowledgebase.md) Part 8; an error-boundary catch naming `non-steam-playtimes` is that plugin's) |
 | `INFO` | resume from sleep, the GPU software fallback, the start time and the last JS log line |
 
 "Since this start" means after the last `Client version:` line of `webhelper_js.txt`.

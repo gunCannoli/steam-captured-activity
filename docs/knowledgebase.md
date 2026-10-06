@@ -1088,6 +1088,17 @@ news and partner events (`surfaces/captures/activity.ts`). Two facts:
   `global_achieved_pct`, ...) are on `Object.getPrototypeOf(new Class())`. Match by instantiating and checking `set_*`, or by
   `new Class().getClassName()`. The notification type enum is another export of the same module; its `ok` member is 5, the
   achievement type passed to `NotificationStore.OnNotification(id, type, binary)`.
+- **`CAppActivityStore` fetches from any entry it holds (verified live 2026-10-06).** Steam's activity feed calls
+  `FetchLatestActivity(appid)` 500 ms after it mounts. When `m_mapAppActivity` has the app and `m_setAppFetchRequested`
+  does not, `FetchLatestActivityFromServer` sends `GetUserNews` (`starttime = entry.latest_user_news_time + 1`) and
+  `GetActivity` (`entry.latest_game_activity_time + 1`), then calls `entry.MergeUserNews`, `MergeGameActivity` and the
+  three `Get*Cache` methods; `FetchActivityHistory` ("show more") reads `m_bNoMoreHistoryAvailable` and
+  `earliest_*_time - 1`. A field missing on an injected entry makes `NaN`, and jspb's `BinaryWriter.writeUint32` throws
+  `Error: Assertion failed` (no message: `jspb.asserts.doAssertFailure`) as an unhandled rejection. `CAppActivity` is
+  not exported (borrow the class from a Steam-made entry; fall back to an object with its fields: earliest times
+  `4294967295`, latest `0`). `FetchLatestActivity` returns at once for an appid in `m_setAppFetchRequested`, the set's
+  only other use being the fetch itself (and `RestoreActivity`, which fetches when the appid is in it: an entry
+  published while a restore is queued still gets one fetch, so a fallback needs the merge and cache methods too).
 - **Noise:** `Uncaught (in promise)` rejections with a plain-object value and no stack (1-2 per page) also occur when a
   *native* game page opens (appids 730, 570), so they are Steam's own, not the plugin's.
 - **`appAchievementProgressCache`** (verified live 2026-09-30): `Init` awaits `LoadCacheFile` (reads
