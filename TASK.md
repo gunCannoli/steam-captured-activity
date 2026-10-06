@@ -16,6 +16,9 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges RA global unlock % and Library Analytics controller support (2026-10-05): deployed and verified live.**
+Fixed Metroid Fusion *Explosive Chamber* unlock rate (from 4% points fallback to true 92.47%) and refreshed schemas in `achievements.json`. Resolved false "Unknown controller" issues for Steam-mirrored shortcuts (*Jotunnslayer: Hordes of Hel*) and Epic/Xbox store copies in Library Analytics. Mapped and store copies now accurately count toward `Metadata Match` and satisfy controller support. Deployed and verified live via CDP.
+
 **steam-cartridges Library Analytics & Review achievement controls (2026-10-05): deployed and verified live.**
 Added `Achievements Match - ##` stat below `Metadata Match`. Extended "Issues detected" count and Review modal with filter options (`All Issues`, `Missing Achievements`, `Missing Controller`, `Not Scraped`) and per-game actions: RetroAchievements URL/ID link, Steam App ID link, "Mark No Achievements" dismiss, and "Reset Achievement Source". Wired through `SetAchievementSource` and `ClearAchievementSource` RPCs with live progress cache updates. Verified via CDP and all 315 unit tests.
 

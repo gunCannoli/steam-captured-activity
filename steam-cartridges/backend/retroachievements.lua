@@ -962,7 +962,7 @@ function M.fetch_game_data(game_id, username, token, hardcore, api_key)
       if decode_ok and type(data) == "table" and data.Title then
         game_title = tostring(data.Title or "")
         local raw_achs = data.Achievements or {}
-        local num_players = tonumber(data.NumDistinctPlayers) or 0
+        local num_players = tonumber(data.NumDistinctPlayers) or tonumber(data.NumDistinctPlayersCasual) or 0
 
         for ach_k, a in pairs(raw_achs) do
           if type(a) == "table" and (a.ID or a.id) then
@@ -970,11 +970,9 @@ function M.fetch_game_data(game_id, username, token, hardcore, api_key)
             local badge = tostring(a.BadgeName or "00000")
             local pts = tonumber(a.Points) or 0
             local awarded = tonumber(a.NumAwarded or a.NumAwardedHardcore) or 0
-            local pct = 10
+            local pct = 0
             if num_players > 0 and awarded > 0 then
-              pct = math.min(100, math.max(0, math.floor((awarded * 100) / num_players)))
-            elseif pts > 0 then
-              pct = pts
+              pct = math.min(100, math.max(0, math.floor(((awarded * 10000) / num_players) + 0.5) / 100))
             end
 
             table.insert(achievements, {
@@ -1054,7 +1052,7 @@ function M.fetch_game_data(game_id, username, token, hardcore, api_key)
       icon = a.BadgeURL or string.format("https://media.retroachievements.org/Badge/%s.png", a.BadgeName or "00000"),
       icon_locked = a.BadgeLockedURL or string.format("https://media.retroachievements.org/Badge/%s_lock.png", a.BadgeName or "00000"),
       points = tonumber(a.Points) or 0,
-      global_pct = tonumber(a.Points) or 10,
+      global_pct = 0,
     })
   end
 
@@ -1103,12 +1101,24 @@ function M.get_or_fetch(shortcut_appid, hardcore)
   if s_appid < 0 then s_appid = s_appid + 0x100000000 end
   local is_hardcore = (hardcore ~= false)
 
+  local function is_legacy_schema(sch)
+    if not sch or not sch.achievements or #sch.achievements == 0 then return false end
+    for _, a in ipairs(sch.achievements) do
+      local pts = tonumber(a.points) or 0
+      local pct = tonumber(a.global_pct) or 0
+      if pct ~= pts and (pct > 0 or pts == 0) then
+        return false
+      end
+    end
+    return true
+  end
+
   -- 1. Check existing state in achievements.json
   local st = store.get_state(s_appid)
   if st and st.schema and st.schema.ra_game_id and st.schema.ra_game_id > 0 and st.schema.ra_game_id < 1000000000 then
     local s_title = tostring(st.schema.title or ""):lower()
     if not s_title:find("^unsupported game version") and (st.schema.total or 0) > 0 then
-      if st.schema.hardcore == nil or st.schema.hardcore == is_hardcore then
+      if not is_legacy_schema(st.schema) and (st.schema.hardcore == nil or st.schema.hardcore == is_hardcore) then
         return st
       end
     end

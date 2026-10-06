@@ -7,6 +7,20 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: RetroAchievements global unlock percentage fix & Library Analytics controller resolution (2026-10-05)**:
+  - *RetroAchievements Global %*: Fixed bug where Metroid Fusion's *Explosive Chamber* (and 125 other games)
+    showed their achievement point value (e.g. 4%) as their global unlock rate on Steam instead of the true rate
+    (92.47%). Root cause was legacy Strategy B fallback in `retroachievements.lua` using `tonumber(a.Points) or 10`.
+    Updated `retroachievements.lua` to calculate 2-decimal percentage `(awarded * 10000) / num_players` from
+    `NumDistinctPlayers` and `NumAwarded`, eliminated the points fallback, and added an `is_legacy_schema` check in
+    `load_for_shortcut` to refresh stale cached schemas from the official Web API. Updated cached schemas in `achievements.json`.
+  - *Library Analytics Controller & Metadata Match*: Resolved false "Unknown controller" issue on Steam-mirrored
+    shortcuts (*Jotunnslayer: Hordes of Hel*) and Epic/Xbox store games (e.g. *Microsoft Minesweeper*, *Microsoft Sudoku*).
+    Exposed `store` copies in `record_rpc.GetAllRecords` (`store_service.saved`), and updated `audit.tsx` to inspect
+    `identityLib` (Steam mappings) and `storeLib` (Epic/Xbox copies). Shortcuts mapped to Steam Store or store copies
+    are now counted in `Metadata Match` and correctly recognized as having controller support (`isSteamMapped || isStoreCopy`),
+    dropping false controller issue detections to 0 while keeping true missing-achievement reviews actionable.
+
 - **steam-cartridges: Achievements Match analytics and manual achievement linking (2026-10-05)**:
   added `Achievements Match - ##` directly below `Metadata Match` in Library Analytics. Integrated
   missing achievements detection into the "Issues detected" count for scraped games that lack achievements

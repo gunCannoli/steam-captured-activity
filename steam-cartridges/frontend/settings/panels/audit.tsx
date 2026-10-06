@@ -62,6 +62,8 @@ let cachedMetadataLib: Record<string, GameMetadata> | null = null;
 let cachedAutoProfiles: Record<string, AutoRoutingProfile> | null = null;
 let cachedControllerInference: Record<string, boolean> | null = null;
 let cachedAchievementsLib: Record<string, StoredAchievementRecord> | null = null;
+let cachedIdentityLib: Record<string, { appid: number; source?: string }> | null = null;
+let cachedStoreLib: Record<string, { kind: string; title?: string }> | null = null;
 
 export function RevisionSection() {
     const ctx = usePanelContext();
@@ -78,6 +80,12 @@ export function RevisionSection() {
     const [achievementsLib, setAchievementsLib] = useState<
         Record<string, StoredAchievementRecord>
     >(() => cachedAchievementsLib || {});
+    const [identityLib, setIdentityLib] = useState<
+        Record<string, { appid: number; source?: string }>
+    >(() => cachedIdentityLib || {});
+    const [storeLib, setStoreLib] = useState<
+        Record<string, { kind: string; title?: string }>
+    >(() => cachedStoreLib || {});
     const [controllerInference, setControllerInference] = useState<
         Record<string, boolean>
     >(() => cachedControllerInference || {});
@@ -121,6 +129,8 @@ export function RevisionSection() {
             const res = await backend.getAllRecords();
             const library: Record<string, GameMetadata> = {};
             const achLib: Record<string, StoredAchievementRecord> = {};
+            const idLib: Record<string, { appid: number; source?: string }> = {};
+            const stLib: Record<string, { kind: string; title?: string }> = {};
             for (const [key, recordParts] of Object.entries(
                 res?.records ?? {},
             )) {
@@ -128,6 +138,16 @@ export function RevisionSection() {
                     | GameMetadata
                     | undefined;
                 if (data) library[key] = data;
+
+                const idData = (recordParts?.identity?.data as any)?.native;
+                if (idData?.appid) {
+                    idLib[key] = { appid: idData.appid, source: idData.source };
+                }
+
+                const storeData = recordParts?.store?.data as any;
+                if (storeData) {
+                    stLib[key] = { kind: storeData.kind, title: storeData.title };
+                }
 
                 const achPart = recordParts?.achievements;
                 if (achPart) {
@@ -144,6 +164,10 @@ export function RevisionSection() {
             setMetadataLib(library);
             cachedAchievementsLib = achLib;
             setAchievementsLib(achLib);
+            cachedIdentityLib = idLib;
+            setIdentityLib(idLib);
+            cachedStoreLib = stLib;
+            setStoreLib(stLib);
         } catch {
             // ignore
         }
@@ -194,7 +218,10 @@ export function RevisionSection() {
         }
 
         const meta = lookupStored(metadataLib, sc.appid);
-        if (meta) matched++;
+        const isSteamMapped = (lookupStored(identityLib, sc.appid)?.appid ?? 0) > 0;
+        const isStoreCopy = lookupStored(storeLib, sc.appid) != null;
+
+        if (meta || isSteamMapped || isStoreCopy) matched++;
 
         const achSummary = ctx.records.achievementsOf(sc.appid);
         const achRecord = lookupStored(achievementsLib, sc.appid);
@@ -206,7 +233,7 @@ export function RevisionSection() {
             achievementsMatched++;
         }
 
-        const isScraped = !!meta || hasAchievements;
+        const isScraped = !!meta || isSteamMapped || isStoreCopy || hasAchievements;
         if (!isScraped) {
             notScraped.push({ appid: sc.appid, name: sc.name, profile });
             continue; // Do NOT count unscraped games as issues!
@@ -223,9 +250,13 @@ export function RevisionSection() {
         const hasControllerSupport =
             override === "full" ||
             override === "partial" ||
-            (override !== "none" && inferred === true) ||
-            meta?.categories?.full_controller === true ||
-            meta?.categories?.partial_controller === true;
+            (override !== "none" && (
+                inferred === true ||
+                meta?.categories?.full_controller === true ||
+                meta?.categories?.partial_controller === true ||
+                isSteamMapped ||
+                isStoreCopy
+            ));
         const missingController =
             !hasControllerSupport && (!override || override === "auto");
 

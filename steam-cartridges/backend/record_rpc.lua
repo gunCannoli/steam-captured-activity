@@ -159,6 +159,12 @@ RPC.GetAllRecords = method("GetAllRecords", function(_)
       source = "steam-store",
     }
   end
+  local store_copies = require("store_copies_store")
+  for _, key in ipairs(store_copies.copy_keys()) do
+    records[key] = records[key] or {}
+    local copy_part = store_service.saved(tonumber(key))
+    if copy_part then records[key].store = copy_part end
+  end
   for key in pairs(records) do
     local achievements = ach().local_part(tonumber(key))
     if achievements then records[key].achievements = achievements end
