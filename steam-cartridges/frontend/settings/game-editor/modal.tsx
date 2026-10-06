@@ -9,6 +9,7 @@ import { diff, draftOf, validate, type MetadataDraft } from "../../domain/metada
 import { GamePicker } from "./game-picker";
 import { MetadataForm } from "./metadata-form";
 import { SteamLink } from "./steam-link";
+import { IgdbLink } from "./igdb-link";
 
 export function GameDataEditor({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const editor = usePanelContext().editor;
@@ -77,6 +78,7 @@ export function GameDataEditor({ isOpen, onClose }: { isOpen: boolean; onClose: 
                             onNotice={(text) => setMessage({ text, error: false })}
                         />
                     )}
+                    {snapshot && draft && <IgdbLink snapshot={snapshot} busy={busy} run={run} />}
                     {snapshot && draft && <SteamLink snapshot={snapshot} busy={busy} run={run} />}
                 </Blocks>
             </PanelSection>

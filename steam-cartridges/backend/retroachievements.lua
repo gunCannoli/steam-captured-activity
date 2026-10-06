@@ -731,8 +731,9 @@ function M.get_game_id_by_md5(md5)
     return nil, "game not found on RetroAchievements"
   end
 
-  if tonumber(data.GameID) and tonumber(data.GameID) >= 1000000000 then
-    return nil, "graveyard entry on RetroAchievements"
+  local gid_num = tonumber(data.GameID)
+  if gid_num and (gid_num == 11621 or gid_num >= 1000000000) then
+    return nil, "cheated or graveyard entry on RetroAchievements"
   end
 
   return data.GameID
@@ -855,7 +856,7 @@ local function match_single(cand_title, list)
     local gid, gtitle = extract_entry(k, v)
     if gid then
       local lower_g = gtitle:lower()
-      if not (lower_g:find("^unsupported game version") or gid >= 1000000000) then
+      if not (lower_g:find("^unsupported game version") or lower_g:find("^~z~") or lower_g:find("cheated rom") or gid == 11621 or gid >= 1000000000) then
         local norm_g = normalize_title(gtitle)
         local g_num = extract_number(norm_g)
         local is_hack_g = gtitle:find("^~Hack~") ~= nil
@@ -897,8 +898,46 @@ local function match_single(cand_title, list)
   return best_match
 end
 
+local KNOWN_ALIASES = {
+  ["fire emblem the binding blade"] = { "Fire Emblem: Fuuin no Tsurugi", "Fire Emblem: Sword of Seals" },
+  ["fire emblem fuuin no tsurugi"] = { "Fire Emblem: The Binding Blade", "Fire Emblem: Sword of Seals" },
+  ["fire emblem sword of seals"] = { "Fire Emblem: Fuuin no Tsurugi", "Fire Emblem: The Binding Blade" },
+  ["fire emblem new mystery of the emblem"] = { "Fire Emblem: Shin Monshou no Nazo" },
+  ["fire emblem shin monshou no nazo"] = { "Fire Emblem: New Mystery of the Emblem" },
+  ["fire emblem thracia 776"] = { "Fire Emblem: Thracia 776" },
+  ["fire emblem genealogy of the holy war"] = { "Fire Emblem: Seisen no Keifu" },
+  ["fire emblem seisen no keifu"] = { "Fire Emblem: Genealogy of the Holy War" },
+  ["dragon quest v"] = { "Dragon Quest V: Tenkuu no Hanayome", "Dragon Warrior V" },
+  ["dragon quest vi"] = { "Dragon Quest VI: Maboroshi no Daichi", "Dragon Warrior VI" },
+  ["seiken densetsu 3"] = { "Trials of Mana" },
+  ["trials of mana"] = { "Seiken Densetsu 3" },
+  ["live a live"] = { "Live A Live" },
+  ["mother 3"] = { "Mother 3" },
+  ["bahamut lagoon"] = { "Bahamut Lagoon" },
+  ["tales of phantasia"] = { "Tales of Phantasia" },
+  ["super bomberman 5"] = { "Super Bomberman 5: Gold Cartridge" },
+}
+
+local function get_aliases_for(title)
+  if not title then return {} end
+  local cleaned = tostring(title):lower():gsub("[^%w%s]", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  local results = {}
+  for k, list in pairs(KNOWN_ALIASES) do
+    if cleaned == k or cleaned:find(k, 1, true) or k:find(cleaned, 1, true) then
+      for _, a in ipairs(list) do
+        table.insert(results, a)
+      end
+    end
+  end
+  return results
+end
+
 --- Queries RetroAchievements games list for a console and matches by title
-function M.find_game_id_by_title(target_title, cmd, launch_options)
+---@param target_title string
+---@param cmd string|nil
+---@param launch_options string|nil
+---@param appid number|nil
+function M.find_game_id_by_title(target_title, cmd, launch_options, appid)
   if not target_title or #target_title == 0 then return nil end
   local console_id = M.detect_console_id(cmd, launch_options)
   if not console_id then return nil end
@@ -927,6 +966,42 @@ function M.find_game_id_by_title(target_title, cmd, launch_options)
   if not list or type(list) ~= "table" then return nil end
 
   local candidates = clean_shortcut_candidates(target_title)
+  local seen = {}
+  for _, cand in ipairs(candidates) do seen[cand:lower()] = true end
+
+  local function add_cand(c)
+    if c and #c > 0 and not seen[c:lower()] then
+      seen[c:lower()] = true
+      table.insert(candidates, c)
+    end
+  end
+
+  -- Check metadata_db for alternative names or canonical titles (from IGDB/metadata)
+  if appid then
+    local ok_m, mdb = pcall(require, "web_metadata_db")
+    if ok_m and mdb and mdb.get then
+      local meta = mdb.get(appid)
+      if meta then
+        if meta.matched_title then add_cand(meta.matched_title) end
+        if meta.title then add_cand(meta.title) end
+        if type(meta.alternative_names) == "table" then
+          for _, alt in ipairs(meta.alternative_names) do
+            if type(alt) == "string" then add_cand(alt) end
+          end
+        end
+      end
+    end
+  end
+
+  -- Expand known aliases
+  local to_expand = {}
+  for _, c in ipairs(candidates) do table.insert(to_expand, c) end
+  for _, c in ipairs(to_expand) do
+    for _, alias in ipairs(get_aliases_for(c)) do
+      add_cand(alias)
+    end
+  end
+
   for _, cand in ipairs(candidates) do
     local res = match_single(cand, list)
     if res and res.is_exact then
@@ -1223,18 +1298,27 @@ function M.get_or_fetch(shortcut_appid, hardcore)
     game_id = M.get_game_id_by_md5(md5)
   end
 
-  if not game_id then
-    -- Fallback: Title matching by detected console
-    local title = sc.name or sc.appname or ""
-    game_id = M.find_game_id_by_title(title, sc.exe, sc.launch_options)
-    if not game_id then
-      return nil, "cannot find game on RetroAchievements"
+  local schema, unlocks = nil, nil
+  if game_id then
+    schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore, creds.api_key)
+    if not schema or (schema.total or 0) == 0 or (schema.title and (schema.title:match("^~[Zz]~") or schema.title:lower():match("cheated rom"))) then
+      logger:warn(string.format("RetroAchievements: MD5 %s resolved to dummy/empty set (GameID %s, title %q, %d achievements); falling back to title search", tostring(md5), tostring(game_id), schema and schema.title or "", schema and schema.total or 0))
+      game_id = nil
+      schema, unlocks = nil, nil
     end
   end
 
-  -- 7. Fetch full Schema & Unlocks (works with or without credentials)
-  local schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore, creds.api_key)
-  if not schema then
+  if not game_id then
+    -- Fallback: Title matching by detected console
+    local title = sc.name or sc.appname or ""
+    game_id = M.find_game_id_by_title(title, sc.exe, sc.launch_options, s_appid)
+    if not game_id then
+      return nil, "cannot find game on RetroAchievements"
+    end
+    schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore, creds.api_key)
+  end
+
+  if not schema or (schema.total or 0) == 0 then
     return nil, "cannot fetch game data"
   end
 

@@ -4,7 +4,7 @@
 import type { AutoRoutingProfile, ServiceTarget } from '../domain/routing/policy';
 import type { MetadataDraft } from '../domain/metadata-edit';
 import type { GameMetadata, SyncProgress } from '../kernel/record';
-import type { StoreCandidate, StoreMapping } from '../ports/backend';
+import type { IgdbCandidate, StoreCandidate, StoreMapping } from '../ports/backend';
 
 /** Structural copy of app/game-editor.ts EditorSnapshot (settings never import app/; index.tsx checks the match). */
 export interface EditorSnapshot {
@@ -53,6 +53,8 @@ export interface PanelContext {
         search(term: string): Promise<{ candidates: StoreCandidate[]; error?: string }>;
         link(appid: number, steamAppid: number, name?: string): Promise<{ error?: string }>;
         unlink(appid: number, reject: boolean): Promise<{ error?: string }>;
+        searchIgdb(term: string): Promise<{ candidates: IgdbCandidate[]; error?: string }>;
+        linkIgdb(appid: number, igdbId: number, title?: string): Promise<{ error?: string }>;
     };
 }
 
@@ -80,6 +82,8 @@ const INERT: PanelContext = {
         search: async () => ({ candidates: [] }),
         link: async () => ({ error: 'not ready' }),
         unlink: async () => ({ error: 'not ready' }),
+        searchIgdb: async () => ({ candidates: [] }),
+        linkIgdb: async () => ({ error: 'not ready' }),
     },
 };
 

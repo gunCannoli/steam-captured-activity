@@ -354,7 +354,7 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
   local hints = detect_platform_hints(shortcut_info)
   logger:info("Searching IGDB for: '" .. clean .. "' (raw: '" .. raw_title .. "', hints: " .. table.concat(hints, ", ") .. ")")
 
-  local fields = "fields name, slug, summary, storyline, category, parent_game.name, parent_game.summary, first_release_date, platforms.name, platforms.abbreviation, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise.name, franchises.name, game_modes.name, genres.name, themes.name; "
+  local fields = "fields name, slug, summary, storyline, category, parent_game.name, parent_game.summary, first_release_date, platforms.name, platforms.abbreviation, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise.name, franchises.name, game_modes.name, genres.name, themes.name, alternative_names.name; "
   local query = fields .. 'search "' .. escape_query(clean) .. '"; limit 30;'
 
   local results = query_igdb(query)
@@ -492,6 +492,15 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
     raw_desc = game.storyline
   end
 
+  local alt_names = {}
+  if type(game.alternative_names) == "table" then
+    for _, alt in ipairs(game.alternative_names) do
+      if type(alt) == "table" and alt.name and #alt.name > 0 then
+        alt_names[#alt_names + 1] = alt.name
+      end
+    end
+  end
+
   local main_desc = truncate_smart(raw_desc, 400, 120)
 
   return {
@@ -499,6 +508,7 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
     title = raw_title,
     igdb_id = game.id,
     matched_title = game.name,
+    alternative_names = alt_names,
     description = main_desc,
     developers = devs,
     publishers = pubs,
@@ -514,6 +524,66 @@ function igdb.fetch_game_metadata(appid, raw_title, shortcut_info)
     },
     custom_override = false,
   }
+end
+
+--- Search IGDB by term for candidate games (for manual link picker).
+---@param term string
+---@param limit? number
+---@return table
+function igdb.search(term, limit)
+  if not term or #term == 0 then return {} end
+  limit = limit or 15
+  local clean = clean_title(term)
+  if #clean == 0 then clean = term end
+  local fields = "fields id, name, slug, first_release_date, platforms.name, platforms.abbreviation, summary, cover.url; "
+  local query = fields .. 'search "' .. escape_query(clean) .. '"; limit ' .. tostring(limit) .. ';'
+  local res = query_igdb(query)
+  if not res or type(res) ~= "table" then return {} end
+  local out = {}
+  for _, g in ipairs(res) do
+    local year = nil
+    if g.first_release_date then
+      year = os.date("!*t", g.first_release_date).year
+    end
+    local plats = {}
+    if type(g.platforms) == "table" then
+      for _, p in ipairs(g.platforms) do
+        if p.abbreviation then plats[#plats + 1] = p.abbreviation
+        elseif p.name then plats[#plats + 1] = p.name end
+      end
+    end
+    local cover_url = nil
+    if type(g.cover) == "table" and g.cover.url then
+      cover_url = g.cover.url
+      if cover_url:sub(1, 2) == "//" then cover_url = "https:" .. cover_url end
+    end
+    table.insert(out, {
+      id = g.id,
+      name = g.name,
+      slug = g.slug,
+      year = year,
+      platforms = plats,
+      summary = truncate_smart(g.summary or "", 160, 40),
+      cover = cover_url,
+    })
+  end
+  return out
+end
+
+--- Fetch full metadata for a specific IGDB game ID
+---@param appid number
+---@param igdb_id number|string
+---@param raw_title? string
+---@return table|nil, string|nil
+function igdb.fetch_by_id(appid, igdb_id, raw_title)
+  local id = tonumber(igdb_id)
+  if not id or id <= 0 then return nil, "invalid igdb id" end
+  local fields = "fields name, slug, summary, storyline, category, parent_game.name, parent_game.summary, first_release_date, platforms.name, platforms.abbreviation, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise.name, franchises.name, game_modes.name, genres.name, themes.name, alternative_names.name; "
+  local query = fields .. "where id = " .. tostring(id) .. "; limit 1;"
+  local results = query_igdb(query)
+  if not results or #results == 0 then return nil, "game not found on igdb" end
+  local cand = results[1]
+  return igdb.to_consolidated_metadata(appid, raw_title or cand.name, cand)
 end
 
 --- One query to IGDB's /v4/games endpoint with this module's Twitch token (features plan F2: the media

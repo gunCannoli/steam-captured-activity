@@ -16,6 +16,9 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges IGDB metadata search & linking, Super Bomberman 5 RA resolution, and Millennium luavm64 R15 hot-patch (2026-10-06): deployed and verified live.**
+Permanently eliminated recurring `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` crashes in `millennium.luavm64.exe` at RVA `+0x1087C` (`movdqu [r15], xmm0`) by implementing an in-memory dynamic hot-patch (`millennium_patch.lua`) using LuaJIT FFI and `VirtualProtect`. The patch reroutes the `jbe` at RVA `0x1055f` through a 26-byte trampoline at RVA `0x231b80` that reloads caller register `R15` from `[RSP + 0xE8]` before executing `movdqu [r15], xmm0`. Resolved Super Bomberman 5 RetroAchievements matching to GameID 1444 (*Super Bomberman 5: Gold Cartridge*, 46 achievements) by rejecting dummy/cheated ROM entries, inspecting IGDB alternative names, and falling back to clean title matching. Added full IGDB catalog search and direct ID linking in `GameDataEditor` (`igdb-link.tsx`) and the Review panel (`audit.tsx`) while preserving manual metadata editing and Steam link capabilities. Live verified via CDP: 10 consecutive stress calls completed with zero crashes, `IgdbSearch` returned 13 candidates, Super Bomberman 5 resolved 46 achievements, and full navigation lifecycle tests passed cleanly.
+
 **steam-cartridges data flow audit (2026-10-06, [plan](docs/plans/steam-cartridges-dataflow-improvements-plan.md)): audit done, nothing implemented.**
 Achievements show late because the view enqueues them last (after metadata, artwork and media's first call) in one FIFO call queue
 with no priority, in front of a Lua host that serves one call at a time; ingest, the 60 s store-sync tick and the 2 s observer

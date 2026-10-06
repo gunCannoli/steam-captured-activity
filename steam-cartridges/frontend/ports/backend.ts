@@ -96,6 +96,16 @@ export interface StoreCandidate {
     name: string;
 }
 
+export interface IgdbCandidate {
+    id: number;
+    name: string;
+    slug?: string;
+    year?: number;
+    platforms?: string[];
+    summary?: string;
+    cover?: string;
+}
+
 export interface FreshContext {
     /** The shortcut's display name (""  when unknown). */
     title: string;
@@ -337,5 +347,11 @@ export const backend = {
     },
     clearAchievementSource(appid: number) {
         return call<{ ok?: boolean; error?: string }>("ClearAchievementSource", { appid });
+    },
+    igdbSearch(query: string) {
+        return call<{ candidates?: IgdbCandidate[]; error?: string }>("IgdbSearch", { query });
+    },
+    igdbLink(appid: number, igdb_id: number, title?: string) {
+        return call<{ ok?: boolean; metadata?: GameMetadata; error?: string }>("IgdbLink", { appid, igdb_id, title });
     },
 };

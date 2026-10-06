@@ -4,7 +4,7 @@
 import type { ShortcutId } from "../kernel/appid";
 import { toShortcutId } from "../kernel/appid.ts";
 import type { GameMetadata, Identity, Part, RecordStore, Route } from "../kernel/record";
-import type { backend as Backend, StoreCandidate, StoreMapping } from "../ports/backend";
+import type { backend as Backend, IgdbCandidate, StoreCandidate, StoreMapping } from "../ports/backend";
 import { applyDraft, type MetadataDraft } from "../domain/metadata-edit.ts";
 
 export interface EditorSnapshot {
@@ -31,10 +31,12 @@ export interface GameEditor {
     link(appid: number, steamAppid: number, name?: string): Promise<{ error?: string }>;
     /** reject = also remember the native app as "never suggest again". */
     unlink(appid: number, reject: boolean): Promise<{ error?: string }>;
+    searchIgdb(term: string): Promise<{ candidates: IgdbCandidate[]; error?: string }>;
+    linkIgdb(appid: number, igdbId: number, title?: string): Promise<{ error?: string }>;
 }
 
 export interface GameEditorDeps {
-    backend: Pick<typeof Backend, "saveCustomMetadata" | "clearCustomMetadata" | "steamStoreSearchCandidates" | "steamStoreGetMapping">;
+    backend: Pick<typeof Backend, "saveCustomMetadata" | "clearCustomMetadata" | "steamStoreSearchCandidates" | "steamStoreGetMapping" | "igdbSearch" | "igdbLink">;
     records: RecordStore;
     ensureBase(appid: ShortcutId): void;
     titleOf(appid: number): string | undefined;
@@ -112,6 +114,22 @@ export function createGameEditor(deps: GameEditorDeps): GameEditor {
             deps.ensureBase(id);
             const res = await deps.steamStore.clear(id, reject);
             return { error: res.error };
+        },
+
+        async searchIgdb(term) {
+            const res = await deps.backend.igdbSearch(term);
+            return { candidates: res.candidates ?? [], error: res.error };
+        },
+
+        async linkIgdb(appid, igdbId, title) {
+            const id = shortcut(appid);
+            deps.ensureBase(id);
+            const res = await deps.backend.igdbLink(id, igdbId, title);
+            if (res.error) return { error: res.error };
+            if (res.metadata) {
+                deps.records.update(id, { metadata: { status: "ok", data: res.metadata, source: "igdb" } });
+            }
+            return {};
         },
     };
 }

@@ -34,6 +34,14 @@ function setup(over: { metadata?: any; mapping?: any; saveResponse?: any } = {})
             async steamStoreGetMapping() {
                 return { mapping: over.mapping ?? null, rejected: [7], applied: null };
             },
+            async igdbSearch(query: string) {
+                calls.push(['igdbSearch', query]);
+                return { candidates: [{ id: 38387, name: 'Super Bomberman 5' }] };
+            },
+            async igdbLink(appid: number, igdb_id: number, title?: string) {
+                calls.push(['igdbLink', appid, igdb_id, title]);
+                return { ok: true, metadata: { appid, title: title ?? 'Linked', igdb_id } };
+            },
         } as any,
         records,
         ensureBase,
@@ -124,3 +132,18 @@ test('a native appid is refused', async () => {
     const { editor } = setup();
     await assert.rejects(editor.load(12345), /Not a non-Steam shortcut/);
 });
+
+test('searchIgdb and linkIgdb go through backend and update record', async () => {
+    const { editor, records, calls } = setup();
+    const found = await editor.searchIgdb('Super Bomberman');
+    assert.equal(found.candidates.length, 1);
+    assert.equal(found.candidates[0]!.id, 38387);
+    const linkRes = await editor.linkIgdb(SC, 38387, 'Super Bomberman 5');
+    assert.deepEqual(linkRes, {});
+    assert.equal(records.get(SC)?.metadata?.data?.igdb_id, 38387);
+    assert.deepEqual(calls.filter((c) => c[0] === 'igdbSearch' || c[0] === 'igdbLink'), [
+        ['igdbSearch', 'Super Bomberman'],
+        ['igdbLink', SC, 38387, 'Super Bomberman 5'],
+    ]);
+});
+

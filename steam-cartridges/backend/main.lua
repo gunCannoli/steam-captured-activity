@@ -16,6 +16,10 @@ if jit and jit.off then
   jit.off()
 end
 
+pcall(function()
+  require("millennium_patch").apply()
+end)
+
 local logger      = require("logger")
 local millennium  = require("millennium")
 local steam_paths = require("steam_paths")
@@ -66,6 +70,8 @@ SaveCustomMetadata  = RECORD_RPC.SaveCustomMetadata
 ClearCustomMetadata = RECORD_RPC.ClearCustomMetadata
 SetAchievementSource = RECORD_RPC.SetAchievementSource
 ClearAchievementSource = RECORD_RPC.ClearAchievementSource
+IgdbSearch     = RECORD_RPC.IgdbSearch
+IgdbLink       = RECORD_RPC.IgdbLink
 CheckUnlocks   = RECORD_RPC.CheckUnlocks
 GetNewShortcuts = RECORD_RPC.GetNewShortcuts
 MarkKnown      = RECORD_RPC.MarkKnown

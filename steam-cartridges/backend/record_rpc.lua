@@ -303,4 +303,27 @@ RPC.ClearAchievementSource = method("ClearAchievementSource", function(data)
   return { ok = true }
 end)
 
+--- { query }: Search IGDB for game candidates
+RPC.IgdbSearch = method("IgdbSearch", function(data)
+  local query = need(data, "query")
+  local igdb = require("web_igdb")
+  return { candidates = igdb.search(query) }
+end)
+
+--- { appid, igdb_id, title }: Link a game to an IGDB game ID and fetch its full metadata
+RPC.IgdbLink = method("IgdbLink", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local igdb_id = need(data, "igdb_id")
+  local s_appid = tonumber(appid)
+  local igdb = require("web_igdb")
+  local meta, err = igdb.fetch_by_id(s_appid, igdb_id, data.title)
+  if not meta then
+    return { error = err or "could not fetch IGDB metadata" }
+  end
+  metadata_db.set(s_appid, meta, true)
+  fresh().touch(s_appid, "metadata", now_ms())
+  return { ok = true, metadata = meta }
+end)
+
 return RPC

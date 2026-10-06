@@ -97,6 +97,7 @@ export function RevisionSection() {
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
     const [steamIdInput, setSteamIdInput] = useState("");
     const [raInput, setRaInput] = useState("");
+    const [igdbInput, setIgdbInput] = useState("");
     const [fixMsg, setFixMsg] = useState("");
     const syncProgress = useSyncProgress();
     const prevSyncingRef = useRef(syncProgress.isSyncing);
@@ -323,6 +324,25 @@ export function RevisionSection() {
             }
         } catch (e: any) {
             setFixMsg(`Error linking RA: ${e?.message || e}`);
+        }
+    };
+
+    const handleLinkIgdb = async (appid: number, input: string) => {
+        const id = parseInt(input.trim(), 10);
+        if (!id || isNaN(id) || id <= 0) return;
+        setFixMsg(`Linking IGDB metadata for ${shortcutName(appid)}...`);
+        try {
+            const res = await backend.igdbLink(appid, id);
+            if (res.ok) {
+                setFixMsg(`✓ Linked IGDB: ${res.metadata?.title || "Game"} (#${id})`);
+                setIgdbInput("");
+                await refreshAuditData();
+                setTimeout(() => setFixMsg(""), 3500);
+            } else {
+                setFixMsg(`Failed to link IGDB: ${res.error || "Unknown error"}`);
+            }
+        } catch (e: any) {
+            setFixMsg(`Error linking IGDB: ${e?.message || e}`);
         }
     };
 
@@ -711,6 +731,42 @@ export function RevisionSection() {
                                                         steamIdInput,
                                                         10,
                                                     ),
+                                                )
+                                            }
+                                        />
+                                        <ItemRow trailing>
+                                            <TextField
+                                                label="IGDB game id"
+                                                value={
+                                                    targetAppId === item.appid
+                                                        ? igdbInput
+                                                        : ""
+                                                }
+                                                onChange={(e) => {
+                                                    setTargetAppId(item.appid);
+                                                    setIgdbInput(
+                                                        e.target.value,
+                                                    );
+                                                }}
+                                            />
+                                        </ItemRow>
+                                        <ButtonRow
+                                            label="Link to IGDB"
+                                            description="Fetch official IGDB metadata and categories"
+                                            buttonLabel="Link IGDB"
+                                            disabled={
+                                                targetAppId !== item.appid ||
+                                                !(
+                                                    parseInt(
+                                                        igdbInput,
+                                                        10,
+                                                    ) > 0
+                                                )
+                                            }
+                                            onClick={() =>
+                                                handleLinkIgdb(
+                                                    item.appid,
+                                                    igdbInput,
                                                 )
                                             }
                                         />
