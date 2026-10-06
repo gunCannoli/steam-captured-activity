@@ -23,7 +23,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function connect(title) {
     const targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
-    const target = targets.find((t) => t.title === title);
+    const target = targets.find((t) => t.title === title || (title === 'Steam' && t.url?.includes('minwidth=1010')));
     if (!target) throw new Error(`No CDP target "${title}"`);
     const ws = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((res, rej) => ((ws.onopen = res), (ws.onerror = rej)));
@@ -49,7 +49,12 @@ async function connect(title) {
             const m = await send('Page.captureScreenshot', { format: 'png' });
             (await import('node:fs')).writeFileSync(file, Buffer.from(m.result.data, 'base64'));
         },
-        close: () => ws.close(),
+        close: () => new Promise((resolve) => {
+            if (ws.readyState === WebSocket.CLOSED) return resolve();
+            ws.onclose = () => resolve();
+            try { ws.close(); } catch { resolve(); }
+            setTimeout(resolve, 500);
+        }),
     };
 }
 
@@ -92,7 +97,7 @@ async function visit(shared, appid, label, expectText) {
         }
         return metrics;
     } finally {
-        win.close();
+        await win.close();
     }
 }
 
@@ -117,6 +122,6 @@ try {
     ok('A (return visit): same media count', second.mediaCount === first.mediaCount);
     ok('A (return visit): same activity days in the store, captures still shown', second.storeDays === first.storeDays && second.activityDays > 0 && second.loopbackImages > 0);
 } finally {
-    shared.close();
+    await shared.close();
 }
 process.exitCode = failed ? 1 : 0;

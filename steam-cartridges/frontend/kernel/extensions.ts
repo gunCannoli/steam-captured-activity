@@ -99,6 +99,8 @@ export function createExtensionRegistry(): SteamCartridgesAPI {
     const api: SteamCartridgesAPI = {
         version: "1.0.0",
         registerAchievementProvider(provider) {
+            const existing = achievementProviders.findIndex((p) => p.id === provider.id);
+            if (existing >= 0) achievementProviders.splice(existing, 1);
             achievementProviders.push(provider);
             achievementProviders.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
             return () => {
@@ -107,6 +109,8 @@ export function createExtensionRegistry(): SteamCartridgesAPI {
             };
         },
         registerLibraryProvider(provider) {
+            const existing = libraryProviders.findIndex((p) => p.id === provider.id);
+            if (existing >= 0) libraryProviders.splice(existing, 1);
             libraryProviders.push(provider);
             return () => {
                 const idx = libraryProviders.indexOf(provider);
@@ -114,6 +118,8 @@ export function createExtensionRegistry(): SteamCartridgesAPI {
             };
         },
         registerSettingsPanel(panel) {
+            const existing = settingsPanels.findIndex((p) => p.id === panel.id);
+            if (existing >= 0) settingsPanels.splice(existing, 1);
             settingsPanels.push(panel);
             settingsPanels.sort((a, b) => (a.order ?? 50) - (b.order ?? 50));
             return () => {
@@ -122,6 +128,8 @@ export function createExtensionRegistry(): SteamCartridgesAPI {
             };
         },
         registerSummaryProvider(provider) {
+            const existing = summaryProviders.findIndex((p) => p.id === provider.id);
+            if (existing >= 0) summaryProviders.splice(existing, 1);
             summaryProviders.push(provider);
             return () => {
                 const idx = summaryProviders.indexOf(provider);

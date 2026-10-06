@@ -143,7 +143,14 @@ async function live(enabled) {
     const ping = await evaluate(shared, "JSON.stringify({ plugins: Object.keys(window.PLUGIN_LIST ?? {}), mode: await SteamClient.UI.GetUIMode() })");
     if (ping.hung) return { problems: ["SharedJSContext does not answer in 5 s: the UI thread is hung (steam-debug.md Trap 10)"], info };
     if (ping.error) return { problems: [`SharedJSContext: ${ping.error.slice(0, 200)}`], info };
-    const { plugins, mode } = JSON.parse(ping.value);
+    if (!ping.value) return { problems: ["SharedJSContext returned empty response (still initializing)"], info };
+    let pingData;
+    try {
+        pingData = JSON.parse(ping.value);
+    } catch (e) {
+        return { problems: [`SharedJSContext returned invalid JSON: ${e.message}`], info };
+    }
+    const { plugins, mode } = pingData;
 
     const missing = enabled.filter((p) => !plugins.includes(p));
     if (missing.length) problems.push(`enabled but not loaded: ${missing.join(", ")} (loaded: ${plugins.join(", ") || "none"})`);
@@ -163,13 +170,21 @@ async function live(enabled) {
     );
     if (dom.hung) problems.push(`${label} does not answer in 5 s`);
     else if (dom.error) problems.push(`${label}: ${dom.error.slice(0, 200)}`);
+    else if (!dom.value) problems.push(`${label} returned empty DOM response`);
     else {
-        const d = JSON.parse(dom.value);
-        if (d.nodes < 300 || d.text < 50) problems.push(`${label} is empty (${d.nodes} elements, ${d.text} chars of text)`);
-        else info.push(`${label} rendered (${d.nodes} elements)`);
-        if (d.visible !== "visible") info.push(`${label} is hidden (tray or minimized): painting not checked`);
-        else if (!d.painted) problems.push(`${label} is visible but not painting (no animation frame in 1.5 s): a CEF/GPU state, restart Steam (steam-debug.md Trap 12)`);
-        else info.push(`${label} is painting`);
+        let d;
+        try {
+            d = JSON.parse(dom.value);
+        } catch (e) {
+            problems.push(`${label} returned invalid JSON: ${e.message}`);
+        }
+        if (d) {
+            if (d.nodes < 300 || d.text < 50) problems.push(`${label} is empty (${d.nodes} elements, ${d.text} chars of text)`);
+            else info.push(`${label} rendered (${d.nodes} elements)`);
+            if (d.visible !== "visible") info.push(`${label} is hidden (tray or minimized): painting not checked`);
+            else if (!d.painted) problems.push(`${label} is visible but not painting (no animation frame in 1.5 s): a CEF/GPU state, restart Steam (steam-debug.md Trap 12)`);
+            else info.push(`${label} is painting`);
+        }
     }
     return { problems, info };
 }

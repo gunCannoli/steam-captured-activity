@@ -30,7 +30,10 @@ const settingsExtension = {
     render: () => React.createElement(ThirdPartySection, null),
 };
 
+let registered = false;
 function register() {
+    if (registered) return;
+    registered = true;
     const api = (window as any).SteamCartridges;
     if (api && typeof api.registerLibraryProvider === 'function') {
         api.registerLibraryProvider(libraryProvider);
@@ -50,5 +53,3 @@ function register() {
 export default function Entry() {
     register();
 }
-
-Entry();

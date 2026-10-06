@@ -240,7 +240,17 @@ Write-Host "Deployed $devName." -ForegroundColor Green
 
 if (-not $NoRestart) {
   Write-Host 'Starting Steam in dev mode...'
-  Start-Process -FilePath (Join-Path $steam 'steam.exe') -ArgumentList '-dev', '-cef-enable-debugging'
+  $steamExe = Join-Path $steam 'steam.exe'
+  try {
+    $res = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+      CommandLine      = "`"$steamExe`" -dev -cef-enable-debugging"
+      CurrentDirectory = $steam
+    } -ErrorAction Stop
+    if ($res.ReturnValue -ne 0) { throw "WMI returned $($res.ReturnValue)" }
+  }
+  catch {
+    Start-Process -FilePath $steamExe -ArgumentList '-dev', '-cef-enable-debugging' -WorkingDirectory $steam
+  }
   Write-Host 'Devtools: http://localhost:8080' -ForegroundColor Cyan
 
   # Boot health (workspace only; absent in a plugin's public repo): the UI rendered and

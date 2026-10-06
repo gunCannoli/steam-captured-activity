@@ -3,7 +3,7 @@
 // the backend port only; the auto-add itself runs in app/store-sync when a toggle changes (index.tsx).
 import { useEffect, useRef, useState } from "react";
 import { DialogButton, Field, PanelSection } from "@steambrew/client";
-import { useSetting } from "./settings";
+import { DEFAULTS, useSetting } from "./settings";
 import { backend, type InstalledStoreGame } from "../backend";
 import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CopyCode, CredentialsNote, ExternalLink, ItemRow, SettingsModal, ToggleRow } from "./components";
 
@@ -28,6 +28,7 @@ function installedText(list: InstalledStoreGame[] | undefined): string {
 
 export function ThirdPartySection() {
     const [services, setServices] = useSetting("services");
+    const activeServices = services || DEFAULTS.services;
     const [autoEpic, setAutoEpic] = useSetting("autoAddEpicGames");
     const [autoXbox, setAutoXbox] = useSetting("autoAddXboxGames");
     const [epicOverlay, setEpicOverlay] = useSetting("epicOverlayWorkaround");
@@ -43,7 +44,7 @@ export function ThirdPartySection() {
     const refresh = () => {
         backend.storeAccounts().then((a) => setAccounts(a as Accounts)).catch(() => {});
         backend
-            .storeInstalledGames(services.xboxEnabled !== false)
+            .storeInstalledGames(activeServices.xboxEnabled !== false)
             .then((r) => setInstalled({ epic: r.epic ?? [], xbox: r.xbox ?? [], epicLauncher: r.epicLauncher === true }))
             .catch(() => {});
     };
@@ -96,8 +97,8 @@ export function ThirdPartySection() {
         refresh();
     };
 
-    const epicOn = services.epicEnabled !== false;
-    const xboxOn = services.xboxEnabled !== false;
+    const epicOn = activeServices.epicEnabled !== false;
+    const xboxOn = activeServices.xboxEnabled !== false;
 
     const epicAccount = !accounts
         ? "Looking for the Epic Games Launcher's account..."
@@ -115,7 +116,7 @@ export function ThirdPartySection() {
                         label="Epic Games Store"
                         description="Epic games on this PC: the store's Game Info and screenshots when the game is not on Steam, and your Epic achievements."
                         value={epicOn}
-                        onChange={(on: boolean) => setServices({ ...services, epicEnabled: on })}
+                        onChange={(on: boolean) => setServices({ ...activeServices, epicEnabled: on })}
                     />
                     {epicOn && (
                         <ItemRow>
@@ -149,7 +150,7 @@ export function ThirdPartySection() {
                         label="Xbox"
                         description="Xbox PC games on this PC: the store's Game Info and screenshots when the game is not on Steam, and your Xbox achievements."
                         value={xboxOn}
-                        onChange={(on: boolean) => setServices({ ...services, xboxEnabled: on })}
+                        onChange={(on: boolean) => setServices({ ...activeServices, xboxEnabled: on })}
                     />
                     {xboxOn &&
                         (accounts?.xbox.signed_in ? (

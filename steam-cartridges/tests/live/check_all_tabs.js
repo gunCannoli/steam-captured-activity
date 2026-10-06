@@ -43,7 +43,12 @@ async function connect(title) {
             if (m.result?.exceptionDetails) throw new Error(m.result.exceptionDetails.exception?.description);
             return m.result?.result?.value;
         },
-        close: () => ws.close(),
+        close: () => new Promise((resolve) => {
+            if (ws.readyState === WebSocket.CLOSED) return resolve();
+            ws.onclose = () => resolve();
+            try { ws.close(); } catch { resolve(); }
+            setTimeout(resolve, 500);
+        }),
     };
 }
 
@@ -72,7 +77,7 @@ async function view(shared, path, expect) {
         await wait(2500); // async store feeding
         return JSON.parse(await win.evaluate(VIEW));
     } finally {
-        win.close();
+        await win.close();
     }
 }
 
@@ -82,7 +87,7 @@ async function read() {
     try {
         return JSON.parse(await win.evaluate(VIEW));
     } finally {
-        win.close();
+        await win.close();
     }
 }
 
@@ -148,6 +153,6 @@ try {
     ok('A -> B -> A: no error boundary', !back.errorBoundary);
     ok('A -> B -> A: activity cards intact (hasEvent)', back.captured >= 1 && daysA > 0 && daysBack === daysA, { cards: back.captured, days: daysBack, daysBefore: daysA });
 } finally {
-    shared.close();
+    await shared.close();
 }
 process.exitCode = failed ? 1 : 0;

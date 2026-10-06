@@ -8,7 +8,7 @@ export interface ThirdPartySettings {
     epicOverlayWorkaround: boolean;
 }
 
-const DEFAULTS: ThirdPartySettings = {
+export const DEFAULTS: ThirdPartySettings = {
     services: { epicEnabled: true, xboxEnabled: true },
     autoAddEpicGames: false,
     autoAddXboxGames: false,
@@ -23,12 +23,22 @@ export function useSetting<K extends keyof ThirdPartySettings>(
     useEffect(() => {
         let mounted = true;
         pluginConfig.get<ThirdPartySettings[K]>(key as string).then((stored) => {
-            if (mounted && stored !== undefined) setVal(stored);
+            if (mounted && stored !== undefined && stored !== null) {
+                if (typeof DEFAULTS[key] === 'object' && typeof stored === 'object') {
+                    setVal({ ...DEFAULTS[key], ...stored });
+                } else {
+                    setVal(stored);
+                }
+            }
         }).catch(() => {});
 
         const unsub = subscribePluginConfig((changedKey: string, newVal: any) => {
-            if (changedKey === key && mounted && newVal !== undefined) {
-                setVal(newVal);
+            if (changedKey === key && mounted && newVal !== undefined && newVal !== null) {
+                if (typeof DEFAULTS[key] === 'object' && typeof newVal === 'object') {
+                    setVal({ ...DEFAULTS[key], ...newVal });
+                } else {
+                    setVal(newVal);
+                }
             }
         });
         return () => {

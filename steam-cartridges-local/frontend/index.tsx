@@ -56,7 +56,10 @@ const localProvider = {
     },
 };
 
+let registered = false;
 function register() {
+    if (registered) return;
+    registered = true;
     const api = (window as any).SteamCartridges;
     if (api && typeof api.registerAchievementProvider === 'function') {
         api.registerAchievementProvider(localProvider);
@@ -73,5 +76,3 @@ function register() {
 export default function Entry() {
     register();
 }
-
-Entry();
