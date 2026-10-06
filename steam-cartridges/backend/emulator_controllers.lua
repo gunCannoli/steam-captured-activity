@@ -54,6 +54,9 @@ M.CORES_WITHOUT_CONTROLLER = set([[
 M.EMULATORS_WITH_CONTROLLER = set([[
   dolphin primehack cemu pcsx2 rpcs3 duckstation ppsspp yuzu ryujinx
   xemu xenia flycast melonds citra vita3k mednafen shadps4
+  snes9x mgba vbam visualboyadvance project64 simple64 rmg mupen64plus
+  ares bigpemu blastem fusion kega fceux mesen nestopia desmume redream
+  demul supermodel model2emu bizhawk openemu azahar eden
 ]])
 
 --- Core name from a command line: `-L cores\snes9x_libretro.dll` -> "snes9x".
@@ -75,15 +78,15 @@ end
 ---@return boolean|nil
 function M.infer(entry)
   if type(entry) ~= "table" then return nil end
+  local full_cmd = tostring(entry.exe or "") .. " " .. tostring(entry.launch_options or "")
+  local lower = full_cmd:lower()
   local program = emulators.program(entry.exe)
   local head = program:match("^(%w+)[%-_ ]")
-  if program == "retroarch" or head == "retroarch" then
-    local full_cmd = tostring(entry.exe or "") .. " " .. tostring(entry.launch_options or "")
+  if program == "retroarch" or head == "retroarch" or lower:find("retroarch", 1, true) or lower:find("_libretro", 1, true) then
     local core = M.core(full_cmd)
     if core and M.CORES_WITH_CONTROLLER[core] then return true end
     if core and M.CORES_WITHOUT_CONTROLLER[core] then return false end
     -- If RetroArch is running a standard console/arcade ROM, default to controller
-    local lower = full_cmd:lower()
     if lower:find("%.zip") or lower:find("%.7z") or lower:find("%.sfc") or lower:find("%.smc")
       or lower:find("%.nes") or lower:find("%.gba") or lower:find("%.gbc") or lower:find("%.bin")
       or lower:find("%.iso") or lower:find("%.chd") or lower:find("%.cue") then
@@ -93,6 +96,11 @@ function M.infer(entry)
   end
   if M.EMULATORS_WITH_CONTROLLER[program] or (head and M.EMULATORS_WITH_CONTROLLER[head]) then
     return true
+  end
+  for emu_name in pairs(M.EMULATORS_WITH_CONTROLLER) do
+    if lower:find(emu_name, 1, true) then
+      return true
+    end
   end
   return nil
 end

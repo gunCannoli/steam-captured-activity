@@ -162,7 +162,17 @@ const storeCopy = createStoreCopy({
 });
 
 /** Controller support inferred from each shortcut's emulator (app/controller.ts). */
-const controller = createController({ backend });
+const controller = createController({
+    backend,
+    onLoaded: () => {
+        for (const r of records.store.all()) {
+            if (r.metadata?.data) {
+                metadata.rebadge(r.appid);
+            }
+        }
+    },
+});
+void controller.load();
 
 /** Metadata (app/metadata.ts, plan M5b): selects Game Info for a shortcut through one
  *  EnsureFresh call instead of the old scattered local/store/IGDB pipeline. */
@@ -292,6 +302,7 @@ onSettingChange((key) => {
     if (key === "epicOverlayWorkaround") epicLauncher.settingChanged();
 });
 
+const fetchedInSession = new Set<ShortcutId>();
 /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
 const ingest = createIngest({
     backend,
@@ -307,6 +318,18 @@ const ingest = createIngest({
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
     hardcore: () => setting("raHardcoreMode"),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    needsFetch: (appid) => {
+        if (fetchedInSession.has(appid)) return false;
+        const r = records.store.get(appid);
+        const hasMeta = !!r?.metadata?.data;
+        const hasAch =
+            ((r?.achievements?.data as any)?.schema?.total ?? 0) > 0 ||
+            r?.achievements?.source === "none";
+        return !hasMeta || !hasAch;
+    },
+    onDone: (appid) => {
+        fetchedInSession.add(appid);
+    },
 });
 
 export { setSetting, resetSettings, SettingsPanel };
@@ -575,8 +598,11 @@ async function init() {
 
     // ===== Game Info data (ex steamgriddb-artwork) =====
     // Not awaited: a failure here must not affect activity (ADR-0010).
-    features.run("game-info", () => {
-        void loadAutoRoutingProfiles();
+    features.run("game-info", async () => {
+        await Promise.all([
+            controller.load(),
+            loadAutoRoutingProfiles(),
+        ]).catch((e) => logger.warn("Preload controller/routing profiles failed:", e));
         view.init();
         bus.on("shortcut.viewed", ({ appid }) => void view.onSourceView(appid));
         void metadata.preload().catch((e) => {

@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: emulator controller support inference and background achievements ingestion (2026-10-06)**:
+  - Controller support inference is now loaded at start-up (`controller.load()`), and `metadata.rebadge()` re-evaluates all loaded shortcuts upon completion.
+  - Expanded `emulator_controllers.lua` and `steam_store_emulators.lua` to recognize 24 standalone emulators (`snes9x`, `mgba`, `vbam`, `visualboyadvance`, `project64`, `simple64`, `rmg`, `mupen64plus`, `ares`, `bigpemu`, `blastem`, `fusion`, `kega`, `fceux`, `mesen`, `nestopia`, `desmume`, `redream`, `demul`, `supermodel`, `model2emu`, `bizhawk`, `openemu`, `azahar`, `eden`), and to inspect launch arguments for ROM file extensions.
+  - Resolved regression where emulator shortcuts were shown as "Unknown controller" in Library Analytics; 218 out of 228 shortcuts now correctly receive full controller support badges (`xbox_support: 2`, category `28`).
+  - Added background ingestion for existing shortcuts lacking metadata or achievements schemas via `needsFetch` in `app/ingest.ts`, pacing requests at 300 ms intervals without requiring manual page navigation.
+  - Added "Fetch" button on flagged items and "Fetch All" in the Review modal header (`settings/panels/audit.tsx`).
+
 - **Fixed: backend crash (EXCEPTION_ACCESS_VIOLATION in millennium.luavm64.exe) on concurrent frontend RPC calls (2026-10-05)**:
   the frontend transport (`ports/transport.ts`) now serializes all calls to `Millennium.callServerMethod` via a FIFO Promise queue.
   Millennium's backend Lua VM is single-threaded; concurrent RPC dispatches from background ingestion and user navigation caused stack frame and non-volatile register corruption.

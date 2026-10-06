@@ -30,6 +30,10 @@ export interface IngestDeps {
     sleep(ms: number): Promise<void>;
     /** Re-run a start-up sync that was requested while one was running (tests pass a no-op). */
     schedule?(fn: () => void, ms: number): void;
+    /** Check if an existing shortcut is missing achievements or metadata. */
+    needsFetch?(appid: ShortcutId): boolean;
+    /** Called when a shortcut has been successfully fetched. */
+    onDone?(appid: ShortcutId): void;
 }
 
 export interface Ingest {
@@ -125,9 +129,19 @@ export function createIngest(deps: IngestDeps): Ingest {
                 items = deps.shortcuts().filter((s) => (!only || only.has(s.appid)) && deps.isAllowed(s.appid as ShortcutId));
             } else {
                 const res = await deps.backend.getNewShortcuts();
-                items = asList<{ appid: number; name: string }>(res?.shortcuts).filter(
+                const newItems = asList<{ appid: number; name: string }>(res?.shortcuts).filter(
                     (s) => s && typeof s.appid === "number" && deps.isAllowed(s.appid as ShortcutId),
                 );
+                const newIds = new Set(newItems.map((i) => i.appid));
+                const missingItems = deps.needsFetch
+                    ? deps.shortcuts().filter(
+                          (s) =>
+                              !newIds.has(s.appid) &&
+                              deps.isAllowed(s.appid as ShortcutId) &&
+                              deps.needsFetch!(s.appid as ShortcutId),
+                      )
+                    : [];
+                items = [...newItems, ...missingItems];
             }
 
             if (items.length === 0) {
@@ -150,7 +164,10 @@ export function createIngest(deps: IngestDeps): Ingest {
                     logger.warn("A source is paused (rate limit or repeated errors); ingest stops and resumes next run.");
                     break;
                 }
-                if (outcome.done) await deps.backend.markKnown([item.appid]).catch(() => undefined);
+                if (outcome.done) {
+                    deps.onDone?.(item.appid as ShortcutId);
+                    await deps.backend.markKnown([item.appid]).catch(() => undefined);
+                }
 
                 await deps.sleep(PAUSE_MS);
             }

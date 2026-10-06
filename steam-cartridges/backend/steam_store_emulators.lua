@@ -6,7 +6,10 @@ local M = {}
 
 local EMULATORS = {}
 for name in ([[retroarch dolphin primehack cemu pcsx2 rpcs3 duckstation ppsspp
-  yuzu ryujinx xemu xenia mame mednafen flycast melonds citra vita3k shadps4]]):gmatch("%S+") do
+  yuzu ryujinx xemu xenia mame mednafen flycast melonds citra vita3k shadps4
+  snes9x mgba vbam visualboyadvance project64 simple64 rmg mupen64plus
+  ares bigpemu blastem fusion kega fceux mesen nestopia desmume redream
+  demul supermodel model2emu bizhawk openemu azahar eden]]):gmatch("%S+") do
   EMULATORS[name] = true
 end
 

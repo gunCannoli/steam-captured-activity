@@ -11,7 +11,10 @@ export interface Controller {
     inferredFor(appid: number): boolean | undefined;
 }
 
-export function createController(deps: { backend: Pick<typeof Backend, "getControllerInference"> }): Controller {
+export function createController(deps: {
+    backend: Pick<typeof Backend, "getControllerInference">;
+    onLoaded?: () => void;
+}): Controller {
     const inferred = new Map<number, boolean>();
     return {
         async load() {
@@ -23,6 +26,7 @@ export function createController(deps: { backend: Pick<typeof Backend, "getContr
                     if (appid !== undefined && typeof value === "boolean") inferred.set(appid, value);
                 }
                 logger.info(`Controller support inferred for ${inferred.size} shortcut(s) from their emulator.`);
+                deps.onLoaded?.();
             } catch (err) {
                 logger.warn("Could not load controller inference; only the default setting applies.", err);
             }

@@ -7,7 +7,14 @@ const A = { appid: 4000000001, name: 'Alpha' };
 const B = { appid: 4000000002, name: 'Beta' };
 const C = { appid: 4000000003, name: 'Gamma' };
 
-function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<number, { bucket: string; via: string }>; respond?: (appid: number, parts: string[], ctx: any) => any; schedule?: (fn: () => void) => void } = {}) {
+function setup(over: {
+    newOnes?: Item[];
+    library?: Item[];
+    routes?: Record<number, { bucket: string; via: string }>;
+    respond?: (appid: number, parts: string[], ctx: any) => any;
+    schedule?: (fn: () => void) => void;
+    needsFetch?: (appid: number) => boolean;
+} = {}) {
     const calls: { appid: number; parts: string[]; ctx: any }[] = [];
     const known: number[][] = [];
     const sleeps: number[] = [];
@@ -36,6 +43,7 @@ function setup(over: { newOnes?: Item[]; library?: Item[]; routes?: Record<numbe
         hardcore: () => true,
         sleep: async (ms: number) => { sleeps.push(ms); },
         schedule: over.schedule ?? (() => {}),
+        needsFetch: over.needsFetch ? (id) => over.needsFetch!(id as number) : undefined,
     });
     return { ingest, calls, known, sleeps, get maxActive() { return maxActive; }, get newCalls() { return newCalls; } };
 }
@@ -162,4 +170,11 @@ test('a per-game scan requested during a run keeps its scope and resolves after 
     later.shift()!();
     await scan;
     assert.equal(done, true);
+});
+
+test('startup ingests existing shortcuts needing fetch when nothing is new', async () => {
+    const s = setup({ newOnes: [], library: [A, B, C], needsFetch: (id) => id === B.appid });
+    await s.ingest.startSync();
+    assert.deepEqual([...new Set(s.calls.map((c) => c.appid))], [B.appid]);
+    assert.deepEqual(s.known, [[B.appid]]);
 });

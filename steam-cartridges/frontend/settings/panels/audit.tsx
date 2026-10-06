@@ -242,10 +242,6 @@ export function RevisionSection() {
         const override = lookupStored(controllerOverrides, sc.appid);
         const inferred =
             lookupStored(controllerInference, sc.appid) ??
-            (profile?.category === "retroarch" ||
-            profile?.category === "console_emulator"
-                ? true
-                : undefined) ??
             ctx.controller.inferredFor(sc.appid);
         const hasControllerSupport =
             override === "full" ||
@@ -508,6 +504,27 @@ export function RevisionSection() {
                                     }}
                                 />
                             </FullWidthRows>
+                            {displayedFlagged.length > 0 && filter !== "not_scraped" && (
+                                <ItemRow>
+                                    <Field
+                                        label={`Scan all ${displayedFlagged.length} game(s)`}
+                                        description="Fetch RetroAchievements & metadata for these games in the background"
+                                        bottomSeparator="none"
+                                    >
+                                        <DialogButton
+                                            onClick={() => {
+                                                const ids = displayedFlagged.map((f) => f.appid);
+                                                void ctx.ingest.start({ onlyAppids: ids, forceAll: false });
+                                                setFixMsg(`Queued background fetch for ${ids.length} game(s)`);
+                                                setTimeout(() => setFixMsg(""), 3000);
+                                            }}
+                                            style={BUTTON_STYLE}
+                                        >
+                                            Fetch All
+                                        </DialogButton>
+                                    </Field>
+                                </ItemRow>
+                            )}
                             {fixMsg && <ActionRow message={fixMsg} />}
                             {filter === "not_scraped" ? (
                                 <>
@@ -652,6 +669,12 @@ export function RevisionSection() {
                                                 />
                                             </>
                                         )}
+                                        <ButtonRow
+                                            label="Scan Game"
+                                            description="Search RetroAchievements & metadata for this game now"
+                                            buttonLabel="Fetch"
+                                            onClick={() => handleScanSingle(item.appid, item.name)}
+                                        />
                                         <ItemRow trailing>
                                             <TextField
                                                 label="Steam app id"

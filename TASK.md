@@ -16,6 +16,9 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges controller inference restoration & background RetroAchievements ingestion (2026-10-06): deployed and verified live.**
+Fixed regression where emulator shortcuts lacked controller support badges and showed "Unknown controller" in Library Analytics (root cause: `createController` never called `controller.load()` at start-up). Added `controller.load()` at start-up, hooked `onLoaded` to `metadata.rebadge()`, and expanded backend emulator lists to 24 standalone emulators (`snes9x`, `mgba`, `vbam`, `ares`, `project64`, etc.) with command-line ROM extension inspection. Live CDP probe confirmed 218/228 shortcuts populated with `xbox_support: 2` and category `28`. Fixed missing RetroAchievements across library by extending `app/ingest.ts` with `needsFetch` to ingest existing shortcuts lacking metadata or achievements schemas sequentially in the background (300 ms pacing). Added per-game "Fetch" and batch "Fetch All" in Review modal. Live verification confirmed 218 shortcuts populated in `achievements.json`.
+
 **steam-cartridges RA global unlock % and Library Analytics controller support (2026-10-05): deployed and verified live.**
 Fixed Metroid Fusion *Explosive Chamber* unlock rate (from 4% points fallback to true 92.47%) and refreshed schemas in `achievements.json`. Resolved false "Unknown controller" issues for Steam-mirrored shortcuts (*Jotunnslayer: Hordes of Hel*) and Epic/Xbox store copies in Library Analytics. Mapped and store copies now accurately count toward `Metadata Match` and satisfy controller support. Deployed and verified live via CDP.
 
@@ -255,7 +258,6 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
   six surfaces as real factories would touch every Steam hook (the highest-risk code) for a benefit that has not occurred. Instead add one
   capability-ratchet rule in `tests/architecture.test.ts`: `index.tsx` calls each `create*Surface` at most once, and nothing outside a
   surface's folder imports its `deps`. Revisit the factory rewrite only if a surface ever needs a second instance.
-- **K20:** load the controller inference at start-up (`void controller.load()` in `init()`), live-check AM2R's badge.
 
 ## Next
 
