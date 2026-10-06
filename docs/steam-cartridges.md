@@ -29,6 +29,14 @@ templates, the viewer's text) is in [steam-components.md](steam-components.md#co
 manual's design is [ADR-0048](decisions.md) and [steam-cartridges/service-media.md](steam-cartridges/service-media.md);
 pdf.js, ScreenScraper and build facts are in [knowledgebase.md](knowledgebase.md).
 
+**Universal Captured Activity:**
+User captures (screenshots and recordings) are treated as first-class activity items across **both native Steam games and non-Steam shortcuts**. Steam hides local captures from the Activity Feed unless manually uploaded to Steam Community; `steam-cartridges` ingests genuine local captures, builds daily chronological cards with 16:9 thumbnails, enables inline clip playback, and styles headlines with `{Username} captured` across the entire library.
+
+**Extension & Expansion System:**
+The core exposes a global, typed extension registry on `window.SteamCartridges` (`frontend/kernel/extensions.ts`). External Millennium plugins can register as providers without direct code dependencies or crash risks:
+- [steam-cartridges-local.md](steam-cartridges-local.md): Local Steam API emulator achievement parsing (.ini and .json for CODEX, RUNE, GSE, Goldberg) and safe resets.
+- [steam-cartridges-third-party.md](steam-cartridges-third-party.md): External PC storefront integrations (Epic Games Store and Xbox / Microsoft Store / Game Pass: installed games discovery, auto-add, achievement sync, and overlay workarounds).
+
 Two halves, one boundary:
 
 - **Frontend** (TypeScript, in Steam's React): watches what the user does, decides,
@@ -86,7 +94,7 @@ One doc per layer, updated by every change that touches the layer.
 | --- | --- |
 | Overview: dependency rule, layer capabilities, architecture tests, how to add a feature | [README.md](steam-cartridges/README.md) |
 | Safety: kill switches, safe mode, error budget, fail-open hooks | [safety.md](steam-cartridges/safety.md) |
-| Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract | [kernel.md](steam-cartridges/kernel.md) |
+| Kernel: `ShortcutId`, events, `GameRecord`, `Surface` contract, Extension API | [kernel.md](steam-cartridges/kernel.md) |
 | Sensors: view, lifecycle, collections, owned apps | [sensors.md](steam-cartridges/sensors.md) |
 | Surfaces: one section per Steam target | [surfaces.md](steam-cartridges/surfaces.md) |
 | Backend port and RPC facade | [rpc.md](steam-cartridges/rpc.md) |
@@ -98,6 +106,8 @@ One doc per layer, updated by every change that touches the layer.
 | Store copies (Epic, Xbox): detection, sources, accounts, auto-add | [service-store.md](steam-cartridges/service-store.md) |
 | Freshness and ingestion | [service-freshness.md](steam-cartridges/service-freshness.md) |
 | Settings panels and the Game Data editor | [settings.md](steam-cartridges/settings.md) |
+| Expansion plugin: Local Steam emulators (.ini / .json) | [steam-cartridges-local.md](steam-cartridges-local.md) |
+| Expansion plugin: Third-party storefronts (Epic Games & Xbox) | [steam-cartridges-third-party.md](steam-cartridges-third-party.md) |
 | Live verification baseline, rollback, open known issues | [verification.md](steam-cartridges/verification.md) |
 | Next features (Game Data editor, Media) | [plans/steam-cartridges-features-plan.md](plans/steam-cartridges-features-plan.md) |
 
