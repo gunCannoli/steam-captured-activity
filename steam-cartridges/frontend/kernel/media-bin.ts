@@ -16,7 +16,7 @@ export interface MediaBin {
     get(appid: number, key: string): MediaImage | undefined;
 }
 
-export const MAX_MEDIA_APPIDS = 8;
+export const MAX_MEDIA_APPIDS = 64;
 
 export function createMediaBin(release: (url: string) => void): MediaBin {
     const map = new Map<number, Map<string, MediaImage>>();

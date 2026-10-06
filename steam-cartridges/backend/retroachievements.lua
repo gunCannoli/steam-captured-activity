@@ -1360,7 +1360,15 @@ function M.get_or_fetch(shortcut_appid, hardcore)
   end
 
   if not game_id then
-    -- Fallback: Title matching by detected console
+    -- When a ROM file was extracted and hashed, but the hash is not supported by RetroAchievements,
+    -- DO NOT fall back to title matching! An unsupported ROM version (e.g. Caravan Event, bad dump, hack)
+    -- will never trigger or unlock achievements in RetroArch or other emulators.
+    if md5 and #md5 > 0 then
+      logger:info(string.format("RetroAchievements: ROM MD5 %s is not supported by RetroAchievements for shortcut %s (%s); skipping automatic achievement attachment", tostring(md5), tostring(s_appid), tostring(sc.name or sc.appname or "")))
+      return nil, "unsupported rom hash"
+    end
+
+    -- Fallback: Title matching by detected console (only when no ROM path could be extracted/hashed)
     local title = sc.name or sc.appname or ""
     game_id = M.find_game_id_by_title(title, sc.exe, sc.launch_options, s_appid)
     if not game_id then

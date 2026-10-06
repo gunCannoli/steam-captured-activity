@@ -41,7 +41,8 @@ export async function fetchImage(url: string, forcePng = false): Promise<{ base6
  */
 export function objectUrl(base64: string, ext: string): string | null {
     try {
-        const binary = atob(base64);
+        const clean = base64.trim().replace(/\s+/g, '');
+        const binary = atob(clean);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         const type = ext === 'jpg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'application/octet-stream';
