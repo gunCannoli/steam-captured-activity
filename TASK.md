@@ -16,6 +16,13 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges data flow audit (2026-10-06, [plan](docs/plans/steam-cartridges-dataflow-improvements-plan.md)): audit done, nothing implemented.**
+Achievements show late because the view enqueues them last (after metadata, artwork and media's first call) in one FIFO call queue
+with no priority, in front of a Lua host that serves one call at a time; ingest, the 60 s store-sync tick and the 2 s observer
+(`setInterval`, piles up) share that queue; failed or empty achievements re-resolve on every request; the RA MD5 cache is memory only.
+Next: Phase 0 (per-call timing + live probe, needs the Steam lock), then priority lanes (Phase 1) and paint-from-disk (Phase 2), each
+written as a mechanical plan first; needs ADR-0060.
+
 **steam-cartridges controller inference restoration & background RetroAchievements ingestion (2026-10-06): deployed and verified live.**
 Fixed regression where emulator shortcuts lacked controller support badges and showed "Unknown controller" in Library Analytics (root cause: `createController` never called `controller.load()` at start-up). Added `controller.load()` at start-up, hooked `onLoaded` to `metadata.rebadge()`, and expanded backend emulator lists to 24 standalone emulators (`snes9x`, `mgba`, `vbam`, `ares`, `project64`, etc.) with command-line ROM extension inspection. Live CDP probe confirmed 218/228 shortcuts populated with `xbox_support: 2` and category `28`. Fixed missing RetroAchievements across library by extending `app/ingest.ts` with `needsFetch` to ingest existing shortcuts lacking metadata or achievements schemas sequentially in the background (300 ms pacing). Added per-game "Fetch" and batch "Fetch All" in Review modal. Live verification confirmed 218 shortcuts populated in `achievements.json`.
 
