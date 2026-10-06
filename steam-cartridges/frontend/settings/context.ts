@@ -37,6 +37,7 @@ export interface PanelContext {
     };
     records: {
         achievementsOf(appid: number): { nAchieved: number; nTotal: number } | undefined;
+        refreshAchievements?(appid: number): Promise<void>;
     };
     controller: {
         load(): Promise<void>;

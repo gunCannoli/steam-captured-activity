@@ -236,4 +236,66 @@ RPC.PruneMediaCache = method("PruneMediaCache", function(data)
   return media_service.prune_cache(data.days)
 end)
 
+--- { appid, source, target }: manually link or override achievement source.
+--- source: "ra" | "steam" | "none"
+--- target: RA game id or url, Steam appid or url, or nil
+RPC.SetAchievementSource = method("SetAchievementSource", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local source = need(data, "source")
+  local target = data.target
+  local s_appid = tonumber(appid)
+
+  local store = require("achievements_store")
+
+  if source == "none" then
+    store.sync(s_appid, "none", {}, "none")
+    fresh().touch(s_appid, "achievements", now_ms())
+    return { ok = true, source = "none" }
+  elseif source == "ra" then
+    if not target or target == "" then return { error = "missing RetroAchievements URL or game id" } end
+    local gid_str = tostring(target):match("/game/(%d+)") or tostring(target):match("(%d+)")
+    local gid = tonumber(gid_str)
+    if not gid or gid <= 0 then return { error = "invalid RetroAchievements game id" } end
+
+    local ra = require("retroachievements")
+    local web_cfg = require("web_config")
+    local creds = (web_cfg.get_retroachievements_credentials and web_cfg.get_retroachievements_credentials()) or {}
+    local schema, unlocks = ra.fetch_game_data(gid, creds.username, creds.token, true, creds.api_key)
+    if not schema then
+      return { error = "could not fetch game data for RetroAchievements game " .. tostring(gid) }
+    end
+    local schema_key = "ra_" .. tostring(gid)
+    store.save_schema(schema_key, schema)
+    store.sync(s_appid, schema_key, unlocks or {}, "retroachievements")
+    fresh().touch(s_appid, "achievements", now_ms())
+    return { ok = true, source = "retroachievements", title = schema.title, total = schema.total, game_id = gid }
+  elseif source == "steam" then
+    if not target or target == "" then return { error = "missing Steam app id" } end
+    local sid_str = tostring(target):match("/app/(%d+)") or tostring(target):match("(%d+)")
+    local sid = tonumber(sid_str)
+    if not sid or sid <= 0 then return { error = "invalid Steam app id" } end
+    local steam_schema = require("steam_schema")
+    local schema, err = steam_schema.get_or_fetch(s_appid, sid)
+    if not schema then
+      return { error = "could not fetch Steam achievement schema: " .. tostring(err) }
+    end
+    store.sync(s_appid, tostring(sid), {}, "steam")
+    fresh().touch(s_appid, "achievements", now_ms())
+    return { ok = true, source = "steam", total = schema.total, steam_appid = sid }
+  else
+    return { error = "unsupported source: " .. tostring(source) }
+  end
+end)
+
+RPC.ClearAchievementSource = method("ClearAchievementSource", function(data)
+  local appid = need(data, "appid")
+  if not is_shortcut(appid) then return { error = "not a shortcut" } end
+  local s_appid = tonumber(appid)
+  local store = require("achievements_store")
+  store.sync(s_appid, nil, {}, nil)
+  fresh().touch(s_appid, "achievements", now_ms())
+  return { ok = true }
+end)
+
 return RPC

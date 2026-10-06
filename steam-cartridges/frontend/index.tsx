@@ -404,7 +404,15 @@ async function init() {
             trigger: ingest.triggerSync,
             start: ingest.startSync,
         },
-        records: { achievementsOf: (appid) => achievements.summary(appid) },
+        records: {
+            achievementsOf: (appid) => achievements.summary(appid),
+            refreshAchievements: async (appid) => {
+                const id = toShortcutId(appid);
+                if (id !== undefined) {
+                    await achievements.ensure(id, routing.getBucket(id), { force: true });
+                }
+            },
+        },
         controller: {
             load: controller.load,
             inferredFor: controller.inferredFor,

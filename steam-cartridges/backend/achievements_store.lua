@@ -53,8 +53,8 @@ end
 function M._reset() state = nil end
 
 local function to_schema_key(id)
-  -- A source's own list: "ra_<game>", "epic_<namespace>", "xbox_<title id>" (ADR-0056); a number is a native appid.
-  if type(id) == "string" and (id:match("^ra_") or id:match("^epic_") or id:match("^xbox_")) then
+  -- A source's own list: "ra_<game>", "ps3_<id>", "ps4_<id>", "epic_<namespace>", "xbox_<title id>" (ADR-0056); a number is a native appid.
+  if type(id) == "string" and (id:match("^ra_") or id:match("^ps3_") or id:match("^ps4_") or id:match("^epic_") or id:match("^xbox_") or id == "none") then
     return id
   end
   return tostring(math.floor(tonumber(id) or 0))
@@ -95,12 +95,22 @@ function M.get_state(shortcut_appid, native_appid)
   end
 
   local schema_id = sc and sc.schema_appid or native_appid
+  if schema_id == "none" or (sc and sc.source == "none") then
+    return {
+      schema = { title = "none", total = 0, achievements = {} },
+      unlocks = {},
+      source = "none",
+      schema_appid = "none",
+    }
+  end
+
   local schema = schema_id and s.schemas[to_schema_key(schema_id)] or nil
   return {
     schema = schema,
     unlocks = sc and sc.unlocks or {},
     -- The source that wrote the unlocks when it is a synced store ("epic", "xbox"; ADR-0056), else nil.
     source = sc and sc.source or nil,
+    schema_appid = sc and sc.schema_appid or nil,
   }
 end
 

@@ -39,7 +39,7 @@ export interface AchievementsService {
     /** Subscribe to shortcut.launched / shortcut.quit (Flow C). */
     install(): void;
     /** Load the achievements part into the record (one backend call at a time per shortcut). */
-    ensure(appid: ShortcutId, route: Route, opts?: { native?: number }): Promise<Part<AchievementSet>>;
+    ensure(appid: ShortcutId, route: Route, opts?: { native?: number; force?: boolean }): Promise<Part<AchievementSet>>;
     /** One CheckUnlocks; returns how many new unlocks it found. */
     checkNow(appid: ShortcutId, opts?: { native?: number; title?: string }): Promise<number>;
     /** Poll while a game runs; the returned function stops it (with one final check). */

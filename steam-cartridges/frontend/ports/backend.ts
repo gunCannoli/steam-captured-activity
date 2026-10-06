@@ -329,4 +329,13 @@ export const backend = {
             steam_appid: info.steamAppid,
         });
     },
+    setAchievementSource(appid: number, source: "ra" | "steam" | "none", target?: string | number) {
+        return call<{ ok?: boolean; error?: string; source?: string; title?: string; total?: number; game_id?: number; steam_appid?: number }>(
+            "SetAchievementSource",
+            { appid, source, target },
+        );
+    },
+    clearAchievementSource(appid: number) {
+        return call<{ ok?: boolean; error?: string }>("ClearAchievementSource", { appid });
+    },
 };

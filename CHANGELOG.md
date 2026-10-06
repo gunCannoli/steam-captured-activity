@@ -7,6 +7,17 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Achievements Match analytics and manual achievement linking (2026-10-05)**:
+  added `Achievements Match - ##` directly below `Metadata Match` in Library Analytics. Integrated
+  missing achievements detection into the "Issues detected" count for scraped games that lack achievements
+  and have not been dismissed. In the Review modal (`SettingsModal title="Review"`), added filtering
+  by `All Issues`, `Missing Achievements`, `Missing Controller`, and `Not Scraped`. Added manual linking
+  controls for each card: RetroAchievements URL or game ID input with "Link RA", Steam App ID input with
+  "Link to Steam", "Mark No Achievements" to intentionally dismiss games without achievements, and
+  "Reset Achievement Source" to clear bindings. Wired `SetAchievementSource` and `ClearAchievementSource`
+  RPCs through `achievements_store.lua` and `record_rpc.lua` with live progress cache updates. All 315 TS
+  tests, all Lua backend test suites, and live CDP integration tests pass.
+
 - **steam-cartridges: performance optimization and Luavm64 crash fix (2026-10-05)**:
   diagnosed and resolved `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` in `millennium.luavm64.exe` (`+0x1087C`, `movdqu [r15], xmm0`)
   triggered on loading games with large achievement sets (such as *Lufia II: Rise of the Sinistrals* with 107 achievements).

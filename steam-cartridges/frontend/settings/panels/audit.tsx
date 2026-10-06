@@ -1,6 +1,12 @@
 // Settings: Library Audit (migration plan M8c; reads the app through the panel context and the backend port).
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { DialogButton, Dropdown, Field, PanelSection, TextField } from "@steambrew/client";
+import {
+    DialogButton,
+    Dropdown,
+    Field,
+    PanelSection,
+    TextField,
+} from "@steambrew/client";
 import {
     onSettingChange,
     setSetting,
@@ -38,6 +44,13 @@ interface FlaggedShortcut {
     profile?: AutoRoutingProfile;
 }
 
+interface StoredAchievementRecord {
+    status?: string;
+    source?: string;
+    total?: number;
+    title?: string;
+}
+
 const CONTROLLER_OVERRIDE_OPTIONS = [
     { data: "auto", label: "Default / Auto" },
     { data: "full", label: "Full Controller Support" },
@@ -48,6 +61,7 @@ const CONTROLLER_OVERRIDE_OPTIONS = [
 let cachedMetadataLib: Record<string, GameMetadata> | null = null;
 let cachedAutoProfiles: Record<string, AutoRoutingProfile> | null = null;
 let cachedControllerInference: Record<string, boolean> | null = null;
+let cachedAchievementsLib: Record<string, StoredAchievementRecord> | null = null;
 
 export function RevisionSection() {
     const ctx = usePanelContext();
@@ -61,16 +75,20 @@ export function RevisionSection() {
     const [metadataLib, setMetadataLib] = useState<
         Record<string, GameMetadata>
     >(() => cachedMetadataLib || {});
+    const [achievementsLib, setAchievementsLib] = useState<
+        Record<string, StoredAchievementRecord>
+    >(() => cachedAchievementsLib || {});
     const [controllerInference, setControllerInference] = useState<
         Record<string, boolean>
     >(() => cachedControllerInference || {});
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [isGameDataOpen, setIsGameDataOpen] = useState(false);
     const [filter, setFilter] = useState<
-        "all" | "not_scraped"
+        "all" | "missing_achievements" | "missing_controller" | "not_scraped"
     >("all");
     const [targetAppId, setTargetAppId] = useState<number | null>(null);
     const [steamIdInput, setSteamIdInput] = useState("");
+    const [raInput, setRaInput] = useState("");
     const [fixMsg, setFixMsg] = useState("");
     const syncProgress = useSyncProgress();
     const prevSyncingRef = useRef(syncProgress.isSyncing);
@@ -102,6 +120,7 @@ export function RevisionSection() {
         try {
             const res = await backend.getAllRecords();
             const library: Record<string, GameMetadata> = {};
+            const achLib: Record<string, StoredAchievementRecord> = {};
             for (const [key, recordParts] of Object.entries(
                 res?.records ?? {},
             )) {
@@ -109,9 +128,22 @@ export function RevisionSection() {
                     | GameMetadata
                     | undefined;
                 if (data) library[key] = data;
+
+                const achPart = recordParts?.achievements;
+                if (achPart) {
+                    const schema = (achPart.data as any)?.schema;
+                    achLib[key] = {
+                        status: achPart.status,
+                        source: achPart.source,
+                        total: schema?.total ?? 0,
+                        title: schema?.title,
+                    };
+                }
             }
             cachedMetadataLib = library;
             setMetadataLib(library);
+            cachedAchievementsLib = achLib;
+            setAchievementsLib(achLib);
         } catch {
             // ignore
         }
@@ -149,6 +181,7 @@ export function RevisionSection() {
     }[] = [];
     let ignored = 0;
     let matched = 0;
+    let achievementsMatched = 0;
 
     for (const sc of shortcuts) {
         const profile = lookupStored(autoProfiles, sc.appid);
@@ -162,9 +195,18 @@ export function RevisionSection() {
 
         const meta = lookupStored(metadataLib, sc.appid);
         if (meta) matched++;
-        const achievements = ctx.records.achievementsOf(sc.appid);
-        const isScraped = !!meta || (achievements && achievements.nTotal > 0);
 
+        const achSummary = ctx.records.achievementsOf(sc.appid);
+        const achRecord = lookupStored(achievementsLib, sc.appid);
+        const hasAchievements =
+            (achSummary && achSummary.nTotal > 0) ||
+            (achRecord && achRecord.status === "ok" && (achRecord.total ?? 0) > 0);
+
+        if (hasAchievements) {
+            achievementsMatched++;
+        }
+
+        const isScraped = !!meta || hasAchievements;
         if (!isScraped) {
             notScraped.push({ appid: sc.appid, name: sc.name, profile });
             continue; // Do NOT count unscraped games as issues!
@@ -187,13 +229,15 @@ export function RevisionSection() {
         const missingController =
             !hasControllerSupport && (!override || override === "auto");
 
-        // Actionable issues: unknown controller input
-        if (missingController) {
+        const noAchievements = !hasAchievements && achRecord?.source !== "none";
+
+        // Actionable issues: unknown controller input or missing achievements
+        if (missingController || noAchievements) {
             flagged.push({
                 appid: sc.appid,
                 name: sc.name,
                 missingController,
-                noAchievements: false,
+                noAchievements,
                 inferred,
                 profile,
             });
@@ -217,10 +261,81 @@ export function RevisionSection() {
         setFixMsg("Linking to Steam Store...");
         const res = await ctx.steamStore.setMapping(shortcutAppId, steamAppId);
         if (res.mapping) {
+            void backend
+                .setAchievementSource(shortcutAppId, "steam", steamAppId)
+                .catch(() => {});
             setFixMsg("✓ Linked to Steam");
+            setSteamIdInput("");
+            await ctx.records.refreshAchievements?.(shortcutAppId);
+            await refreshAuditData();
             setTimeout(() => setFixMsg(""), 2500);
         } else {
             setFixMsg(res.error || "Failed to map Steam App");
+        }
+    };
+
+    const handleLinkRA = async (appid: number, input: string) => {
+        if (!input.trim()) return;
+        setFixMsg(`Linking RetroAchievements for ${shortcutName(appid)}...`);
+        try {
+            const res = await backend.setAchievementSource(
+                appid,
+                "ra",
+                input.trim(),
+            );
+            if (res.ok) {
+                setFixMsg(
+                    `✓ Linked RetroAchievements: ${res.title || "Game"} (${res.total || 0} achievements)`,
+                );
+                setRaInput("");
+                await ctx.records.refreshAchievements?.(appid);
+                await refreshAuditData();
+                setTimeout(() => setFixMsg(""), 3500);
+            } else {
+                setFixMsg(`Failed to link RA: ${res.error || "Unknown error"}`);
+            }
+        } catch (e: any) {
+            setFixMsg(`Error linking RA: ${e?.message || e}`);
+        }
+    };
+
+    const handleSetNoAchievements = async (appid: number) => {
+        setFixMsg(
+            `Marking ${shortcutName(appid)} as having no achievements...`,
+        );
+        try {
+            const res = await backend.setAchievementSource(appid, "none");
+            if (res.ok) {
+                setFixMsg(
+                    `✓ Marked as having no achievements for ${shortcutName(appid)}`,
+                );
+                await ctx.records.refreshAchievements?.(appid);
+                await refreshAuditData();
+                setTimeout(() => setFixMsg(""), 2500);
+            } else {
+                setFixMsg(`Failed: ${res.error || "Unknown error"}`);
+            }
+        } catch (e: any) {
+            setFixMsg(`Error: ${e?.message || e}`);
+        }
+    };
+
+    const handleClearAchievements = async (appid: number) => {
+        setFixMsg(`Clearing achievement source for ${shortcutName(appid)}...`);
+        try {
+            const res = await backend.clearAchievementSource(appid);
+            if (res.ok) {
+                setFixMsg(
+                    `✓ Cleared achievement source for ${shortcutName(appid)}`,
+                );
+                await ctx.records.refreshAchievements?.(appid);
+                await refreshAuditData();
+                setTimeout(() => setFixMsg(""), 2500);
+            } else {
+                setFixMsg(`Failed: ${res.error || "Unknown error"}`);
+            }
+        } catch (e: any) {
+            setFixMsg(`Error: ${e?.message || e}`);
         }
     };
 
@@ -234,6 +349,13 @@ export function RevisionSection() {
         setTimeout(() => setFixMsg(""), 2000);
     };
 
+    const displayedFlagged =
+        filter === "missing_achievements"
+            ? flagged.filter((f) => f.noAchievements)
+            : filter === "missing_controller"
+              ? flagged.filter((f) => f.missingController)
+              : flagged;
+
     return (
         <div
             style={{
@@ -246,14 +368,28 @@ export function RevisionSection() {
             <PanelSection title="Library Analytics">
                 <Blocks>
                     <>
-                        <StatRow label="Non-Steam Games" value={shortcuts.length} />
-                        <StatRow label="Metadata Matched" value={matched} />
-                        <StatRow label="Ignored" value={ignored} />
-                        <StatRow label="Issues detected" value={flagged.length} warn />
+                        <StatRow
+                            label="Non-Steam Games"
+                            value={shortcuts.length}
+                        />
+                        <StatRow label="Metadata Match" value={matched} />
+                        <StatRow
+                            label="Achievements Match"
+                            value={achievementsMatched}
+                        />
+                        <StatRow label="Excluded/Ignored" value={ignored} />
+                        <StatRow
+                            label="Issues detected"
+                            value={flagged.length}
+                            warn
+                        />
                     </>
-                    {/* Only when there is something to fix. Three rows: label, description, then the button across the full row. */}
+                    {/* Only when there is something to fix. */}
                     {flagged.length > 0 && (
-                        <FullWidthRows label="Review" description="Fix controller support and Steam links game by game">
+                        <FullWidthRows
+                            label="Review"
+                            description="Fix controller support, achievements, and Steam links game by game"
+                        >
                             <DialogButton
                                 onClick={() => {
                                     setFilter("all");
@@ -269,18 +405,23 @@ export function RevisionSection() {
                         label="Edit Game MetaData"
                         description="Correct a game's Game Info by hand or link it to a Steam game"
                     >
-                        <DialogButton onClick={() => setIsGameDataOpen(true)} style={{ ...BUTTON_STYLE, width: "100%" }}>
+                        <DialogButton
+                            onClick={() => setIsGameDataOpen(true)}
+                            style={{ ...BUTTON_STYLE, width: "100%" }}
+                        >
                             Manual Edit
                         </DialogButton>
                     </FullWidthRows>
-                    {fixMsg && !isAuditModalOpen && <ActionRow message={fixMsg} />}
+                    {fixMsg && !isAuditModalOpen && (
+                        <ActionRow message={fixMsg} />
+                    )}
                 </Blocks>
                 <GameDataEditor
                     isOpen={isGameDataOpen}
                     onClose={() => setIsGameDataOpen(false)}
                 />
 
-                {/* Review popup: the same rows and spacing as the panel, one block per game. */}
+                {/* Review popup: one block per game. */}
                 <SettingsModal
                     title="Review"
                     isOpen={isAuditModalOpen}
@@ -295,17 +436,45 @@ export function RevisionSection() {
                                 description={
                                     filter === "not_scraped"
                                         ? "Games still waiting for their first fetch; they are fetched in the background"
-                                        : "Games with no known controller support"
+                                        : filter === "missing_achievements"
+                                          ? "Games with no achievements detected (link RetroAchievements, Steam, or mark None)"
+                                          : filter === "missing_controller"
+                                            ? "Games with no known controller support"
+                                            : "Games needing controller support, achievements, or Steam links"
                                 }
                             >
                                 <Dropdown
                                     rgOptions={[
-                                        { data: "all", label: `Issues (${flagged.length})` },
-                                        { data: "not_scraped", label: `Not scraped (${notScraped.length})` },
+                                        {
+                                            data: "all",
+                                            label: `All Issues (${flagged.length})`,
+                                        },
+                                        {
+                                            data: "missing_achievements",
+                                            label: `Missing Achievements (${flagged.filter((f) => f.noAchievements).length})`,
+                                        },
+                                        {
+                                            data: "missing_controller",
+                                            label: `Missing Controller (${flagged.filter((f) => f.missingController).length})`,
+                                        },
+                                        {
+                                            data: "not_scraped",
+                                            label: `Not scraped (${notScraped.length})`,
+                                        },
                                     ]}
                                     selectedOption={filter}
-                                    onChange={(o) => setFilter(o.data as "all" | "not_scraped")}
-                                    contextMenuPositionOptions={{ bMatchWidth: true }}
+                                    onChange={(o) =>
+                                        setFilter(
+                                            o.data as
+                                                | "all"
+                                                | "missing_achievements"
+                                                | "missing_controller"
+                                                | "not_scraped",
+                                        )
+                                    }
+                                    contextMenuPositionOptions={{
+                                        bMatchWidth: true,
+                                    }}
                                 />
                             </FullWidthRows>
                             {fixMsg && <ActionRow message={fixMsg} />}
@@ -313,74 +482,216 @@ export function RevisionSection() {
                                 <>
                                     {notScraped.length === 0 && (
                                         <ItemRow>
-                                            <Field label="Every game has been fetched" bottomSeparator="none" />
+                                            <Field
+                                                label="Every game has been fetched"
+                                                bottomSeparator="none"
+                                            />
                                         </ItemRow>
                                     )}
                                     {notScraped.map((item) => (
                                         <ItemRow key={item.appid}>
-                                            <Field label={item.name} description={gameLine(item.appid, item.profile)}>
-                                                <DialogButton onClick={() => handleScanSingle(item.appid, item.name)} style={BUTTON_STYLE}>
+                                            <Field
+                                                label={item.name}
+                                                description={gameLine(
+                                                    item.appid,
+                                                    item.profile,
+                                                )}
+                                            >
+                                                <DialogButton
+                                                    onClick={() =>
+                                                        handleScanSingle(
+                                                            item.appid,
+                                                            item.name,
+                                                        )
+                                                    }
+                                                    style={BUTTON_STYLE}
+                                                >
                                                     Scrape
                                                 </DialogButton>
                                             </Field>
                                         </ItemRow>
                                     ))}
                                 </>
-                            ) : flagged.length === 0 ? (
+                            ) : displayedFlagged.length === 0 ? (
                                 <ItemRow>
-                                    <Field label="No issues found" bottomSeparator="none" />
+                                    <Field
+                                        label={
+                                            filter === "missing_achievements"
+                                                ? "No missing achievements"
+                                                : filter === "missing_controller"
+                                                  ? "No controller issues"
+                                                  : "No issues found"
+                                        }
+                                        bottomSeparator="none"
+                                    />
                                 </ItemRow>
                             ) : (
-                                flagged.map((item) => (
+                                displayedFlagged.map((item) => (
                                     <Fragment key={item.appid}>
                                         <ItemRow>
                                             <Field
                                                 label={item.name}
                                                 description={[
-                                                    gameLine(item.appid, item.profile),
-                                                    item.inferred === true
-                                                        ? "Detected: full controller"
-                                                        : item.inferred === false
-                                                          ? "Detected: keyboard & mouse"
-                                                          : null,
+                                                    gameLine(
+                                                        item.appid,
+                                                        item.profile,
+                                                    ),
+                                                    item.noAchievements
+                                                        ? "Missing achievements"
+                                                        : null,
+                                                    item.missingController
+                                                        ? item.inferred === true
+                                                            ? "Detected: full controller"
+                                                            : item.inferred ===
+                                                                false
+                                                              ? "Detected: keyboard & mouse"
+                                                              : "Unknown controller"
+                                                        : null,
                                                 ]
                                                     .filter(Boolean)
                                                     .join(" · ")}
                                                 bottomSeparator="none"
                                             />
                                         </ItemRow>
-                                        <ItemRow>
-                                            <Field childrenContainerWidth="max" bottomSeparator="none">
-                                                <Dropdown
-                                                    rgOptions={CONTROLLER_OVERRIDE_OPTIONS}
-                                                    selectedOption={controllerOverrides[String(item.appid)] || "auto"}
-                                                    onChange={(o) => handleSetController(item.appid, o.data as ControllerOverride)}
-                                                    contextMenuPositionOptions={{ bMatchWidth: true }}
+                                        {item.missingController && (
+                                            <ItemRow>
+                                                <Field
+                                                    label="Controller override"
+                                                    childrenContainerWidth="max"
+                                                    bottomSeparator="none"
+                                                >
+                                                    <Dropdown
+                                                        rgOptions={
+                                                            CONTROLLER_OVERRIDE_OPTIONS
+                                                        }
+                                                        selectedOption={
+                                                            controllerOverrides[
+                                                                String(item.appid)
+                                                            ] || "auto"
+                                                        }
+                                                        onChange={(o) =>
+                                                            handleSetController(
+                                                                item.appid,
+                                                                o.data as ControllerOverride,
+                                                            )
+                                                        }
+                                                        contextMenuPositionOptions={{
+                                                            bMatchWidth: true,
+                                                        }}
+                                                    />
+                                                </Field>
+                                            </ItemRow>
+                                        )}
+                                        {item.noAchievements && (
+                                            <>
+                                                <ItemRow trailing>
+                                                    <TextField
+                                                        label="RetroAchievements URL or ID"
+                                                        value={
+                                                            targetAppId ===
+                                                            item.appid
+                                                                ? raInput
+                                                                : ""
+                                                        }
+                                                        onChange={(e) => {
+                                                            setTargetAppId(
+                                                                item.appid,
+                                                            );
+                                                            setRaInput(
+                                                                e.target.value,
+                                                            );
+                                                        }}
+                                                    />
+                                                </ItemRow>
+                                                <ButtonRow
+                                                    label="Link RetroAchievements"
+                                                    description="Fetch achievements from RetroAchievements.org"
+                                                    buttonLabel="Link RA"
+                                                    disabled={
+                                                        targetAppId !==
+                                                            item.appid ||
+                                                        !raInput.trim()
+                                                    }
+                                                    onClick={() =>
+                                                        handleLinkRA(
+                                                            item.appid,
+                                                            raInput,
+                                                        )
+                                                    }
                                                 />
-                                            </Field>
-                                        </ItemRow>
+                                            </>
+                                        )}
                                         <ItemRow trailing>
                                             <TextField
                                                 label="Steam app id"
-                                                value={targetAppId === item.appid ? steamIdInput : ""}
+                                                value={
+                                                    targetAppId === item.appid
+                                                        ? steamIdInput
+                                                        : ""
+                                                }
                                                 onChange={(e) => {
                                                     setTargetAppId(item.appid);
-                                                    setSteamIdInput(e.target.value);
+                                                    setSteamIdInput(
+                                                        e.target.value,
+                                                    );
                                                 }}
                                             />
                                         </ItemRow>
                                         <ButtonRow
                                             label="Link to Steam"
-                                            description="Use that Steam game's page data"
+                                            description="Use that Steam game's page data and achievements"
                                             buttonLabel="Link"
-                                            disabled={targetAppId !== item.appid || !(parseInt(steamIdInput, 10) > 0)}
-                                            onClick={() => handleLinkSteamApp(item.appid, parseInt(steamIdInput, 10))}
+                                            disabled={
+                                                targetAppId !== item.appid ||
+                                                !(
+                                                    parseInt(
+                                                        steamIdInput,
+                                                        10,
+                                                    ) > 0
+                                                )
+                                            }
+                                            onClick={() =>
+                                                handleLinkSteamApp(
+                                                    item.appid,
+                                                    parseInt(
+                                                        steamIdInput,
+                                                        10,
+                                                    ),
+                                                )
+                                            }
                                         />
+                                        {item.noAchievements && (
+                                            <ButtonRow
+                                                label="No Achievements"
+                                                description="Mark game as intentionally having no achievements"
+                                                buttonLabel="Mark None"
+                                                onClick={() =>
+                                                    handleSetNoAchievements(
+                                                        item.appid,
+                                                    )
+                                                }
+                                            />
+                                        )}
+                                        {lookupStored(achievementsLib, item.appid)?.source && (
+                                            <ButtonRow
+                                                label="Reset Achievement Source"
+                                                description="Clear manual binding or 'No achievements' override"
+                                                buttonLabel="Reset"
+                                                onClick={() =>
+                                                    handleClearAchievements(
+                                                        item.appid,
+                                                    )
+                                                }
+                                            />
+                                        )}
                                     </Fragment>
                                 ))
                             )}
                             <ActionRow>
-                                <DialogButton onClick={() => setIsAuditModalOpen(false)} style={BUTTON_STYLE}>
+                                <DialogButton
+                                    onClick={() => setIsAuditModalOpen(false)}
+                                    style={BUTTON_STYLE}
+                                >
                                     Done
                                 </DialogButton>
                             </ActionRow>

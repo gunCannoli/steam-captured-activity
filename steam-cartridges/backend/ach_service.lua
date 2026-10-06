@@ -90,6 +90,10 @@ local SOURCES = {
 --- ctx = { native = number|nil, hardcore = boolean|nil, title = string, store = StoreCopy|nil, allowEpic?, allowXbox? }
 function M._resolve(appid, ctx)
   ctx = ctx or {}
+  local st = store.get_state(appid)
+  if st and (st.source == "none" or st.schema_appid == "none") then
+    return { status = "none", source = "none", data = { schema = st.schema, unlocks = {} }, checkedAt = now_ms() }, nil
+  end
   local entry = (M.deps.entry or default_entry)(appid)
 
   local asked, last_err = false, nil
@@ -123,6 +127,9 @@ end
 function M.local_part(appid)
   local st = store.get_state(appid)
   if not st or not st.schema then return nil end
+  if st.source == "none" or st.schema_appid == "none" then
+    return { status = "none", source = "none", data = { schema = st.schema, unlocks = {} }, checkedAt = now_ms() }
+  end
   -- `source` tells a synced store part (its freshness is short, fresh_policy) from a local one.
   return { status = "ok", source = st.source, data = { schema = st.schema, unlocks = st.unlocks or {} }, checkedAt = now_ms() }
 end
