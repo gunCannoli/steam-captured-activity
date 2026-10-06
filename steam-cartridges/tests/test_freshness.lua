@@ -361,6 +361,81 @@ local p3 = ensure_identity()
 check("a saved mapping wins over a remembered error", p3.status == "ok" and p3.data.native.appid == 435150 and search_calls == 1)
 identity.deps.http_get, identity.deps.is_emulator = nil, nil
 
+-- ---------- ADR-0060: remembered statuses, "none" never stale ----------
+print("remembered statuses (ADR-0060)")
+fp_wipe()
+check("achievements the user marked none are never stale", fp.is_stale(SC, "achievements", { status = "none", source = "none" }, T0) == false)
+fp.touch(SC, "achievements", T0, "unsupported")
+check("an unsupported check is remembered for 24 h", fp.last_status(SC, "achievements") == "unsupported"
+  and fp.remembered(SC, "achievements", T0 + 23 * H) ~= nil and fp.remembered(SC, "achievements", T0 + 24 * H) == nil)
+fp.touch(SC, "achievements", T0, "error")
+check("a failed check is remembered for 30 min", fp.last_status(SC, "achievements") == "error"
+  and fp.remembered(SC, "achievements", T0 + 29 * 60000) ~= nil and fp.remembered(SC, "achievements", T0 + 30 * 60000) == nil)
+fp.touch(SC, "achievements", T0, "ok")
+check("an ok check forgets the remembered status", fp.last_status(SC, "achievements") == nil and fp.remembered(SC, "achievements", T0) == nil)
+fp.touch(SC, "achievements", T0, "unsupported")
+fp._reset()
+check("the remembered status survives a reload from disk", fp.last_status(SC, "achievements") == "unsupported")
+check("other parts' checked times are untouched by the status field", fp.checked_at(SC, "achievements") == T0)
+
+-- ---------- ADR-0060: the view's paint (noNetwork) ----------
+print("metadata paint (ADR-0060)")
+wipe(); fp_wipe()
+local now_ms0 = os.time() * 1000
+metadata_db.set(SC, { appid = SC, title = "Old", description = "old", custom_override = false })
+fp.touch(SC, "metadata", now_ms0 - 25 * H)
+local mp = metadata.ensure(SC, { title = "x", route = ROUTE_WEB, allowWeb = true, noNetwork = true })
+check("noNetwork: the stored record, flagged stale when a source would refresh it", mp.status == "ok" and mp.stale == true and mp.data.title == "Old")
+mp = metadata.ensure(SC, { title = "x", route = ROUTE_WEB, noNetwork = true })
+check("... not flagged when no source may refresh it", mp.status == "ok" and mp.stale == nil)
+fp.touch(SC, "metadata", now_ms0)
+mp = metadata.ensure(SC, { title = "x", route = ROUTE_WEB, allowWeb = true, noNetwork = true })
+check("... not flagged while fresh", mp.status == "ok" and mp.stale == nil)
+wipe(); fp_wipe()
+local appdetails_calls = 0
+metadata.deps.appdetails_fetch = function() appdetails_calls = appdetails_calls + 1; return nil, "down" end
+store.set_mapping(SC, 435150, "Manual", "manual")
+mp = metadata.ensure(SC, { title = "x", route = ROUTE_STORE, noNetwork = true })
+check("noNetwork with a Steam match: pending and stale, appdetails never asked", mp.status == "pending" and mp.stale == true and appdetails_calls == 0)
+local rp = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "metadata" }, context = { title = "x", route = ROUTE_WEB, noNetwork = true } }))).parts.metadata
+check("EnsureFresh flags a pending paint stale", rp.status == "pending" and rp.stale == true)
+metadata.deps.appdetails_fetch = nil
+wipe(); fp_wipe()
+
+-- ---------- ADR-0060: RetroAchievements lookups kept on disk (ra_cache) ----------
+print("ra_cache")
+local rc = require("ra_cache")
+rc._path = TMP .. "/sc_ra_cache_test_" .. os.time() .. ".json"
+local files = { ["D:/roms/a.sfc"] = { 1024, 50 } }
+local clock = 1000
+rc.deps.stat = function(p) local f = files[p]; if not f then return nil end return f[1], f[2] end
+rc.deps.now = function() return clock end
+local function rc_wipe() os.remove(rc._path); rc._reset() end
+rc_wipe()
+check("no hash stored yet", rc.md5_for("D:/roms/a.sfc") == nil)
+rc.put_md5("D:/roms/a.sfc", "abc")
+rc._reset()
+check("a stored hash survives a reload while the file is unchanged", rc.md5_for("D:/roms/a.sfc") == "abc")
+files["D:/roms/a.sfc"] = { 1024, 51 }
+check("a changed mtime drops the hash (a patched ROM of the same size)", rc.md5_for("D:/roms/a.sfc") == nil)
+files["D:/roms/a.sfc"] = { 2048, 50 }
+check("a changed size drops the hash", rc.md5_for("D:/roms/a.sfc") == nil)
+rc.put_md5("D:/roms/missing.sfc", "zzz")
+check("a file that cannot be read stores nothing", rc.md5_for("D:/roms/missing.sfc") == nil)
+check("a hash never asked is unknown", rc.game_for("abc") == false)
+rc.put_game("abc", 1234)
+local known, id = rc.game_for("abc")
+check("a found GameID is kept", known == true and id == 1234)
+rc.put_game("dead", nil)
+local known2, id2 = rc.game_for("dead")
+check("a miss is kept for 7 days", known2 == true and id2 == nil)
+clock = clock + 7 * 24 * 3600
+check("... then asked again", rc.game_for("dead") == false)
+rc._reset()
+check("GameIDs survive a reload", select(2, rc.game_for("abc")) == 1234)
+rc_wipe()
+rc.deps.stat, rc.deps.now = nil, function() return os.time() end
+
 fp_wipe()
 os.remove(META_PATH); os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))

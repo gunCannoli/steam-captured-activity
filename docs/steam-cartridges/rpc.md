@@ -134,7 +134,14 @@ this plugin set). Two RPCs added, both called by the `artwork` surface through `
 
 ## Ports (M4c)
 
-`frontend/ports/transport.ts` — `call<R>(name, payload)`. `frontend/rpc.ts` was folded into `ports/` in M9a:
+`frontend/ports/transport.ts` — `call<R>(name, payload, { lane? })`. The Lua host serves one call at a time
+(ADR-0051), so calls wait in a queue with **priority lanes** (ADR-0060): `view` (the page the user is looking at),
+`normal` (the default: other user actions, the in-game observer, artwork), `media` (community media and manuals),
+`background` (ingest, the store-sync tick, controller inference, library stats, the media prune). When the host is free
+the oldest call of the most urgent non-empty lane runs; a running call is never interrupted. The caller (`app/`) picks
+the lane; `ports/backend.ts` passes it through as an optional last argument. `rpcDiagnostics()` (exported by the
+plugin, for CDP) lists the running call, the queue per lane and the last 200 calls with their queue and run times;
+`tests/live/probes/dataflow_timing.mjs` reads it. `frontend/rpc.ts` was folded into `ports/` in M9a:
 `frontend/ports/backend.ts` is the one typed client (record facade plus the store, controller,
 routing-profile, credential and library-stat calls):
 

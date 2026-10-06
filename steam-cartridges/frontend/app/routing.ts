@@ -102,6 +102,16 @@ export function createRouting(inputs: RoutingInputs) {
         }
     }
 
+    /** Start-up and ingest share one load (dataflow plan Phase 4); a failed load is tried again next time. */
+    let profilesOnce: Promise<void> | undefined;
+    function ensureProfiles(): Promise<void> {
+        profilesOnce ??= loadAutoRoutingProfiles().catch((err) => {
+            profilesOnce = undefined;
+            throw err;
+        });
+        return profilesOnce;
+    }
+
     function getAutoRoutingProfile(appid: number): AutoRoutingProfile | undefined {
         const key = toUnsigned(appid);
         return key === undefined ? undefined : profiles.get(key);
@@ -224,6 +234,7 @@ export function createRouting(inputs: RoutingInputs) {
         membersOf,
         waitForCollections,
         loadAutoRoutingProfiles,
+        ensureProfiles,
         getAutoRoutingProfile,
         listShortcuts,
     };

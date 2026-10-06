@@ -656,12 +656,19 @@ function M.extract_rom_path(cmd, launch_options)
 end
 
 local silent_exec = require("silent_exec")
+local ra_cache = require("ra_cache")
 local rom_md5_cache = {}
 
---- Computes the ROM MD5 using ra_hasher.js helper silently (no cmd window)
+--- Computes the ROM MD5 using ra_hasher.js helper silently (no cmd window). Kept on disk while the file is
+--- unchanged (ra_cache.lua, ADR-0060), so the hasher runs once per ROM, not once per Steam start.
 function M.compute_rom_md5(rom_path)
   if not rom_path then return nil, "missing rom path" end
   if rom_md5_cache[rom_path] then return rom_md5_cache[rom_path] end
+  local stored = ra_cache.md5_for(rom_path)
+  if stored then
+    rom_md5_cache[rom_path] = stored
+    return stored
+  end
   
   -- Find ra_hasher.js in the backend directory
   local millennium = require("millennium")
@@ -702,14 +709,21 @@ function M.compute_rom_md5(rom_path)
 
   if type(data.md5) == "string" and #data.md5 > 0 then
     rom_md5_cache[rom_path] = data.md5
+    ra_cache.put_md5(rom_path, data.md5)
     return data.md5
   end
   return nil
 end
 
---- Queries RetroAchievements for the GameID corresponding to a ROM MD5
+--- Queries RetroAchievements for the GameID corresponding to a ROM MD5. A definite answer (a game, or none) is kept
+--- on disk (ra_cache.lua, ADR-0060; a miss for 7 days); a network failure is not.
 function M.get_game_id_by_md5(md5)
   if not md5 or #md5 == 0 then return nil, "missing md5" end
+  local known, known_id = ra_cache.game_for(md5)
+  if known then
+    if known_id then return known_id end
+    return nil, "game not found on RetroAchievements"
+  end
   local url = "https://retroachievements.org/dorequest.php?r=gameid&m=" .. tostring(md5)
   
   local ok, res = pcall(net.get, url, {
@@ -727,15 +741,21 @@ function M.get_game_id_by_md5(md5)
   end
 
   local decode_ok, data = pcall(json.decode, res.body)
-  if not decode_ok or type(data) ~= "table" or not data.Success or not data.GameID or data.GameID == 0 then
+  if not decode_ok or type(data) ~= "table" then
+    return nil, "invalid gameid response"
+  end
+  if not data.Success or not data.GameID or data.GameID == 0 then
+    if data.Success then ra_cache.put_game(md5, nil) end -- a definite "no game"; an API error is asked again
     return nil, "game not found on RetroAchievements"
   end
 
   local gid_num = tonumber(data.GameID)
   if gid_num and (gid_num == 11621 or gid_num >= 1000000000) then
+    ra_cache.put_game(md5, nil)
     return nil, "cheated or graveyard entry on RetroAchievements"
   end
 
+  ra_cache.put_game(md5, gid_num)
   return data.GameID
 end
 

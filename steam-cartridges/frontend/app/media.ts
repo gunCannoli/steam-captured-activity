@@ -55,7 +55,7 @@ export function createMedia(deps: MediaDeps): MediaResolver {
         if (cached) return { ...item, width: cached.width ?? item.width, height: cached.height ?? item.height };
         let res;
         try {
-            res = await deps.backend.getMediaImage(appid, key, deps.titleOf(appid), cacheDays());
+            res = await deps.backend.getMediaImage(appid, key, deps.titleOf(appid), cacheDays(), { lane: "media" });
         } catch {
             return undefined; // a failed download drops the card, never the part (ADR-0014)
         }
@@ -85,7 +85,7 @@ export function createMedia(deps: MediaDeps): MediaResolver {
             allowEpic: deps.stores?.().epic ?? true,
             allowXbox: deps.stores?.().xbox ?? true,
             cacheDays: cacheDays(),
-        });
+        }, { lane: "media" }); // community content may be slow; it never holds the page's own data (ADR-0060)
         const raw = res.error ? undefined : (res.parts.media as Part<CommunityMedia> | undefined);
         let part: Part<CommunityMedia> = raw ?? { status: "error", message: res.error ?? "no media part" };
         if (part.status === "ok" && part.data) {
@@ -116,7 +116,7 @@ export function createMedia(deps: MediaDeps): MediaResolver {
     async function pruneCache(): Promise<void> {
         if (!deps.backend.pruneMediaCache) return;
         try {
-            const res = await deps.backend.pruneMediaCache(cacheDays());
+            const res = await deps.backend.pruneMediaCache(cacheDays(), { lane: "background" });
             if (res.removed) deps.log?.(`Media cache: removed ${res.removed} game(s) not opened in ${cacheDays()} day(s), kept ${res.kept ?? 0}`);
         } catch {
             /* the next start prunes again (ADR-0014) */

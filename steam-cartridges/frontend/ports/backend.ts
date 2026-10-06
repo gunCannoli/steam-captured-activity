@@ -2,7 +2,9 @@
 // metadata and GetAllRecords). Imports kernel types only; transport from
 // ports/transport.ts.
 import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, OwnedCandidate, Part, RecordPart, Route, StoreApplied } from "../kernel/record";
-import { call } from "./transport";
+import { call, type CallOptions } from "./transport";
+
+export type { CallOptions, Lane } from "./transport";
 
 /** A place a shortcut's unlocks come from, as the backend lists it (achievements_reset.lua). */
 export interface AchievementResetSource {
@@ -175,12 +177,12 @@ export interface RecordResponse {
 }
 
 export const backend = {
-    ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext): Promise<RecordResponse> {
-        return call<RecordResponse>("EnsureFresh", { appid, parts, context: ctx });
+    ensureFresh(appid: number, parts: RecordPart[], ctx: FreshContext, opts?: CallOptions): Promise<RecordResponse> {
+        return call<RecordResponse>("EnsureFresh", { appid, parts, context: ctx }, opts);
     },
     /** New unlocks since the last check (M6a). `new_unlocks` may arrive as `{}` (K1): normalize it. */
-    checkUnlocks(appid: number, native: number, title?: string): Promise<{ new_unlocks?: unknown; error?: string }> {
-        return call<{ new_unlocks?: unknown; error?: string }>("CheckUnlocks", { appid, native, title });
+    checkUnlocks(appid: number, native: number, title?: string, opts?: CallOptions): Promise<{ new_unlocks?: unknown; error?: string }> {
+        return call<{ new_unlocks?: unknown; error?: string }>("CheckUnlocks", { appid, native, title }, opts);
     },
     /** Test hook and manual unlock (`triggerAchievement`, public API). */
     unlockAchievement(appid: number, achievementId: string, unlockTime?: number) {
@@ -204,11 +206,11 @@ export const backend = {
         );
     },
     /** Shortcuts not seen before (M7a). The first call seeds the library and returns none. */
-    getNewShortcuts(): Promise<{ shortcuts?: unknown }> {
-        return call<{ shortcuts?: unknown }>("GetNewShortcuts", {});
+    getNewShortcuts(opts?: CallOptions): Promise<{ shortcuts?: unknown }> {
+        return call<{ shortcuts?: unknown }>("GetNewShortcuts", {}, opts);
     },
-    markKnown(appids: number[]): Promise<{ ok?: boolean; error?: string }> {
-        return call<{ ok?: boolean; error?: string }>("MarkKnown", { appids });
+    markKnown(appids: number[], opts?: CallOptions): Promise<{ ok?: boolean; error?: string }> {
+        return call<{ ok?: boolean; error?: string }>("MarkKnown", { appids }, opts);
     },
     /** Game Data editor: stores a manual edit (custom_override) and returns the metadata part to put in the record. */
     saveCustomMetadata(appid: number, metadata: GameMetadata) {
@@ -219,32 +221,32 @@ export const backend = {
         return call<{ removed?: boolean; error?: string }>("ClearCustomMetadata", { appid });
     },
     /** Community media (features plan F2b): one ScreenScraper image, from the backend's disk cache (cacheDays > 0, ADR-0051) or downloaded. */
-    getMediaImage(appid: number, key: string, title?: string, cacheDays?: number): Promise<MediaImageResponse> {
-        return call<MediaImageResponse>("GetMediaImage", { appid, key, title, cacheDays });
+    getMediaImage(appid: number, key: string, title?: string, cacheDays?: number, opts?: CallOptions): Promise<MediaImageResponse> {
+        return call<MediaImageResponse>("GetMediaImage", { appid, key, title, cacheDays }, opts);
     },
     /** Manuals (features plan F2c): chunk `index` (0-based) of a ScreenScraper PDF; chunk 0 downloads it in the backend. */
-    getManualChunk(appid: number, key: string, index: number, title?: string, cacheDays?: number): Promise<ManualChunkResponse> {
-        return call<ManualChunkResponse>("GetManualChunk", { appid, key, index, title, cacheDays });
+    getManualChunk(appid: number, key: string, index: number, title?: string, cacheDays?: number, opts?: CallOptions): Promise<ManualChunkResponse> {
+        return call<ManualChunkResponse>("GetManualChunk", { appid, key, index, title, cacheDays }, opts);
     },
     /** Manuals (features plan F2c): the stored first-page cover as base64, or an answer without `base64` when none is stored. */
-    getManualCover(appid: number, key: string, cacheDays?: number): Promise<ManualCoverResponse> {
-        return call<ManualCoverResponse>("GetManualCover", { appid, key, cacheDays });
+    getManualCover(appid: number, key: string, cacheDays?: number, opts?: CallOptions): Promise<ManualCoverResponse> {
+        return call<ManualCoverResponse>("GetManualCover", { appid, key, cacheDays }, opts);
     },
     /** Manuals (features plan F2c): store the rendered first page, so the next start skips the PDF. */
-    saveManualCover(appid: number, key: string, base64: string, cacheDays?: number): Promise<ManualCoverResponse> {
-        return call<ManualCoverResponse>("SaveManualCover", { appid, key, base64, cacheDays });
+    saveManualCover(appid: number, key: string, base64: string, cacheDays?: number, opts?: CallOptions): Promise<ManualCoverResponse> {
+        return call<ManualCoverResponse>("SaveManualCover", { appid, key, base64, cacheDays }, opts);
     },
     /** Downloaded media on disk (ADR-0051): delete the downloads of every game not opened in the last `days` days (all for 0). */
-    pruneMediaCache(days: number): Promise<{ removed?: number; kept?: number; error?: string }> {
-        return call<{ removed?: number; kept?: number; error?: string }>("PruneMediaCache", { days });
+    pruneMediaCache(days: number, opts?: CallOptions): Promise<{ removed?: number; kept?: number; error?: string }> {
+        return call<{ removed?: number; kept?: number; error?: string }>("PruneMediaCache", { days }, opts);
     },
     /** Store copies (ADR-0056): every installed Epic and Xbox game and whether the library has it. */
-    storeInstalledGames(allowXbox: boolean) {
-        return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox });
+    storeInstalledGames(allowXbox: boolean, opts?: CallOptions) {
+        return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox }, opts);
     },
     /** U0 Xbox shortcuts (ADR-0058) whose exe is an older version's: the current exe and start folder to repoint them to. */
-    storeXboxRepairs() {
-        return call<{ repairs?: { appid: number; title: string; exe: string; start_dir: string }[]; error?: string }>("StoreXboxRepairs", {});
+    storeXboxRepairs(opts?: CallOptions) {
+        return call<{ repairs?: { appid: number; title: string; exe: string; start_dir: string }[]; error?: string }>("StoreXboxRepairs", {}, opts);
     },
     /** Epic Steam Overlay Workaround (ADR-0057): the shortcuts that are an Epic copy started through the launcher link. */
     storeEpicLaunchShortcuts() {
@@ -274,8 +276,8 @@ export const backend = {
         return call<{ ok?: boolean; error?: string }>("XboxSignOut", {});
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
-    getAllRecords(): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
-        return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {});
+    getAllRecords(opts?: CallOptions): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
+        return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {}, opts);
     },
     /** Provider credentials present, and how many games the database holds. */
     getStatus(): Promise<ProviderStatus> {
@@ -289,16 +291,16 @@ export const backend = {
         return call<RetroStatusResponse>("CartridgesAchievementsGetRetroStatus");
     },
     /** Capture counts and newest timestamps per shortcut. */
-    getLibraryStats() {
-        return call<Record<string, LibraryStat>>("GetLibraryStats");
+    getLibraryStats(opts?: CallOptions) {
+        return call<Record<string, LibraryStat>>("GetLibraryStats", {}, opts);
     },
     /** Controller support inferred from each shortcut's emulator (parity plan F); unknown games are absent. */
-    getControllerInference() {
-        return call<{ games?: Record<string, boolean> }>("GetControllerInference");
+    getControllerInference(opts?: CallOptions) {
+        return call<{ games?: Record<string, boolean> }>("GetControllerInference", {}, opts);
     },
     /** Auto-routing category profiles inferred from shortcut executable and launch options. */
-    getAutoRoutingProfiles() {
-        return call<{ profiles?: Record<string, AutoRoutingProfileDto> }>("GetAutoRoutingProfiles");
+    getAutoRoutingProfiles(opts?: CallOptions) {
+        return call<{ profiles?: Record<string, AutoRoutingProfileDto> }>("GetAutoRoutingProfiles", {}, opts);
     },
     steamStoreGetState() {
         return call<StoreState>("SteamStoreGetState");

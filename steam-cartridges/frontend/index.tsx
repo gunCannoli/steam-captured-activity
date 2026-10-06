@@ -29,7 +29,7 @@ import {
 } from "./settings/settings";
 import { SettingsPanel } from "./settings/panel";
 import { createRouting } from "./app/routing";
-import { createRecords } from "./app/records";
+import { createRecords, sharedRead } from "./app/records";
 import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
 import { createStoreCopy } from "./app/store-copy";
@@ -161,6 +161,12 @@ const storeCopy = createStoreCopy({
     stores,
 });
 
+/** The start-up preloads share one GetAllRecords (ADR-0060): metadata and achievements get this backend. */
+const preloadBackend = { ...backend, getAllRecords: sharedRead(() => backend.getAllRecords({ lane: "view" })) };
+/** Resolves once the start-up preloads settled: ingest's needsFetch reads the records they fill (ADR-0060). */
+let markPreloaded!: () => void;
+const preloaded = new Promise<void>((resolve) => (markPreloaded = resolve));
+
 /** Controller support inferred from each shortcut's emulator (app/controller.ts). */
 const controller = createController({
     backend,
@@ -177,7 +183,7 @@ void controller.load();
 /** Metadata (app/metadata.ts, plan M5b): selects Game Info for a shortcut through one
  *  EnsureFresh call instead of the old scattered local/store/IGDB pipeline. */
 const metadata = createMetadata({
-    backend,
+    backend: preloadBackend,
     records: records.store,
     titleOf: (appid) => shortcutTitle(appid),
     ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
@@ -195,7 +201,7 @@ const metadata = createMetadata({
 /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
  *  (launch toast, in-game unlock polling, unlock announcements). */
 const achievements = createAchievements({
-    backend,
+    backend: preloadBackend,
     records: records.store,
     bus,
     ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
@@ -308,8 +314,9 @@ const ingest = createIngest({
     backend,
     shortcuts: () => routing.listShortcuts(),
     ready: async () => {
-        await routing.loadAutoRoutingProfiles();
+        await routing.ensureProfiles();
         await routing.waitForCollections();
+        await preloaded;
     },
     routeOf: (appid) => routing.getBucket(appid),
     isAllowed: (appid) => routing.serviceAllowed("all", appid),
@@ -396,6 +403,8 @@ export { headlineJsxDiagnostics } from "./surfaces/captures";
 export { activityCardsJsxDiagnostics } from "./surfaces/captures";
 export { nativeSectionsDiagnostics } from "./surfaces/native-links";
 export { communityDiagnostics } from "./surfaces/community";
+/** Backend calls: the one running, what waits per lane, the last 200 with queue and run times (ADR-0060, for CDP). */
+export { transportDiagnostics as rpcDiagnostics } from "./ports/transport";
 export type {
     SummaryContext,
     SummaryContribution,
@@ -598,18 +607,33 @@ async function init() {
 
     // ===== Game Info data (ex steamgriddb-artwork) =====
     // Not awaited: a failure here must not affect activity (ADR-0010).
+    // Controller support loads once (above); its onLoaded re-derives the badges, so nothing waits for it here.
     features.run("game-info", async () => {
-        await Promise.all([
-            controller.load(),
-            loadAutoRoutingProfiles(),
-        ]).catch((e) => logger.warn("Preload controller/routing profiles failed:", e));
+        await routing.ensureProfiles().catch((e) => logger.warn("Loading auto-routing profiles failed:", e));
         view.init();
         bus.on("shortcut.viewed", ({ appid }) => void view.onSourceView(appid));
-        void metadata.preload().catch((e) => {
+    });
+
+    // ===== Stored Game Info and achievements, from start-up (ADR-0045, ADR-0060) =====
+    // Disk only, one shared GetAllRecords in the view lane, before the library grid: what is stored shows at once.
+    // Achievements need no library: Steam's appStore is not populated yet at this point.
+    const preloads: Promise<unknown>[] = [];
+    features.run("game-info", () => {
+        preloads.push(metadata.preload().catch((e) => {
             features.reportError("game-info", e);
             logger.error("Game Info preload failed; activity is unaffected.", e);
-        });
+        }));
     });
+    features.run("achievements", () => {
+        preloads.push(achievements.preload().catch((e) => {
+            features.reportError("achievements", e);
+            logger.error("Achievements preload failed; a game's page still loads them.", e);
+        }));
+        // Steam rebuilds its progress cache from its own file after login, which drops what we wrote before
+        // it: write again whenever the cache map appears or is replaced (bounded; ADR-0045).
+        watchProgressCache(() => achievements.rerenderAll());
+    });
+    void Promise.allSettled(preloads).then(() => markPreloaded());
 
     // ===== Library grid =====
     // Fills in last-played dates Steam does not have, from capture timestamps.
@@ -617,18 +641,6 @@ async function init() {
     runner.register(createLibraryHomeSurface({ ...surfaceDeps, stats: libraryStats }));
     runner.installAll();
     await libraryHomeReady();
-
-    // ===== Achievements in Steam's stores from start-up (ADR-0045) =====
-    // Disk only; not awaited. Needs no library: Steam's appStore is not populated yet at this point.
-    features.run("achievements", () => {
-        void achievements.preload().catch((e) => {
-            features.reportError("achievements", e);
-            logger.error("Achievements preload failed; a game's page still loads them.", e);
-        });
-        // Steam rebuilds its progress cache from its own file after login, which drops what we wrote before
-        // it: write again whenever the cache map appears or is replaced (bounded; ADR-0045).
-        watchProgressCache(() => achievements.rerenderAll());
-    });
 
     // ===== App detail pages =====
     // Publishing is keyed on the app, not the window: Steam's store is global, so

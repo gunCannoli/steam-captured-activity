@@ -54,8 +54,8 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
         launchPolicy: () => over.policy ?? 'all_runs',
         observerEnabled: () => over.observer !== false,
         timers: {
-            setInterval: (fn: () => void, ms: number) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
-            clearInterval: (h: any) => { h.cleared = true; },
+            setTimeout: (fn: () => void, ms: number) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
+            clearTimeout: (h: any) => { h.cleared = true; },
         },
         now: () => 1000,
     });
@@ -119,6 +119,22 @@ test('quit stops polling and runs one final check', async () => {
     await tick();
     assert.equal(timers[0]!.cleared, true);
     assert.equal(calls.check.length, before + 1);
+});
+
+test('the poll re-arms only after its check settles: a busy backend never has two checks queued (ADR-0060)', async () => {
+    let answer!: () => void;
+    const { bus, calls, timers } = setup({ checkUnlocks: () => new Promise((r) => (answer = () => r({ new_unlocks: [] }))) });
+    bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
+    await tick();
+    assert.equal(timers.length, 1);
+    timers[0]!.fn(); // the first check starts and does not answer
+    await tick();
+    assert.equal(calls.check.length, 1);
+    assert.equal(timers.length, 1, 'no second poll while the first is outstanding');
+    answer();
+    await tick();
+    assert.equal(timers.length, 2, 'the next poll is armed once the check answered');
+    assert.equal(timers[1]!.ms, 2000);
 });
 
 test('the observer kill switch keeps a launch from starting a session or a toast', async () => {
@@ -279,7 +295,7 @@ function storeSetup(answers: Record<string, { unlocked_time: number }>[]) {
         launchPolicy: () => 'all_runs',
         observerEnabled: () => true,
         stores: () => ({ epic: true, xbox: false }),
-        timers: { setInterval: (fn: () => void, ms: number) => { timers.push(ms); return 1; }, clearInterval: () => {} },
+        timers: { setTimeout: (fn: () => void, ms: number) => { timers.push(ms); return 1; }, clearTimeout: () => {} },
         now: () => 1000,
     });
     ach.install();
@@ -321,4 +337,38 @@ test('a store copy is not resettable; any other shortcut is', () => {
     assert.equal(s.ach.resettable(SC), false);
     const other = setup();
     assert.equal(other.ach.resettable(SC), true);
+});
+
+test('the paint (noNetwork) asks the disk only, in the view lane, and an answer without data leaves the record alone (ADR-0060)', async () => {
+    const bus = createEventBus();
+    const records = createRecordStore(bus);
+    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
+    const held = { status: 'ok', data: { schema: SCHEMA, unlocks: {} } } as any;
+    records.update(SC, { achievements: held });
+    const seen: any[] = [];
+    let answer: any = { status: 'pending', stale: true };
+    const ach = createAchievements({
+        backend: {
+            async ensureFresh(_a: number, _p: string[], ctx: any, opts: any) {
+                seen.push({ noNetwork: ctx.noNetwork, lane: opts?.lane });
+                return { appid: SC, parts: { achievements: answer } };
+            },
+        } as any,
+        records,
+        bus,
+        ensureBase: () => {},
+        titleOf: () => 'Game',
+        routeOf: () => ({ bucket: 'web-scraping', via: 'default' }),
+        hardcore: () => true,
+        launchPolicy: () => 'off',
+        observerEnabled: () => true,
+        now: () => 1000,
+    });
+    const part = await ach.ensure(SC, { bucket: 'web-scraping', via: 'default' }, { noNetwork: true });
+    assert.deepEqual(seen, [{ noNetwork: true, lane: 'view' }]);
+    assert.equal(part.stale, true);
+    assert.equal(records.get(SC)?.achievements, held, 'nothing stored: the record keeps its part');
+    answer = { status: 'ok', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 3 } } }, stale: true };
+    await ach.ensure(SC, { bucket: 'web-scraping', via: 'default' }, { noNetwork: true });
+    assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, { A: { unlocked_time: 3 } }, 'stored data paints the record');
 });

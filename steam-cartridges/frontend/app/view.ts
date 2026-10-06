@@ -1,8 +1,12 @@
 // app/view: what happens when the user opens a shortcut's page (migration plan M7b; moved from
-// features/source-view.ts, the last features/ file of the pipeline). Route -> identity -> metadata ->
-// artwork -> achievements. Each part's own service decides whether to ask the backend, and the
-// backend's TTLs (fresh_policy.lua) decide whether anything is fetched, so a fresh page costs no
-// network. A Steam render never starts a view (M0a): views come from sensors/view.
+// features/source-view.ts, the last features/ file of the pipeline). ADR-0060: paint from disk, then refresh.
+//   1. Game Info and achievements as stored on disk (`noNetwork`), so a known game's page fills at once;
+//   2. the store copy, then the Steam match (every refresh reads them);
+//   3. a source is asked only for a part that is missing or due (the backend marks it `stale`; its TTLs in
+//      fresh_policy.lua decide), Game Info first, then achievements, then artwork and community media.
+// The Lua host serves one call at a time, so the order of the calls is the order of the page filling in; the
+// calls' lanes (ports/transport) keep background work behind them. A Steam render never starts a view (M0a):
+// views come from sensors/view.
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
 import type { ArtworkPlan, GameMetadata, Identity, Part, Route, StoreCopy } from "../kernel/record";
 
@@ -12,11 +16,13 @@ export interface ViewDeps {
         waitForCollections(timeoutMs?: number): Promise<boolean>;
     };
     identity: { ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>> };
-    /** The Epic or Xbox copy behind the shortcut (ADR-0056); asked first, so every later part sees it. */
+    /** The Epic or Xbox copy behind the shortcut (ADR-0056); asked before any refresh, so every later part sees it. */
     store: { ensure(appid: ShortcutId, route: Route): Promise<Part<StoreCopy>> };
-    metadata: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<GameMetadata>> };
+    metadata: {
+        ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
+    };
     artwork: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> };
-    achievements: { ensure(appid: ShortcutId, route: Route): Promise<unknown> };
+    achievements: { ensure(appid: ShortcutId, route: Route, opts?: { noNetwork?: boolean }): Promise<Part<unknown> | void> };
     /** Community media (features plan F2); runs after metadata, whose igdb_id it reads from the record. */
     media: { ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<unknown> };
 }
@@ -26,6 +32,13 @@ export interface View {
     onSourceView(appid: number): Promise<void>;
     /** Replay the views that arrived before collections were ready. */
     init(): void;
+}
+
+/** A painted part that still needs its source: nothing answered, nothing stored yet, due for a refresh, or a failed call. */
+export function needsRefresh(part: Part<unknown> | void | undefined): boolean {
+    if (!part) return true;
+    if (part.stale === true) return true;
+    return part.status === "error" && part.data === undefined;
 }
 
 export function createView(deps: ViewDeps): View {
@@ -48,29 +61,43 @@ export function createView(deps: ViewDeps): View {
             const { bucket, via } = deps.routing.getBucket(id);
             const route: Route = { bucket, via };
             if (via === "pending") {
-                // Local Game Info only until collections load (ADR-0035); replayed then.
+                // Local Game Info and stored achievements only until collections load (ADR-0035); replayed then.
                 deferred.add(id);
-                await deps.metadata.ensure(id, route, undefined);
+                await Promise.all([
+                    deps.metadata.ensure(id, route, undefined),
+                    deps.achievements.ensure(id, route, { noNetwork: true }),
+                ]);
                 return;
             }
-            // ADR-0056: the store copy first (local files, then the store's ids once per game); the backend's
-            // metadata, media and achievements read it from disk. A route of "none" asks nothing at all.
-            if (bucket !== "none") await deps.store.ensure(id, route);
-            if (bucket === "steam-store") {
-                // ADR-0036: Steam Store first; no Steam match -> the web tier (metadata); not known yet
-                // (title missing) -> local Game Info only.
-                const identityPart = await deps.identity.ensure(id, route);
-                await deps.metadata.ensure(id, route, identityPart);
-                await deps.artwork.ensure(id, route, identityPart);
-                void deps.media.ensure(id, route, identityPart); // a Steam match keeps Steam's own community content
-                void deps.achievements.ensure(id, route); // reads the identity just resolved from the record
-            } else {
-                // web-scraping or none: metadata and artwork are record-driven and follow the new route's result.
+            if (bucket === "none") {
+                // ADR-0035: no network; each part answers from disk or "unsupported".
                 await deps.metadata.ensure(id, route, undefined);
                 await deps.artwork.ensure(id, route, undefined);
                 void deps.media.ensure(id, route, undefined);
                 void deps.achievements.ensure(id, route);
+                return;
             }
+
+            // 1. Paint: what is stored, one short disk-only call each (ADR-0060).
+            const [meta, ach] = await Promise.all([
+                deps.metadata.ensure(id, route, undefined, { noNetwork: true }),
+                deps.achievements.ensure(id, route, { noNetwork: true }),
+            ]);
+
+            // 2. ADR-0056: the store copy first (local files, then the store's ids once per game); then, for the
+            //    steam-store bucket, the Steam match (ADR-0036). The backend's metadata, media and achievements read both.
+            await deps.store.ensure(id, route);
+            const identityPart = bucket === "steam-store" ? await deps.identity.ensure(id, route) : undefined;
+
+            // 3. Refresh what is missing or due. A Steam match's Game Info comes from Steam's own store item, which
+            //    is never stored, so it is always asked (no network when Steam has the item).
+            const native = identityPart?.data?.native !== undefined;
+            const metaDone = needsRefresh(meta) || native ? deps.metadata.ensure(id, route, identityPart) : Promise.resolve(meta);
+            const achDone = needsRefresh(ach) ? deps.achievements.ensure(id, route) : Promise.resolve(ach);
+            await metaDone;
+            await deps.artwork.ensure(id, route, identityPart);
+            void deps.media.ensure(id, route, identityPart); // a Steam match keeps Steam's own community content
+            void achDone.catch(() => undefined); // queued before artwork and media, in the view lane
         } finally {
             inflight.delete(id);
             if (rerun.delete(id)) void onSourceView(id);

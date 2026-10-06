@@ -112,8 +112,8 @@ test('routes decide the parts: none fetches nothing, web-scraping asks metadata 
         routes: { [A.appid]: { bucket: 'none', via: 'default' }, [B.appid]: { bucket: 'web-scraping', via: 'default' } },
     });
     await s.ingest.startSync();
-    assert.deepEqual(s.calls.map((c) => c.appid), [B.appid]);
-    assert.deepEqual(s.calls[0]!.parts, ['metadata', 'achievements']);
+    assert.deepEqual(s.calls.map((c) => c.appid), [B.appid, B.appid]);
+    assert.deepEqual(s.calls.map((c) => c.parts), [['metadata'], ['achievements']], 'one part per call (ADR-0060)');
     assert.deepEqual(s.known, [[A.appid], [B.appid]], 'a route-none shortcut is still marked known');
 });
 
@@ -135,7 +135,7 @@ test('steam-store without a native match asks metadata (the IGDB / ScreenScraper
         respond: (appid, parts) => (parts[0] === 'identity' ? { appid, parts: { identity: { status: 'ok', data: {} } } } : { appid, parts: {} }),
     });
     await s.ingest.startSync();
-    assert.deepEqual(s.calls.map((c) => c.parts), [['identity'], ['metadata', 'achievements']]);
+    assert.deepEqual(s.calls.map((c) => c.parts), [['identity'], ['metadata'], ['achievements']]);
 });
 
 test('progress events keep the SyncProgress shape', async () => {

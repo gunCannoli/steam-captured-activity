@@ -17,6 +17,8 @@ export interface Part<T> {
     checkedAt?: number;
     /** Shown to the user only for needs-setup / error (ADR-0014). */
     message?: string;
+    /** Answered from disk (`noNetwork`) while due for a refresh: app/view asks again (ADR-0060). */
+    stale?: boolean;
 }
 
 export interface Identity {

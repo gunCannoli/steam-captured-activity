@@ -47,6 +47,9 @@ export interface Ingest {
 /** Polite pause between individual shortcuts (today's value). */
 const PAUSE_MS = 300;
 
+/** Every ingest call waits behind what the user is looking at (ADR-0060). */
+const BACKGROUND = { lane: "background" } as const;
+
 /** Sources whose pause should stop a run (sgdb is not used here). */
 const RELEVANT_SOURCES = ["steam-store", "igdb", "screenscraper", "steam-web", "retroachievements"];
 
@@ -92,17 +95,20 @@ export function createIngest(deps: IngestDeps): Ingest {
 
         let identity: Part<Identity> | undefined;
         if (route.bucket === "steam-store") {
-            const res = await deps.backend.ensureFresh(appid, ["identity"], base);
+            const res = await deps.backend.ensureFresh(appid, ["identity"], base, BACKGROUND);
             if (pausedIn(res)) return { stop: true, done: false };
             identity = res.parts?.identity as Part<Identity> | undefined;
         }
 
         // A Steam match's own metadata is read from Steam when its page is opened (never persisted), so
-        // only a shortcut without one needs the IGDB / ScreenScraper tier.
+        // only a shortcut without one needs the IGDB / ScreenScraper tier. One part per call: the Lua host
+        // serves one call at a time, so shorter calls let a page's call in between (ADR-0060).
         const native = identity?.data?.native;
         const parts: ("metadata" | "achievements")[] = native ? ["achievements"] : ["metadata", "achievements"];
-        const res = await deps.backend.ensureFresh(appid, parts, { ...base, identity });
-        if (pausedIn(res)) return { stop: true, done: false };
+        for (const part of parts) {
+            const res = await deps.backend.ensureFresh(appid, [part], { ...base, identity }, BACKGROUND);
+            if (pausedIn(res)) return { stop: true, done: false };
+        }
         return { stop: false, done: true };
     }
 
@@ -128,7 +134,7 @@ export function createIngest(deps: IngestDeps): Ingest {
                 const only = options?.onlyAppids ? new Set(options.onlyAppids) : null;
                 items = deps.shortcuts().filter((s) => (!only || only.has(s.appid)) && deps.isAllowed(s.appid as ShortcutId));
             } else {
-                const res = await deps.backend.getNewShortcuts();
+                const res = await deps.backend.getNewShortcuts(BACKGROUND);
                 const newItems = asList<{ appid: number; name: string }>(res?.shortcuts).filter(
                     (s) => s && typeof s.appid === "number" && deps.isAllowed(s.appid as ShortcutId),
                 );
@@ -166,7 +172,7 @@ export function createIngest(deps: IngestDeps): Ingest {
                 }
                 if (outcome.done) {
                     deps.onDone?.(item.appid as ShortcutId);
-                    await deps.backend.markKnown([item.appid]).catch(() => undefined);
+                    await deps.backend.markKnown([item.appid], BACKGROUND).catch(() => undefined);
                 }
 
                 await deps.sleep(PAUSE_MS);

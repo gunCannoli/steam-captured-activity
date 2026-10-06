@@ -35,7 +35,7 @@ export function createStoreCopy(deps: StoreCopyDeps): StoreCopyResolver {
             route,
             allowEpic: stores.epic,
             allowXbox: stores.xbox,
-        });
+        }, { lane: "view" }); // every later part of the page reads it (ADR-0060)
         const raw = res.error ? undefined : (res.parts.store as Part<StoreCopy> | undefined);
         const part: Part<StoreCopy> = raw ?? { status: "error", message: res.error ?? "no store part" };
         const changed = deps.records.update(appid, { store: part });

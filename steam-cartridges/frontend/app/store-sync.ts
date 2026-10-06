@@ -5,7 +5,7 @@
 import { logger } from "../logger.ts";
 import type { EventBus } from "../kernel/events";
 import type { StoreKind } from "../kernel/record";
-import type { backend as Backend, InstalledStoreGame } from "../ports/backend";
+import type { backend as Backend, InstalledStoreGame, Lane } from "../ports/backend";
 
 /** The collection each store's added games go into. */
 export const STORE_COLLECTIONS: Record<StoreKind, string> = { epic: "Epic Games", xbox: "Xbox" };
@@ -29,8 +29,8 @@ export interface StoreSync {
      * them. At start-up and on the 60 s install tick; only while the Xbox store is on. Resolves to how many were requested.
      */
     repair(): Promise<number>;
-    /** The installed games of both stores, for the Third-party settings section. */
-    installed(): Promise<{ epic: InstalledStoreGame[]; xbox: InstalledStoreGame[]; epicLauncher: boolean }>;
+    /** The installed games of both stores, for the Third-party settings section (the "normal" lane; the tick uses "background"). */
+    installed(lane?: Lane): Promise<{ epic: InstalledStoreGame[]; xbox: InstalledStoreGame[]; epicLauncher: boolean }>;
 }
 
 export function createStoreSync(deps: StoreSyncDeps): StoreSync {
@@ -38,8 +38,8 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
     const requested = new Set<string>();
     let running: Promise<number> | undefined;
 
-    async function installed() {
-        const res = await deps.backend.storeInstalledGames(deps.allowXbox());
+    async function installed(lane: Lane = "normal") {
+        const res = await deps.backend.storeInstalledGames(deps.allowXbox(), { lane });
         return {
             epic: Array.isArray(res?.epic) ? res.epic : [],
             xbox: Array.isArray(res?.xbox) ? res.xbox : [],
@@ -50,7 +50,7 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
     async function runOnce(): Promise<number> {
         const want = deps.autoAdd();
         if (!want.epic && !want.xbox) return 0;
-        const list = await installed();
+        const list = await installed("background"); // the 60 s tick never holds a page's calls (ADR-0060)
         let n = 0;
         for (const kind of ["epic", "xbox"] as const) {
             if (!want[kind]) continue;
@@ -71,7 +71,7 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
 
     async function repair(): Promise<number> {
         if (!deps.allowXbox()) return 0;
-        const res = await deps.backend.storeXboxRepairs().catch(() => undefined);
+        const res = await deps.backend.storeXboxRepairs({ lane: "background" }).catch(() => undefined);
         let n = 0;
         for (const r of Array.isArray(res?.repairs) ? res!.repairs! : []) {
             if (repaired.get(r.appid) === r.exe) continue;

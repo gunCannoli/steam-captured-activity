@@ -62,10 +62,12 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
             allowEpic: deps.stores?.().epic ?? true,
             allowXbox: deps.stores?.().xbox ?? true,
             noNetwork: opts.noNetwork,
-        });
+        }, { lane: "view" }); // Game Info is the top of the page (ADR-0060)
 
         const raw = res.error ? undefined : (res.parts.metadata as Part<GameMetadata> | undefined);
         const part: Part<GameMetadata> = withBadges(appid, raw ?? { status: "error", message: res.error ?? "no metadata part" });
+        // A disk-only answer without data (the view's paint, ADR-0060) must not replace what the record holds.
+        if (opts.noNetwork && !part.data) return part;
         deps.records.update(appid, { metadata: part });
         return part;
     }
@@ -77,7 +79,7 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
             if (part?.data) deps.records.update(appid, { metadata: withBadges(appid, part) });
         },
         async preload() {
-            const res = await deps.backend.getAllRecords();
+            const res = await deps.backend.getAllRecords({ lane: "view" });
             for (const [key, parts] of Object.entries(res.records ?? {})) {
                 const appid = Number(key) as ShortcutId;
                 if (!Number.isFinite(appid)) continue;

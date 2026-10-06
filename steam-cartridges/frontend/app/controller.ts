@@ -19,7 +19,7 @@ export function createController(deps: {
     return {
         async load() {
             try {
-                const res = await deps.backend.getControllerInference();
+                const res = await deps.backend.getControllerInference({ lane: "background" }); // badges are re-derived when it lands
                 inferred.clear();
                 for (const [key, value] of Object.entries(res?.games ?? {})) {
                     const appid = toUnsigned(key);

@@ -7,12 +7,12 @@ import { logger } from "../logger.ts";
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
 import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
-import type { AchievementResetSource, backend as Backend, ResetSourceResult } from "../ports/backend";
+import type { AchievementResetSource, backend as Backend, Lane, ResetSourceResult } from "../ports/backend";
 import { asList } from "../kernel/lists.ts";
 
 export type LaunchPolicy = "off" | "first_run" | "all_runs";
 
-/** In-game unlock polling interval (today's value). */
+/** In-game unlock polling: the pause after one check settles before the next (today's value). */
 const POLL_MS = 2000;
 
 export interface AchievementsDeps {
@@ -31,15 +31,20 @@ export interface AchievementsDeps {
     observerEnabled(): boolean;
     /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
     stores?(): { epic: boolean; xbox: boolean };
-    timers?: { setInterval(fn: () => void, ms: number): unknown; clearInterval(handle: unknown): void };
+    /** The poll re-arms only after a check settles, so a busy backend never has two checks queued (ADR-0060). */
+    timers?: { setTimeout(fn: () => void, ms: number): unknown; clearTimeout(handle: unknown): void };
     now(): number;
 }
 
 export interface AchievementsService {
     /** Subscribe to shortcut.launched / shortcut.quit (Flow C). */
     install(): void;
-    /** Load the achievements part into the record (one backend call at a time per shortcut). */
-    ensure(appid: ShortcutId, route: Route, opts?: { native?: number; force?: boolean }): Promise<Part<AchievementSet>>;
+    /**
+     * Load the achievements part into the record (one backend call at a time per shortcut). `noNetwork`: the stored
+     * part only, never a source (the view's paint, ADR-0060); it reaches the record only when it has data, and comes
+     * back `stale` when a refresh is due. `lane`: the call queue lane, default "view".
+     */
+    ensure(appid: ShortcutId, route: Route, opts?: EnsureOptions): Promise<Part<AchievementSet>>;
     /** One CheckUnlocks; returns how many new unlocks it found. */
     checkNow(appid: ShortcutId, opts?: { native?: number; title?: string }): Promise<number>;
     /** Poll while a game runs; the returned function stops it (with one final check). */
@@ -70,6 +75,13 @@ export interface AchievementsService {
     rerenderAll(): number;
 }
 
+export interface EnsureOptions {
+    native?: number;
+    force?: boolean;
+    noNetwork?: boolean;
+    lane?: Lane;
+}
+
 interface NewUnlock {
     id: string;
     rtime_unlocked?: number;
@@ -77,8 +89,8 @@ interface NewUnlock {
 
 export function createAchievements(deps: AchievementsDeps): AchievementsService {
     const timers = deps.timers ?? {
-        setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
-        clearInterval: (h: unknown) => clearInterval(h as ReturnType<typeof setInterval>),
+        setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
+        clearTimeout: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>),
     };
     const inflight = new Map<ShortcutId, Promise<Part<AchievementSet>>>();
     const notified = new Set<ShortcutId>();
@@ -119,11 +131,11 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         deps.bus.emit("achievements.unlocked", { appid, ids, items });
     }
 
-    async function load(appid: ShortcutId, route: Route, native?: number, force?: boolean): Promise<Part<AchievementSet>> {
+    async function load(appid: ShortcutId, route: Route, opts: EnsureOptions): Promise<Part<AchievementSet>> {
         deps.ensureBase(appid);
         const known = deps.records.get(appid)?.identity;
-        const identity = native && !known?.data?.native
-            ? { status: "ok" as const, data: { native: { appid: native, source: "manual" as const } } }
+        const identity = opts.native && !known?.data?.native
+            ? { status: "ok" as const, data: { native: { appid: opts.native, source: "manual" as const } } }
             : known;
         const res = await deps.backend.ensureFresh(appid, ["achievements"], {
             title: deps.titleOf(appid) ?? "",
@@ -132,10 +144,13 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             hardcore: deps.hardcore(),
             allowEpic: deps.stores?.().epic ?? true,
             allowXbox: deps.stores?.().xbox ?? true,
-            force,
-        });
+            force: opts.force,
+            noNetwork: opts.noNetwork,
+        }, { lane: opts.lane ?? "view" });
         const raw = res.error ? undefined : (res.parts.achievements as Part<AchievementSet> | undefined);
         const part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
+        // A disk-only answer without data (nothing stored yet) must not replace what the record holds.
+        if (opts.noNetwork && !part.data) return part;
         const changed = deps.records.update(appid, { achievements: part });
         if (changed.length > 0) {
             const total = part.data?.schema.total ?? 0;
@@ -145,16 +160,18 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         return part;
     }
 
-    async function ensure(appid: ShortcutId, route: Route, opts: { native?: number; force?: boolean } = {}) {
+    async function ensure(appid: ShortcutId, route: Route, opts: EnsureOptions = {}) {
         if (route.bucket === "none") {
             const part: Part<AchievementSet> = { status: "unsupported" };
             deps.ensureBase(appid);
             deps.records.update(appid, { achievements: part });
             return part;
         }
+        // A disk read is not shared with a source lookup in flight: each answers its own question.
+        if (opts.noNetwork) return load(appid, route, opts);
         const existing = inflight.get(appid);
         if (existing) return existing;
-        const promise = load(appid, route, opts.native, opts.force).finally(() => inflight.delete(appid));
+        const promise = load(appid, route, opts).finally(() => inflight.delete(appid));
         inflight.set(appid, promise);
         return promise;
     }
@@ -162,7 +179,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
     async function checkNow(appid: ShortcutId, opts: { native?: number; title?: string } = {}): Promise<number> {
         try {
             const native = opts.native ?? (await resolveNative(appid));
-            const res = await deps.backend.checkUnlocks(appid, native, opts.title ?? deps.titleOf(appid));
+            const res = await deps.backend.checkUnlocks(appid, native, opts.title ?? deps.titleOf(appid), { lane: "normal" });
             const fresh = asList<NewUnlock>(res?.new_unlocks).filter((u) => u && typeof u.id === "string");
             if (fresh.length === 0) return 0;
 
@@ -173,7 +190,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 deps.records.update(appid, { achievements: { ...current(appid)!, data: { ...set, unlocks } } });
             } else {
                 // The record has no schema yet: load it (the backend already persisted the unlocks).
-                await ensure(appid, deps.routeOf(appid), { native });
+                await ensure(appid, deps.routeOf(appid), { native, lane: "normal" });
             }
             const ids = fresh.map((u) => u.id);
             logger.info(`Observer detected ${ids.length} new unlock(s) for shortcut ${appid}: ${ids.join(", ")}`);
@@ -188,9 +205,19 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
     function startSession(appid: ShortcutId, opts: { native?: number; title?: string } = {}): () => void {
         sessions.get(appid)?.();
         logger.info(`Starting in-game achievement observer for shortcut ${appid}`);
-        const handle = timers.setInterval(() => void checkNow(appid, opts), POLL_MS);
+        let stopped = false;
+        let handle: unknown;
+        const arm = () => {
+            handle = timers.setTimeout(() => {
+                void checkNow(appid, opts).finally(() => {
+                    if (!stopped) arm();
+                });
+            }, POLL_MS);
+        };
+        arm();
         const stop = () => {
-            timers.clearInterval(handle);
+            stopped = true;
+            timers.clearTimeout(handle);
             sessions.delete(appid);
             void checkNow(appid, opts); // final check on quit
             logger.info(`Stopped in-game achievement observer for shortcut ${appid}`);
@@ -205,7 +232,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
      */
     async function syncAfterQuit(appid: ShortcutId): Promise<void> {
         const before = new Set(Object.keys(current(appid)?.data?.unlocks ?? {}));
-        const part = await ensure(appid, deps.routeOf(appid), { force: true });
+        const part = await ensure(appid, deps.routeOf(appid), { force: true, lane: "normal" });
         const set = part.data;
         if (part.status !== "ok" || !set) return;
         const items: UnlockedAchievement[] = [];
@@ -253,7 +280,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                     return;
                 }
                 // New captures and unlocks: reload what the record holds for this shortcut.
-                void ensure(appid, deps.routeOf(appid));
+                void ensure(appid, deps.routeOf(appid), { lane: "normal" });
             });
         },
         ensure,
@@ -318,7 +345,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             }
         },
         async preload() {
-            const res = await deps.backend.getAllRecords();
+            const res = await deps.backend.getAllRecords({ lane: "view" });
             let added = 0;
             for (const [key, parts] of Object.entries(res.records ?? {})) {
                 const appid = toShortcutId(Number(key));

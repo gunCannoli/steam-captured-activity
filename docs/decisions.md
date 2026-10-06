@@ -3356,3 +3356,47 @@ Minidump analysis and binary disassembly revealed:
 - Zero register corruption across the Millennium C++ RPC bridge.
 - All RetroAchievements schemas, regardless of achievement count, load cleanly without tripping JIT trace compiler faults.
 - Halved disk I/O for newly fetched or updated achievement schemas.
+
+## ADR-0060: Page data first: priority lanes, paint from disk, then refresh
+
+**Status:** Accepted · 2026-10-06 · Builds on [ADR-0051](#adr-0051-downloaded-media-stays-on-disk-while-its-game-is-opened-the-user-sets-the-days) (the Lua host serves one call at a time; no parallel backend calls). Audit and evidence: [the data flow plan](plans/steam-cartridges-dataflow-improvements-plan.md).
+
+### Context
+
+Achievements on a non-Steam game's page often appeared long after the page opened. Millennium's Lua host runs one
+call at a time and its downloads block it, so the order of the calls *is* the order the page fills in. The audit found:
+one global first-in-first-out call queue shared by the page, the background ingest, the 60 s store-sync tick and the
+2 s in-game observer (whose `setInterval` piled calls up while the host was busy); a view that asked for achievements
+only after Game Info, artwork and community media's first call; achievements with nothing stored (a PC game without a
+source, a RetroAchievements miss) looked up again on every view, ingest run and observer poll; ROM hashes and
+RetroAchievements GameIDs kept in memory only, so every Steam start paid them again; and start-up reading every stored
+record twice.
+
+### Decision
+
+1. **Priority lanes in the port.** `ports/transport.ts` keeps one queue per lane (`view`, `normal`, `media`,
+   `background`); when the host is free, the oldest call of the most urgent non-empty lane runs. A running call is never
+   interrupted, and calls still run one at a time (ADR-0051 stands). The lane is the caller's choice (`app/`); the port
+   only orders and times the calls (`rpcDiagnostics()`).
+2. **Paint from disk, then refresh.** A view first reads Game Info and achievements as stored (`EnsureFresh` with
+   `noNetwork`, view lane), then resolves the store copy and the Steam match, then asks a source only for a part that is
+   missing or due. The backend owns the TTLs (`fresh_policy`) and marks a disk answer `stale` when it is due; the
+   frontend never decides freshness. Game Info is refreshed before achievements (it is the top of the page and its
+   fetch is short), both before artwork (`normal`) and community media (`media`).
+3. **No repeated empty lookups.** `freshness.json` keeps a part's last non-ok status (`<part>_status`). With nothing
+   stored, achievements answer a remembered `unsupported` for 24 h and a remembered `error` for 30 min; `force` (Sync
+   now, the Review modal's Fetch) asks again. A failed refresh of a stored part keeps the stored part. The in-game
+   observer resolves a missing schema once per session, and re-arms only after each check settles.
+4. **RetroAchievements lookups persist.** `ra_cache.json` keeps a ROM's hash while its size and mtime are unchanged,
+   and a hash's GameID (a definite miss for 7 days; a network failure is never stored).
+5. **Start-up reads once.** One shared `GetAllRecords` feeds both preloads, in the view lane, before the library grid;
+   controller inference and auto-routing profiles load once; ingest waits for the preloads, uses the background lane and
+   asks one part per call.
+
+### Consequences
+
+- A page's own calls wait at most for the one call already running, never for background work queued before them.
+- A known game's Game Info and achievements show after one short disk read each.
+- A setting that would make an `unsupported` game supported (new credentials, a changed launch command) takes effect
+  after 24 h or a forced fetch, not on the next view.
+- Not done: splitting `achievements.json` so an unlock does not re-encode 2.6 MB (needs a migration; its own plan).

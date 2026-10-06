@@ -70,13 +70,28 @@ limit and offline detection and calls `net`.
 **Recent errors (M10, ADR-0044).** An identity or artwork lookup that failed is answered from memory by `EnsureFresh`
 for `TTL.error` (30 min), so the frontend keeps no retry timer (`app/session-memo.ts` remembers only `ok` and
 `unsupported`). A saved mapping always wins over a remembered identity error; a Steam match always asks for artwork
-again. Memory only: `freshness.json` does not change.
+again.
+
+**Remembered statuses (ADR-0060).** `touch(appid, part, now, status)` also writes `<part>_status` in
+`freshness.json` when the check was `unsupported` or `error` (an `ok` clears it). `fresh_policy.remembered(appid, part,
+now)` answers that status while it has not come due (`unsupported`: `TTL.unsupported`, 24 h; `error`: `TTL.error`,
+30 min). `EnsureFresh(["achievements"])` with nothing stored answers it instead of asking every source again (it used
+to, on every view, ingest run and observer poll); `force` asks again. A failed refresh of a stored achievements part
+keeps the stored part. A user's "no achievements" mark (`status = "none"`) is never stale.
+
+**The paint (`noNetwork`, ADR-0060).** `EnsureFresh` with `context.noNetwork` never asks a source: metadata and
+achievements answer what is stored, with `stale = true` when it is due (metadata: only when a source could refresh it)
+or when nothing usable is stored (`pending`). A Steam match's metadata answers `pending`/`stale` (its Game Info is
+Steam's own store item, never stored; `appdetails` is never asked here).
 
 ## Frontend (M7b)
 
 - **`frontend/app/ingest.ts`** (`createIngest`, replaces `features/scraper/sync-manager.ts`). At start-up
-  (`background-sync` switch, `triggerSync(3000)` as before) it calls `GetNewShortcuts()` and, for each new shortcut, one at a
-  time and 300 ms apart, `EnsureFresh` with the route and the allowed services from `domain/routing`, then `MarkKnown`.
+  (`background-sync` switch, `triggerSync(3000)` as before; `ready()` waits for the auto-routing profiles, the collections
+  and the start-up preloads, so `needsFetch` reads filled records) it calls `GetNewShortcuts()` and, for each new shortcut
+  or one missing metadata or achievements, one at a time and 300 ms apart, `EnsureFresh` **one part per call** (ADR-0060:
+  shorter host holds) with the route and the allowed services from `domain/routing`, then `MarkKnown`. Every ingest call
+  uses the `background` lane.
   A `steam-store` shortcut asks identity first: a native match needs only achievements (its Game Info is read from Steam when
   its page opens, never persisted), no match asks metadata (IGDB, then ScreenScraper) and achievements. Route `none` fetches
   nothing (ADR-0035) and is still marked known. A backend `paused` answer for a source the job uses stops the run and leaves
@@ -85,9 +100,12 @@ again. Memory only: `freshness.json` does not change.
   `SyncProgress` shape (`isSyncing`, `total`, `current`, `currentGame`, `phase`). It writes **no records**: the backend
   persists what it fetches and a record picks it up on the shortcut's next view (writing a record per shortcut at start-up
   makes every record-driven surface render at once, knowledgebase Part 7).
-- **`frontend/app/view.ts`** (`createView`, was `features/source-view.ts`): route -> identity -> metadata -> artwork ->
-  achievements when a page opens; each service asks the backend, whose TTLs decide whether anything is fetched, so a fresh
-  page costs no network. The steam-store side effects and `leave` come in as a dependency. `features/scraper/on-update.ts`
+- **`frontend/app/view.ts`** (`createView`, was `features/source-view.ts`), ADR-0060 "paint from disk, then refresh":
+  (1) Game Info and achievements as stored (`noNetwork`, view lane); (2) the store copy, then (steam-store bucket) the
+  Steam match; (3) a source is asked only for a part the paint marked `stale` or could not answer, Game Info first, then
+  achievements (view lane), then artwork (`normal`) and community media (`media`). A Steam match always asks for its Game
+  Info (Steam's store item). Route `none` asks nothing; a `pending` route paints local Game Info and stored achievements
+  and is replayed when collections load. `features/scraper/on-update.ts`
   is gone: captures republish on every view (sensors), unlocks load through `app/achievements.ts`, metadata through the TTL.
 - The settings panel reads progress and calls `triggerSync` through `settings.ts` (`setSyncSource`, `useSyncProgress`), a D3
   setter like routing. `steam_cartridges_sync_history_v1` in `localStorage` is now ignored, not deleted (M9 decides).

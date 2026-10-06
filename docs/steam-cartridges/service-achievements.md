@@ -64,7 +64,13 @@ with `force` after the game quits, announcing new unlocks as `achievements.synce
 `nil, err` (or throws) falls through to the next; no source supports the shortcut → `unsupported`, with **no log
 line and no request** (K2: AM2R has no ROM path, so RetroAchievements is never asked); every supporting source
 failed → `error` with the last message. `achievements_observer.check_unlocks` resolves through the same function,
-so a PC game stays silent there too.
+so a PC game stays silent there too, and only **once per session** for a shortcut with no stored schema (ADR-0060: the
+poll runs every 2 s; the quit reload asks again). `EnsureFresh` remembers an `unsupported` (24 h) or `error` (30 min)
+answer when nothing is stored, and keeps the stored part when a refresh fails ([service-freshness.md](service-freshness.md)).
+
+**RetroAchievements lookups persist (ADR-0060).** `ra_cache.lua` (`<data dir>/ra_cache.json`) keeps a ROM's MD5 while
+the file's size and mtime are unchanged (the `ra_hasher.js` spawn runs once per ROM, not once per Steam start) and a
+hash's GameID (a definite "no game" for 7 days; a network failure is never stored).
 
 ## Files
 
@@ -85,12 +91,15 @@ so a PC game stays silent there too.
 `frontend/app/achievements.ts` (`createAchievements`) is the use case; the record's `achievements` part is
 its only output, plus the `achievements.unlocked` event:
 
-- `ensure(appid, route)`: `EnsureFresh(["achievements"])` with the record's identity, the title and the hardcore
-  setting, then `records.update`. Called by the view pipeline (`features/source-view.ts`) for every route except
-  `none` (route `none` makes no backend call) and on `shortcut.quit`.
+- `ensure(appid, route, { native?, force?, noNetwork?, lane? })`: `EnsureFresh(["achievements"])` with the record's
+  identity, the title and the hardcore setting, then `records.update`. Called by the view pipeline (`app/view.ts`):
+  first with `noNetwork` (the paint; an answer without data leaves the record alone), then without it only when the
+  paint came back `stale` (ADR-0060). Lane `view` by default; `normal` on `shortcut.quit` and the store sync. Route `none`
+  makes no backend call.
 - **Flow C** (`install()`): on `shortcut.launched`, the launch toast policy (`off` / `first_run` / `all_runs`, only
-  when the record has achievements with a total > 0), then `CheckUnlocks` every 2000 ms until `shortcut.quit`, plus
-  one final check at quit. A quit while the mapping is still loading starts no session. Both are gated by the
+  when the record has achievements with a total > 0), then `CheckUnlocks` 2000 ms after the previous check settled
+  (a self-arming timeout, never `setInterval`: a busy backend never has two checks queued, ADR-0060) until
+  `shortcut.quit`, plus one final check at quit. A quit while the mapping is still loading starts no session. Both are gated by the
   `achievements-observer` kill switch.
 - Each poll result is normalized to a list (`{}` from Millennium's cjson becomes `[]`, K1). New unlocks are merged
   into the record and announced with `bus.emit("achievements.unlocked", { appid, ids })`.

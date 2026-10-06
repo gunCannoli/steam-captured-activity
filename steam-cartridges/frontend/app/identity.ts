@@ -30,11 +30,12 @@ export function createIdentity(deps: IdentityDeps): IdentityResolver {
         }
 
         const title = deps.titleOf(appid) ?? "";
+        // The page waits for it: the view lane (ADR-0060).
         const res = await deps.backend.ensureFresh(appid, ["identity"], {
             title,
             route,
             owned: deps.owned(),
-        });
+        }, { lane: "view" });
 
         const raw = res.error ? undefined : (res.parts.identity as Part<Identity> | undefined);
         const part: Part<Identity> = raw ?? { status: "error", message: res.error ?? "no identity part" };

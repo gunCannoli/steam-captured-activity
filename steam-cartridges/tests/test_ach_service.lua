@@ -203,9 +203,10 @@ store.save_schema(77, SCHEMA)
 store.bind_schema(SC, 77)
 local lp = ach.local_part(SC)
 check("local_part reads the stored schema without a source call", lp and lp.status == "ok" and lp.data.schema.total == 2 and calls.steam == nil and calls.ra == nil)
-local raw_before = io.open(ACH_PATH, "rb"):read("*a")
+local function read_all(path) local f = io.open(path, "rb"); local c = f:read("*a"); f:close(); return c end -- closed: Windows cannot delete an open file
+local raw_before = read_all(ACH_PATH)
 ach.local_part(SC); ach.local_part(4000000009)
-local raw_after = io.open(ACH_PATH, "rb"):read("*a")
+local raw_after = read_all(ACH_PATH)
 check("local_part is disk only (never writes, even for an unknown shortcut)", raw_before == raw_after)
 
 print("CheckUnlocks")
@@ -229,6 +230,57 @@ wipe(); fresh()
 store_steam.set_mapping(SC, 2820820, "Jotunnslayer", "manual")
 res = json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "achievements" }, context = { route = { bucket = "web-scraping", via = "default" }, title = "x" } })))
 check("EnsureFresh ignores a saved mapping on a web-scraping route", res.parts.achievements.status == "unsupported" and calls.steam == nil)
+
+print("EnsureFresh: remembered lookups and the paint (ADR-0060)")
+local function ensure_ach(ctx)
+  ctx = ctx or {}
+  ctx.title = ctx.title or "x"
+  ctx.route = ctx.route or { bucket = "web-scraping", via = "default" }
+  return json.decode(record_rpc.EnsureFresh(json.encode({ appid = SC, parts = { "achievements" }, context = ctx }))).parts.achievements
+end
+local entry_calls = 0
+local function counting_entry() entry_calls = entry_calls + 1; return { exe = "C:/games/x.exe", launch_options = "" } end
+
+wipe(); fresh({ entry = counting_entry }); entry_calls = 0
+local a1 = ensure_ach()
+local a2 = ensure_ach()
+check("an unsupported lookup is remembered: the second request asks no source", a1.status == "unsupported" and a2.status == "unsupported" and entry_calls == 1, entry_calls)
+ensure_ach({ force = true })
+check("... force (Sync now, Review Fetch) asks again", entry_calls == 2, entry_calls)
+check("... and freshness.json keeps the status", fresh_policy.last_status(SC, "achievements") == "unsupported")
+
+wipe(); fresh({ rom_path = function() return "D:/roms/sonic.md" end, ra = function() calls.ra = (calls.ra or 0) + 1; return nil, "ra unreachable" end })
+local e1 = ensure_ach()
+local e2 = ensure_ach()
+check("a failed lookup is remembered for 30 min: the second request asks no source", e1.status == "error" and e2.status == "error" and calls.ra == 1, calls.ra)
+check("... and answers with the failure's message", e2.message == "ra unreachable", e2.message)
+check("... remembered errors come due after 30 min",
+  fresh_policy.remembered(SC, "achievements", os.time() * 1000 + 29 * 60000) ~= nil
+    and fresh_policy.remembered(SC, "achievements", os.time() * 1000 + 31 * 60000) == nil)
+
+wipe(); fresh({ rom_path = function() return "D:/roms/sonic.md" end })
+local p0 = ensure_ach({ noNetwork = true })
+check("noNetwork with nothing stored: pending and stale, no source asked", p0.status == "pending" and p0.stale == true and calls.ra == nil)
+store.save_schema(77, SCHEMA); store.bind_schema(SC, 77)
+fresh_policy.touch(SC, "achievements", os.time() * 1000, "ok")
+local p1 = ensure_ach({ noNetwork = true })
+check("noNetwork with a fresh stored part: that part, not stale", p1.status == "ok" and p1.data.schema.total == 2 and p1.stale == nil and calls.ra == nil)
+fresh_policy.touch(SC, "achievements", os.time() * 1000 - 25 * 3600 * 1000, "ok")
+local p2 = ensure_ach({ noNetwork = true })
+check("noNetwork with a due stored part: that part, flagged stale, no source asked", p2.status == "ok" and p2.stale == true and calls.ra == nil)
+
+fresh({ rom_path = function() return "D:/roms/sonic.md" end, ra = function() calls.ra = (calls.ra or 0) + 1; return nil, "ra unreachable" end })
+local p3 = ensure_ach()
+check("a failed refresh keeps the stored part", calls.ra == 1 and p3.status == "ok" and p3.data.schema.total == 2)
+
+print("CheckUnlocks: a missing schema is resolved once per session (ADR-0060)")
+wipe(); fresh({ rom_path = function() return "D:/roms/sonic.md" end, ra = function() calls.ra = (calls.ra or 0) + 1; return nil, "ra unreachable" end })
+observer._reset_resolved()
+observer.check_unlocks(SC, 0, "Sonic")
+observer.check_unlocks(SC, 0, "Sonic")
+observer.check_unlocks(SC, 0, "Sonic")
+check("three polls ask the sources once", calls.ra == 1, calls.ra)
+observer._reset_resolved()
 
 print("GetAllRecords")
 wipe(); fresh()

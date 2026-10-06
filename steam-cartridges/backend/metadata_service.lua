@@ -287,6 +287,11 @@ function M.ensure(appid, ctx)
       if ctx.storeItem ~= nil then
         return { status = "ok", data = ctx.storeItem, source = "steam-store", checkedAt = now_ms() }
       end
+      if ctx.noNetwork then
+        -- The view's paint (ADR-0060): a match's Game Info is Steam's own store item, never stored; the
+        -- refresh that follows brings it (or asks appdetails).
+        return { status = "pending", stale = true, checkedAt = now_ms() }
+      end
       local data, err = appdetails_fetch(native.appid)
       if data then
         local meta = appdetails.to_metadata(data, appid)
@@ -324,7 +329,9 @@ function M.ensure(appid, ctx)
     local due = ctx.force or fresh().is_stale(appid, "metadata", { status = "ok", source = "local_db" }, now_ms())
       or (use_store and local_rec.store_source ~= copy.kind)
     if not (due and can_fetch) then
-      return { status = "ok", data = local_rec, source = "local_db", checkedAt = now_ms() }
+      -- The view's paint (ADR-0060) shows the record now and flags it when a source would refresh it.
+      local stale = (ctx.noNetwork and due and (ctx.allowWeb or ctx.allowScreenscraper or use_store)) and true or nil
+      return { status = "ok", data = local_rec, source = "local_db", stale = stale, checkedAt = now_ms() }
     end
   elseif not can_fetch then
     return { status = "pending", checkedAt = now_ms() }

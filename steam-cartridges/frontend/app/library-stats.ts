@@ -24,7 +24,7 @@ export function createLibraryStats(deps: { backend: Pick<typeof Backend, "getLib
     return {
         async load() {
             try {
-                const raw = await deps.backend.getLibraryStats();
+                const raw = await deps.backend.getLibraryStats({ lane: "background" });
                 const next = new Map<number, CaptureStats>();
                 for (const [key, value] of Object.entries(raw ?? {})) {
                     const id = toUnsigned(key);

@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: a game's page shows its own data first (ADR-0060, 2026-10-06)**:
+  - Stored Game Info and achievements show as soon as the page opens; sources are asked afterwards, and only for what is missing or due.
+  - Backend calls still run one at a time (the 2026-10-05 fix stands), but in priority order: the open page, then other actions, then community media, then background jobs (ingest, store sync). Achievements no longer wait for artwork, community media or a background sync.
+  - Games without achievements, or that RetroAchievements does not know, are no longer looked up again on every page visit (remembered 24 h / 30 min; Sync now and Fetch still ask).
+  - ROM hashes and RetroAchievements game ids are kept on disk, so a Steam restart no longer re-hashes every ROM.
+  - The in-game unlock check no longer piles up while the backend is busy.
+
 - **Fixed: emulator controller support inference and background achievements ingestion (2026-10-06)**:
   - Controller support inference is now loaded at start-up (`controller.load()`), and `metadata.rebadge()` re-evaluates all loaded shortcuts upon completion.
   - Expanded `emulator_controllers.lua` and `steam_store_emulators.lua` to recognize 24 standalone emulators (`snes9x`, `mgba`, `vbam`, `visualboyadvance`, `project64`, `simple64`, `rmg`, `mupen64plus`, `ares`, `bigpemu`, `blastem`, `fusion`, `kega`, `fceux`, `mesen`, `nestopia`, `desmume`, `redream`, `demul`, `supermodel`, `model2emu`, `bizhawk`, `openemu`, `azahar`, `eden`), and to inspect launch arguments for ROM file extensions.

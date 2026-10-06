@@ -63,6 +63,8 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
       ctx.store = parts.store -- later parts of this same call see the copy
     elseif name == "metadata" then
       parts.metadata = metadata_service.ensure(appid, ctx)
+      -- The view's paint (ADR-0060): nothing usable on disk yet means the page asks its sources next.
+      if ctx.noNetwork and parts.metadata.status == "pending" then parts.metadata.stale = true end
     elseif name == "artwork" then
       -- Only a lookup without a Steam match can fail (SteamGridDB); a failure less than 30 min ago is answered
       -- from memory. A Steam match (a new mapping) always asks again.
@@ -99,9 +101,21 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
       if not identity and (ctx.route or {}).bucket == "steam-store" then identity = resolve_identity.saved(appid) end
       local native = identity and identity.data and identity.data.native
       -- The schema is refreshed at most every 24 h; unlocks are read by their own channels (Flow C).
+      local now = now_ms()
       local cached = ach().local_part(appid)
-      if cached and not ctx.force and not fresh().is_stale(appid, "achievements", cached, now_ms()) then
+      local due = ctx.force or not cached or fresh().is_stale(appid, "achievements", cached, now)
+      -- ADR-0060: with nothing stored, a lookup that found no source or failed is not repeated until it comes
+      -- due (24 h / 30 min): every view, ingest run and observer poll used to ask the sources again.
+      local remembered = not cached and not ctx.force and fresh().remembered(appid, "achievements", now)
+      if cached and not due then
         parts.achievements = cached
+      elseif remembered then
+        local memo = fresh().recent_error(appid, "achievements", now)
+        parts.achievements = memo or { status = remembered.status, checkedAt = remembered.at }
+      elseif ctx.noNetwork then
+        -- The view's paint (ADR-0060): what is stored, flagged when a refresh is due; never a source.
+        parts.achievements = cached or { status = "pending", checkedAt = now }
+        parts.achievements.stale = true
       else
         -- The store copy (ADR-0056): this call's fresh part, else the saved one.
         local copy = ctx.store or store_service.saved(appid)
@@ -114,7 +128,14 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
           allowXbox = ctx.allowXbox,
         })
         local st = parts.achievements.status
-        if st == "ok" or st == "error" then fresh().touch(appid, "achievements", now_ms(), st) end
+        if st == "ok" or st == "error" or st == "unsupported" then fresh().touch(appid, "achievements", now_ms(), st) end
+        if st == "error" then
+          fresh().remember_error(appid, "achievements", now_ms(), parts.achievements)
+          -- A failed refresh keeps what is stored (as metadata does), and comes due again after 30 min.
+          if cached then parts.achievements = cached end
+        else
+          fresh().forget_error(appid, "achievements")
+        end
       end
     end
     -- Unknown part names are ignored (not an error).

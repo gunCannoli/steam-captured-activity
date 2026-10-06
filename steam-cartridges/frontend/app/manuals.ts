@@ -21,6 +21,8 @@ export const MAX_MANUAL_CHUNKS = 48;
 export const PAGE_WIDTH = 1400;
 /** The card cover's size in pixels: 16:9, drawn at twice the card's layout size (core.MANUAL_CARD_WIDTH). */
 export const COVER_WIDTH = 1280;
+/** Manual downloads are community content: below the page's own data in the call queue (ADR-0060). */
+const MEDIA = { lane: "media" } as const;
 export const COVER_HEIGHT = 720;
 /** A chunk read is tried again this many times after its RPC fails: the backend's 30 s limit can end the call that downloads the PDF while the download still completes there. */
 export const RPC_RETRIES = 2;
@@ -79,7 +81,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
     async function readChunk(appid: ShortcutId, key: string, index: number) {
         for (let attempt = 0; ; attempt++) {
             try {
-                return await deps.backend.getManualChunk(appid, key, index, deps.titleOf(appid), deps.cacheDays?.() ?? 0);
+                return await deps.backend.getManualChunk(appid, key, index, deps.titleOf(appid), deps.cacheDays?.() ?? 0, MEDIA);
             } catch (err) {
                 if (attempt >= RPC_RETRIES) throw err;
             }
@@ -151,7 +153,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
     async function coverFromDisk(appid: ShortcutId, key: string): Promise<boolean> {
         if (!deps.backend.getManualCover || !deps.coverCache) return false;
         try {
-            const res = await deps.backend.getManualCover(appid, key, deps.cacheDays?.() ?? 0);
+            const res = await deps.backend.getManualCover(appid, key, deps.cacheDays?.() ?? 0, MEDIA);
             const url = res.base64 ? deps.coverCache.objectUrl(res.base64, "jpg") : null;
             if (!url) return false;
             deps.shelf.setCover(appid, key, url);
@@ -167,7 +169,7 @@ export function createManuals(deps: ManualsDeps): Manuals {
         if (!deps.backend.saveManualCover || !deps.coverCache) return;
         try {
             const base64 = await deps.coverCache.toBase64(url);
-            if (base64) await deps.backend.saveManualCover(appid, key, base64, deps.cacheDays?.() ?? 0);
+            if (base64) await deps.backend.saveManualCover(appid, key, base64, deps.cacheDays?.() ?? 0, MEDIA);
         } catch {
             /* rendered again next start */
         }

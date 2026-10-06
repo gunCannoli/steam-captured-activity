@@ -2,10 +2,12 @@
 ---
 --- Per (appid, part) the time it was last checked, in ms, in <data dir>/freshness.json (a new file,
 --- so no existing format changes): { version = 1, parts = { ["<appid>"] = { identity = ms, metadata = ms,
---- achievements = ms } } }. One table of TTLs decides what is stale.
+--- achievements = ms } } }. One table of TTLs decides what is stale. ADR-0060 adds, per part, the status of
+--- the last check when it was not ok (`achievements_status = "unsupported"`), so a part with nothing stored
+--- is not looked up again until that status comes due (M.remembered).
 ---
---- Never stale: anything with source "custom" (a user's manual edit, K15) and an identity with a
---- native Steam match (sticky; the user clears it in settings).
+--- Never stale: anything with source "custom" (a user's manual edit, K15), an identity with a native
+--- Steam match (sticky; the user clears it in settings) and achievements the user marked "none".
 
 local json     = require("json")
 local utils    = require("utils")
@@ -76,6 +78,7 @@ local function ttl_for(part, info)
   local status = type(info) == "table" and info.status or info
   local source = type(info) == "table" and info.source or nil
   if source == "custom" then return false end
+  if status == "none" then return false end -- the user's "no achievements" mark; cleared by the user only
   if status == "error" then return M.TTL.error end
   if status == "ok" then
     if part == "identity" then
@@ -105,21 +108,47 @@ function M.is_stale(appid, part, info, now)
   return (now or 0) - at >= ttl
 end
 
+--- The ok TTL an error check is backdated against (touch), so it comes due after M.TTL.error.
+local function error_base(part)
+  return (part == "identity" and M.TTL.identity_ok_no_native) or (part == "media" and M.TTL.media_ok)
+    or M.TTL.metadata_ok
+end
+
 --- Record a check at `now` (ms). An `error` result is backdated so it comes due after the short
---- error TTL instead of the long ok TTL.
+--- error TTL instead of the long ok TTL. `unsupported` and `error` are remembered (M.remembered).
 function M.touch(appid, part, now, status)
   local s = load()
   local k = key(appid)
   s.parts[k] = s.parts[k] or {}
   local at = now
   if status == "error" then
-    local ok_ttl = (part == "identity" and M.TTL.identity_ok_no_native) or (part == "media" and M.TTL.media_ok)
-      or M.TTL.metadata_ok
-    at = now - (ok_ttl - M.TTL.error)
+    at = now - (error_base(part) - M.TTL.error)
   end
   s.parts[k][part] = at
+  s.parts[k][part .. "_status"] = (status == "unsupported" or status == "error") and status or nil
   -- Bookkeeping only: a disk error costs a refetch later, never a failed EnsureFresh.
   return pcall(save)
+end
+
+--- The status of the last check of a part when it was "unsupported" or "error", else nil.
+function M.last_status(appid, part)
+  local entry = load().parts[key(appid)]
+  local status = entry and entry[part .. "_status"]
+  if status == "unsupported" or status == "error" then return status end
+  return nil
+end
+
+--- ADR-0060: a check that found no source (`unsupported`, for M.TTL.unsupported) or failed (`error`, for
+--- M.TTL.error) and has not come due at `now` (ms): { status, at }, else nil. A part with nothing stored
+--- answers this instead of asking its sources again on every view, ingest run and observer poll.
+function M.remembered(appid, part, now)
+  local status = M.last_status(appid, part)
+  if not status then return nil end
+  local at = M.checked_at(appid, part)
+  if not at then return nil end
+  local ttl = status == "unsupported" and M.TTL.unsupported or error_base(part)
+  if (now or 0) - at >= ttl then return nil end
+  return { status = status, at = at }
 end
 
 --- Remember an error part at `now` (ms); an ok result forgets it.

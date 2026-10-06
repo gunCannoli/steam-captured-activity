@@ -57,6 +57,11 @@ end
 --- Tests: forget the offsets held in memory.
 function M._reset_offsets() log_offsets, offsets_dirty = nil, false end
 
+--- Shortcuts whose sources were asked this session because no schema was stored (ADR-0060): a poll runs every 2 s,
+--- and asking the sources (RetroAchievements: a ROM hash and network) on each one held the backend for every other call.
+local resolved_once = {}
+function M._reset_resolved() resolved_once = {} end
+
 local function trim(s)
   return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", ""))
 end
@@ -468,8 +473,10 @@ function M.check_unlocks(shortcut_appid, native_appid, game_title)
   end
 
   local st = store.get_state(s_appid)
-  if not st or not st.schema or not st.schema.achievements then
-    -- One resolver for every source, so a PC game with no trophy dir or ROM path stays silent (K2).
+  if (not st or not st.schema or not st.schema.achievements) and not resolved_once[s_appid] then
+    -- One resolver for every source, so a PC game with no trophy dir or ROM path stays silent (K2). Once per
+    -- session: the quit reload asks again (ADR-0060).
+    resolved_once[s_appid] = true
     local _, raw = require("ach_service")._resolve(s_appid, { native = n_appid })
     st = raw
   end

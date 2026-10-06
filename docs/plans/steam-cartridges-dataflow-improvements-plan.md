@@ -1,15 +1,16 @@
 # steam-cartridges data flow improvements: audit and plan
 
-**Status (2026-10-06):** audit done (static code trace, no live timings yet); nothing implemented.
+**Status (2026-10-06):** Phases 0-4 implemented, deployed and live-verified ([ADR-0060](../decisions.md)); § 9 records
+what was built, what differs from the design below and the live numbers. Phase 5 (research) and the `achievements.json`
+split are not started.
 **Scope:** the path from "a non-Steam shortcut exists in the library" to "its page shows Game Info, achievements and
 community content", plus the start-up and background jobs that share that path.
 **Goal:** a page's own data (Game Info, achievements) never waits behind slower or background work. Community content
 may arrive later but must not hold anything else up. No change to the hexagon (sensor -> app -> port -> service ->
 record -> surface; only surfaces write to Steam).
 
-This doc is an **audit plus a phased design**. It does not yet meet the [plan writing standard](README.md): each phase
-below gets its own mechanical before/after steps, written and dry-run, **after Phase 0's measurements** confirm which
-blockers matter most. Do not implement from this doc directly.
+This doc was written as an **audit plus a phased design**; the user asked for the fixes to be implemented directly,
+so § 9 is the execution record instead of mechanical before/after steps.
 
 ---
 
@@ -144,11 +145,11 @@ found game is cheap. The cost is concentrated in first resolves and misses (B4).
   ([index.tsx:616-631](../../steam-cartridges/frontend/index.tsx#L616-L631)), so stored achievements reach Steam's
   stores only after the library grid is ready.
 
-### B8. Backend hot paths re-read files on every call (medium, adds up)
+### B8. Backend hot paths re-read files on every call (low; corrected during implementation)
 
-- [registry.lua:40](../../steam-cartridges/backend/registry.lua#L40) `M.shortcut(appid)` parses the whole
-  `shortcuts.vdf` on **every** call, without a cache. One view's `EnsureFresh` calls it from store, metadata, media and
-  achievements (plus RA's own parse and the trophy readers'), so several full parses per view, about 230 entries each.
+- ~~`registry.shortcut` parses the whole `shortcuts.vdf` on every call~~. **Wrong:** `shortcuts.parse` already caches
+  the parsed list by the file's mtime (`shortcuts.lua`, `fs.last_write_time`); each lookup only rebuilds a ~230-entry
+  map. No change made.
 - `achievements_store` rewrites the whole `achievements.json` (2.6 MB) on every write, including each observer unlock
   (`store.unlock`) and `get_state` with a new native.
 - `fresh_policy.touch` rewrites `freshness.json` on every touch (small; low cost).
@@ -251,9 +252,7 @@ afterwards, in short calls.
    quit-time `ensure` (already there) loads the schema.
 3. **Persistent RA caches (B5):** `rom_hashes.json` keyed by ROM path + size + mtime -> md5, and md5 -> GameID (with a
    7-day negative entry). The node hasher runs once per ROM, ever.
-4. **vdf memo (B8):** `registry.current_entries()` keeps the parsed list for the duration of one RPC (reset in
-   `rpc.method`), or keyed by the file's mtime if Millennium's Lua exposes it (check knowledgebase first). Route RA's,
-   the trophy readers' and `web_rpc`'s own parses through `registry`.
+4. ~~**vdf memo (B8)**~~: not needed, the parse is already mtime-cached (see B8).
 5. **Optional, separate plan:** split `achievements.json` into schemas (rarely written) and per-shortcut state
    (unlocks, often written) through `migrate.lua`, so an unlock no longer re-encodes 2.6 MB.
 
@@ -286,18 +285,55 @@ presence on a user's PC (the published plugin cannot assume it; `ra_hasher.js` a
 - Widen an architecture allowlist to make a phase pass.
 - Refresh a `custom` metadata record (K15).
 
-## 7. Measurements (fill in during Phase 0, then after each phase)
+## 7. Measurements
 
-| Scenario | view -> Game Info | view -> achievements | calls ahead in queue | max host hold |
-| --- | --- | --- | --- | --- |
-| Warm game, ingest idle | | | | |
-| Cold game (first visit), ingest idle | | | | |
-| Warm game during "Sync now" | | | | |
-| Game running (observer polling), open another game | | | | |
-| A -> native -> A (Routine 2) | | | | |
+Live, 2026-10-06, after deploy, `node tests/live/probes/dataflow_timing.mjs` (times from the plugin's `shortcut.viewed`;
+the view sensor itself reports 0.3-0.8 s after Steam's navigation). No "before" numbers were taken: the old transport
+kept no timings.
+
+| Scenario | view -> Game Info and achievements in the record (disk) | longest wait of a view call | calls ahead in queue |
+| --- | --- | --- | --- |
+| 19XX (RA, metadata due): first view | 11 ms (paint), achievements refresh done +288 ms | 251 ms (achievements behind the metadata refresh) | none |
+| 19XX: A -> home -> A | 14 ms per paint (the sensor reported the view 3 times) | 5 ms | none |
+| The Lion King (RA, all fresh): first view | 45 ms; no refresh asked | 23 ms | none |
+| The Lion King: A -> home -> A | 22 ms | 9 ms | none |
+| A view while background calls are queued | covered offline: `tests/transport.test.ts` (a view call runs right after the call in flight) | | |
 
 ## 8. Verification per phase
 
 Offline: `npm run check`, `npm run test:ts`, `npm run test:lua` in `steam-cartridges/`. Live (holding the Steam lock,
 AGENTS.md Routine 0): `dev.ps1`, `node steam-health.mjs`, `npm run test:live`, AGENTS.md Routines 1-3 (four views,
 A -> B -> A), then the Phase 0 probe to fill § 7. A phase is done when its row improves and nothing regresses.
+
+## 9. Execution record (2026-10-06)
+
+Built as designed, with these differences:
+
+- **Refresh order:** Game Info before achievements (the design said achievements first). Game Info is the top of the
+  page and its fetch is short; a first RetroAchievements resolve can take many seconds. Both are in the view lane, before
+  artwork and media, so achievements no longer wait for artwork or media.
+- **Paint calls:** two disk calls (metadata, achievements) through the existing resolvers instead of one combined
+  call, so the badge derivation and the "an empty answer never replaces the record" rule stay in one place each. Each
+  measured 3-23 ms.
+- **Phase 3.4** dropped (B8 was wrong). **Phase 3.5** (`achievements.json` split) not done: needs a migration, its own plan.
+- **Phase 4.4:** `needsFetch` was not changed to read the backend's remembered statuses; instead ingest waits for the
+  preloads (the race), and the backend answers a remembered `unsupported`/`error` without asking any source, so the
+  games ingest re-selects each start now cost one disk read each.
+- Found on the way: `tests/test_ach_service.lua` leaked an open file handle (`io.open(...):read()`), so on Windows every
+  later `wipe()` silently failed to delete the store file; fixed (closed handles).
+
+Files: `frontend/ports/transport.ts` (lanes, timings), `ports/backend.ts` (`CallOptions`), `kernel/record.ts`
+(`Part.stale`), `app/view.ts` (paint, refresh order, `needsRefresh`), `app/achievements.ts` (`noNetwork`, lanes,
+self-arming poll), `app/metadata.ts`, `app/identity.ts`, `app/store-copy.ts`, `app/media.ts`, `app/manuals.ts`,
+`app/ingest.ts` (one part per call, background), `app/store-sync.ts`, `app/controller.ts`, `app/library-stats.ts`,
+`app/routing.ts` (`ensureProfiles`), `app/records.ts` (`sharedRead`), `index.tsx` (wiring, `rpcDiagnostics`);
+backend `record_rpc.lua`, `fresh_policy.lua`, `metadata_service.lua`, `achievements_observer.lua`,
+`retroachievements.lua`, new `ra_cache.lua`. Tests: `tests/transport.test.ts` (new), `app-view`, `app-achievements`,
+`app-ingest`, `test_ach_service.lua`, `test_freshness.lua`; probe `tests/live/probes/dataflow_timing.mjs`.
+
+Verification: `npm run check` clean; `npm run test:ts` 326 pass, 0 fail (was 317); `npm run test:lua` 12/12 suites
+ALL PASS; build OK; deployed with `dev.ps1`; `steam-health` PASS; `npm run test:live` 13/13 PASS (navigation cycle and
+tabs included, Routines 1-3); the timing probe PASS on two RetroAchievements games.
+
+Open, not caused by this change: Steam logs `Uncaught (in promise) Error: Assertion failed` plus a Millennium error
+boundary catch right after the captures surface publishes activity events (299 in the previous log, since 2026-10-05).
