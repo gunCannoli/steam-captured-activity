@@ -161,6 +161,23 @@ function M.sync(shortcut_appid, schema_id, unlocks, source)
   return sc
 end
 
+--- Atomically updates a schema and shortcut's unlocks in memory, saving once to disk (ADR-0056).
+--- Eliminates redundant back-to-back serialization and disk writes of achievements.json.
+function M.save_schema_and_sync(shortcut_appid, schema_id, schema, unlocks, source)
+  local s = load()
+  if schema then
+    s.schemas[to_schema_key(schema_id)] = schema
+  end
+  local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))
+  local sc = s.shortcuts[sc_key] or {}
+  sc.schema_appid = schema_id
+  sc.unlocks = unlocks or {}
+  sc.source = source
+  s.shortcuts[sc_key] = sc
+  save()
+  return sc
+end
+
 function M.reset(shortcut_appid)
   local s = load()
   local sc_key = tostring(math.floor(tonumber(shortcut_appid) or 0))

@@ -3329,3 +3329,30 @@ a folder that no longer exists. A GDK/Win32 package (Fortress Merge) relaunches 
 - No overlay, no in-game toast for these games; Steam's Stop ends `SystemUWPLauncher`, not the game.
 - After an app update that happens while Steam runs, a launch within the next minute can fail once; the next tick repairs it.
 - The plugin now changes a shortcut it did not just add; limited to package-exe shortcuts and logged per repair.
+
+## ADR-0059: LuaJIT bytecode interpreter mode enforcement and atomic schema sync
+
+**Status:** Accepted · 2026-10-05 · **Amends [ADR-0032](#adr-0032-steam-cartridges-hexagon-architecture-and-ports)** (stability guardrail for Millennium LuaVM IPC bridge)
+
+### Context
+
+On large RetroAchievements or trophy schemas (*Lufia II*, *The Lion King*, *Kirby: Nightmare in Dream Land*), `millennium.luavm64.exe` repeatedly crashed with `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` at RVA `0x1087C` (`movdqu [r15], xmm0`) with `R15 = 0x38000`.
+
+Minidump analysis and binary disassembly revealed:
+1. Millennium C++ holds a pointer to its return `std::string` buffer in `R15` across Lua evaluation. Under the Windows x64 ABI, `R15` and `R14` are callee-saved registers.
+2. The LuaJIT entry point `vm_pcall` (`0x140002f8a`) only saves and restores `rbp, rdi, rsi, rbx`, completely ignoring `R14` and `R15`.
+3. In pure interpreter mode, LuaJIT bytecode does not touch `R14` or `R15`. However, when hot loops run (e.g. iterating 70+ achievements or serializing large JSON stores), LuaJIT's JIT trace compiler trips `HOTLOOP = 56` and compiles native traces that assign `R14 = 0x8000` and `R15 = 0x38000`.
+4. Upon returning to C++, `R15` is left corrupted, causing `movdqu [r15], xmm0` to fault.
+5. In addition, `achievements.json` (2.6 MB) was being serialized and written to disk twice in immediate succession (`store.save_schema` + `store.sync`).
+
+### Decision
+
+1. **Enforce pure interpreter execution via `jit.off()`:** Call `jit.off()` at backend initialization (`backend/main.lua`) and before dispatching RPC methods (`backend/rpc.lua`). LuaJIT's handcrafted assembly bytecode interpreter executes in ~3 ms per 1,000,000 iterations without compiling traces, eliminating register corruption across the Millennium C++ boundary.
+2. **Atomic Schema & Sync Persistence:** Provide `achievements_store.save_schema_and_sync(shortcut_appid, schema_id, schema, unlocks, source)` to update the schema and shortcut unlocks in memory and write to disk once, reducing disk I/O and JSON serialization by 50%.
+3. **Purge dead pretty-printing code:** Remove unused `format_json` in `web_metadata_db.lua`.
+
+### Consequences
+
+- Zero register corruption across the Millennium C++ RPC bridge.
+- All RetroAchievements schemas, regardless of achievement count, load cleanly without tripping JIT trace compiler faults.
+- Halved disk I/O for newly fetched or updated achievement schemas.

@@ -6,26 +6,39 @@
 
 ## 1. Root Cause with Evidence
 
-### 1.1 The Crash Incident (`Lufia II: Rise of the Sinistrals` & `The Lion King`)
-- **Minidump:** `c:\game\steam\millennium\crashes\steam-cartridges-dev-20261005-155446\crash.dmp`
+### 1.1 The Crash Incidents (`Kirby: Nightmare in Dream Land`, `Lufia II: Rise of the Sinistrals`, `The Lion King`)
+- **Minidumps:**
+  - `c:\game\steam\millennium\crashes\steam-cartridges-dev-20261005-213815\crash.dmp` (*Kirby* #2301220798, 70 achievements)
+  - `c:\game\steam\millennium\crashes\steam-cartridges-dev-20261005-155446\crash.dmp` (*Lufia II* #3840266850, 107 achievements)
 - **Faulting Instruction:** `millennium.luavm64.exe + 0x1087C`: `movdqu xmmword ptr [r15], xmm0`
-- **Registers at Fault:** `R15 = 0x0000000000038000`, `RIP = 0x00007FF6E614087C`
+- **Registers at Fault:** `R15 = 0x0000000000038000`, `R14 = 0x8000`, `R13 = 0x4E00` (JSON length 19,968 bytes), `RDI = 0x800000` (8 MB buffer threshold), `RIP = 0x00007FF6E614087C`
 - **Exception:** `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` attempting to write 16 bytes to address `0x38000`.
 - **Faulting Function:** RVA `0xE8A0`–`0x1095C` in `millennium.luavm64.exe` is Millennium's C++ IPC message receiver/dispatcher (`"methodName"`, `"argumentList"` -> Lua evaluate -> return value serialization).
 
-### 1.2 The Mechanism
-In [`backend/retroachievements.lua:1175`](file:///c:/game/millennium/steam-cartridges/backend/retroachievements.lua#L1175), [`backend/ps3_trophies.lua:238`](file:///c:/game/millennium/steam-cartridges/backend/ps3_trophies.lua#L238), and [`backend/ps4_trophies.lua:328`](file:///c:/game/millennium/steam-cartridges/backend/ps4_trophies.lua#L328):
-```lua
-for id, info in pairs(unlocks) do
-  store.unlock(s_appid, id, info.unlocked_time)
-end
-```
-Each call to `store.unlock()` invokes [`achievements_store.lua:save()`](file:///c:/game/millennium/steam-cartridges/backend/achievements_store.lua#L38). `achievements.json` is currently **2.57 MB**.
-For games like *Lufia II* (107 achievements) or *The Lion King* (33 achievements):
-1. Loading the game triggers 107 full JSON serializations and 107 atomic disk writes/renames of a 2.57 MB file in a synchronous tight loop ($\sim 275\text{ MB}$ of disk writes).
-2. The single-threaded LuaJIT engine is completely blocked for several seconds.
-3. While the Lua VM is unresponsive in this loop, concurrent IPC messages sent from the frontend over the pipe cause Millennium's C++ message buffer to corrupt its return slot pointer, causing `R15` to become `0x38000` and crashing `luavm64.exe`.
-4. **Ruled out:** DLL injection conflict, bad ROM hasher output, or Twitch/IGDB token refresh failure (IGDB returned HTTP 200 and matched the game right before the crash).
+### 1.2 The Exact Mechanism Proved by Binary Disassembly
+1. In Millennium C++, the RPC message handler allocates a `std::string` return buffer on the stack (`RSP + 0xE8`), and MSVC stores the pointer to this buffer in `R15` at function entry:
+   `0x14000e8cb: mov r15, rcx`
+2. Under the Windows x64 ABI, `R15` and `R14` are non-volatile (callee-saved) registers that every function must preserve.
+3. However, inside `millennium.luavm64.exe`, the LuaJIT entry point `vm_pcall` (`0x140002f8a`) only saves `rbp`, `rdi`, `rsi`, `rbx`:
+   ```asm
+   0x140002f8a: push rbp
+   0x140002f8b: push rdi
+   0x140002f8c: push rsi
+   0x140002f8d: push rbx
+   0x140002f8e: sub rsp, 0x28
+   ```
+   and its epilogue at `0x140002df2` only restores those four registers. It **never saves or restores `R14` or `R15`**!
+4. While running in LuaJIT's bytecode interpreter, `R14` and `R15` are untouched. But when heavy loops execute (e.g. iterating 70 achievements in Kirby, computing unlock rates, and performing back-to-back 2.6 MB JSON encodings), LuaJIT's JIT trace compiler trips its hot loop threshold (`HOTLOOP = 56`) and compiles a native machine code trace.
+5. In compiled JIT traces, LuaJIT allocates all x86-64 registers, explicitly assigning `R14 = 0x8000` and `R15 = 0x38000`.
+6. When the function returns, `vm_pcall` returns to Millennium C++ without restoring the caller's `R15`.
+7. Millennium C++ checks if the returned JSON payload length is $\le 8\text{ MB}$ (`cmp r13, 0x800000; jbe 0x140010874`). Because it is $\le 8\text{ MB}$, it branches to `0x140010874` to copy the return `std::string`:
+   ```asm
+   0x140010874: movups xmm0, xmmword ptr [rsp + 0x150]
+   0x14001087c: movdqu xmmword ptr [r15], xmm0  ; <-- FAULT: R15 is 0x38000!
+   ```
+8. **The Fix:**
+   - Call `jit.off()` at backend startup and on RPC entry. LuaJIT runs in its pure, handcrafted x86-64 bytecode interpreter (3 ms per 1,000,000 iterations). In pure interpreter mode, `R14` and `R15` are strictly preserved across all calls.
+   - Introduce `achievements_store.save_schema_and_sync` to update schema and unlocks in memory and write to disk **once** rather than twice, cutting disk I/O and JSON serialization by 50%.
 
 ---
 

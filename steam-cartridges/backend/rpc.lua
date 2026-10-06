@@ -49,6 +49,7 @@ end
 ---@return fun(payload: string): string
 local function method(name, func)
   return function(payload)
+    if jit and jit.off then jit.off() end
     local data = decode_payload(payload) or {}
 
     local success, result = pcall(func, data)

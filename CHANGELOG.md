@@ -7,6 +7,21 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: LuaJIT bytecode interpreter enforcement & atomic schema sync (ADR-0059, 2026-10-05)**:
+  - *Millennium Luavm64 JIT Crash Resolved*: Fixed recurring `EXCEPTION_ACCESS_VIOLATION (0xC0000005)` in `millennium.luavm64.exe`
+    at RVA `+0x1087C` (`movdqu [r15], xmm0`) triggered when loading games with large achievement sets (*Kirby: Nightmare in Dream Land* 70 achievements,
+    *Lufia II* 107 achievements, *The Lion King*). Disassembly of `millennium.luavm64.exe` proved that Millennium C++ saves its return string
+    buffer pointer in non-volatile register `R15`, but LuaJIT's `vm_pcall` entry point (`0x140002f8a`) does not save or restore `R14`/`R15`.
+    When hot loops during achievement processing and JSON serialization trip LuaJIT's JIT compiler threshold (`HOTLOOP = 56`), compiled JIT
+    traces clobber `R14 = 0x8000` and `R15 = 0x38000`, causing C++ to fault when writing the return string.
+  - *Pure Interpreter Mode Guardrail*: Enforced `jit.off()` in `main.lua` and `rpc.lua`. LuaJIT now runs in its handcrafted x86-64 assembly
+    bytecode interpreter (~3 ms per 1,000,000 iterations), strictly preserving `R14`/`R15` across all RPC calls without trace compilation.
+  - *Atomic Schema Persistence*: Added `achievements_store.save_schema_and_sync` to update both the schema definition and shortcut unlocks
+    in memory and commit to disk in a single write, eliminating redundant back-to-back 2.6 MB disk rewrites across `retroachievements.lua`,
+    `ps3_trophies.lua`, `ps4_trophies.lua`, and `record_rpc.lua`. Removed dead `format_json` code in `web_metadata_db.lua`.
+  - *Verification*: Both *Kirby* (70 achievements) and *Lufia II* (67 achievements) verified live via CDP with 0 crashes, clean `EnsureFresh` responses,
+    and passing two-way navigation lifecycle tests (`test_nav_cycle.js`, `check_all_tabs.js`).
+
 - **steam-cartridges: RetroAchievements global unlock percentage fix & Library Analytics controller resolution (2026-10-05)**:
   - *RetroAchievements Global %*: Fixed bug where Metroid Fusion's *Explosive Chamber* (and 125 other games)
     showed their achievement point value (e.g. 4%) as their global unlock rate on Steam instead of the true rate

@@ -1176,10 +1176,9 @@ function M.get_or_fetch(shortcut_appid, hardcore)
     return nil, "cannot fetch game data"
   end
 
-  -- 8. Save schema & unlocks in achievements_store (batched sync, ADR-0056)
+  -- 8. Save schema & unlocks in achievements_store (atomic sync, ADR-0056)
   local schema_key = "ra_" .. tostring(game_id)
-  store.save_schema(schema_key, schema)
-  store.sync(s_appid, schema_key, unlocks, "retroachievements")
+  store.save_schema_and_sync(s_appid, schema_key, schema, unlocks, "retroachievements")
 
   local final_state = store.get_state(s_appid)
   final_state.schema = schema

@@ -272,8 +272,7 @@ RPC.SetAchievementSource = method("SetAchievementSource", function(data)
       return { error = "could not fetch game data for RetroAchievements game " .. tostring(gid) }
     end
     local schema_key = "ra_" .. tostring(gid)
-    store.save_schema(schema_key, schema)
-    store.sync(s_appid, schema_key, unlocks or {}, "retroachievements")
+    store.save_schema_and_sync(s_appid, schema_key, schema, unlocks or {}, "retroachievements")
     fresh().touch(s_appid, "achievements", now_ms())
     return { ok = true, source = "retroachievements", title = schema.title, total = schema.total, game_id = gid }
   elseif source == "steam" then

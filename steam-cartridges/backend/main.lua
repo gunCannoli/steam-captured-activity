@@ -7,6 +7,15 @@
 --- store (ADR-0022), so the backend only supplies what Steam genuinely does
 --- not have: evidence a shortcut was played, from its screenshot index.
 
+-- Stability guardrail (ADR-0058): disable LuaJIT trace compiler to run strictly in the
+-- fast handcrafted x86-64 bytecode interpreter.
+-- In Millennium's 64-bit LuaVM host bridge (millennium.luavm64.exe), JIT-compiled traces
+-- clobber non-volatile registers R14/R15 across the C++ boundary, corrupting the return
+-- string buffer pointer and crashing with EXCEPTION_ACCESS_VIOLATION (0xC0000005) at 0x1087C.
+if jit and jit.off then
+  jit.off()
+end
+
 local logger      = require("logger")
 local millennium  = require("millennium")
 local steam_paths = require("steam_paths")

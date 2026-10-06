@@ -94,40 +94,6 @@ function metadata_db.get_all()
   return load_db()
 end
 
---- Pretty-format a Lua value as indented JSON for easy human inspection and editing
-local function format_json(obj, indent)
-  indent = indent or ""
-  local next_indent = indent .. "  "
-  local t = type(obj)
-  if t == "number" or t == "boolean" then
-    return tostring(obj)
-  elseif t == "string" then
-    return json.encode(obj)
-  elseif t == "table" then
-    local is_array = (#obj > 0)
-    local parts = {}
-    if is_array then
-      for _, v in ipairs(obj) do
-        parts[#parts + 1] = next_indent .. format_json(v, next_indent)
-      end
-      if #parts == 0 then return "[]" end
-      return "[\n" .. table.concat(parts, ",\n") .. "\n" .. indent .. "]"
-    else
-      local keys = {}
-      for k in pairs(obj) do keys[#keys + 1] = k end
-      table.sort(keys)
-      for _, k in ipairs(keys) do
-        local v = obj[k]
-        parts[#parts + 1] = next_indent .. json.encode(tostring(k)) .. ": " .. format_json(v, next_indent)
-      end
-      if #parts == 0 then return "{}" end
-      return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent .. "}"
-    end
-  else
-    return "null"
-  end
-end
-
 --- Save current in-memory database to disk formatted cleanly
 function metadata_db.save()
   if not db then return true end

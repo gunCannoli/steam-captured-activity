@@ -320,10 +320,9 @@ function M.get_or_fetch(shortcut_appid)
     achievements = parsed_schema.achievements,
   }
 
-  -- 6. Save in achievements_store (batched sync)
+  -- 6. Save in achievements_store (atomic sync)
   local schema_key = "ps4_" .. tostring(effective_title_id)
-  store.save_schema(schema_key, schema)
-  store.sync(s_appid, schema_key, unlocks, "shadps4")
+  store.save_schema_and_sync(s_appid, schema_key, schema, unlocks, "shadps4")
 
   local final_state = store.get_state(s_appid)
   final_state.schema = schema
