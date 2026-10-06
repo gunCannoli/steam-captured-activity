@@ -319,8 +319,8 @@ local lp_ra = ach.local_part(SC)
 check("an entry stored before its source was recorded counts as RetroAchievements (ra_ list)", lp_ra.source == "retroachievements")
 local t_ra = os.time() * 1000
 fresh_policy.touch(SC, "achievements", t_ra, "ok")
-check("RetroAchievements unlocks come due after 5 min, not 24 h",
-  not fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 4 * 60000) and fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 5 * 60000))
+check("RetroAchievements unlocks come due after 30 min, not 24 h",
+  not fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 29 * 60000) and fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 30 * 60000))
 
 ra.fetch_game_data, ra.get_credentials, ra.compute_rom_md5 = saved_fetch, saved_creds, saved_hash
 registry.deps.entries = nil

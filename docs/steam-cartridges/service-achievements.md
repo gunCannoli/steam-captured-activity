@@ -69,7 +69,7 @@ poll runs every 2 s; the quit reload asks again). `EnsureFresh` remembers an `un
 answer when nothing is stored, and keeps the stored part when a refresh fails ([service-freshness.md](service-freshness.md)).
 
 **RetroAchievements unlocks follow the profile (ADR-0060 amendment).** A stored RetroAchievements game is asked again
-when its page opens (at most every 5 min): `retroachievements.refresh_unlocks` makes one request by the stored GameID
+when its page opens (at most every 30 min): `retroachievements.refresh_unlocks` makes one request by the stored GameID
 (no ROM hash), merges the profile's unlocks into the stored ones (never drops one) and stores them; offline it answers
 the stored unlocks. An unlock earned on another device or on the website thus reaches this PC on the next page open.
 

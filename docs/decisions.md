@@ -3404,8 +3404,8 @@ record twice.
 **Amendment (2026-10-06, the user's review): RetroAchievements unlocks are asked on every page open.** One
 RetroAchievements profile is played on several devices (and the website), so an unlock earned elsewhere must show when
 the page opens. Before this, a game whose list was stored never asked its profile again (`get_or_fetch` returned the
-stored copy). Now a stored RetroAchievements part comes due after 5 min (`TTL.achievements_ra`; the gap only absorbs
-Steam reporting one view several times), and its refresh is one request by the stored GameID (no ROM hash, no title
+stored copy). Now a stored RetroAchievements part comes due after 30 min (`TTL.achievements_ra`; first 5 min, raised to 30 min
+the same day at the user's request so RetroAchievements is asked less often), and its refresh is one request by the stored GameID (no ROM hash, no title
 search). The profile's unlocks are **merged** into the stored ones (an unlock seen here but not yet on the server is
 kept); offline, the stored unlocks are answered. The refresh runs after the paint, so the page still shows what is stored
 at once.

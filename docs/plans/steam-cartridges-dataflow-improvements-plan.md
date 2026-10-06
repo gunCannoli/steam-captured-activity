@@ -336,7 +336,7 @@ ALL PASS; build OK; deployed with `dev.ps1`; `steam-health` PASS; `npm run test:
 tabs included, Routines 1-3); the timing probe PASS on two RetroAchievements games.
 
 **Amendment (the user's review, same day):** a stored RetroAchievements game never asked its profile again (a
-pre-existing gap: `get_or_fetch` returned the stored copy, whatever the TTL). Now its part comes due after 5 min and the
+pre-existing gap: `get_or_fetch` returned the stored copy, whatever the TTL). Now its part comes due after 30 min (first 5 min; raised at the user's request) and the
 refresh is one request by GameID, merged into the stored unlocks (`refresh_unlocks`, ADR-0060 amendment), so unlocks
 earned on another device show on the next page open.
 

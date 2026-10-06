@@ -24,8 +24,8 @@ M.TTL = {
   metadata_ok = 24 * HOUR,             -- igdb / screenscraper / fallback: Flow B
   achievements_ok = 24 * HOUR,         -- the schema; unlocks are read on every open by their own channels
   achievements_synced = 15 * 60 * 1000, -- a store's unlocks (Epic, Xbox; ADR-0056): synced on open, at most this often
-  achievements_ra = 5 * 60 * 1000,     -- RetroAchievements unlocks: one profile plays on several devices, so a page
-                                       -- open asks again; the gap only absorbs Steam reporting one view several times
+  achievements_ra = 30 * 60 * 1000,    -- RetroAchievements unlocks: one profile plays on several devices, so a page
+                                       -- open asks again, at most this often per game (the user's choice: spare RA)
   media_ok = 7 * DAY,                  -- community media (features plan F2): trailers and art rarely change
   unsupported = 24 * HOUR,             -- a route or source may change (credentials, settings)
   error = 30 * 60 * 1000,              -- retry soon, never in a loop
