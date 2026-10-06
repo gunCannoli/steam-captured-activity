@@ -1,10 +1,17 @@
+--- steam-cartridges-local - backend entry point.
+--- Exposes local emulator save/ini detection, unlock reading, and reset RPCs.
+
+if jit and jit.off then
+  jit.off()
+end
+
 local millennium = require("millennium")
-local logger = require("logger")
-local json = require("json")
-local search = require("file_search")
-local ini = require("ini_parser")
-local goldberg = require("goldberg_parser")
-local reset = require("file_reset")
+local logger     = require("logger")
+local json       = require("json")
+local search     = require("file_search")
+local ini        = require("ini_parser")
+local goldberg   = require("goldberg_parser")
+local reset      = require("file_reset")
 
 local function read_file(path)
   local f = io.open(path, "rb")
@@ -14,27 +21,66 @@ local function read_file(path)
   return content
 end
 
+local function decode_payload(payload_json)
+  if type(payload_json) == "table" then
+    if type(payload_json.payload) == "string" then
+      local ok, inner = pcall(json.decode, payload_json.payload)
+      if ok and type(inner) == "table" then return inner end
+    end
+    return payload_json
+  end
+  local ok, req = pcall(json.decode, payload_json or "{}")
+  if not ok or type(req) ~= "table" then return {} end
+  if type(req.payload) == "string" then
+    local ok_inner, inner = pcall(json.decode, req.payload)
+    if ok_inner and type(inner) == "table" then return inner end
+  end
+  return req
+end
+
+local function method(name, func)
+  return function(payload)
+    if jit and jit.off then jit.off() end
+    local data = decode_payload(payload) or {}
+
+    local success, result = pcall(func, data)
+    if not success then
+      logger.error("RPC " .. name .. " failed: " .. tostring(result))
+      return json.encode({ error = tostring(result) })
+    end
+
+    if result == nil then return "null" end
+    if type(result) == "string" then return result end
+    local ok, encoded = pcall(json.encode, result)
+    if not ok then
+      logger.error("RPC " .. name .. " encode failed: " .. tostring(encoded))
+      return json.encode({ error = tostring(encoded) })
+    end
+    return encoded
+  end
+end
+
 --- Detect existing local save/ini files for an appid
-millennium.on("LocalDetectFiles", function(params)
+LocalDetectFiles = method("LocalDetectFiles", function(params)
   local appid = tonumber(params and params.appid) or 0
-  if appid <= 0 then return json.encode({ files = {} }) end
+  if appid <= 0 then return { files = {} } end
 
   local ok, res = pcall(search.find_candidates, appid)
   if not ok then
     logger.error("LocalDetectFiles failed: " .. tostring(res))
-    return json.encode({ files = {}, error = tostring(res) })
+    return { files = {}, error = tostring(res) }
   end
-  return json.encode({ files = res or {} })
+  return { files = res or {} }
 end)
 
 --- Read all unlocked achievements for an appid
-millennium.on("LocalReadUnlocks", function(params)
+LocalReadUnlocks = method("LocalReadUnlocks", function(params)
   local appid = tonumber(params and params.appid) or 0
-  if appid <= 0 then return json.encode({ unlocks = {} }) end
+  if appid <= 0 then return { unlocks = {} } end
 
   local ok, candidates = pcall(search.find_candidates, appid)
   if not ok or not candidates or #candidates == 0 then
-    return json.encode({ unlocks = {} })
+    return { unlocks = {} }
   end
 
   local all_unlocks = {}
@@ -58,11 +104,11 @@ millennium.on("LocalReadUnlocks", function(params)
     end
   end
 
-  return json.encode({ unlocks = all_unlocks })
+  return { unlocks = all_unlocks }
 end)
 
 --- Reset achievements in candidate file(s)
-millennium.on("LocalResetUnlocks", function(params)
+LocalResetUnlocks = method("LocalResetUnlocks", function(params)
   local appid = tonumber(params and params.appid) or 0
   local candidates = search.find_candidates(appid)
   local total_cleared = 0
@@ -76,12 +122,14 @@ millennium.on("LocalResetUnlocks", function(params)
     end
   end
 
-  return json.encode({
+  return {
     ok = true,
     cleared = total_cleared,
     backupPath = last_backup,
-  })
+  }
 end)
 
-millennium.ready()
+if millennium and millennium.ready then
+  millennium.ready()
+end
 logger.info("steam-cartridges-local backend ready.")

@@ -113,7 +113,21 @@ async function evaluate(target, expression, ms = 5000) {
         if (msg.result?.exceptionDetails) return { error: msg.result.exceptionDetails.exception?.description ?? "exception" };
         return { value: msg.result?.result?.value };
     } finally {
-        ws.close();
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            await new Promise((resolve) => {
+                const timer = setTimeout(resolve, 500);
+                ws.onclose = () => {
+                    clearTimeout(timer);
+                    resolve();
+                };
+                try {
+                    ws.close();
+                } catch {
+                    clearTimeout(timer);
+                    resolve();
+                }
+            });
+        }
     }
 }
 

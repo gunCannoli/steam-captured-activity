@@ -231,21 +231,7 @@ Remove-Item -Path (Join-Path $target 'backend\_lib') -Recurse -Force -ErrorActio
 Set-PluginEnabled -ConfigPath $configPath -Name $name -Enabled $false
 Set-PluginEnabled -ConfigPath $configPath -Name $devName -Enabled $true
 
-# --- legacy retirement (ADR-0032) --------------------------------------------
-# steam-cartridges replaces the two plugins it absorbed. Disable them and remove
-# only their -dev folders; a released folder is never deleted.
 
-foreach ($legacy in @('non-steam-games-activity', 'non-steam-games-activity-dev', 'steamgriddb-artwork', 'steamgriddb-artwork-dev')) {
-  Set-PluginEnabled -ConfigPath $configPath -Name $legacy -Enabled $false
-  Write-Host "Disabled legacy plugin: $legacy"
-}
-foreach ($legacyDev in @('non-steam-games-activity-dev', 'steamgriddb-artwork-dev')) {
-  $legacyPath = Join-Path $pluginsDir $legacyDev
-  if (Test-Path $legacyPath) {
-    Remove-Item -Path $legacyPath -Recurse -Force
-    Write-Host "Removed legacy folder: $legacyDev"
-  }
-}
 
 Write-Host "Deployed $devName." -ForegroundColor Green
 
