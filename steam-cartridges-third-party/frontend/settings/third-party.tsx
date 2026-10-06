@@ -3,9 +3,9 @@
 // the backend port only; the auto-add itself runs in app/store-sync when a toggle changes (index.tsx).
 import { useEffect, useRef, useState } from "react";
 import { DialogButton, Field, PanelSection } from "@steambrew/client";
-import { useSetting } from "../settings";
-import { backend, type InstalledStoreGame } from "../../ports/backend";
-import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CopyCode, CredentialsNote, ExternalLink, ItemRow, SettingsModal, ToggleRow } from "../components";
+import { useSetting } from "./settings";
+import { backend, type InstalledStoreGame } from "../backend";
+import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CopyCode, CredentialsNote, ExternalLink, ItemRow, SettingsModal, ToggleRow } from "./components";
 
 interface Accounts {
     epic: { found: boolean; private: boolean };
@@ -115,7 +115,7 @@ export function ThirdPartySection() {
                         label="Epic Games Store"
                         description="Epic games on this PC: the store's Game Info and screenshots when the game is not on Steam, and your Epic achievements."
                         value={epicOn}
-                        onChange={(on) => setServices({ ...services, epicEnabled: on })}
+                        onChange={(on: boolean) => setServices({ ...services, epicEnabled: on })}
                     />
                     {epicOn && (
                         <ItemRow>
@@ -149,7 +149,7 @@ export function ThirdPartySection() {
                         label="Xbox"
                         description="Xbox PC games on this PC: the store's Game Info and screenshots when the game is not on Steam, and your Xbox achievements."
                         value={xboxOn}
-                        onChange={(on) => setServices({ ...services, xboxEnabled: on })}
+                        onChange={(on: boolean) => setServices({ ...services, xboxEnabled: on })}
                     />
                     {xboxOn &&
                         (accounts?.xbox.signed_in ? (

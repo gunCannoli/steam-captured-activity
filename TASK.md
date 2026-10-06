@@ -16,6 +16,14 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges extension system, modular expansion plugins & universal Captured Activity (2026-10-06): completed and verified.**
+Plan: [docs/plans/steam-cartridges-extension-system-and-expansions-plan.md](docs/plans/steam-cartridges-extension-system-and-expansions-plan.md).
+- Decoupled `steam-cartridges` into a modular core by establishing a typed extension registry on `window.SteamCartridges` (`frontend/kernel/extensions.ts`) with load-order queueing (`__STEAM_CARTRIDGES_QUEUE__`) and dynamic settings panel injection (`SettingsPanel` in `panel.tsx`).
+- Created `steam-cartridges-local`: standalone, publishable Millennium plugin holding all offline Steam emulator achievement parsing (.ini and .json for CODEX, RUNE, GSE, Goldberg) and backup/reset capabilities. Verified with unit tests passing 100%.
+- Created `steam-cartridges-third-party`: standalone, publishable Millennium plugin carrying Epic Games and Xbox / Microsoft Store / Game Pass detection, shortcut auto-add, achievement synchronization, launcher overlays, and Microsoft OAuth device sign-in. Verified with tests passing 100%.
+- Extended Captured Activity to work universally on both native Steam games and non-Steam shortcuts (`surfaces/captures/activity.ts`, `publish.ts`, `headline.ts`, `activity-cards.ts`). Native games with local captures render 16:9 cards, clip playback, and `{Username} captured` headlines in the Activity Feed without requiring community upload.
+- Removed dead third-party settings and unused backend RPCs (`StoreAccounts`, `XboxSignInStart`, `XboxSignInPoll`, `XboxSignOut`). Verified zero regressions: 328 TypeScript tests passing, all Lua test suites passing, and zero capability ratchet violations.
+
 **steam-cartridges background artwork/icon ingestion & settings modals Guardrail 18 cleanup (2026-10-06): completed and verified.**
 Wired `ArtworkResolver.ensure` into `frontend/app/ingest.ts` during background ingestion so cover art (`SetCustomArtworkForApp`) and shortcut icons (`SetShortcutIcon`) are written to Steam immediately when shortcuts are fetched, eliminating the requirement to visit the game page for native components to update. Cleaned up Review (`settings/panels/audit.tsx`) and Game Data Editor (`game-editor/*`) modals: removed repeated format hints (semicolons, date formats) from individual field labels and consolidated into a top-level section description; shortened verbose labels and descriptions across both dialogs; wrapped per-game cards in block containers to enforce `<Blocks>` spacing (`BLOCK_GAP`); converted dropdowns to `FullWidthRows` and action controls to `ButtonRow`. Verified via 327 TypeScript unit tests, 12 Lua test suites, and production build.
 
@@ -283,6 +291,11 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
   and phases P1-P10: [docs/plans/enhanced-notifications-theme-creator-plan.md](docs/plans/enhanced-notifications-theme-creator-plan.md).
   The user answered its § 3.2 (2026-10-04). **Next: P1 (sound library) and P2 (pure groundwork)**, each with its own
   mechanical plan first.
+- **Extension System, Expansions & Universal Captured Activity ([plan](docs/plans/steam-cartridges-extension-system-and-expansions-plan.md)):**
+  Decouple `steam-cartridges` into a modular core with a typed Extension API (`window.SteamCartridges`). Extract `steam-cartridges-local`
+  (CODEX/RUNE/GSE/Goldberg local achievements .ini support; Wuchang reference game) and `steam-cartridges-third-party` (Epic/Xbox game discovery,
+  auto-add, store achievements, and launcher tracking). Generalize Captured Activity to render 16:9 thumbnails and `{Username} captured`
+  on both native Steam games and non-Steam shortcuts.
 - **Phase 9 — provider contract** ([ADR-0013](docs/decisions.md#adr-0013-providers-return-data-the-core-renders-it),
   [ADR-0014](docs/decisions.md#adr-0014-providers-are-isolated-and-fail-silently)), after the migration:
   a provider becomes one more source adapter behind the migration's source contract.

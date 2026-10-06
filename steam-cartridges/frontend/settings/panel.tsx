@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { MetadataSection } from "./panels/metadata";
 import { AchievementsSection } from "./panels/achievements";
-import { ThirdPartySection } from "./panels/third-party";
 import { NotificationsSection } from "./panels/notifications";
 import { ActivitySection } from "./panels/activity";
 import { CommunitySection } from "./panels/community";
@@ -13,20 +12,34 @@ import { SyncProgressBar } from "./sync-progress";
 export function SettingsPanel() {
     const [, tick] = useState(0);
 
-    // Periodic refresh so live collections and shortcuts remain synced
+    // Periodic refresh so live collections, shortcuts, and extension panels remain synced
     useEffect(() => {
         const t = setInterval(() => tick((n) => n + 1), 3000);
         return () => clearInterval(t);
     }, []);
 
+    const extPanels = ((window as any).SteamCartridges?.getSettingsPanels?.() ?? []) as Array<{
+        id: string;
+        title: string;
+        order?: number;
+        render: () => any;
+    }>;
+    const prePanels = extPanels.filter((p) => (p.order ?? 50) < 40);
+    const postPanels = extPanels.filter((p) => (p.order ?? 50) >= 40);
+
     return (
         <div style={{ paddingBottom: "70px", position: "relative" }}>
             <MetadataSection />
             <AchievementsSection />
-            <ThirdPartySection />
+            {prePanels.map((p) => (
+                <div key={p.id}>{p.render()}</div>
+            ))}
             <NotificationsSection />
             <ActivitySection />
             <CommunitySection />
+            {postPanels.map((p) => (
+                <div key={p.id}>{p.render()}</div>
+            ))}
             <RulesSection />
             <RevisionSection />
             <SyncProgressBar />

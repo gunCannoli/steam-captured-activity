@@ -21,6 +21,8 @@ export interface ViewTrackerOptions {
     toShortcutId: (raw: unknown) => ShortcutId | undefined;
     viewed: (p: ViewPayload) => void;
     left: (p: ViewPayload) => void;
+    nativeViewed?: (p: { appid: number; mode: ViewMode }) => void;
+    nativeLeft?: (p: { appid: number; mode: ViewMode }) => void;
     now: () => number;
     quietMs?: number;
 }
@@ -33,12 +35,15 @@ export interface ViewTracker {
     /** The window of this mode closed: leave whatever it showed. */
     close(mode: ViewMode): void;
     current(mode: ViewMode): ShortcutId | undefined;
+    currentNative?(mode: ViewMode): number | undefined;
 }
 
 export function createViewTracker(opts: ViewTrackerOptions): ViewTracker {
     const quietMs = opts.quietMs ?? GAMEPAD_QUIET_MS;
     const current: Record<ViewMode, ShortcutId | undefined> = { desktop: undefined, gamepad: undefined };
+    const currentNative: Record<ViewMode, number | undefined> = { desktop: undefined, gamepad: undefined };
     let lastSighting = -Infinity;
+    let lastNativeSighting = -Infinity;
 
     /** Move `mode` to `next`; emits left for the old shortcut and viewed for the new one. */
     const move = (mode: ViewMode, next: ShortcutId | undefined): void => {
@@ -49,21 +54,50 @@ export function createViewTracker(opts: ViewTrackerOptions): ViewTracker {
         if (next !== undefined) opts.viewed({ appid: next, mode });
     };
 
+    const moveNative = (mode: ViewMode, next: number | undefined): void => {
+        const prev = currentNative[mode];
+        if (prev === next) return;
+        currentNative[mode] = next;
+        if (prev !== undefined) opts.nativeLeft?.({ appid: prev, mode });
+        if (next !== undefined) opts.nativeViewed?.({ appid: next, mode });
+    };
+
     return {
         route(raw) {
-            move("desktop", raw === undefined ? undefined : opts.toShortcutId(raw));
+            const scId = raw === undefined ? undefined : opts.toShortcutId(raw);
+            move(modeFromRoute(scId), scId);
+            const nativeId = (scId === undefined && typeof raw === "number" && raw > 0) ? raw : undefined;
+            moveNative("desktop", nativeId);
         },
         sighting(raw) {
             const now = opts.now();
-            const id = opts.toShortcutId(raw);
-            const reopened = id !== undefined && id === current.gamepad && now - lastSighting >= quietMs;
-            lastSighting = now;
-            if (reopened) opts.viewed({ appid: id, mode: "gamepad" });
-            else move("gamepad", id);
+            const scId = opts.toShortcutId(raw);
+            if (scId !== undefined) {
+                moveNative("gamepad", undefined);
+                const reopened = scId === current.gamepad && now - lastSighting >= quietMs;
+                lastSighting = now;
+                if (reopened) opts.viewed({ appid: scId, mode: "gamepad" });
+                else move("gamepad", scId);
+            } else if (typeof raw === "number" && raw > 0) {
+                move("gamepad", undefined);
+                const reopened = raw === currentNative.gamepad && now - lastNativeSighting >= quietMs;
+                lastNativeSighting = now;
+                if (reopened) opts.nativeViewed?.({ appid: raw, mode: "gamepad" });
+                else moveNative("gamepad", raw);
+            } else {
+                move("gamepad", undefined);
+                moveNative("gamepad", undefined);
+            }
         },
         close(mode) {
             move(mode, undefined);
+            moveNative(mode, undefined);
         },
         current: (mode) => current[mode],
+        currentNative: (mode) => currentNative[mode],
     };
+}
+
+function modeFromRoute(_id: ShortcutId | undefined): ViewMode {
+    return "desktop";
 }

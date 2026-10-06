@@ -297,45 +297,48 @@ export async function publishActivity(
         return 0;
     }
 
-    // Guarantee that any past negative-cache blacklist entry is purged
-    if (storeCache.m_setUnavailableApps?.has(appid)) {
-        storeCache.m_setUnavailableApps.delete(appid);
-    }
-    ensureStoreCacheHooked();
-
     const overview = (window as any).appStore?.GetAppOverviewByAppID?.(appid);
     const displayName = overview?.display_name || "";
     const iconUrl = getCommunityIconUrl(appid, overview);
 
-    // 1. Ensure fake StoreItem exists in StoreItemCache so dt's visibility guard passes
-    let fakeApp = storeCache.m_mapApps.get(appid);
-    if (!fakeApp) {
-        const sampleApp = storeCache.m_mapApps.values().next().value;
-        fakeApp = Object.create(
-            sampleApp ? Object.getPrototypeOf(sampleApp) : Object.prototype,
-        );
-        fakeApp.m_unID = fakeApp.m_unAppID = appid;
-        fakeApp.m_bVisible = true;
-        fakeApp.m_strName = displayName;
-        fakeApp.m_eItemType = 0;
-        fakeApp.m_eAppType = 1;
-        fakeApp.m_rgStoreTags = [];
-        fakeApp.m_rgStoreTagIDs = [];
-        fakeApp.m_DataRequested = {
-            include_assets: true,
-            include_platforms: true,
-            include_release: true,
-            include_tag_count: 0,
-        };
-        fakeApp.BIsVisible = () => true;
-        fakeApp.BIsApplicationOrTool = () => false;
-        fakeApp.BContainDataRequest = () => true;
+    const isShortcut = isShortcutAppId(appid);
+    if (isShortcut) {
+        // Guarantee that any past negative-cache blacklist entry is purged
+        if (storeCache.m_setUnavailableApps?.has(appid)) {
+            storeCache.m_setUnavailableApps.delete(appid);
+        }
+        ensureStoreCacheHooked();
 
-        storeCache.m_mapApps.set(appid, fakeApp);
-        injectedStoreApps.add(appid);
+        // 1. Ensure fake StoreItem exists in StoreItemCache so dt's visibility guard passes
+        let fakeApp = storeCache.m_mapApps.get(appid);
+        if (!fakeApp) {
+            const sampleApp = storeCache.m_mapApps.values().next().value;
+            fakeApp = Object.create(
+                sampleApp ? Object.getPrototypeOf(sampleApp) : Object.prototype,
+            );
+            fakeApp.m_unID = fakeApp.m_unAppID = appid;
+            fakeApp.m_bVisible = true;
+            fakeApp.m_strName = displayName;
+            fakeApp.m_eItemType = 0;
+            fakeApp.m_eAppType = 1;
+            fakeApp.m_rgStoreTags = [];
+            fakeApp.m_rgStoreTagIDs = [];
+            fakeApp.m_DataRequested = {
+                include_assets: true,
+                include_platforms: true,
+                include_release: true,
+                include_tag_count: 0,
+            };
+            fakeApp.BIsVisible = () => true;
+            fakeApp.BIsApplicationOrTool = () => false;
+            fakeApp.BContainDataRequest = () => true;
+
+            storeCache.m_mapApps.set(appid, fakeApp);
+            injectedStoreApps.add(appid);
+        }
+        fakeApp.GetName = () => displayName;
+        fakeApp.GetAssets = () => ({ GetCommunityIconURL: () => iconUrl });
     }
-    fakeApp.GetName = () => displayName;
-    fakeApp.GetAssets = () => ({ GetCommunityIconURL: () => iconUrl });
 
     // 2. Resolve event class constructor
     const V = screenshotEventClass();
@@ -344,6 +347,9 @@ export async function publishActivity(
     // when the store's observable map is given a new object for the app, not when the old one is mutated (verified live
     // 2026-10-02: unlocks that arrive after the page opened showed up within 2 s). It is set at the end, once full.
     let appActivity: AppActivity | undefined;
+    if (!isShortcut) {
+        appActivity = actStore.GetAppActivity(appid) || actStore.m_mapAppActivity.get(appid);
+    }
     // The constructor sample must be Steam's own class: never a plain object (our fallback literal).
     const sampleEntry = [...actStore.m_mapAppActivity.values()].find(
         (e) => e?.m_mapActivityByDay instanceof Map && e.constructor !== Object,
@@ -402,9 +408,12 @@ export async function publishActivity(
         }
     }
     if (!appActivity) return 0;
-    // A shortcut has no activity on Steam's servers: the feed's "show more" must not ask for history (it would send
-    // a request for an appid the server does not know).
-    appActivity.m_bNoMoreHistoryAvailable = true;
+    if (isShortcut) {
+        // A shortcut has no activity on Steam's servers: the feed's "show more" must not ask for history (it would send
+        // a request for an appid the server does not know).
+        appActivity.m_bNoMoreHistoryAvailable = true;
+        appActivity.m_mapActivityByDay.clear();
+    }
 
     // 4. Combine and group captures by local midnight
     const mediaItems: MediaItem[] = [
@@ -441,7 +450,6 @@ export async function publishActivity(
         list.push(item);
     }
 
-    appActivity.m_mapActivityByDay.clear();
     const fileIdsForApp: string[] = [];
 
     for (const [dayBegin, dayMedia] of byDay.entries()) {
@@ -487,7 +495,7 @@ export async function publishActivity(
         fakeEvent.steamIDTarget = currentSteamID;
         fakeEvent.eEventType = 13; // FilePublished_Screenshot
         fakeEvent.bIsGameActivity = false;
-        fakeEvent.bIsNonSteam = true;
+        fakeEvent.bIsNonSteam = isShortcut;
         fakeEvent.m_mediaItems = dayMedia;
         fakeEvent.commentThreads = [];
         fakeEvent.activeThread = 0;
@@ -509,12 +517,19 @@ export async function publishActivity(
         fakeEvent.BSupportsCommentThreads = () => false;
         fakeEvent.BUserCanDelete = () => false;
 
-        if (day.m_rgEvents?.clear) {
-            day.m_rgEvents.clear();
-            day.m_rgEvents.push(fakeEvent);
-        } else if (Array.isArray(day.m_rgEvents)) {
-            day.m_rgEvents.length = 0;
-            day.m_rgEvents.push(fakeEvent);
+        if (isShortcut) {
+            if (day.m_rgEvents?.clear) {
+                day.m_rgEvents.clear();
+                day.m_rgEvents.push(fakeEvent);
+            } else if (Array.isArray(day.m_rgEvents)) {
+                day.m_rgEvents.length = 0;
+                day.m_rgEvents.push(fakeEvent);
+            }
+        } else {
+            if (Array.isArray(day.m_rgEvents)) {
+                day.m_rgEvents = day.m_rgEvents.filter((e: any) => !e?.m_mediaItems);
+                day.m_rgEvents.push(fakeEvent);
+            }
         }
     }
 
@@ -553,9 +568,9 @@ export async function publishActivity(
     }
     const achievementCount = achDays.reduce((n, d) => n + d.items.length, 0);
 
-    // 6. Synthetic native activity events: Added to Library and Played First Time
+    // 6. Synthetic native activity events: Added to Library and Played First Time (shortcuts only)
     let syntheticCount = 0;
-    if (showAdded || showFirstPlayed) {
+    if (isShortcut && (showAdded || showFirstPlayed)) {
         const storedTimestamps = getActivityTimestamps(appid);
         const mediaTimestamps = mediaItems.map((m) => m.timestamp);
         const earliestMedia = mediaTimestamps.length > 0 ? Math.min(...mediaTimestamps) : undefined;
@@ -694,11 +709,9 @@ export async function publishActivity(
         actStore.m_mapAppActivity.set(appid, appActivity);
         publishedSignature.set(appid, signature);
     }
-    // Steam's feed calls FetchLatestActivity(appid) 500 ms after it mounts; for an app it has an entry for, that sends
-    // GetUserNews and GetActivity for the appid. A shortcut has nothing there, and the requests were built from our entry
-    // (the "Assertion failed" rejections). FetchLatestActivity returns at once for an app already in this set, the only
-    // thing the set is used for besides the fetch itself; this feed is ours (the captures surface publishes it).
-    actStore.m_setAppFetchRequested?.add(appid);
+    if (isShortcut) {
+        actStore.m_setAppFetchRequested?.add(appid);
+    }
     logger.info(
         `Published ${mediaItems.length} capture(s) (${screenshots.length} shot(s), ${clips.length} clip(s)), ${nativeEvents} native event(s), ${achievementCount} unlock(s) on ${achDays.length} day(s), and ${syntheticCount} synthetic activity event(s) across ${appActivity.m_mapActivityByDay.size} day(s) in activity feed for ${appid}.`,
     );

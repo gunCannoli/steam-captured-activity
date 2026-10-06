@@ -23,13 +23,17 @@ function handleHeadlineIntercept(_type: unknown, props: unknown): void {
     return;
   }
 
-  const appid = p.event.appid ?? Number(p.event.gameid);
-  if (p.event.bIsNonSteam || (typeof appid === 'number' && isShortcutAppId(appid))) {
-    // Steam's EventHeadline renders:
-    // <span className="ActorName">{persona}</span><span className="HeaderChildren">{children}</span>
-    // Replacing UGC string (" shared X screenshots") with " captured" aligns with native phrasing (" achieved").
-    // Native events like AddedToLibrary (type 3) and PlayedFirstTime (type 30) retain Steam's native phrases.
-    if (p.event.eEventType === 13 || p.event.eEventType === undefined) {
+  // Steam's EventHeadline renders:
+  // <span className="ActorName">{persona}</span><span className="HeaderChildren">{children}</span>
+  // Replacing UGC string (" shared X screenshots") with " captured" aligns with native phrasing (" achieved").
+  // Native events like AddedToLibrary (type 3) and PlayedFirstTime (type 30) retain Steam's native phrases.
+  if (p.event.eEventType === 13 || p.event.eEventType === undefined) {
+    const appid = p.event.appid ?? Number(p.event.gameid);
+    const isShortcut = p.event.bIsNonSteam || (typeof appid === 'number' && isShortcutAppId(appid));
+    const hasMediaItems = Array.isArray((p.event as any).m_mediaItems);
+    const isScreenshotText = p.children.toLowerCase().includes('screenshot');
+
+    if (isShortcut || hasMediaItems || isScreenshotText) {
       Object.assign(p, { children: ' captured' });
     }
   }

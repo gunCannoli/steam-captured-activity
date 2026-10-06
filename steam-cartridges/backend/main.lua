@@ -84,12 +84,8 @@ SaveManualCover = RECORD_RPC.SaveManualCover
 -- Downloaded media on disk (ADR-0051): drop the games not opened within the setting's days.
 PruneMediaCache = RECORD_RPC.PruneMediaCache
 
--- Third-party stores (ADR-0056): installed Epic and Xbox games, the accounts, the Xbox sign-in.
+-- Third-party stores (ADR-0056): installed Epic and Xbox games, launcher hooks.
 StoreInstalledGames = STORE_RPC_3P.StoreInstalledGames
-StoreAccounts       = STORE_RPC_3P.StoreAccounts
-XboxSignInStart     = STORE_RPC_3P.XboxSignInStart
-XboxSignInPoll      = STORE_RPC_3P.XboxSignInPoll
-XboxSignOut         = STORE_RPC_3P.XboxSignOut
 StoreEpicLaunchShortcuts = STORE_RPC_3P.StoreEpicLaunchShortcuts
 StoreXboxRepairs    = STORE_RPC_3P.StoreXboxRepairs
 StoreEpicPrelaunch  = STORE_RPC_3P.StoreEpicPrelaunch

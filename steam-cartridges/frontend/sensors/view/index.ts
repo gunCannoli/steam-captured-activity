@@ -38,6 +38,16 @@ export function installViewSensor(bus: EventBus): void {
                 logger.info(`Left shortcut ${p.appid} (${p.mode}).`);
                 bus.emit("shortcut.left", p);
             }, 0),
+        nativeViewed: (p) =>
+            setTimeout(() => {
+                logger.info(`Viewed native app ${p.appid} (${p.mode}).`);
+                bus.emit("native.viewed", p);
+            }, 0),
+        nativeLeft: (p) =>
+            setTimeout(() => {
+                logger.info(`Left native app ${p.appid} (${p.mode}).`);
+                bus.emit("native.left", p);
+            }, 0),
     });
 
     let gamepadWindows = 0;

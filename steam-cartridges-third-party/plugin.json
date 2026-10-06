@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
+  "name": "steam-cartridges-third-party",
+  "common_name": "Steam Cartridges - Third-Party Stores",
+  "description": "Discovers installed games from Epic Games and Xbox / Microsoft Store, syncs store achievements, and handles launcher overlays.",
+  "version": "0.1.0",
+  "useBackend": true,
+  "backendType": "lua"
+}

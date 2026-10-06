@@ -9,6 +9,10 @@ export interface Events {
     "shortcut.viewed": { appid: ShortcutId; mode: "desktop" | "gamepad" };
     /** The user left a shortcut's page. */
     "shortcut.left": { appid: ShortcutId; mode: "desktop" | "gamepad" };
+    /** The user opened a native Steam game's page (desktop route or Big Picture). */
+    "native.viewed": { appid: number; mode: "desktop" | "gamepad" };
+    /** The user left a native Steam game's page. */
+    "native.left": { appid: number; mode: "desktop" | "gamepad" };
     "shortcut.launched": { appid: ShortcutId; name: string };
     "shortcut.quit": { appid: ShortcutId; name: string };
     /** A Steam window opened or closed (view sensor); `document` is the window's own DOM document. */

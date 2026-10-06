@@ -162,8 +162,8 @@ let hook: ReturnType<typeof keepJsxPatched> | undefined;
 function handleActivityCardReplace(_type: unknown, props: unknown): unknown {
   const p = props as any;
   if (
-    p?.event?.bIsNonSteam &&
-    Array.isArray(p.event.m_mediaItems) &&
+    Array.isArray(p?.event?.m_mediaItems) &&
+    p.event.m_mediaItems.length > 0 &&
     p.onScreenshotChanged
   ) {
     return NonSteamActivityCards;

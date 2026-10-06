@@ -1,6 +1,6 @@
 import { logger } from "../../logger";
 import { clearActivity, publishActivity } from "./activity";
-import { toGameId, type ShortcutId } from "../../kernel/appid";
+import { toGameId, isShortcutAppId, type ShortcutId } from "../../kernel/appid";
 import { clearSummary, publishSummary } from "./summary";
 import { deps } from "./deps";
 
@@ -37,11 +37,12 @@ function setHasContent(appid: number, hasContent: boolean): void {
  * it also decides when to clear.
  */
 export async function patch(appid: number): Promise<void> {
-    const gameid = toGameId(appid as ShortcutId);
+    const isShortcut = isShortcutAppId(appid);
+    const gameid = isShortcut ? toGameId(appid as ShortcutId) : appid.toString();
 
     try {
         const [summaryCount, activityCount] = await Promise.all([
-            publishSummary(appid, gameid),
+            isShortcut ? publishSummary(appid, gameid) : Promise.resolve(0),
             publishActivity(appid, gameid),
         ]);
         const totalCount = summaryCount + activityCount;
@@ -49,7 +50,9 @@ export async function patch(appid: number): Promise<void> {
 
         // Steam's "information is unavailable" placeholder is only worth removing
         // once we have something to show instead.
-        setHasContent(appid, totalCount > 0);
+        if (isShortcut) {
+            setHasContent(appid, totalCount > 0);
+        }
     } catch (error) {
         logger.error("Could not publish summary or activity for", appid, error);
     }

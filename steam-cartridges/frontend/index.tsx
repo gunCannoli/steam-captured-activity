@@ -50,6 +50,7 @@ import { loadStoreItem } from "./sensors/store-item";
 import { createFeatureSwitches, type FeatureId } from "./safety/features";
 import { beginBoot, watchBoot } from "./safety/boot";
 import { lookupStored, toShortcutId, type ShortcutId } from "./kernel/appid";
+import { createExtensionRegistry, type SteamCartridgesAPI } from "./kernel/extensions";
 import { createImageBin } from "./kernel/image-bin";
 import { createMediaBin } from "./kernel/media-bin";
 import { createManualShelf } from "./kernel/manual-shelf";
@@ -411,6 +412,34 @@ export type {
     SummaryContribution,
     SummaryProvider,
 } from "./surfaces/captures";
+export type { SteamCartridgesAPI };
+
+/** Install API globally on window.SteamCartridges and flush any queued registrations. */
+export function initGlobalExtensionAPI(): SteamCartridgesAPI {
+    const existing = (window as any).SteamCartridges;
+    if (existing && existing.version) return existing as SteamCartridgesAPI;
+
+    const api = createExtensionRegistry();
+    (window as any).SteamCartridges = api;
+
+    // Flush any queue from plugins loaded before steam-cartridges
+    const queue = (window as any).__STEAM_CARTRIDGES_QUEUE__;
+    if (Array.isArray(queue)) {
+        for (const item of queue) {
+            try {
+                if (item.type === "achievement") api.registerAchievementProvider(item.provider);
+                else if (item.type === "library") api.registerLibraryProvider(item.provider);
+                else if (item.type === "settings") api.registerSettingsPanel(item.panel);
+                else if (item.type === "summary") api.registerSummaryProvider(item.provider);
+            } catch {
+                // Fail-silent isolation (ADR-0014)
+            }
+        }
+        delete (window as any).__STEAM_CARTRIDGES_QUEUE__;
+    }
+
+    return api;
+}
 
 const LEGACY_PLUGINS = [
     "non-steam-games-activity",
@@ -420,6 +449,7 @@ const LEGACY_PLUGINS = [
 ];
 
 async function init() {
+    const extensionApi = initGlobalExtensionAPI();
     // Panels reach the app only through this context (plan M8b, § 7.0 D3).
     setPanelContext({
         routing: {
@@ -652,8 +682,26 @@ async function init() {
     bus.on("shortcut.viewed", ({ appid }) => {
         if (features.isEnabled("native-links")) features.run("native-links", () => wrapNavigators());
         if (features.isEnabled("captures")) void patchLibraryApp(appid);
+        extensionApi.notifyAppViewed({
+            appid,
+            gameid: String(appid),
+            isShortcut: true,
+            displayName: shortcutTitle(appid) ?? "",
+        });
     });
     bus.on("shortcut.left", ({ appid }) => {
+        if (features.isEnabled("captures")) unpatchLibraryApp(appid);
+    });
+    bus.on("native.viewed", ({ appid }) => {
+        if (features.isEnabled("captures")) void patchLibraryApp(appid);
+        extensionApi.notifyAppViewed({
+            appid,
+            gameid: String(appid),
+            isShortcut: false,
+            displayName: "",
+        });
+    });
+    bus.on("native.left", ({ appid }) => {
         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
     });
     // Big Picture thumbnail styling goes into each gamepad window the view sensor reports.
@@ -670,6 +718,12 @@ async function init() {
         logger.info(`${name} closed; refreshing its activity.`);
         void refreshLibraryApp(appid);
         void libraryStats.load().then(refreshLibraryHome);
+        extensionApi.notifyAppQuit({
+            appid,
+            gameid: String(appid),
+            isShortcut: true,
+            displayName: name ?? shortcutTitle(appid) ?? "",
+        });
     });
 
     // ===== Sensors (migration plan M2) =====

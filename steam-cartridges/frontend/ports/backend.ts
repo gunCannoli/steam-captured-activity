@@ -260,21 +260,6 @@ export const backend = {
     storeEpicReap(appid: number, act: "start" | "tick" | "stop") {
         return call<{ active: boolean; phase?: string; reason?: string; error?: string }>("StoreEpicReap", { appid, act });
     },
-    /** Store copies (ADR-0056): an Epic account on this PC (and whether its achievements are private); the Xbox account. */
-    storeAccounts() {
-        return call<{ epic: { found: boolean; private: boolean }; xbox: { signed_in: boolean; gamertag?: string }; error?: string }>("StoreAccounts", {});
-    },
-    /** Xbox sign-in, step 1: a code to type at the returned address. */
-    xboxSignInStart() {
-        return call<{ user_code?: string; verification_uri?: string; device_code?: string; interval?: number; expires_in?: number; error?: string }>("XboxSignInStart", {});
-    },
-    /** Xbox sign-in, step 2: poll every `interval` seconds until `ok` (or an error). */
-    xboxSignInPoll(deviceCode: string) {
-        return call<{ pending?: boolean; ok?: boolean; gamertag?: string; error?: string }>("XboxSignInPoll", { device_code: deviceCode });
-    },
-    xboxSignOut() {
-        return call<{ ok?: boolean; error?: string }>("XboxSignOut", {});
-    },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(opts?: CallOptions): Promise<{ records: Record<string, RecordResponse["parts"]> }> {
         return call<{ records: Record<string, RecordResponse["parts"]> }>("GetAllRecords", {}, opts);
