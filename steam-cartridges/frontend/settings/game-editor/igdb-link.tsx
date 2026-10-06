@@ -58,14 +58,14 @@ export function IgdbLink({
                 </ItemRow>
                 <ItemRow trailing>
                     <TextField
-                        label="Link by IGDB ID (numeric)"
+                        label="IGDB ID"
                         value={idInput}
                         onChange={(e) => setIdInput(e.target.value)}
                     />
                 </ItemRow>
                 <ButtonRow
                     label="Link ID"
-                    description="Fetches official IGDB metadata (genres, developer, categories) directly"
+                    description="Fetch metadata by numeric ID"
                     buttonLabel="Link IGDB"
                     disabled={busy || !parsedDirectId}
                     onClick={() => {
@@ -86,7 +86,7 @@ export function IgdbLink({
                 </ItemRow>
                 <ButtonRow
                     label="Search IGDB"
-                    description="Searches IGDB catalog for matching titles"
+                    description="Search IGDB by title"
                     buttonLabel="Search"
                     disabled={busy || term.trim().length < 2}
                     onClick={() => void search()}

@@ -21,7 +21,7 @@ export const EDITABLE_FIELDS: readonly EditableField[] = [
     { key: "franchises", label: "Franchises", kind: "list" },
     { key: "genres", label: "Genres", kind: "list" },
     { key: "release_date", label: "Release date", kind: "date" },
-    { key: "original_release_date", label: "First release (Early Access)", kind: "date" },
+    { key: "original_release_date", label: "First release", kind: "date" },
 ];
 
 export type PlayerFlag = "single_player" | "multiplayer" | "coop" | "split_screen";

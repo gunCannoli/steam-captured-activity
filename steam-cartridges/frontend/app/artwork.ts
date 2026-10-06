@@ -35,7 +35,7 @@ export interface ArtworkDeps {
 export interface ArtworkResolver {
     /** Subscribe to `artwork.applied`: record what the surface wrote, undo it when the backend refuses. */
     install(): void;
-    ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>>;
+    ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { lane?: "background" | "normal" }): Promise<Part<ArtworkPlan>>;
     /** Drop this session's memory so the next ensure asks the backend again. */
     invalidate(appid: ShortcutId): void;
     /**
@@ -86,7 +86,7 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
         return { path: saved.path, previous: saved.previous ?? "" };
     }
 
-    async function resolve(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined): Promise<Part<ArtworkPlan>> {
+    async function resolve(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { lane?: "background" | "normal" }): Promise<Part<ArtworkPlan>> {
         if (route.bucket === "none") {
             const part: Part<ArtworkPlan> = { status: "unsupported" };
             deps.records.update(appid, { artwork: part });
@@ -110,7 +110,7 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
             identity,
             artUrls,
             allowSgdb: deps.allowSgdb(appid),
-        });
+        }, opts);
         const raw = res.error ? undefined : (res.parts.artwork as Part<RawArtwork> | undefined);
 
         let part: Part<ArtworkPlan>;
@@ -169,8 +169,8 @@ export function createArtwork(deps: ArtworkDeps): ArtworkResolver {
         install() {
             deps.bus.on("artwork.applied", (e) => void record(e));
         },
-        async ensure(appid, route, identity) {
-            return memo.run(appid, () => resolve(appid, route, identity), () => deps.records.get(appid)?.artwork);
+        async ensure(appid, route, identity, opts) {
+            return memo.run(appid, () => resolve(appid, route, identity, opts), () => deps.records.get(appid)?.artwork);
         },
         invalidate(appid) {
             memo.forget(appid);

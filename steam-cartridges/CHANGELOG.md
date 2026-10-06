@@ -7,6 +7,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: background ingestion resolves artwork and shortcut icons immediately (2026-10-06)**:
+  - `app/ingest.ts` now calls `ArtworkResolver.ensure` during background ingest runs, writing custom cover art and shortcut icons directly to Steam (`SetCustomArtworkForApp`, `SetShortcutIcon`) as data is fetched rather than waiting for the user to navigate to the game's detail page.
+  - Added background lane prioritization for ingest artwork fetching.
+
+- **Changed: Review and Game Data Editor modals layout and copy cleanup (Guardrail 18, 2026-10-06)**:
+  - Removed repeated syntax hints (e.g. `(Separate entries with ;)`, `(YYYY-MM-DD...)`) from individual field labels in `GameDataEditor`; consolidated into a single section-level description atop the Game Details section.
+  - Shortened verbose descriptions across the Review modal (`settings/panels/audit.tsx`) and Game Data Editor (`metadata-form.tsx`, `igdb-link.tsx`, `steam-link.tsx`).
+  - Enforced `<Blocks>` card spacing per game in the Review popup by wrapping each game entry in a block container rather than a flattened `<Fragment>`.
+  - Replaced custom item rows with standard `ButtonRow` and `FullWidthRows` for dropdowns, adhering to the 2-column limit and full-width controls rules.
+
 - **Fixed: "Uncaught (in promise) Error: Assertion failed" on non-Steam game pages (2026-10-06)**: the activity feed entries the plugin publishes now carry the fields Steam's activity store reads, and Steam no longer sends server activity requests for a shortcut.
 
 - **Changed: a game's page shows its own data first (ADR-0060, 2026-10-06)**:

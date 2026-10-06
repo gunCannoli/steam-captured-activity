@@ -14,8 +14,6 @@ const CONTROLLER_OPTIONS: { data: ControllerOverride; label: string }[] = [
     { data: "none", label: "Keyboard & Mouse Only" },
 ];
 
-const HINTS = { list: "Separate entries with ;", date: "YYYY-MM-DD, empty if unknown" } as const;
-
 export function MetadataForm({
     appid,
     draft,
@@ -57,9 +55,15 @@ export function MetadataForm({
     return (
         <Blocks>
             <>
-                {!hasMetadata && (
-                    <Field label="No data yet" description="Open this game's page once to fetch some, or fill it in by hand." bottomSeparator="none" />
-                )}
+                <Field
+                    label="Game Details"
+                    description={
+                        !hasMetadata
+                            ? "No data fetched yet. Fill in details below. Separate multiple entries with semicolons (;). Dates use YYYY-MM-DD format."
+                            : "Separate multiple entries with semicolons (;). Dates use YYYY-MM-DD format."
+                    }
+                    bottomSeparator="none"
+                />
                 {EDITABLE_FIELDS.map((f) =>
                     f.kind === "textarea" ? (
                         <Field key={f.key} label={f.label} childrenLayout="below" childrenContainerWidth="max">
@@ -68,7 +72,7 @@ export function MetadataForm({
                     ) : (
                         <TextField
                             key={f.key}
-                            label={f.kind === "list" || f.kind === "date" ? `${f.label} (${HINTS[f.kind]})` : f.label}
+                            label={f.label}
                             value={draft[f.key]}
                             onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })}
                         />
@@ -85,7 +89,7 @@ export function MetadataForm({
                     <ToggleRow
                         key={p.flag}
                         label={p.label}
-                        description={p.flag === "single_player" ? "Player tags Steam shows on Game Info" : undefined}
+                        description={p.flag === "single_player" ? "Tags shown in Game Info" : undefined}
                         value={draft.players[p.flag]}
                         onChange={(on) => onChange({ ...draft, players: { ...draft.players, [p.flag]: on } })}
                     />
@@ -93,9 +97,13 @@ export function MetadataForm({
             </>
             <FullWidthRows
                 label="Controller support"
-                description={`Applies at once, no Save needed. ${
-                    detected === true ? "Detected from the emulator: full controller." : detected === false ? "Detected from the emulator: keyboard & mouse." : "Not detected for this game."
-                }`}
+                description={
+                    detected === true
+                        ? "Detected: full controller support"
+                        : detected === false
+                          ? "Detected: keyboard & mouse"
+                          : "Auto-detected based on platform/core"
+                }
             >
                 <Dropdown
                     rgOptions={CONTROLLER_OPTIONS}
@@ -105,10 +113,10 @@ export function MetadataForm({
                 />
             </FullWidthRows>
             <>
-                <ButtonRow label="Save" description="Stored as a manual edit: refreshes never overwrite it" buttonLabel="Save" disabled={busy || !dirty || errors.length > 0} onClick={onSave} />
+                <ButtonRow label="Save" description="Saves changes as a protected manual edit" buttonLabel="Save" disabled={busy || !dirty || errors.length > 0} onClick={onSave} />
                 <ButtonRow
                     label="Revert to fetched data"
-                    description={custom ? "Drop the manual edit and show the fetched data again" : "This game has no manual edit"}
+                    description={custom ? "Restore original fetched metadata" : "No manual edit to revert"}
                     buttonLabel="Revert"
                     disabled={busy || !custom}
                     onClick={onRevert}

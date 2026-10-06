@@ -1,5 +1,5 @@
 // Settings: Library Audit (migration plan M8c; reads the app through the panel context and the backend port).
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     DialogButton,
     Dropdown,
@@ -435,7 +435,7 @@ export function RevisionSection() {
                     {flagged.length > 0 && (
                         <FullWidthRows
                             label="Review"
-                            description="Fix controller support, achievements, and Steam links game by game"
+                            description="Review detected issues and configure overrides"
                         >
                             <DialogButton
                                 onClick={() => {
@@ -450,7 +450,7 @@ export function RevisionSection() {
                     )}
                     <FullWidthRows
                         label="Edit Game MetaData"
-                        description="Correct a game's Game Info by hand or link it to a Steam game"
+                        description="Edit game details, links, and controller support"
                     >
                         <DialogButton
                             onClick={() => setIsGameDataOpen(true)}
@@ -482,12 +482,12 @@ export function RevisionSection() {
                                 label="Show"
                                 description={
                                     filter === "not_scraped"
-                                        ? "Games still waiting for their first fetch; they are fetched in the background"
+                                        ? "Games queued for background fetch"
                                         : filter === "missing_achievements"
-                                          ? "Games with no achievements detected (link RetroAchievements, Steam, or mark None)"
+                                          ? "Games with no detected achievements"
                                           : filter === "missing_controller"
-                                            ? "Games with no known controller support"
-                                            : "Games needing controller support, achievements, or Steam links"
+                                            ? "Games with unconfigured controller input"
+                                            : "Games requiring attention"
                                 }
                             >
                                 <Dropdown
@@ -525,25 +525,17 @@ export function RevisionSection() {
                                 />
                             </FullWidthRows>
                             {displayedFlagged.length > 0 && filter !== "not_scraped" && (
-                                <ItemRow>
-                                    <Field
-                                        label={`Scan all ${displayedFlagged.length} game(s)`}
-                                        description="Fetch RetroAchievements & metadata for these games in the background"
-                                        bottomSeparator="none"
-                                    >
-                                        <DialogButton
-                                            onClick={() => {
-                                                const ids = displayedFlagged.map((f) => f.appid);
-                                                void ctx.ingest.start({ onlyAppids: ids, forceAll: false });
-                                                setFixMsg(`Queued background fetch for ${ids.length} game(s)`);
-                                                setTimeout(() => setFixMsg(""), 3000);
-                                            }}
-                                            style={BUTTON_STYLE}
-                                        >
-                                            Fetch All
-                                        </DialogButton>
-                                    </Field>
-                                </ItemRow>
+                                <ButtonRow
+                                    label={`Scan all ${displayedFlagged.length} game(s)`}
+                                    description="Queue background fetch for all listed games"
+                                    buttonLabel="Fetch All"
+                                    onClick={() => {
+                                        const ids = displayedFlagged.map((f) => f.appid);
+                                        void ctx.ingest.start({ onlyAppids: ids, forceAll: false });
+                                        setFixMsg(`Queued background fetch for ${ids.length} game(s)`);
+                                        setTimeout(() => setFixMsg(""), 3000);
+                                    }}
+                                />
                             )}
                             {fixMsg && <ActionRow message={fixMsg} />}
                             {filter === "not_scraped" ? (
@@ -557,27 +549,21 @@ export function RevisionSection() {
                                         </ItemRow>
                                     )}
                                     {notScraped.map((item) => (
-                                        <ItemRow key={item.appid}>
-                                            <Field
-                                                label={item.name}
-                                                description={gameLine(
+                                        <ButtonRow
+                                            key={item.appid}
+                                            label={item.name}
+                                            description={gameLine(
+                                                item.appid,
+                                                item.profile,
+                                            )}
+                                            buttonLabel="Fetch"
+                                            onClick={() =>
+                                                handleScanSingle(
                                                     item.appid,
-                                                    item.profile,
-                                                )}
-                                            >
-                                                <DialogButton
-                                                    onClick={() =>
-                                                        handleScanSingle(
-                                                            item.appid,
-                                                            item.name,
-                                                        )
-                                                    }
-                                                    style={BUTTON_STYLE}
-                                                >
-                                                    Scrape
-                                                </DialogButton>
-                                            </Field>
-                                        </ItemRow>
+                                                    item.name,
+                                                )
+                                            }
+                                        />
                                     ))}
                                 </>
                             ) : displayedFlagged.length === 0 ? (
@@ -595,7 +581,7 @@ export function RevisionSection() {
                                 </ItemRow>
                             ) : (
                                 displayedFlagged.map((item) => (
-                                    <Fragment key={item.appid}>
+                                    <div key={item.appid}>
                                         <ItemRow>
                                             <Field
                                                 label={item.name}
@@ -622,33 +608,30 @@ export function RevisionSection() {
                                             />
                                         </ItemRow>
                                         {item.missingController && (
-                                            <ItemRow>
-                                                <Field
-                                                    label="Controller override"
-                                                    childrenContainerWidth="max"
-                                                    bottomSeparator="none"
-                                                >
-                                                    <Dropdown
-                                                        rgOptions={
-                                                            CONTROLLER_OVERRIDE_OPTIONS
-                                                        }
-                                                        selectedOption={
-                                                            controllerOverrides[
-                                                                String(item.appid)
-                                                            ] || "auto"
-                                                        }
-                                                        onChange={(o) =>
-                                                            handleSetController(
-                                                                item.appid,
-                                                                o.data as ControllerOverride,
-                                                            )
-                                                        }
-                                                        contextMenuPositionOptions={{
-                                                            bMatchWidth: true,
-                                                        }}
-                                                    />
-                                                </Field>
-                                            </ItemRow>
+                                            <FullWidthRows
+                                                label="Controller override"
+                                                description="Select controller support for this game"
+                                            >
+                                                <Dropdown
+                                                    rgOptions={
+                                                        CONTROLLER_OVERRIDE_OPTIONS
+                                                    }
+                                                    selectedOption={
+                                                        controllerOverrides[
+                                                            String(item.appid)
+                                                        ] || "auto"
+                                                    }
+                                                    onChange={(o) =>
+                                                        handleSetController(
+                                                            item.appid,
+                                                            o.data as ControllerOverride,
+                                                        )
+                                                    }
+                                                    contextMenuPositionOptions={{
+                                                        bMatchWidth: true,
+                                                    }}
+                                                />
+                                            </FullWidthRows>
                                         )}
                                         {item.noAchievements && (
                                             <>
@@ -673,7 +656,7 @@ export function RevisionSection() {
                                                 </ItemRow>
                                                 <ButtonRow
                                                     label="Link RetroAchievements"
-                                                    description="Fetch achievements from RetroAchievements.org"
+                                                    description="Link by game ID or URL"
                                                     buttonLabel="Link RA"
                                                     disabled={
                                                         targetAppId !==
@@ -691,13 +674,13 @@ export function RevisionSection() {
                                         )}
                                         <ButtonRow
                                             label="Scan Game"
-                                            description="Search RetroAchievements & metadata for this game now"
+                                            description="Fetch metadata and achievements now"
                                             buttonLabel="Fetch"
                                             onClick={() => handleScanSingle(item.appid, item.name)}
                                         />
                                         <ItemRow trailing>
                                             <TextField
-                                                label="Steam app id"
+                                                label="Steam App ID"
                                                 value={
                                                     targetAppId === item.appid
                                                         ? steamIdInput
@@ -713,7 +696,7 @@ export function RevisionSection() {
                                         </ItemRow>
                                         <ButtonRow
                                             label="Link to Steam"
-                                            description="Use that Steam game's page data and achievements"
+                                            description="Match with a Steam store game"
                                             buttonLabel="Link"
                                             disabled={
                                                 targetAppId !== item.appid ||
@@ -736,7 +719,7 @@ export function RevisionSection() {
                                         />
                                         <ItemRow trailing>
                                             <TextField
-                                                label="IGDB game id"
+                                                label="IGDB ID"
                                                 value={
                                                     targetAppId === item.appid
                                                         ? igdbInput
@@ -752,7 +735,7 @@ export function RevisionSection() {
                                         </ItemRow>
                                         <ButtonRow
                                             label="Link to IGDB"
-                                            description="Fetch official IGDB metadata and categories"
+                                            description="Fetch metadata by numeric ID"
                                             buttonLabel="Link IGDB"
                                             disabled={
                                                 targetAppId !== item.appid ||
@@ -773,7 +756,7 @@ export function RevisionSection() {
                                         {item.noAchievements && (
                                             <ButtonRow
                                                 label="No Achievements"
-                                                description="Mark game as intentionally having no achievements"
+                                                description="Mark as having no achievements"
                                                 buttonLabel="Mark None"
                                                 onClick={() =>
                                                     handleSetNoAchievements(
@@ -785,7 +768,7 @@ export function RevisionSection() {
                                         {lookupStored(achievementsLib, item.appid)?.source && (
                                             <ButtonRow
                                                 label="Reset Achievement Source"
-                                                description="Clear manual binding or 'No achievements' override"
+                                                description="Clear manual override"
                                                 buttonLabel="Reset"
                                                 onClick={() =>
                                                     handleClearAchievements(
@@ -794,7 +777,7 @@ export function RevisionSection() {
                                                 }
                                             />
                                         )}
-                                    </Fragment>
+                                    </div>
                                 ))
                             )}
                             <ActionRow>

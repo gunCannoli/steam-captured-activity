@@ -14,10 +14,12 @@ function setup(over: {
     respond?: (appid: number, parts: string[], ctx: any) => any;
     schedule?: (fn: () => void) => void;
     needsFetch?: (appid: number) => boolean;
+    artwork?: { ensure: (appid: any, route: any, identity: any, opts: any) => Promise<any> };
 } = {}) {
     const calls: { appid: number; parts: string[]; ctx: any }[] = [];
     const known: number[][] = [];
     const sleeps: number[] = [];
+    const artCalls: any[] = [];
     let active = 0;
     let maxActive = 0;
     let newCalls = 0;
@@ -44,8 +46,14 @@ function setup(over: {
         sleep: async (ms: number) => { sleeps.push(ms); },
         schedule: over.schedule ?? (() => {}),
         needsFetch: over.needsFetch ? (id) => over.needsFetch!(id as number) : undefined,
+        artwork: over.artwork ?? {
+            async ensure(appid, route, identity, opts) {
+                artCalls.push({ appid, route, identity, opts });
+                return { status: 'ok' };
+            },
+        },
     });
-    return { ingest, calls, known, sleeps, get maxActive() { return maxActive; }, get newCalls() { return newCalls; } };
+    return { ingest, calls, known, sleeps, artCalls, get maxActive() { return maxActive; }, get newCalls() { return newCalls; } };
 }
 
 test('startup ingests only new shortcuts', async () => {
@@ -177,4 +185,12 @@ test('startup ingests existing shortcuts needing fetch when nothing is new', asy
     await s.ingest.startSync();
     assert.deepEqual([...new Set(s.calls.map((c) => c.appid))], [B.appid]);
     assert.deepEqual(s.known, [[B.appid]]);
+});
+
+test('startup ingests artwork and icons when artwork resolver is provided', async () => {
+    const s = setup({ newOnes: [A], library: [A] });
+    await s.ingest.startSync();
+    assert.equal(s.artCalls.length, 1);
+    assert.equal(s.artCalls[0].appid, A.appid);
+    assert.deepEqual(s.artCalls[0].opts, { lane: 'background' });
 });

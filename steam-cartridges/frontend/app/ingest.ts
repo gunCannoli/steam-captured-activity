@@ -34,6 +34,10 @@ export interface IngestDeps {
     needsFetch?(appid: ShortcutId): boolean;
     /** Called when a shortcut has been successfully fetched. */
     onDone?(appid: ShortcutId): void;
+    /** Artwork resolver: writes cover-arts and icon to Steam native components when data is fetched. */
+    artwork?: {
+        ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { lane?: "background" | "normal" }): Promise<unknown>;
+    };
 }
 
 export interface Ingest {
@@ -108,6 +112,13 @@ export function createIngest(deps: IngestDeps): Ingest {
         for (const part of parts) {
             const res = await deps.backend.ensureFresh(appid, [part], { ...base, identity }, BACKGROUND);
             if (pausedIn(res)) return { stop: true, done: false };
+        }
+        if (deps.artwork) {
+            try {
+                await deps.artwork.ensure(appid, route, identity, BACKGROUND);
+            } catch (e) {
+                logger.warn(`Ingest artwork failed for ${appid}:`, e);
+            }
         }
         return { stop: false, done: true };
     }

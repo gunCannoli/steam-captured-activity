@@ -38,14 +38,14 @@ export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; b
                     <>
                         <ButtonRow
                             label="Unlink"
-                            description="The game may be matched by its title again"
+                            description="Allow title-based matching again"
                             buttonLabel="Unlink"
                             disabled={busy}
                             onClick={() => run(() => editor.unlink(snapshot.appid, false), "Unlinked.")}
                         />
                         <ButtonRow
                             label="Unlink for good"
-                            description="Also never suggest this Steam game again"
+                            description="Unlink and ignore this Steam game"
                             buttonLabel="Unlink"
                             disabled={busy}
                             onClick={() => run(() => editor.unlink(snapshot.appid, true), "Unlinked; this game will not be suggested again.")}
@@ -54,15 +54,15 @@ export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; b
                 )}
                 {snapshot.custom && snapshot.link && (
                     <ItemRow>
-                        <Field label="Manual edit kept" description="Linking does not replace it. Use Revert to fetched data to show Steam's data instead." bottomSeparator="none" />
+                        <Field label="Manual edit kept" description="Manual edit preserved. Revert to show Steam store data." bottomSeparator="none" />
                     </ItemRow>
                 )}
             </>
             <>
                 <ItemRow trailing>
-                    <TextField label="Search Steam's games" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void search()} />
+                    <TextField label="Search Steam games" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void search()} />
                 </ItemRow>
-                <ButtonRow label="Search" description="Finds Steam games; nothing is linked until you choose one" buttonLabel="Search" disabled={busy || term.trim().length < 2} onClick={() => void search()} />
+                <ButtonRow label="Search" description="Search Steam store by title" buttonLabel="Search" disabled={busy || term.trim().length < 2} onClick={() => void search()} />
                 {searchError && <div style={{ ...ERROR_STYLE, marginTop: -STEAM_TRAILING / 2 }}>Search failed: {searchError}</div>}
                 {results && results.length === 0 && !searchError && (
                     <ItemRow>

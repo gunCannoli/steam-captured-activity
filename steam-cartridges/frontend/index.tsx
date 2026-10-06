@@ -325,6 +325,7 @@ const ingest = createIngest({
     allowScreenscraper: (appid) => setting("services").screenscraperEnabled !== false && routing.serviceAllowed("screenscraper", appid),
     hardcore: () => setting("raHardcoreMode"),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    artwork,
     needsFetch: (appid) => {
         if (fetchedInSession.has(appid)) return false;
         const r = records.store.get(appid);
