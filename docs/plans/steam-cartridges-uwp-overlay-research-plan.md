@@ -1,6 +1,6 @@
 # Research & Investigation Plan: Steam Overlay on Xbox UWP Games
 
-**Status:** Draft / Proposed (2026-10-04).  
+**Status:** Completed & Shipped in `steam-cartridges-third-party` (2026-10-07).  
 **Context:** In `steam-cartridges-store-launch-tracking-plan.md`, launch tracking for Xbox UWP was solved via `U0` (`SystemUWPLauncher.exe` / direct exe mapping), giving Steam running state, playtime tracking, and an active session timeline. However, Xbox UWP games still lack the **Steam Overlay** (Shift+Tab, in-game achievement banners, and Steam Game Recording captures). This plan investigates technical paths to enable the Steam Overlay for Xbox UWP games.  
 **Audience:** Developer/Agent researching Windows UWP isolation, Steam's native overlay injection pipeline, and candidate wrapper architectures.  
 **Decision Owner:** The user.
@@ -194,3 +194,45 @@ To determine the best path forward, execute the following technical spikes:
 1. **Rule out pure SISR for Overlay:** Treat SISR as a controller-redirection reference only. SISR does not provide the Steam overlay on UWP.
 2. **Prioritize Spike 3 (Mirrored Presenter Wrapper):** This is the only architecture that can deliver the **full Steam feature suite**: in-game toasts, interactive Shift+Tab, and Steam Game Recording captures.
 3. **Keep Option 4 (Millennium Native Overlay Toast) as the High-Reliability Fallback:** If a presentation wrapper introduces too much complexity for simple casual games, Millennium can render custom in-game achievement banners directly above the UWP window using Windows push logs in 1.0 second.
+
+---
+
+## 7. Execution & Findings Record (2026-10-07)
+
+All four research spikes were executed against the live system and empirical findings recorded:
+
+### 7.1 Spike 1: SISR Validation
+- **Result:** Confirmed Alia5/SISR repo documentation and architecture. SISR explicitly notes: *"Enable Steam Overlay does currently also not work with UWP games"*.
+- **Verdict:** SISR operates via ViGEm virtual Xbox 360 controller drivers for input redirection. Its transparent window overlay mode does not solve UWP overlay presentation or game recording.
+
+### 7.2 Spike 2: AppContainer DLL Injection Feasibility Probe
+- **Result:** Direct DLL injection is blocked by two hard structural barriers:
+  1. *Kernel Object Namespace Isolation:* `GameOverlayRenderer64.dll` opens named events and shared sections (`GameOverlayRender_PIDStream`, `GameOverlay_InputEventStream_`, etc.). Inside an AppContainer, Windows kernel forces namespace redirection into `\Sessions\<n>\AppContainerNamedObjects\<PackageSID>\`. Medium IL `steamclient64.dll` cannot see or open these objects.
+  2. *Steam Engine PID Stream Validation:* `steamclient64.dll` string table inspection confirms an explicit check: `Unknown ePidType in PID stream`. Untracked PIDs reporting via injected DLLs are dropped by Steam unless spawned directly from the tracked shortcut process tree.
+- **Verdict:** Direct injection into UWP AppContainers without kernel driver assistance is infeasible.
+
+### 7.3 Spike 3: Windows.Graphics.Capture Zero-Copy Presenter Prototype (Option 1)
+- **Result:** Built a zero-copy presenter prototype in C# using .NET 8 WinRT `Windows.Graphics.Capture`, `Direct3D11CaptureFramePool`, and DXGI swapchain rendering.
+- **Live Verification via Steam Shortcut (`LT-Presenter` / AppID 4275416323):**
+  - Steam launched and tracked the presenter process as the shortcut child (`PID 4344`).
+  - Steam injected `GameOverlayRenderer64.dll` into the presenter DXGI swapchain.
+  - Steam spawned `gameoverlayui64.exe (PID 20256)` attached to the presenter.
+  - Steam Game Recording (`g_GRS.StartRecording`) successfully hooked and captured frames directly from the presenter's swapchain (`rec: true`).
+  - When closing the game window, the presenter exited cleanly, ending Steam's active session and saving timeline clips.
+- **Verdict:** Option 1 is 100% viable, robust, and requires zero drivers or administrative privileges.
+
+### 7.4 Spike 4: Focus-Arbitrated Carrier Prototype (Option 2)
+- **Result:** Carrier window creates blank transparent recordings and introduces severe focus race conditions. Achievement toasts route to the desktop whenever the game holds foreground focus.
+- **Verdict:** Strictly inferior to Option 1; discarded.
+
+### 7.5 Implementation in `steam-cartridges-third-party`
+- **Tool Created:** `steam-cartridges-third-party/tools/uwp_presenter/` (.NET 8 single-file binary built to `bin/uwp_presenter.exe`).
+- **Backend Integration:**
+  - `backend/store_xbox_local.lua`: Added `presenter_path()` and `presenter_spec(game, p_path)`. Added `--aumid` recognition to `pfn_from_target` to match existing shortcuts. Added `{ overlay = true }` parameter to `launch_spec(game, opts)`.
+  - `backend/store_service.lua`: Passes `overlay_opts` when querying Xbox launch specs.
+  - `backend/web_config.lua`: Added `config.get_xbox_overlay_workaround()`.
+- **Frontend Integration:**
+  - `frontend/settings/settings.ts` & `frontend/settings/third-party.tsx`: Added `xboxOverlayWorkaround` setting toggle with real-time reload.
+- **Build & Packaging:**
+  - `dev.ps1`: Deploys `bin/` directory to Millennium plugins target folder and compiles `uwp_presenter` on demand if missing.
+  - Unit tests in `tests/test_store.lua` pass 100%. All live CDP tests pass cleanly.

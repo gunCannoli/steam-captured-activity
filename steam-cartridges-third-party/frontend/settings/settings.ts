@@ -6,6 +6,7 @@ export interface ThirdPartySettings {
     autoAddEpicGames: boolean;
     autoAddXboxGames: boolean;
     epicOverlayWorkaround: boolean;
+    xboxOverlayWorkaround: boolean;
 }
 
 export const DEFAULTS: ThirdPartySettings = {
@@ -13,6 +14,7 @@ export const DEFAULTS: ThirdPartySettings = {
     autoAddEpicGames: false,
     autoAddXboxGames: false,
     epicOverlayWorkaround: false,
+    xboxOverlayWorkaround: false,
 };
 
 export function useSetting<K extends keyof ThirdPartySettings>(

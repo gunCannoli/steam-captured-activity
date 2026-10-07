@@ -16,6 +16,12 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges-third-party Xbox UWP Steam Overlay Workaround (2026-10-07): researched, built, deployed, and live-verified.**
+- Executed all 4 research spikes from `docs/plans/steam-cartridges-uwp-overlay-research-plan.md`. Proved SISR does not support UWP overlay, and direct AppContainer DLL injection is blocked by kernel namespace redirection and Steam engine PID validation.
+- Built and shipped Option 1 (Mirrored Presentation Wrapper) via `tools/uwp_presenter/` (`bin/uwp_presenter.exe` using .NET 8 WinRT `Windows.Graphics.Capture`, `Direct3D11CaptureFramePool`, and DXGI swapchain rendering).
+- Integrated into `steam-cartridges-third-party`: backend `store_xbox_local.lua` (`launch_spec` with overlay option and `--aumid` matching), frontend settings toggle "Xbox Steam Overlay Workaround", and auto-build in `dev.ps1`.
+- Live verified: Steam shortcut launches presenter, tracks child PID, injects `GameOverlayRenderer64.dll`, attaches `gameoverlayui64.exe`, records frames via `g_GRS.StartRecording`, and cleanly exits. Unit tests and full live CDP suite 100% pass.
+
 **steam-captured-activity event-driven clean-up (2026-10-07): deployed, the 3 Steam event sources register.** Left: see a real
 screenshot or clip saved and deleted reach an open AM2R feed within seconds (`diagnostics().captureEvents.recent`). Open:
 AM2R clips `…20260920_054439`, `…20261007_130809`, `…132038`, `…132350` left the disk at 10:25:56 during the user's test session

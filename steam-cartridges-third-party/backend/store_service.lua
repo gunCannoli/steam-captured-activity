@@ -243,13 +243,14 @@ function M.installed_games(ctx)
       launch = epic_local().launch_spec(g, launcher),
     }
   end
+  local overlay_opts = { overlay = require("web_config").get_xbox_overlay_workaround() }
   for _, g in ipairs(games.xbox) do
     local copy = { kind = "xbox", title = g.title, pfn = g.pfn, titleId = g.title_id, storeId = g.store_id }
     if identifier_title(g.title, g.pfn) then pcall(fill_xbox, copy, ctx) end
     local known = store.lookup("xbox:" .. tostring(g.pfn)) or {}
     out.xbox[#out.xbox + 1] = {
       key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = owned[g.pfn],
-      launch = xbox_local().launch_spec(g),
+      launch = xbox_local().launch_spec(g, overlay_opts),
     }
   end
   return out

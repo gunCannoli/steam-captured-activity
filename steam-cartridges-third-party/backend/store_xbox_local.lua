@@ -143,9 +143,14 @@ local function norm_path(p)
   return (s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("\\+$", ""))
 end
 
---- The package family name a shell:AppsFolder target names, or nil (pure).
+--- The package family name a shell:AppsFolder target or --aumid parameter names, or nil (pure).
 function M.pfn_from_target(text)
-  return tostring(text or ""):match("[Ss][Hh][Ee][Ll][Ll]:[Aa][Pp][Pp][Ss][Ff][Oo][Ll][Dd][Ee][Rr]\\([^!%s\"]+)!")
+  local s = tostring(text or "")
+  local shell_pfn = s:match("[Ss][Hh][Ee][Ll][Ll]:[Aa][Pp][Pp][Ss][Ff][Oo][Ll][Dd][Ee][Rr]\\([^!%s\"]+)!")
+  if shell_pfn then return shell_pfn end
+  local aumid_pfn = s:match("%-%-aumid%s+[\"']?([^!%s\"']+)!")
+  if aumid_pfn then return aumid_pfn end
+  return nil
 end
 
 --- The package family name of an exe inside a WindowsApps package folder, whatever its version, or nil (pure):
@@ -193,10 +198,55 @@ function M.u0_spec(game)
   return { exe = '"' .. root .. "\\" .. tostring(game.executable):gsub("/", "\\") .. '"', start_dir = '"' .. root .. '\\"', launch_options = "" }
 end
 
---- How a shortcut for an installed game is set up: a UWP game runs its own exe (U0, ADR-0058); any other package
---- (GDK/Win32) is opened by Windows Explorer, the way the Xbox app and the Start menu start it (ADR-0056).
-function M.launch_spec(game)
+--- Resolves the path to uwp_presenter.exe if available on this machine.
+function M.presenter_path()
+  if M.deps.presenter_path then return M.deps.presenter_path() end
+  local ok_fs, fs = pcall(require, "fs")
+  if not ok_fs or not fs then return nil end
+
+  local src = debug.getinfo(1, "S").source
+  local dir = src:match("^@?(.*)[/\\][^/\\]+$")
+  if dir then
+    local p = fs.join(dir, "..", "bin", "uwp_presenter.exe")
+    if fs.is_file(p) then return p end
+  end
+
+  local ok, root = pcall(function() return require("millennium").steam_path() end)
+  if ok and root and root ~= "" then
+    local p1 = fs.join(root, "millennium", "plugins", "steam-cartridges-third-party", "bin", "uwp_presenter.exe")
+    if fs.is_file(p1) then return p1 end
+    local p2 = fs.join(root, "millennium", "plugins", "steam-cartridges-third-party-dev", "bin", "uwp_presenter.exe")
+    if fs.is_file(p2) then return p2 end
+  end
+  return nil
+end
+
+--- UWP Presenter Spec: launches the zero-copy presentation wrapper (Windows.Graphics.Capture)
+--- hooked by Steam Overlay and Game Recording.
+function M.presenter_spec(game, p_path)
   if not game or not game.pfn then return nil end
+  local p = p_path or M.presenter_path()
+  if not p or p == "" then return nil end
+  local root = tostring(game.root or ""):gsub("\\+$", "")
+  local aumid = game.pfn .. "!" .. (game.app_id or "App")
+  local title_arg = game.title and (' --title "' .. tostring(game.title):gsub('"', '') .. '"') or ""
+  return {
+    exe = '"' .. p .. '"',
+    start_dir = root ~= "" and ('"' .. root .. '\\"') or '""',
+    launch_options = '--aumid "' .. aumid .. '"' .. title_arg,
+  }
+end
+
+--- How a shortcut for an installed game is set up:
+---   1. If overlay option is requested and presenter is available, uses uwp_presenter (Option 1).
+---   2. Otherwise for UWP games runs its own exe (U0, ADR-0058).
+---   3. For any other package (GDK/Win32) opens via Windows Explorer (ADR-0056).
+function M.launch_spec(game, opts)
+  if not game or not game.pfn then return nil end
+  if opts and opts.overlay then
+    local pres = M.presenter_spec(game)
+    if pres then return pres end
+  end
   local u0 = M.u0_spec(game)
   if u0 then return u0 end
   local windir = getenv("SystemRoot") or getenv("windir")

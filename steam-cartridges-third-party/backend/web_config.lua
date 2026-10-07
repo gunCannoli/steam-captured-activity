@@ -161,6 +161,16 @@ function config.get_xbox_account()
   return nil
 end
 
+--- Whether the UWP Presentation Wrapper overlay workaround is enabled (ADR-0058 / uwp_presenter).
+--- Defaults to true when presenter binary is available.
+---@return boolean
+function config.get_xbox_overlay_workaround()
+  local env_map = get_env_map()
+  local val = env_map["xbox_overlay_workaround"]
+  if val == "0" or val == "false" then return false end
+  return true
+end
+
 --- Save key-value pairs into data_dir .env
 function config.save_credentials(map)
   if type(map) ~= "table" then return false end

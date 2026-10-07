@@ -226,6 +226,16 @@ Write-JsonFile -Path (Join-Path $target 'plugin.json') -Object $devManifest
 
 Copy-Item -Path "$PSScriptRoot\.millennium" -Destination $target -Recurse -Force
 Copy-Item -Path "$PSScriptRoot\backend" -Destination $target -Recurse -Force
+if (Test-Path "$PSScriptRoot\tools\uwp_presenter\uwp_presenter.csproj") {
+  $presenterExe = Join-Path $PSScriptRoot 'bin\uwp_presenter.exe'
+  if (-not (Test-Path $presenterExe)) {
+    Write-Host "Building uwp_presenter..."
+    & "$PSScriptRoot\tools\uwp_presenter\build.ps1"
+  }
+}
+if (Test-Path "$PSScriptRoot\bin") {
+  Copy-Item -Path "$PSScriptRoot\bin" -Destination $target -Recurse -Force
+}
 Remove-Item -Path (Join-Path $target 'backend\_lib') -Recurse -Force -ErrorAction SilentlyContinue
 
 Set-PluginEnabled -ConfigPath $configPath -Name $name -Enabled $false

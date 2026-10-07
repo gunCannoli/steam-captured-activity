@@ -7,6 +7,20 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-third-party: Xbox UWP Steam Overlay Workaround via Mirrored Presenter Wrapper (2026-10-07)**:
+  - *Context & Problem*: Non-Steam Xbox UWP games launch via COM activation into an AppContainer sandbox, cutting off Steam's process tree tracking, file access (ACL), named object IPC, and foreground focus. Consequently, Xbox UWP games lacked the Steam Overlay (Shift+Tab), in-game achievement banners (which fell back to desktop toasts), and Steam Game Recording.
+  - *Research Spikes Executed (`docs/plans/steam-cartridges-uwp-overlay-research-plan.md`)*:
+    - Spike 1 (SISR): Verified Alia5/SISR explicitly documents overlay does not work on UWP. SISR is strictly virtual controller redirection (ViGEm).
+    - Spike 2 (Direct DLL Injection): Proved infeasible. AppContainer redirects named events to private namespaces (`\Sessions\<n>\AppContainerNamedObjects\<PackageSID>\`) inaccessible to medium IL `steamclient64.dll`, and Steam engine rejects untracked PIDs with `Unknown ePidType in PID stream`.
+    - Spike 3 (Mirrored Presenter Wrapper): Succeeded live. Prototype built with .NET 8 WinRT `Windows.Graphics.Capture`, `Direct3D11CaptureFramePool`, and DXGI swapchain rendering. Proved Steam tracks the child process hierarchy, injects `GameOverlayRenderer64.dll`, spawns `gameoverlayui64.exe`, and records gameplay frames (`rec: true`).
+    - Spike 4 (Focus Carrier): Discarded due to blank recordings, focus race conditions, and desktop toast fallback.
+  - *Implementation*:
+    - Created standalone tool `steam-cartridges-third-party/tools/uwp_presenter/` (.NET 8 WinRT D3D11 zero-copy capture) and build script `build.ps1` emitting single-file binary to `bin/uwp_presenter.exe`.
+    - Integrated with backend `backend/store_xbox_local.lua` (`presenter_path`, `presenter_spec`, `pfn_from_target` matching `--aumid`, `launch_spec` with `{ overlay = true }`).
+    - Added `xboxOverlayWorkaround` setting toggle to `frontend/settings/third-party.tsx` and `backend/web_config.lua`.
+    - Automated deployment and build-on-demand in `dev.ps1`.
+  - *Verification*: Unit tests in `tests/test_store.lua` 100% PASS; live CDP verification suite (`steam-health.mjs`, `test_nav_cycle.js`, `check_all_tabs.js`, `check_feed.mjs`) all 100% PASS; live Steam shortcut tested with `LT-Presenter` showing active child PID tracking, CEF overlay attachment, game recording, and clean session teardown.
+
 - **steam-captured-activity: event-driven clean-up (2026-10-07)**: the plugin listens to Steam's own capture events (screenshot written / deleted, clip created / deleted; `sensors/captures.ts`) and re-reads the affected app 1.5 s after the last event, if it was viewed this session. The sweep stays as the fallback, every 15 min (5 min when Steam lacks the events). Live: all 3 event sources register; `check_feed.mjs` and `test_nav_cycle.js` pass; 25 unit tests (3 new). Not yet seen with a real capture or deletion. Also: the "background recording" tile that cannot be opened after a Ctrl+F11 recording is Steam's own bug, confirmed by the user with every plugin disabled (gone after a Steam restart).
 
 - **Recordings missing from Steam's UI: caused by steam-cartridges' start-up burst of `GetClips` (2026-10-07)**:

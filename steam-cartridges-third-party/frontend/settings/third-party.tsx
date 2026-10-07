@@ -32,6 +32,7 @@ export function ThirdPartySection() {
     const [autoEpic, setAutoEpic] = useSetting("autoAddEpicGames");
     const [autoXbox, setAutoXbox] = useSetting("autoAddXboxGames");
     const [epicOverlay, setEpicOverlay] = useSetting("epicOverlayWorkaround");
+    const [xboxOverlay, setXboxOverlay] = useSetting("xboxOverlayWorkaround");
     const [accounts, setAccounts] = useState<Accounts | null>(null);
     const [installed, setInstalled] = useState<Installed | null>(null);
 
@@ -180,6 +181,14 @@ export function ThirdPartySection() {
                             description={`Sync installed games to an "Xbox" collection; removes uninstalled games. ${installedText(installed?.xbox)}`}
                             value={autoXbox}
                             onChange={setAutoXbox}
+                        />
+                    )}
+                    {xboxOn && (
+                        <ToggleRow
+                            label="Xbox Steam Overlay Workaround"
+                            description="Uses a zero-copy presentation wrapper (Windows.Graphics.Capture) to enable the Steam Overlay, in-game achievement banners, and Game Recording for UWP games."
+                            value={xboxOverlay}
+                            onChange={setXboxOverlay}
                         />
                     )}
                 </>

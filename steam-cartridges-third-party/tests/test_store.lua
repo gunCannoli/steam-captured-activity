@@ -220,6 +220,15 @@ check("a shortcut for an older version matches its game (no duplicate after an u
 local u0 = xbox_local.launch_spec(MS)
 check("a UWP game's launch spec runs its own exe (U0)", u0.exe == '"' .. MS_ROOT .. [[\Minesweeper.exe"]] and u0.start_dir == '"' .. MS_ROOT .. [[\"]] and u0.launch_options == "")
 check("a GDK game keeps the Explorer launch", xbox_local.launch_spec(FM).exe == '"C:\\Windows\\explorer.exe"')
+-- UWP Presenter (Option 1 - Windows.Graphics.Capture wrapper)
+local pres = xbox_local.presenter_spec(MS, [[C:\bin\uwp_presenter.exe]])
+check("presenter_spec builds wrapper launch spec", pres.exe == [["C:\bin\uwp_presenter.exe"]] and pres.launch_options:find([[--aumid "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App"]], 1, true) ~= nil)
+xbox_local.deps.presenter_path = function() return [[C:\bin\uwp_presenter.exe]] end
+local l_pres = xbox_local.launch_spec(MS, { overlay = true })
+check("launch_spec with overlay uses presenter", l_pres.exe == [["C:\bin\uwp_presenter.exe"]])
+local ma, mav = xbox_local.match({ exe = [["C:\bin\uwp_presenter.exe"]], launch_options = [[--aumid "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App"]] }, { MS })
+check("a shortcut running uwp_presenter matches by aumid", ma == MS and mav == "launch-link")
+xbox_local.deps.presenter_path = nil
 -- An Xbox Live game with no game config, marked only by its xboxliveapp- protocol (Microsoft Sudoku)
 check("the manifest's xboxliveapp- protocol marks an Xbox Live game", xbox_local.parse_appx_manifest('<uap:Protocol Name="xboxliveapp-1297292189" />').xbox_live == true and xbox_local.parse_appx_manifest('<uap:Protocol Name="myapp" />').xbox_live == false)
 xbox_local.deps.read = function(p)
