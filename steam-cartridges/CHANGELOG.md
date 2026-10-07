@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: unsupported RetroAchievements ROMs re-checked on every start (2026-10-07)**: a ROM whose hash maps to an empty placeholder set is now remembered as unsupported for 7 days, so Steam start-up no longer asks RetroAchievements about it or logs it again; the log line no longer claims a title-search fallback that never happens.
+
 - **Fixed: RetroArch unlocks not detected (2026-10-07)**: the in-game observer now reads RetroArch's timestamped logs (`retroarch__<time>.log`, written when `log_to_file_timestamp` is on) and recognises the rcheevos client's `Awarding achievement N` / `Achievement N awarded` lines, so an unlock in RetroArch toasts in Steam and updates the page again.
 
 - **Changed: background ingestion resolves artwork and shortcut icons immediately (2026-10-06)**:

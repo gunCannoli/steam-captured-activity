@@ -322,6 +322,43 @@ fresh_policy.touch(SC, "achievements", t_ra, "ok")
 check("RetroAchievements unlocks come due after 30 min, not 24 h",
   not fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 29 * 60000) and fresh_policy.is_stale(SC, "achievements", lp_ra, t_ra + 30 * 60000))
 
+print("RetroAchievements: a hash whose set is a placeholder is remembered as a miss (2026-10-07)")
+do
+  local rc = require("ra_cache")
+  local saved_rc_path, saved_resolve, saved_parse, saved_rom = rc._path, require("steam_paths").resolve, require("shortcuts").parse, ra.extract_rom_path
+  rc._path = TMP .. "/sc_ra_cache_placeholder_" .. os.time() .. ".json"; rc._reset()
+  require("steam_paths").resolve = function() return { shortcuts = "x" } end
+  require("shortcuts").parse = function() return { { appid = SC, name = "Jungle Strike", exe = "C:/emu/RetroArch/retroarch.exe", launch_options = "" } } end
+  ra.extract_rom_path = function() return "D:/roms/jungle.sfc" end
+  ra.compute_rom_md5 = function() return "ff10" end
+  local infos = 0
+  rawset(logger, "info", function() infos = infos + 1 end)
+  wipe(); fresh()
+
+  rc.put_game("ff10", 969) -- what an earlier start stored: the hash's GameID
+  ra_fetches = 0
+  ra.fetch_game_data = function() ra_fetches = ra_fetches + 1; return { ra_game_id = 969, title = "Jungle Strike", total = 0, achievements = {} }, {} end
+  local r1, e1 = ra.get_or_fetch(SC, true)
+  check("placeholder set: unsupported, its set asked once, logged", r1 == nil and e1 == "unsupported rom hash" and ra_fetches == 1 and infos == 2, infos)
+  local known, id = rc.game_for("ff10")
+  check("... and the hash is stored as a miss", known == true and id == nil)
+
+  infos = 0
+  rc._reset() -- a Steam restart: read from disk
+  local r2, e2 = ra.get_or_fetch(SC, true)
+  check("next start: unsupported again, no request, no log line", r2 == nil and e2 == "unsupported rom hash" and ra_fetches == 1 and infos == 0, infos)
+
+  rc.put_game("ff10", 969)
+  ra.fetch_game_data = function() ra_fetches = ra_fetches + 1; return nil, "offline" end
+  ra.get_or_fetch(SC, true)
+  known, id = rc.game_for("ff10")
+  check("a failed request is not stored as a miss", known == true and id == 969)
+
+  rawset(logger, "info", nil)
+  rc._path = saved_rc_path; rc._reset()
+  require("steam_paths").resolve, require("shortcuts").parse, ra.extract_rom_path = saved_resolve, saved_parse, saved_rom
+end
+
 ra.fetch_game_data, ra.get_credentials, ra.compute_rom_md5 = saved_fetch, saved_creds, saved_hash
 registry.deps.entries = nil
 

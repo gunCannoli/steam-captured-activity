@@ -7,6 +7,11 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: unsupported RetroAchievements ROMs no longer re-checked every start (2026-10-07)**:
+  - *Root cause*: a ROM whose hash RetroAchievements links to a placeholder set (0 achievements, `~Z~` or cheated; e.g. Jungle Strike, GameID 969) was rejected but not remembered, so each Steam start's background ingest fetched the set again (about 1 s per ROM) and logged two lines per ROM, the first wrongly saying "falling back to title search".
+  - *Fix*: `retroachievements.get_or_fetch` stores such a hash as a miss in `ra_cache` (the existing 7-day `MISS_TTL`, so a set filled in later is picked up); a failed request is never stored. A miss already on disk is answered silently; a new one logs once with corrected wording ("treated as unsupported").
+  - *Verification*: 4 new tests in `test_ach_service.lua`, all 14 Lua suites pass. Live: the first start stored misses for all 6 ROMs; after a second restart the ingest ran (17 shortcuts) and none was looked up again (timestamps unchanged). `steam-health.mjs`, `test_nav_cycle.js`, `check_all_tabs.js` pass.
+
 - **steam-cartridges: RetroArch achievement unlocks detected again (2026-10-07)**:
   - *Root cause*: a Metroid Fusion unlock (RA 4615, *Explosive Chamber*) in RetroArch reached RetroAchievements but not Steam. Steam tracked the launch and the observer polled, but it read only `logs/retroarch.log`, which RetroArch never writes with `log_to_file_timestamp = "true"` (one `retroarch__YYYY_MM_DD__HH_MM_SS.log` per run), and it matched only `Awarded achievement N`, while the rcheevos client logs `Awarding achievement N: <title>` and `Achievement N awarded, new score: …`.
   - *Fix*: `achievements_observer.lua` matches both rcheevos lines and tails the newest timestamped RetroArch log (`newest_retroarch_log`) in the exe's `logs/`, the default folders and `retroarch.cfg`'s `log_dir`.

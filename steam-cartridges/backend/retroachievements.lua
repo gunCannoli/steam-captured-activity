@@ -1345,7 +1345,12 @@ function M.get_or_fetch(shortcut_appid, hardcore)
 
   -- 6. Query GameID from RetroAchievements
   local game_id = nil
-  if type(md5) == "string" and #md5 > 0 then
+  local has_md5 = type(md5) == "string" and #md5 > 0
+  -- A miss already on disk was logged when it was found: stay quiet for it on later starts.
+  local known_miss = false
+  if has_md5 then
+    local known, known_id = ra_cache.game_for(md5)
+    known_miss = known and not known_id
     game_id = M.get_game_id_by_md5(md5)
   end
 
@@ -1353,7 +1358,12 @@ function M.get_or_fetch(shortcut_appid, hardcore)
   if game_id then
     schema, unlocks = M.fetch_game_data(game_id, creds.username, creds.token, is_hardcore, creds.api_key)
     if not schema or (schema.total or 0) == 0 or (schema.title and (schema.title:match("^~[Zz]~") or schema.title:lower():match("cheated rom"))) then
-      logger:warn(string.format("RetroAchievements: MD5 %s resolved to dummy/empty set (GameID %s, title %q, %d achievements); falling back to title search", tostring(md5), tostring(game_id), schema and schema.title or "", schema and schema.total or 0))
+      if schema then
+        -- A placeholder set (no achievements, a "~Z~" or cheated entry) is a definite answer: remember the hash as a
+        -- miss (ra_cache.MISS_TTL), so later starts skip the set's request. A failed request (no schema) is not stored.
+        ra_cache.put_game(md5, nil)
+        logger:info(string.format("RetroAchievements: MD5 %s maps to GameID %s (%q) with no achievements; treated as unsupported", tostring(md5), tostring(game_id), schema.title or ""))
+      end
       game_id = nil
       schema, unlocks = nil, nil
     end
@@ -1363,8 +1373,8 @@ function M.get_or_fetch(shortcut_appid, hardcore)
     -- When a ROM file was extracted and hashed, but the hash is not supported by RetroAchievements,
     -- DO NOT fall back to title matching! An unsupported ROM version (e.g. Caravan Event, bad dump, hack)
     -- will never trigger or unlock achievements in RetroArch or other emulators.
-    if md5 and #md5 > 0 then
-      logger:info(string.format("RetroAchievements: ROM MD5 %s is not supported by RetroAchievements for shortcut %s (%s); skipping automatic achievement attachment", tostring(md5), tostring(s_appid), tostring(sc.name or sc.appname or "")))
+    if has_md5 then
+      if not known_miss then logger:info(string.format("RetroAchievements: ROM MD5 %s is not supported by RetroAchievements for shortcut %s (%s); skipping automatic achievement attachment", tostring(md5), tostring(s_appid), tostring(sc.name or sc.appname or ""))) end
       return nil, "unsupported rom hash"
     end
 
