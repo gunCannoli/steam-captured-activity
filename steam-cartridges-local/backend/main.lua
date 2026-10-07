@@ -45,7 +45,7 @@ local function method(name, func)
 
     local success, result = pcall(func, data)
     if not success then
-      logger.error("RPC " .. name .. " failed: " .. tostring(result))
+      logger:error("RPC " .. name .. " failed: " .. tostring(result))
       return json.encode({ error = tostring(result) })
     end
 
@@ -53,7 +53,7 @@ local function method(name, func)
     if type(result) == "string" then return result end
     local ok, encoded = pcall(json.encode, result)
     if not ok then
-      logger.error("RPC " .. name .. " encode failed: " .. tostring(encoded))
+      logger:error("RPC " .. name .. " encode failed: " .. tostring(encoded))
       return json.encode({ error = tostring(encoded) })
     end
     return encoded
@@ -67,7 +67,7 @@ LocalDetectFiles = method("LocalDetectFiles", function(params)
 
   local ok, res = pcall(search.find_candidates, appid)
   if not ok then
-    logger.error("LocalDetectFiles failed: " .. tostring(res))
+    logger:error("LocalDetectFiles failed: " .. tostring(res))
     return { files = {}, error = tostring(res) }
   end
   return { files = res or {} }
@@ -132,4 +132,4 @@ end)
 if millennium and millennium.ready then
   millennium.ready()
 end
-logger.info("steam-cartridges-local backend ready.")
+logger:info("steam-cartridges-local backend ready.")

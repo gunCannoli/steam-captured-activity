@@ -16,6 +16,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges-local & steam-cartridges-third-party backend logger syntax & module isolation (2026-10-06): completed and verified.**
+- Fixed Lua logger method calls to colon syntax (`logger:info`, `logger:error`) in `steam-cartridges-local/backend/main.lua` and `steam-cartridges-third-party/backend/main.lua` to properly pass `self` required by Millennium's C++ logger binding.
+- Stripped lingering core dependencies (`captures`, `shortcuts`, `steam_paths`) and dead RPC methods (`GetLibraryStats`, `GetDiagnostics`) from `steam-cartridges-third-party/backend/rpc.lua`.
+- Verified cleanly via unit tests (`npm test` 100% in both plugins) and live Steam health checks (`node steam-health.mjs` report: all 5 plugins loaded without startup crashes).
+
 **steam-cartridges consistent card block spacing & font typography in Review and Manual Edit modals (2026-10-06): completed and verified.**
 - Structured Review modal (`audit.tsx`) so each game (both flagged issue games and unscraped games) renders as its own card block (`CARD_BACKGROUND`, `borderRadius: "4px"`, border) separated by standard `BLOCK_GAP` (22px). Standardized modal width to 640px.
 - Restructured Manual Edit modal (`GameDataEditor`): wrapped `GamePicker` in a proper `ItemRow` card matching `enhanced-notifications` reference, wrapped `MetadataForm`, `IgdbLink`, and `SteamLink` sections in dedicated card blocks, and wrapped text inputs in `<ItemRow trailing>`.

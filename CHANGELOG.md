@@ -7,6 +7,11 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-local & steam-cartridges-third-party: backend logger syntax and dependency isolation (2026-10-06)**:
+  - *Millennium Logger Method Invocation*: Fixed dot-syntax invocations (`logger.info(...)`, `logger.error(...)`) to colon-syntax (`logger:info(...)`, `logger:error(...)`) across `steam-cartridges-local/backend/main.lua` and `steam-cartridges-third-party/backend/main.lua`. Millennium's C++ logger binding expects `self` as the first parameter, throwing `bad argument #2 to 'info' (string expected, got no value)` when called with dot syntax.
+  - *Third-Party RPC Module Isolation*: Purged core-exclusive dependencies (`captures`, `shortcuts`, `steam_paths`) and dead methods (`GetLibraryStats`, `GetDiagnostics`) from `steam-cartridges-third-party/backend/rpc.lua`. Expansion plugins remain completely decoupled and self-contained without crashing during backend boot.
+  - *Verification*: Verified via unit tests (`npm test` in both plugins 100% pass) and live Steam health checks (`node steam-health.mjs` passing with all 5 plugins loaded cleanly without backend error dialogs or startup warnings).
+
 - **steam-cartridges: Consistent card block spacing & font typography in Review and Manual Edit modals (2026-10-06)**:
   - *Review Modal Game Card Blocks*: Made each game in the Review modal (`frontend/settings/panels/audit.tsx`) render as its own card block with `CARD_BACKGROUND`, `borderRadius: "4px"`, subtle border, and `BLOCK_GAP` (22px) spacing separating each game (both for flagged issue games and unscraped games). Standardized dialog width to 640px.
   - *Manual Edit Modal Layout & Spacing (Guardrail 18)*: Wrapped `GamePicker` in a proper `ItemRow` card with `CARD_BACKGROUND`, `Field` header, and `CONTROL_GAP` (8px) matching the reference implementation. Encapsulated each section in `MetadataForm`, `IgdbLink`, and `SteamLink` into dedicated card blocks with `BLOCK_GAP` separation. Wrapped text inputs in `<ItemRow trailing>` to eliminate irregular margins.

@@ -21,4 +21,4 @@ StoreEpicPrelaunch       = STORE_RPC.StoreEpicPrelaunch
 StoreEpicReap            = STORE_RPC.StoreEpicReap
 
 millennium.ready()
-logger.info("steam-cartridges-third-party backend ready.")
+logger:info("steam-cartridges-third-party backend ready.")
