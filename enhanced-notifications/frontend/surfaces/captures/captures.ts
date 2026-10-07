@@ -1,8 +1,8 @@
 import { logger } from '../../logger';
 import { setting } from '../../settings/settings';
 import type { Tier } from '../../theme/achievements';
-import { runningGameAppid, saveClip, snapshotTimeline, takeScreenshot, type TimelineSnapshot } from './recording';
-import { gameIdCandidates, mergeClip, planCaptures, type Action, type CaptureSettings, type Plan } from '../../capture/plan';
+import { deleteClip, recordingStart, runningGameAppid, saveClip, snapshotTimeline, startManualRecording, stopManualRecording, takeScreenshot, type TimelineSnapshot } from './recording';
+import { gameIdCandidates, MANUAL_MIN_SHOT_MS, mergeClip, mergeManual, planCaptures, type Action, type CaptureSettings, type ManualAction, type Plan } from '../../capture/plan';
 import type { SteamNotification } from '../../kernel/notification';
 import { reportError } from '../../safety/runtime';
 
@@ -56,6 +56,12 @@ function baseSettings(): CaptureSettings {
     };
 }
 
+/**
+ * Our manual recordings (ADR-0061), one per game: started at the first unlock with no recording running, stopped by
+ * `timer`. Only a recording in this map is ever stopped: a recording the user started is never touched.
+ */
+const manualSessions = new Map<string, { action: ManualAction; timelineId: string; startedAt: number; timer: ReturnType<typeof setTimeout> | null; appid: number; tier: Tier }>();
+
 // One pending (unsent) clip timer per timelineId, for coalescing (A2.2).
 const pendingClips = new Map<string, { action: Extract<Action, { kind: 'clip' }>; count: number; timer: ReturnType<typeof setTimeout> }>();
 const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -100,6 +106,67 @@ async function sendClip(gameId: string, timelineId: string, action: Extract<Acti
     pushLog({ at: Date.now(), appid, tier, gameId, dryRun: false, actions: [{ kind: 'clip', request, eresult: res.eresult }], skipped: [] });
 }
 
+/** Stops our manual recording, takes its screenshots from the frames now on disk, and drops the clip if only screenshots were wanted. */
+async function finishManual(gameId: string): Promise<void> {
+    const session = manualSessions.get(gameId);
+    if (!session) return;
+    manualSessions.delete(gameId);
+    const { action, timelineId, appid, tier } = session;
+    const actions: LogAction[] = [];
+    try {
+        const recStart = recordingStart(timelineId); // read before the stop clears it
+        const stop = await stopManualRecording(gameId);
+        actions.push({ kind: 'manual', request: { stop: gameId, clipId: stop.clipId, recStart }, eresult: stop.ok ? 1 : 0 });
+        if (!stop.ok) logger.warn(`Manual recording stop for ${gameId} saved no clip.`, stop.error ?? '');
+        for (const target of action.shotOffsetsMs) {
+            const offset = recStart !== null ? Math.max(target, Number(recStart) + MANUAL_MIN_SHOT_MS) : target;
+            const request = { game_id: gameId, timeline_id: timelineId, timeline_offset_ms: String(Math.floor(offset)) };
+            const res = await takeScreenshot(request);
+            if (!res.ok) logger.warn(`Screenshot failed (EResult ${res.eresult}).`, res.error ?? res.body);
+            actions.push({ kind: 'screenshot', request, eresult: res.eresult });
+        }
+        if (!action.keepClip && stop.clipId) {
+            const eresult = await deleteClip(stop.clipId);
+            actions.push({ kind: 'manual', request: { deleteClip: stop.clipId }, eresult });
+        }
+    } catch (error) {
+        reportError('captures', error);
+    }
+    pushLog({ at: Date.now(), appid, tier, gameId, dryRun: false, actions, skipped: [] });
+}
+
+/** No recording runs: start ours (or extend the one already ours) and schedule its stop. */
+function runManual(gameId: string, timelineId: string, action: ManualAction, appid: number, tier: Tier): void {
+    if (dryRun) {
+        logger.info(`[dry-run] manual recording`, { gameId, ...action });
+        pushLog({ at: Date.now(), appid, tier, gameId, dryRun: true, actions: [{ kind: 'manual', request: { gameId, ...action } }], skipped: [] });
+        return;
+    }
+    const current = manualSessions.get(gameId);
+    if (current) {
+        const merged = mergeManual(current.action, action, Date.now() - current.startedAt);
+        current.action = merged;
+        if (current.timer) {
+            clearTimeout(current.timer);
+            timers.delete(current.timer);
+            current.timer = schedule(() => void finishManual(gameId), Math.max(0, current.startedAt + merged.stopAfterMs - Date.now()));
+        }
+        return;
+    }
+    const session = { action, timelineId, startedAt: Date.now(), timer: null as ReturnType<typeof setTimeout> | null, appid, tier };
+    manualSessions.set(gameId, session);
+    void startManualRecording(gameId).then((res) => {
+        if (manualSessions.get(gameId) !== session) return;
+        if (!res.ok) {
+            manualSessions.delete(gameId);
+            logger.warn(`Manual recording could not start for ${gameId} (EResult ${res.eresult}).`, res.error ?? '');
+            pushLog({ at: Date.now(), appid, tier, gameId, dryRun: false, actions: [{ kind: 'manual', request: { start: gameId }, eresult: res.eresult }], skipped: [] });
+            return;
+        }
+        session.timer = schedule(() => void finishManual(gameId), Math.max(0, session.startedAt + session.action.stopAfterMs - Date.now()));
+    });
+}
+
 /** Called from the `achievement.unlocked` event, one macrotask after the toast. O(1): dedupe, tier merge, snapshot, schedule. Never awaits an RPC. */
 export function onUnlock(n: SteamNotification, tier: Tier): void {
     try {
@@ -113,7 +180,8 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
         const candidates = gameIdCandidates(appid);
         const { snap, reason } = snapshotTimeline(candidates);
 
-        const timelineSnap: TimelineSnapshot | null = snap;
+        // Our own manual recording is running for this game: plan as if none ran, so the unlock joins it (ADR-0061).
+        const timelineSnap: TimelineSnapshot | null = snap && manualSessions.has(snap.gameId) ? { ...snap, recording: null } : snap;
         const plan = planCaptures(
             settings,
             { appid, name: n.data.name(), nowMs, rtCreatedS: n.rtCreated },
@@ -133,7 +201,9 @@ export function onUnlock(n: SteamNotification, tier: Tier): void {
         logger.info(`Unlock captures planned for appid ${appid} (${plan.actions.map((a) => a.kind).join(', ')}).`);
 
         for (const action of plan.actions) {
-            if (action.kind === 'screenshot') {
+            if (action.kind === 'manual') {
+                runManual(gameId, timelineId, action, appid, tier);
+            } else if (action.kind === 'screenshot') {
                 schedule(() => void sendScreenshot(gameId, timelineId, action, appid, tier), action.sendAfterMs);
             } else {
                 const pending = pendingClips.get(timelineId);
@@ -165,6 +235,9 @@ export function disposeCaptures(): void {
     timers.clear();
     for (const p of pendingClips.values()) clearTimeout(p.timer);
     pendingClips.clear();
+    // Never leave a recording we started running: stop it now (no screenshots, the clip is kept).
+    for (const gameId of manualSessions.keys()) void stopManualRecording(gameId);
+    manualSessions.clear();
 }
 
 export { runningGameAppid };

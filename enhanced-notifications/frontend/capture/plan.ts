@@ -121,9 +121,26 @@ export interface UnlockInfo {
     rtCreatedS?: number;
 }
 
+/**
+ * No recording runs (ADR-0061): start a manual recording now, stop it after `stopAfterMs`, then take the screenshots
+ * (timeline offsets) from the frames now on disk; the stop saves a clip, kept only when the clip setting is on.
+ */
+export interface ManualAction {
+    kind: 'manual';
+    stopAfterMs: number;
+    shotOffsetsMs: number[];
+    keepClip: boolean;
+}
+
 export type Action =
     | { kind: 'screenshot'; sendAfterMs: number; targetOffsetMs: number }
-    | { kind: 'clip'; sendAfterMs: number; startOffsetMs: number; endOffsetMs: number; name: string };
+    | { kind: 'clip'; sendAfterMs: number; startOffsetMs: number; endOffsetMs: number; name: string }
+    | ManualAction;
+
+/** A manual recording's screenshot frame is at least this long after the unlock, so it lies inside the recording. */
+export const MANUAL_MIN_SHOT_MS = 1000;
+/** Recording kept running past the last screenshot frame (a frame 1 s behind live was not on disk yet, steam-components.md). */
+export const MANUAL_SHOT_TAIL_MS = 2000;
 
 export interface Plan {
     actions: Action[];
@@ -155,30 +172,27 @@ export function planCaptures(s: CaptureSettings, unlock: UnlockInfo, timeline: T
     const skipped: Plan['skipped'] = [];
     const recordingActive = timeline.recording !== null;
 
+    if (!recordingActive) {
+        const manual = planManual(s, timeline.nowOffsetMs);
+        return { actions: manual ? [manual] : [], skipped: manual ? [] : [{ kind: 'all', reason: 'nothing-to-record' }], shortcut };
+    }
+
     if (s.screenshot.enabled) {
-        if (!recordingActive) {
-            skipped.push({ kind: 'screenshot', reason: 'recording-not-active' });
-        } else {
-            const targetOffsetMs = unlockOffset + s.screenshot.delayMs;
-            actions.push({ kind: 'screenshot', sendAfterMs: s.screenshot.delayMs + SETTLE_MS, targetOffsetMs });
-        }
+        const targetOffsetMs = unlockOffset + s.screenshot.delayMs;
+        actions.push({ kind: 'screenshot', sendAfterMs: s.screenshot.delayMs + SETTLE_MS, targetOffsetMs });
     }
 
     if (s.clip.enabled) {
-        if (!recordingActive) {
-            skipped.push({ kind: 'clip', reason: 'recording-not-active' });
-        } else {
-            const endOffsetMs = unlockOffset + s.clip.delayMs;
-            const earliestStart = timeline.recording ? timeline.recording.startOffsetMs : 0;
-            const startOffsetMs = Math.max(endOffsetMs - s.clip.durationS * 1000, earliestStart, 0);
-            actions.push({
-                kind: 'clip',
-                sendAfterMs: s.clip.delayMs + SETTLE_MS,
-                startOffsetMs,
-                endOffsetMs,
-                name: unlock.name.slice(0, 100),
-            });
-        }
+        const endOffsetMs = unlockOffset + s.clip.delayMs;
+        const earliestStart = timeline.recording ? timeline.recording.startOffsetMs : 0;
+        const startOffsetMs = Math.max(endOffsetMs - s.clip.durationS * 1000, earliestStart, 0);
+        actions.push({
+            kind: 'clip',
+            sendAfterMs: s.clip.delayMs + SETTLE_MS,
+            startOffsetMs,
+            endOffsetMs,
+            name: unlock.name.slice(0, 100),
+        });
     }
 
     return { actions, skipped, shortcut };
@@ -197,5 +211,38 @@ export function mergeClip(pending: Extract<Action, { kind: 'clip' }>, next: Extr
         startOffsetMs: pending.startOffsetMs,
         endOffsetMs,
         name: `${pending.name.replace(/ \(\+\d+\)$/, '')} (+${count})`,
+    };
+}
+
+/**
+ * The manual recording for an unlock with no recording running (ADR-0061). `nowOffsetMs` is the timeline's offset at
+ * the unlock; the recording starts right after it. The screenshot frame is `screenshot.delayMs` after the unlock (at
+ * least MANUAL_MIN_SHOT_MS); the clip is the first `max(duration, delay)` of the recording. null = nothing enabled.
+ */
+export function planManual(s: CaptureSettings, nowOffsetMs: number): ManualAction | null {
+    const keepClip = s.clip.enabled && s.clip.durationS > 0;
+    if (!s.screenshot.enabled && !keepClip) return null;
+    const shotAfterMs = Math.max(s.screenshot.delayMs, MANUAL_MIN_SHOT_MS);
+    const clipMs = keepClip ? Math.max(s.clip.durationS * 1000, s.clip.delayMs) : 0;
+    const shotMs = s.screenshot.enabled ? shotAfterMs + MANUAL_SHOT_TAIL_MS : 0;
+    return {
+        kind: 'manual',
+        stopAfterMs: Math.min(Math.max(clipMs, shotMs), MAX_CLIP_MS),
+        shotOffsetsMs: s.screenshot.enabled ? [Math.max(0, nowOffsetMs) + shotAfterMs] : [],
+        keepClip,
+    };
+}
+
+/**
+ * A second unlock while our manual recording runs (ADR-0061): one recording, its stop moved to cover the new unlock
+ * (never past MAX_CLIP_MS after the first unlock), the new screenshot frame added, the clip kept if either wanted it.
+ * `elapsedMs` is the time since the first unlock's recording was started.
+ */
+export function mergeManual(pending: ManualAction, next: ManualAction, elapsedMs: number): ManualAction {
+    return {
+        kind: 'manual',
+        stopAfterMs: Math.min(Math.max(pending.stopAfterMs, elapsedMs + next.stopAfterMs), MAX_CLIP_MS),
+        shotOffsetsMs: [...pending.shotOffsetsMs, ...next.shotOffsetsMs],
+        keepClip: pending.keepClip || next.keepClip,
     };
 }

@@ -348,7 +348,7 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
                     <ToggleRow
                         k="screenshot.enabled"
                         label="Screenshot on unlock"
-                        description="Needs Game Recording on"
+                        description="Starts a Steam recording if none is running"
                         disabled={disabled}
                     />
                     <SliderRow
@@ -362,7 +362,7 @@ function AchievementsSection({ disabled }: { disabled: boolean }) {
                     <ToggleRow
                         k="recording.enabled"
                         label="Record clip on unlock"
-                        description="Needs Game Recording on"
+                        description="Starts a Steam recording if none is running"
                         disabled={disabled}
                     />
                     <SliderRow

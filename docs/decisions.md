@@ -3410,3 +3410,41 @@ search). The profile's unlocks are **merged** into the stored ones (an unlock se
 kept); offline, the stored unlocks are answered. The refresh runs after the paint, so the page still shows what is stored
 at once.
 - Not done: splitting `achievements.json` so an unlock does not re-encode 2.6 MB (needs a migration; its own plan).
+
+## ADR-0061: Capture on unlock records a clip itself when no Steam recording is running
+
+**Status:** Accepted · 2026-10-07 · enhanced-notifications. Evidence: [steam-components.md § Game Recording RPCs](steam-components.md#game-recording-rpcs--timeline-markers) (live probe on AM2R).
+
+### Context
+
+"Screenshot on unlock" and "Record clip on unlock" cut a frame and a range out of Steam's own recording
+(`GameRecording.TakeScreenshot#1`, `SaveClip#1`). With Steam's recording mode on Manual (this PC) no recording runs, so
+both were skipped (`recording-not-active`): a Metroid Fusion unlock on 2026-10-07 got a toast and no capture. The user
+asked to press F12 / Ctrl+F11 on the unlock instead. Steam has no call for an F12-style live grab (nothing in
+`SteamClient.*` or the recording service; Millennium's hooking only rewrites Steam's JavaScript, and F12 is handled by
+the overlay inside the game). Ctrl+F11 is reachable: `g_GRS.StartRecording(gameId)` / `StopRecording(gameId)` start a
+manual recording and save it as a clip, and `TakeScreenshot` saves a real screenshot from a recorded frame, but not from
+one 1 s behind live (EResult 9, not yet on disk).
+
+### Decision
+
+1. **With a recording running** (background, or one the user started) nothing changes: screenshot and clip come out of it.
+2. **With none running**, the unlock starts a manual recording of the game (`g_GRS.StartRecording`, Steam's own path),
+   using the existing settings: it stops after the clip length (`max(recording.duration_s, recording.delay_ms)`), or
+   for a screenshot alone `max(screenshot.delay_ms, 1 s) + 2 s`; capped at 120 s. After the stop, the screenshot is taken
+   at `screenshot.delay_ms` after the unlock (at least 1 s into the recording), from frames now on disk. The clip the stop
+   saves is kept when "Record clip on unlock" is on and deleted (`g_GRS.DeleteClip`) when only the screenshot was wanted.
+3. **One recording per game.** A second unlock while our recording runs extends it and adds its frame
+   (`mergeManual`, `capture/plan.ts`). Only a recording the plugin started is ever stopped; on uninstall it is stopped and
+   its clip kept.
+4. **Owner unchanged:** `surfaces/captures/recording.ts` is still the only code touching Steam's recording objects.
+
+### Consequences
+
+- Captures work with Steam's recording mode on Manual. With background recording on, nothing changes.
+- A manual clip starts at the unlock, so it shows what follows it, not what led to it (background recording does both).
+- The screenshot arrives when the recording stops (seconds after the toast), not at once.
+- Not verified: Steam's recording mode **Off** (a manual recording may be refused; then the start fails, is logged,
+  and nothing else happens), a game that quits before the stop, and how far behind live a frame is safe while recording
+  (not needed: the screenshot is taken after the stop).
+

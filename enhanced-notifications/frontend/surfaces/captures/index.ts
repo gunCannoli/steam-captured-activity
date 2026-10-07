@@ -5,11 +5,11 @@ import { tierFor } from '../../theme/active-theme';
 import { disposeCaptures, onUnlock } from './captures';
 import { initRecording } from './recording';
 
-/** Takes screenshots and clips through Steam's Game Recording service and marks the timeline. */
+/** Takes screenshots and clips through Steam's Game Recording service; with no recording running, records one itself (ADR-0061). */
 export function createCapturesSurface(): Surface {
     return {
         id: 'captures',
-        touches: ['GameRecording.TakeScreenshot', 'GameRecording.SaveClip'],
+        touches: ['GameRecording.TakeScreenshot', 'GameRecording.SaveClip', 'GameRecording.StartRecording', 'GameRecording.StopRecording', 'GameRecording.DeleteClip'],
         install: () => initRecording(), // false = no recording service: captures stay off, nothing else does
         uninstall: () => disposeCaptures(),
     };

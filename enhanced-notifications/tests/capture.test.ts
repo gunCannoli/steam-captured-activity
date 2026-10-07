@@ -1,7 +1,7 @@
 // Pure-logic tests: run with `npm test` (Node's built-in runner, TS type stripping).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gameIdCandidates, mergeClip, planCaptures, resolveCaptureSettings, SETTLE_MS, unlockOffsetMs, type Action, type CaptureSettings } from '../frontend/capture/plan.ts';
+import { gameIdCandidates, MANUAL_MIN_SHOT_MS, MANUAL_SHOT_TAIL_MS, MAX_CLIP_MS, mergeClip, mergeManual, planCaptures, planManual, resolveCaptureSettings, SETTLE_MS, unlockOffsetMs, type Action, type CaptureSettings } from '../frontend/capture/plan.ts';
 
 const OFF: CaptureSettings = {
     screenshot: { enabled: false, delayMs: 500 },
@@ -61,16 +61,47 @@ test('planCaptures: null timeline skips everything', () => {
     assert.deepEqual(plan.skipped, [{ kind: 'all', reason: 'no-running-timeline' }]);
 });
 
-test('planCaptures: recording null skips screenshot and clip (shortcut)', () => {
+test('planCaptures: no recording running plans one manual recording (ADR-0061)', () => {
     const shortcutGameId = gameIdCandidates(480).shortcut;
     const timeline = { timelineId: 't1', gameId: shortcutGameId, nowOffsetMs: 10_000, recording: null };
     const plan = planCaptures(ALL_ON, unlock, timeline);
-    assert.equal(plan.actions.length, 0);
     assert.equal(plan.shortcut, true);
-    assert.deepEqual(
-        plan.skipped.map((s) => s.reason),
-        ['recording-not-active', 'recording-not-active'],
-    );
+    assert.deepEqual(plan.skipped, []);
+    assert.deepEqual(plan.actions, [{ kind: 'manual', stopAfterMs: 15_000, shotOffsetsMs: [11_000], keepClip: true }]);
+});
+
+test('planManual: screenshot only records past the frame, drops the clip, frame at least 1 s in', () => {
+    const shotOnly: CaptureSettings = { screenshot: { enabled: true, delayMs: 500 }, clip: { enabled: false, durationS: 15, delayMs: 0 } };
+    assert.deepEqual(planManual(shotOnly, 10_000), { kind: 'manual', stopAfterMs: MANUAL_MIN_SHOT_MS + MANUAL_SHOT_TAIL_MS, shotOffsetsMs: [11_000], keepClip: false });
+    const late: CaptureSettings = { ...shotOnly, screenshot: { enabled: true, delayMs: 4_000 } };
+    assert.deepEqual(planManual(late, 10_000)?.shotOffsetsMs, [14_000]);
+    assert.equal(planManual(late, 10_000)?.stopAfterMs, 4_000 + MANUAL_SHOT_TAIL_MS);
+});
+
+test('planManual: clip only records max(duration, delay), no screenshot', () => {
+    const clipOnly: CaptureSettings = { screenshot: { enabled: false, delayMs: 500 }, clip: { enabled: true, durationS: 10, delayMs: 3_000 } };
+    assert.deepEqual(planManual(clipOnly, 0), { kind: 'manual', stopAfterMs: 10_000, shotOffsetsMs: [], keepClip: true });
+    assert.equal(planManual({ ...clipOnly, clip: { enabled: true, durationS: 2, delayMs: 5_000 } }, 0)?.stopAfterMs, 5_000);
+});
+
+test('planManual: nothing to record (clip of 0 s, no screenshot) plans nothing', () => {
+    const none: CaptureSettings = { screenshot: { enabled: false, delayMs: 0 }, clip: { enabled: true, durationS: 0, delayMs: 0 } };
+    assert.equal(planManual(none, 0), null);
+    const timeline = { timelineId: 't1', gameId: gameIdCandidates(480).native, nowOffsetMs: 0, recording: null };
+    assert.deepEqual(planCaptures(none, unlock, timeline).skipped, [{ kind: 'all', reason: 'nothing-to-record' }]);
+});
+
+test('planManual: the recording never exceeds MAX_CLIP_MS', () => {
+    const long: CaptureSettings = { screenshot: { enabled: false, delayMs: 0 }, clip: { enabled: true, durationS: 60, delayMs: 0 } };
+    assert.ok((planManual(long, 0)?.stopAfterMs ?? 0) <= MAX_CLIP_MS);
+});
+
+test('mergeManual: a second unlock extends the one recording, adds its frame, keeps the clip if either wants it', () => {
+    const first = { kind: 'manual' as const, stopAfterMs: 3_000, shotOffsetsMs: [11_000], keepClip: false };
+    const next = { kind: 'manual' as const, stopAfterMs: 15_000, shotOffsetsMs: [13_000], keepClip: true };
+    assert.deepEqual(mergeManual(first, next, 2_000), { kind: 'manual', stopAfterMs: 17_000, shotOffsetsMs: [11_000, 13_000], keepClip: true });
+    assert.equal(mergeManual(first, next, 115_000).stopAfterMs, MAX_CLIP_MS);
+    assert.equal(mergeManual(next, first, 1_000).stopAfterMs, 15_000);
 });
 
 test('planCaptures: clip start is clamped to recording.startOffsetMs and to 0', () => {

@@ -47,6 +47,12 @@ interface TimelineLoader {
 interface GameRecordingStore {
     m_mapActiveTimelines: Map<string, { loader: TimelineLoader; release?: () => void }>;
     m_recordingState: unknown;
+    /** The overlay's record button and the Ctrl+F11 hotkey (steam-components.md § Game Recording RPCs). */
+    StartRecording?(gameId: string): Promise<RpcResult | undefined>;
+    /** Stops it and adds the saved clip to the store; resolves to nothing. */
+    StopRecording?(gameId: string): Promise<void>;
+    DeleteClip?(clipId: string): Promise<number>;
+    GetClipSummariesForGame?(gameId: string): { clip_id: string }[] | undefined;
 }
 
 let service: GameRecordingService | null = null;
@@ -162,6 +168,50 @@ export function saveClip(req: {
     force_thumbnail: boolean;
 }): Promise<RpcOutcome> {
     return invoke(() => service!.SaveClip(req));
+}
+
+// ---------- manual recording (ADR-0061), through Steam's own store so its clip list stays in sync ----------
+
+function clipIds(gameId: string): Set<string> {
+    const list = grs()?.GetClipSummariesForGame?.(gameId) ?? [];
+    return new Set(list.map((c) => c.clip_id));
+}
+
+/** Starts a manual recording of the game (what Ctrl+F11 does). */
+export async function startManualRecording(gameId: string): Promise<RpcOutcome> {
+    const store = grs();
+    if (!store?.StartRecording) return { ok: false, eresult: 0, error: 'recording-store-unavailable' };
+    try {
+        const res = await store.StartRecording(gameId);
+        return { ok: res?.BSuccess() ?? false, eresult: res?.GetEResult() ?? 0 };
+    } catch (error) {
+        return { ok: false, eresult: 0, error: String(error) };
+    }
+}
+
+/** Stops the game's manual recording; resolves to the clip it saved (found as the one new id), if any. */
+export async function stopManualRecording(gameId: string): Promise<{ ok: boolean; clipId?: string; error?: string }> {
+    const store = grs();
+    if (!store?.StopRecording) return { ok: false, error: 'recording-store-unavailable' };
+    try {
+        const before = clipIds(gameId);
+        await store.StopRecording(gameId);
+        const fresh = [...clipIds(gameId)].filter((id) => !before.has(id));
+        return { ok: fresh.length === 1, clipId: fresh.length === 1 ? fresh[0] : undefined };
+    } catch (error) {
+        return { ok: false, error: String(error) };
+    }
+}
+
+/** Deletes a clip through Steam's store; resolves to the EResult (1 = deleted). */
+export async function deleteClip(clipId: string): Promise<number> {
+    const store = grs();
+    if (!store?.DeleteClip) return 0;
+    try {
+        return await store.DeleteClip(clipId);
+    } catch {
+        return 0;
+    }
 }
 
 /** For tests/captures.mjs: the appid of the game with a running timeline, if any. */

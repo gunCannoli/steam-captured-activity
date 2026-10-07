@@ -191,7 +191,7 @@ eType 61; the enum ends at 58). Start-up asks Steam for a config up to 32 past t
 | `react/jsx-runtime` `jsx`/`jsxs` (toast dispatcher) | `surfaces/banner/toast-patch.ts` via `steam/jsx-hook.ts` | 2, [Sharing the jsx runtime](plugins.md#sharing-the-jsx-runtime-between-plugins) |
 | Notification `fnNotificationResolved` (banner popup hold) | `surfaces/banner/themed-toast.tsx` | 17 |
 | `NotificationStore.Test*` (previews) | `surfaces/preview/index.ts` | — |
-| Game Recording RPCs | `surfaces/captures/recording.ts` | — |
+| Game Recording RPCs; `g_GRS.StartRecording` / `StopRecording` / `DeleteClip` (manual recording on unlock, ADR-0061) | `surfaces/captures/recording.ts` | — |
 | `SteamClient.Console.ExecCommand` (`achievement_clear`) and steam-cartridges' `resetAchievements` / `achievementResetSources` / `resetAchievementsWithSources` / `achievementsResettable` | `surfaces/reset/index.ts` | — |
 
 ## Settings panel
@@ -241,6 +241,8 @@ on a row.
 
 ## History
 
+- 2026-10-07 ADR-0061: with no Steam recording running, an unlock starts a manual recording (the existing clip length
+  and delays), takes the screenshot from it after the stop, and keeps the clip only when "Record clip on unlock" is on.
 - 2026-10-02 Toast hover: Steam's overlay is the card's `::before` on a static card, so it covered the whole window
   (square, outside the margin, and, under a banner, left on screen until the popup closed). Themed cards are
   positioned and clip it; banner popups hide it and the banner draws its own (`.ea-banner::after`). New theme key
