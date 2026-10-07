@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-third-party: "Third-party" settings panel crash (2026-10-07)**:
+  - *Root cause*: the extraction left `web_config.lua` in core only; `xbox_live.lua` requires it, so `StoreAccounts` returned `{ error: "module 'web_config' not found" }` and the panel read `accounts.epic.found` on it (`TypeError … reading 'found'`, caught by `ExtensionErrorBoundary`).
+  - *Fix*: copied `web_config.lua` (its `data_dir` is the shared `config/steam-cartridges`, so it reads the same `.env` as core); the panel keeps "Detecting" when `StoreAccounts` answers without `epic` and `xbox`. A scan of every `require` found three more modules absent from the plugin, none loaded today: `achievements_store` and `steam_schema` (only in `store_achievements.lua`, which nothing requires) and `bin_http` (only `net.get_binary`, never called). Copying `achievements_store` would give a second process write access to `achievements.json`, so it was left out.
+  - *Verification*: `npm run check` and `npm test` pass. Live: `StoreAccounts` returns the Epic account and the Xbox gamertag, the panel renders its Third-party section, `check_settings_panel.mjs`, `test_nav_cycle.js`, `check_all_tabs.js` pass. This restart also closed the lifecycle fix's open check: `Core_GetPendingCrashes` is empty.
+  - *Not a bug, recorded*: enhanced-notifications skipped the unlock screenshot and clip for Metroid Fusion (`recording-not-active` twice, 00:49:35) although the unlock itself was detected live from the plain `retroarch.log` 4 s into the session. `GameRecording.TakeScreenshot#1` takes a frame from Steam's recording (steam-components.md), so both need background recording on; this PC's recording mode is Manual.
+
 - **steam-cartridges-local & steam-cartridges-third-party: backend lifecycle table (2026-10-07)**:
   - *Symptom*: Millennium's crash dialog for both plugins at Steam start ("Startup config contains 2 pending crash(es)").
   - *Root cause*: both `backend/main.lua` called `millennium.ready()` at the top level and returned nothing, against the backend contract in docs/plugins.md § 2 (core `steam-cartridges` returns `{ on_load, on_frontend_loaded, on_unload }` and calls `ready()` in `on_load`). The cause is inferred from the contract; no crash dump was written for either plugin.

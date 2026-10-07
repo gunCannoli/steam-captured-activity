@@ -42,7 +42,13 @@ export function ThirdPartySection() {
     const polling = useRef(0);
 
     const refresh = () => {
-        backend.storeAccounts().then((a) => setAccounts(a as Accounts)).catch(() => {});
+        // A failed call answers { error }: keep "Detecting" rather than render a reply without `epic`.
+        backend
+            .storeAccounts()
+            .then((a) => {
+                if (a && typeof a === "object" && a.epic && a.xbox) setAccounts(a as Accounts);
+            })
+            .catch(() => {});
         backend
             .storeInstalledGames(activeServices.xboxEnabled !== false)
             .then((r) => setInstalled({ epic: r.epic ?? [], xbox: r.xbox ?? [], epicLauncher: r.epicLauncher === true }))

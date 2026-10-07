@@ -16,10 +16,6 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**steam-cartridges-local & steam-cartridges-third-party crash dialog at Steam start (2026-10-07): fixed, one check open.**
-Both backends lacked Millennium's lifecycle table (CHANGELOG). Deployed; both load clean, no pending crashes. Open: after one more
-Steam restart, confirm Millennium shows no crash for either plugin (a crash on shutdown shows as pending on the next start).
-
 **steam-cartridges-local & steam-cartridges-third-party backend logger syntax & module isolation (2026-10-06): completed and verified.**
 - Fixed Lua logger method calls to colon syntax (`logger:info`, `logger:error`) in `steam-cartridges-local/backend/main.lua` and `steam-cartridges-third-party/backend/main.lua` to properly pass `self` required by Millennium's C++ logger binding.
 - Stripped lingering core dependencies (`captures`, `shortcuts`, `steam_paths`) and dead RPC methods (`GetLibraryStats`, `GetDiagnostics`) from `steam-cartridges-third-party/backend/rpc.lua`.
