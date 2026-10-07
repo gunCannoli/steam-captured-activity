@@ -163,25 +163,6 @@ export interface StoreItemCache {
     ): any;
 }
 
-/** One published file record in Steam's workshop store. */
-export interface PublishedFileRecord {
-    publishedfileid: string;
-    file_url: string;
-    preview_url: string;
-    file_description: string;
-    visibility: number;
-    creator: string;
-    time_created?: number;
-    image_width?: number;
-    image_height?: number;
-}
-
-/** Steam's `CWorkshopStore` singleton. */
-export interface WorkshopStore {
-    m_mapPublishedFiles: Map<string, { file?: PublishedFileRecord }>;
-    GetPublishedFiles(ids: string[]): Array<{ file?: PublishedFileRecord }>;
-}
-
 /** Steam's `CSteamID` shape. */
 export interface SteamID {
     GetAccountID(): number;
@@ -260,19 +241,6 @@ export function storeItemCache(): StoreItemCache | undefined {
     if (globalCache) return globalCache;
     return resolveSingleton<StoreItemCache>("StoreItemCache", [
         "GetStoreItemWithLegacyVisibilityCheck",
-    ]);
-}
-
-/**
- * `CWorkshopStore`. Holds published file metadata for screenshots and videos.
- */
-export function workshopStore(): WorkshopStore | undefined {
-    const globalWs = Reflect.get(globalThis, "workshopStore") as
-        | WorkshopStore
-        | undefined;
-    if (globalWs) return globalWs;
-    return resolveSingleton<WorkshopStore>("CWorkshopStore", [
-        "GetPublishedFiles",
     ]);
 }
 

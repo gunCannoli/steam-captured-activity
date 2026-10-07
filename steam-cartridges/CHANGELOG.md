@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: captures in the Activity feed moved to their own plugin, steam-captured-activity (2026-10-07, ADR-0062)**: the "{Username} captured" day cards (16:9 cards, inline clips, Big Picture thumbnail style), for Steam games and shortcuts, now come from `steam-captured-activity`, which works without this plugin. Steam Cartridges keeps a shortcut's own feed events (achievements per day, "Added to library", "Played for the first time", a mapped game's native news) and the Post-Game Summary. Removed with it: the native view events, the window events, the headline and activity-cards jsx patches (kill switches `headline` and `activity-cards` retired) and the workshop records. Leaving a Steam game's page no longer deletes Steam's own activity entry for it.
+
 - **Fixed: unsupported RetroAchievements ROMs re-checked on every start (2026-10-07)**: a ROM whose hash maps to an empty placeholder set is now remembered as unsupported for 7 days, so Steam start-up no longer asks RetroAchievements about it or logs it again; the log line no longer claims a title-search fallback that never happens.
 
 - **Fixed: RetroArch unlocks not detected (2026-10-07)**: the in-game observer now reads RetroArch's timestamped logs (`retroarch__<time>.log`, written when `log_to_file_timestamp` is on) and recognises the rcheevos client's `Awarding achievement N` / `Achievement N awarded` lines, so an unlock in RetroArch toasts in Steam and updates the page again.

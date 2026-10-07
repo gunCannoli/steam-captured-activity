@@ -1,22 +1,18 @@
 // Surface `captures` (migration plan M3.2, ADR-0039): the only code that writes Steam's
-// spotlight, activity and StoreItemCache stores and the activity feed's jsx, from Steam's
-// own captures (ADR-0022). Takes over the kill switches `captures`, `store-cache`,
-// `headline` and `activity-cards` (plan § 7.0 D6).
+// spotlight, activity and StoreItemCache stores, from Steam's own captures (ADR-0022) and the
+// record. Takes over the kill switches `captures` and `store-cache` (plan § 7.0 D6). The
+// captures in the Activity feed (the "{Username} captured" cards) are the separate
+// steam-captured-activity plugin's (docs/steam-captured-activity.md).
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { ensureStoreCacheHooked, setAchievementSource, setNativeActivitySource } from "./activity";
-import { installActivityCardsPatch } from "./activity-cards";
 import { deps } from "./deps";
-import { installHeadlinePatch } from "./headline";
 import { patch, unpatch } from "./publish";
 
 export { patch, refresh, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
 export { addSessionAchievement, onSynced, onUnlocked } from "./session";
-export { onWindowClosed, onWindowOpened } from "./bpm-style";
 export { registerSummaryProvider } from "./summary";
 export type { SummaryContext, SummaryContribution, SummaryProvider } from "./summary";
-export { headlineJsxDiagnostics } from "./headline";
-export { activityCardsJsxDiagnostics } from "./activity-cards";
 
 /** Install one part under its own kill switch; a failure counts against that switch only. */
 function part(id: string, install: () => unknown): void {
@@ -42,16 +38,10 @@ export function createCapturesSurface(d: SurfaceDeps & Pick<typeof deps, "activi
             "StoreItemCache.m_mapApps",
             "StoreItemCache.m_setUnavailableApps",
             "StoreItemCache.BIsAppMissing",
-            "CWorkshopStore.m_mapPublishedFiles",
-            "jsx:headline",
-            "jsx:activity-cards",
-            "BPM.style#nsga-bpm-activity-thumbs",
         ],
         reads: ["identity", "achievements"],
         install() {
             part("store-cache", ensureStoreCacheHooked);
-            part("headline", installHeadlinePatch);
-            part("activity-cards", installActivityCardsPatch);
         },
         render(appid, record) {
             // Captures are Steam's own data, read live (ADR-0022); the native activity source (a mapped shortcut's

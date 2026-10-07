@@ -39,8 +39,6 @@ steam-cartridges architecture (ADR-0039); index:
 - Store installs: `frontend/sensors/installs/` is a 60 s tick (`watchInstalls`) that asks `app/store-sync` to look again, so an
   Epic or Xbox game installed while Steam runs is added without a restart. It reads nothing itself, and costs nothing while both
   auto-add toggles are off (`run()` returns before any backend call). Verified live: the backend was called every 60.0 s.
-- Window lifecycle: the view sensor also emits `window.opened` / `window.closed` (desktop and Big Picture) for
-  surfaces that write into a window's own document (M10: `captures`' Big Picture style; it watches no popups itself).
 - The plugin's one event bus: `frontend/app/bus.ts` wraps
   `kernel/events.createEventBus`. Sensors emit into it; `index.tsx`
   subscribes the handlers.

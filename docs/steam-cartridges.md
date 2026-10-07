@@ -29,8 +29,13 @@ templates, the viewer's text) is in [steam-components.md](steam-components.md#co
 manual's design is [ADR-0048](decisions.md) and [steam-cartridges/service-media.md](steam-cartridges/service-media.md);
 pdf.js, ScreenScraper and build facts are in [knowledgebase.md](knowledgebase.md).
 
-**Universal Captured Activity:**
-User captures (screenshots and recordings) are treated as first-class activity items across **both native Steam games and non-Steam shortcuts**. Steam hides local captures from the Activity Feed unless manually uploaded to Steam Community; `steam-cartridges` ingests genuine local captures, builds daily chronological cards with 16:9 thumbnails, enables inline clip playback, and styles headlines with `{Username} captured` across the entire library.
+**Captures in the Activity feed are a separate plugin.** The "{Username} captured" day cards (16:9 thumbnails, inline
+clips), for Steam games and shortcuts alike, belong to [steam-captured-activity](steam-captured-activity.md)
+([ADR-0062](decisions.md)), which needs nothing from this plugin. `steam-cartridges` still restores a shortcut's
+Activity section and publishes its own events there (achievements per day, "Added to library", "Played for the first
+time", a mapped game's native news); the Post-Game Summary still shows the captures. The two plugins share the feed
+entry without knowing about each other: `steam-cartridges` sets a new entry on each change, and
+`steam-captured-activity` merges its marked events into whatever entry is there.
 
 **Extension & Expansion System:**
 The core exposes a global, typed extension registry on `window.SteamCartridges` (`frontend/kernel/extensions.ts`). External Millennium plugins can register as providers without direct code dependencies or crash risks:
@@ -108,6 +113,7 @@ One doc per layer, updated by every change that touches the layer.
 | Settings panels and the Game Data editor | [settings.md](steam-cartridges/settings.md) |
 | Expansion plugin: Local Steam emulators (.ini / .json) | [steam-cartridges-local.md](steam-cartridges-local.md) |
 | Expansion plugin: Third-party storefronts (Epic Games & Xbox) | [steam-cartridges-third-party.md](steam-cartridges-third-party.md) |
+| Sibling plugin: captures in every game's Activity feed (independent) | [steam-captured-activity.md](steam-captured-activity.md) |
 | Live verification baseline, rollback, open known issues | [verification.md](steam-cartridges/verification.md) |
 | Next features (Game Data editor, Media) | [plans/steam-cartridges-features-plan.md](plans/steam-cartridges-features-plan.md) |
 

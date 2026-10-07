@@ -1,9 +1,10 @@
-// Surface `captures`: Big Picture activity thumbnail styling (migration plan M3.2; M10: driven by the
-// view sensor's window.opened / window.closed, it watches no popups itself). A <style> element in the
-// gamepad window's document is a Steam write.
-import { deps } from "./deps";
+// Surface `bpm-style`: Big Picture activity thumbnail styling. Big Picture renders through a React portal from
+// SharedJSContext into the gamepad window (ADR-0029); Steam's own GamePlaySummaryContainer draws the activity
+// thumbnails there, and this <style> in that window's document sizes them 16:9. Desktop windows need nothing. Driven
+// by the view sensor's window events; watches no popups itself. Moved from steam-cartridges' captures/bpm-style.ts.
+import { safety } from "./context";
 
-const STYLE_ID = "nsga-bpm-activity-thumbs";
+const STYLE_ID = "captured-activity-bpm-thumbs";
 
 const STYLE = `
           [class*="CarouselThumbs"] {
@@ -39,14 +40,8 @@ const STYLE = `
 
 const styles = new Map<Document, HTMLStyleElement>();
 
-/**
- * Big Picture renders through a React portal from SharedJSContext into the gamepad window (ADR-0029);
- * Steam's own GamePlaySummaryContainer draws the activity thumbnails there, and this styles them.
- * Desktop windows need nothing.
- */
 export function onWindowOpened({ mode, document }: { mode: "desktop" | "gamepad"; document: Document | undefined }): void {
-    if (mode !== "gamepad" || !document || styles.has(document)) return;
-    if (!deps.isEnabled("captures")) return;
+    if (mode !== "gamepad" || !document || styles.has(document) || !safety.isEnabled("bpm-style")) return;
     try {
         const el = document.createElement("style");
         el.id = STYLE_ID;
@@ -54,7 +49,7 @@ export function onWindowOpened({ mode, document }: { mode: "desktop" | "gamepad"
         document.head?.appendChild(el);
         styles.set(document, el);
     } catch (err) {
-        deps.reportError("captures", err);
+        safety.reportError("bpm-style", err);
     }
 }
 

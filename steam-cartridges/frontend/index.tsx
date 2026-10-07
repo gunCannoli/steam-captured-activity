@@ -6,8 +6,6 @@ import {
     refresh as refreshLibraryApp,
     onSynced as capturesOnSynced,
     onUnlocked as capturesOnUnlocked,
-    onWindowClosed as capturesWindowClosed,
-    onWindowOpened as capturesWindowOpened,
     unpatch as unpatchLibraryApp,
 } from "./surfaces/captures";
 import {
@@ -406,8 +404,6 @@ export const startAchievementsObserver = (shortcutAppId: number, nativeAppId: nu
 
 export { registerSummaryProvider } from "./surfaces/captures";
 export { jsxDiagnostics } from "./steam/gamepad-appid";
-export { headlineJsxDiagnostics } from "./surfaces/captures";
-export { activityCardsJsxDiagnostics } from "./surfaces/captures";
 export { nativeSectionsDiagnostics } from "./surfaces/native-links";
 export { communityDiagnostics } from "./surfaces/community";
 /** Backend calls: the one running, what waits per lane, the last 200 with queue and run times (ADR-0060, for CDP). */
@@ -553,9 +549,8 @@ async function init() {
     }
 
     // ===== Captures (surfaces/captures, plan M3.2) =====
-    // StoreItemCache immunity (store-cache), "{Username} captured" headlines (headline),
-    // native Post-Game Summary cards in the activity feed (activity-cards) and Big
-    // Picture thumbnail styling; each part keeps its own kill switch.
+    // Post-Game Summary, a shortcut's activity feed and StoreItemCache immunity (store-cache). The captures in
+    // the feed are the steam-captured-activity plugin's (docs/steam-captured-activity.md).
     runner.register(
         createCapturesSurface({
             ...surfaceDeps,
@@ -698,21 +693,6 @@ async function init() {
     bus.on("shortcut.left", ({ appid }) => {
         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
     });
-    bus.on("native.viewed", ({ appid }) => {
-        if (features.isEnabled("captures")) void patchLibraryApp(appid);
-        extensionApi.notifyAppViewed({
-            appid,
-            gameid: String(appid),
-            isShortcut: false,
-            displayName: "",
-        });
-    });
-    bus.on("native.left", ({ appid }) => {
-        if (features.isEnabled("captures")) unpatchLibraryApp(appid);
-    });
-    // Big Picture thumbnail styling goes into each gamepad window the view sensor reports.
-    bus.on("window.opened", capturesWindowOpened);
-    bus.on("window.closed", capturesWindowClosed);
 
     // ===== Refresh after play =====
     // Quitting a game is exactly when new screenshots and clips exist, so

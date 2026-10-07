@@ -70,6 +70,7 @@ ports-and-adapters modular monolith
 | [steam-cartridges/](steam-cartridges/README.md) | One doc per architecture layer, plus [verification.md](steam-cartridges/verification.md) (live baseline, rollback, open known issues) |
 | [steam-cartridges-local.md](steam-cartridges-local.md) | Expansion plugin architecture: offline Steam emulator achievement parsing (.ini / .json for CODEX, RUNE, GSE, Goldberg) |
 | [steam-cartridges-third-party.md](steam-cartridges-third-party.md) | Expansion plugin architecture: Epic Games and Xbox / Microsoft Store / Game Pass integrations and auto-add |
+| [steam-captured-activity.md](steam-captured-activity.md) | `steam-captured-activity` architecture: captures in every game's Activity feed, how it shares the feed with Steam and `steam-cartridges`, the clean-up of deleted captures, its settings |
 | [millennium-architecture.md](millennium-architecture.md) | The suite: core/provider split, data flow, RPC, provider contract. Its module layout is out of date |
 | [enhanced-notifications.md](enhanced-notifications.md) | How `enhanced-notifications` is built (every toast's style, and the achievement banner merged from `enhanced-achievements`): layers, owners, the safety net, how to add a feature |
 

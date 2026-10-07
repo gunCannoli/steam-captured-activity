@@ -35,21 +35,6 @@ test('view: desktop A -> B leaves A before viewing B; native pages are not views
     assert.deepEqual(log, [`viewed ${AM2R} desktop`, `left ${AM2R} desktop`, `viewed ${WUCHANG} desktop`, `left ${WUCHANG} desktop`]);
 });
 
-test('view: native app view tracking emits nativeViewed and nativeLeft', () => {
-    const nativeLog: string[] = [];
-    const t = createViewTracker({
-        toShortcutId,
-        now: () => 0,
-        viewed: () => {},
-        left: () => {},
-        nativeViewed: (p) => nativeLog.push(`viewed native ${p.appid} ${p.mode}`),
-        nativeLeft: (p) => nativeLog.push(`left native ${p.appid} ${p.mode}`),
-    });
-    t.route(NATIVE);
-    t.route(undefined);
-    assert.deepEqual(nativeLog, [`viewed native ${NATIVE} desktop`, `left native ${NATIVE} desktop`]);
-});
-
 test('view: signed CEF appids are normalized (same page, one view)', () => {
     const { t, log } = tracker();
     t.route(-31693194); // AM2R as signed int32

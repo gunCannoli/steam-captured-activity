@@ -6,13 +6,15 @@
 //   PLUGIN_LIST['steam-cartridges-dev'].setSetting('disabledFeatures', 'game-info,achievements')
 // and a Steam restart.
 
-/** Stable ids: users type them. Never rename one; add new ones at the end. */
+/**
+ * Stable ids: users type them. Never rename one; add new ones at the end. Retired, never reuse: `headline` and
+ * `activity-cards` (moved to the steam-captured-activity plugin, 2026-10-07; an old `disabledFeatures` value naming
+ * them is ignored).
+ */
 export const FEATURE_IDS = [
     "sections",
     "store-cache",
     "captures",
-    "headline",
-    "activity-cards",
     "native-links",
     "achievements",
     "achievements-observer",

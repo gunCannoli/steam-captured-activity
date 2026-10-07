@@ -1,6 +1,6 @@
 import { logger } from "../../logger";
 import { clearActivity, publishActivity } from "./activity";
-import { toGameId, isShortcutAppId, type ShortcutId } from "../../kernel/appid";
+import { toGameId, toShortcutId, type ShortcutId } from "../../kernel/appid";
 import { clearSummary, publishSummary } from "./summary";
 import { deps } from "./deps";
 
@@ -31,18 +31,19 @@ function setHasContent(appid: number, hasContent: boolean): void {
 }
 
 /**
- * Publish this app's summary and activity feed so Steam's own sections can render them.
+ * Publish a shortcut's summary and activity feed so Steam's own sections can render them.
  *
- * Callers must only pass a non-Steam appid; the caller owns that check because
- * it also decides when to clear.
+ * Shortcuts only: a Steam game has its own summary and feed (its captures in the feed come from the
+ * steam-captured-activity plugin). The caller owns that check because it also decides when to clear.
  */
 export async function patch(appid: number): Promise<void> {
-    const isShortcut = isShortcutAppId(appid);
-    const gameid = isShortcut ? toGameId(appid as ShortcutId) : appid.toString();
+    const id = toShortcutId(appid);
+    if (id === undefined) return;
+    const gameid = toGameId(id);
 
     try {
         const [summaryCount, activityCount] = await Promise.all([
-            isShortcut ? publishSummary(appid, gameid) : Promise.resolve(0),
+            publishSummary(appid, gameid),
             publishActivity(appid, gameid),
         ]);
         const totalCount = summaryCount + activityCount;
@@ -50,9 +51,7 @@ export async function patch(appid: number): Promise<void> {
 
         // Steam's "information is unavailable" placeholder is only worth removing
         // once we have something to show instead.
-        if (isShortcut) {
-            setHasContent(appid, totalCount > 0);
-        }
+        setHasContent(appid, totalCount > 0);
     } catch (error) {
         logger.error("Could not publish summary or activity for", appid, error);
     }

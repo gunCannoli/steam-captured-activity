@@ -264,7 +264,7 @@ All stay public; other plugins and the CDP scripts reach them through `PLUGIN_LI
 | `achievementResetSources`, `resetAchievementsWithSources` | Reset Achievements with the emulator and trophy files (ADR-0054; enhanced-notifications) |
 | `registerSummaryProvider` (+ `SummaryContext`, `SummaryContribution`, `SummaryProvider`) | providers add lines to the Post-Game Summary |
 | `gameInfoRepairDiagnostics` | K6: how often Game Info was re-applied from Steam's overview rebuild (`viaTrigger`) or a render (`viaRender`, must stay 0) |
-| `jsxDiagnostics`, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks |
+| `jsxDiagnostics`, `nativeSectionsDiagnostics` | jsx-hook health for the live checks (the headline and cards diagnostics moved to steam-captured-activity, ADR-0062) |
 - M10 (2026-09-30): four RPCs deleted (above); `tests/architecture-unwired-rpcs.json` replaces the manual classification of the unwired ones.
 - F2 (features plan): `GetMediaImage` added; `GetGameMedia`, `GetGameManual`, `GetGameTrailers`, `GetGameCommunityLinks` deleted with `igdb_community.lua`.
 - F2c (2026-10-01): `GetManualChunk` added (ADR-0048).

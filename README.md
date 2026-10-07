@@ -45,6 +45,7 @@ for what each one needs and where its data comes from.
 | Plugin | Status | Public repo |
 | --- | --- | --- |
 | [steam-cartridges](steam-cartridges/) (ex non-steam-games-activity + steamgriddb-artwork) | 🚧 Post-Game Summary shipped; Activity feed + Big Picture ahead | not yet published |
+| [steam-captured-activity](steam-captured-activity/) (split from steam-cartridges, ADR-0062) | 🚧 The screenshots and recordings Steam captured, as "{Username} captured" cards in every game's Activity feed (Steam games and non-Steam shortcuts); works alone | not yet published |
 | [enhanced-notifications](enhanced-notifications/) (ex enhanced-achievements, merged) | 🚧 Restyles every toast type in place, plus sounds and display time; optional themed achievement banner per rarity tier, captures on unlock; alpha | not yet published |
 | `retroarch` | 📋 planned | — |
 | `retroachievements` | 📋 planned | — |

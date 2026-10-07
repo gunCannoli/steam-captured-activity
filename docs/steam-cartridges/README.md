@@ -83,7 +83,7 @@ The import rule says whom a layer may import; this says what it may **do**. Both
 **What a surface may be given:** its `SurfaceDeps`; pure reads (the record, a setting, the image bin, app-loaded
 stats); the `bus` to emit its **own result event** (`artwork.applied`, `captures.published`). Never a function that
 reaches the backend or another surface. A Steam-side input a surface needs arrives as a kernel event that `index.tsx`
-subscribes the surface's handler to (`window.opened`/`window.closed`, `achievements.unlocked`,
+subscribes the surface's handler to (`achievements.unlocked`,
 `achievements.launch-toast`, `captures.published`).
 
 **Exceptions** are listed, with their reason, in `tests/architecture-capabilities-allowlist.json` (the Steam

@@ -1,0 +1,24 @@
+{
+  "name": "steam-captured-activity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shows the screenshots and recordings Steam captured in each game's Activity feed, as daily 16:9 cards with inline clip playback, for Steam games and non-Steam shortcuts.",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build": "millennium-ttc --build prod",
+    "build:dev": "millennium-ttc --build dev",
+    "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@steambrew/client": "^5.8.5",
+    "steambrew-utils": "0.0.0-beta-20260816131110"
+  },
+  "devDependencies": {
+    "@steambrew/ttc": "^2.8.7",
+    "@types/react": "19.1.1",
+    "@types/react-dom": "19.1.1",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

@@ -57,7 +57,7 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/kernel/surface.ts` | `Surface`, `SurfaceDeps`, `SurfaceRunner` contract (kernel, not a surface itself) |
 | `frontend/surfaces/sections/index.ts` | `sections` surface (§ sections below) |
 | `frontend/surfaces/captures/index.ts` | `captures` surface: `createCapturesSurface`, re-exports (§ captures below) |
-| `frontend/surfaces/captures/{summary,activity,headline,activity-cards,publish,bpm-style,deps}.ts` | `captures`'s six parts, one file each |
+| `frontend/surfaces/captures/{summary,activity,achievement-days,session,publish,deps}.ts` | `captures`'s parts, one file each (the headline, cards and Big Picture style moved to steam-captured-activity, ADR-0062) |
 | `frontend/surfaces/game-info/index.ts` | `game-info` surface: `createGameInfoSurface`, `gameInfoWriter` (§ game-info below) |
 | `frontend/surfaces/game-info/{patch,metadata,deps}.ts` | `game-info`'s hooks, enrich/revert (the badges come from the record since M10), injected deps |
 | `frontend/surfaces/game-info/playbar.ts` | part `playbar` of `game-info` (§ playbar below; a surface of its own until M10) |
@@ -198,8 +198,11 @@ nothing outside this file calls `setExtraSections`, and nothing pushes a Game In
 ## captures
 
 The only code that writes Steam's spotlight, activity and `StoreItemCache`
-stores and the activity feed's jsx, from Steam's own captures (ADR-0022):
-screenshots and clips, never rebuilt or re-encoded.
+stores, from Steam's own captures (ADR-0022) and the record: screenshots and clips, never rebuilt or re-encoded.
+Shortcuts only. The captures **in the Activity feed** (the "{Username} captured" day cards, for every game) are the
+separate [steam-captured-activity](../steam-captured-activity.md) plugin's (ADR-0062): this surface publishes a
+shortcut's own feed events (achievements, "Added to library", "Played for the first time", a mapped game's native
+events) and sets a new entry on each change; that plugin merges its events into it.
 
 **touches:**
 
@@ -210,10 +213,6 @@ screenshots and clips, never rebuilt or re-encoded.
 | `StoreItemCache.m_mapApps` | 1, 5 (never deletes a stub, only adds) |
 | `StoreItemCache.m_setUnavailableApps` | 1, 5 |
 | `StoreItemCache.BIsAppMissing` | 1 |
-| `CWorkshopStore.m_mapPublishedFiles` | 1, 13 (the only live writer; the other, `steam/community-store.ts`, was unreachable and purged in M3.0, D7) |
-| `jsx:headline` | 2 |
-| `jsx:activity-cards` | 2 |
-| `BPM.style#nsga-bpm-activity-thumbs` | 12 (Big Picture only, via `onPopupCreate`) |
 
 **reads:** `identity` (M4c), `achievements` (ADR-0056). **Achievements in the feed** (ADR-0056): each day with unlocks
 of any source becomes one Steam "achieved" event (`achievement-days.ts` groups, `activity.ts` builds it on the shared
@@ -227,25 +226,22 @@ session write (`appSpotlightStore.GetOrCreateAppData(appid).m_session.AddAchieve
 `features/achievements/observer-session.ts`, the last Steam write outside `surfaces/`. `index.tsx` calls it for each id of
 `achievements.unlocked`; fail-open, and off with the `captures` switch. `touches` gains `AppSpotlightStore.m_session.AddAchievement`.
 
-**Kill switches:** four, one surface (D6) — `captures` (the surface as a whole; switching it off
-skips `store-cache`, `headline` and `activity-cards` too, since the runner never calls `install()`
-on a disabled surface) plus `store-cache`, `headline`, `activity-cards` for their own part.
-Each part installs under its own id inside `captures`'s `install()`, so one part's failure
-doesn't take down the others.
+**Kill switches:** two, one surface (D6) — `captures` (the surface as a whole; switching it off
+skips `store-cache` too, since the runner never calls `install()` on a disabled surface) plus `store-cache` for its
+own part. `headline` and `activity-cards` are retired (ADR-0062).
 
 **Injected deps:**
 - `SurfaceDeps & { activityOptions(): ActivityOptions; bus }`, passed to `createCapturesSurface`; `activityOptions()` replaces importing `settings` directly (the two activity display settings); `bus` carries `captures.published` (M10).
 
 **API:**
-- `onWindowOpened` / `onWindowClosed` — the Big Picture thumbnail style, subscribed to the view sensor's window events (M10).
 - `onUnlocked` — the Post-Game Summary line for each item of `achievements.unlocked` (M10).
-- `registerSummaryProvider`, the `Summary*` types, `headlineJsxDiagnostics`, `activityCardsJsxDiagnostics` — re-exported from `surfaces/captures`; `index.tsx`'s public API (D8) is unchanged.
+- `registerSummaryProvider`, the `Summary*` types — re-exported from `surfaces/captures`. `headlineJsxDiagnostics` and `activityCardsJsxDiagnostics` left with the jsx patches (ADR-0062; the new plugin exports `headlineJsxDiagnostics` and `cardsJsxDiagnostics`).
 
 **`render(appid, record)`** (M4c): `setNativeActivitySource(appid, record?.identity?.data?.native?.appid)`
 then `void patch(appid)` (was the steam-store `republish`, wired through `setCapturesSinks`). Called
 only when `identity` changed (the runner gates on `reads`). `setCapturesSinks` is gone.
 
-**Hooks:** `BIsAppMissing` (fail-open under `store-cache`), the headline observer (fail-open under `headline`), the activity-cards `replaceType` (fail-open under `activity-cards`).
+**Hooks:** `BIsAppMissing` (fail-open under `store-cache`).
 
 **Record-driven in:** M4c (`identity`).
 

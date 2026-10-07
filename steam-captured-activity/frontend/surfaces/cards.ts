@@ -1,9 +1,12 @@
+// Surface `cards`: a capture event's carousel in the feed becomes a row of Steam's own Post-Game Summary cards
+// (PostGameSummaryClip, SummaryScreenshot) at 16:9, with inline clip playback. Moved from steam-cartridges'
+// surfaces/captures/activity-cards.ts; the components are found by signature once (guardrail 3).
 import React from 'react';
-import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
-import { jsxRuntime, steamRequire } from '../../steam/modules';
-import { logger } from '../../logger';
-import type { MediaItem } from './activity';
-import { deps } from './deps';
+import { keepJsxPatched, type JsxHookDiagnostics } from '../steam/jsx-hook';
+import { jsxRuntime, steamRequire } from '../steam/modules';
+import { logger } from '../logger';
+import type { MediaItem } from '../domain/captures';
+import { safety } from './context';
 
 let hasScanned = false;
 let cachedClipComponent: any = undefined;
@@ -78,7 +81,7 @@ function initCardComponents(): void {
 /**
  * Native-style Post-Game Summary cards container rendered inside each Activity Feed day.
  */
-function NonSteamActivityCards(props: { event: any }): React.ReactElement | null {
+function CaptureCards(props: { event: any }): React.ReactElement | null {
   const items = props.event?.m_mediaItems as MediaItem[] | undefined;
   if (!items || items.length === 0) return null;
 
@@ -141,7 +144,7 @@ function NonSteamActivityCards(props: { event: any }): React.ReactElement | null
     'div',
     {
       'flow-children': 'row',
-      className: 'NonSteamActivityCardsRow CarouselThumbs',
+      className: 'CaptureCardsRow CarouselThumbs',
       style: {
         display: 'flex',
         flexDirection: 'row',
@@ -166,7 +169,7 @@ function handleActivityCardReplace(_type: unknown, props: unknown): unknown {
     p.event.m_mediaItems.length > 0 &&
     p.onScreenshotChanged
   ) {
-    return NonSteamActivityCards;
+    return CaptureCards;
   }
   return undefined;
 }
@@ -174,7 +177,7 @@ function handleActivityCardReplace(_type: unknown, props: unknown): unknown {
 /**
  * Install the Activity Cards patch to replace Steam's community screenshot carousel
  * with genuine Post-Game Summary cards (PostGameSummaryClip and SummaryScreenshot)
- * for non-Steam games. Self-healing and shared safely with the other plugins that hook
+ * for capture events (Steam games and shortcuts). Self-healing and shared safely with the other plugins that hook
  * jsx (steam/jsx-hook.ts).
  */
 export function installActivityCardsPatch(): void {
@@ -189,13 +192,13 @@ export function installActivityCardsPatch(): void {
   initCardComponents();
 
   hook = keepJsxPatched(runtime as unknown as Record<'jsx' | 'jsxs', (type: unknown, props: unknown, key?: unknown) => unknown>, {
-    label: 'steam-cartridges.activity-cards',
+    label: 'steam-captured-activity.cards',
     replaceType: (type, props) => {
-      if (!deps.isEnabled('activity-cards')) return undefined;
+      if (!safety.isEnabled('cards')) return undefined;
       try {
         return handleActivityCardReplace(type, props);
       } catch (err) {
-        deps.reportError('activity-cards', err); // fail-open (plan § 7.0 D6)
+        safety.reportError('cards', err); // fail-open
         return undefined;
       }
     },
@@ -203,7 +206,7 @@ export function installActivityCardsPatch(): void {
   logger.info('Installed Activity Feed native Post-Game Summary cards patch.');
 }
 
-/** Chain health, for tests (window.PLUGIN_LIST[...].activityCardsJsxDiagnostics()). */
-export function activityCardsJsxDiagnostics(): JsxHookDiagnostics[] {
+/** Chain health, for tests (window.PLUGIN_LIST[...].cardsJsxDiagnostics()). */
+export function cardsJsxDiagnostics(): JsxHookDiagnostics[] {
   return hook?.diagnostics() ?? [];
 }

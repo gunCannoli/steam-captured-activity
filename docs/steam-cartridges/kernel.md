@@ -48,8 +48,6 @@ export interface Events {
     "shortcut.left": { appid: ShortcutId; mode: "desktop" | "gamepad" };
     "shortcut.launched": { appid: ShortcutId; name: string };
     "shortcut.quit": { appid: ShortcutId; name: string };
-    "window.opened": { mode: "desktop" | "gamepad"; document: Document | undefined };   // view sensor (M10)
-    "window.closed": { mode: "desktop" | "gamepad"; document: Document | undefined };
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };   // M10: items
     "achievements.synced": { appid: ShortcutId; items: UnlockedAchievement[] };   // ADR-0056: a store sync, no toast

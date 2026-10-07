@@ -20,7 +20,7 @@ steam-cartridges architecture (ADR-0039); index:
 ```ts
 // frontend/safety/features.ts
 export const FEATURE_IDS = [
-    "sections", "store-cache", "captures", "headline", "activity-cards",
+    "sections", "store-cache", "captures",   // retired: "headline", "activity-cards" (ADR-0062)
     "native-links", "achievements", "achievements-observer", "game-info",
     "library-home", "background-sync", "playbar", "toasts", "artwork", "community", "library-shortcuts", "launch-hold",
 ] as const;

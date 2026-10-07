@@ -133,12 +133,12 @@ test('architecture: every RPC the frontend calls is registered in backend/main.l
     assert.deepEqual(missing, [], `ports/backend.ts calls methods main.lua does not register: ${missing.join(', ')}`);
 });
 
-test('architecture: keepJsxPatched is installed only by steam/gamepad-appid (view sensor), surfaces/captures, surfaces/native-links and surfaces/community (ADR-0041, ADR-0046)', () => {
+test('architecture: keepJsxPatched is installed only by steam/gamepad-appid (view sensor), surfaces/native-links and surfaces/community (ADR-0041, ADR-0046; the captures headline and cards moved to steam-captured-activity)', () => {
     const users = walk(FRONTEND)
         .filter((f) => !/steam[\\/]jsx-hook\.ts$/.test(f))
         .filter((f) => /keepJsxPatched\s*\(/.test(readFileSync(f, 'utf8')))
         .map((f) => areaOf(f));
-    assert.deepEqual([...new Set(users)].sort(), ['steam', 'surfaces/captures', 'surfaces/community', 'surfaces/native-links']);
+    assert.deepEqual([...new Set(users)].sort(), ['steam', 'surfaces/community', 'surfaces/native-links']);
 });
 
 test('architecture: no two surfaces declare the same Steam target (assertDisjointTouches would abort start-up)', () => {

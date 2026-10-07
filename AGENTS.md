@@ -13,6 +13,9 @@ The product is a **core plugin plus optional provider plugins**:
   screenshots and recordings Steam itself captured. It does not rebuild that
   page — Steam hides it from shortcuts by app type, so the plugin restores the
   section and feeds Steam's own store. No emulator, no network, no API key.
+- **`steam-captured-activity`** (split out of `steam-cartridges`, ADR-0062) — the screenshots and recordings Steam
+  captured, as "{Username} captured" cards in **every** game's Activity feed (Steam games and shortcuts). Independent:
+  it needs nothing from `steam-cartridges`. See [docs/steam-captured-activity.md](docs/steam-captured-activity.md).
 - **Providers** — optional plugins that enrich the timeline for games they recognise:
   `retroachievements`, `retroarch`, guides, artwork, and so on.
 
@@ -53,6 +56,7 @@ refer to [docs/plugins.md](docs/plugins.md).
 | Create a plugin, or add a feature to one | [docs/plugins.md § Playbook](docs/plugins.md#playbook-creating-a-plugin-or-a-feature), then its guardrails |
 | Add a feature to `steam-cartridges` | [docs/steam-cartridges.md § 4](docs/steam-cartridges.md#4-adding-a-feature), then the layer docs it names |
 | Add a feature to `enhanced-notifications` | [docs/enhanced-notifications.md](docs/enhanced-notifications.md) |
+| Add a feature to `steam-captured-activity` | [docs/steam-captured-activity.md](docs/steam-captured-activity.md) |
 | Touch anything in Steam's UI | [docs/steam-components.md](docs/steam-components.md) (the map first), [docs/steam-architecture.md](docs/steam-architecture.md) for the overview |
 | Debug or inspect the live client | [docs/steam-debug.md](docs/steam-debug.md) (cheapest probe first) |
 | Need a fact outside Steam's UI (SDK, config API, file formats, providers) | [docs/knowledgebase.md](docs/knowledgebase.md) |
@@ -172,7 +176,7 @@ UI mode, change plugin settings or show toasts. **Does not:** reading a value ov
 Before declaring any UI or store modification complete, verify ALL four core views for a non-Steam shortcut:
 
 1. **Post-Game Summary / Hero:** Top card renders screenshots, clips, and play evidence.
-2. **Activity Feed:** Daily bucketed cards render with 16:9 thumbnails and `{Username} captured` headline.
+2. **Activity Feed:** Daily bucketed cards render with 16:9 thumbnails and `{Username} captured` headline (these cards come from `steam-captured-activity`, which must be deployed too; ADR-0062).
 3. **Your Stuff Tab:** Media section displays captures, duration badges, and item count (not the empty placeholder).
 4. **Game Info Tab:** Capsule, description, developer/publisher credits, release date, and category badges render without the grey shortcut warning.
 
@@ -191,6 +195,7 @@ Run the live diagnostic scripts in `steam-cartridges/tests/live/` (or `npm run t
 ```powershell
 node steam-health.mjs                                 # First: Steam UI up, every enabled plugin loaded (steam-debug.md § 8)
 node steam-cartridges/tests/live/test_nav_cycle.js   # Verifies two-way navigation lifecycle (hasEvent: true)
+node steam-captured-activity/tests/live/check_feed.mjs # Captures in a Steam game's and a shortcut's feed, A -> B -> A, the clean-up
 node steam-cartridges/tests/live/check_all_tabs.js    # Verifies Post-Game Summary, Activity, Your Stuff, Game Info
 ```
 

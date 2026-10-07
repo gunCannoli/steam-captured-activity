@@ -3448,3 +3448,46 @@ one 1 s behind live (EResult 9, not yet on disk).
   and nothing else happens), a game that quits before the stop, and how far behind live a frame is safe while recording
   (not needed: the screenshot is taken after the stop).
 
+
+## ADR-0062: Captured Activity is its own plugin, steam-captured-activity, independent of steam-cartridges
+
+**Status:** Accepted · 2026-10-07 · steam-captured-activity, steam-cartridges. Architecture: [steam-captured-activity.md](steam-captured-activity.md).
+
+### Context
+
+The "Universal Captured Activity" pillar of the extension plan (2026-10-06) put the player's screenshots and recordings
+in the Activity feed of every game, Steam games included, inside `steam-cartridges`. That made a feature for every
+library game depend on the plugin whose job is non-Steam game pages, and it carried code `steam-cartridges` only needed
+for it: the native view events (`native.viewed` / `native.left`), the window events, the headline and card jsx
+patches, the Big Picture thumbnail style and the workshop records. Leaving a Steam game's page also deleted Steam's own
+activity entry for it (`clearActivity` on `native.left`), so Steam fetched it again on every visit. The user asked for
+the feature as its own plugin with two toggles, and for deleted captures to leave the feed.
+
+### Decision
+
+1. **`steam-captured-activity` owns every capture event in the Activity feed**, for Steam games and shortcuts:
+   the type-13 day events with their `m_mediaItems`, the "{Username} captured" headline, the 16:9 Post-Game Summary
+   cards, the Big Picture thumbnail style. It needs nothing from `steam-cartridges` and imports nothing from it.
+2. **`steam-cartridges` keeps a shortcut's own feed** (achievements per day, "Added to library", "Played for the first
+   time", a mapped game's native events), the Post-Game Summary, and no capture events. Its view sensor goes back to
+   shortcuts only. Retired kill switches: `headline`, `activity-cards`.
+3. **One feed entry, several writers, no coupling.** The new plugin keeps what each app should show and merges it,
+   marked, into whatever entry exists, and into any entry another writer sets later (it wraps the activity map's
+   `set`). It takes back only its own marked events. After changing an entry it does not own it deletes and re-sets the
+   same object, so Steam's entry and fetch state stay.
+4. **Standalone on shortcuts:** it puts `activity` back in a shortcut's section list when its feed shows captures, and
+   writes the shortcut's in-memory store item (both idempotent next to `steam-cartridges`' own).
+5. **Clean-up is a re-read.** Captures are read live from Steam: on each page view, after a game quits, and every
+   5 minutes for the 20 most recently viewed apps. What Steam no longer lists leaves the feed.
+6. **Settings:** "Steam games support" and "Non-Steam games support", both on by default.
+
+### Consequences
+
+- The "{Username} captured" cards need the new plugin enabled. With `steam-cartridges` alone, a shortcut's feed shows
+  its achievements and the synthetic events, and the Post-Game Summary still shows the captures. Routine 1 view 2 and
+  the live scripts that count "captured" cards assume both plugins.
+- Leaving a Steam game's page no longer deletes Steam's activity entry.
+- Found while building it: Steam's `GetScreenshotsInTimeRange` returns at most 100 (the newest), so the plugin pages
+  by time range (152 of 152 on a test game); and a Steam game's server fetch can rebuild its entry in place after a
+  publish, so the plugin re-checks once that fetch is done.
+- Supersedes the captured-activity part (pillar 4) of the extension plan, which is deleted with this change.
