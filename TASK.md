@@ -16,6 +16,12 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**enhanced-notifications capture on unlock without background recording (2026-10-07): probed, not built.**
+Proven live (steam-components.md § Game Recording RPCs): start/stop a manual recording and take a screenshot from it.
+Next: measure how far behind live a frame is on disk (a run of about 15 s on any game), then a plan and an ADR
+(start a recording on unlock when none runs, screenshot a few seconds later, stop after N s). Decide whether to delete
+the probe's 2 AM2R clips and 1 screenshot.
+
 **steam-cartridges-local & steam-cartridges-third-party backend logger syntax & module isolation (2026-10-06): completed and verified.**
 - Fixed Lua logger method calls to colon syntax (`logger:info`, `logger:error`) in `steam-cartridges-local/backend/main.lua` and `steam-cartridges-third-party/backend/main.lua` to properly pass `self` required by Millennium's C++ logger binding.
 - Stripped lingering core dependencies (`captures`, `shortcuts`, `steam_paths`) and dead RPC methods (`GetLibraryStats`, `GetDiagnostics`) from `steam-cartridges-third-party/backend/rpc.lua`.

@@ -1545,6 +1545,24 @@ entries stay in `m_mapActiveTimelines`** after a timeline stops (Steam calls
 mandatory before trusting an entry. `g_GRS` must be read fresh on every use,
 never cached — Steam can recreate it.
 
+**Manual recording from code (✅ verified live 2026-10-07, AM2R shortcut, recording mode Manual).** `g_GRS`
+also does what the overlay's record button and the Ctrl+F11 hotkey do:
+
+- `g_GRS.StartRecording(gameId)` → `GameRecording.StartRecording#1` `{ game_id }`; resolves with the RPC result
+  (EResult 1). Within 3 s the timeline's `m_runningRecording` appears with `recording_type: 2` (manual).
+- `g_GRS.StopRecording(gameId)` → `GameRecording.StopRecording#1` `{ game_id }`; on success Steam adds the clip
+  summary to its own store (`GetClipSummariesForGame(gameId)`): a clip of the whole recording (11 s), no `SaveClip`
+  needed.
+- `g_GRS.TakeScreenshot(gameId, timelineId, offsetMs, sourceClipId?)` → `{ handle, result }`. A frame inside a
+  recorded range is saved as a real screenshot (4K JPG under `screenshots/<gameid>/`, then
+  `SteamClient.Screenshots.GetLastScreenshotTaken()`). **A frame 1 s behind live, 8 s into a recording, fails with
+  EResult 9 (FileNotFound)**: the newest video is not on disk yet; how far behind live is safe was not measured.
+  Passing `sourceClipId` returns 8 (InvalidParam); leave it out.
+- `GameRecording.SetPerGameSettings#1` takes `{ gameid, enabled, minutes, bitrate, infinite }` (per-game
+  background recording; read from the message definition, not called).
+
+There is still no live, F12-style grab: nothing in `SteamClient.*` or the recording service takes one.
+
 **Dry-probe EResults** (bogus `game_id: "1"`, `timeline_id:
 "timeline_0_nonexistent"`): `GetState({})` → 1 OK; `GetTimelinesForApp` → 1,
 empty; `TakeScreenshot` → 8 (InvalidParam); `SaveClip` (`temporary: true`) →
