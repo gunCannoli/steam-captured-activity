@@ -737,6 +737,40 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
   `steam-cartridges/tests/test_globals.lua` (in `npm test`) reads every backend file's bytecode and fails on a global
   read that is not standard Lua; copy it into a new Lua plugin.
 
+### 21. Lua-to-JSON Empty Table Serialization Trap (`{}` is an Object in JSON, never `[]`)
+
+- **The Trap:** Lua has only one composite data structure: tables (`{}`). An empty Lua table has no keys.
+  Millennium's JSON serializers (`cjson` / `nlohmann::json`) encode an empty table `{}` as a JSON object (`"{}"`),
+  **never** as a JSON array (`"[]"`).
+  When TypeScript receives this via RPC, static types like `items: MyItem[]` are an illusion at runtime:
+  `typeof res.items === "object"`, but `Array.isArray(res.items) === false`.
+  Using `res.items ?? []` does **not** replace it because `{}` is truthy and not nullish!
+  Calling `res.items.filter(...)`, `res.items.map(...)`, `res.items.length === 0`, or `[...res.items]` immediately
+  throws `TypeError: res.items.filter is not a function` or `TypeError: res.items is not iterable`, crashing the
+  React render tree. Seen on 2026-10-07 in `steam-cartridges-third-party`: an empty `epic: {}` table crashed the
+  settings panel whenever 0 Epic games were installed.
+- **The Rule:**
+  1. **Frontend RPC boundary:** Never trust that a collection returned from Lua is a JS Array. Always coerce with
+     `Array.isArray(x) ? x : []` or an `asArray<T>(val: unknown): T[]` helper before storing in state or calling array methods.
+  2. **UI helper functions:** Any formatting or badge helper (e.g. `installedText(list)`) must validate
+     `const arr = Array.isArray(list) ? list : []` before checking `.length` or filtering.
+  3. **Empty array test cases:** Backend and frontend unit tests must explicitly test empty collections (`#items == 0`),
+     confirming the frontend mounts cleanly without throwing when the backend returns empty `{}`.
+
+### 22. Extension Settings Panel Isolation & Defensive Rendering
+
+- **The Trap:** Expansion plugins (`steam-cartridges-third-party`, `steam-cartridges-local`) register panels into the core
+  plugin's `SettingsPanel` via `window.SteamCartridges.registerSettingsPanel()`. Even though the core wraps extensions in an
+  `ExtensionErrorBoundary`, any unhandled error inside an extension's component knocks out that entire section, leaving
+  the user unable to see or toggle features.
+- **The Rule:**
+  1. **Defensive state:** Never assume backend RPCs succeed or return fully populated objects. Every property access on
+     RPC data (`accounts?.epic?.found`, `res?.epic`) must have a fallback or optional chaining.
+  2. **No unhandled throws in render:** A rejected promise (`.catch()`) must leave the component in a safe "scanning"
+     or "error" fallback; it must never bubble an uncaught exception to the render pass.
+  3. **Core settings immutability:** Provider-specific settings (e.g. `xboxOverlayWorkaround`) belong strictly in the
+     provider plugin's own settings store; core `settings-defaults.ts` must remain pure and free from provider-specific keys.
+
 ---
 
 ## 4. Develop

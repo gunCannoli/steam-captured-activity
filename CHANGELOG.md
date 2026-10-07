@@ -7,6 +7,13 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges & steam-cartridges-third-party: extension settings crash fix & Guardrails 21 & 22 (2026-10-07)**:
+  - *Symptom*: Core `steam-cartridges` displayed "Failed to render settings for extension: third-party (TypeError: list.filter is not a function)" and could not render the Third-party section.
+  - *Root cause*: In Lua, empty collections are empty tables (`{}`), which JSON serializers (`cjson`) serialize as objects (`"{}"`), not arrays (`"[]"`). In TypeScript, `res.epic ?? []` preserves `{}` because `{}` is truthy and not nullish. `installedText` called `list.filter` on `{}` which threw `TypeError`.
+  - *Fix*: Added `asArray<T>(list)` and `Array.isArray()` defensive checks in `steam-cartridges-third-party` (`frontend/settings/third-party.tsx` and `frontend/index.tsx`). Added `launch_options` support to `store.repair-requested` in `steam-cartridges` (`surfaces/library-shortcuts/index.ts`).
+  - *Guardrails Documented*: Added Guardrail 21 (*Lua-to-JSON Empty Table Serialization Trap*) and Guardrail 22 (*Extension Settings Panel Isolation & Defensive Rendering*) to `docs/plugins.md`; documented the Extension Safety & Isolation Contract in `docs/steam-cartridges.md`.
+  - *Verification*: `npm test` and `npm run check` in both plugins 100% pass (330 TS tests, 12 Lua suites). Live CDP probe confirmed `window.SteamCartridges.getSettingsPanels().find(id === 'third-party').render()` returns valid element `{ ok: true, type: 'object' }` without throwing. `node steam-health.mjs` confirmed zero render errors.
+
 - **steam-cartridges-third-party: Xbox UWP Steam Overlay Workaround via Mirrored Presenter Wrapper (2026-10-07)**:
   - *Context & Problem*: Non-Steam Xbox UWP games launch via COM activation into an AppContainer sandbox, cutting off Steam's process tree tracking, file access (ACL), named object IPC, and foreground focus. Consequently, Xbox UWP games lacked the Steam Overlay (Shift+Tab), in-game achievement banners (which fell back to desktop toasts), and Steam Game Recording.
   - *Research Spikes Executed (`docs/plans/steam-cartridges-uwp-overlay-research-plan.md`)*:

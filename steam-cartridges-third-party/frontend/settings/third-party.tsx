@@ -18,12 +18,17 @@ interface Installed {
     epicLauncher: boolean;
 }
 
+function asArray<T>(val: unknown): T[] {
+    return Array.isArray(val) ? (val as T[]) : [];
+}
+
 /** "(3 installed, 2 in library)" */
 function installedText(list: InstalledStoreGame[] | undefined): string {
     if (!list) return "(Scanning...)";
-    if (list.length === 0) return "(0 installed)";
-    const inLibrary = list.filter((g) => g.inLibrary).length;
-    return `(${list.length} installed, ${inLibrary} in library)`;
+    const arr = asArray<InstalledStoreGame>(list);
+    if (arr.length === 0) return "(0 installed)";
+    const inLibrary = arr.filter((g) => g.inLibrary).length;
+    return `(${arr.length} installed, ${inLibrary} in library)`;
 }
 
 export function ThirdPartySection() {
@@ -52,7 +57,11 @@ export function ThirdPartySection() {
             .catch(() => {});
         backend
             .storeInstalledGames(activeServices.xboxEnabled !== false)
-            .then((r) => setInstalled({ epic: r.epic ?? [], xbox: r.xbox ?? [], epicLauncher: r.epicLauncher === true }))
+            .then((r) => setInstalled({
+                epic: asArray(r?.epic),
+                xbox: asArray(r?.xbox),
+                epicLauncher: r?.epicLauncher === true,
+            }))
             .catch(() => {});
     };
 

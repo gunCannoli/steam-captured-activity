@@ -121,6 +121,9 @@ export function onRepairRequested(e: Events["store.repair-requested"]): void {
     try {
         apps.SetShortcutExe(e.appid, e.exe);
         apps.SetShortcutStartDir(e.appid, e.start_dir);
+        if (typeof e.launch_options === "string" && typeof apps?.SetShortcutLaunchOptions === "function") {
+            apps.SetShortcutLaunchOptions(e.appid, e.launch_options);
+        }
         deps.bus.emit("store.shortcut-repaired", { appid: e.appid, title: e.title });
     } catch (err) {
         deps.reportError("library-shortcuts", err);

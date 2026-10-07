@@ -8,7 +8,9 @@ const libraryProvider = {
     async getInstalledGames() {
         try {
             const res = await backend.storeInstalledGames(true);
-            const list = [...(res.epic ?? []), ...(res.xbox ?? [])];
+            const epicList = Array.isArray(res?.epic) ? res.epic : [];
+            const xboxList = Array.isArray(res?.xbox) ? res.xbox : [];
+            const list = [...epicList, ...xboxList];
             return list.map((g) => ({
                 store: g.store,
                 id: g.id,

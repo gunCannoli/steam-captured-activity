@@ -42,6 +42,11 @@ The core exposes a global, typed extension registry on `window.SteamCartridges` 
 - [steam-cartridges-local.md](steam-cartridges-local.md): Local Steam API emulator achievement parsing (.ini and .json for CODEX, RUNE, GSE, Goldberg) and safe resets.
 - [steam-cartridges-third-party.md](steam-cartridges-third-party.md): External PC storefront integrations (Epic Games Store and Xbox / Microsoft Store / Game Pass: installed games discovery, auto-add, achievement sync, and overlay workarounds).
 
+*Extension Isolation & Guardrails (plugins.md § Guardrails 21 & 22):*
+- **Error Boundaries:** Core wraps every dynamic extension settings panel in an `ExtensionErrorBoundary` (`frontend/settings/panel.tsx`). A crash in an extension panel is caught and isolated to that panel block without taking down core settings sections.
+- **Defensive Rendering Contract:** Extension components must never throw during render. All RPC collections from Lua must be coerced via `Array.isArray(x) ? x : []` (Guardrail 21) because empty Lua tables serialize as `{}` objects in JSON, not `[]`.
+- **Settings Immutability:** Provider-specific settings (e.g. `xboxOverlayWorkaround`) belong strictly to the extension's store/manifest; core settings defaults remain clean and unpolluted.
+
 Two halves, one boundary:
 
 - **Frontend** (TypeScript, in Steam's React): watches what the user does, decides,

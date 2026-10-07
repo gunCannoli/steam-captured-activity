@@ -56,7 +56,7 @@ export interface Events {
      * U0 repair (app/store-sync, ADR-0058): an Xbox shortcut runs an older version's exe after an app update; the
      * library-shortcuts surface points it at the current one (the appid stays) and answers with `store.shortcut-repaired`.
      */
-    "store.repair-requested": { appid: number; title: string; exe: string; start_dir: string };
+    "store.repair-requested": { appid: number; title: string; exe: string; start_dir: string; launch_options?: string };
     "store.shortcut-repaired": { appid: number; title: string; error?: string };
     /**
      * Auto-remove (app/store-sync): remove this shortcut since the game was uninstalled from its store.
