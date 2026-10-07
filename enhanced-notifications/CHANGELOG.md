@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Fixed
+
+- Capture on unlock with only the screenshot on deletes the short clip of its own recording only when the clip's name carries the game and the stop time; before, an older clip of the game could be taken for it when Steam's clip list had not loaded (no clip was lost, all are on disk).
+
 ### Changed
 
 - The achievement banner's PS5 icon ripple spreads a little further: it ends at 1.4x the icon's size (was 1.2x). Set in `frontend/banner/styles.ts`, `@keyframes ea-ripple`.

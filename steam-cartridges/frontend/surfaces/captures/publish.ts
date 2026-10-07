@@ -25,6 +25,14 @@ import { deps } from "./deps";
 /** Apps whose summary or activity we have published, so a quitting game can refresh them. */
 const published = new Set<number>();
 
+/**
+ * Shortcuts whose page is open (between shortcut.viewed and shortcut.left). A record change re-publishes only these
+ * (`onRecordChanged`): the start-up achievements preload updates every shortcut's record, and publishing all of them
+ * sent ~450 `GetClips` calls to Steam's recording service within seconds of every start, after which Steam listed no
+ * clips at all for the session, its own media view included (found 2026-10-07; with this part off, all 8 came back).
+ */
+const viewing = new Set<number>();
+
 /** Report whether an app has content (`captures.published`; the sections surface drops its placeholder, M10). */
 function setHasContent(appid: number, hasContent: boolean): void {
     deps.bus.emit("captures.published", { appid: appid as ShortcutId, hasContent });
@@ -39,6 +47,7 @@ function setHasContent(appid: number, hasContent: boolean): void {
 export async function patch(appid: number): Promise<void> {
     const id = toShortcutId(appid);
     if (id === undefined) return;
+    viewing.add(appid);
     const gameid = toGameId(id);
 
     try {
@@ -64,7 +73,13 @@ export async function refresh(appid: number): Promise<void> {
 }
 
 /** Forget an app's summary and activity feed. */
+/** A record part changed (the surface's render): re-publish only a shortcut whose page is open. */
+export function onRecordChanged(appid: number): void {
+    if (viewing.has(appid)) void patch(appid);
+}
+
 export function unpatch(appid: number): void {
+    viewing.delete(appid);
     if (!published.delete(appid)) return;
     setHasContent(appid, false);
     clearSummary(appid);

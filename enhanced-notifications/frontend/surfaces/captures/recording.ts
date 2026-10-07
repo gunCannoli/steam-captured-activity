@@ -1,5 +1,6 @@
 import { logger } from '../../logger';
 import { findExports } from '../../steam/webpack';
+import { ownManualClip } from '../../capture/plan';
 
 /**
  * The only file that touches Steam's Game Recording objects: the RPC service
@@ -189,15 +190,20 @@ export async function startManualRecording(gameId: string): Promise<RpcOutcome> 
     }
 }
 
-/** Stops the game's manual recording; resolves to the clip it saved (found as the one new id), if any. */
+/**
+ * Stops the game's manual recording; resolves to the clip it saved, if it can be told apart for sure: new after the
+ * stop, and named for this game at the stop's time (`ownManualClip`). Only that id may ever be deleted.
+ */
 export async function stopManualRecording(gameId: string): Promise<{ ok: boolean; clipId?: string; error?: string }> {
     const store = grs();
     if (!store?.StopRecording) return { ok: false, error: 'recording-store-unavailable' };
     try {
         const before = clipIds(gameId);
+        const stopStart = Date.now();
         await store.StopRecording(gameId);
         const fresh = [...clipIds(gameId)].filter((id) => !before.has(id));
-        return { ok: fresh.length === 1, clipId: fresh.length === 1 ? fresh[0] : undefined };
+        const clipId = ownManualClip(fresh, gameId, stopStart, Date.now());
+        return { ok: clipId !== undefined, clipId };
     } catch (error) {
         return { ok: false, error: String(error) };
     }

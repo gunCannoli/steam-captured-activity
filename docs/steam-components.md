@@ -1486,6 +1486,23 @@ no real capture, clip or marker was created — only dry probes with a bogus
 game id, all failing cleanly). Module ids below are build breadcrumbs, not
 stable — resolve by signature only.
 
+> **⚠️ Trap: a burst of `GetClips` at start-up empties Steam's clip list for the whole session (found 2026-10-07).**
+> `steam-cartridges` published a Post-Game Summary for every shortcut when the start-up achievements preload updated
+> their records: ~450 `GetClips` calls within seconds of each start. After that, `GetClips` answered EResult 1 with
+> **no clips, for every game**, and Steam's own media manager (`LazyLoadClips`) loaded 0, until the next start; clips
+> saved during the session still appeared (added by `OnClipCreated`). The files on disk were intact. With the burst
+> gone (only an open page publishes), all 8 clips listed after every start. Ask Steam's recording service only for
+> what a page shows, never for the whole library at once. Also: the 2026-09-24 "dry" `SaveClip` probe did write a
+> clip (`clip_1_20260924_194009`, `clip.pb` 11 bytes, name `probe`, no video), and the launch-tracking
+> `StartRecording` / `StopRecording` probes of 2026-10-03 left two 53 ms clips with no video or thumbnail; all three
+> were moved to `userdata/<id>/gamerecordings_quarantine_20261007/`.
+>
+> In recording mode Manual, a session recorded with Ctrl+F11 (or `g_GRS.StartRecording` / `StopRecording`) leaves
+> `gamerecording.pb` listing the session's timeline after its video was saved into the clip and `video/` was emptied
+> at game exit; the media view shows it as a "background recording" that cannot be opened (seen after the user's own
+> Ctrl+F11 on 2026-10-07, so it is not specific to enhanced-notifications). Not yet re-checked in a session without
+> the start-up burst.
+
 **Resolution.** The service: the export object of the module whose source
 contains `"GameRecording.TakeScreenshot#1"`, with
 `v.TakeScreenshotHandler?.name === "GameRecording.TakeScreenshot#1"` and

@@ -16,11 +16,17 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**Recordings missing from Steam (2026-10-07): root cause found and fixed, live-verified.** steam-cartridges' start-up burst of
+~450 `GetClips` calls emptied Steam's clip list for the session; now only an open page publishes (all 8 clips list again). See
+[CHANGELOG.md](CHANGELOG.md). Left for the user: (1) a Ctrl+F11 recording of a game, then quit: does the "background recording"
+tile that cannot be opened still appear? If yes it is Steam's own, and the fix is removing the stale timeline entry from
+`gamerecording.pb` (decide). (2) The three malformed probe clips are in `userdata/83513586/gamerecordings_quarantine_20261007/`:
+delete them, or put them back.
+
 **steam-captured-activity split out of steam-cartridges (ADR-0062, 2026-10-07): built, deployed (`-dev`), live-verified by the agent.**
 [Architecture](docs/steam-captured-activity.md); history in [CHANGELOG.md](CHANGELOG.md). Left for the user: look at its settings
 panel (two toggles) on desktop and in Big Picture; delete a real screenshot and confirm its card leaves the feed on the next
-visit (the agent only simulated it). Open: Steam's `GetClips` answered no clips at all after four of five Steam starts this
-session (both plugins affected, not caused by the split): find out what makes Steam load its clip index. Not published yet
+visit (the agent only simulated it). The missing clips were steam-cartridges' start-up burst (entry above). Not published yet
 (public repo, plugin database).
 
 **enhanced-notifications live scripts that reset settings (found 2026-10-07).** `placement.mjs` and `sound-duration.mjs` end with

@@ -6,7 +6,7 @@
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { ensureStoreCacheHooked, setAchievementSource, setNativeActivitySource } from "./activity";
 import { deps } from "./deps";
-import { patch, unpatch } from "./publish";
+import { onRecordChanged, unpatch } from "./publish";
 
 export { patch, refresh, unpatch } from "./publish";
 export { setNativeActivitySource } from "./activity";
@@ -49,7 +49,8 @@ export function createCapturesSurface(d: SurfaceDeps & Pick<typeof deps, "activi
             setNativeActivitySource(appid, record?.identity?.data?.native?.appid);
             const ach = record?.achievements;
             setAchievementSource(appid, ach?.status === "ok" ? ach.data : undefined);
-            void patch(appid);
+            // Only an open page: a render for every shortcut at start-up flooded Steam's recording service (publish.ts).
+            onRecordChanged(appid);
         },
         clear: (appid) => unpatch(appid),
         uninstall() {

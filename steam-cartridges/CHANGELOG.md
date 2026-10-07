@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: recordings disappeared from Steam (2026-10-07)**: at start-up the plugin re-published the Post-Game Summary of every shortcut (the achievements preload updates every record), sending ~450 clip requests to Steam's recording service at once; Steam then listed no recordings for the whole session, in its own media view too. Only a shortcut whose page is open is re-published now.
+
 - **Changed: captures in the Activity feed moved to their own plugin, steam-captured-activity (2026-10-07, ADR-0062)**: the "{Username} captured" day cards (16:9 cards, inline clips, Big Picture thumbnail style), for Steam games and shortcuts, now come from `steam-captured-activity`, which works without this plugin. Steam Cartridges keeps a shortcut's own feed events (achievements per day, "Added to library", "Played for the first time", a mapped game's native news) and the Post-Game Summary. Removed with it: the native view events, the window events, the headline and activity-cards jsx patches (kill switches `headline` and `activity-cards` retired) and the workshop records. Leaving a Steam game's page no longer deletes Steam's own activity entry for it.
 
 - **Fixed: unsupported RetroAchievements ROMs re-checked on every start (2026-10-07)**: a ROM whose hash maps to an empty placeholder set is now remembered as unsupported for 7 days, so Steam start-up no longer asks RetroAchievements about it or logs it again; the log line no longer claims a title-search fallback that never happens.

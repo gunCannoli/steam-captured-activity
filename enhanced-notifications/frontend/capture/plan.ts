@@ -246,3 +246,27 @@ export function mergeManual(pending: ManualAction, next: ManualAction, elapsedMs
         keepClip: pending.keepClip || next.keepClip,
     };
 }
+
+/** Seconds of slack around our stop when matching the clip it saved (Steam names it by the stop time, to the second). */
+export const OWN_CLIP_SLACK_S = 10;
+
+/**
+ * The clip our manual recording's stop saved, or undefined (ADR-0061; never delete anything else). Steam names a clip
+ * `clip_<gameid>_<YYYYMMDD>_<HHMMSS>`, the time in UTC at the stop (log 2026-10-07: stopped 01:20:51 UTC-3, clip
+ * `clip_12391904938840555520_20261007_042051`). A clip id counts as ours only when it is new after the stop, names this
+ * game, and its time falls within the stop's window: a "new" id that is really an old clip (Steam's list not yet loaded
+ * before the stop) is never chosen. More than one match: none (no guessing).
+ */
+export function ownManualClip(freshIds: readonly string[], gameId: string, stopStartMs: number, stopEndMs: number): string | undefined {
+    const lo = Math.floor(stopStartMs / 1000) - OWN_CLIP_SLACK_S;
+    const hi = Math.ceil(stopEndMs / 1000) + OWN_CLIP_SLACK_S;
+    const prefix = `clip_${gameId}_`;
+    const matches = freshIds.filter((id) => {
+        if (!id.startsWith(prefix)) return false;
+        const m = /^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/.exec(id.slice(prefix.length));
+        if (!m) return false;
+        const t = Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!) / 1000;
+        return t >= lo && t <= hi;
+    });
+    return matches.length === 1 ? matches[0] : undefined;
+}

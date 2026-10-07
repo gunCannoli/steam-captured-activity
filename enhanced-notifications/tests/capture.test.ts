@@ -138,3 +138,20 @@ test('mergeClip: end extended, capped at start + MAX_CLIP_MS, name gets (+1)', (
     assert.equal(merged.name, 'A (+1)');
     assert.equal(merged.startOffsetMs, 0);
 });
+
+test('ownManualClip: only the clip named for this game at our stop time; an old clip that only looks new is never chosen', async () => {
+    const { ownManualClip } = await import('../frontend/capture/plan.ts');
+    const gid = '12391904938840555520';
+    const stop = Date.UTC(2026, 9, 7, 4, 20, 51); // 01:20:51 UTC-3, the real clip of 2026-10-07
+    assert.equal(ownManualClip([`clip_${gid}_20261007_042051`], gid, stop - 300, stop + 200), `clip_${gid}_20261007_042051`);
+    // Steam's list was not loaded before the stop: every old clip of the game shows up as "new".
+    const old = [`clip_${gid}_20260919_163736`, `clip_${gid}_20260920_054439`];
+    assert.equal(ownManualClip(old, gid, stop, stop + 200), undefined);
+    assert.equal(ownManualClip([...old, `clip_${gid}_20261007_042051`], gid, stop, stop + 200), `clip_${gid}_20261007_042051`);
+    // A single old clip alone (the case the old one-new-id rule would have deleted).
+    assert.equal(ownManualClip([`clip_${gid}_20260919_163736`], gid, stop, stop + 200), undefined);
+    // Another game's clip, a malformed id, two candidates: none.
+    assert.equal(ownManualClip([`clip_435150_20261007_042051`], gid, stop, stop + 200), undefined);
+    assert.equal(ownManualClip([`clip_${gid}_garbage`], gid, stop, stop + 200), undefined);
+    assert.equal(ownManualClip([`clip_${gid}_20261007_042050`, `clip_${gid}_20261007_042052`], gid, stop, stop + 200), undefined);
+});
