@@ -877,7 +877,7 @@ against Millennium's plugin database with the public repo URL.
 
 - [ ] Folder created; `plugin.json` with a unique `name`
 - [ ] `_lib` stubs copied
-- [ ] `backend/main.lua` calls `millennium.ready()`
+- [ ] `backend/main.lua` returns the lifecycle table (`on_load`, `on_frontend_loaded`, `on_unload`) and calls `millennium.ready()` inside `on_load`, not at the top level
 - [ ] RPC methods never return bare `nil`
 - [ ] `dev.ps1` takes the Steam path as a parameter
 - [ ] No hardcoded Steam CSS classes (resolve via `findClassModule`, one probe per module)

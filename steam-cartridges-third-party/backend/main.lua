@@ -20,5 +20,14 @@ StoreXboxRepairs         = STORE_RPC.StoreXboxRepairs
 StoreEpicPrelaunch       = STORE_RPC.StoreEpicPrelaunch
 StoreEpicReap            = STORE_RPC.StoreEpicReap
 
-millennium.ready()
-logger:info("steam-cartridges-third-party backend ready.")
+-- Millennium's lifecycle (docs/plugins.md § 2): the table is required; ready() belongs in on_load.
+local function on_load()
+  millennium.ready()
+  logger:info("steam-cartridges-third-party backend ready.")
+end
+
+return {
+  on_load = on_load,
+  on_frontend_loaded = function() end,
+  on_unload = function() logger:info("steam-cartridges-third-party backend unloading.") end,
+}

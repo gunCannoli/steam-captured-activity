@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-local & steam-cartridges-third-party: backend lifecycle table (2026-10-07)**:
+  - *Symptom*: Millennium's crash dialog for both plugins at Steam start ("Startup config contains 2 pending crash(es)").
+  - *Root cause*: both `backend/main.lua` called `millennium.ready()` at the top level and returned nothing, against the backend contract in docs/plugins.md § 2 (core `steam-cartridges` returns `{ on_load, on_frontend_loaded, on_unload }` and calls `ready()` in `on_load`). The cause is inferred from the contract; no crash dump was written for either plugin.
+  - *Fix*: both entry points now return the lifecycle table and call `ready()` in `on_load`. The plugins.md checklist now names the table.
+  - *Verification*: offline load of both `main.lua` with stubs (loads, returns the table, ready only after `on_load`); `npm test` passes in both. Live: deployed, both backends log "ready" with no errors, `Core_GetPendingCrashes` is empty, all 5 Lua backends alive. Still open: one more Steam restart to confirm no crash on shutdown (it would show as pending on the next start).
+
 - **steam-cartridges: unsupported RetroAchievements ROMs no longer re-checked every start (2026-10-07)**:
   - *Root cause*: a ROM whose hash RetroAchievements links to a placeholder set (0 achievements, `~Z~` or cheated; e.g. Jungle Strike, GameID 969) was rejected but not remembered, so each Steam start's background ingest fetched the set again (about 1 s per ROM) and logged two lines per ROM, the first wrongly saying "falling back to title search".
   - *Fix*: `retroachievements.get_or_fetch` stores such a hash as a miss in `ra_cache` (the existing 7-day `MISS_TTL`, so a set filled in later is picked up); a failed request is never stored. A miss already on disk is answered silently; a new one logs once with corrected wording ("treated as unsupported").

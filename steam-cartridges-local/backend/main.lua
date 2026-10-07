@@ -129,7 +129,14 @@ LocalResetUnlocks = method("LocalResetUnlocks", function(params)
   }
 end)
 
-if millennium and millennium.ready then
+-- Millennium's lifecycle (docs/plugins.md § 2): the table is required; ready() belongs in on_load.
+local function on_load()
   millennium.ready()
+  logger:info("steam-cartridges-local backend ready.")
 end
-logger:info("steam-cartridges-local backend ready.")
+
+return {
+  on_load = on_load,
+  on_frontend_loaded = function() end,
+  on_unload = function() logger:info("steam-cartridges-local backend unloading.") end,
+}
