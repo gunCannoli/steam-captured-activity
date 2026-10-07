@@ -146,6 +146,9 @@ static class Program {
     [DllImport("user32.dll")]
     static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+    [DllImport("user32.dll")]
+    static extern int GetSystemMetrics(int nIndex);
+
     [DllImport("kernel32.dll")]
     static extern IntPtr GetModuleHandle(string? lpModuleName);
 
@@ -324,6 +327,19 @@ static class Program {
         return sb.ToString();
     }
 
+    static bool IsTransientOrLauncherWindow(string procName, string className, string winTitle, RECT rect) {
+        if (className.Equals("GAMINGSERVICESUI_HOSTING_WINDOW_CLASS", StringComparison.OrdinalIgnoreCase)) return true;
+        if (procName.Equals("gamingservicesui", StringComparison.OrdinalIgnoreCase)) return true;
+        if (procName.Equals("GameLaunchHelper", StringComparison.OrdinalIgnoreCase)) return true;
+        if (className.IndexOf("Splash", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        if (winTitle.IndexOf("Splash", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        if (winTitle.Equals("Windows Input Experience", StringComparison.OrdinalIgnoreCase)) return true;
+        if (className.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(winTitle)) return true;
+        if (className.Equals("SteamUWPPresenterClass", StringComparison.OrdinalIgnoreCase)) return true;
+        if (rect.Width < 200 || rect.Height < 200) return true;
+        return false;
+    }
+
     static IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam) {
         const uint WM_DESTROY = 0x0002;
         const uint WM_KEYDOWN = 0x0100;
@@ -348,6 +364,14 @@ static class Program {
                 break;
 
             case WM_LBUTTONDOWN:
+                if (targetHwnd != IntPtr.Zero) {
+                    short cx = (short)(lParam.ToInt64() & 0xFFFF);
+                    short cy = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
+                    Log("SENSOR:INPUT", $"Mouse click forwarded to target HWND 0x{targetHwnd.ToInt64():X} at ({cx},{cy}).");
+                    PostMessage(targetHwnd, msg, wParam, lParam);
+                }
+                break;
+
             case WM_LBUTTONUP:
             case WM_RBUTTONDOWN:
             case WM_RBUTTONUP:
@@ -489,7 +513,7 @@ static class Program {
         uint foundPid = targetPid;
         RECT foundRect = new RECT { Left = 100, Top = 100, Right = 1380, Bottom = 820 };
         int scanIteration = 0;
-        int maxIterations = 80; // 80 * 250ms = 20 seconds max
+        int maxIterations = 120; // 120 * 250ms = 30 seconds max
 
         while (foundWindow == IntPtr.Zero && scanIteration < maxIterations) {
             scanIteration++;
@@ -521,6 +545,10 @@ static class Program {
             }
 
             foreach (var c in candidates) {
+                if (IsTransientOrLauncherWindow(c.procName, c.className, c.winTitle, c.rect)) {
+                    continue;
+                }
+
                 // Check A: Direct PID Match or Child/Descendant Process Match
                 if (processFamily.Contains(c.pid)) {
                     foundWindow = c.hwnd;
@@ -567,15 +595,13 @@ static class Program {
 
                 // Check C: Title Match (if window is large enough and not presenter's own window)
                 if (!string.IsNullOrEmpty(title) && c.winTitle.Contains(title, StringComparison.OrdinalIgnoreCase)) {
-                    if (c.rect.Width >= 200 && c.rect.Height >= 200 && c.className != "SteamUWPPresenterClass") {
-                        foundWindow = c.hwnd;
-                        foundReason = $"Title match ('{c.winTitle}' contains '{title}')";
-                        foundClass = c.className;
-                        foundTitle = c.winTitle;
-                        foundPid = c.pid;
-                        foundRect = c.rect;
-                        break;
-                    }
+                    foundWindow = c.hwnd;
+                    foundReason = $"Title match ('{c.winTitle}' contains '{title}')";
+                    foundClass = c.className;
+                    foundTitle = c.winTitle;
+                    foundPid = c.pid;
+                    foundRect = c.rect;
+                    break;
                 }
             }
 
@@ -608,15 +634,33 @@ static class Program {
         };
         RegisterClassEx(ref wc);
 
+        int screenW = GetSystemMetrics(0); // SM_CXSCREEN
+        int screenH = GetSystemMetrics(1); // SM_CYSCREEN
+        bool isFullscreen = (targetRect.Left <= 0 && targetRect.Top <= 0 && targetRect.Width >= screenW && targetRect.Height >= screenH);
+
+        uint exStyle = 0;
+        uint winStyle = 0x00CF0000 | 0x10000000; // WS_OVERLAPPEDWINDOW | WS_VISIBLE
+        int posX = targetRect.Left;
+        int posY = targetRect.Top;
         int winWidth = Math.Max(targetRect.Width, 640);
         int winHeight = Math.Max(targetRect.Height, 480);
 
+        if (isFullscreen) {
+            exStyle = 0x00000008; // WS_EX_TOPMOST
+            winStyle = 0x90000000; // WS_POPUP | WS_VISIBLE
+            posX = 0;
+            posY = 0;
+            winWidth = screenW;
+            winHeight = screenH;
+            Log("SENSOR:D3D11", $"Fullscreen target detected ({screenW}x{screenH}). Presenter window configured as borderless fullscreen topmost window.");
+        }
+
         presenterHwnd = CreateWindowEx(
-            0,
+            exStyle,
             className,
             title,
-            0x00CF0000 | 0x10000000, // WS_OVERLAPPEDWINDOW | WS_VISIBLE
-            targetRect.Left, targetRect.Top, winWidth, winHeight,
+            winStyle,
+            posX, posY, winWidth, winHeight,
             IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
 
         Log("SENSOR:D3D11", $"Presenter window created. HWND=0x{presenterHwnd.ToInt64():X8}, Initial Size: {winWidth}x{winHeight}");
