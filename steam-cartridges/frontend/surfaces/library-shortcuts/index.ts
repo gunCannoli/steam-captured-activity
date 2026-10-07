@@ -128,6 +128,23 @@ export function onRepairRequested(e: Events["store.repair-requested"]): void {
     }
 }
 
+/** `store.remove-requested` (index.tsx subscribes it): remove the shortcut for an uninstalled store game. */
+export async function onRemoveRequested(e: Events["store.remove-requested"]): Promise<void> {
+    if (!deps.isEnabled("library-shortcuts")) return;
+    const apps = steamApps();
+    if (typeof apps?.RemoveShortcut !== "function") {
+        deps.bus.emit("store.shortcut-removed", { kind: e.kind, key: e.key, appid: e.appid, title: e.title, error: "SteamClient.Apps.RemoveShortcut not found" });
+        return;
+    }
+    try {
+        await apps.RemoveShortcut(e.appid);
+        deps.bus.emit("store.shortcut-removed", { kind: e.kind, key: e.key, appid: e.appid, title: e.title });
+    } catch (err) {
+        deps.reportError("library-shortcuts", err);
+        deps.bus.emit("store.shortcut-removed", { kind: e.kind, key: e.key, appid: e.appid, title: e.title, error: String(err) });
+    }
+}
+
 export function createLibraryShortcutsSurface(d: Deps): Surface {
     deps.isEnabled = d.isEnabled;
     deps.reportError = d.reportError;
@@ -137,6 +154,7 @@ export function createLibraryShortcutsSurface(d: Deps): Surface {
         id: "library-shortcuts",
         touches: [
             "SteamClient.Apps.AddShortcut",
+            "SteamClient.Apps.RemoveShortcut",
             "SteamClient.Apps.SetShortcutName",
             "SteamClient.Apps.SetShortcutLaunchOptions",
             "SteamClient.Apps.SetShortcutExe",
@@ -147,7 +165,7 @@ export function createLibraryShortcutsSurface(d: Deps): Surface {
         reads: [],
         install() {},
         render() {
-            /* event-driven (store.add-requested, store.repair-requested), never per record */
+            /* event-driven (store.add-requested, store.remove-requested, store.repair-requested), never per record */
         },
         clear() {},
         uninstall() {},

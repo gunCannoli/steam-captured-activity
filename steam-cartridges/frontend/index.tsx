@@ -43,7 +43,12 @@ import { pdfRenderer } from "./ports/pdf";
 import { createAchievements } from "./app/achievements";
 import { createStoreSync } from "./app/store-sync";
 import { createEpicLauncher } from "./app/epic-launcher";
-import { createLibraryShortcutsSurface, onAddRequested as libraryShortcutsOnAddRequested, onRepairRequested as libraryShortcutsOnRepairRequested } from "./surfaces/library-shortcuts";
+import {
+    createLibraryShortcutsSurface,
+    onAddRequested as libraryShortcutsOnAddRequested,
+    onRepairRequested as libraryShortcutsOnRepairRequested,
+    onRemoveRequested as libraryShortcutsOnRemoveRequested,
+} from "./surfaces/library-shortcuts";
 import { createLaunchHoldSurface, onHoldMode as launchHoldOnMode, onRelease as launchHoldOnRelease } from "./surfaces/launch-hold";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
@@ -598,6 +603,7 @@ async function init() {
     runner.register(createLibraryShortcutsSurface({ ...surfaceDeps, bus }));
     runner.installAll();
     bus.on("store.add-requested", (e) => void libraryShortcutsOnAddRequested(e));
+    bus.on("store.remove-requested", (e) => void libraryShortcutsOnRemoveRequested(e));
     bus.on("store.repair-requested", libraryShortcutsOnRepairRequested);
     storeSync.install();
     // Epic Steam Overlay Workaround (ADR-0057): the launch-hold surface holds Steam's Play while app/epic-launcher closes

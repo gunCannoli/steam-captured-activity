@@ -202,13 +202,41 @@ end
 function M.installed_games(ctx)
   ctx = ctx or {}
   local games = installed(true)
+  local installed_epic = {}
+  for _, g in ipairs(games.epic) do installed_epic[g.app_name] = true end
+  local installed_xbox = {}
+  for _, g in ipairs(games.xbox) do installed_xbox[g.pfn] = true end
+
   local owned = {}
+  local uninstalled = { epic = {}, xbox = {} }
+
   for _, e in ipairs(all_entries()) do
     local c = M.detect(e)
-    if c then owned[(c.kind == "epic" and c.appName or c.pfn) or ""] = unsigned(e.appid) end
+    if c then
+      owned[(c.kind == "epic" and c.appName or c.pfn) or ""] = unsigned(e.appid)
+    else
+      local epic_app = epic_local().app_name_from_link(e.launch_options) or epic_local().app_name_from_link(e.exe)
+      if epic_app and not installed_epic[epic_app] then
+        uninstalled.epic[#uninstalled.epic + 1] = {
+          key = epic_app,
+          appid = unsigned(e.appid),
+          title = e.appname or e.name or e.AppName or "",
+        }
+      end
+      local xbox_pfn = xbox_local().pfn_from_target(e.launch_options)
+        or xbox_local().pfn_from_target(e.exe)
+        or xbox_local().pfn_from_path(e.exe)
+      if xbox_pfn and not installed_xbox[xbox_pfn] then
+        uninstalled.xbox[#uninstalled.xbox + 1] = {
+          key = xbox_pfn,
+          appid = unsigned(e.appid),
+          title = e.appname or e.name or e.AppName or "",
+        }
+      end
+    end
   end
   local launcher = epic_local().launcher_exe()
-  local out = { epic = {}, xbox = {}, epicLauncher = launcher ~= nil }
+  local out = { epic = {}, xbox = {}, uninstalled = uninstalled, epicLauncher = launcher ~= nil }
   for _, g in ipairs(games.epic) do
     out.epic[#out.epic + 1] = {
       key = g.app_name, title = g.title, inLibrary = owned[g.app_name],

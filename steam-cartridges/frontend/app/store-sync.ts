@@ -5,7 +5,7 @@
 import { logger } from "../logger.ts";
 import type { EventBus } from "../kernel/events";
 import type { StoreKind } from "../kernel/record";
-import type { backend as Backend, InstalledStoreGame, Lane } from "../ports/backend";
+import type { backend as Backend, InstalledStoreGame, UninstalledStoreGame, Lane } from "../ports/backend";
 
 /** The collection each store's added games go into. */
 export const STORE_COLLECTIONS: Record<StoreKind, string> = { epic: "Epic Games", xbox: "Xbox" };
@@ -22,7 +22,7 @@ export interface StoreSyncDeps {
 export interface StoreSync {
     /** Log the surface's results. */
     install(): void;
-    /** Add what is missing; resolves to how many shortcuts were requested. One run at a time. */
+    /** Add what is missing and remove uninstalled; resolves to how many shortcuts were requested. One run at a time. */
     run(): Promise<number>;
     /**
      * U0 repair (ADR-0058): ask the backend for Xbox shortcuts that run an older version's exe and have the surface repoint
@@ -30,11 +30,16 @@ export interface StoreSync {
      */
     repair(): Promise<number>;
     /** The installed games of both stores, for the Third-party settings section (the "normal" lane; the tick uses "background"). */
-    installed(lane?: Lane): Promise<{ epic: InstalledStoreGame[]; xbox: InstalledStoreGame[]; epicLauncher: boolean }>;
+    installed(lane?: Lane): Promise<{
+        epic: InstalledStoreGame[];
+        xbox: InstalledStoreGame[];
+        uninstalled?: { epic: UninstalledStoreGame[]; xbox: UninstalledStoreGame[] };
+        epicLauncher: boolean;
+    }>;
 }
 
 export function createStoreSync(deps: StoreSyncDeps): StoreSync {
-    /** Games requested this session: a game whose add failed is not asked again until the next start. */
+    /** Games requested this session: a game whose add/remove failed is not asked again until the next start. */
     const requested = new Set<string>();
     let running: Promise<number> | undefined;
 
@@ -43,6 +48,10 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
         return {
             epic: Array.isArray(res?.epic) ? res.epic : [],
             xbox: Array.isArray(res?.xbox) ? res.xbox : [],
+            uninstalled: {
+                epic: Array.isArray(res?.uninstalled?.epic) ? res.uninstalled.epic : [],
+                xbox: Array.isArray(res?.uninstalled?.xbox) ? res.uninstalled.xbox : [],
+            },
             epicLauncher: res?.epicLauncher === true,
         };
     }
@@ -54,15 +63,24 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
         let n = 0;
         for (const kind of ["epic", "xbox"] as const) {
             if (!want[kind]) continue;
+            // 1. Add missing installed games
             for (const game of list[kind]) {
-                const id = `${kind}:${game.key}`;
+                const id = `add:${kind}:${game.key}`;
                 if (game.inLibrary || !game.launch || requested.has(id)) continue;
                 requested.add(id);
                 deps.bus.emit("store.add-requested", { kind, key: game.key, title: game.title, launch: game.launch, collection: STORE_COLLECTIONS[kind] });
                 n++;
             }
+            // 2. Remove games uninstalled from the store that still have shortcuts
+            for (const uninstalled of list.uninstalled?.[kind] ?? []) {
+                const id = `remove:${kind}:${uninstalled.appid}`;
+                if (requested.has(id)) continue;
+                requested.add(id);
+                deps.bus.emit("store.remove-requested", { kind, key: uninstalled.key, appid: uninstalled.appid, title: uninstalled.title });
+                n++;
+            }
         }
-        if (n > 0) logger.info(`Auto-add: ${n} installed store game(s) requested as shortcuts.`);
+        if (n > 0) logger.info(`Auto-add: ${n} store change(s) requested (add/remove shortcuts).`);
         return n;
     }
 
@@ -92,6 +110,10 @@ export function createStoreSync(deps: StoreSyncDeps): StoreSync {
             deps.bus.on("store.shortcut-added", (e) => {
                 if (e.error) logger.warn(`Auto-add: ${e.kind} game ${e.key} was not added: ${e.error}`);
                 else logger.info(`Auto-add: ${e.kind} game ${e.key} is shortcut ${e.appid}${e.collection ? ` in "${e.collection}"` : ""}.`);
+            });
+            deps.bus.on("store.shortcut-removed", (e) => {
+                if (e.error) logger.warn(`Auto-add: ${e.kind} shortcut "${e.title}" (${e.appid}) was not removed: ${e.error}`);
+                else logger.info(`Auto-add: ${e.kind} shortcut "${e.title}" (${e.appid}) removed (uninstalled from store).`);
             });
         },
         run() {

@@ -417,6 +417,12 @@ ENTRIES[4000000011], ENTRIES[4000000012], ENTRIES[4000000013] = nil, nil, nil
 svc.deps.xbox_local = xbox_before
 ENTRIES[4000000001] = nil
 check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)
+ENTRIES[4000000050] = { appid = 4000000050, name = "Uninstalled Epic Game", exe = '"C:\\L\\EpicGamesLauncher.exe"', launch_options = "-com.epicgames.launcher://apps/old_ns%3Aold_item%3Auninstalled_app?action=launch&silent=true" }
+ENTRIES[4000000051] = { appid = 4000000051, name = "Uninstalled Xbox Game", exe = '"C:\\Windows\\explorer.exe"', launch_options = "shell:AppsFolder\\Uninstalled.Xbox_8wekyb3d8bbwe!App" }
+local ulist = svc.installed_games({})
+check("uninstalled games detect shortcuts whose games are no longer installed", #ulist.uninstalled.epic == 1 and ulist.uninstalled.epic[1].key == "uninstalled_app" and ulist.uninstalled.epic[1].appid == 4000000050)
+check("... and for Xbox too", #ulist.uninstalled.xbox == 1 and ulist.uninstalled.xbox[1].key == "Uninstalled.Xbox_8wekyb3d8bbwe" and ulist.uninstalled.xbox[1].appid == 4000000051)
+ENTRIES[4000000050], ENTRIES[4000000051] = nil, nil
 -- A game installed after the first read (found 2026-10-03: a once-per-session cache hid every later install)
 local EXTRA_EPIC = { app_name = "newgame1", title = "New Game", install_location = "C:\\Games\\New", launch_exe = "New.exe", namespace = "ns2", item_id = "i2", addon = false, incomplete = false }
 local installed_now = { EPIC_GAME }

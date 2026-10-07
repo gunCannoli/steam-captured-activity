@@ -18,12 +18,12 @@ interface Installed {
     epicLauncher: boolean;
 }
 
-/** "3 installed, 2 in your library" */
+/** "(3 installed, 2 in library)" */
 function installedText(list: InstalledStoreGame[] | undefined): string {
-    if (!list) return "Looking for installed games...";
-    if (list.length === 0) return "No installed games found on this PC.";
+    if (!list) return "(Scanning...)";
+    if (list.length === 0) return "(0 installed)";
     const inLibrary = list.filter((g) => g.inLibrary).length;
-    return `${list.length} installed, ${inLibrary} in your library.`;
+    return `(${list.length} installed, ${inLibrary} in library)`;
 }
 
 export function ThirdPartySection() {
@@ -101,12 +101,12 @@ export function ThirdPartySection() {
     const xboxOn = activeServices.xboxEnabled !== false;
 
     const epicAccount = !accounts
-        ? "Looking for the Epic Games Launcher's account..."
+        ? "Detecting account..."
         : !accounts.epic.found
-          ? "No account found: sign in to the Epic Games Launcher on this PC. Game Info works without one."
+          ? "Not signed in on this PC. Sign in via Epic Games Launcher."
           : accounts.epic.private
-            ? "Your Epic profile hides its achievements. In your Epic account, set Privacy > Achievements to Everyone."
-            : "Found on this PC. Your unlocks are read from your public Epic profile; no sign-in here.";
+            ? "Profile is private. Set Privacy > Achievements to Public in Epic account."
+            : "Connected via local Epic Games Launcher.";
 
     return (
         <PanelSection title="Third-party">
@@ -114,7 +114,7 @@ export function ThirdPartySection() {
                 <>
                     <ToggleRow
                         label="Epic Games Store"
-                        description="Epic games on this PC: the store's Game Info and screenshots when the game is not on Steam, and your Epic achievements."
+                        description="Game info, screenshots, and achievements for installed Epic games."
                         value={epicOn}
                         onChange={(on: boolean) => setServices({ ...activeServices, epicEnabled: on })}
                     />
@@ -128,8 +128,8 @@ export function ThirdPartySection() {
                             label="Auto-add installed games"
                             description={
                                 installed && !installed.epicLauncher
-                                    ? "The Epic Games Launcher was not found, so games cannot be added."
-                                    : `Add every installed Epic game to your library, in an "Epic Games" collection. ${installedText(installed?.epic)}`
+                                    ? "Epic Games Launcher not found."
+                                    : `Sync installed games to an "Epic Games" collection; removes uninstalled games. ${installedText(installed?.epic)}`
                             }
                             value={autoEpic}
                             disabled={!!installed && !installed.epicLauncher}
@@ -139,7 +139,7 @@ export function ThirdPartySection() {
                     {epicOn && (
                         <ToggleRow
                             label="Epic Steam Overlay Workaround"
-                            description="Steam's overlay reaches an Epic game only when Steam starts the Epic Games Launcher. When you press Play, a running launcher is closed first (never during a download), and it is closed again after the game, once Epic's cloud sync is done, so Steam stops showing the game as running. Your Epic store and friends windows close with it. A game started from a desktop shortcut is not covered: close the launcher yourself first."
+                            description="Restarts the launcher on play to attach Steam's overlay, and closes it after cloud sync so playtime stops."
                             value={epicOverlay}
                             onChange={setEpicOverlay}
                         />
@@ -148,7 +148,7 @@ export function ThirdPartySection() {
                 <>
                     <ToggleRow
                         label="Xbox"
-                        description="Xbox PC games on this PC: the store's Game Info and screenshots when the game is not on Steam, and your Xbox achievements."
+                        description="Game info, screenshots, and achievements for installed Xbox PC games."
                         value={xboxOn}
                         onChange={(on: boolean) => setServices({ ...activeServices, xboxEnabled: on })}
                     />
@@ -156,14 +156,14 @@ export function ThirdPartySection() {
                         (accounts?.xbox.signed_in ? (
                             <ButtonRow
                                 label="Xbox account"
-                                description={`Signed in as ${accounts.xbox.gamertag || "your Xbox account"}. Your unlocks sync when a game's page opens and when the game quits.`}
+                                description={`Signed in as ${accounts.xbox.gamertag || "Xbox account"}. Unlocks sync automatically.`}
                                 buttonLabel="Sign out"
                                 onClick={signOut}
                             />
                         ) : (
                             <ButtonRow
                                 label="Xbox account"
-                                description="Sign in once to sync your Xbox achievements. Game Info works without it."
+                                description="Sign in once to sync Xbox achievements."
                                 buttonLabel="Sign in"
                                 onClick={startSignIn}
                             />
@@ -171,7 +171,7 @@ export function ThirdPartySection() {
                     {xboxOn && (
                         <ToggleRow
                             label="Auto-add installed games"
-                            description={`Add every installed Xbox game to your library, in an "Xbox" collection. ${installedText(installed?.xbox)}`}
+                            description={`Sync installed games to an "Xbox" collection; removes uninstalled games. ${installedText(installed?.xbox)}`}
                             value={autoXbox}
                             onChange={setAutoXbox}
                         />
@@ -190,8 +190,7 @@ export function ThirdPartySection() {
                                     description={
                                         code ? (
                                             <>
-                                                On any device, open <ExternalLink url={code.verification_uri} /> and type this code (click it to copy), then sign in with
-                                                your Xbox account.
+                                                Open <ExternalLink url={code.verification_uri} />, enter this code, and sign in with your Xbox account.
                                             </>
                                         ) : (
                                             "Getting a code..."

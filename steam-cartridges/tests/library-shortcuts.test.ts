@@ -101,3 +101,21 @@ test('library-shortcuts: a repair request repoints the shortcut (exe and start d
     assert.deepEqual(results, [{ appid: 2663546656, title: 'Microsoft Minesweeper' }]);
     assert.ok(r.surface.touches.includes('SteamClient.Apps.SetShortcutExe') && r.surface.touches.includes('SteamClient.Apps.SetShortcutStartDir'));
 });
+
+test('library-shortcuts: a remove request calls RemoveShortcut and reports it', async () => {
+    const { onRemoveRequested } = await import('../frontend/surfaces/library-shortcuts/index.ts');
+    const r = rig(() => 3235712508);
+    const removed: any[] = [];
+    g.SteamClient.Apps.RemoveShortcut = (appid: number) => {
+        removed.push(appid);
+        return Promise.resolve();
+    };
+    const bus = createEventBus();
+    const results: any[] = [];
+    bus.on('store.shortcut-removed', (e) => results.push(e));
+    createLibraryShortcutsSurface({ isEnabled: () => true, reportError: () => {}, bus, retryMs: 1 });
+    await onRemoveRequested({ kind: 'epic', key: 'uninstalled_app', appid: 4000000050, title: 'Uninstalled Epic Game' });
+    assert.deepEqual(removed, [4000000050]);
+    assert.deepEqual(results, [{ kind: 'epic', key: 'uninstalled_app', appid: 4000000050, title: 'Uninstalled Epic Game' }]);
+    assert.ok(r.surface.touches.includes('SteamClient.Apps.RemoveShortcut'));
+});

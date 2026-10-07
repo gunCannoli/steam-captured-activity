@@ -6,10 +6,12 @@ import { createEventBus } from '../frontend/kernel/events.ts';
 
 const LAUNCH = { exe: '"C:\L\EpicGamesLauncher.exe"', start_dir: '"C:\L\\"', launch_options: 'com.epicgames.launcher://apps/ns%3Ait%3Aapp?action=launch&silent=true' };
 
-function setup(autoAdd = { epic: true, xbox: true }) {
+function setup(autoAdd = { epic: true, xbox: true }, uninstalledGames?: { epic?: any[]; xbox?: any[] }) {
     const bus = createEventBus();
     const asked: any[] = [];
+    const removed: any[] = [];
     bus.on('store.add-requested', (e) => asked.push(e));
+    bus.on('store.remove-requested', (e) => removed.push(e));
     let calls = 0;
     const sync = createStoreSync({
         backend: {
@@ -21,7 +23,11 @@ function setup(autoAdd = { epic: true, xbox: true }) {
                         { key: 'owned', title: 'In Library', inLibrary: 4000000001, launch: LAUNCH },
                         { key: 'nolaunch', title: 'No Launcher' },
                     ],
-                    xbox: [{ key: 'Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe', title: 'Microsoft Jigsaw', launch: { exe: '"C:\Windows\explorer.exe"', start_dir: '"C:\Windows\\"', launch_options: 'shell:AppsFolder\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App' } }],
+                    xbox: [{ key: 'Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe', title: 'Microsoft Jigsaw', launch: { exe: '"C:\\Windows\\explorer.exe"', start_dir: '"C:\\Windows\\"', launch_options: 'shell:AppsFolder\\Microsoft.MicrosoftJigsaw_8wekyb3d8bbwe!App' } }],
+                    uninstalled: uninstalledGames ?? {
+                        epic: [],
+                        xbox: [],
+                    },
                     epicLauncher: true,
                 };
             },
@@ -30,7 +36,7 @@ function setup(autoAdd = { epic: true, xbox: true }) {
         autoAdd: () => autoAdd,
         allowXbox: () => true,
     });
-    return { sync, asked, calls: () => calls };
+    return { sync, asked, removed, calls: () => calls };
 }
 
 test('auto-add: each installed game without a shortcut is requested once, in its store\'s collection', async () => {
@@ -59,6 +65,33 @@ test('auto-add: two runs at the same time share one backend call', async () => {
     await Promise.all([s.sync.run(), s.sync.run()]);
     assert.equal(s.calls(), 1);
     assert.equal(s.asked.length, 2);
+});
+
+test('auto-add: games uninstalled from store have shortcuts requested for removal if store toggle is on', async () => {
+    const uninstalledGames = {
+        epic: [{ key: 'deadapp', appid: 3000000001, title: 'Uninstalled Epic Game' }],
+        xbox: [{ key: 'Package_dead', appid: 3000000002, title: 'Uninstalled Xbox Game' }],
+    };
+    const s = setup({ epic: true, xbox: true }, uninstalledGames);
+    // 2 additions + 2 removals = 4 changes
+    assert.equal(await s.sync.run(), 4);
+    assert.deepEqual(s.removed, [
+        { kind: 'epic', key: 'deadapp', appid: 3000000001, title: 'Uninstalled Epic Game' },
+        { kind: 'xbox', key: 'Package_dead', appid: 3000000002, title: 'Uninstalled Xbox Game' },
+    ]);
+    // Calling run again should request 0 changes because already requested in session
+    assert.equal(await s.sync.run(), 0);
+});
+
+test('auto-add: uninstalled games are not removed if that store toggle is off', async () => {
+    const uninstalledGames = {
+        epic: [{ key: 'deadapp', appid: 3000000001, title: 'Uninstalled Epic Game' }],
+        xbox: [{ key: 'Package_dead', appid: 3000000002, title: 'Uninstalled Xbox Game' }],
+    };
+    const epicOnly = setup({ epic: true, xbox: false }, uninstalledGames);
+    // 1 epic addition + 1 epic removal = 2 changes
+    assert.equal(await epicOnly.sync.run(), 2);
+    assert.deepEqual(epicOnly.removed.map((e) => e.kind), ['epic']);
 });
 
 // U0 repair (ADR-0058): the backend's list of outdated Xbox shortcuts becomes repair requests, once each, only with Xbox on.

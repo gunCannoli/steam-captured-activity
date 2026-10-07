@@ -31,7 +31,13 @@ export interface InstalledStoreGame {
 
 export const backend = {
   storeAccounts: () => callBackend<{ epic: { found: boolean; private: boolean }; xbox: { signed_in: boolean; gamertag?: string } }>("StoreAccounts"),
-  storeInstalledGames: (allowXbox: boolean = true) => callBackend<{ epic: InstalledStoreGame[]; xbox: InstalledStoreGame[]; epicLauncher?: boolean }>("StoreInstalledGames", { allowXbox }),
+  storeInstalledGames: (allowXbox: boolean = true) =>
+    callBackend<{
+      epic: InstalledStoreGame[];
+      xbox: InstalledStoreGame[];
+      uninstalled?: { epic: Array<{ key: string; appid: number; title: string }>; xbox: Array<{ key: string; appid: number; title: string }> };
+      epicLauncher?: boolean;
+    }>("StoreInstalledGames", { allowXbox }),
   xboxSignInStart: () => callBackend<{ ok: boolean; user_code: string; verification_uri: string; device_code: string; interval: number; expires_in: number }>("XboxSignInStart"),
   xboxSignInPoll: (device_code: string) => callBackend<{ status: string; gamertag?: string; error?: string }>("XboxSignInPoll", { device_code }),
   xboxSignOut: () => callBackend<{ ok: boolean }>("XboxSignOut"),

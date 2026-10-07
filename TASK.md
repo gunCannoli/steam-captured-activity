@@ -16,6 +16,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges & steam-cartridges-third-party uninstalled game auto-removal & settings cleanup (2026-10-06): completed and verified.**
+- Streamlined `steam-cartridges-third-party` settings section per Guardrail 18 with compact status badges (`(3 installed, 2 in library)`) and short, punchy descriptions.
+- Implemented automatic cleanup of shortcuts in Steam library when third-party games (Epic / Xbox) are uninstalled, active only while each store's auto-add toggle is turned on.
+- Verified cleanly via unit tests (331 TS tests, 12 Lua test suites) and full live CDP verification suite (`steam-health.mjs`, `test_nav_cycle.js`, `check_all_tabs.js`).
+
 **steam-cartridges extension system, modular expansion plugins & universal Captured Activity (2026-10-06): completed and verified.**
 Plan: [docs/plans/steam-cartridges-extension-system-and-expansions-plan.md](docs/plans/steam-cartridges-extension-system-and-expansions-plan.md).
 - Decoupled `steam-cartridges` into a modular core by establishing a typed extension registry on `window.SteamCartridges` (`frontend/kernel/extensions.ts`) with load-order queueing (`__STEAM_CARTRIDGES_QUEUE__`) and dynamic settings panel injection (`SettingsPanel` in `panel.tsx`).

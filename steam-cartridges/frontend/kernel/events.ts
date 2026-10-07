@@ -66,6 +66,17 @@ export interface Events {
     "store.repair-requested": { appid: number; title: string; exe: string; start_dir: string };
     "store.shortcut-repaired": { appid: number; title: string; error?: string };
     /**
+     * Auto-remove (app/store-sync): remove this shortcut since the game was uninstalled from its store.
+     * The library-shortcuts surface removes it and answers with `store.shortcut-removed`.
+     */
+    "store.remove-requested": {
+        kind: StoreKind;
+        key: string;
+        appid: number;
+        title: string;
+    };
+    "store.shortcut-removed": { kind: StoreKind; key: string; appid: number; title?: string; error?: string };
+    /**
      * Epic Steam Overlay Workaround (ADR-0057). app/epic-launcher tells the launch-hold surface which shortcuts to hold at
      * Play (the Epic launcher-link copies while the user's setting is on; empty = none); the surface reports a held launch;
      * the app answers `launch.release` once the backend has closed a running Epic launcher, and the surface lets Steam go on.

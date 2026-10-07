@@ -29,6 +29,13 @@ export interface InstalledStoreGame {
     launch?: { exe: string; start_dir: string; launch_options: string };
 }
 
+/** A store game that is no longer installed on this PC but still has a shortcut in the library. */
+export interface UninstalledStoreGame {
+    key: string;
+    appid: number;
+    title: string;
+}
+
 /** What a reset did to one source. */
 export interface ResetSourceResult {
     id: string;
@@ -242,7 +249,13 @@ export const backend = {
     },
     /** Store copies (ADR-0056): every installed Epic and Xbox game and whether the library has it. */
     storeInstalledGames(allowXbox: boolean, opts?: CallOptions) {
-        return call<{ epic?: InstalledStoreGame[]; xbox?: InstalledStoreGame[]; epicLauncher?: boolean; error?: string }>("StoreInstalledGames", { allowXbox }, opts);
+        return call<{
+            epic?: InstalledStoreGame[];
+            xbox?: InstalledStoreGame[];
+            uninstalled?: { epic?: UninstalledStoreGame[]; xbox?: UninstalledStoreGame[] };
+            epicLauncher?: boolean;
+            error?: string;
+        }>("StoreInstalledGames", { allowXbox }, opts);
     },
     /** U0 Xbox shortcuts (ADR-0058) whose exe is an older version's: the current exe and start folder to repoint them to. */
     storeXboxRepairs(opts?: CallOptions) {
