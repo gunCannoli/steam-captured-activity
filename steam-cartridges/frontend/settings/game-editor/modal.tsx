@@ -2,8 +2,7 @@
 // Reads the app only through usePanelContext().editor; nothing here writes to Steam.
 import { useRef, useState } from "react";
 import { PanelSection } from "@steambrew/client";
-import { Blocks, SettingsModal } from "../components";
-import { ERROR_STYLE, NOTE_STYLE } from "./styles";
+import { ActionRow, Blocks, SettingsModal } from "../components";
 import { usePanelContext, type EditorSnapshot } from "../context";
 import { diff, draftOf, validate, type MetadataDraft } from "../../domain/metadata-edit";
 import { GamePicker } from "./game-picker";
@@ -56,13 +55,11 @@ export function GameDataEditor({ isOpen, onClose }: { isOpen: boolean; onClose: 
     const dirty = snapshot && draft ? diff(snapshot.metadata, draft).length > 0 : false;
 
     return (
-        <SettingsModal title="Game Data" isOpen={isOpen} onClose={onClose} width="640px">
+        <SettingsModal title="Game Data" isOpen={isOpen} onClose={onClose} width="640px" maxHeight="85vh">
             <PanelSection>
                 <Blocks>
-                    <>
-                        <GamePicker filter={filter} onFilter={setFilter} appid={appid} onPick={pick} />
-                        {message && <div style={message.error ? ERROR_STYLE : { ...NOTE_STYLE, color: "#66c0f4", opacity: 1 }}>{message.text}</div>}
-                    </>
+                    <GamePicker filter={filter} onFilter={setFilter} appid={appid} onPick={pick} />
+                    {message && <ActionRow message={message.error ? message.text : `✓ ${message.text}`} />}
                     {snapshot && draft && (
                         <MetadataForm
                             appid={snapshot.appid}

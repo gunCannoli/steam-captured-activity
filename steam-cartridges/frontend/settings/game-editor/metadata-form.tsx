@@ -4,8 +4,8 @@ import { Dropdown, Field, TextField } from "@steambrew/client";
 import { EDITABLE_FIELDS, PLAYER_FLAGS, type MetadataDraft } from "../../domain/metadata-edit";
 import { setSetting, useSetting, type ControllerOverride } from "../settings";
 import { usePanelContext } from "../context";
-import { Blocks, ButtonRow, FullWidthRows, STEAM_TRAILING, ToggleRow } from "../components";
-import { ERROR_STYLE, TEXTAREA_STYLE } from "./styles";
+import { ActionRow, Blocks, ButtonRow, CARD_BACKGROUND, FullWidthRows, ItemRow, ToggleRow } from "../components";
+import { TEXTAREA_STYLE } from "./styles";
 
 const CONTROLLER_OPTIONS: { data: ControllerOverride; label: string }[] = [
     { data: "auto", label: "Default / Auto" },
@@ -54,37 +54,38 @@ export function MetadataForm({
 
     return (
         <Blocks>
-            <>
-                <Field
-                    label="Game Details"
-                    description={
-                        !hasMetadata
-                            ? "No data fetched yet. Fill in details below. Separate multiple entries with semicolons (;). Dates use YYYY-MM-DD format."
-                            : "Separate multiple entries with semicolons (;). Dates use YYYY-MM-DD format."
-                    }
-                    bottomSeparator="none"
-                />
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
+                <ItemRow>
+                    <Field
+                        label="Game Details"
+                        description={
+                            !hasMetadata
+                                ? "No data fetched yet. Fill in details below. Separate multiple entries with semicolons (;). Dates use YYYY-MM-DD format."
+                                : "Separate multiple entries with semicolons (;). Dates use YYYY-MM-DD format."
+                        }
+                        bottomSeparator="none"
+                    />
+                </ItemRow>
                 {EDITABLE_FIELDS.map((f) =>
                     f.kind === "textarea" ? (
-                        <Field key={f.key} label={f.label} childrenLayout="below" childrenContainerWidth="max">
-                            <textarea rows={5} value={draft[f.key]} onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })} style={TEXTAREA_STYLE} />
-                        </Field>
+                        <ItemRow key={f.key}>
+                            <Field label={f.label} childrenLayout="below" childrenContainerWidth="max">
+                                <textarea rows={5} value={draft[f.key]} onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })} style={TEXTAREA_STYLE} />
+                            </Field>
+                        </ItemRow>
                     ) : (
-                        <TextField
-                            key={f.key}
-                            label={f.label}
-                            value={draft[f.key]}
-                            onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })}
-                        />
+                        <ItemRow key={f.key} trailing>
+                            <TextField
+                                label={f.label}
+                                value={draft[f.key]}
+                                onChange={(e) => onChange({ ...draft, [f.key]: e.target.value })}
+                            />
+                        </ItemRow>
                     ),
                 )}
-                {errors.map((e) => (
-                    <div key={e} style={{ ...ERROR_STYLE, marginTop: -STEAM_TRAILING / 2 }}>
-                        {e}
-                    </div>
-                ))}
-            </>
-            <>
+                {errors.length > 0 && <ActionRow message={errors[0]} />}
+            </div>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
                 {PLAYER_FLAGS.map((p) => (
                     <ToggleRow
                         key={p.flag}
@@ -94,25 +95,27 @@ export function MetadataForm({
                         onChange={(on) => onChange({ ...draft, players: { ...draft.players, [p.flag]: on } })}
                     />
                 ))}
-            </>
-            <FullWidthRows
-                label="Controller support"
-                description={
-                    detected === true
-                        ? "Detected: full controller support"
-                        : detected === false
-                          ? "Detected: keyboard & mouse"
-                          : "Auto-detected based on platform/core"
-                }
-            >
-                <Dropdown
-                    rgOptions={CONTROLLER_OPTIONS}
-                    selectedOption={override}
-                    contextMenuPositionOptions={{ bMatchWidth: true }}
-                    onChange={(o) => setController(o.data as ControllerOverride)}
-                />
-            </FullWidthRows>
-            <>
+            </div>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
+                <FullWidthRows
+                    label="Controller support"
+                    description={
+                        detected === true
+                            ? "Detected: full controller support"
+                            : detected === false
+                              ? "Detected: keyboard & mouse"
+                              : "Auto-detected based on platform/core"
+                    }
+                >
+                    <Dropdown
+                        rgOptions={CONTROLLER_OPTIONS}
+                        selectedOption={override}
+                        contextMenuPositionOptions={{ bMatchWidth: true }}
+                        onChange={(o) => setController(o.data as ControllerOverride)}
+                    />
+                </FullWidthRows>
+            </div>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
                 <ButtonRow label="Save" description="Saves changes as a protected manual edit" buttonLabel="Save" disabled={busy || !dirty || errors.length > 0} onClick={onSave} />
                 <ButtonRow
                     label="Revert to fetched data"
@@ -121,7 +124,7 @@ export function MetadataForm({
                     disabled={busy || !custom}
                     onClick={onRevert}
                 />
-            </>
+            </div>
         </Blocks>
     );
 }

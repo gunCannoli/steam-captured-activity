@@ -4,8 +4,7 @@ import { useState } from "react";
 import { DialogButton, Field, TextField } from "@steambrew/client";
 import { usePanelContext, type EditorSnapshot } from "../context";
 import type { StoreCandidate } from "../../ports/backend";
-import { Blocks, ButtonRow, ItemRow, STEAM_TRAILING } from "../components";
-import { ERROR_STYLE } from "./styles";
+import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CARD_BACKGROUND, ItemRow } from "../components";
 
 export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; busy: boolean; run: (work: () => Promise<{ error?: string } | void>, done: string) => void }) {
     const editor = usePanelContext().editor;
@@ -22,7 +21,7 @@ export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; b
 
     return (
         <Blocks>
-            <>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
                 <ItemRow>
                     <Field
                         label="Steam link"
@@ -57,13 +56,13 @@ export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; b
                         <Field label="Manual edit kept" description="Manual edit preserved. Revert to show Steam store data." bottomSeparator="none" />
                     </ItemRow>
                 )}
-            </>
-            <>
+            </div>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
                 <ItemRow trailing>
                     <TextField label="Search Steam games" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void search()} />
                 </ItemRow>
                 <ButtonRow label="Search" description="Search Steam store by title" buttonLabel="Search" disabled={busy || term.trim().length < 2} onClick={() => void search()} />
-                {searchError && <div style={{ ...ERROR_STYLE, marginTop: -STEAM_TRAILING / 2 }}>Search failed: {searchError}</div>}
+                {searchError && <ActionRow message={`Search failed: ${searchError}`} />}
                 {results && results.length === 0 && !searchError && (
                     <ItemRow>
                         <Field label="No Steam games found" bottomSeparator="none" />
@@ -73,7 +72,7 @@ export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; b
                     <ItemRow key={c.steam_appid}>
                         <Field label={c.name} description={`Steam app ${c.steam_appid}`}>
                             <DialogButton
-                                style={{ padding: "0 16px", minWidth: 0, width: "auto" }}
+                                style={BUTTON_STYLE}
                                 disabled={busy || snapshot.link?.steam_appid === c.steam_appid}
                                 onClick={() => run(() => editor.link(snapshot.appid, c.steam_appid, c.name), `Linked to ${c.name}.`)}
                             >
@@ -82,7 +81,7 @@ export function SteamLink({ snapshot, busy, run }: { snapshot: EditorSnapshot; b
                         </Field>
                     </ItemRow>
                 ))}
-            </>
+            </div>
         </Blocks>
     );
 }

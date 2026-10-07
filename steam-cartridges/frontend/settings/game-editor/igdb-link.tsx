@@ -4,8 +4,7 @@ import { useState } from "react";
 import { DialogButton, Field, TextField } from "@steambrew/client";
 import { usePanelContext, type EditorSnapshot } from "../context";
 import type { IgdbCandidate } from "../../ports/backend";
-import { Blocks, ButtonRow, ItemRow, STEAM_TRAILING } from "../components";
-import { ERROR_STYLE } from "./styles";
+import { ActionRow, Blocks, BUTTON_STYLE, ButtonRow, CARD_BACKGROUND, ItemRow } from "../components";
 
 export function IgdbLink({
     snapshot,
@@ -42,7 +41,7 @@ export function IgdbLink({
 
     return (
         <Blocks>
-            <>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
                 <ItemRow>
                     <Field
                         label="IGDB link"
@@ -74,8 +73,8 @@ export function IgdbLink({
                         }
                     }}
                 />
-            </>
-            <>
+            </div>
+            <div style={{ background: CARD_BACKGROUND, borderRadius: "4px", border: "1px solid rgba(255, 255, 255, 0.08)", overflow: "hidden" }}>
                 <ItemRow trailing>
                     <TextField
                         label="Search IGDB games"
@@ -91,7 +90,7 @@ export function IgdbLink({
                     disabled={busy || term.trim().length < 2}
                     onClick={() => void search()}
                 />
-                {searchError && <div style={{ ...ERROR_STYLE, marginTop: -STEAM_TRAILING / 2 }}>Search failed: {searchError}</div>}
+                {searchError && <ActionRow message={`Search failed: ${searchError}`} />}
                 {results && results.length === 0 && !searchError && (
                     <ItemRow>
                         <Field label="No IGDB games found" bottomSeparator="none" />
@@ -117,7 +116,7 @@ export function IgdbLink({
                                 }
                             >
                                 <DialogButton
-                                    style={{ padding: "0 16px", minWidth: 0, width: "auto" }}
+                                    style={BUTTON_STYLE}
                                     disabled={busy || snapshot.metadata.igdb_id === c.id}
                                     onClick={() => run(() => editor.linkIgdb(snapshot.appid, c.id, c.name), `Linked to ${c.name}.`)}
                                 >
@@ -127,7 +126,7 @@ export function IgdbLink({
                         </ItemRow>
                     );
                 })}
-            </>
+            </div>
         </Blocks>
     );
 }

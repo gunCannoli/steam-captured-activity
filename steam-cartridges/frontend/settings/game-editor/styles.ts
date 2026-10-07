@@ -13,6 +13,3 @@ export const TEXTAREA_STYLE: CSSProperties = {
     boxSizing: "border-box",
     resize: "vertical",
 };
-
-export const NOTE_STYLE: CSSProperties = { fontSize: "12px", opacity: 0.7 };
-export const ERROR_STYLE: CSSProperties = { fontSize: "12px", color: "#e57373" };

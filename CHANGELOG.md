@@ -7,6 +7,12 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: Consistent card block spacing & font typography in Review and Manual Edit modals (2026-10-06)**:
+  - *Review Modal Game Card Blocks*: Made each game in the Review modal (`frontend/settings/panels/audit.tsx`) render as its own card block with `CARD_BACKGROUND`, `borderRadius: "4px"`, subtle border, and `BLOCK_GAP` (22px) spacing separating each game (both for flagged issue games and unscraped games). Standardized dialog width to 640px.
+  - *Manual Edit Modal Layout & Spacing (Guardrail 18)*: Wrapped `GamePicker` in a proper `ItemRow` card with `CARD_BACKGROUND`, `Field` header, and `CONTROL_GAP` (8px) matching the reference implementation. Encapsulated each section in `MetadataForm`, `IgdbLink`, and `SteamLink` into dedicated card blocks with `BLOCK_GAP` separation. Wrapped text inputs in `<ItemRow trailing>` to eliminate irregular margins.
+  - *Typography & Component Hygiene*: Completely removed hand-written `fontSize: "12px"` and custom error/note styles (`NOTE_STYLE`, `ERROR_STYLE`) from `game-editor/styles.ts`. Replaced all inline status and validation error messages with Steam-native `ActionRow` and `Field` components.
+  - *Verification*: Verified cleanly with 331 TS unit tests, 12 Lua test suites, production build, and full live CDP suite (`steam-health.mjs`, `test_nav_cycle.js`, `check_all_tabs.js`) passing on the live Steam client.
+
 - **steam-cartridges & steam-cartridges-third-party: auto-remove uninstalled store shortcuts & streamlined settings (2026-10-06)**:
   - *Third-Party Settings Verbosity Reduction*: Streamlined descriptions across all Epic and Xbox controls in `steam-cartridges-third-party/frontend/settings/third-party.tsx` following Guardrail 18 (concise, Steam-native phrasing, no multi-paragraph explanations). Standardized installed counts into compact badges (e.g. `(3 installed, 2 in library)`).
   - *Store-Sync Uninstalled Game Removal*: Added automatic removal of Steam shortcuts when games are uninstalled from Epic Games or Xbox/Microsoft Store while the corresponding "Auto-add installed games" toggle is active. `store_service.lua` in both plugins now scans `shortcuts.vdf` for shortcuts pointing to Epic launcher links or Xbox Package Family Names that are no longer installed on the system, populating `uninstalled.epic` and `uninstalled.xbox`.

@@ -23,6 +23,7 @@ import {
     Blocks,
     BUTTON_STYLE,
     ButtonRow,
+    CARD_BACKGROUND,
     FullWidthRows,
     ItemRow,
     SettingsModal,
@@ -473,7 +474,7 @@ export function RevisionSection() {
                     title="Review"
                     isOpen={isAuditModalOpen}
                     onClose={() => setIsAuditModalOpen(false)}
-                    width="620px"
+                    width="640px"
                     maxHeight="85vh"
                 >
                     <PanelSection>
@@ -493,20 +494,20 @@ export function RevisionSection() {
                                 <Dropdown
                                     rgOptions={[
                                         {
-                                            data: "all",
-                                            label: `All Issues (${flagged.length})`,
+                                           data: "all",
+                                           label: `All Issues (${flagged.length})`,
                                         },
                                         {
-                                            data: "missing_achievements",
-                                            label: `Missing Achievements (${flagged.filter((f) => f.noAchievements).length})`,
+                                           data: "missing_achievements",
+                                           label: `Missing Achievements (${flagged.filter((f) => f.noAchievements).length})`,
                                         },
                                         {
-                                            data: "missing_controller",
-                                            label: `Missing Controller (${flagged.filter((f) => f.missingController).length})`,
+                                           data: "missing_controller",
+                                           label: `Missing Controller (${flagged.filter((f) => f.missingController).length})`,
                                         },
                                         {
-                                            data: "not_scraped",
-                                            label: `Not scraped (${notScraped.length})`,
+                                           data: "not_scraped",
+                                           label: `Not scraped (${notScraped.length})`,
                                         },
                                     ]}
                                     selectedOption={filter}
@@ -539,33 +540,41 @@ export function RevisionSection() {
                             )}
                             {fixMsg && <ActionRow message={fixMsg} />}
                             {filter === "not_scraped" ? (
-                                <>
-                                    {notScraped.length === 0 && (
-                                        <ItemRow>
-                                            <Field
-                                                label="Every game has been fetched"
-                                                bottomSeparator="none"
-                                            />
-                                        </ItemRow>
-                                    )}
-                                    {notScraped.map((item) => (
-                                        <ButtonRow
-                                            key={item.appid}
-                                            label={item.name}
-                                            description={gameLine(
-                                                item.appid,
-                                                item.profile,
-                                            )}
-                                            buttonLabel="Fetch"
-                                            onClick={() =>
-                                                handleScanSingle(
-                                                    item.appid,
-                                                    item.name,
-                                                )
-                                            }
+                                notScraped.length === 0 ? (
+                                    <ItemRow>
+                                        <Field
+                                            label="Every game has been fetched"
+                                            bottomSeparator="none"
                                         />
-                                    ))}
-                                </>
+                                    </ItemRow>
+                                ) : (
+                                    notScraped.map((item) => (
+                                        <div
+                                            key={item.appid}
+                                            style={{
+                                                background: CARD_BACKGROUND,
+                                                borderRadius: "4px",
+                                                border: "1px solid rgba(255, 255, 255, 0.08)",
+                                                overflow: "hidden",
+                                            }}
+                                        >
+                                            <ButtonRow
+                                                label={item.name}
+                                                description={gameLine(
+                                                    item.appid,
+                                                    item.profile,
+                                                )}
+                                                buttonLabel="Fetch"
+                                                onClick={() =>
+                                                    handleScanSingle(
+                                                        item.appid,
+                                                        item.name,
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    ))
+                                )
                             ) : displayedFlagged.length === 0 ? (
                                 <ItemRow>
                                     <Field
@@ -581,7 +590,15 @@ export function RevisionSection() {
                                 </ItemRow>
                             ) : (
                                 displayedFlagged.map((item) => (
-                                    <div key={item.appid}>
+                                    <div
+                                        key={item.appid}
+                                        style={{
+                                            background: CARD_BACKGROUND,
+                                            borderRadius: "4px",
+                                            border: "1px solid rgba(255, 255, 255, 0.08)",
+                                            overflow: "hidden",
+                                        }}
+                                    >
                                         <ItemRow>
                                             <Field
                                                 label={item.name}
