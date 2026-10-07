@@ -45,4 +45,5 @@ export const backend = {
   storeXboxRepairs: () => callBackend<{ repairs: { appid: number; exe: string; start_dir: string }[] }>("StoreXboxRepairs"),
   storeEpicPrelaunch: (appid: number, heldAt: number) => callBackend<{ status: string; closed?: boolean }>("StoreEpicPrelaunch", { appid, heldAt }),
   storeEpicReap: (appid: number, act: string) => callBackend<{ status: string; done?: boolean }>("StoreEpicReap", { appid, act }),
+  storeSensorLogs: (limit: number = 60) => callBackend<{ lines: string[] }>("StoreSensorLogs", { limit }),
 };

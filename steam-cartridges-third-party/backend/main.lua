@@ -19,6 +19,7 @@ StoreEpicLaunchShortcuts = STORE_RPC.StoreEpicLaunchShortcuts
 StoreXboxRepairs         = STORE_RPC.StoreXboxRepairs
 StoreEpicPrelaunch       = STORE_RPC.StoreEpicPrelaunch
 StoreEpicReap            = STORE_RPC.StoreEpicReap
+StoreSensorLogs          = STORE_RPC.StoreSensorLogs
 
 -- Millennium's lifecycle (docs/plugins.md § 2): the table is required; ready() belongs in on_load.
 local function on_load()

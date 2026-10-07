@@ -64,4 +64,11 @@ RPC.StoreEpicReap = method("StoreEpicReap", function(data)
   return store_launch.reap(tonumber(data.appid), tostring(data.act or "tick"))
 end)
 
+local sensor_log = require("sensor_log")
+--- { limit? }: returns recent sensor telemetry lines from third_party.log.
+RPC.StoreSensorLogs = method("StoreSensorLogs", function(data)
+  local limit = tonumber(data and data.limit) or 50
+  return { lines = sensor_log.read_recent(limit) }
+end)
+
 return RPC

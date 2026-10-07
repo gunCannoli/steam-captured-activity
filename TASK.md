@@ -16,11 +16,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**steam-cartridges-third-party Xbox UWP Steam Overlay Workaround (2026-10-07): researched, built, deployed, and live-verified.**
-- Executed all 4 research spikes from `docs/plans/steam-cartridges-uwp-overlay-research-plan.md`. Proved SISR does not support UWP overlay, and direct AppContainer DLL injection is blocked by kernel namespace redirection and Steam engine PID validation.
-- Built and shipped Option 1 (Mirrored Presentation Wrapper) via `tools/uwp_presenter/` (`bin/uwp_presenter.exe` using .NET 8 WinRT `Windows.Graphics.Capture`, `Direct3D11CaptureFramePool`, and DXGI swapchain rendering).
-- Integrated into `steam-cartridges-third-party`: backend `store_xbox_local.lua` (`launch_spec` with overlay option and `--aumid` matching), frontend settings toggle "Xbox Steam Overlay Workaround", and auto-build in `dev.ps1`.
-- Live verified: Steam shortcut launches presenter, tracks child PID, injects `GameOverlayRenderer64.dll`, attaches `gameoverlayui64.exe`, records frames via `g_GRS.StartRecording`, and cleanly exits. Unit tests and full live CDP suite 100% pass.
+**steam-cartridges-third-party Xbox UWP Steam Overlay Workaround & Pool Blitz Fixes (2026-10-07): completed and live-verified.**
+- Executed all 4 research spikes from `docs/plans/steam-cartridges-uwp-overlay-research-plan.md`. Shipped Option 1 (Mirrored Presentation Wrapper) via `tools/uwp_presenter/` (`bin/uwp_presenter.exe`).
+- Diagnosed and fixed Pool Blitz issues: Windows SDK COM CLSID typo (`S_OK`), `OpenInputDesktop` enumeration for active desktop windows, yellow border suppression (`session.IsBorderRequired = false`), dynamic DXGI swapchain backbuffer resizing (fixed black screen bug), GDK child process tree resolution (`CreateToolhelp32Snapshot`), and window title self-exclusion bug.
+- Implemented multi-target sensor telemetry engine across C# (`uwp_presenter.log`), backend Lua (`third_party.log`), and live "Diagnostics & Sensor Telemetry" UI modal in Third-Party settings.
+- Resolved and eliminated duplicate shortcut generation by adding `--aumid` recognition to core `store_xbox_local.lua`, and documented Guardrail 22 in `docs/plugins.md` and `docs/steam-cartridges.md`. Unit tests and full live CDP suite 100% pass.
 
 **steam-captured-activity event-driven clean-up (2026-10-07): deployed, the 3 Steam event sources register.** Left: see a real
 screenshot or clip saved and deleted reach an open AM2R feed within seconds (`diagnostics().captureEvents.recent`). Open:

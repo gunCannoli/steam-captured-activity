@@ -228,7 +228,8 @@ Copy-Item -Path "$PSScriptRoot\.millennium" -Destination $target -Recurse -Force
 Copy-Item -Path "$PSScriptRoot\backend" -Destination $target -Recurse -Force
 if (Test-Path "$PSScriptRoot\tools\uwp_presenter\uwp_presenter.csproj") {
   $presenterExe = Join-Path $PSScriptRoot 'bin\uwp_presenter.exe'
-  if (-not (Test-Path $presenterExe)) {
+  $csFile = Join-Path $PSScriptRoot 'tools\uwp_presenter\Program.cs'
+  if ((-not (Test-Path $presenterExe)) -or ((Get-Item $csFile).LastWriteTime -gt (Get-Item $presenterExe).LastWriteTime)) {
     Write-Host "Building uwp_presenter..."
     & "$PSScriptRoot\tools\uwp_presenter\build.ps1"
   }

@@ -143,9 +143,14 @@ local function norm_path(p)
   return (s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("\\+$", ""))
 end
 
---- The package family name a shell:AppsFolder target names, or nil (pure).
+--- The package family name a shell:AppsFolder target or --aumid parameter names, or nil (pure).
 function M.pfn_from_target(text)
-  return tostring(text or ""):match("[Ss][Hh][Ee][Ll][Ll]:[Aa][Pp][Pp][Ss][Ff][Oo][Ll][Dd][Ee][Rr]\\([^!%s\"]+)!")
+  local s = tostring(text or "")
+  local shell_pfn = s:match("[Ss][Hh][Ee][Ll][Ll]:[Aa][Pp][Pp][Ss][Ff][Oo][Ll][Dd][Ee][Rr]\\([^!%s\"]+)!")
+  if shell_pfn then return shell_pfn end
+  local aumid_pfn = s:match("%-%-aumid%s+[\"']?([^!%s\"']+)!")
+  if aumid_pfn then return aumid_pfn end
+  return nil
 end
 
 --- The package family name of an exe inside a WindowsApps package folder, whatever its version, or nil (pure):

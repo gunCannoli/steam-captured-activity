@@ -1,6 +1,9 @@
 # Build output
 .millennium/
 dist/
+bin/
+*.pdb
+*.log
 *.tsbuildinfo
 
 # Dependencies

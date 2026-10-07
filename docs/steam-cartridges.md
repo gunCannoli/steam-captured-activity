@@ -44,8 +44,9 @@ The core exposes a global, typed extension registry on `window.SteamCartridges` 
 
 *Extension Isolation & Guardrails (plugins.md § Guardrails 21 & 22):*
 - **Error Boundaries:** Core wraps every dynamic extension settings panel in an `ExtensionErrorBoundary` (`frontend/settings/panel.tsx`). A crash in an extension panel is caught and isolated to that panel block without taking down core settings sections.
-- **Defensive Rendering Contract:** Extension components must never throw during render. All RPC collections from Lua must be coerced via `Array.isArray(x) ? x : []` (Guardrail 21) because empty Lua tables serialize as `{}` objects in JSON, not `[]`.
+- **Defensive Rendering Contract:** Extension components must never throw during render. All RPC collections from Lua must be coerced via `Array.isArray(x) ? x : []` (Guardrail 21) because empty Lua tables serialize as `{}` objects in JSON, not `[]`. Every nested property access on RPC data (`accounts?.epic?.found`, `accounts?.xbox?.signed_in`) must use optional chaining.
 - **Settings Immutability:** Provider-specific settings (e.g. `xboxOverlayWorkaround`) belong strictly to the extension's store/manifest; core settings defaults remain clean and unpolluted.
+- **Shared Shortcut Matching Alignment:** When an extension introduces custom launch wrappers (e.g., `uwp_presenter.exe --aumid ...`), the core's backend matcher (`store_xbox_local.lua` `pfn_from_target`) must also recognize the arguments so that background library syncs do not detect wrapped shortcuts as missing and generate duplicate library entries.
 
 Two halves, one boundary:
 

@@ -11,6 +11,7 @@
 
 local logger = require("logger")
 local store  = require("store_copies_store")
+local sensor = require("sensor_log")
 
 local M = {}
 
@@ -64,11 +65,15 @@ function M.detect(entry)
   local games = installed()
   local g, via = epic_local().match(entry, games.epic)
   if g then
-    return { kind = "epic", title = g.title, namespace = g.namespace, itemId = g.item_id, appName = g.app_name, via = via }
+    local c = { kind = "epic", title = g.title, namespace = g.namespace, itemId = g.item_id, appName = g.app_name, via = via }
+    pcall(sensor.write, "STORE:DETECT", string.format("Detected epic: '%s' (appid %s, via %s)", tostring(c.title), tostring(entry.appid), tostring(c.via)))
+    return c
   end
   local x, xvia = xbox_local().match(entry, games.xbox)
   if x then
-    return { kind = "xbox", title = x.title, pfn = x.pfn, titleId = x.title_id, storeId = x.store_id, via = xvia }
+    local c = { kind = "xbox", title = x.title, pfn = x.pfn, titleId = x.title_id, storeId = x.store_id, via = xvia }
+    pcall(sensor.write, "STORE:DETECT", string.format("Detected xbox: '%s' (appid %s, via %s, pfn %s)", tostring(c.title), tostring(entry.appid), tostring(c.via), tostring(c.pfn)))
+    return c
   end
   return nil
 end
@@ -213,7 +218,9 @@ function M.installed_games(ctx)
   for _, e in ipairs(all_entries()) do
     local c = M.detect(e)
     if c then
-      owned[(c.kind == "epic" and c.appName or c.pfn) or ""] = unsigned(e.appid)
+      local key = (c.kind == "epic" and c.appName or c.pfn) or ""
+      owned[key] = unsigned(e.appid)
+      pcall(sensor.write, "STORE:OWNED", string.format("Owned: key='%s' -> appid=%s (title='%s')", key, tostring(e.appid), tostring(c.title or "")))
     else
       local epic_app = epic_local().app_name_from_link(e.launch_options) or epic_local().app_name_from_link(e.exe)
       if epic_app and not installed_epic[epic_app] then
@@ -238,8 +245,10 @@ function M.installed_games(ctx)
   local launcher = epic_local().launcher_exe()
   local out = { epic = {}, xbox = {}, uninstalled = uninstalled, epicLauncher = launcher ~= nil }
   for _, g in ipairs(games.epic) do
+    local inLib = owned[g.app_name]
+    pcall(sensor.write, "STORE:SYNC_EPIC", string.format("Installed game '%s' (AppName %s): inLibrary = %s", tostring(g.title), tostring(g.app_name), tostring(inLib)))
     out.epic[#out.epic + 1] = {
-      key = g.app_name, title = g.title, inLibrary = owned[g.app_name],
+      key = g.app_name, title = g.title, inLibrary = inLib,
       launch = epic_local().launch_spec(g, launcher),
     }
   end
@@ -248,8 +257,10 @@ function M.installed_games(ctx)
     local copy = { kind = "xbox", title = g.title, pfn = g.pfn, titleId = g.title_id, storeId = g.store_id }
     if identifier_title(g.title, g.pfn) then pcall(fill_xbox, copy, ctx) end
     local known = store.lookup("xbox:" .. tostring(g.pfn)) or {}
+    local inLib = owned[g.pfn]
+    pcall(sensor.write, "STORE:SYNC_XBOX", string.format("Installed game '%s' (PFN %s): inLibrary = %s", tostring(g.title or g.pfn), tostring(g.pfn), tostring(inLib)))
     out.xbox[#out.xbox + 1] = {
-      key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = owned[g.pfn],
+      key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = inLib,
       launch = xbox_local().launch_spec(g, overlay_opts),
     }
   end

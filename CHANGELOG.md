@@ -7,6 +7,25 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-third-party & steam-cartridges: Pool Blitz UWP presenter fixes, sensor telemetry, duplicate shortcut elimination & Guardrail 22 (2026-10-07)**:
+  - *UWP Presenter Engine (Pool Blitz) Diagnosed & Resolved*:
+    - **COM CLSID Typo**: Corrected Windows SDK `IApplicationActivationManager` CLSID to `45BA127D-10A8-46EA-8AB7-56EA9078943C`; activation returns `S_OK`.
+    - **Active User Desktop Station Enumeration**: Replaced thread-isolated `EnumWindows` with `OpenInputDesktop(0, false, 0x01FF)` and `EnumDesktopWindows`, enumerating interactive desktop windows reliably.
+    - **Yellow Security Border Suppression**: Updated target framework to `net8.0-windows10.0.22621.0` and set `session.IsBorderRequired = false`.
+    - **Dynamic Backbuffer Resizing (Black Screen Bug)**: Resolved frame presenter failure where mismatch between captured source dimensions and swapchain backbuffer caused dropped frames; dynamically resizes buffers with `swapChain.ResizeBuffers(2, (uint)srcW, (uint)srcH, ...)`. First frame presents in 43-55 ms.
+    - **GDK Child Process Tree Discovery**: Added toolhelp snapshot enumeration (`CreateToolhelp32Snapshot`) to resolve descendant rendering processes (`Pool-WinGDK-Shipping.exe`) spawned by UWP bootstrap processes.
+    - **Title Match Self-Exclusion Bug**: Replaced self-matching title condition with `className != "SteamUWPPresenterClass"` so games whose title matches `--title` are not self-excluded.
+  - *Multi-Target Sensor Telemetry Engine*:
+    - C# presenter logs structured categories (`[SENSOR:BOOT]`, `[SENSOR:ACTIVATE]`, `[SENSOR:WINDOW_SCAN]`, `[SENSOR:D3D11]`, `[SENSOR:CAPTURE]`, `[SENSOR:STREAM]`, `[SENSOR:LIFECYCLE]`) to `config/steam-cartridges/uwp_presenter.log`.
+    - Backend store sensor logging engine (`sensor_log.lua`) logs detection and ownership events (`[STORE:DETECT]`, `[STORE:OWNED]`, `[STORE:SYNC_XBOX]`, `[STORE:SYNC_EPIC]`) to `config/steam-cartridges/third_party.log`.
+    - Added `StoreSensorLogs` RPC and live "Diagnostics & Sensor Telemetry" modal to `frontend/settings/third-party.tsx`.
+  - *Duplicate Shortcut Root Cause & Elimination*:
+    - Root cause: core `steam-cartridges/backend/store_xbox_local.lua` only checked `shell:AppsFolder\` and lacked `--aumid` parsing; auto-add store sync saw wrapped shortcuts as unowned and created duplicate library entries.
+    - Added `--aumid` pattern extraction to `pfn_from_target` in core; removed duplicate shortcut `4290614723` via `SteamClient.Apps.RemoveShortcut(4290614723)`.
+  - *Guardrails Documented*:
+    - Expanded Guardrail 22 in `docs/plugins.md` and updated `docs/steam-cartridges.md` to enforce defensive rendering (optional chaining on all nested RPC properties), independent plugin config storage fallbacks, and shared shortcut matching alignment across core and extensions.
+  - *Verification*: Full test suite (330 TS tests, 12 Lua test suites, 68 store tests, 33 launch tests) 100% PASS; live CDP verification suite (`steam-health.mjs`, `test_nav_cycle.js`, `check_all_tabs.js`) 100% PASS; Pool Blitz shortcut verified singular in Steam library across restarts.
+
 - **steam-cartridges & steam-cartridges-third-party: extension settings crash fix & Guardrails 21 & 22 (2026-10-07)**:
   - *Symptom*: Core `steam-cartridges` displayed "Failed to render settings for extension: third-party (TypeError: list.filter is not a function)" and could not render the Third-party section.
   - *Root cause*: In Lua, empty collections are empty tables (`{}`), which JSON serializers (`cjson`) serialize as objects (`"{}"`), not arrays (`"[]"`). In TypeScript, `res.epic ?? []` preserves `{}` because `{}` is truthy and not nullish. `installedText` called `list.filter` on `{}` which threw `TypeError`.

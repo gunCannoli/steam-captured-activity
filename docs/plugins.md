@@ -762,14 +762,22 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
 - **The Trap:** Expansion plugins (`steam-cartridges-third-party`, `steam-cartridges-local`) register panels into the core
   plugin's `SettingsPanel` via `window.SteamCartridges.registerSettingsPanel()`. Even though the core wraps extensions in an
   `ExtensionErrorBoundary`, any unhandled error inside an extension's component knocks out that entire section, leaving
-  the user unable to see or toggle features.
+  the user unable to see or toggle features. Furthermore, misalignments between core and provider launch arguments can cause
+  duplicate library shortcuts or crashed settings panels.
 - **The Rule:**
   1. **Defensive state:** Never assume backend RPCs succeed or return fully populated objects. Every property access on
-     RPC data (`accounts?.epic?.found`, `res?.epic`) must have a fallback or optional chaining.
+     RPC data (`accounts?.epic?.found`, `accounts?.xbox?.signed_in`, `res?.epic`) must have a fallback or optional chaining.
   2. **No unhandled throws in render:** A rejected promise (`.catch()`) must leave the component in a safe "scanning"
      or "error" fallback; it must never bubble an uncaught exception to the render pass.
   3. **Core settings immutability:** Provider-specific settings (e.g. `xboxOverlayWorkaround`) belong strictly in the
      provider plugin's own settings store; core `settings-defaults.ts` must remain pure and free from provider-specific keys.
+  4. **Independent plugin config fallbacks:** Provider plugins use their own settings via Millennium's `@steambrew/client`
+     `pluginConfig`. Always provide explicit default fallbacks in `useSetting` hooks so that uninitialized configs do not resolve
+     to `undefined` or break rendering during first boot.
+  5. **Shared matcher alignment for custom launch wrappers:** When an extension modifies shortcut launch targets or introduces
+     custom wrappers (e.g., `uwp_presenter.exe --aumid ...`), backend matchers in BOTH core and extension
+     (`store_xbox_local.lua` `pfn_from_target`) must recognize the custom format. Otherwise, an auto-add background timer in either
+     plugin will fail to match the shortcut and create duplicate library entries.
 
 ---
 

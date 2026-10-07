@@ -47,6 +47,23 @@ export function ThirdPartySection() {
     const [signInMsg, setSignInMsg] = useState("");
     const polling = useRef(0);
 
+    const [logsOpen, setLogsOpen] = useState(false);
+    const [logLines, setLogLines] = useState<string[]>([]);
+
+    const fetchLogs = () => {
+        backend
+            .storeSensorLogs(100)
+            .then((r) => {
+                if (r && Array.isArray(r.lines)) setLogLines(r.lines);
+            })
+            .catch(() => {});
+    };
+
+    const openLogsModal = () => {
+        fetchLogs();
+        setLogsOpen(true);
+    };
+
     const refresh = () => {
         // A failed call answers { error }: keep "Detecting" rather than render a reply without `epic`.
         backend
@@ -118,9 +135,9 @@ export function ThirdPartySection() {
 
     const epicAccount = !accounts
         ? "Detecting account..."
-        : !accounts.epic.found
+        : !accounts.epic?.found
           ? "Not signed in on this PC. Sign in via Epic Games Launcher."
-          : accounts.epic.private
+          : accounts.epic?.private
             ? "Profile is private. Set Privacy > Achievements to Public in Epic account."
             : "Connected via local Epic Games Launcher.";
 
@@ -169,10 +186,10 @@ export function ThirdPartySection() {
                         onChange={(on: boolean) => setServices({ ...activeServices, xboxEnabled: on })}
                     />
                     {xboxOn &&
-                        (accounts?.xbox.signed_in ? (
+                        (accounts?.xbox?.signed_in ? (
                             <ButtonRow
                                 label="Xbox account"
-                                description={`Signed in as ${accounts.xbox.gamertag || "Xbox account"}. Unlocks sync automatically.`}
+                                description={`Signed in as ${accounts.xbox?.gamertag || "Xbox account"}. Unlocks sync automatically.`}
                                 buttonLabel="Sign out"
                                 onClick={signOut}
                             />
@@ -200,8 +217,35 @@ export function ThirdPartySection() {
                             onChange={setXboxOverlay}
                         />
                     )}
+                    <ButtonRow
+                        label="Diagnostics & Sensor Telemetry"
+                        description="View recent telemetry and debug events recorded in third_party.log and uwp_presenter.log."
+                        buttonLabel="View Logs"
+                        onClick={openLogsModal}
+                    />
                 </>
             </Blocks>
+
+            {/* Diagnostics & Sensor Logs Modal */}
+            <SettingsModal title="Diagnostics & Sensor Telemetry" isOpen={logsOpen} onClose={() => setLogsOpen(false)} width="720px">
+                <PanelSection>
+                    <Blocks>
+                        <ItemRow>
+                            <div style={{ maxHeight: "350px", overflowY: "auto", background: "rgba(0,0,0,0.5)", padding: "10px", borderRadius: "4px", fontFamily: "monospace", fontSize: "11px", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "#ddd" }}>
+                                {logLines.length > 0 ? logLines.join("\n") : "No recent logs recorded yet. Logs write to <Steam>/millennium/config/steam-cartridges/third_party.log and uwp_presenter.log."}
+                            </div>
+                        </ItemRow>
+                        <ActionRow message="Telemetry writes to config/steam-cartridges/third_party.log & uwp_presenter.log">
+                            <DialogButton onClick={fetchLogs} style={BUTTON_STYLE}>
+                                Refresh
+                            </DialogButton>
+                            <DialogButton onClick={() => setLogsOpen(false)} style={BUTTON_STYLE}>
+                                Close
+                            </DialogButton>
+                        </ActionRow>
+                    </Blocks>
+                </PanelSection>
+            </SettingsModal>
 
             {/* Xbox sign-in popup: the code to type at Microsoft's address. */}
             <SettingsModal title="Sign in to Xbox" isOpen={signInOpen} onClose={closeSignIn} width="480px">
