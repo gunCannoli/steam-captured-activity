@@ -59,3 +59,13 @@ test("captures: recent keeps the newest apps and returns the one that fell out",
     assert.equal(r.touch(3), 2);
     assert.deepEqual(r.list(), [1, 3]);
 });
+
+test("appid: a recording's game id (or its clip id) back to the appid", async () => {
+    const { appidFromGameId } = await import("../frontend/kernel/appid.ts");
+    assert.equal(appidFromGameId("18310622842007322624"), 4263274102); // AM2R, a shortcut
+    assert.equal(appidFromGameId("435150"), 435150);
+    assert.equal(appidFromGameId(undefined, "clip_18310622842007322624_20261007_130809"), 4263274102);
+    assert.equal(appidFromGameId("0", "clip_435150_20260919_164525"), 435150);
+    assert.equal(appidFromGameId("18310622842007322625"), undefined); // a 64-bit id that is not a shortcut's
+    assert.equal(appidFromGameId("x", "nope"), undefined);
+});

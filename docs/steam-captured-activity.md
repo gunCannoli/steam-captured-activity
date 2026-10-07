@@ -44,7 +44,7 @@ flows one way, and only surfaces write to Steam. `tests/architecture.test.ts` en
 | --- | --- | --- |
 | kernel | `kernel/appid.ts`, `kernel/safety.ts` | Appid normalization (signed CEF ids, the clip game id); per-part kill switches with an error budget |
 | domain | `domain/captures.ts` | Captures to days (`captureDays`), the feed signature, the settings scope, the recently-viewed list. Pure |
-| sensors | `sensors/view-core.ts`, `sensors/view.ts`, `sensors/lifecycle.ts` | Which app page is open (desktop route; Big Picture's app-details element through the jsx runtime), which Steam windows exist, which game quit. Never write to Steam |
+| sensors | `sensors/view-core.ts`, `sensors/view.ts`, `sensors/lifecycle.ts`, `sensors/captures.ts` | Which app page is open (desktop route; Big Picture's app-details element through the jsx runtime), which Steam windows exist, which game quit, and Steam's own "screenshot written / deleted" and "clip created / deleted" notifications. Never write to Steam |
 | app | `app/publisher.ts` | When an app's feed is (re)built: on a view, on a quit, on the sweep, on a settings change. Injected dependencies; tested with fakes |
 | surfaces | `surfaces/*.ts` | The only code that writes to Steam, one file per target (§ 3) |
 | settings | `settings/settings.ts`, `settings/panel.tsx` | The two toggles (§ 6) |
@@ -106,8 +106,9 @@ surface takes its event (and its workshop record) out. `app/publisher.ts`:
 | Trigger | What happens |
 | --- | --- |
 | A page view (desktop or Big Picture) | Read the app's captures; publish if the signature changed. **The clean-up on the next game page visit** |
-| A game quits | Re-read it, if it was viewed this session (new captures exist then) |
-| Every 5 minutes (`SWEEP_MS`) | Re-read the 20 most recently viewed apps (`MAX_TRACKED`): a deletion made while a page stays open, or in Steam's screenshot manager, leaves the feed within 5 minutes. An app whose entry lost the captures to another writer is repaired then |
+| Steam says a screenshot was written or deleted, or a clip created or deleted | Re-read that app 1.5 s after the last such event (`CHANGE_DEBOUNCE_MS`), if it was viewed this session: the feed follows within seconds, wherever the capture was made or deleted (in game, Steam's media view, the screenshot manager) |
+| A game quits | Re-read it, if it was viewed this session |
+| Every 15 minutes (`SWEEP_MS`; 5 min, `SWEEP_NO_EVENTS_MS`, when Steam lacks the events) | The fallback: re-read the 20 most recently viewed apps (`MAX_TRACKED`). An app whose entry lost the captures to another writer is repaired then |
 | A settings toggle | Apps leaving the scope lose their captures at once; apps entering it get them |
 | The 21st app viewed | The oldest tracked app's captures leave its feed (the sweep stays bounded) |
 
@@ -115,6 +116,13 @@ An unchanged signature writes nothing (guardrail 17.2). An ask while a read of t
 fresh read after it, so a sweep's promise settles only once the captures it saw are in the feed. A publish that finds Steam's stores missing (the first
 seconds after start-up) retries every 2 s, five times. Leaving a page clears nothing: Steam's store is global, and the
 sweep keeps it true.
+
+**Steam's events** (`steam/stores.ts captureEvents`, verified in Steam's source 2026-10-07):
+`SteamClient.GameSessions.RegisterForScreenshotNotification` (`strOperation` `written` / `deleted`, `unAppID`; Steam's
+spotlight store registers it too), and the recording service's `RegisterForNotifyClipCreated` (`{ summary }`, the clip
+as `GetClips` lists it) and `RegisterForNotifyClipDeleted` (`{ clip_id, game_id }`), which Steam's clip manager and
+media view also register. A handler answers EResult 1 and never throws. `diagnostics().captureEvents` shows how many of
+the three are live and the last 20 events.
 
 ## 6. Settings
 

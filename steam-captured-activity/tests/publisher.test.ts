@@ -1,7 +1,7 @@
 // app/publisher: when the feed is built, and the clean-up of deleted captures (on the next view and by the sweep).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPublisher, MAX_TRACKED, SWEEP_MS, type PublisherDeps } from "../frontend/app/publisher.ts";
+import { CHANGE_DEBOUNCE_MS, createPublisher, MAX_TRACKED, SWEEP_MS, SWEEP_NO_EVENTS_MS, type PublisherDeps } from "../frontend/app/publisher.ts";
 import type { CaptureDay } from "../frontend/domain/captures.ts";
 
 const DAY = 86400;
@@ -92,11 +92,12 @@ test("publisher: a capture deleted between two visits leaves the feed on the nex
     assert.deepEqual(h.calls.filter((c) => c.startsWith("changed")), [`changed ${SHORTCUT}`, `changed ${SHORTCUT}`]);
 });
 
-test("publisher: the sweep runs every 5 minutes and cleans up a deletion while the page stays open", async () => {
+test("publisher: the sweep is a fallback (15 min with Steam's events, 5 min without) and cleans up a deletion", async () => {
+    assert.equal(SWEEP_MS, 15 * 60 * 1000);
+    assert.equal(SWEEP_NO_EVENTS_MS, 5 * 60 * 1000);
     const h = harness();
-    h.p.start();
-    assert.equal(h.timers[0]?.ms, SWEEP_MS);
-    assert.equal(SWEEP_MS, 5 * 60 * 1000);
+    h.p.start(SWEEP_NO_EVENTS_MS);
+    assert.equal(h.timers[0]?.ms, SWEEP_NO_EVENTS_MS);
     h.disk.set(STEAM_GAME, { screenshots: [shot(1, DAY), shot(2, DAY + 1)], clips: [] });
     await h.p.viewed(STEAM_GAME);
     h.disk.set(STEAM_GAME, { screenshots: [shot(1, DAY)], clips: [] });
@@ -195,4 +196,27 @@ test("publisher: the sweep keeps the newest apps; the oldest one's captures leav
     assert.equal(h.p.tracked().length, MAX_TRACKED);
     assert.equal(h.feed.has(1), false);
     assert.ok(h.calls.includes("clear 1"));
+});
+
+test("publisher: Steam's capture event re-reads a viewed app once, after the last event of a burst", async () => {
+    const h = harness();
+    h.disk.set(SHORTCUT, { screenshots: [shot(1, DAY), shot(2, DAY + 1)], clips: [] });
+    await h.p.viewed(SHORTCUT);
+    h.calls.length = 0;
+    h.disk.set(SHORTCUT, { screenshots: [shot(1, DAY)], clips: [] }); // the user deletes one
+    h.p.changed(SHORTCUT);
+    h.p.changed(SHORTCUT); // Steam sends several events
+    const pending = h.timers.filter((t) => t.ms === CHANGE_DEBOUNCE_MS);
+    assert.equal(pending.length, 2);
+    pending[0]!.fn(); // superseded by the second: nothing
+    pending[1]!.fn();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(h.calls, [`publish ${SHORTCUT} 1`]);
+});
+
+test("publisher: a capture event for an app not viewed this session reads nothing (its next view will)", () => {
+    const h = harness();
+    h.p.changed(STEAM_GAME);
+    assert.equal(h.timers.length, 0);
+    assert.deepEqual(h.calls, []);
 });

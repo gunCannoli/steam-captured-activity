@@ -1500,8 +1500,16 @@ stable — resolve by signature only.
 > In recording mode Manual, a session recorded with Ctrl+F11 (or `g_GRS.StartRecording` / `StopRecording`) leaves
 > `gamerecording.pb` listing the session's timeline after its video was saved into the clip and `video/` was emptied
 > at game exit; the media view shows it as a "background recording" that cannot be opened (seen after the user's own
-> Ctrl+F11 on 2026-10-07, so it is not specific to enhanced-notifications). Not yet re-checked in a session without
-> the start-up burst.
+> Ctrl+F11 on 2026-10-07, so it is not specific to enhanced-notifications). Confirmed a Steam bug by the user the same
+> day: with every plugin disabled a Ctrl+F11 recording still adds the broken tile, and it is gone after a Steam
+> restart (only the clip stays). Nothing to fix on our side.
+>
+> **Capture events** (for listeners): `SteamClient.GameSessions.RegisterForScreenshotNotification` (`strOperation`
+> `started` / `written` / `deleted`, `unAppID`, `hScreenshot`, `details`), and on the recording service
+> `RegisterForNotifyClipCreated` (`CGameRecording_ClipCreated_Notification { summary }`) and
+> `RegisterForNotifyClipDeleted` (`CGameRecording_ClipDeleted_Notification { clip_id, game_id }`); handlers get a message
+> (`msg.Body().toObject()`) and return an EResult. Several listeners per notification are normal (Steam's own clip
+> manager and media view both register).
 
 **Resolution.** The service: the export object of the module whose source
 contains `"GameRecording.TakeScreenshot#1"`, with

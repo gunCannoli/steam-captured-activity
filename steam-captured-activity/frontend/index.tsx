@@ -1,5 +1,5 @@
 // Composition root: creates and wires everything; no logic of its own.
-//   sensors (view, lifecycle)  ->  app/publisher  ->  surfaces (feed, store-stub, sections, headline, cards, bpm-style)
+//   sensors (view, lifecycle, captures)  ->  app/publisher  ->  surfaces (feed, store-stub, sections, headline, cards, bpm-style)
 // Only surfaces write to Steam. Works alone: it needs nothing from steam-cartridges, and next to it each plugin keeps
 // its own events in the same feed (surfaces/feed.ts).
 import { definePlugin, IconsModule } from "@steambrew/client";
@@ -7,10 +7,11 @@ import { logger } from "./logger";
 import { clipGameId, isShortcutAppId } from "./kernel/appid";
 import { createSafety } from "./kernel/safety";
 import { localMidnight } from "./domain/captures";
-import { createPublisher } from "./app/publisher";
+import { createPublisher, SWEEP_MS, SWEEP_NO_EVENTS_MS } from "./app/publisher";
 import { clipsOf, screenshotsOf } from "./steam/stores";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
+import { installCaptureSensor } from "./sensors/captures";
 import { setSafety } from "./surfaces/context";
 import { clear, feedDiagnostics, hasCaptures, needsRepair, publish } from "./surfaces/feed";
 import { installSectionsPatch, refreshSections } from "./surfaces/sections";
@@ -44,8 +45,17 @@ const publisher = createPublisher({
     log: (message) => logger.info(message),
 });
 
+/** The last capture events Steam sent (sensors/captures), for CDP checks. */
+const captureEventLog: Array<{ at: number; appid: number; what: string }> = [];
+let captureEventsLive = 0;
+
 /** For CDP checks (window.PLUGIN_LIST[...]): what the plugin holds, and a sweep on demand. */
-export const diagnostics = () => ({ feed: feedDiagnostics(), tracked: publisher.tracked(), safety: safety.diagnostics() });
+export const diagnostics = () => ({
+    feed: feedDiagnostics(),
+    tracked: publisher.tracked(),
+    safety: safety.diagnostics(),
+    captureEvents: { live: captureEventsLive, recent: [...captureEventLog] },
+});
 export const sweepNow = () => publisher.sweep();
 export { setSetting, resetSettings, headlineJsxDiagnostics, cardsJsxDiagnostics };
 
@@ -76,7 +86,15 @@ async function init(): Promise<void> {
         windowClosed: onWindowClosed,
     });
     installLifecycleSensor((appid) => void publisher.quit(appid));
-    publisher.start();
+    // Steam's own capture events drive the clean-up; the sweep is the fallback (slower while they are live).
+    const live = installCaptureSensor((appid, what) => {
+        captureEventLog.push({ at: Date.now(), appid, what });
+        if (captureEventLog.length > 20) captureEventLog.shift();
+        publisher.changed(appid);
+    });
+    captureEventsLive = live;
+    if (live < 3) logger.warn(`Only ${live} of Steam's 3 capture events are available; the sweep runs every ${SWEEP_NO_EVENTS_MS / 60000} min.`);
+    publisher.start(live === 3 ? SWEEP_MS : SWEEP_NO_EVENTS_MS);
     logger.info("Ready. Captures show in the Activity feed of every game in scope.");
 }
 

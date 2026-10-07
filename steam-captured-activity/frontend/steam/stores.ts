@@ -48,11 +48,21 @@ export interface AppDetailsSections {
     };
 }
 
+/** A service notification as Steam hands it to a handler; the handler answers an EResult (1 = OK). */
+export interface RecordingNotification {
+    Body(): { toObject(): Record<string, any> };
+}
+type NotificationHandler = (msg: RecordingNotification) => number;
+
 /** Steam's game-recording CM service. */
 interface GameRecordingService {
     GetClips(request: { game_id: string; created_after: number }): Promise<{
         Body(): { clip(): Array<{ toObject(): SteamClip }> | undefined };
     }>;
+    /** `GameRecording.NotifyClipCreated#1`: `{ summary: <a clip, as GetClips lists it> }`. */
+    RegisterForNotifyClipCreated?(handler: NotificationHandler): { unregister(): void } | null;
+    /** `GameRecording.NotifyClipDeleted#1`: `{ clip_id, game_id }` (CGameRecording_ClipDeleted_Notification). */
+    RegisterForNotifyClipDeleted?(handler: NotificationHandler): { unregister(): void } | null;
 }
 
 /** One day's worth of activity feed events. */
@@ -199,4 +209,50 @@ export async function clipsOf(gameid: string): Promise<SteamClip[]> {
     } catch {
         return [];
     }
+}
+
+/** What Steam says when a screenshot is taken or deleted (`SteamClient.GameSessions.RegisterForScreenshotNotification`). */
+export interface ScreenshotNotification {
+    strOperation: "started" | "written" | "deleted" | string;
+    unAppID: number;
+    hScreenshot?: number;
+}
+
+/**
+ * Steam's own capture events, the ones its spotlight store and media view listen to (verified 2026-10-07 in Steam's
+ * source: modules 12750 and 65528 register the screenshot notification, 57622 and 2773 the clip ones; several
+ * listeners are normal). Each `on*` returns an unregister function, or undefined when Steam has no such API.
+ */
+export const captureEvents = {
+    onScreenshot(fn: (n: ScreenshotNotification) => void): (() => void) | undefined {
+        const sessions = (Reflect.get(globalThis, "SteamClient") as any)?.GameSessions;
+        const reg = sessions?.RegisterForScreenshotNotification;
+        if (typeof reg !== "function") return undefined;
+        const handle = reg.call(sessions, fn);
+        return () => handle?.unregister?.();
+    },
+    onClipCreated(fn: (body: Record<string, any>) => void): (() => void) | undefined {
+        return onClip("RegisterForNotifyClipCreated", fn);
+    },
+    onClipDeleted(fn: (body: Record<string, any>) => void): (() => void) | undefined {
+        return onClip("RegisterForNotifyClipDeleted", fn);
+    },
+};
+
+function onClip(
+    name: "RegisterForNotifyClipCreated" | "RegisterForNotifyClipDeleted",
+    fn: (body: Record<string, any>) => void,
+): (() => void) | undefined {
+    const service = gameRecordingService();
+    const reg = service?.[name];
+    if (typeof reg !== "function") return undefined;
+    const handle = reg.call(service, (msg: RecordingNotification) => {
+        try {
+            fn(msg.Body().toObject());
+        } catch {
+            /* a listener never breaks Steam's dispatch */
+        }
+        return 1; // EResult OK, as Steam's own handlers answer
+    });
+    return handle ? () => handle.unregister() : undefined;
 }

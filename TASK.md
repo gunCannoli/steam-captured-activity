@@ -16,11 +16,15 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-captured-activity event-driven clean-up (2026-10-07): deployed, the 3 Steam event sources register.** Left: see a real
+screenshot or clip saved and deleted reach an open AM2R feed within seconds (`diagnostics().captureEvents.recent`). Open:
+AM2R clips `…20260920_054439`, `…20261007_130809`, `…132038`, `…132350` left the disk at 10:25:56 during the user's test session
+(no plugin capture action logged); find out what deleted them.
+
 **Recordings missing from Steam (2026-10-07): root cause found and fixed, live-verified.** steam-cartridges' start-up burst of
 ~450 `GetClips` calls emptied Steam's clip list for the session; now only an open page publishes (all 8 clips list again). See
-[CHANGELOG.md](CHANGELOG.md). Left for the user: (1) a Ctrl+F11 recording of a game, then quit: does the "background recording"
-tile that cannot be opened still appear? If yes it is Steam's own, and the fix is removing the stale timeline entry from
-`gamerecording.pb` (decide). (2) The three malformed probe clips are in `userdata/83513586/gamerecordings_quarantine_20261007/`:
+[CHANGELOG.md](CHANGELOG.md). The "background recording" tile is Steam's own bug (user, plugins
+disabled). Left for the user: the three malformed probe clips are in `userdata/83513586/gamerecordings_quarantine_20261007/`:
 delete them, or put them back.
 
 **steam-captured-activity split out of steam-cartridges (ADR-0062, 2026-10-07): built, deployed (`-dev`), live-verified by the agent.**

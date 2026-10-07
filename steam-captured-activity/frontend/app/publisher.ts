@@ -2,15 +2,20 @@
 // fakes. Captures are Steam's own data, read live each time, so "cleaning up" is the same act as publishing: what
 // Steam no longer lists (a screenshot or recording the user deleted) is simply not in the next publish.
 //   - a page view reads the app's captures and publishes them (the cleanup "on the next game page visit");
+//   - Steam saying a screenshot or clip was saved or deleted (sensors/captures) re-reads that app, CHANGE_DEBOUNCE_MS
+//     after the last such event, if it was viewed this session: the feed follows within seconds, no polling;
 //   - a game quitting re-reads it (new captures exist then);
-//   - every SWEEP_MS the apps viewed recently are re-read, so a deletion made while a page stays open, or in Steam's
-//     screenshot manager, leaves the feed within minutes; an app whose feed lost our events to another writer is
-//     repaired then too.
+//   - a sweep re-reads the apps viewed recently: the fallback for what no event reports (another writer replacing the
+//     feed entry), every SWEEP_MS with Steam's events live (SWEEP_NO_EVENTS_MS without them).
 // Unchanged captures write nothing (guardrail 17.2).
 import { captureDays, createRecent, inScope, signature, type CaptureDay, type ClipLike, type Scope, type ScreenshotLike } from "../domain/captures.ts";
 
-/** How often the recently viewed apps are re-read for deleted (or new) captures. */
-export const SWEEP_MS = 5 * 60 * 1000;
+/** How often the recently viewed apps are re-read when Steam's capture events are live (they report the changes). */
+export const SWEEP_MS = 15 * 60 * 1000;
+/** ...and when they are not (an older Steam without them): the only way a deletion reaches the feed then. */
+export const SWEEP_NO_EVENTS_MS = 5 * 60 * 1000;
+/** A screenshot burst or a clip save sends several events: one re-read this long after the last. */
+export const CHANGE_DEBOUNCE_MS = 1500;
 /** How many recently viewed apps the sweep keeps; the oldest one's captures leave its feed. */
 export const MAX_TRACKED = 20;
 /** Steam's stores can be missing for a few seconds after start-up: a publish that found none retries this often. */
@@ -35,12 +40,15 @@ export interface PublisherDeps {
 
 export interface Publisher {
     viewed(appid: number): Promise<void>;
+    /** Steam reported a capture of this app saved or deleted: re-read it soon, if it was viewed this session. */
+    changed(appid: number): void;
     quit(appid: number): Promise<void>;
     /** Re-read every tracked app (the timer calls it; tests and CDP may too). */
     sweep(): Promise<void>;
     /** The settings changed: apps leaving the scope lose their captures, apps entering it get them. */
     scopeChanged(): Promise<void>;
-    start(): void;
+    /** Start the sweep, every `intervalMs` (SWEEP_MS by default). */
+    start(intervalMs?: number): void;
     stop(): void;
     tracked(): number[];
 }
@@ -54,6 +62,9 @@ export function createPublisher(d: PublisherDeps): Publisher {
     const queued = new Map<number, Promise<void>>();
     const retries = new Map<number, number>();
     let stopTimer: (() => void) | undefined;
+    /** Per app, the latest change event; the re-read runs when it is still the latest after the debounce. */
+    const changes = new Map<number, number>();
+    let changeSeq = 0;
 
     function drop(appid: number): void {
         if (!shown.has(appid)) return;
@@ -128,13 +139,23 @@ export function createPublisher(d: PublisherDeps): Publisher {
             if (evicted !== undefined) drop(evicted);
             await refresh(appid);
         },
+        changed(appid) {
+            if (!recent.has(appid)) return; // not viewed this session: its next view reads it
+            const seq = ++changeSeq;
+            changes.set(appid, seq);
+            d.after(CHANGE_DEBOUNCE_MS, () => {
+                if (changes.get(appid) !== seq) return;
+                changes.delete(appid);
+                void refresh(appid);
+            });
+        },
         async quit(appid) {
             if (recent.has(appid)) await refresh(appid);
         },
         sweep,
         scopeChanged: sweep,
-        start() {
-            stopTimer ??= d.every(SWEEP_MS, () => void sweep());
+        start(intervalMs = SWEEP_MS) {
+            stopTimer ??= d.every(intervalMs, () => void sweep());
         },
         stop() {
             stopTimer?.();
