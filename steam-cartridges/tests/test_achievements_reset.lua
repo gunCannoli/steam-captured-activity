@@ -144,6 +144,34 @@ check("log: new lines still detected", fresh["103"] ~= nil and fresh["101"] == n
 writef(log, "[RCHEEVOS] Awarded achievement 104\n")
 check("log: a rotated (shorter) log is read from the start", observer.scan_log_for_unlocks(log)["104"] ~= nil)
 
+-- RetroArch 1.17+ (rcheevos client), the lines from the user's Metroid Fusion unlock (2026-10-06):
+writef(log, "[INFO] [RCHEEVOS] You have 0 of 43 achievements unlocked\n"
+  .. "[INFO] [RCHEEVOS] Awarding achievement 4615: Explosive Chamber\n"
+  .. "[INFO] [RCHEEVOS] Captured screenshot for achievement 4615\n"
+  .. "[INFO] [RCHEEVOS] Achievement 4615 awarded, new score: 7\n")
+observer._reset_offsets()
+local rc = observer.scan_log_for_unlocks(log)
+local rc_n = 0
+for _ in pairs(rc) do rc_n = rc_n + 1 end
+check("log: rcheevos 'Awarding achievement N' detected, nothing else", rc["4615"] ~= nil and rc_n == 1)
+writef(log, "[INFO] [RCHEEVOS] Achievement 4616 awarded, new score: 12\n")
+check("log: rcheevos 'Achievement N awarded' detected", observer.scan_log_for_unlocks(log)["4616"] ~= nil)
+
+-- RetroArch with log_to_file_timestamp: the newest retroarch__<stamp>.log of the folder.
+do
+  local fs = package.loaded["fs"]
+  local saved_dir, saved_list = fs.is_directory, fs.list
+  fs.is_directory = function(p) return p == "D:/RA/logs" end
+  fs.list = function() return {
+    { name = "retroarch__2026_10_06__23_46_44.log" }, { name = "retroarch__2026_10_06__23_51_59.log" },
+    { name = "retroarch__2026_09_30__08_00_00.log" }, { name = "swanstation_test.log" }, { name = "retroarch.log" },
+  } end
+  check("retroarch: newest timestamped log picked", observer.newest_retroarch_log("D:/RA/logs") == "D:/RA/logs/retroarch__2026_10_06__23_51_59.log",
+    observer.newest_retroarch_log("D:/RA/logs"))
+  check("retroarch: missing folder gives nil", observer.newest_retroarch_log("D:/nope") == nil)
+  fs.is_directory, fs.list = saved_dir, saved_list
+end
+
 -- ---------- reset flow ----------
 local store = require("achievements_store")
 store._path = TMP .. "/achievements.json"

@@ -7,6 +7,11 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges: RetroArch achievement unlocks detected again (2026-10-07)**:
+  - *Root cause*: a Metroid Fusion unlock (RA 4615, *Explosive Chamber*) in RetroArch reached RetroAchievements but not Steam. Steam tracked the launch and the observer polled, but it read only `logs/retroarch.log`, which RetroArch never writes with `log_to_file_timestamp = "true"` (one `retroarch__YYYY_MM_DD__HH_MM_SS.log` per run), and it matched only `Awarded achievement N`, while the rcheevos client logs `Awarding achievement N: <title>` and `Achievement N awarded, new score: …`.
+  - *Fix*: `achievements_observer.lua` matches both rcheevos lines and tails the newest timestamped RetroArch log (`newest_retroarch_log`) in the exe's `logs/`, the default folders and `retroarch.cfg`'s `log_dir`.
+  - *Verification*: 4 new Lua tests (the real log lines, newest-file pick), all 14 Lua suites pass; the real log resolves to id 4615 offline. Live: `checkObserverUnlocks` recorded 4615 and dispatched the native toast, a second check found nothing; `steam-health.mjs`, `test_nav_cycle.js`, `check_all_tabs.js` pass.
+
 - **steam-cartridges-local & steam-cartridges-third-party: backend logger syntax and dependency isolation (2026-10-06)**:
   - *Millennium Logger Method Invocation*: Fixed dot-syntax invocations (`logger.info(...)`, `logger.error(...)`) to colon-syntax (`logger:info(...)`, `logger:error(...)`) across `steam-cartridges-local/backend/main.lua` and `steam-cartridges-third-party/backend/main.lua`. Millennium's C++ logger binding expects `self` as the first parameter, throwing `bad argument #2 to 'info' (string expected, got no value)` when called with dot syntax.
   - *Third-Party RPC Module Isolation*: Purged core-exclusive dependencies (`captures`, `shortcuts`, `steam_paths`) and dead methods (`GetLibraryStats`, `GetDiagnostics`) from `steam-cartridges-third-party/backend/rpc.lua`. Expansion plugins remain completely decoupled and self-contained without crashing during backend boot.

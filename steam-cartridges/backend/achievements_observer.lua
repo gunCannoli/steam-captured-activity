@@ -252,7 +252,10 @@ function M.scan_log_for_unlocks(filepath)
   local detected = {}
   for line in new_bytes:gmatch("[^\r\n]+") do
     -- Search for common achievement trigger patterns across Unity / Godot / Unreal / RetroArch / DuckStation / PCSX2 / Dolphin / PPSSPP
-    local ach = line:match("%[RCHEEVOS%]%s*Awarded achievement%s*(%d+)")
+    -- rcheevos' client (RetroArch 1.17+): "Awarding achievement 4615: <title>", then "Achievement 4615 awarded, new score: 7"
+    local ach = line:match("%[RCHEEVOS%]%s*Awarding achievement%s*(%d+)")
+             or line:match("%[RCHEEVOS%]%s*Achievement%s*(%d+)%s*awarded")
+             or line:match("%[RCHEEVOS%]%s*Awarded achievement%s*(%d+)")
              or line:match("%[CHEEVOS%]%s*Awarded achievement%s*(%d+)")
              or line:match("[aA]warded achievement%s*(%d+)")
              or line:match("%[Achievements%]%s*Unlocked%s*(%d+)")
@@ -366,6 +369,32 @@ function M.trophy_files(schema, sc_match, exe_dir)
   return out
 end
 
+--- The newest RetroArch log in `dir`: with log_to_file_timestamp on, RetroArch writes one
+--- "retroarch__YYYY_MM_DD__HH_MM_SS.log" per run and never "retroarch.log". The names sort by time.
+function M.newest_retroarch_log(dir)
+  local fs_ok, fs = pcall(require, "fs")
+  if not (fs_ok and fs and fs.list and fs.is_directory) or not dir or #dir == 0 or not fs.is_directory(dir) then return nil end
+  local ok, entries = pcall(fs.list, dir)
+  local newest
+  for _, entry in ipairs(ok and entries or {}) do
+    local name = tostring(entry.name or entry.path or ""):match("([^/\\]+)$") or ""
+    if name:match("^retroarch__%d+_%d+_%d+__%d+_%d+_%d+%.log$") and (not newest or name > newest) then newest = name end
+  end
+  return newest and (dir .. "/" .. newest) or nil
+end
+
+--- RetroArch's log folders: next to the executable, the defaults, and log_dir from retroarch.cfg (":\" expanded)
+--- when the shortcut runs RetroArch.
+local function retroarch_log_dirs(exe_dir, sc_match)
+  local dirs = { "C:/emu/RetroArch/logs", (os.getenv("APPDATA") or "") .. "/RetroArch/logs" }
+  if #exe_dir > 0 then dirs[#dirs + 1] = exe_dir .. "/logs" end
+  if sc_match and tostring(sc_match.exe or ""):lower():find("retroarch", 1, true) then
+    local ok, conf = pcall(function() return require("retroachievements").get_retroarch_config(exe_dir) end)
+    if ok and type(conf) == "table" and conf.log_dir then dirs[#dirs + 1] = conf.log_dir end
+  end
+  return dirs
+end
+
 --- Every log that may hold this game's unlocks and exists: emulator logs (next to the
 --- executable and in known install folders) and engine logs found from the game's title and
 --- its executable's project codename.
@@ -412,6 +441,15 @@ function M.log_paths(game_title, sc_match, exe_dir)
     localappdata .. "\\shadps4\\user\\log\\shadps4.log",
   }) do
     add(p)
+  end
+  -- One spelling per folder (slashes, case), so the same log is not read twice under two names.
+  local seen_dir = {}
+  for _, d in ipairs(retroarch_log_dirs(exe_dir, sc_match)) do
+    local key = d:gsub("\\", "/"):gsub("/+$", ""):lower()
+    if not seen_dir[key] then
+      seen_dir[key] = true
+      add(M.newest_retroarch_log((d:gsub("\\", "/"):gsub("/+$", ""))))
+    end
   end
 
   -- Engine logs. Unreal Engine games are often shipped under an internal project name distinct

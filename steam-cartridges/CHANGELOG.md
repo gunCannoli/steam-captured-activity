@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Fixed: RetroArch unlocks not detected (2026-10-07)**: the in-game observer now reads RetroArch's timestamped logs (`retroarch__<time>.log`, written when `log_to_file_timestamp` is on) and recognises the rcheevos client's `Awarding achievement N` / `Achievement N awarded` lines, so an unlock in RetroArch toasts in Steam and updates the page again.
+
 - **Changed: background ingestion resolves artwork and shortcut icons immediately (2026-10-06)**:
   - `app/ingest.ts` now calls `ArtworkResolver.ensure` during background ingest runs, writing custom cover art and shortcut icons directly to Steam (`SetCustomArtworkForApp`, `SetShortcutIcon`) as data is fetched rather than waiting for the user to navigate to the game's detail page.
   - Added background lane prioritization for ingest artwork fetching.
