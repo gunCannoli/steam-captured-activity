@@ -16,6 +16,11 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**enhanced-notifications live scripts that reset settings (found 2026-10-07).** `placement.mjs` and `sound-duration.mjs` end with
+`resetSettings()`, so running one alone wipes the user's settings (only `npm run test:live` snapshots and restores). Next: make
+each snapshot and restore its own settings like `achievements-captures.mjs`, keeping their checks. Also open: Big Picture
+placement for normal notifications (`bigpicture.mjs`, needs Big Picture open).
+
 **enhanced-notifications capture on unlock without background recording (ADR-0061, 2026-10-07): built, deployed, works; one open issue.**
 After the unlock's recording, Steam's media list shows the session's timeline as a recording that opens "no recording
 available" (`gamerecording.pb` keeps `timeline_…_042020`; its video went into the clip). Next: compare with a manual
