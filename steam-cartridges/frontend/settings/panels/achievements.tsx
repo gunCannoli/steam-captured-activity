@@ -34,7 +34,7 @@ const ALL_ACHIEVEMENT_SOURCES: AchievementSourceDef[] = [
 
 /** What each source reads, shown under the Source dropdown of the Add popup. */
 const SOURCE_DESCRIPTIONS: Record<AchievementSourceDef["id"], string> = {
-    steam_store: "Reads local emulator saves (Goldberg, CODEX, RUNE, GSE) and engine logs (Unity, Godot, Unreal).",
+    steam_store: "The achievement list and rarity of the Steam game a shortcut maps to.",
     retroachievements: "Your RetroAchievements unlocks. Sign in with your username and Web API key.",
     console_emulators: "Reads PS3 / PS4 trophies (RPCS3, shadPS4) and DuckStation, PCSX2, Dolphin, PPSSPP and RPCS3 logs.",
 };

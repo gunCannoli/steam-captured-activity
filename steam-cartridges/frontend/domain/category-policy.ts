@@ -55,7 +55,7 @@ export function inferredControllerIds(ctx: ControllerContext = {}): number[] {
  *
  * Achievements (22): written for non-store sources when `hasAchievements` is true —
  * i.e. the record has at least one achievement from any source (RetroAchievements,
- * Epic, Xbox, local emulator saves). Factual: the game has achievements. When the
+ * Epic, Xbox, achievement extensions). Factual: the game has achievements. When the
  * Steam Store supplied `store_category_ids`, category 22 passes through unmodified
  * (the store already included it when appropriate).
  *

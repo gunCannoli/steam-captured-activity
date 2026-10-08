@@ -75,7 +75,7 @@ export const PORTABLE_CATEGORY_IDS: readonly number[] = [
     // 38 Online Co-op, 39 Shared/Split Screen Co-op, 49 PvP
     1, 2, 9, 20, 24, 27, 36, 37, 38, 39, 49,
     // Achievements (22): written when a shortcut has real achievements from any source
-    // (RetroAchievements, Epic, Xbox, local emulator saves). Not a Steam-licence service —
+    // (RetroAchievements, Epic, Xbox, achievement extensions). Not a Steam-licence service —
     // it is a property of the game itself, and category-policy.ts gates it on the record.
     22,
     // Controller: 18 Partial, 28 Full, 55/56 PlayStation 4, 57/58 PlayStation 5

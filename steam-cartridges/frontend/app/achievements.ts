@@ -59,7 +59,7 @@ export interface AchievementsService {
     trigger(appid: ShortcutId, achievementId?: string): Promise<boolean>;
     /** Clears the unlocks, and the chosen sources' files (ids from `resetSources`). */
     reset(appid: ShortcutId, sources?: string[]): Promise<{ ok: boolean; sources: ResetSourceResult[] }>;
-    /** Where the unlocks come from besides the plugin's store (Steam emulator saves, trophy files, RetroAchievements). */
+    /** Where the unlocks come from besides the plugin's store (trophy files, RetroAchievements, extensions). */
     resetSources(appid: ShortcutId): Promise<AchievementResetSource[]>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
@@ -219,39 +219,9 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             noNetwork: opts.noNetwork,
         }, { lane: opts.lane ?? "view" });
         const raw = res.error ? undefined : (res.parts.achievements as Part<AchievementSet> | undefined);
-        let part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
+        const part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
         // A disk-only answer without data (nothing stored yet) must not replace what the record holds.
         if (opts.noNetwork && !part.data) return part;
-
-        // Extension providers (steam-cartridges-local, etc.)
-        const providers = deps.providers?.() ?? [];
-        if (part.data && providers.length > 0) {
-            const ctx = makeAppContext(appid);
-            for (const p of providers) {
-                try {
-                    const matched = await p.match(ctx);
-                    if (matched && typeof p.getUnlocks === "function") {
-                        const pUnlocks = await p.getUnlocks(ctx);
-                        const currentData = part.data;
-                        if (currentData && Array.isArray(pUnlocks) && pUnlocks.length > 0) {
-                            let dirty = false;
-                            const mergedUnlocks = { ...currentData.unlocks };
-                            for (const u of pUnlocks) {
-                                if (u && u.id && !mergedUnlocks[u.id]) {
-                                    mergedUnlocks[u.id] = { unlocked_time: u.unlockedAt || Math.floor(deps.now() / 1000) };
-                                    dirty = true;
-                                }
-                            }
-                            if (dirty) {
-                                part = { ...part, data: { schema: currentData.schema, unlocks: mergedUnlocks } };
-                            }
-                        }
-                    }
-                } catch (e) {
-                    logger.warn(`Provider ${p.id} load error:`, e);
-                }
-            }
-        }
 
         const changed = deps.records.update(appid, { achievements: part });
         if (changed.length > 0) {
@@ -284,35 +254,8 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             const res = await deps.backend.checkUnlocks(appid, native, opts.title ?? deps.titleOf(appid), { lane: "normal" });
             const fresh = asList<NewUnlock>(res?.new_unlocks).filter((u) => u && typeof u.id === "string");
 
-            const set = current(appid)?.data;
-            const existing = set?.unlocks ?? {};
-
-            // Extension achievement providers (steam-cartridges-local, etc.)
-            const providers = deps.providers?.() ?? [];
-            if (providers.length > 0) {
-                const ctx = makeAppContext(appid);
-                for (const p of providers) {
-                    try {
-                        const matched = await p.match(ctx);
-                        if (matched && typeof p.getUnlocks === "function") {
-                            const pUnlocks = await p.getUnlocks(ctx);
-                            if (Array.isArray(pUnlocks)) {
-                                for (const u of pUnlocks) {
-                                    if (u && typeof u.id === "string" && !existing[u.id]) {
-                                        if (!fresh.some((f) => f.id === u.id)) {
-                                            fresh.push({ id: u.id, rtime_unlocked: u.unlockedAt });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        logger.warn(`Provider ${p.id} checkUnlocks error:`, e);
-                    }
-                }
-            }
-
             if (fresh.length === 0) return 0;
+            const set = current(appid)?.data;
 
             if (set) {
                 const unlocks: Record<string, AchievementUnlockRecord> = { ...set.unlocks };
@@ -462,28 +405,14 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 const providers = deps.providers?.() ?? [];
                 if (providers.length === 0) return backendSources;
 
-                const ctx = makeAppContext(appid);
+                const ctx = makeAppContext(appid, await resolveNative(appid));
                 for (const p of providers) {
                     try {
                         const matched = await p.match(ctx);
                         if (matched && typeof p.reset === "function") {
                             const unlocks = typeof p.getUnlocks === "function" ? await p.getUnlocks(ctx) : [];
-                            const existingIdx = backendSources.findIndex((s) => s.id === p.id || (s.id === "local" && p.id.includes("local")));
-                            const existingSource = existingIdx >= 0 ? backendSources[existingIdx] : undefined;
-                            if (existingSource) {
-                                backendSources[existingIdx] = {
-                                    id: "local",
-                                    label: p.name || existingSource.label,
-                                    resettable: true,
-                                    unlocked: Math.max(existingSource.unlocked, unlocks.length),
-                                };
-                            } else {
-                                backendSources.push({
-                                    id: p.id,
-                                    label: p.name,
-                                    resettable: true,
-                                    unlocked: unlocks.length,
-                                });
+                            if (!backendSources.some((s) => s.id === p.id)) {
+                                backendSources.push({ id: p.id, label: p.name, resettable: true, unlocked: unlocks.length });
                             }
                         }
                     } catch (e) {
@@ -510,9 +439,9 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 const done = Array.isArray(res.sources) ? [...res.sources] : [];
                 const providers = deps.providers?.() ?? [];
                 if (providers.length > 0) {
-                    const ctx = makeAppContext(appid);
+                    const ctx = makeAppContext(appid, await resolveNative(appid));
                     for (const p of providers) {
-                        if ((sources.includes(p.id) || (sources.includes("local") && p.id.includes("local"))) && typeof p.reset === "function") {
+                        if (sources.includes(p.id) && typeof p.reset === "function") {
                             try {
                                 const matched = await p.match(ctx);
                                 if (matched) {

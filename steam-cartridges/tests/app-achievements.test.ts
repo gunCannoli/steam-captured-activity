@@ -40,11 +40,11 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
             },
             async resetAchievements(appid: number, opts: any) {
                 calls.reset.push({ appid, ...opts });
-                return { ok: true, sources: opts?.sources?.length ? [{ id: 'local', ok: true, cleared: 2 }] : {} };
+                return { ok: true, sources: opts?.sources?.length ? [{ id: 'rpcs3', ok: true, cleared: 2 }] : {} };
             },
             async resetAchievementSources(appid: number, native: number) {
                 calls.reset.push({ sourcesFor: appid, native });
-                return { sources: [{ id: 'local', label: 'local achievements (RUNE)', resettable: true, unlocked: 2 }] };
+                return { sources: [{ id: 'rpcs3', label: 'RPCS3 achievements', resettable: true, unlocked: 2 }] };
             },
             async steamStoreGetMapping() { return { mapping: { steam_appid: 77 } }; },
         } as any,
@@ -173,10 +173,10 @@ test('trigger unlocks the next locked achievement and emits it; reset clears the
 
 test('reset sends the chosen sources, the native app and the title; resetSources lists them (ADR-0054)', async () => {
     const { ach, calls } = setup();
-    assert.deepEqual((await ach.resetSources(SC)).map((s) => s.id), ['local']);
+    assert.deepEqual((await ach.resetSources(SC)).map((s) => s.id), ['rpcs3']);
     assert.deepEqual(calls.reset[0], { sourcesFor: SC, native: 77 });
-    assert.deepEqual(await ach.reset(SC, ['local']), { ok: true, sources: [{ id: 'local', ok: true, cleared: 2 }] });
-    assert.deepEqual(calls.reset[1], { appid: SC, native: 77, sources: ['local'], title: 'Game' });
+    assert.deepEqual(await ach.reset(SC, ['rpcs3']), { ok: true, sources: [{ id: 'rpcs3', ok: true, cleared: 2 }] });
+    assert.deepEqual(calls.reset[1], { appid: SC, native: 77, sources: ['rpcs3'], title: 'Game' });
 });
 
 test('the native app comes from the record, else from the saved mapping', async () => {
@@ -376,19 +376,25 @@ test('the paint (noNetwork) asks the disk only, in the view lane, and an answer 
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, { A: { unlocked_time: 3 } }, 'stored data paints the record');
 });
 
-test('extension achievement provider contributes unlocks and handles reset (ADR-0013 / ADR-0062)', async () => {
+test('extension provider: never polled for unlocks, pushes them, and handles reset (ADR-0063)', async () => {
     const bus = createEventBus();
     const records = createRecordStore(bus);
     records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: 'game.exe' });
 
     let providerResetCalled = false;
+    let unlockCalls = 0;
+    let resetCtx: any;
     const mockProvider = {
         id: 'steam-cartridges-local',
-        name: 'Local Steam Emulators (.ini / .json)',
+        name: 'Local achievements (Example)',
         match: (ctx: any) => ctx.appid === SC,
-        getUnlocks: async () => [{ id: 'A', unlockedAt: 12345 }],
-        reset: async () => {
+        getUnlocks: async (): Promise<any[]> => {
+            unlockCalls++;
+            return [{ id: 'A', unlockedAt: 12345 }];
+        },
+        reset: async (ctx: any) => {
             providerResetCalled = true;
+            resetCtx = ctx;
             return { ok: true, cleared: 1, backupPath: 'backup.bak' };
         },
     };
@@ -410,6 +416,9 @@ test('extension achievement provider contributes unlocks and handles reset (ADR-
             async resetAchievementSources() {
                 return { sources: [] };
             },
+            async unlockAchievement() {
+                return { ok: true };
+            },
             async steamStoreGetMapping() {
                 return { mapping: { steam_appid: 77 } };
             },
@@ -427,32 +436,32 @@ test('extension achievement provider contributes unlocks and handles reset (ADR-
         now: () => 1000,
     });
 
-    // 1. Ensure/Load merges provider unlocks into record
+    // 1. ensure never asks the provider for unlocks (ADR-0063: extensions push)
     const part = await ach.ensure(SC, { bucket: 'web-scraping', via: 'default' });
     assert.equal(part.status, 'ok');
-    assert.deepEqual(part.data?.unlocks, { A: { unlocked_time: 12345 } });
+    assert.deepEqual(part.data?.unlocks, {});
+    assert.equal(unlockCalls, 0);
 
-    // 2. checkNow finds newly added provider unlocks if another is unlocked
-    mockProvider.getUnlocks = async () => [
-        { id: 'A', unlockedAt: 12345 },
-        { id: 'B', unlockedAt: 67890 },
-    ];
-    const newCount = await ach.checkNow(SC);
-    assert.equal(newCount, 1);
+    // 2. checkNow does not either; a pushed unlock is recorded and announced
+    assert.equal(await ach.checkNow(SC), 0);
+    assert.equal(unlockCalls, 0);
+    await ach.ingestExternal(SC, [{ id: 'B', unlockedAt: 67890 }], { providerId: 'steam-cartridges-local' });
     assert.equal(unlockedEvents.length, 1);
     assert.deepEqual(unlockedEvents[0].ids, ['B']);
     assert.equal(records.get(SC)?.achievements?.data?.unlocks['B']?.unlocked_time, 67890);
 
-    // 3. resetSources discovers the extension provider
+    // 3. resetSources lists the extension under its own id and label
     const sources = await ach.resetSources(SC);
     assert.equal(sources.length, 1);
     assert.equal(sources[0].id, 'steam-cartridges-local');
-    assert.equal(sources[0].unlocked, 2);
+    assert.equal(sources[0].label, 'Local achievements (Example)');
+    assert.equal(sources[0].unlocked, 1);
 
     // 4. reset triggers provider reset
     const res = await ach.reset(SC, ['steam-cartridges-local']);
     assert.equal(res.ok, true);
     assert.equal(providerResetCalled, true);
+    assert.equal(resetCtx?.nativeAppid, 77, 'the provider is told the mapped app');
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, {});
 });
 

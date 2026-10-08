@@ -302,3 +302,29 @@ test('architecture: backend services use no RPC module as a library, and no stor
     }
     assert.deepEqual(bad, []);
 });
+
+// 4. ADR-0063: Steam API emulators and local-game sources belong to steam-cartridges-local. The core plugin names none of
+//    them, in code, tests or its own docs. This file is the only exception (the pattern below) and is not scanned.
+test('architecture: core names no Steam API emulator (ADR-0063)', () => {
+    const banned = /\b(rune|codex|skid ?row|empress|reloaded|rld!|sovereign|goldberg|gse|smartsteamemu|online-?fix|tenoke|universelan)\b/i;
+    const skip = new Set(['node_modules', '.millennium', '_lib']);
+    const self = fileURLToPath(import.meta.url);
+    const files: string[] = [];
+    const collect = (dir: string) => {
+        for (const name of readdirSync(dir)) {
+            if (skip.has(name)) continue;
+            const p = join(dir, name);
+            if (statSync(p).isDirectory()) collect(p);
+            else if (/\.(ts|tsx|lua|mjs|js|json|md)$/.test(name) && resolve(p) !== resolve(self)) files.push(p);
+        }
+    };
+    for (const d of ['frontend', 'backend', 'tests']) collect(join(ROOT, d));
+    for (const f of ['README.md', 'plugin.json']) if (existsSync(join(ROOT, f))) files.push(join(ROOT, f));
+    const hits: string[] = [];
+    for (const file of files) {
+        readFileSync(file, 'utf8').split(/\r?\n/).forEach((line, i) => {
+            if (banned.test(line)) hits.push(`${relative(ROOT, file)}:${i + 1}: ${line.trim().slice(0, 100)}`);
+        });
+    }
+    assert.deepEqual(hits, [], `emulator names in the core plugin:\n${hits.join('\n')}`);
+});

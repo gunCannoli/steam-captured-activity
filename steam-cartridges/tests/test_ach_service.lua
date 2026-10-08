@@ -376,16 +376,6 @@ local lone = all.records[tostring(LONE)]
 check("GetAllRecords adds a shortcut with stored achievements and no metadata or mapping (ADR-0045)", lone and lone.achievements and lone.achievements.data.schema.total == 2 and lone.metadata == nil and lone.identity == nil)
 check("GetAllRecords leaves out a stored shortcut with no schema", all.records[tostring(NOSCHEMA)] == nil)
 
-print("K7")
-local names = observer.get_possible_folder_names("WUCHANG: Fallen Feathers", "")
-local has = false
-for _, n in ipairs(names) do if n == "WUCHANG - Fallen Feathers" then has = true end end
-check("colon becomes ' - ' with the spaces collapsed", has)
-local em = observer.get_possible_folder_names("Game \xe2\x80\x94 Sequel", "")
-local ok_em = false
-for _, n in ipairs(em) do if n == "Game - Sequel" then ok_em = true end end
-check("an em dash is replaced as a whole sequence, not byte by byte", ok_em, table.concat(em, " | "))
-
 -- ---------- steam_schema (M10: the source that fetches; the store only stores) ----------
 wipe()
 local steam_schema = require("steam_schema")

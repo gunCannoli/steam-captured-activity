@@ -3,14 +3,12 @@
 --- A reset always clears the plugin's own unlocks (achievements_store) and marks the game's logs as
 --- read, so lines written before the reset never unlock again. On request it also clears the
 --- files the observer reads the unlocks back from, each backed up first:
----   local      Steam emulator saves (CODEX / RUNE / GSE achievements.ini, Goldberg achievements.json)
 ---   rpcs3      RPCS3's TROPUSR.DAT
 ---   shadps4    shadPS4's trophy XML save files
 --- RetroAchievements unlocks live on the user's account; its API cannot reset them, so the source
 --- is listed with `resettable = false` and a note.
 
 local logger   = require("logger")
-local json     = require("json")
 local utils    = require("utils")
 local store    = require("achievements_store")
 local observer = require("achievements_observer")
@@ -42,14 +40,6 @@ end
 
 local function now() return (M.deps.now or os.time)() end
 
---- Unlock count in an emulator save file's content.
-local function emu_unlocked(path, text)
-  local parsed = path:match("%.json$") and observer.parse_goldberg_achievements(text) or observer.parse_ini_achievements(text)
-  local n = 0
-  for _ in pairs(parsed) do n = n + 1 end
-  return n
-end
-
 local function count(t)
   local n = 0
   for _ in pairs(t or {}) do n = n + 1 end
@@ -58,31 +48,11 @@ end
 
 --- Each place this shortcut's unlocks come from besides the plugin's own store.
 --- Returns { sources = { { id, label, resettable, unlocked, files = { paths }, note } } }.
-function M.sources(shortcut_appid, native_appid)
+function M.sources(shortcut_appid, _native_appid)
   local s_appid = tonumber(shortcut_appid) or 0
   local st = store.get_state(s_appid) or {}
   local schema = st.schema or {}
-  local native = tonumber(native_appid) or 0
-  if native <= 0 then native = tonumber(schema.native_appid) or 0 end
   local out = {}
-
-  -- Steam emulator saves: one source, named after the emulators found.
-  local paths, names, seen, unlocked = {}, {}, {}, 0
-  for _, f in ipairs(observer.emulator_files(native)) do
-    local text = read(f.path)
-    if text then
-      paths[#paths + 1] = f.path
-      unlocked = unlocked + emu_unlocked(f.path, text)
-      if not seen[f.emulator] then
-        seen[f.emulator] = true
-        names[#names + 1] = f.emulator
-      end
-    end
-  end
-  if #paths > 0 then
-    out[#out + 1] = { id = "local", label = "local achievements (" .. table.concat(names, ", ") .. ")",
-      resettable = true, unlocked = unlocked, files = paths }
-  end
 
   -- RPCS3 / shadPS4 trophy files.
   if schema.ps3_title_id or schema.ps4_title_id then
@@ -127,13 +97,7 @@ local function clear_file(source_id, p)
   local content = read(p)
   if not content then return nil, "cannot read " .. p end
   local next_content, cleared, why
-  if source_id == "local" then
-    if p:match("%.json$") then
-      next_content, cleared, why = files.goldberg_lock_all(content, json)
-    else
-      next_content, cleared = files.emu_ini_lock_all(content)
-    end
-  elseif source_id == "rpcs3" then
+  if source_id == "rpcs3" then
     next_content, cleared, why = files.rpcs3_lock_all(content)
   elseif source_id == "shadps4" then
     next_content, cleared = files.shadps4_lock_all(content)
