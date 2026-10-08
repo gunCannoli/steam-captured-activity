@@ -27,7 +27,7 @@
         "body": ["#ffffff", 100, "regular"],
         "subtext": ["#c7c7c7", 100, "regular"],
     },
-    "game_icon": [true, 8], // shown, 8 px rounded corners
+    "popup_icon": [true, 100, 8], // the toast's icon: shown, 100 % (Steam's size), 8 px rounded corners
 
     // Achievements: the PS5 trophy banner. Any popup key set here or in a tier overrides the popup above.
     "achievements": {

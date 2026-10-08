@@ -65,8 +65,8 @@ export interface ResolvedStyle {
     text: { title: TextStyle; body: TextStyle; subtext: TextStyle };
     /** `settings.text_align`, for the title, body and subtext. `null` = Steam's left. */
     textAlign: TextAlign | null;
-    /** `game_icon`: the game's icon on the left of the toast. */
-    gameIcon: { visible: boolean | null; radius: number | null };
+    /** `popup_icon`: the icon on the left of the toast (the game's, a friend's avatar, a download icon: it depends on the type). */
+    popupIcon: { visible: boolean | null; scalePct: number | null; radius: number | null };
     headerIcon: boolean | null;
     /** `false` mutes every notification; `null` keeps Steam's sound. */
     sound: SoundSpec | false | null;
@@ -174,13 +174,29 @@ function fontFamily(v: unknown): string | null {
     return typeof v === 'string' && /^[\w\s,"'-]{1,120}$/.test(v) ? v : null;
 }
 
-/** `game_icon`: `[visible, radius px]`, or a bare `visible`. */
-function gameIcon(raw: unknown, warnings: string[]): ResolvedStyle['gameIcon'] {
-    if (raw === undefined || raw === null) return { visible: null, radius: null };
-    if (typeof raw === 'boolean') return { visible: raw, radius: null };
-    if (Array.isArray(raw)) return { visible: bool(raw[0]), radius: num(raw[1], 0, 100) ?? null };
-    warnings.push('game_icon must be [visible, radius] or true / false; ignored.');
-    return { visible: null, radius: null };
+const NO_ICON: ResolvedStyle['popupIcon'] = { visible: null, scalePct: null, radius: null };
+
+/**
+ * `popup_icon`: `[visible, scale %, radius px]`, or a bare `visible`. The older `game_icon: [visible, radius]` still
+ * works (scale 100) with a warning, so themes written for it keep their look.
+ */
+function popupIcon(raw: unknown, legacy: unknown, warnings: string[]): ResolvedStyle['popupIcon'] {
+    if (raw === undefined || raw === null) {
+        if (legacy === undefined || legacy === null) return NO_ICON;
+        warnings.push('"game_icon" is now "popup_icon": [visible, scale_pct, radius]; read as scale 100.');
+        if (typeof legacy === 'boolean') return { ...NO_ICON, visible: legacy };
+        if (Array.isArray(legacy)) return { visible: bool(legacy[0]), scalePct: null, radius: num(legacy[1], 0, 100) ?? null };
+        warnings.push('game_icon must be [visible, radius] or true / false; ignored.');
+        return NO_ICON;
+    }
+    if (typeof raw === 'boolean') return { ...NO_ICON, visible: raw };
+    if (Array.isArray(raw)) {
+        // Clamped to 25-200 like every other number in a theme; not a number keeps Steam's size.
+        const scale = num(raw[1], 25, 200);
+        return { visible: bool(raw[0]), scalePct: scale === undefined || scale === 100 ? null : scale, radius: num(raw[2], 0, 100) ?? null };
+    }
+    warnings.push('popup_icon must be [visible, scale_pct, radius] or true / false; ignored.');
+    return NO_ICON;
 }
 
 /** `settings.hover`: `true` / `false`, `[enabled]` or `[enabled, "#hex"]`. Unset or unreadable: Steam's own. */
@@ -233,7 +249,7 @@ function resolveStyle(raw: Json, textAlign: TextAlign | null, warnings: string[]
         text: { title: textStyle(text.title), body: textStyle(text.body), subtext: textStyle(text.subtext) },
         textAlign,
         hover: resolveHover(isObject(raw.settings) ? raw.settings.hover : undefined, warnings),
-        gameIcon: gameIcon(raw.game_icon, warnings),
+        popupIcon: popupIcon(raw.popup_icon, raw.game_icon, warnings),
         headerIcon: bool(raw.header_icon),
         sound,
         margin: edges(popup.margin, 0, -100, 200),
@@ -248,7 +264,7 @@ const GONE: Record<string, string> = {
     categories: '"categories" is gone: one style for every notification, with its keys at the top level; ignored.',
     types: '"types" is gone: one style for every notification, with its keys at the top level; ignored.',
     display_time_ms: 'display_time_ms moved into "settings"; ignored here.',
-    logo: '"logo" is now "game_icon": [visible, radius]; ignored.',
+    logo: '"logo" is now "popup_icon": [visible, scale_pct, radius]; ignored.',
     themes: '"themes" (an Enhanced Achievements theme) is gone: put its tiers in "achievements" (achievements.normal, ...); ignored.',
 };
 
@@ -397,9 +413,13 @@ export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
     css += textRule(sel.body, root, s.text.body, BASE_PX.body, s.textAlign);
     css += textRule(sel.subtext, root, s.text.subtext, BASE_PX.subtext, s.textAlign);
 
-    if (s.gameIcon.visible === false && sel.logoBox) css += `${root} ${sel.logoBox} { display: none !important; }\n`;
-    if (s.gameIcon.radius !== null && sel.appLogo) {
-        css += `${root} ${sel.appLogo}, ${root} ${sel.appLogo} img { border-radius: ${s.gameIcon.radius}px !important; overflow: hidden; }\n`;
+    if (s.popupIcon.visible === false && sel.logoBox) css += `${root} ${sel.logoBox} { display: none !important; }\n`;
+    // `zoom`, not `transform`: it resizes the icon's box too, so the text moves over instead of being covered.
+    if (s.popupIcon.visible !== false && s.popupIcon.scalePct !== null && sel.logoBox) {
+        css += `${root} ${sel.logoBox} { zoom: ${s.popupIcon.scalePct / 100} !important; }\n`;
+    }
+    if (s.popupIcon.radius !== null && sel.appLogo) {
+        css += `${root} ${sel.appLogo}, ${root} ${sel.appLogo} img { border-radius: ${s.popupIcon.radius}px !important; overflow: hidden; }\n`;
     }
     if (s.headerIcon === false && sel.headerIcon) css += `${root} ${sel.headerIcon} { display: none !important; }\n`;
 

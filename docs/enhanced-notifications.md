@@ -22,7 +22,7 @@ merged into this plugin; its history is in git, `git log -- enhanced-achievement
 
 ## One theme, two looks
 
-A theme is the notification style (`settings`, `popup`, `text`, `game_icon`, `sound`, ...; `theme/theme.ts`) and an
+A theme is the notification style (`settings`, `popup`, `text`, `popup_icon`, `sound`, ...; `theme/theme.ts`) and an
 optional `achievements` block (`theme/achievements.ts`). `resolveTheme` resolves both, the block inheriting the rest
 ([ADR-0052](decisions.md#adr-0052-one-theme-one-look-achievements-inherit-the-themes-settings-popup-and-text)): the
 theme's `settings` are the banner's, its card is layered (`popup`, the block's popup keys, `normal`, the tier), and its

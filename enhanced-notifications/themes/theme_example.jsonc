@@ -100,8 +100,9 @@
         "body": ["#ffffff", 100, "regular"],
         "subtext": ["#8f98a0", 100, "regular"],
     },
-    // The game's icon on the left of the toast: [visible, corner radius px], or just true / false.
-    "game_icon": [true, 6],
+    // The icon on the left of the toast (the game's, a friend's avatar, a download icon: Steam picks it by type):
+    // [visible, scale %, corner radius px], or just true / false. Scale 25-200; 100 is Steam's size.
+    "popup_icon": [true, 100, 6],
     // false hides the small icon before the title.
     // "header_icon": false,
     // Every notification's sound: ["path", volume %] (.mp3, .wav, .ogg, relative to this

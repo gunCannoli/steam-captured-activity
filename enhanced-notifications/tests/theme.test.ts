@@ -137,16 +137,28 @@ test('one style for every notification; the old per-type blocks warn and are ign
     assert.equal(resolveTheme({ settings: { display_time_ms: 3000 } }).displayTimeMs, 3000);
 });
 
-test('game_icon: [visible, radius] or a bare visible; the old "logo" warns and is ignored', () => {
-    assert.deepEqual(resolveTheme({ game_icon: [true, 4] }).style.gameIcon, { visible: true, radius: 4 });
-    assert.deepEqual(resolveTheme({ game_icon: false }).style.gameIcon, { visible: false, radius: null });
-    const css = buildCss(resolveTheme({ game_icon: [false, 4] }).style, SEL);
+test('popup_icon: [visible, scale, radius] or a bare visible; game_icon still read; the old "logo" warns and is ignored', () => {
+    assert.deepEqual(resolveTheme({ popup_icon: [true, 150, 4] }).style.popupIcon, { visible: true, scalePct: 150, radius: 4 });
+    assert.deepEqual(resolveTheme({ popup_icon: [true, 100, 8] }).style.popupIcon, { visible: true, scalePct: null, radius: 8 }, '100 % is Steam\'s size: no rule');
+    assert.deepEqual(resolveTheme({ popup_icon: false }).style.popupIcon, { visible: false, scalePct: null, radius: null });
+    const css = buildCss(resolveTheme({ popup_icon: [false, 100, 4] }).style, SEL);
     assert.match(css, /body\[data-en-type\] :is\(\.logo\) \{ display: none !important; \}/);
     assert.match(css, /:is\(\.applogo\) img \{ border-radius: 4px !important;/);
+    const big = buildCss(resolveTheme({ popup_icon: [true, 125, 0] }).style, SEL);
+    assert.match(big, /body\[data-en-type\] :is\(\.logo\) \{ zoom: 1\.25 !important; \}/, 'scale resizes the icon box (zoom), so the text moves over');
+    assert.equal(resolveTheme({ popup_icon: [true, 500, 8] }).style.popupIcon.scalePct, 200, 'clamped to 25-200, like every theme number');
+    assert.equal(resolveTheme({ popup_icon: [true, 5, 8] }).style.popupIcon.scalePct, 25);
+    assert.equal(resolveTheme({ popup_icon: [true, 'big', 8] }).style.popupIcon.scalePct, null, 'not a number: Steam\'s size');
+
+    const legacy = resolveTheme({ game_icon: [true, 8] });
+    assert.deepEqual(legacy.style.popupIcon, { visible: true, scalePct: null, radius: 8 }, 'an older theme keeps its look');
+    assert.ok(legacy.warnings.some((w) => w.includes('popup_icon')), JSON.stringify(legacy.warnings));
+    assert.deepEqual(resolveTheme({ popup_icon: [true, 120, 2], game_icon: [false, 9] }).style.popupIcon, { visible: true, scalePct: 120, radius: 2 }, 'popup_icon wins');
+
     const old = resolveTheme({ logo: { radius: 6 } });
-    assert.deepEqual(old.style.gameIcon, { visible: null, radius: null });
-    assert.ok(old.warnings.some((w) => w.includes('game_icon')), JSON.stringify(old.warnings));
-    assert.ok(resolveTheme({ game_icon: 'yes' }).warnings.some((w) => w.includes('game_icon')));
+    assert.deepEqual(old.style.popupIcon, { visible: null, scalePct: null, radius: null });
+    assert.ok(old.warnings.some((w) => w.includes('popup_icon')), JSON.stringify(old.warnings));
+    assert.ok(resolveTheme({ popup_icon: 'yes' }).warnings.some((w) => w.includes('popup_icon')));
 });
 
 test('settings.text_align aligns every toast; invalid warns and keeps Steam', () => {
