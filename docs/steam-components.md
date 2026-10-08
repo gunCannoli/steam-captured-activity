@@ -1473,6 +1473,18 @@ Investigation and fix: [enhanced-notifications-bigpicture-toast-fix-plan.md](htt
 - **Our use.** enhanced-notifications takes the type of the toast on screen from the pop
   (`enhanced-notifications/frontend/steam/toast-pop.ts`, an own property on the store instance), never from
   the current-toast value.
+- **In game: two toast views (verified live 2026-10-08, AM2R in Big Picture; `enhanced-notifications/tests/probes/ingame-views.mjs`).**
+  With a game running, Big Picture has two toast containers: its own view (`notificationtoasts_uid<n>`, placeholder
+  in the Big Picture window) and the game overlay's (another `notificationtoasts_uid<m>`, placeholder in the
+  `SP Overlay: <pid>/...` window, also with the `InGame` class). Both pop from the **same** queue with context `0`
+  (`m_mapAppOverlayToasts` stayed empty), each showing one toast at a time, so two toasts close together are split:
+  one in the overlay view (over the game) and one in Big Picture's own view (**behind the game, never seen**). Stock
+  Steam does this with every plugin off. `displayToastAlone` holds a container only while its own list is busy, so it
+  does not serialize the two. **The overlay view hides in the opposite order to the main one:** `SetBounds(0, 0, 0, 0)`
+  first, then `SetVisible(false)`; the view reports itself at `0, 0, 320, 80` for a frame, i.e. at the top-left at full
+  size. Anything of a toast still opaque at that moment flashes in the top-left corner (stock content is already at
+  opacity 0). Toast-sound types: types 14 and 56 have no `sound` in their config (silent in stock Steam). The screenshot
+  shutter is `OnScreenshotStarted` -> `PlayNavSound(Screenshot)`, not a toast sound.
 - **Hidden window.** While the Big Picture window is not in front (`document.visibilityState === "hidden"`), the
   placeholder does not call `SetVisible(true)` itself, its rAF stops, and CSS animations in the toast view never get
   a start time (the achievement banner stays at opacity 0). Live checks of toast visuals need Big Picture in

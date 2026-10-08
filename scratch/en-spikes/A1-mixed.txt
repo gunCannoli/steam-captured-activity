@@ -1,0 +1,100 @@
+{"t":0,"ev":"visibility","v":"visible"}
+{"t":1,"ev":"mark","v":"TestLowBatteryNotification()"}
+{"t":2,"ev":"currentToast","eType":6,"id":10007}
+{"t":2,"ev":"plugin:arrival","eType":6,"used":false}
+{"t":5,"ev":"currentToast","eType":null,"id":null}
+{"t":5,"ev":"plugin:pop","eType":6,"used":true}
+{"t":5,"ev":"plugin:placement","action":"added","css":":is(._3sjShm2vhP7aWXeim3vaHq) { top: 10px !important; bottom: auto !important; right: 10px !important; left: auto !important; }\n"}
+{"t":6,"ev":"plugin:scan","doc":"Steam Big Picture Mode","view":"notificationtoasts_uid26","placeholderDisplay":"none"}
+{"t":7,"ev":"plugin:attr","win":"notificationtoasts_uid26","from":null,"to":"LowBattery"}
+{"t":8,"ev":"SetBounds","a":[1168.421142578125,10,170,67.99342346191406],"stack":"at https://steamloopback.host/chunk~2dcc5aaf7.js?contenthash=7e9d063cfb819cd56045:1:5928645 | at al (https://steamloopback.host/libraries/libraries~00299a408.js:2:495360) | at Tl (https://steamloopback.host/libraries/libraries~00299a408.js:2:500962)"}
+{"t":8,"ev":"SetVisible","a":[true]}
+{"t":8,"ev":"SetVisible","a":[true]}
+{"t":8,"ev":"plugin:shown","eType":6,"used":false}
+{"t":23,"ev":"frame","key":"ph","v":"1168,10,170,68,block"}
+{"t":23,"ev":"frame","key":"phClass","v":"GamepadToastPlaceholder Warning"}
+{"t":23,"ev":"frame","key":"phStyle","v":"margin: 0px;"}
+{"t":23,"ev":"frame","key":"style","v":":is(._3sjShm2vhP7aWXeim3vaHq) { top: 10px !important; bottom: auto !important; right: 10px !important; left: auto !important; } "}
+{"t":23,"ev":"frame","key":"view","v":"0,0,1,1"}
+{"t":23,"ev":"frame","key":"type","v":"LowBattery"}
+{"t":23,"ev":"frame","key":"tpl","v":"LowBattery Panel#loky"}
+{"t":23,"ev":"frame","key":"anim","v":"en-in-ps5-right, en-out-ps5-right"}
+{"t":23,"ev":"frame","key":"opacity","v":0}
+{"t":36,"ev":"frame","key":"view","v":"1168,10,170,69"}
+{"t":4635,"ev":"SetVisible","a":[false]}
+{"t":4635,"ev":"SetBounds","a":[0,0,0,0],"stack":"at https://steamloopback.host/chunk~2dcc5aaf7.js?contenthash=7e9d063cfb819cd56045:1:5928645 | at al (https://steamloopback.host/libraries/libraries~00299a408.js:2:495360) | at Tl (https://steamloopback.host/libraries/libraries~00299a408.js:2:500962)"}
+{"t":4637,"ev":"frame","key":"ph","v":"0,0,0,0,none"}
+{"t":4637,"ev":"frame","key":"phStyle","v":"margin: 0px; display: none;"}
+{"t":4638,"ev":"SetVisible","a":[false]}
+{"t":5649,"ev":"frame","key":"phClass","v":"GamepadToastPlaceholder"}
+{"t":5649,"ev":"frame","key":"tpl","v":null}
+{"t":5649,"ev":"frame","key":"anim","v":null}
+{"t":5649,"ev":"frame","key":"opacity","v":null}
+{"t":7011,"ev":"mark","v":"TestDownloadComplete(435150)"}
+{"t":7012,"ev":"currentToast","eType":1,"id":10008}
+{"t":7012,"ev":"plugin:arrival","eType":1,"used":false}
+{"t":7014,"ev":"currentToast","eType":null,"id":null}
+{"t":7014,"ev":"plugin:pop","eType":1,"used":true}
+{"t":7014,"ev":"plugin:scan","doc":"Steam Big Picture Mode","view":"notificationtoasts_uid26","placeholderDisplay":"none"}
+{"t":7014,"ev":"plugin:attr","win":"notificationtoasts_uid26","from":"LowBattery","to":"DownloadComplete"}
+{"t":7015,"ev":"SetBounds","a":[1018.4210815429688,10,320,80],"stack":"at https://steamloopback.host/chunk~2dcc5aaf7.js?contenthash=7e9d063cfb819cd56045:1:5928645 | at al (https://steamloopback.host/libraries/libraries~00299a408.js:2:495360) | at Tl (https://steamloopback.host/libraries/libraries~00299a408.js:2:500962)"}
+{"t":7015,"ev":"SetVisible","a":[true]}
+{"t":7016,"ev":"SetVisible","a":[true]}
+{"t":7016,"ev":"plugin:shown","eType":1,"used":false}
+{"t":7018,"ev":"frame","key":"ph","v":"1018,10,320,80,block"}
+{"t":7018,"ev":"frame","key":"phStyle","v":"margin: 0px;"}
+{"t":7018,"ev":"frame","key":"type","v":"DownloadComplete"}
+{"t":7018,"ev":"frame","key":"tpl","v":"fntOoeLPSTpmyXGGmgf99 ShortTemplate P1FhGdWv2NCXZXWsaKqqY TwoLine Panel#vgc7"}
+{"t":7018,"ev":"frame","key":"anim","v":"en-in-ps5-right, en-out-ps5-right"}
+{"t":7018,"ev":"frame","key":"opacity","v":0}
+{"t":7025,"ev":"frame","key":"view","v":"1018,10,320,80"}
+{"t":7051,"ev":"frame","key":"opacity","v":0.25}
+{"t":7098,"ev":"frame","key":"opacity","v":0.5}
+{"t":7145,"ev":"frame","key":"opacity","v":0.75}
+{"t":7235,"ev":"frame","key":"opacity","v":1}
+{"t":11017,"ev":"frame","key":"opacity","v":0.75}
+{"t":11098,"ev":"frame","key":"opacity","v":0.5}
+{"t":11147,"ev":"frame","key":"opacity","v":0.25}
+{"t":11226,"ev":"frame","key":"opacity","v":0}
+{"t":11619,"ev":"SetVisible","a":[false]}
+{"t":11619,"ev":"SetBounds","a":[0,0,0,0],"stack":"at https://steamloopback.host/chunk~2dcc5aaf7.js?contenthash=7e9d063cfb819cd56045:1:5928645 | at al (https://steamloopback.host/libraries/libraries~00299a408.js:2:495360) | at Tl (https://steamloopback.host/libraries/libraries~00299a408.js:2:500962)"}
+{"t":11647,"ev":"SetVisible","a":[false]}
+{"t":11647,"ev":"frame","key":"ph","v":"0,0,0,0,none"}
+{"t":11647,"ev":"frame","key":"phStyle","v":"margin: 0px; display: none;"}
+{"t":12634,"ev":"frame","key":"tpl","v":null}
+{"t":12634,"ev":"frame","key":"anim","v":null}
+{"t":12634,"ev":"frame","key":"opacity","v":null}
+{"t":14018,"ev":"mark","v":"TestAchievement(435150)"}
+{"t":14021,"ev":"currentToast","eType":5,"id":10009}
+{"t":14021,"ev":"plugin:arrival","eType":5,"used":false}
+{"t":14023,"ev":"currentToast","eType":null,"id":null}
+{"t":14023,"ev":"plugin:pop","eType":5,"used":true}
+{"t":14023,"ev":"plugin:scan","doc":"Steam Big Picture Mode","view":"notificationtoasts_uid26","placeholderDisplay":"none"}
+{"t":14023,"ev":"plugin:attr","win":"notificationtoasts_uid26","from":"DownloadComplete","to":null}
+{"t":14025,"ev":"SetBounds","a":[1018.4210815429688,10,320,80],"stack":"at https://steamloopback.host/chunk~2dcc5aaf7.js?contenthash=7e9d063cfb819cd56045:1:5928645 | at al (https://steamloopback.host/libraries/libraries~00299a408.js:2:495360) | at Tl (https://steamloopback.host/libraries/libraries~00299a408.js:2:500962)"}
+{"t":14025,"ev":"SetVisible","a":[true]}
+{"t":14025,"ev":"plugin:shown","eType":5,"used":false}
+{"t":14026,"ev":"SetVisible","a":[true]}
+{"t":14036,"ev":"frame","key":"ph","v":"1018,10,320,80,block"}
+{"t":14036,"ev":"frame","key":"phStyle","v":"margin: 0px;"}
+{"t":14036,"ev":"frame","key":"type","v":null}
+{"t":14036,"ev":"frame","key":"tpl","v":"ea-banner ea-layout-custom ea-in-ps5 ea-out-ps5 ea-pos-top_right ea-tier-rare#qakr"}
+{"t":14036,"ev":"frame","key":"anim","v":"ea-in-ps5-right, ea-out-ps5-right"}
+{"t":14036,"ev":"frame","key":"opacity","v":0}
+{"t":14065,"ev":"frame","key":"opacity","v":0.25}
+{"t":14114,"ev":"frame","key":"opacity","v":0.5}
+{"t":14161,"ev":"frame","key":"opacity","v":0.75}
+{"t":14273,"ev":"frame","key":"opacity","v":1}
+{"t":18601,"ev":"frame","key":"opacity","v":0.75}
+{"t":18657,"ev":"frame","key":"opacity","v":0.5}
+{"t":18721,"ev":"frame","key":"opacity","v":0.25}
+{"t":18801,"ev":"frame","key":"opacity","v":0}
+{"t":18986,"ev":"frame","key":"tpl","v":"ea-banner ea-layout-custom ea-in-ps5 ea-out-ps5 ea-pos-top_right ea-tier-rare ea-done#qakr"}
+{"t":19578,"ev":"SetVisible","a":[false]}
+{"t":19578,"ev":"SetBounds","a":[0,0,0,0],"stack":"at https://steamloopback.host/chunk~2dcc5aaf7.js?contenthash=7e9d063cfb819cd56045:1:5928645 | at al (https://steamloopback.host/libraries/libraries~00299a408.js:2:495360) | at Tl (https://steamloopback.host/libraries/libraries~00299a408.js:2:500962)"}
+{"t":19606,"ev":"SetVisible","a":[false]}
+{"t":19606,"ev":"frame","key":"ph","v":"0,0,0,0,none"}
+{"t":19606,"ev":"frame","key":"phStyle","v":"margin: 0px; display: none;"}
+{"t":20586,"ev":"frame","key":"tpl","v":null}
+{"t":20586,"ev":"frame","key":"anim","v":null}
+{"t":20586,"ev":"frame","key":"opacity","v":null}

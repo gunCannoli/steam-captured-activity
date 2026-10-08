@@ -1,6 +1,6 @@
 # Plan: enhanced-notifications, Big Picture in-game bugs and a consistency pass
 
-**Status:** investigation written 2026-10-08, nothing changed. **Baseline commit:** `f6b1cdb`.
+**Status:** stage A run 2026-10-08 (§ 7: the root cause of S1 and S2 found, S3 explained); stage B not started (§ 6b). **Baseline commit:** `f6b1cdb`.
 **Shape:** this is a big task, so it is a two-stage plan, as for the Theme Creator. Stage A (§ 5) is evidence: spikes with
 exact commands and what each result means. Stage B (§ 6) is the fix phases. Each gets its own mechanical plan, with
 before/after blocks, written only once its spike has run, because the root causes below are hypotheses until then.
@@ -213,15 +213,53 @@ The likely shape, depending on stage A. The ADR is written in B1.
 - **B6. Small items.** C9 (steam-cartridges' launch toast: post it through `OnNotification` or remove it, the user
   decides), C10 (re-measure order with a Warning-class toast; document or fix).
 
-## 7. Findings (filled in by stage A)
+## 7. Findings (stage A, run 2026-10-08 12:05-12:40, theme ps5, Big Picture, AM2R in game)
 
-| Hypothesis | Result | Trace file | Notes |
-| --- | --- | --- | --- |
-| H1a | | | |
-| H1b | | | |
-| H1c | | | |
-| H2a / H2b / H2c | | | |
-| H3a / H3b / H3c | | | |
+Raw traces: `scratch/en-spikes/` (A1-mixed, A1-queue, A2-dual, A2-split, A3-split-stock, A4-burst-queueoff,
+A4-burst-queueon). Probes: `tests/probes/bp-toast-trace.mjs` (A1), and new: `ingame-map.mjs`, `ingame-views.mjs`,
+`ingame-card.mjs`, `sound-ledger.mjs`. A5 (desktop) was not run.
+
+| Hypothesis | Result | Evidence |
+| --- | --- | --- |
+| A0 | **Done.** `placement.mjs` and `sound-duration.mjs` restore the stored settings; run alone, `PluginConfig_GetAll` is identical before and after | commit `0417793` |
+| H1a (our type changes before Steam hides) | **Refuted in the main Big Picture window**: the type changes only at the next pop, about 1 s after the hide (A1-queue). **Confirmed across views in game**: a pop for Big Picture's own view rewrote the overlay view's `data-en-type` while a banner showed there (A2-split), because the injector applies one current type to every toast window | A1-queue, A2-split |
+| H1b (Steam's hide order) | **Confirmed in the game overlay only.** Main window: `SetVisible(false)` then `SetBounds(0,0,0,0)` (safe). Game-overlay view: `SetBounds(0,0,0,0)` **first**, then `SetVisible(false)`; the view reports `0,0,320,80` for a frame, so it moves to the top-left at full size before it hides. Steam's own behaviour; stock content is at opacity 0 by then, so stock shows nothing | A1-mixed, A2-dual |
+| **H1d (new): the themed card is outside the animated element** | **Confirmed: the root cause of S1 and S2.** The theme's `popup.background` (ps5: `linear-gradient(90deg, #1F1F1F, #0F0F0F)`) lands on `.GamepadToastPopup`, while our entrance and exit animate `.GamepadToastPopup > *`. At 4.5 s the child is at opacity 0 and the card at opacity 1 with no animation. Stock Steam puts its card colour (`rgb(14,20,27)`) on the child, which fades. So the text and icons slide out and the card stays until Steam removes the view (the user's own description); in the game overlay Steam first moves that view to (0, 0), so the card flashes top-left. The achievement banner is not affected (it draws its own card and gets no `data-en-type`) | `ingame-card.mjs`; A3 control with `style,placement` off |
+| H1c / **H1e (new): two toast views in game** | **Confirmed, and Steam's own.** In game, Big Picture has two toast containers: its own view (`notificationtoasts_uid26`, placeholder in the Big Picture window) and the game overlay's (`notificationtoasts_uid32`, placeholder in `SP Overlay: <pid>/...`). Both pop from the same queue (context 0; `m_mapAppOverlayToasts` stayed empty), each showing one toast at a time. Two toasts 200 ms apart: the first went to the overlay view (over the game), the second to Big Picture's own view, **behind the game, never seen**. The same with every plugin feature off (A3). This is the user's "screenshot and recording at the same time only show one". Our placement `<style>` was missing from the overlay window until the first pop scanned it | A2-split, A3-split-stock, `ingame-map.mjs` |
+| H2a / H2b / H2c | H2a: as H1d (the exit looks wrong because the card does not leave). H2b: the banner's clocks are fine in both views (opacity 0 well before the hide). H2c: refuted (the ps5 keyframes end at opacity 0) | A1, A2 |
+| H3a (capture burst dropped or rate-limited) | **Not the cause in these runs.** `BIsToastRateLimited` was never called. Our capture plan skipped every test unlock (`no-running-timeline`: the test unlock names a game that is not running), so no capture toast came from us. Steam's own types 14 and 56 appeared during the run with **no sound in Steam's config** (`sound` undefined): silent in stock Steam too | A4-burst-queueon, type configs |
+| H3b / H3c (sounds overlap) | **Confirmed as overlap, not blocking.** Queue off and on: a download toast popped 200 ms after an achievement (into the other view) and Steam's chime (`PlayNavSound 6`) played **during** our 960 ms tier clip. No code path drops a sound; two toasts in two views plus a clip and a chime at once are heard as one | A4-burst-queueoff, A4-burst-queueon |
+| C5 / queue | **New explanation:** `displayToastAlone` stops a container only while **its own** list is busy, so with two containers in game the queue lets two toasts show at once (A4-burst-queueon: the download popped at 248 ms beside the banner) | A4-burst-queueon |
+
+Not yet observed live: a real F12 screenshot plus a real recording toast in game (A4 run 4). AM2R's overlay does not
+draw over the game on this machine (Steam showed the toasts, but they were not visible), so the user should repeat the
+burst in a game whose overlay is visible (WUCHANG once it stops crashing, or another overlay-capable game).
+
+## 6b. Stage B, reordered by the findings
+
+Each phase gets its own mechanical plan before any code; the order is by user impact.
+
+1. **B1. The themed card animates with its content** (H1d; S1 and S2). In Big Picture and the overlay, the theme's card
+   (background, border, shadow, radius) must be on the element our entrance and exit animate, or the same animation must
+   also run on `.GamepadToastPopup`. Done means: `ingame-card.mjs` reads the card at opacity 0 at 4.5 s, and
+   `ingame-views.mjs` shows nothing of ours above opacity 0 at the overlay's `SetBounds(0,0,0,0)`. Unit test in
+   `theme.test.ts` on the `buildCss` / `buildAnimationCss` selectors. Small and safe: first.
+2. **B2. One type per toast view** (H1a across views). `data-en-type` is set on the view that shows the toast, never on
+   every toast window. The pop does not say which container called it (both pass context 0), so its plan starts with a
+   spike that ties a pop to its container (that container's `SetVisible(true)` right after the pop, or the toast
+   element's fiber `notification` in that view, read at Steam's `onShown`).
+3. **B3. In-game toasts are never hidden behind the game** (H1e; "only one shows"). Options for its plan: while a game
+   overlay toast container is mounted, keep Big Picture's own container from popping (it would show behind the game), so
+   every toast goes to the overlay view one after another; or route through `AddAppOverlayNotification`. Needs a spike on
+   how Steam's containers decide to pop (module `48197`, the Big Picture container and its display list) and an ADR,
+   since it changes Steam's own in-game behaviour.
+4. **B4. Sounds as a schedule** (H3b/H3c). With B3 in place, toasts are serial in game; then space a chime that would land
+   inside a tier clip (or shorten the clip), and normalise clip volume against Steam's chime. Pure decision module.
+5. **B5. Queue across views** (C5): the notifications queue counts toasts on screen in every container (follows from B3).
+6. **B6. Verification**: an "in game" group in `run-live.mjs` from the new probes (SKIP without a running game whose
+   overlay draws); A5 desktop timings; the two theme tests that already fail at `f6b1cdb` (`themes/steam_midnight.json`
+   is missing since the theme reorganisation) fixed, or the test pointed at the bundled themes.
+7. **B7. Small items**: C9 (steam-cartridges' launch toast), C10 (Warning-size re-measure).
 
 ## 8. Guardrails and rules that apply
 

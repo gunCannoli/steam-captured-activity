@@ -1,0 +1,70 @@
+{"t":4,"ev":"mark","val":"TestDownloadComplete(435150)"}
+{"t":8,"ev":"pop","ctx":0,"eType":1}
+{"t":9,"ev":"pop","ctx":0,"eType":null}
+{"t":10,"v":"OV","ev":"SetBounds","a":[1017,10,320,80]}
+{"t":11,"v":"OV","ev":"SetVisible","a":[true]}
+{"t":12,"ev":"pop","ctx":0,"eType":null}
+{"t":16,"v":"BP","ev":"ph","val":"0,0,0,0,none"}
+{"t":16,"v":"BP","ev":"cls","val":"GamepadToastPlaceholder InGame"}
+{"t":16,"v":"BP","ev":"place","val":true}
+{"t":16,"v":"BP","ev":"theme","val":true}
+{"t":16,"v":"BP","ev":"view","val":"1018,10,320,80"}
+{"t":16,"v":"BP","ev":"type","val":"DownloadComplete"}
+{"t":16,"v":"BP","ev":"tpl","val":null}
+{"t":16,"v":"BP","ev":"anim","val":null}
+{"t":16,"v":"BP","ev":"op","val":null}
+{"t":16,"v":"OV","ev":"ph","val":"1017,10,320,80,block"}
+{"t":16,"v":"OV","ev":"cls","val":"GamepadToastPlaceholder InGame"}
+{"t":16,"v":"OV","ev":"place","val":true}
+{"t":16,"v":"OV","ev":"theme","val":true}
+{"t":16,"v":"OV","ev":"view","val":"1017,10,355,461"}
+{"t":16,"v":"OV","ev":"type","val":"DownloadComplete"}
+{"t":16,"v":"OV","ev":"tpl","val":"fntOoeLPSTpmyXGGmgf99 ShortTemplate P1FhGdWv2NCXZXWsaKqqY TwoLine"}
+{"t":16,"v":"OV","ev":"anim","val":"en-in-ps5-right, en-out-ps5-right"}
+{"t":16,"v":"OV","ev":"op","val":0}
+{"t":45,"v":"OV","ev":"view","val":"1017,10,320,80"}
+{"t":45,"v":"OV","ev":"op","val":0.25}
+{"t":96,"v":"OV","ev":"op","val":0.5}
+{"t":143,"v":"OV","ev":"op","val":0.75}
+{"t":252,"v":"OV","ev":"op","val":1}
+{"t":4009,"v":"OV","ev":"op","val":0.75}
+{"t":4089,"v":"OV","ev":"op","val":0.5}
+{"t":4149,"v":"OV","ev":"op","val":0.25}
+{"t":4227,"v":"OV","ev":"op","val":0}
+{"t":4621,"v":"OV","ev":"SetBounds","a":[0,0,0,0]}
+{"t":4621,"v":"OV","ev":"SetVisible","a":[false]}
+{"t":4635,"v":"OV","ev":"ph","val":"0,0,0,0,none"}
+{"t":4635,"v":"OV","ev":"view","val":"0,0,320,80"}
+{"t":5623,"ev":"pop","ctx":0,"eType":null}
+{"t":5638,"v":"OV","ev":"tpl","val":null}
+{"t":5638,"v":"OV","ev":"anim","val":null}
+{"t":5638,"v":"OV","ev":"op","val":null}
+{"t":7036,"ev":"mark","val":"TestAchievement(435150)"}
+{"t":7067,"ev":"pop","ctx":0,"eType":5}
+{"t":7067,"ev":"pop","ctx":0,"eType":null}
+{"t":7068,"v":"OV","ev":"SetBounds","a":[1017,10,320,80]}
+{"t":7068,"v":"OV","ev":"SetVisible","a":[true]}
+{"t":7070,"ev":"pop","ctx":0,"eType":null}
+{"t":7072,"v":"BP","ev":"type","val":null}
+{"t":7073,"v":"OV","ev":"ph","val":"1017,10,320,80,block"}
+{"t":7073,"v":"OV","ev":"type","val":null}
+{"t":7073,"v":"OV","ev":"tpl","val":"ea-banner ea-layout-custom ea-in-ps5 ea-out-ps5"}
+{"t":7073,"v":"OV","ev":"anim","val":"ea-in-ps5-right, ea-out-ps5-right"}
+{"t":7073,"v":"OV","ev":"op","val":0}
+{"t":7114,"v":"OV","ev":"view","val":"1017,10,320,80"}
+{"t":7114,"v":"OV","ev":"op","val":0.25}
+{"t":7161,"v":"OV","ev":"op","val":0.5}
+{"t":7209,"v":"OV","ev":"op","val":0.75}
+{"t":7305,"v":"OV","ev":"op","val":1}
+{"t":11632,"v":"OV","ev":"op","val":0.75}
+{"t":11710,"v":"OV","ev":"op","val":0.5}
+{"t":11756,"v":"OV","ev":"op","val":0.25}
+{"t":11851,"v":"OV","ev":"op","val":0}
+{"t":12634,"v":"OV","ev":"SetBounds","a":[0,0,0,0]}
+{"t":12635,"v":"OV","ev":"SetVisible","a":[false]}
+{"t":12649,"v":"OV","ev":"ph","val":"0,0,0,0,none"}
+{"t":12649,"v":"OV","ev":"view","val":"0,0,320,80"}
+{"t":13639,"ev":"pop","ctx":0,"eType":null}
+{"t":13653,"v":"OV","ev":"tpl","val":null}
+{"t":13653,"v":"OV","ev":"anim","val":null}
+{"t":13653,"v":"OV","ev":"op","val":null}

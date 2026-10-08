@@ -16,7 +16,14 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**enhanced-notifications Big Picture in-game bugs and consistency (investigated 2026-10-08, nothing changed).** The user's report (in game,
+**enhanced-notifications Big Picture in-game bugs and consistency: stage A done 2026-10-08, stage B next.** Findings ([plan § 7](docs/plans/enhanced-notifications-consistency-plan.md)):
+the flash and the bad fade are the theme's card background sitting on `.GamepadToastPopup`, outside the element our exit
+animates (it stays opaque; in the game overlay Steam moves the view to (0, 0) before hiding it, so the card flashes
+top-left); "only one shows" is Steam's own: in game two toast views pop from one queue and the second toast lands in Big
+Picture's view behind the game; sounds are not blocked, they overlap (a chime inside our clip). Next: B1 (card animates
+with its content: small, first), then B2-B7 (§ 6b), each with its own mechanical plan. The user: repeat a real F12 + recording
+burst in a game whose overlay draws (AM2R's overlay does not show here). Also: 2 theme unit tests fail since the theme
+reorganisation (`themes/steam_midnight.json` missing; B6). Earlier note: The user's report (in game,
 Big Picture, ps5): a toast flashes top-left before it leaves, the fade-out looks wrong, other notifications' sounds seem lost while a custom
 achievement sound plays; and the plugin should feel less erratic. [Plan](docs/plans/enhanced-notifications-consistency-plan.md): hypotheses
 per symptom (leading: our styling stops matching before Steam hides its view, so Steam's animations restart as it moves the view to

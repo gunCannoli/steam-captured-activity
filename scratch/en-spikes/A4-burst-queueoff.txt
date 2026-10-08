@@ -1,0 +1,11 @@
+{"t":7,"ev":"fire","v":"TestAchievement(435150)"}
+{"t":40,"ev":"arrival","eType":5}
+{"t":46,"ev":"pop","ctx":0,"eType":5}
+{"t":47,"ev":"PlayNotificationSound","eType":5}
+{"t":47,"ev":"clipStart","durMs":960}
+{"t":259,"ev":"fire","v":"TestDownloadComplete(435150)"}
+{"t":260,"ev":"arrival","eType":1}
+{"t":480,"ev":"fire","v":"TestFriendOnline()"}
+{"t":809,"ev":"pop","ctx":0,"eType":1}
+{"t":810,"ev":"PlayNotificationSound","eType":1}
+{"t":811,"ev":"PlayNavSound","id":6}
