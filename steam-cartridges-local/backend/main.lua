@@ -65,7 +65,7 @@ LocalDetectFiles = method("LocalDetectFiles", function(params)
   local appid = tonumber(params and params.appid) or 0
   if appid <= 0 then return { files = {} } end
 
-  local ok, res = pcall(search.find_candidates, appid)
+  local ok, res = pcall(search.find_candidates, appid, params)
   if not ok then
     logger:error("LocalDetectFiles failed: " .. tostring(res))
     return { files = {}, error = tostring(res) }
@@ -78,7 +78,7 @@ LocalReadUnlocks = method("LocalReadUnlocks", function(params)
   local appid = tonumber(params and params.appid) or 0
   if appid <= 0 then return { unlocks = {} } end
 
-  local ok, candidates = pcall(search.find_candidates, appid)
+  local ok, candidates = pcall(search.find_candidates, appid, params)
   if not ok or not candidates or #candidates == 0 then
     return { unlocks = {} }
   end
@@ -110,7 +110,7 @@ end)
 --- Reset achievements in candidate file(s)
 LocalResetUnlocks = method("LocalResetUnlocks", function(params)
   local appid = tonumber(params and params.appid) or 0
-  local candidates = search.find_candidates(appid)
+  local candidates = search.find_candidates(appid, params)
   local total_cleared = 0
   local last_backup = nil
 

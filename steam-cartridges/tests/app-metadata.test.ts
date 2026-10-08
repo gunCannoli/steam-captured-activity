@@ -34,7 +34,9 @@ test('the metadata part carries the badges the game-info surface writes (decided
 test('preload gives the disk records their badges too; a part without data is left alone', async () => {
     const a = setup({ status: 'ok', data: { appid: SC, title: 'Game', store_category_ids: [2, 22, 28] } });
     await a.metadata.preload();
-    assert.deepEqual(a.records.get(SC)?.metadata?.data?.badge_category_ids, [2, 28]);
+    // 22 (Achievements) is now in PORTABLE_CATEGORY_IDS: it passes through from store_category_ids.
+    assert.deepEqual(a.records.get(SC)?.metadata?.data?.badge_category_ids, [2, 22, 28]);
+
     const b = setup({ status: 'error', message: 'x' });
     await b.metadata.ensure(SC, { bucket: 'web-scraping', via: 'default' }, undefined);
     assert.equal(b.records.get(SC)?.metadata?.data, undefined);

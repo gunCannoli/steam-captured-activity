@@ -16,6 +16,14 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges-local & steam-cartridges SOVEREIGN.ini achievements & core provider integration (2026-10-08): completed and live-verified.**
+- Implemented SOVEREIGN.ini parsing (Format B `[Achievements]` with Unix timestamps, numeric/boolean states, comment tolerance, and safe reset with `.bak` backups).
+- Live verified against *WUCHANG: Fallen Feathers* (`AppID=2277560`, shortcut AppID `3135033888`) at `D:\Games\WUCHANG - Fallen Feathers\Engine\Binaries\ThirdParty\Steamworks\Steamv155\Win64\SOVEREIGN.ini`.
+- Added game executable parent traversal and shortcut auto-lookup (shortcuts.vdf binary parsing, 64-bit SteamID account id conversion) in `file_search.lua`.
+- Integrated emulator discovery improvements inspired by PSerban93/Achievements (Tenoke, Online-Fix, SkidRow, EMPRESS, RELOADED, SmartSteamEmu, UniverseLAN).
+- Connected `ExtensionRegistry.getAchievementProviders()` to core `steam-cartridges` (`load`, `checkNow`, `resetSources`, `reset`).
+- Portable category 22 (Achievements) rebadging supported on shortcut records with real achievements. Full test suites pass 100% (334 TS tests, 12 Lua suites, all live CDP tests).
+
 **steam-cartridges-third-party Xbox UWP Steam Overlay Workaround & Pool Blitz Fixes (2026-10-07): completed and live-verified.**
 - Executed all 4 research spikes from `docs/plans/steam-cartridges-uwp-overlay-research-plan.md`. Shipped Option 1 (Mirrored Presentation Wrapper) via `tools/uwp_presenter/` (`bin/uwp_presenter.exe`).
 - Diagnosed and fixed Pool Blitz issues: Windows SDK COM CLSID typo (`S_OK`), `OpenInputDesktop` enumeration for active desktop windows, yellow border suppression (`session.IsBorderRequired = false`), dynamic DXGI swapchain backbuffer resizing (fixed black screen bug), GDK child process tree resolution (`CreateToolhelp32Snapshot`), window title self-exclusion bug, transient splash screen filter (`IsTransientOrLauncherWindow` to skip `gamingservicesui.exe` so the real game `Pool-WinGDK-Shipping.exe` is captured), borderless fullscreen presentation matching game display resolution, and mouse click forwarding with telemetry.

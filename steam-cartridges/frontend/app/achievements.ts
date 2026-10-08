@@ -9,6 +9,7 @@ import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { AchievementResetSource, backend as Backend, Lane, ResetSourceResult } from "../ports/backend";
 import { asList } from "../kernel/lists.ts";
+import type { AppContext, AchievementSourceProvider } from "../kernel/extensions.ts";
 
 export type LaunchPolicy = "off" | "first_run" | "all_runs";
 
@@ -31,6 +32,10 @@ export interface AchievementsDeps {
     observerEnabled(): boolean;
     /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
     stores?(): { epic: boolean; xbox: boolean };
+    /** Extension achievement providers (ADR-0013 / ADR-0062). */
+    providers?(): AchievementSourceProvider[];
+    /** Shortcut metadata for AppContext (exe, launch options). */
+    shortcutData?(appid: number): { strAppName?: string; szExe?: string; szArguments?: string } | undefined;
     /** The poll re-arms only after a check settles, so a busy backend never has two checks queued (ADR-0060). */
     timers?: { setTimeout(fn: () => void, ms: number): unknown; clearTimeout(handle: unknown): void };
     now(): number;
@@ -131,6 +136,18 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         deps.bus.emit("achievements.unlocked", { appid, ids, items });
     }
 
+    function makeAppContext(appid: ShortcutId): AppContext {
+        const sc = deps.shortcutData?.(appid);
+        return {
+            appid,
+            gameid: String(appid),
+            isShortcut: true,
+            displayName: deps.titleOf(appid) ?? sc?.strAppName ?? "",
+            exe: sc?.szExe,
+            launchOptions: sc?.szArguments,
+        };
+    }
+
     async function load(appid: ShortcutId, route: Route, opts: EnsureOptions): Promise<Part<AchievementSet>> {
         deps.ensureBase(appid);
         const known = deps.records.get(appid)?.identity;
@@ -148,9 +165,40 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             noNetwork: opts.noNetwork,
         }, { lane: opts.lane ?? "view" });
         const raw = res.error ? undefined : (res.parts.achievements as Part<AchievementSet> | undefined);
-        const part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
+        let part: Part<AchievementSet> = raw ?? { status: "error", message: res.error ?? "no achievements part" };
         // A disk-only answer without data (nothing stored yet) must not replace what the record holds.
         if (opts.noNetwork && !part.data) return part;
+
+        // Extension providers (steam-cartridges-local, etc.)
+        const providers = deps.providers?.() ?? [];
+        if (part.data && providers.length > 0) {
+            const ctx = makeAppContext(appid);
+            for (const p of providers) {
+                try {
+                    const matched = await p.match(ctx);
+                    if (matched && typeof p.getUnlocks === "function") {
+                        const pUnlocks = await p.getUnlocks(ctx);
+                        const currentData = part.data;
+                        if (currentData && Array.isArray(pUnlocks) && pUnlocks.length > 0) {
+                            let dirty = false;
+                            const mergedUnlocks = { ...currentData.unlocks };
+                            for (const u of pUnlocks) {
+                                if (u && u.id && !mergedUnlocks[u.id]) {
+                                    mergedUnlocks[u.id] = { unlocked_time: u.unlockedAt || Math.floor(deps.now() / 1000) };
+                                    dirty = true;
+                                }
+                            }
+                            if (dirty) {
+                                part = { ...part, data: { schema: currentData.schema, unlocks: mergedUnlocks } };
+                            }
+                        }
+                    }
+                } catch (e) {
+                    logger.warn(`Provider ${p.id} load error:`, e);
+                }
+            }
+        }
+
         const changed = deps.records.update(appid, { achievements: part });
         if (changed.length > 0) {
             const total = part.data?.schema.total ?? 0;
@@ -181,9 +229,37 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             const native = opts.native ?? (await resolveNative(appid));
             const res = await deps.backend.checkUnlocks(appid, native, opts.title ?? deps.titleOf(appid), { lane: "normal" });
             const fresh = asList<NewUnlock>(res?.new_unlocks).filter((u) => u && typeof u.id === "string");
-            if (fresh.length === 0) return 0;
 
             const set = current(appid)?.data;
+            const existing = set?.unlocks ?? {};
+
+            // Extension achievement providers (steam-cartridges-local, etc.)
+            const providers = deps.providers?.() ?? [];
+            if (providers.length > 0) {
+                const ctx = makeAppContext(appid);
+                for (const p of providers) {
+                    try {
+                        const matched = await p.match(ctx);
+                        if (matched && typeof p.getUnlocks === "function") {
+                            const pUnlocks = await p.getUnlocks(ctx);
+                            if (Array.isArray(pUnlocks)) {
+                                for (const u of pUnlocks) {
+                                    if (u && typeof u.id === "string" && !existing[u.id]) {
+                                        if (!fresh.some((f) => f.id === u.id)) {
+                                            fresh.push({ id: u.id, rtime_unlocked: u.unlockedAt });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        logger.warn(`Provider ${p.id} checkUnlocks error:`, e);
+                    }
+                }
+            }
+
+            if (fresh.length === 0) return 0;
+
             if (set) {
                 const unlocks: Record<string, AchievementUnlockRecord> = { ...set.unlocks };
                 for (const u of fresh) unlocks[u.id] = { unlocked_time: u.rtime_unlocked || Math.floor(deps.now() / 1000) };
@@ -314,7 +390,39 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         async resetSources(appid) {
             try {
                 const res = await deps.backend.resetAchievementSources(appid, await resolveNative(appid));
-                return Array.isArray(res.sources) ? res.sources : [];
+                const backendSources: AchievementResetSource[] = Array.isArray(res.sources) ? [...res.sources] : [];
+                const providers = deps.providers?.() ?? [];
+                if (providers.length === 0) return backendSources;
+
+                const ctx = makeAppContext(appid);
+                for (const p of providers) {
+                    try {
+                        const matched = await p.match(ctx);
+                        if (matched && typeof p.reset === "function") {
+                            const unlocks = typeof p.getUnlocks === "function" ? await p.getUnlocks(ctx) : [];
+                            const existingIdx = backendSources.findIndex((s) => s.id === p.id || (s.id === "local" && p.id.includes("local")));
+                            const existingSource = existingIdx >= 0 ? backendSources[existingIdx] : undefined;
+                            if (existingSource) {
+                                backendSources[existingIdx] = {
+                                    id: "local",
+                                    label: p.name || existingSource.label,
+                                    resettable: true,
+                                    unlocked: Math.max(existingSource.unlocked, unlocks.length),
+                                };
+                            } else {
+                                backendSources.push({
+                                    id: p.id,
+                                    label: p.name,
+                                    resettable: true,
+                                    unlocked: unlocks.length,
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        logger.warn(`Error checking provider ${p.id} reset source:`, e);
+                    }
+                }
+                return backendSources;
             } catch (e) {
                 logger.warn(`Could not list achievement sources for shortcut ${appid}:`, e);
                 return [];
@@ -331,7 +439,24 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                     logger.error(`Failed resetting achievements: ${res.error}`);
                     return { ok: false, sources: [] };
                 }
-                const done = Array.isArray(res.sources) ? res.sources : [];
+                const done = Array.isArray(res.sources) ? [...res.sources] : [];
+                const providers = deps.providers?.() ?? [];
+                if (providers.length > 0) {
+                    const ctx = makeAppContext(appid);
+                    for (const p of providers) {
+                        if ((sources.includes(p.id) || (sources.includes("local") && p.id.includes("local"))) && typeof p.reset === "function") {
+                            try {
+                                const matched = await p.match(ctx);
+                                if (matched) {
+                                    const r = await p.reset(ctx);
+                                    done.push({ id: p.id, ok: r.ok, cleared: r.cleared });
+                                }
+                            } catch (e) {
+                                logger.error(`Error resetting achievements via provider ${p.id}:`, e);
+                            }
+                        }
+                    }
+                }
                 for (const r of done) {
                     if (!r.ok) logger.warn(`Reset achievements: ${r.id}: ${r.error ?? "failed"}`);
                 }

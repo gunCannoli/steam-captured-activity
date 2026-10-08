@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
   "name": "steam-cartridges-local",
   "common_name": "Steam Cartridges - Local Emulators",
-  "description": "Reads and manages local achievements from .ini/text files used by Steam emulator-style setups (CODEX, RUNE, GSE, Goldberg).",
+  "description": "Reads and manages local achievements from .ini/text files used by Steam emulator-style setups (CODEX, RUNE, GSE, Goldberg, SOVEREIGN).",
   "version": "0.1.0",
   "useBackend": true,
   "backendType": "lua"

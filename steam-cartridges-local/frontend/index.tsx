@@ -4,6 +4,8 @@ interface AppContext {
     gameid: string;
     isShortcut: boolean;
     displayName: string;
+    exe?: string;
+    launchOptions?: string;
 }
 
 interface AchievementUnlockItem {
@@ -18,7 +20,9 @@ async function callLocalBackend<R>(name: string, payload: object = {}): Promise<
     for (const plugin of candidates) {
         try {
             if (typeof callFn === 'function') {
-                const raw = await callFn.call(millennium, plugin, name, payload);
+                const raw = await callFn.call(millennium, plugin, name, {
+                    payload: JSON.stringify(payload),
+                });
                 if (typeof raw === 'string') return JSON.parse(raw) as R;
                 return raw as R;
             }
@@ -35,11 +39,19 @@ const localProvider = {
     priority: 15,
     async match(ctx: AppContext): Promise<boolean> {
         if (!ctx.isShortcut) return false;
-        const res = await callLocalBackend<{ files: any[] }>("LocalDetectFiles", { appid: ctx.appid });
+        const res = await callLocalBackend<{ files: any[] }>("LocalDetectFiles", {
+            appid: ctx.appid,
+            exe: ctx.exe,
+            displayName: ctx.displayName,
+        });
         return Array.isArray(res?.files) && res.files.length > 0;
     },
     async getUnlocks(ctx: AppContext): Promise<AchievementUnlockItem[]> {
-        const res = await callLocalBackend<{ unlocks: any[] }>("LocalReadUnlocks", { appid: ctx.appid });
+        const res = await callLocalBackend<{ unlocks: any[] }>("LocalReadUnlocks", {
+            appid: ctx.appid,
+            exe: ctx.exe,
+            displayName: ctx.displayName,
+        });
         if (!res || !Array.isArray(res.unlocks)) return [];
         return res.unlocks.map((u: any) => ({
             id: String(u.id),
@@ -47,7 +59,11 @@ const localProvider = {
         }));
     },
     async reset(ctx: AppContext): Promise<{ cleared: number; ok: boolean; backupPath?: string }> {
-        const res = await callLocalBackend<{ ok: boolean; cleared: number; backupPath?: string }>("LocalResetUnlocks", { appid: ctx.appid });
+        const res = await callLocalBackend<{ ok: boolean; cleared: number; backupPath?: string }>("LocalResetUnlocks", {
+            appid: ctx.appid,
+            exe: ctx.exe,
+            displayName: ctx.displayName,
+        });
         return {
             ok: res?.ok ?? false,
             cleared: res?.cleared ?? 0,

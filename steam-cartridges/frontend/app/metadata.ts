@@ -36,7 +36,10 @@ export function createMetadata(deps: MetadataDeps): MetadataResolver {
     /** The part with the Steam categories the game-info surface writes (ADR-0038; M10: decided here, not in the surface). */
     function withBadges(appid: ShortcutId, part: Part<GameMetadata>): Part<GameMetadata> {
         if (!part.data) return part;
-        return { ...part, data: { ...part.data, badge_category_ids: badgeCategoryIds(part.data, deps.controller(appid)) } };
+        // Inject the Achievements tag (22) when the record already has a real schema from any source.
+        const achTotal = (deps.records.get(appid)?.achievements?.data as any)?.schema?.total ?? 0;
+        const hasAchievements = achTotal > 0;
+        return { ...part, data: { ...part.data, badge_category_ids: badgeCategoryIds(part.data, deps.controller(appid), { hasAchievements }) } };
     }
 
     async function ensure(

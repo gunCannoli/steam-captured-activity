@@ -25,3 +25,13 @@ export function listShortcuts(): { appid: number; name: string }[] {
         .filter((a) => isShortcutAppId(a?.appid))
         .map((a) => ({ appid: a.appid as number, name: String(a.display_name ?? a.appid) }));
 }
+
+/** Shortcut launch data (exe, launch options) from SteamClient. */
+export function shortcutData(appid: number): { strAppName?: string; szExe?: string; szArguments?: string } | undefined {
+    try {
+        return (window as any).SteamClient?.Apps?.GetShortcutData?.(appid);
+    } catch (err) {
+        logger.warn(`Could not read shortcut data for ${appid}:`, err);
+    }
+    return undefined;
+}

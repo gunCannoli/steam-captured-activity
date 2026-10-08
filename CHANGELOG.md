@@ -7,6 +7,27 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-local & steam-cartridges: SOVEREIGN.ini emulator achievements, PSerban93/Achievements research & core provider integration (2026-10-08)**:
+  - *SOVEREIGN.ini Support (steam-cartridges-local)*:
+    - Added parsing, tracking, and resetting for `SOVEREIGN.ini` save files (Format B `[Achievements]` with Unix timestamps, numeric/boolean flags, and interspersed comments/metadata).
+    - Verified against *WUCHANG: Fallen Feathers* at `D:\Games\WUCHANG - Fallen Feathers\Engine\Binaries\ThirdParty\Steamworks\Steamv155\Win64\SOVEREIGN.ini` (`AppID=2277560`, shortcut AppID `3135033888`).
+    - Added UTF-16LE, UTF-16BE BOM, and UTF-8 BOM encoding normalizer in `ini_parser.lua`.
+    - Implemented game executable parent traversal and automatic shortcuts mapping (`shortcuts.vdf` binary parser, 64-bit SteamID to 32-bit account id conversion, `steam_store.json` lookup) in `file_search.lua`.
+    - Integrated expanded emulator discovery heuristics inspired by PSerban93/Achievements (Tenoke `user_stats.ini`, Online-Fix `Stats.ini`, SkidRow, EMPRESS, RELOADED `RLD!`, SmartSteamEmu, and UniverseLAN).
+    - Added safe reset mechanism with timestamped `.bak` creation and unlock zeroing while preserving section headers and comments.
+  - *Core Provider Integration (steam-cartridges)*:
+    - Wired `ExtensionRegistry.getAchievementProviders()` into `app/achievements.ts` (Phase 1 of extension system plan):
+      - `load`: dynamically merges unlocks discovered by extension achievement providers into the record.
+      - `checkNow`: polls and detects newly unlocked achievements from extension providers, emitting `achievements.unlocked` and triggering native toasts/announcements.
+      - `resetSources`: queries extension providers and includes them in the Reset Achievements dialog.
+      - `reset`: triggers provider `reset` when selected, creating backups and resetting offline emulator save files.
+      - Passed `shortcutData` from `sensors/shortcuts` to `AppContext` without violating capability ratchet rules.
+    - Updated `category-policy.ts` to include portable category 22 (Achievements) when a shortcut record has achievements, rebadging Game Info on `record.updated`.
+    - Fixed Millennium RPC argument encoding in `steam-cartridges-local` (`{ payload: JSON.stringify(...) }`).
+  - *Verification*:
+    - Unit tests: 334 TypeScript unit tests (0 failures), 12 Lua test suites, 7 ini parser tests, 4 file search tests (100% PASS).
+    - Deployed and live verified via CDP: all 5 plugins loaded without errors, `test_nav_cycle.js` 100% PASS, `check_all_tabs.js` 100% PASS, live Wuchang probe successfully detects `SOVEREIGN.ini` at `D:\Games\WUCHANG - Fallen Feathers\Engine\Binaries\ThirdParty\Steamworks\Steamv155\Win64\SOVEREIGN.ini`.
+
 - **steam-cartridges-third-party & steam-cartridges: Pool Blitz UWP presenter fixes, sensor telemetry, duplicate shortcut elimination & Guardrail 22 (2026-10-07)**:
   - *UWP Presenter Engine (Pool Blitz) Diagnosed & Resolved*:
     - **COM CLSID Typo**: Corrected Windows SDK `IApplicationActivationManager` CLSID to `45BA127D-10A8-46EA-8AB7-56EA9078943C`; activation returns `S_OK`.

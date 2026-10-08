@@ -61,7 +61,7 @@ import { bus } from "./app/bus";
 import { installViewSensor } from "./sensors/view";
 import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
-import { listShortcuts, shortcutTitle } from "./sensors/shortcuts";
+import { listShortcuts, shortcutTitle, shortcutData } from "./sensors/shortcuts";
 import { watchProgressCache } from "./sensors/progress-cache";
 import { watchInstalls } from "./sensors/installs";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
@@ -215,6 +215,8 @@ const achievements = createAchievements({
     launchPolicy: () => setting("localAchievementsNotifyOnLaunch"),
     observerEnabled: () => features.isEnabled("achievements-observer"),
     stores,
+    providers: () => (window as any).SteamCartridges?.getAchievementProviders?.() ?? [],
+    shortcutData: (appid) => shortcutData(appid),
     now: () => Date.now(),
 });
 
@@ -495,6 +497,14 @@ async function init() {
     // Record-driven surfaces (sections, native-links, captures; plan § 7.0 D4) render on a
     // timer after record.updated, never from inside a Steam render (plan § 7.0 D5).
     bus.on("record.updated", ({ appid, parts }) => renderQueue.push(appid, parts));
+    // When achievements load (or reload) for a shortcut that already has metadata, re-derive the
+    // badge_category_ids so the Achievements tag (22) is added/removed in the game-info surface
+    // without waiting for a full metadata refresh. Analogous to controller.onLoaded → metadata.rebadge.
+    bus.on("record.updated", ({ appid, parts }) => {
+        if (parts.includes("achievements") && records.store.get(appid)?.metadata?.data) {
+            metadata.rebadge(appid);
+        }
+    });
     // The record must exist before anything writes a part to it (kernel/record.ts update()
     // is a no-op for an unknown appid); every view ensures its base record first.
     bus.on("shortcut.viewed", ({ appid }) => records.ensureBase(appid, shortcutTitle(appid) ?? ""));

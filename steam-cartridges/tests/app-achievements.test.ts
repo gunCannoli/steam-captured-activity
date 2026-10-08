@@ -372,3 +372,83 @@ test('the paint (noNetwork) asks the disk only, in the view lane, and an answer 
     await ach.ensure(SC, { bucket: 'web-scraping', via: 'default' }, { noNetwork: true });
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, { A: { unlocked_time: 3 } }, 'stored data paints the record');
 });
+
+test('extension achievement provider contributes unlocks and handles reset (ADR-0013 / ADR-0062)', async () => {
+    const bus = createEventBus();
+    const records = createRecordStore(bus);
+    records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: 'game.exe' });
+
+    let providerResetCalled = false;
+    const mockProvider = {
+        id: 'steam-cartridges-local',
+        name: 'Local Steam Emulators (.ini / .json)',
+        match: (ctx: any) => ctx.appid === SC,
+        getUnlocks: async () => [{ id: 'A', unlockedAt: 12345 }],
+        reset: async () => {
+            providerResetCalled = true;
+            return { ok: true, cleared: 1, backupPath: 'backup.bak' };
+        },
+    };
+
+    const unlockedEvents: any[] = [];
+    bus.on('achievements.unlocked', (e) => unlockedEvents.push(e));
+
+    const ach = createAchievements({
+        backend: {
+            async ensureFresh() {
+                return { appid: SC, parts: { achievements: { status: 'ok', data: { schema: SCHEMA, unlocks: {} } } } };
+            },
+            async checkUnlocks() {
+                return { new_unlocks: [] };
+            },
+            async resetAchievements(_appid: number, _opts: any) {
+                return { ok: true, sources: [] };
+            },
+            async resetAchievementSources() {
+                return { sources: [] };
+            },
+            async steamStoreGetMapping() {
+                return { mapping: { steam_appid: 77 } };
+            },
+        } as any,
+        records,
+        bus,
+        ensureBase: () => {},
+        titleOf: () => 'Game',
+        routeOf: () => ({ bucket: 'web-scraping', via: 'default' }),
+        hardcore: () => true,
+        launchPolicy: () => 'off',
+        observerEnabled: () => true,
+        providers: () => [mockProvider],
+        shortcutData: () => ({ strAppName: 'Game', szExe: 'D:/game/game.exe' }),
+        now: () => 1000,
+    });
+
+    // 1. Ensure/Load merges provider unlocks into record
+    const part = await ach.ensure(SC, { bucket: 'web-scraping', via: 'default' });
+    assert.equal(part.status, 'ok');
+    assert.deepEqual(part.data?.unlocks, { A: { unlocked_time: 12345 } });
+
+    // 2. checkNow finds newly added provider unlocks if another is unlocked
+    mockProvider.getUnlocks = async () => [
+        { id: 'A', unlockedAt: 12345 },
+        { id: 'B', unlockedAt: 67890 },
+    ];
+    const newCount = await ach.checkNow(SC);
+    assert.equal(newCount, 1);
+    assert.equal(unlockedEvents.length, 1);
+    assert.deepEqual(unlockedEvents[0].ids, ['B']);
+    assert.equal(records.get(SC)?.achievements?.data?.unlocks['B']?.unlocked_time, 67890);
+
+    // 3. resetSources discovers the extension provider
+    const sources = await ach.resetSources(SC);
+    assert.equal(sources.length, 1);
+    assert.equal(sources[0].id, 'steam-cartridges-local');
+    assert.equal(sources[0].unlocked, 2);
+
+    // 4. reset triggers provider reset
+    const res = await ach.reset(SC, ['steam-cartridges-local']);
+    assert.equal(res.ok, true);
+    assert.equal(providerResetCalled, true);
+    assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, {});
+});

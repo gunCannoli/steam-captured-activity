@@ -2,13 +2,13 @@
   "name": "steam-cartridges-local",
   "version": "0.1.0",
   "private": true,
-  "description": "Reads and manages local achievements from .ini/text files used by Steam emulator-style setups (CODEX, RUNE, GSE, Goldberg).",
+  "description": "Reads and manages local achievements from .ini/text files used by Steam emulator-style setups (CODEX, RUNE, GSE, Goldberg, SOVEREIGN).",
   "scripts": {
     "check": "tsc --noEmit",
     "build": "millennium-ttc --build prod",
     "build:dev": "millennium-ttc --build dev",
     "dev": "powershell -ExecutionPolicy Bypass -File dev.ps1",
-    "test": "lua tests/test_ini_parser.lua"
+    "test": "lua tests/test_ini_parser.lua && lua tests/test_file_search.lua"
   },
   "dependencies": {
     "@steambrew/client": "^5.8.5"

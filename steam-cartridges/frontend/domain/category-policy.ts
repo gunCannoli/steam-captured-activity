@@ -2,9 +2,9 @@
  * Which Steam store categories a shortcut may carry (parity plan Part F,
  * ADR-0038). A shortcut is not a Steam licence, so it shows only what is true
  * of the game itself: who can play it and which controllers it supports.
- * Steam services (Achievements, Cloud, Trading Cards, Workshop, Remote Play,
- * Family Sharing, Steam Input API, ...) belong to the Steam copy and are never
- * written. Pure, `import type` only, so Node can run the unit tests.
+ * Steam services that require a Steam licence (Cloud, Trading Cards, Workshop,
+ * Remote Play Together, Family Sharing, Steam Input API, ...) are never written.
+ * Pure, `import type` only, so Node can run the unit tests.
  *
  * Ids verified live 2026-09-25 against the badge table of Steam's Game Info
  * (FeaturesList) and StoreItemCache's three category groups
@@ -51,22 +51,34 @@ export function inferredControllerIds(ctx: ControllerContext = {}): number[] {
 /**
  * The category ids to write for one game. Steam's own ids win when the Steam
  * Store supplied them (exact); otherwise the flags of local / web metadata are
- * mapped. `achievements` and `remote_play_together` are Steam services and are
- * never mapped (ADR-0038).
+ * mapped. `remote_play_together` is a Steam service and is never mapped (ADR-0038).
  *
- * Controller precedence (ADR-0038 addendum): the user's override for the game (Game Data editor, Library Audit)
- * > Steam Store data > emulator
- * inference > the default setting > no badge. Steam Store data is
- * `store_category_ids` or the explicit flags of a `source: 'steam-store'`
- * record. Local and IGDB records carry no controller data (web_igdb.lua and
- * the fallback record always write `full_controller = true`), so their
- * controller flags are ignored.
+ * Achievements (22): written for non-store sources when `hasAchievements` is true —
+ * i.e. the record has at least one achievement from any source (RetroAchievements,
+ * Epic, Xbox, local emulator saves). Factual: the game has achievements. When the
+ * Steam Store supplied `store_category_ids`, category 22 passes through unmodified
+ * (the store already included it when appropriate).
+ *
+ * Split-screen and co-op are independent properties:
+ * - `coop: true` → Co-op (9), from scraped fields like "Co-op" / "Co-operative play"
+ * - `split_screen: true` → Shared/Split Screen (24)
+ * - both → also Shared/Split Screen Co-op (39)
+ * Split-screen alone does NOT imply co-op; a racing game may have split-screen
+ * competition without cooperative play.
+ *
+ * Controller precedence (ADR-0038 addendum): the user's override for the game
+ * (Game Data editor, Library Audit) > Steam Store data > emulator inference >
+ * the default setting > no badge. Steam Store data is `store_category_ids` or the
+ * explicit flags of a `source: 'steam-store'` record. Local and IGDB records carry
+ * no controller data (web_igdb.lua and the fallback record always write
+ * `full_controller = true`), so their controller flags are ignored.
  */
 export function badgeCategoryIds(
     meta: { categories?: GameCategories; store_category_ids?: unknown; source?: string },
     controller: ControllerContext = {},
+    opts: { hasAchievements?: boolean } = {},
 ): number[] {
-    return withControllerOverride(badgeIdsWithoutOverride(meta, controller), controller.override);
+    return withControllerOverride(badgeIdsWithoutOverride(meta, controller, opts), controller.override);
 }
 
 /** A manual choice replaces whatever controller badge the sources gave, Steam Store data included; 'auto' and unset leave it. */
@@ -79,17 +91,24 @@ function withControllerOverride(ids: number[], override: ControllerContext['over
 function badgeIdsWithoutOverride(
     meta: { categories?: GameCategories; store_category_ids?: unknown; source?: string },
     controller: ControllerContext,
+    opts: { hasAchievements?: boolean },
 ): number[] {
-    if (Array.isArray(meta.store_category_ids)) return portableCategoryIds(meta.store_category_ids);
+    if (Array.isArray(meta.store_category_ids)) {
+        // Steam Store ids are used verbatim (they already include 22 when the game has achievements).
+        // hasAchievements does not add it again on top of the store answer.
+        return portableCategoryIds(meta.store_category_ids);
+    }
     const c = meta.categories ?? {};
     const ids: number[] = [];
     if (c.single_player) ids.push(2);
     if (c.multiplayer) ids.push(1);
     if (c.coop) ids.push(9);
     if (c.split_screen) {
-        ids.push(24);
-        if (c.coop) ids.push(39);
+        ids.push(24); // Shared/Split Screen
+        if (c.coop) ids.push(39); // Shared/Split Screen Co-op — only when both flags are set
     }
+    // Achievements (22): factual — the record has at least one achievement from any source.
+    if (opts.hasAchievements) ids.push(22);
     if (meta.source === 'steam-store') {
         if (c.full_controller === true) ids.push(28);
         if (c.partial_controller === true) ids.push(18);
