@@ -33,7 +33,7 @@ const r = await s.evaluate(`(() => {
     if (!w || w.closed) continue; if (n.startsWith('gamepadoverlay')) o.ov = (o.ov ?? '') + n + ';';
     else if (n.startsWith('SP BPM')) o.bp = w.document.visibilityState + ',focus=' + w.document.hasFocus() + ',hidden=' + w.document.hidden; }
     return o; };
-  store.PopNextToastNotification = function (ctx) { const n = curPop.apply(this, arguments); log.push({ t: at(), ev: 'pop', ctx: ctx ?? null, eType: n?.eType ?? null, loc: loc() }); return n; };
+  store.PopNextToastNotification = function (ctx) { const n = curPop.apply(this, arguments); log.push({ t: at(), ev: "pop", ctx: ctx ?? null, eType: n?.eType ?? null, resolver: typeof n?.fnNotificationResolved, dur: n?.nToastDurationMS ?? null, loc: loc() }); return n; };
   window.__dtLoc = loc;
   undo.push(() => { if (prevPop) store.PopNextToastNotification = prevPop; else delete store.PopNextToastNotification; });
   const last = {};

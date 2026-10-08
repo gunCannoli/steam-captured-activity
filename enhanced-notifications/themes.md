@@ -62,8 +62,8 @@ key is ignored ([ADR-0052](../docs/decisions.md#adr-0052-one-theme-one-look-achi
 | --- | --- |
 | `default`, `categories`, `types` | The style keys at the top level |
 | `display_time_ms` at the top level | `settings.display_time_ms` |
-| `logo: { visible, radius }` | `popup_icon: [visible, scale_pct, radius]` |
-| `game_icon: [visible, radius]` | `popup_icon: [visible, scale_pct, radius]` (still read, as scale 100, with a warning) |
+| `logo: { visible, radius }` | `popup_icon: [true / false, scale %, radius px]` |
+| `game_icon: [true / false, radius px]` | `popup_icon: [true / false, scale %, radius px]` (still read, as scale 100, with a warning) |
 | `themes` at the top level (an Enhanced Achievements file) | The tiers in `achievements` |
 | `achievements.settings` | The theme's `settings`; its `layout` is `achievements.layout` |
 | `achievements.tiers` / `achievements.themes` | The tiers directly in `achievements` |
@@ -111,7 +111,7 @@ At the top level of the theme.
 | `popup.layout` | A [layout](#achievementslayout) | Banner only, for now. `achievements.layout` wins over it |
 | `font_family` | `"Name, Fallback"` | Plain font names only |
 | `text.title` / `text.body` / `text.subtext` | `["#hex", size_pct, "bold"\|"regular"\|"italic"]` | Size is relative to Steam's default. The banner uses `title` for the achievement's name and `body` for its description |
-| `popup_icon` | `[visible, scale_pct, radius_px]` or `true` / `false` | The icon on the left of the toast (Steam picks it by type: the game's icon, a friend's avatar, a download or screenshot icon); its size (25-200 %, 100 is Steam's; the text moves over) and rounded corners (Steam's is square) |
+| `popup_icon` | `[true / false, scale %, radius px]` or `true` / `false` (`true` = Steam's icon, `false` = hidden) | The icon on the left of the toast (Steam picks it by type: the game's icon, a friend's avatar, a download or screenshot icon); its size (25-200 %, 100 is Steam's; the text moves over) and rounded corners (Steam's is square) |
 | `header_icon` | `true` / `false` | Small icon before the title |
 | `sound` | `["path", volume_pct]` or `false` | Every notification's sound (achievements too, unless their tier has its own); `false` mutes them; see File paths; `.mp3`, `.wav`, `.ogg` |
 

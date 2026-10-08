@@ -177,16 +177,17 @@ function fontFamily(v: unknown): string | null {
 const NO_ICON: ResolvedStyle['popupIcon'] = { visible: null, scalePct: null, radius: null };
 
 /**
- * `popup_icon`: `[visible, scale %, radius px]`, or a bare `visible`. The older `game_icon: [visible, radius]` still
+ * `popup_icon`: `[true / false, scale %, radius px]` (true shows Steam's icon, false hides it), or a bare true / false.
+ * The older `game_icon: [true / false, radius]` still
  * works (scale 100) with a warning, so themes written for it keep their look.
  */
 function popupIcon(raw: unknown, legacy: unknown, warnings: string[]): ResolvedStyle['popupIcon'] {
     if (raw === undefined || raw === null) {
         if (legacy === undefined || legacy === null) return NO_ICON;
-        warnings.push('"game_icon" is now "popup_icon": [visible, scale_pct, radius]; read as scale 100.');
+        warnings.push('"game_icon" is now "popup_icon": [true / false, scale %, radius px]; read as scale 100.');
         if (typeof legacy === 'boolean') return { ...NO_ICON, visible: legacy };
         if (Array.isArray(legacy)) return { visible: bool(legacy[0]), scalePct: null, radius: num(legacy[1], 0, 100) ?? null };
-        warnings.push('game_icon must be [visible, radius] or true / false; ignored.');
+        warnings.push('game_icon must be [true / false, radius px] or true / false; ignored.');
         return NO_ICON;
     }
     if (typeof raw === 'boolean') return { ...NO_ICON, visible: raw };
@@ -195,7 +196,7 @@ function popupIcon(raw: unknown, legacy: unknown, warnings: string[]): ResolvedS
         const scale = num(raw[1], 25, 200);
         return { visible: bool(raw[0]), scalePct: scale === undefined || scale === 100 ? null : scale, radius: num(raw[2], 0, 100) ?? null };
     }
-    warnings.push('popup_icon must be [visible, scale_pct, radius] or true / false; ignored.');
+    warnings.push('popup_icon must be [true / false, scale %, radius px] or true / false; ignored.');
     return NO_ICON;
 }
 
@@ -264,7 +265,7 @@ const GONE: Record<string, string> = {
     categories: '"categories" is gone: one style for every notification, with its keys at the top level; ignored.',
     types: '"types" is gone: one style for every notification, with its keys at the top level; ignored.',
     display_time_ms: 'display_time_ms moved into "settings"; ignored here.',
-    logo: '"logo" is now "popup_icon": [visible, scale_pct, radius]; ignored.',
+    logo: '"logo" is now "popup_icon": [true / false, scale %, radius px]; ignored.',
     themes: '"themes" (an Enhanced Achievements theme) is gone: put its tiers in "achievements" (achievements.normal, ...); ignored.',
 };
 

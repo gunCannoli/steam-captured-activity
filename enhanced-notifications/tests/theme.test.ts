@@ -137,7 +137,7 @@ test('one style for every notification; the old per-type blocks warn and are ign
     assert.equal(resolveTheme({ settings: { display_time_ms: 3000 } }).displayTimeMs, 3000);
 });
 
-test('popup_icon: [visible, scale, radius] or a bare visible; game_icon still read; the old "logo" warns and is ignored', () => {
+test('popup_icon: [true / false, scale, radius] or a bare true / false; game_icon still read; the old "logo" warns and is ignored', () => {
     assert.deepEqual(resolveTheme({ popup_icon: [true, 150, 4] }).style.popupIcon, { visible: true, scalePct: 150, radius: 4 });
     assert.deepEqual(resolveTheme({ popup_icon: [true, 100, 8] }).style.popupIcon, { visible: true, scalePct: null, radius: 8 }, '100 % is Steam\'s size: no rule');
     assert.deepEqual(resolveTheme({ popup_icon: false }).style.popupIcon, { visible: false, scalePct: null, radius: null });
