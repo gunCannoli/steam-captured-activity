@@ -1,9 +1,12 @@
 // Consistency plan stage A (docs/plans/enhanced-notifications-consistency-plan.md § 5, A2/A3). Hold the Steam lock; Big Picture with a game running.
 // Usage: node tests/probes/ingame-views.mjs <ms> "TestAchievement(435150);TestDownloadComplete(435150)" [out]
+// DELAY_MS=8000 waits before it starts, so the game can be brought to the front (run from a terminal, the terminal has focus).
 // A2: trace both Big Picture toast views (Big Picture's own and the game overlay's) while a game runs.
 import { connect } from "../cdp.mjs";
 import { writeFileSync } from "node:fs";
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const delay = Number(process.env.DELAY_MS ?? 0);
+if (delay) { console.log(`starting in ${delay / 1000} s: bring the game to the front`); await wait(delay); }
 const s = await connect();
 const ms = Number(process.argv[2] ?? 20000);
 const fires = (process.argv[3] ?? "TestDownloadComplete(435150);TestAchievement(435150)").split(";");
@@ -56,10 +59,11 @@ const r = await s.evaluate(`(() => {
   return JSON.stringify(views.map((v) => v.tag + ':' + v.view?.name));
 })()`);
 console.log("views:", r);
-for (const f of fires) { await s.evaluate(`(window.__dt.push({ t: window.__dtAt(), ev: "mark", val: ${JSON.stringify(f)}, loc: window.__dtLoc() }), NotificationStore.${f}, true)`); await wait(200); continue;
+for (const f of fires) { await s.evaluate(`(window.__dt.push({ t: window.__dtAt(), ev: "mark", val: ${JSON.stringify(f)}, loc: window.__dtLoc(), focused: [...SteamUIStore.WindowStore.SteamUIWindows].map((w) => w?.m_CompositionStateStore?.m_currentlyFocusedAppid?.Value).find((v) => typeof v === "number") ?? null }), NotificationStore.${f}, true)`); await wait(200); continue;
   await s.evaluate(`(window.__dt.push({ t: window.__dtAt(), ev: 'mark', val: ${JSON.stringify(f)} }), NotificationStore.${f}, true)`); await wait(7000); }
 await wait(Math.max(0, ms - fires.length * 7000));
 const log = JSON.parse(await s.evaluate(`(() => { for (const u of window.__dtUndo.reverse()) try { u(); } catch {} return JSON.stringify(window.__dt); })()`));
 writeFileSync(out, log.map((e) => JSON.stringify(e)).join("\n"));
-console.log(log.length, "events ->", out);
+console.log(log.length, "events ->", String(out));
+console.log("focused at each mark:", log.filter((e) => e.ev === "mark").map((e) => e.focused).join(", "));
 s.close();
