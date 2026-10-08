@@ -1485,6 +1485,13 @@ Investigation and fix: [enhanced-notifications-bigpicture-toast-fix-plan.md](htt
   size. Anything of a toast still opaque at that moment flashes in the top-left corner (stock content is already at
   opacity 0). Toast-sound types: types 14 and 56 have no `sound` in their config (silent in stock Steam). The screenshot
   shutter is `OnScreenshotStarted` -> `PlayNavSound(Screenshot)`, not a toast sound.
+- **Which app has focus (verified live 2026-10-08).** Steam's own record is the focus-change event
+  (`SteamClient.System.UI.RegisterForFocusChangeEvents`: `{ focusedApp: { appid, pid, windowid, strExeName },
+  rgFocusable: [...] }`). Each Big Picture window keeps its appid as
+  `SteamUIStore.WindowStore.SteamUIWindows[i].m_CompositionStateStore.m_currentlyFocusedAppid.Value`. When no window
+  has the Windows foreground (for example a minimised RDP client), the focused app is 413080, "Steam Controller Configs -
+  Desktop", even with a game running. `document.visibilityState` of the Big Picture window is not a reliable "game in
+  front" signal: it is CEF's occlusion state and flips with the desktop (ADR-0064).
 - **Hidden window.** While the Big Picture window is not in front (`document.visibilityState === "hidden"`), the
   placeholder does not call `SetVisible(true)` itself, its rAF stops, and CSS animations in the toast view never get
   a start time (the achievement banner stays at opacity 0). Live checks of toast visuals need Big Picture in

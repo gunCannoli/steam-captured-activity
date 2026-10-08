@@ -7,8 +7,11 @@
  * the one Big Picture's own view takes is drawn behind the game, never seen (docs/steam-components.md § Big Picture
  * toast view; consistency plan B3). `bFocusedLocation` is Steam's own switch for this (VR uses it), read by the
  * container on every render; the container re-renders on every toast arrival. So the prop becomes a getter that asks
- * where the user is looking at that moment: with a game overlay open and the Big Picture window hidden (the game in
- * front), only the overlay's container may pop; with the Big Picture window in front, only Big Picture's.
+ * which app has focus at that moment, from Steam's own focus tracking (`RegisterForFocusChangeEvents`, kept per window
+ * as `m_CompositionStateStore.m_currentlyFocusedAppid`): the game overlay's container (it carries the game's appid)
+ * pops only while that game has focus; Big Picture's own pops unless an overlay is open and a running game has focus.
+ * Not `document.visibilityState`: CEF's occlusion state follows Windows' desktop (a minimised RDP client leaves no
+ * foreground window and flips it either way), not the game (B3-loc runs, 2026-10-08).
  *
  * No imports: the kill switch comes in as a function, so `npm test` checks the decision and the getter with fakes.
  */
@@ -16,38 +19,57 @@
 export interface LocationState {
     /** A game overlay window exists (`gamepadoverlay_uid<pid>` in the popup manager). */
     overlayOpen: boolean;
-    /** The Big Picture window is in front (`document.visibilityState === 'visible'`). */
-    bigPictureVisible: boolean;
+    /** The app Steam says has focus (413080 "Steam Controller Configs - Desktop" when nothing does); null: unknown. */
+    focusedAppid: number | null;
+    /** Steam's running apps. */
+    runningAppids: readonly number[];
 }
 
 /**
- * Whether a container may pop. `overlay`: the game overlay's container (Steam gives it the game's appid), else Big
- * Picture's own. `steam`: Steam's own `bFocusedLocation`, never overridden to true. Never both blocked: without an
- * overlay Big Picture's container is free, and with one exactly one of the two follows the window in front.
+ * Whether a container may pop. `appid`: the game overlay's container carries its game's appid, Big Picture's own 0.
+ * `steam`: Steam's own `bFocusedLocation`, never overridden to true. Focus unknown: Steam's value. With one game
+ * running the two are never both blocked (two games, one focused, the other's overlay: that one waits, as before B3).
  */
-export function locationMayShow(overlay: boolean, steam: boolean, s: LocationState): boolean {
+export function locationMayShow(appid: number, steam: boolean, s: LocationState): boolean {
     if (!steam) return false;
-    if (overlay) return !s.bigPictureVisible;
-    return !(s.overlayOpen && !s.bigPictureVisible);
+    if (s.focusedAppid === null) return true;
+    if (appid) return s.focusedAppid === appid;
+    return !(s.overlayOpen && s.runningAppids.includes(s.focusedAppid));
 }
 
 interface PopupLike {
     m_strName?: string;
-    window?: { closed?: boolean; document?: { visibilityState?: string } } | null;
+    window?: { closed?: boolean } | null;
 }
 
-/** Where the user is looking now, from Steam's popup manager. A few popups, read on a container render only. */
+interface SteamUIWindowLike {
+    m_CompositionStateStore?: { m_currentlyFocusedAppid?: { Value?: unknown } };
+}
+
+interface SteamUIStoreLike {
+    WindowStore?: { SteamUIWindows?: Iterable<SteamUIWindowLike> };
+    RunningApps?: Iterable<{ appid?: unknown }>;
+}
+
+/** Which app has focus now, from Steam's popup manager and UI store. A few objects, read on a container render only. */
 export function readLocationState(): LocationState {
     const manager = Reflect.get(globalThis, 'g_PopupManager') as { GetPopups?: () => Iterable<PopupLike> } | undefined;
     let overlayOpen = false;
-    let bigPictureVisible = false;
     for (const p of manager?.GetPopups?.() ?? []) {
-        const name = p?.m_strName ?? '';
-        if (!p?.window || p.window.closed) continue;
-        if (name.startsWith('gamepadoverlay')) overlayOpen = true;
-        else if (name.startsWith('SP BPM') && p.window.document?.visibilityState === 'visible') bigPictureVisible = true;
+        if (p?.window && !p.window.closed && (p.m_strName ?? '').startsWith('gamepadoverlay')) overlayOpen = true;
     }
-    return { overlayOpen, bigPictureVisible };
+    const store = Reflect.get(globalThis, 'SteamUIStore') as SteamUIStoreLike | undefined;
+    let focusedAppid: number | null = null;
+    for (const w of store?.WindowStore?.SteamUIWindows ?? []) {
+        const v = w?.m_CompositionStateStore?.m_currentlyFocusedAppid?.Value;
+        if (typeof v === 'number') {
+            focusedAppid = v;
+            break;
+        }
+    }
+    const runningAppids: number[] = [];
+    for (const a of store?.RunningApps ?? []) if (typeof a?.appid === 'number') runningAppids.push(a.appid);
+    return { overlayOpen, focusedAppid, runningAppids };
 }
 
 /** Big Picture's toast containers are the only elements Steam creates with a boolean `bFocusedLocation`. O(1). */
@@ -65,14 +87,14 @@ export function routeLocationProps(props: unknown, enabled: () => boolean, state
     const desc = Object.getOwnPropertyDescriptor(props, 'bFocusedLocation');
     if (!desc || !desc.configurable || desc.get) return;
     const steam = desc.value as boolean;
-    const overlay = !!props.appid;
+    const appid = typeof props.appid === 'number' ? props.appid : 0;
     Object.defineProperty(props, 'bFocusedLocation', {
         configurable: true,
         enumerable: true,
         get(): boolean {
             if (!enabled()) return steam;
             try {
-                return locationMayShow(overlay, steam, state());
+                return locationMayShow(appid, steam, state());
             } catch {
                 return steam;
             }

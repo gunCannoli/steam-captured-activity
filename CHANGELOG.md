@@ -23,6 +23,13 @@ This repo is private and unversioned; entries are grouped by date.
     180/0. Live: every script passes alone; the full suite still hits the known stall (C5: one of three queue toasts
     vanishes, then no toast shows for a while), now B5 of the plan.
 
+- **enhanced-notifications B3: in-game toasts follow Steam's focused app (ADR-0064, 2026-10-08)**: the first version
+  of B3 used the Big Picture window's `document.visibilityState`, which flips with the Windows desktop (on this RDP
+  machine it read both `visible` and `hidden` while AM2R ran), so the first toast sometimes went to the view behind the
+  game. B3 now reads Steam's own focus tracking (`m_currentlyFocusedAppid`; 413080 "Steam Controller Configs - Desktop"
+  when nothing has focus). Unit tests 185/0. Live with nothing focused: both toasts go one after another to Big Picture's
+  view, consistently. The in-game check with the game focused is still open (needs the user at the screen).
+
 - **steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08)**,
   [plan](docs/plans/steam-cartridges-local-emulator-split-plan.md) phases 1-5:
   - *Why:* the core still read CODEX/RUNE/GSE/Goldberg saves and Unity/Godot/Unreal logs itself, duplicating the local

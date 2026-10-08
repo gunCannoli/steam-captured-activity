@@ -3521,3 +3521,36 @@ steam-cartridges-local read the same saves and more. The core asked every extens
 - The Reset dialog lists `steam-cartridges-local` under the provider's own id and label.
 - Engine-log unlocks detected before the move are kept (they are in `achievements.json`); their old offsets in the core's
   `log_offsets.json` become unused.
+
+## ADR-0064: In game, Big Picture toasts go to the view of the focused app (enhanced-notifications)
+
+**Status:** Accepted · 2026-10-08 (consistency plan B3; the user asked for in-game toasts to stop disappearing) · kill switch `location`
+
+### Context
+
+With a game running in Big Picture, Steam has two toast containers that share one queue: Big Picture's own view and
+the game overlay's view. Outside VR, Steam passes both `bFocusedLocation: true`, so two toasts that arrive close
+together are split between them. The one that lands in Big Picture's view is drawn behind the game and never seen
+([steam-components.md § Big Picture toast view](steam-components.md#big-picture-toast-view-how-steam-places-and-shows-it)).
+`bFocusedLocation` is Steam's own switch for this case (VR uses it). Each container reads it on every render, and it
+re-renders on every toast arrival.
+
+### Decision
+
+1. enhanced-notifications changes Steam's in-game routing: the containers' `bFocusedLocation` becomes a getter
+   (`steam/toast-location.ts`, the only owner). It can only turn Steam's `true` into `false`, never the other way.
+2. "Where the user is looking" is the app Steam says has focus (`RegisterForFocusChangeEvents`, kept per window as
+   `m_CompositionStateStore.m_currentlyFocusedAppid`). The overlay container carries its game's appid and pops only
+   while that game has focus. Big Picture's own container pops unless an overlay is open and a running game has focus.
+   If the focused app cannot be read, Steam's value is used.
+3. Not `document.visibilityState`, which the first version used. That flag is CEF's occlusion state and follows the
+   Windows desktop, not the game: with the RDP client minimised there is no foreground window, and the flag read both
+   `visible` and `hidden` (even `hidden` together with `focus=true`) while AM2R ran (`scratch/en-spikes/B3-loc*`).
+
+### Consequences
+
+- Toasts in game are shown one after another in the overlay view instead of being split, and none lands behind the game.
+- When nothing has focus (Steam reports 413080, "Steam Controller Configs - Desktop"), toasts go to Big Picture's
+  view, which is Steam's own choice for the first toast.
+- With two games running, a toast for the game without focus waits until focus changes, as it would without B3.
+- `location` off restores Steam's routing exactly.

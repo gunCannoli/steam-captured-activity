@@ -1,6 +1,6 @@
 # Plan: enhanced-notifications, Big Picture in-game bugs and a consistency pass
 
-**Status:** stage A run 2026-10-08 (§ 7); B1 and B2 implemented and verified in game the same day (`c8778db`, `fc4939b`); B3-B7 open (§ 6b). **Baseline commit:** `f6b1cdb`.
+**Status:** stage A run 2026-10-08 (§ 7); B1 and B2 implemented and verified in game the same day (`c8778db`, `fc4939b`); B3 implemented (ADR-0064, `e575ace`; focus signal corrected the same day), its in-game check with a focused game left to the user; B4-B7 open (§ 6b). **Baseline commit:** `f6b1cdb`.
 **Shape:** this is a big task, so it is a two-stage plan, as for the Theme Creator. Stage A (§ 5) is evidence: spikes with
 exact commands and what each result means. Stage B (§ 6) is the fix phases. Each gets its own mechanical plan, with
 before/after blocks, written only once its spike has run, because the root causes below are hypotheses until then.
@@ -248,7 +248,13 @@ Each phase gets its own mechanical plan before any code; the order is by user im
    every toast window. The pop does not say which container called it (both pass context 0), so its plan starts with a
    spike that ties a pop to its container (that container's `SetVisible(true)` right after the pop, or the toast
    element's fiber `notification` in that view, read at Steam's `onShown`).
-3. **B3. In-game toasts are never hidden behind the game** (H1e; "only one shows"). Options for its plan: while a game
+3. **B3. Implemented 2026-10-08 (ADR-0064); verified only with nothing focused. In-game toasts are never hidden behind the game** (H1e; "only one shows").
+   Done through Steam's own `bFocusedLocation` (a getter, `steam/toast-location.ts`). The first version decided by
+   the Big Picture window's `document.visibilityState`. That flag flipped while AM2R ran (B3-loc1-5: `hidden` in
+   runs 1-3, `visible` in 4-5, with no foreground window on the minimised RDP session), so it now decides by Steam's
+   focused app (`m_currentlyFocusedAppid`). Runs 6-8: with focus on 413080 ("desktop"), both toasts go one after
+   another to Big Picture's view, every run. Still open: the same probe with the game focused (expect both in the
+   overlay view). Original notes: Options for its plan: while a game
    overlay toast container is mounted, keep Big Picture's own container from popping (it would show behind the game), so
    every toast goes to the overlay view one after another; or route through `AddAppOverlayNotification`. Needs a spike on
    how Steam's containers decide to pop (module `48197`, the Big Picture container and its display list) and an ADR,
@@ -256,6 +262,9 @@ Each phase gets its own mechanical plan before any code; the order is by user im
 4. **B4. Sounds as a schedule** (H3b/H3c). With B3 in place, toasts are serial in game; then space a chime that would land
    inside a tier clip (or shorten the clip), and normalise clip volume against Steam's chime. Pure decision module.
 5. **B5. Queue across views** (C5): the notifications queue counts toasts on screen in every container (follows from B3).
+   Lead: in B3-loc6 a toast in Big Picture's hidden window had not been hidden after 14 s and the next toast did not pop
+   (B3-loc8, same state: 4.6 s, normal). That fits Chromium throttling a hidden window's timers and animations. Check
+   whether the full live suite's stall happens with the RDP client minimised.
 6. **B6. Verification**: an "in game" group in `run-live.mjs` from the new probes (SKIP without a running game whose
    overlay draws); A5 desktop timings; the two theme tests that already fail at `f6b1cdb` (`themes/steam_midnight.json`
    is missing since the theme reorganisation) fixed, or the test pointed at the bundled themes.

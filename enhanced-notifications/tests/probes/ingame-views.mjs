@@ -25,7 +25,13 @@ const r = await s.evaluate(`(() => {
   }
   const store = NotificationStore; const prevPop = Object.prototype.hasOwnProperty.call(store, 'PopNextToastNotification') ? store.PopNextToastNotification : null;
   const curPop = store.PopNextToastNotification;
-  store.PopNextToastNotification = function (ctx) { const n = curPop.apply(this, arguments); log.push({ t: at(), ev: 'pop', ctx: ctx ?? null, eType: n?.eType ?? null }); return n; };
+  // B3: what toast-location.ts reads at a pop (Big Picture window in front, overlay open), plus focus as a candidate.
+  const loc = () => { const o = {}; for (const p of g_PopupManager.GetPopups()) { const n = p.m_strName ?? ''; const w = p.window;
+    if (!w || w.closed) continue; if (n.startsWith('gamepadoverlay')) o.ov = (o.ov ?? '') + n + ';';
+    else if (n.startsWith('SP BPM')) o.bp = w.document.visibilityState + ',focus=' + w.document.hasFocus() + ',hidden=' + w.document.hidden; }
+    return o; };
+  store.PopNextToastNotification = function (ctx) { const n = curPop.apply(this, arguments); log.push({ t: at(), ev: 'pop', ctx: ctx ?? null, eType: n?.eType ?? null, loc: loc() }); return n; };
+  window.__dtLoc = loc;
   undo.push(() => { if (prevPop) store.PopNextToastNotification = prevPop; else delete store.PopNextToastNotification; });
   const last = {};
   const snap = () => { for (const v of views) {
@@ -50,7 +56,7 @@ const r = await s.evaluate(`(() => {
   return JSON.stringify(views.map((v) => v.tag + ':' + v.view?.name));
 })()`);
 console.log("views:", r);
-for (const f of fires) { await s.evaluate(`(window.__dt.push({ t: window.__dtAt(), ev: "mark", val: ${JSON.stringify(f)} }), NotificationStore.${f}, true)`); await wait(200); continue;
+for (const f of fires) { await s.evaluate(`(window.__dt.push({ t: window.__dtAt(), ev: "mark", val: ${JSON.stringify(f)}, loc: window.__dtLoc() }), NotificationStore.${f}, true)`); await wait(200); continue;
   await s.evaluate(`(window.__dt.push({ t: window.__dtAt(), ev: 'mark', val: ${JSON.stringify(f)} }), NotificationStore.${f}, true)`); await wait(7000); }
 await wait(Math.max(0, ms - fires.length * 7000));
 const log = JSON.parse(await s.evaluate(`(() => { for (const u of window.__dtUndo.reverse()) try { u(); } catch {} return JSON.stringify(window.__dt); })()`));

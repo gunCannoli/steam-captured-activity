@@ -1,26 +1,40 @@
 // Consistency plan B3: in game, a toast goes to the toast view the user can see (steam/toast-location.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isLocationProps, locationMayShow, routeLocationProps } from '../frontend/steam/toast-location.ts';
+import { isLocationProps, locationMayShow, routeLocationProps, type LocationState } from '../frontend/steam/toast-location.ts';
 
-const GAME_IN_FRONT = { overlayOpen: true, bigPictureVisible: false };
-const LIBRARY_WITH_GAME = { overlayOpen: true, bigPictureVisible: true };
-const NO_GAME = { overlayOpen: false, bigPictureVisible: true };
+const GAME = 4263274102;
+const DESKTOP = 413080; // "Steam Controller Configs - Desktop": Steam's focus when no window has it (B3-loc)
+const BIG_PICTURE = 769;
+const GAME_IN_FRONT: LocationState = { overlayOpen: true, focusedAppid: GAME, runningAppids: [GAME] };
+const LIBRARY_WITH_GAME: LocationState = { overlayOpen: true, focusedAppid: BIG_PICTURE, runningAppids: [GAME] };
+const NOTHING_FOCUSED: LocationState = { overlayOpen: true, focusedAppid: DESKTOP, runningAppids: [GAME] };
+const NO_GAME: LocationState = { overlayOpen: false, focusedAppid: BIG_PICTURE, runningAppids: [] };
+const UNKNOWN: LocationState = { overlayOpen: true, focusedAppid: null, runningAppids: [GAME] };
+const NO_OVERLAY: LocationState = { overlayOpen: false, focusedAppid: GAME, runningAppids: [GAME] };
+const ALL = [GAME_IN_FRONT, LIBRARY_WITH_GAME, NOTHING_FOCUSED, NO_GAME, UNKNOWN, NO_OVERLAY];
 
-test('location: with the game in front only the overlay container pops; in the library only Big Picture\'s', () => {
-    assert.equal(locationMayShow(false, true, GAME_IN_FRONT), false, "Big Picture's own view is behind the game");
-    assert.equal(locationMayShow(true, true, GAME_IN_FRONT), true);
-    assert.equal(locationMayShow(false, true, LIBRARY_WITH_GAME), true, 'Big Picture in front: its own view');
-    assert.equal(locationMayShow(true, true, LIBRARY_WITH_GAME), false);
-    assert.equal(locationMayShow(false, true, NO_GAME), true, 'no game: Steam as before');
-    assert.equal(locationMayShow(false, true, { overlayOpen: false, bigPictureVisible: false }), true, 'no overlay: never blocked');
+test('location: with the game focused only its overlay container pops; otherwise Big Picture\'s', () => {
+    assert.equal(locationMayShow(0, true, GAME_IN_FRONT), false, "Big Picture's own view is behind the game");
+    assert.equal(locationMayShow(GAME, true, GAME_IN_FRONT), true);
+    assert.equal(locationMayShow(0, true, LIBRARY_WITH_GAME), true, 'Big Picture focused: its own view');
+    assert.equal(locationMayShow(GAME, true, LIBRARY_WITH_GAME), false);
+    assert.equal(locationMayShow(0, true, NOTHING_FOCUSED), true, 'nothing focused (minimised RDP): Big Picture, as Steam');
+    assert.equal(locationMayShow(GAME, true, NOTHING_FOCUSED), false);
+    assert.equal(locationMayShow(0, true, NO_GAME), true, 'no game: Steam as before');
+    assert.equal(locationMayShow(0, true, NO_OVERLAY), true, 'no overlay: never blocked');
+});
+
+test('location: focus unknown gives Steam\'s value to both', () => {
+    assert.equal(locationMayShow(0, true, UNKNOWN), true);
+    assert.equal(locationMayShow(GAME, true, UNKNOWN), true);
 });
 
 test('location: never both blocked, and never turned on against Steam', () => {
-    for (const s of [GAME_IN_FRONT, LIBRARY_WITH_GAME, NO_GAME, { overlayOpen: false, bigPictureVisible: false }]) {
-        assert.ok(locationMayShow(false, true, s) || locationMayShow(true, true, s), JSON.stringify(s));
-        assert.equal(locationMayShow(false, false, s), false);
-        assert.equal(locationMayShow(true, false, s), false);
+    for (const s of ALL) {
+        assert.ok(locationMayShow(0, true, s) || locationMayShow(GAME, true, s), JSON.stringify(s));
+        assert.equal(locationMayShow(0, false, s), false);
+        assert.equal(locationMayShow(GAME, false, s), false);
     }
 });
 
@@ -34,8 +48,8 @@ test('location: only props with a boolean bFocusedLocation are containers', () =
 test('location: the prop becomes a live getter; the kill switch gives Steam\'s value', () => {
     let state = GAME_IN_FRONT;
     let enabled = true;
-    const bp: Record<string, unknown> = { appid: 0, bFocusedLocation: true };
-    const ov: Record<string, unknown> = { appid: 4263274102, bFocusedLocation: true };
+    const bp: Record<string, unknown> = { appid: undefined, bFocusedLocation: true };
+    const ov: Record<string, unknown> = { appid: GAME, bFocusedLocation: true };
     routeLocationProps(bp, () => enabled, () => state);
     routeLocationProps(ov, () => enabled, () => state);
     assert.equal(bp.bFocusedLocation, false);
