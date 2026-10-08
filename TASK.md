@@ -341,6 +341,12 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
+- **steam-cartridges-local owns every Steam API emulator and local-game source (planned 2026-10-08, nothing coded).** The core
+  still reads CODEX/RUNE/GSE/Goldberg saves and Unity/Godot/Unreal logs itself, and polls the local plugin with a full file
+  search every 2 s. Plan: extensions push unlocks (`reportUnlocks`, ADR-0063), the local plugin gets correct readers (Tenoke,
+  Online-Fix `Stats\`, hex INI, UTF-16 without BOM, `stats.bin`; ideas from PSerban93/Achievements) and its own watcher, then
+  the core loses every emulator name, enforced by a test. Phases 1-5 and optional 6-7:
+  [docs/plans/steam-cartridges-local-emulator-split-plan.md](docs/plans/steam-cartridges-local-emulator-split-plan.md).
 - **enhanced-notifications Theme Creator (designed 2026-10-04, nothing coded).** A big modal from the Theme section
   (above Reload): start from a bundled template, edit a user theme or start fresh; live in-modal preview of four toasts
   (chosen, random, achievement tiers, mixed) with sounds; "Test on screen" with real toasts; the 17 AI sound packs as a
