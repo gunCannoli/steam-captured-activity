@@ -16,12 +16,24 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08): phases 1-5 built and committed, offline-verified, not deployed.**
-[Plan](docs/plans/steam-cartridges-local-emulator-split-plan.md); history in [CHANGELOG.md](CHANGELOG.md). Next: plan § 11 live
-verification (deploy both plugins under the Steam lock, `test:live`, `window.SteamCartridges.version === "1.1.0"`, Wuchang page and
-Reset dialog; the user: a real unlock while playing). Then the Wuchang `SOVEREIGN.ini` investigation (the emulator wrote a key-less
-`=1` at 01:22; every launch since crashed 11 s after start). Optional follow-ups: plan phases 6 (core: Steam appcache schema, Xenia,
-shadPS4 layout) and 7 (local: progress, SOVEREIGN comment schema, mapping suggestion).
+**steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08): deployed (`-dev`, both plugins), partly live-verified.**
+[Plan](docs/plans/steam-cartridges-local-emulator-split-plan.md); history in [CHANGELOG.md](CHANGELOG.md). Live (agent, 11:31 restart): boot health PASS;
+`window.SteamCartridges.version` 1.1.0 with `reportUnlocks` / `onAppLaunched`; the local provider and panel registered; `LocalDetectFiles`
+finds Wuchang's `SOVEREIGN.ini` from the exe (0 unlocks), label "Local achievements (SOVEREIGN)"; `test:live` passes render loop,
+Properties, nav cycle, tabs, settings, F1, F2, audit. Next, in order:
+1. **`check_parity.mjs` 3 PASS / 14 FAIL** (Game Info, links, artwork, friends of the mapped shortcut 4202674849): it read the native page
+   left open by earlier tests (header links of 105600, then 435150), with Steam's desktop window hidden in the tray after the restart.
+   Re-run with the window open; if it still fails, bisect against `d4aa57e` (ADR-0063 does not touch those surfaces).
+2. **The user:** open Wuchang's page (no toast), Settings → Local achievements (one toggle), the Reset dialog lists "Local
+   achievements (SOVEREIGN)" (do not reset unless wanted); launch Wuchang from Steam and learn a discipline skill: expect Steam's toast
+   within ~2 s and the unlock in the Post-Game Summary.
+3. **Wuchang `SOVEREIGN.ini`**: the emulator wrote a key-less `=1` (CRLF, the only such line) at 01:22 with the first save; every launch
+   since crashed ~11 s after start (`SOVEREIGN.log`, UE crash report). Settled: AppID/SteamID are not the cause (saves in
+   `Saved/22202` = the emulator's SteamID), the list has all 40 achievements (Disciplinary Discipline = `ACH_COPPER_10_F`), Windows'
+   INI reader skips the `;` comments (tested). Open: the crash first (launch the exe outside Steam to rule out the overlay), then whether
+   a real unlock writes `ACH_COPPER_10_F=1` or another `=1`.
+4. Optional: plan phases 6 (core: Steam appcache schema, Xenia, shadPS4 layout) and 7 (local: progress, SOVEREIGN comment schema,
+   mapping suggestion).
 
 **steam-cartridges-local & steam-cartridges SOVEREIGN.ini achievements & core provider integration (2026-10-08): completed and live-verified.**
 - Implemented SOVEREIGN.ini parsing (Format B `[Achievements]` with Unix timestamps, numeric/boolean states, comment tolerance, and safe reset with `.bak` backups).
