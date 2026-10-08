@@ -19,6 +19,17 @@ export type TypeSignal = TypeSource | 'refresh';
 
 export const TYPE_SOURCES: readonly TypeSource[] = ['pop', 'shown', 'arrival', 'manual'];
 
+/**
+ * Whether a Big Picture toast view takes a new type (and its placeholder a new place) on `signal`. In game, Big Picture
+ * has two toast views fed from one queue (its own and the game overlay's; steam-components.md § Big Picture toast view),
+ * and a toast popped for one of them must not restyle the toast the other is showing: a busy view keeps its type until
+ * Steam hides it (found live 2026-10-08, consistency plan H1a). Only a theme or setting change re-applies to every view.
+ * `busy`: the view's placeholder is shown (Steam sets `display: none` on it while the view is idle).
+ */
+export function viewTakesType(signal: TypeSignal, busy: boolean): boolean {
+    return signal === 'refresh' || !busy;
+}
+
 /** Whether `signal` may set the current toast type under `source`. `popAvailable` false: `pop` falls back to `shown`. */
 export function takesSignal(source: TypeSource, signal: TypeSignal, popAvailable: boolean): boolean {
     if (signal === 'refresh') return true;

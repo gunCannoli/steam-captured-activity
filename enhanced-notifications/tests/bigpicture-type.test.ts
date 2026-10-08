@@ -4,7 +4,7 @@
 // must never restyle it (git show 9a7df2b:docs/plans/enhanced-notifications-bigpicture-toast-fix-plan.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { takesSignal, TYPE_SOURCES } from '../frontend/surfaces/style/type-source.ts';
+import { takesSignal, TYPE_SOURCES, viewTakesType } from '../frontend/surfaces/style/type-source.ts';
 import { installToastPop } from '../frontend/steam/toast-pop.ts';
 
 test('type source: by default an arriving toast never sets the type, the pop does', () => {
@@ -116,4 +116,12 @@ test('toast pop: two installs (another plugin, or the released and the -dev copy
         assert.equal(Object.prototype.hasOwnProperty.call(store, 'PopNextToastNotification'), false);
         assert.equal(proto.PopNextToastNotification, original);
     }
+});
+
+test('a Big Picture view busy with its own toast keeps its type; only a theme or setting change restyles it (consistency plan B2)', () => {
+    assert.equal(viewTakesType('pop', false), true, 'an idle view takes the popped toast');
+    assert.equal(viewTakesType('pop', true), false, 'the other view, showing its own toast, keeps it');
+    assert.equal(viewTakesType('shown', true), false);
+    assert.equal(viewTakesType('refresh', true), true, 'a theme change re-applies everywhere');
+    assert.equal(viewTakesType('refresh', false), true);
 });

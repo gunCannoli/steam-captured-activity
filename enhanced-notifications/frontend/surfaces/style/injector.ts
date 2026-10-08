@@ -9,7 +9,7 @@ import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
 import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
 import { installToastPop } from '../../steam/toast-pop';
-import { takesSignal, type TypeSignal } from './type-source';
+import { takesSignal, viewTakesType, type TypeSignal } from './type-source';
 
 /**
  * Styles Steam's toast windows without touching React.
@@ -101,6 +101,10 @@ const placeholderDocs = new Set<Document>();
 const toastWindows = new Set<Window>();
 /** Per-toast popups whose own notification type is known (./toast-window.ts). */
 const ownTypes = new Map<Window, number>();
+/** Big Picture toast views and the placeholder each follows (one per view: Big Picture's own and, in game, the overlay's). */
+const viewPlaceholders = new Map<Window, HTMLElement>();
+/** The signal being applied, so a view busy with its own toast keeps its type (./type-source.ts viewTakesType). */
+let applying: TypeSignal = 'refresh';
 let windowCss = '';
 let currentType: string | null = null;
 /** The eType behind `currentType`, so a theme or setting refresh keeps a debug type source's choice (./bp-debug.ts). */
@@ -141,10 +145,23 @@ function styledName(eType: number | undefined): string | null {
     return themeCss() !== '' || animationCss() !== '' ? name : null;
 }
 
+/** A placeholder is shown while its view shows a toast (Steam sets `display: none` on it while the view is idle). */
+function placeholderShown(el: Element): boolean {
+    const win = el.ownerDocument?.defaultView;
+    return !!win && el.isConnected && win.getComputedStyle(el).display !== 'none';
+}
+
+/** A Big Picture view is showing a toast. Read once per pop, never in a hot path (a style read, no layout). */
+function viewBusy(win: Window): boolean {
+    const el = viewPlaceholders.get(win);
+    return !!el && placeholderShown(el);
+}
+
 function applyType(win: Window): void {
     const body = win.document?.body;
     if (!body) return;
     const own = ownTypes.get(win);
+    if (own === undefined && viewPlaceholders.has(win) && !viewTakesType(applying, viewBusy(win))) return;
     const type = own === undefined ? currentType : styledName(own);
     if (bpTracing() && own === undefined && body.getAttribute('data-en-type') !== type) {
         bpLog('attr', { win: win.name, from: body.getAttribute('data-en-type'), to: type });
@@ -170,6 +187,7 @@ function forEachToastWindow(fn: (win: Window) => void): void {
         if (win.closed) {
             toastWindows.delete(win);
             ownTypes.delete(win);
+            viewPlaceholders.delete(win);
             continue;
         }
         try {
@@ -270,7 +288,9 @@ function scanBigPictureToastWindows(): void {
             const doc = popup.window?.document;
             if (!doc) continue;
             const placeholders = doc.querySelectorAll(placeholderSelector);
-            if (placeholders.length && doc.head) {
+            // A placeholder whose view shows its own toast keeps its place until Steam hides it (./type-source.ts).
+            const busy = [...placeholders].some(placeholderShown);
+            if (placeholders.length && doc.head && viewTakesType(applying, busy)) {
                 try {
                     applyPlacement(doc);
                 } catch (error) {
@@ -280,7 +300,10 @@ function scanBigPictureToastWindows(): void {
             for (const el of placeholders) {
                 const win = viewWindowFromFiber(el);
                 if (bpTracing()) bpLog('scan', { doc: doc.title, view: win?.name ?? null, placeholderDisplay: popup.window?.getComputedStyle(el).display });
-                if (win && !win.closed && /^notificationtoasts/i.test(win.name)) track(win);
+                if (win && !win.closed && /^notificationtoasts/i.test(win.name)) {
+                    viewPlaceholders.set(win, el as HTMLElement);
+                    track(win);
+                }
             }
         }
     } catch (error) {
@@ -297,8 +320,13 @@ function onCurrentToast(toast: CurrentToast | null | undefined, signal: TypeSign
     if (signal !== 'refresh') currentToast = toast ?? null;
     currentEType = toast?.eType;
     currentType = styledName(toast?.eType);
-    scanBigPictureToastWindows();
-    forEachToastWindow(applyType);
+    applying = signal;
+    try {
+        scanBigPictureToastWindows();
+        forEachToastWindow(applyType);
+    } finally {
+        applying = 'refresh';
+    }
 }
 
 function refresh(): void {
@@ -368,6 +396,7 @@ export function uninstallInjector(): void {
     currentToast = null;
     detachToastWindows();
     ownTypes.clear();
+    viewPlaceholders.clear();
     for (const doc of placeholderDocs) {
         try {
             doc.getElementById(PLACEMENT_ID)?.remove();
