@@ -16,7 +16,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**enhanced-notifications Big Picture in-game bugs and consistency: stage A done 2026-10-08, stage B next.** Findings ([plan § 7](docs/plans/enhanced-notifications-consistency-plan.md)):
+**enhanced-notifications Big Picture in-game bugs and consistency: stage A done; B1 (card leaves with the toast) and B2 (one type per view) deployed and verified in game 2026-10-08; B3-B7 next.** Left for the user: look at a themed toast leaving in game (no card left behind, no top-left flash). Next: B3 (in-game toasts never land behind the game: needs a decision, it changes Steam's routing), then B4 sounds, B5 queue stall (C5: still seen in the full live suite, every script passes alone). Findings ([plan § 7](docs/plans/enhanced-notifications-consistency-plan.md)):
 the flash and the bad fade are the theme's card background sitting on `.GamepadToastPopup`, outside the element our exit
 animates (it stays opaque; in the game overlay Steam moves the view to (0, 0) before hiding it, so the card flashes
 top-left); "only one shows" is Steam's own: in game two toast views pop from one queue and the second toast lands in Big

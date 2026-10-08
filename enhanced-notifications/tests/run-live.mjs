@@ -16,6 +16,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { connect, resolvePluginName } from './cdp.mjs';
+import { installFixtureThemes } from './fixture-themes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
@@ -71,6 +72,8 @@ if (merged.length) {
 }
 const name = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(name)}].${expr}`);
+// steam_midnight / steam_tiers left the bundle (c874c63): installed for this run, removed in `finally`.
+const removeFixtures = await installFixtureThemes((e) => cdp.evaluate(e), name);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(name)})`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -119,6 +122,7 @@ try {
         await restore(snapshot);
     }
 } finally {
+    removeFixtures();
     await restore(snapshot);
     const left = (await stored()) ?? {};
     const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));

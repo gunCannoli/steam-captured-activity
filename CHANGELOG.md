@@ -7,6 +7,22 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **enhanced-notifications: Big Picture in-game investigation and the first two fixes (2026-10-08)**,
+  [plan](docs/plans/enhanced-notifications-consistency-plan.md):
+  - *Stage A (evidence):* frame traces in Big Picture and in game (AM2R), a sound ledger, control runs with the plugin
+    off. Found: the theme's card sat on `.GamepadToastPopup`, outside the animated element (the bad fade and, in the game
+    overlay, which moves its view to (0, 0) before hiding it, the top-left flash); in game Big Picture has two toast views
+    fed from one queue, so a second toast lands in Big Picture's own view behind the game (Steam's own behaviour, the
+    user's "only one shows"); sounds overlap rather than being blocked. Documented in steam-components.md.
+  - *B1:* the card is on the animated child in Big Picture (`buildCss`); a glow pulse moves to a `::after` layer.
+    Verified in game: the card reaches opacity 0 with the text at 4.5 s.
+  - *B2:* a Big Picture view whose placeholder is shown keeps its type and placement on a pop (`viewTakesType`).
+    Verified in game: an achievement popped into Big Picture's view left the overlay's styled toast alone.
+  - *Tests:* A0 (two live scripts restore settings); the removed `steam_midnight` / `steam_tiers` themes are inline
+    fixtures in `theme.test.ts` and temporary user themes in the live scripts (`tests/fixture-themes.mjs`). Unit tests
+    180/0. Live: every script passes alone; the full suite still hits the known stall (C5: one of three queue toasts
+    vanishes, then no toast shows for a while), now B5 of the plan.
+
 - **steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08)**,
   [plan](docs/plans/steam-cartridges-local-emulator-split-plan.md) phases 1-5:
   - *Why:* the core still read CODEX/RUNE/GSE/Goldberg saves and Unity/Godot/Unreal logs itself, duplicating the local

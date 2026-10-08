@@ -17,6 +17,7 @@
 // Restores exactly the settings stored before it ran (it used to reset theme and
 // queue to their defaults, wiping the user's theme choice). Previews never capture.
 import { connect, resolvePluginName } from './cdp.mjs';
+import { installFixtureThemes } from './fixture-themes.mjs';
 
 const THEME = process.env.THEME ?? 'ps5';
 const BURST = ['magic', 'rare', 'normal', 'exceptional', 'magic'];
@@ -24,6 +25,8 @@ const BURST = ['magic', 'rare', 'normal', 'exceptional', 'magic'];
 const cdp = await connect();
 const name = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(name)}].${expr}`);
+// steam_midnight / steam_tiers left the bundle (c874c63): installed for this run, removed in `finally`.
+const removeFixtures = await installFixtureThemes((e) => cdp.evaluate(e), name);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(name)})`);
 const before_ = (await stored()) ?? {};
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -154,6 +157,7 @@ try {
     check('queue off: every toast themed with its own tier', counts(tiersSeen.values()) === counts(BURST), [...tiersSeen.values()].join(','));
     check('queue off: never Steam fallback toast', !offSamples.flat().some(isFallback), offSamples.flat().filter(isFallback).map((p) => p.steamText).join(' | '));
 } finally {
+    removeFixtures();
     await plugin('resetSettings()').catch(() => {});
     for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
     cdp.close();

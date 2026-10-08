@@ -9,6 +9,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Fixed
 
+- Big Picture and in game: a themed toast's card now leaves with its text. The card was drawn on the toast's outer box,
+  which Steam does not animate, so the text slid out over a card that stayed until the toast closed; in game the card
+  then flashed in the top-left corner for a frame (the overlay moves its toast view there before hiding it).
+- In game, a toast arriving in one of Big Picture's two toast views no longer restyles or moves the toast the other view
+  is showing.
+- Live tests: `placement.mjs` and `sound-duration.mjs` restore your settings instead of wiping them; the checks that used
+  the removed `steam_midnight` / `steam_tiers` themes install them for the run and remove them afterwards.
+
 - Capture on unlock with only the screenshot on deletes the short clip of its own recording only when the clip's name carries the game and the stop time; before, an older clip of the game could be taken for it when Steam's clip list had not loaded (no clip was lost, all are on disk).
 
 ### Changed

@@ -1,0 +1,39 @@
+{"t":3,"ev":"mark","val":"TestDownloadComplete(435150)"}
+{"t":7,"ev":"pop","ctx":0,"eType":1}
+{"t":8,"ev":"pop","ctx":0,"eType":null}
+{"t":9,"v":"OV","ev":"SetBounds","a":[1017,10,320,80]}
+{"t":10,"v":"OV","ev":"SetVisible","a":[true]}
+{"t":11,"ev":"pop","ctx":0,"eType":null}
+{"t":14,"v":"BP","ev":"ph","val":"0,0,0,0,none"}
+{"t":14,"v":"BP","ev":"cls","val":"GamepadToastPlaceholder InGame"}
+{"t":14,"v":"BP","ev":"place","val":true}
+{"t":14,"v":"BP","ev":"theme","val":true}
+{"t":14,"v":"BP","ev":"view","val":"0,0,1,1"}
+{"t":14,"v":"BP","ev":"type","val":"DownloadComplete"}
+{"t":14,"v":"BP","ev":"tpl","val":null}
+{"t":14,"v":"BP","ev":"anim","val":null}
+{"t":14,"v":"BP","ev":"op","val":null}
+{"t":14,"v":"OV","ev":"ph","val":"1017,10,320,80,block"}
+{"t":14,"v":"OV","ev":"cls","val":"GamepadToastPlaceholder InGame"}
+{"t":14,"v":"OV","ev":"place","val":true}
+{"t":14,"v":"OV","ev":"theme","val":true}
+{"t":14,"v":"OV","ev":"view","val":"0,0,320,80"}
+{"t":14,"v":"OV","ev":"type","val":"DownloadComplete"}
+{"t":14,"v":"OV","ev":"tpl","val":"fntOoeLPSTpmyXGGmgf99 ShortTemplate P1FhGdWv2NCXZXWsaKqqY TwoLine"}
+{"t":14,"v":"OV","ev":"anim","val":"en-in-ps5-right, en-out-ps5-right"}
+{"t":14,"v":"OV","ev":"op","val":0}
+{"t":41,"v":"OV","ev":"view","val":"1017,10,320,80"}
+{"t":49,"v":"OV","ev":"op","val":0.25}
+{"t":97,"v":"OV","ev":"op","val":0.5}
+{"t":146,"v":"OV","ev":"op","val":0.75}
+{"t":207,"ev":"mark","val":"TestAchievement(435150)"}
+{"t":240,"ev":"pop","ctx":0,"eType":5}
+{"t":242,"v":"BP","ev":"SetBounds","a":[1018,10,320,80]}
+{"t":242,"v":"BP","ev":"SetVisible","a":[true]}
+{"t":264,"v":"BP","ev":"ph","val":"1018,10,320,80,block"}
+{"t":264,"v":"BP","ev":"type","val":null}
+{"t":264,"v":"BP","ev":"tpl","val":"ea-banner ea-layout-custom ea-in-ps5 ea-out-ps5"}
+{"t":264,"v":"BP","ev":"anim","val":"ea-in-ps5-right, ea-out-ps5-right"}
+{"t":264,"v":"BP","ev":"op","val":0}
+{"t":264,"v":"OV","ev":"op","val":1}
+{"t":285,"v":"BP","ev":"view","val":"1018,10,320,80"}

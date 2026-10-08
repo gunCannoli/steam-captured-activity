@@ -6,6 +6,7 @@
 // (the check near the end resets them to prove defaults, so it would otherwise wipe the user's), EA-K6.
 import { connect, resolvePluginName } from './cdp.mjs';
 import { bannerTiming } from '../frontend/banner/timing.ts';
+import { installFixtureThemes } from './fixture-themes.mjs';
 
 const cdp = await connect();
 const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
@@ -19,6 +20,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 class Skip extends Error {}
 // Drive settings through the plugin's own exports (what the settings panel calls).
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
+// steam_midnight / steam_tiers left the bundle (c874c63): installed for this run, removed in `finally`.
+const removeFixtures = await installFixtureThemes((e) => cdp.evaluate(e), PLUGIN);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
 const before = (await stored()) ?? {};
 
@@ -143,6 +146,7 @@ try {
     console.log(`SKIP  ${e.message}`);
     await plugin(`resetSettings()`);
 } finally {
+    removeFixtures();
     await plugin(`resetSettings()`).catch(() => {});
     for (const [key, value] of Object.entries(before)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`).catch(() => {});
     // Put back what the instrumentation wrapped, so a script run after this one sees the real functions.

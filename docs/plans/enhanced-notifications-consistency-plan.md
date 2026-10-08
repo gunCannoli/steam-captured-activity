@@ -1,6 +1,6 @@
 # Plan: enhanced-notifications, Big Picture in-game bugs and a consistency pass
 
-**Status:** stage A run 2026-10-08 (§ 7: the root cause of S1 and S2 found, S3 explained); stage B not started (§ 6b). **Baseline commit:** `f6b1cdb`.
+**Status:** stage A run 2026-10-08 (§ 7); B1 and B2 implemented and verified in game the same day (`c8778db`, `fc4939b`); B3-B7 open (§ 6b). **Baseline commit:** `f6b1cdb`.
 **Shape:** this is a big task, so it is a two-stage plan, as for the Theme Creator. Stage A (§ 5) is evidence: spikes with
 exact commands and what each result means. Stage B (§ 6) is the fix phases. Each gets its own mechanical plan, with
 before/after blocks, written only once its spike has run, because the root causes below are hypotheses until then.
@@ -239,12 +239,12 @@ burst in a game whose overlay is visible (WUCHANG once it stops crashing, or ano
 
 Each phase gets its own mechanical plan before any code; the order is by user impact.
 
-1. **B1. The themed card animates with its content** (H1d; S1 and S2). In Big Picture and the overlay, the theme's card
+1. **B1. Done 2026-10-08 (`c8778db`), verified in game. The themed card animates with its content** (H1d; S1 and S2). In Big Picture and the overlay, the theme's card
    (background, border, shadow, radius) must be on the element our entrance and exit animate, or the same animation must
    also run on `.GamepadToastPopup`. Done means: `ingame-card.mjs` reads the card at opacity 0 at 4.5 s, and
    `ingame-views.mjs` shows nothing of ours above opacity 0 at the overlay's `SetBounds(0,0,0,0)`. Unit test in
    `theme.test.ts` on the `buildCss` / `buildAnimationCss` selectors. Small and safe: first.
-2. **B2. One type per toast view** (H1a across views). `data-en-type` is set on the view that shows the toast, never on
+2. **B2. Done 2026-10-08 (`fc4939b`), verified in game (`scratch/en-spikes/B2-verify.txt`); done with the placeholder's shown state instead of the planned spike. One type per toast view** (H1a across views). `data-en-type` is set on the view that shows the toast, never on
    every toast window. The pop does not say which container called it (both pass context 0), so its plan starts with a
    spike that ties a pop to its container (that container's `SetVisible(true)` right after the pop, or the toast
    element's fiber `notification` in that view, read at Steam's `onShown`).

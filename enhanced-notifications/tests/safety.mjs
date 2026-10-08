@@ -7,11 +7,14 @@
 // 2. `disabledFeatures = style`: a download preview toast is Steam's own (no data-en-type).
 // 3. Switch cleared: the same preview is restyled again (data-en-type = DownloadComplete).
 import { connect, resolvePluginName } from './cdp.mjs';
+import { installFixtureThemes } from './fixture-themes.mjs';
 
 const THEME = process.env.THEME ?? 'steam_midnight';
 const cdp = await connect();
 const PLUGIN = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST[${JSON.stringify(PLUGIN)}].${expr}`);
+// steam_midnight / steam_tiers left the bundle (c874c63): installed for this run, removed in `finally`.
+const removeFixtures = await installFixtureThemes((e) => cdp.evaluate(e), PLUGIN);
 const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')(${JSON.stringify(PLUGIN)})`);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = false;
@@ -73,6 +76,7 @@ try {
     const after = await plugin('safetyDiagnostics()');
     check('no errors counted during the test', Object.keys(after?.errors ?? {}).length === 0, JSON.stringify(after));
 } finally {
+    removeFixtures();
     await plugin('resetSettings()');
     for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
     const left = (await stored()) ?? {};

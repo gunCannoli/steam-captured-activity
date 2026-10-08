@@ -279,7 +279,7 @@ test('architecture: steam/jsx-hook.ts is identical to the steam-cartridges copy'
 });
 
 /** Live scripts that are helpers, not checks. */
-const LIVE_HELPERS = ['cdp.mjs', 'console.mjs', 'reload.mjs', 'run-live.mjs'];
+const LIVE_HELPERS = ['cdp.mjs', 'console.mjs', 'fixture-themes.mjs', 'reload.mjs', 'run-live.mjs'];
 
 test('architecture: every live check is run by tests/run-live.mjs', () => {
     const runner = readFileSync(join(ROOT, 'tests', 'run-live.mjs'), 'utf8');
