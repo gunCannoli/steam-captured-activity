@@ -16,6 +16,14 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**enhanced-notifications Big Picture in-game bugs and consistency (investigated 2026-10-08, nothing changed).** The user's report (in game,
+Big Picture, ps5): a toast flashes top-left before it leaves, the fade-out looks wrong, other notifications' sounds seem lost while a custom
+achievement sound plays; and the plugin should feel less erratic. [Plan](docs/plans/enhanced-notifications-consistency-plan.md): hypotheses
+per symptom (leading: our styling stops matching before Steam hides its view, so Steam's animations restart as it moves the view to
+(0, 0); the in-game overlay path, never traced; our own capture burst queued or rate-limited), stage A spikes (A0: make `placement.mjs` /
+`sound-duration.mjs` restore settings; the user's theme and queue were found reset today), then stage B fix phases. Next: A0, then A1-A4
+with Big Picture in front and a game running.
+
 **steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08): deployed (`-dev`, both plugins), partly live-verified.**
 [Plan](docs/plans/steam-cartridges-local-emulator-split-plan.md); history in [CHANGELOG.md](CHANGELOG.md). Live (agent, 11:31 restart): boot health PASS;
 `window.SteamCartridges.version` 1.1.0 with `reportUnlocks` / `onAppLaunched`; the local provider and panel registered; `LocalDetectFiles`
