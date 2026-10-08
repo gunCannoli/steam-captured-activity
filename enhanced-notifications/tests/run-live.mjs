@@ -21,7 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const checks = [
     { file: 'safety.mjs', must: /^PASS {2}style on again: the preview is restyled/m },
     { file: 'previews.mjs', theme: 'steam_midnight', must: /^PASS {2}DownloadComplete: restyled in place/m },
-    { file: 'sound-duration.mjs', must: /^PASS {2}settings reset, temp theme removed/m },
+    { file: 'sound-duration.mjs', must: /^PASS {2}settings restored, temp theme removed/m },
     { file: 'notifications-queue.mjs', must: /^(PASS {2}queue on: one toast at a time|SKIP {2}desktop only)/m },
     { file: 'placement.mjs', must: /^(PASS {2}placement off: Steam places the toast|SKIP {2}desktop only)/m },
     { file: 'achievements-smoke.mjs', theme: 'ps5', must: /^PASS {2}themed banner rendered/m },

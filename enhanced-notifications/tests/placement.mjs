@@ -14,6 +14,17 @@ const check = (label, ok, detail = '') => {
     if (!ok) failed = true;
 };
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
+const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
+// The user's own stored settings, restored exactly at the end (never wiped).
+const before_ = (await stored()) ?? {};
+/** Put back exactly what was stored before the test; true when the stored settings match it again. */
+async function restoreSettings() {
+    await plugin('resetSettings()');
+    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
+    const left = (await stored()) ?? {};
+    const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+    return { ok: sorted(left) === sorted(before_), detail: `${JSON.stringify(before_)} -> ${JSON.stringify(left)}` };
+}
 const toastTargets = async () =>
     (await (await fetch('http://127.0.0.1:8080/json')).json()).filter((t) => /^notificationtoasts_\d+_desktop$/.test(t.title));
 
@@ -98,9 +109,10 @@ try {
     check('placement off: still styled', stock?.padding === '12px 6px 3px 9px', stock?.padding);
     await wait(6000);
 } finally {
-    await plugin(`resetSettings()`);
+    const restored = await restoreSettings();
     rmSync(themePath, { force: true });
-    console.log(`${failed ? 'FAIL' : 'PASS'}  settings reset, temp theme removed`);
+    if (!restored.ok) failed = true;
+    console.log(`${failed ? 'FAIL' : 'PASS'}  settings restored, temp theme removed${restored.ok ? '' : `  (${restored.detail})`}`);
     cdp.close();
 }
 process.exit(failed ? 1 : 0);

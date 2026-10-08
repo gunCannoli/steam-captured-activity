@@ -17,6 +17,17 @@ const check = (label, ok, detail = '') => {
     if (!ok) failed = true;
 };
 const plugin = (expr) => cdp.evaluate(`window.PLUGIN_LIST['${PLUGIN}'].${expr}`);
+const stored = () => cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
+// The user's own stored settings, restored exactly at the end (never wiped).
+const before_ = (await stored()) ?? {};
+/** Put back exactly what was stored before the test; true when the stored settings match it again. */
+async function restoreSettings() {
+    await plugin('resetSettings()');
+    for (const [key, value] of Object.entries(before_)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
+    const left = (await stored()) ?? {};
+    const sorted = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+    return { ok: sorted(left) === sorted(before_), detail: `${JSON.stringify(before_)} -> ${JSON.stringify(left)}` };
+}
 
 /** A minimal, self-contained 0.3s 440Hz mono 16-bit PCM WAV: no bundled asset needed. */
 function generateTestWav() {
@@ -131,12 +142,11 @@ try {
     check('Steam default -> Steam sound back', s.includes('steam') && !s.includes('themed'), JSON.stringify(s));
     check('Steam default -> Steam duration restored', (await durationOf('DownloadComplete')) === stockDuration, `DownloadComplete=${await durationOf('DownloadComplete')}`);
 } finally {
-    await plugin(`resetSettings()`);
+    const restored = await restoreSettings();
     rmSync(themePath, { force: true });
     rmSync(soundThemePath, { force: true });
     if (generatedSound) rmSync(join(generatedSound, '..'), { recursive: true, force: true });
-    const left = await cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`);
-    check('settings reset, temp theme removed', Object.keys(left ?? {}).length === 0 && !existsSync(themePath), JSON.stringify(left));
+    check('settings restored, temp theme removed', restored.ok && !existsSync(themePath), restored.detail);
     cdp.close();
 }
 process.exitCode = failed ? 1 : 0;
