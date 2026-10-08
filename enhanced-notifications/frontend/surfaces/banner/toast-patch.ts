@@ -7,6 +7,7 @@ import { isAchievementUnlock } from '../../steam/notification-store';
 import { findExports } from '../../steam/webpack';
 import { keepJsxPatched, type JsxHookDiagnostics } from '../../steam/jsx-hook';
 import { isEnabled, reportError } from '../../safety/runtime';
+import { isLocationProps, routeLocationProps } from '../../steam/toast-location';
 
 /**
  * Swaps Steam's notification-toast dispatcher for our themed toast, for
@@ -20,8 +21,9 @@ import { isEnabled, reportError } from '../../safety/runtime';
  * shared module (ADR-0027), so one patch covers them all.
  *
  * Guardrail 2: `jsx` runs for every element in the client. The added work is
- * one identity compare (`type === dispatcher`); everything else happens only
- * for that one component.
+ * one identity compare (`type === dispatcher`) and one `typeof` (Big Picture's toast
+ * containers, the only elements with a boolean `bFocusedLocation`: steam/toast-location.ts,
+ * kill switch `location`); everything else happens only for those components.
  */
 
 interface JsxRuntime {
@@ -94,6 +96,15 @@ export function initToastPatch(): boolean {
     hook = keepJsxPatched(runtime, {
         label: 'enhanced-notifications',
         replaceType: (type, props) => {
+            // In game, a toast goes to the toast view the user can see (consistency plan B3). One typeof per element.
+            if (isLocationProps(props)) {
+                try {
+                    routeLocationProps(props, () => isEnabled('location'));
+                } catch (error) {
+                    reportError('location', error);
+                }
+                return undefined;
+            }
             if (type !== dispatcher) return undefined; // every other element: one compare
             // Fail-open (migration plan § E0a): any error leaves Steam's own toast.
             try {

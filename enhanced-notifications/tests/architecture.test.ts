@@ -211,6 +211,7 @@ export const OWNERS: [string, RegExp, string][] = [
     ['achievement banner popup SteamClient.Window.MoveTo (pin)', /\bapi\.MoveTo\s*=\s*pinned\b/, 'surfaces/banner/window-pin.ts'],
     ['notification fnNotificationResolved (banner popup hold)', /\.fnNotificationResolved\s*=(?!=)/, 'surfaces/banner/themed-toast.tsx'],
     ['react/jsx-runtime patch (toast dispatcher)', /keepJsxPatched\s*\(/, 'surfaces/banner/toast-patch.ts'],
+    ['Big Picture toast container bFocusedLocation (in-game location)', /'bFocusedLocation'/, 'steam/toast-location.ts'],
     ['toast window body[data-en-type]', /\.setAttribute\(\s*'data-en-type'/, 'surfaces/style/injector.ts'],
     ['Millennium.AddWindowCreateHook (toast windows)', /\.AddWindowCreateHook\s*\(/, 'surfaces/style/injector.ts'],
     ['Big Picture <style id=enhanced-notifications-placement>', /'enhanced-notifications-placement'/, 'surfaces/style/injector.ts'],

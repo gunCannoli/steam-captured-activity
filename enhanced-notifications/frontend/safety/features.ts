@@ -17,7 +17,7 @@
  * banner (enhanced-achievements, merged into this plugin; ADR-0050): the same ids that plugin had, its `placement`
  * being this one's.
  */
-export const FEATURE_IDS = ['style', 'sound', 'duration', 'preview', 'placement', 'banner', 'completion', 'captures', 'toasts', 'reset', 'queue'] as const;
+export const FEATURE_IDS = ['style', 'sound', 'duration', 'preview', 'placement', 'banner', 'completion', 'captures', 'toasts', 'reset', 'queue', 'location'] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Safe mode keeps nothing: every toast is Steam's own. */

@@ -1,0 +1,19 @@
+{"t":3021,"ev":"mark","v":"launch"}
+{"t":8916,"ev":"element","fn":"ue/361","appid":null,"focused":null}
+{"t":8930,"ev":"element","fn":"pe/801","appid":null,"focused":true}
+{"t":8942,"ev":"element","fn":"ue/361","appid":null,"focused":null}
+{"t":8942,"ev":"element","fn":"pe/801","appid":null,"focused":true}
+{"t":9102,"ev":"element","fn":"ue/361","appid":4263274102,"focused":null}
+{"t":9104,"ev":"element","fn":"pe/801","appid":4263274102,"focused":true}
+{"t":9114,"ev":"element","fn":"ue/361","appid":4263274102,"focused":null}
+{"t":9115,"ev":"element","fn":"pe/801","appid":4263274102,"focused":true}
+{"t":9146,"ev":"element","fn":"ue/361","appid":4263274102,"focused":null}
+{"t":9147,"ev":"element","fn":"pe/801","appid":4263274102,"focused":true}
+{"t":9147,"ev":"element","fn":"ue/361","appid":4263274102,"focused":null}
+{"t":9148,"ev":"element","fn":"pe/801","appid":4263274102,"focused":true}
+{"t":9571,"ev":"element","fn":"ue/361","appid":4263274102,"focused":null}
+{"t":9572,"ev":"element","fn":"pe/801","appid":4263274102,"focused":true}
+{"t":9584,"ev":"element","fn":"pe/801","appid":4263274102,"focused":true}
+{"t":23030,"ev":"mark","v":"toast while running"}
+{"t":29043,"ev":"mark","v":"quit"}
+{"t":43059,"ev":"mark","v":"toast after quit"}

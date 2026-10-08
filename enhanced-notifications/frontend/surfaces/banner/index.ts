@@ -5,7 +5,8 @@ import { disposeToastPatch, initToastPatch } from './toast-patch';
 export function createBannerSurface(): Surface {
     return {
         id: 'banner',
-        touches: ['jsx-runtime:toast-dispatcher', 'notification.fnNotificationResolved', 'achievement banner popup SteamClient.Window.MoveTo (pin)'],
+        // The jsx patch also routes in-game toasts to the visible toast view (kill switch `location`, steam/toast-location.ts).
+        touches: ['jsx-runtime:toast-dispatcher', 'notification.fnNotificationResolved', 'achievement banner popup SteamClient.Window.MoveTo (pin)', 'toast container bFocusedLocation'],
         install: () => initToastPatch(),
         uninstall: () => disposeToastPatch(),
     };

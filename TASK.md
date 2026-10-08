@@ -16,6 +16,8 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**B3 (in-game toasts go to the visible view) and popup_icon: coded, deployed, partly verified 2026-10-08 (session paused).** popup_icon [visible, scale, radius] committed (4e3730d; the user ps5 copy updated). B3 (steam/toast-location.ts, kill switch location): a second toast in game now waits and shows in the overlay view, and after quitting a toast shows in Big Picture again (scratch/en-spikes/B3-*). Open: in B3-verify2 the FIRST toast went to Big Picture own view while the game ran (BP view SetVisible true at 38 ms): check the Big Picture window visibility at that moment, then the user checks in a game whose overlay draws. Then B4-B7.
+
 **enhanced-notifications Big Picture in-game bugs and consistency: stage A done; B1 (card leaves with the toast) and B2 (one type per view) deployed and verified in game 2026-10-08; B3-B7 next.** Left for the user: look at a themed toast leaving in game (no card left behind, no top-left flash). Next: B3 (in-game toasts never land behind the game: needs a decision, it changes Steam's routing), then B4 sounds, B5 queue stall (C5: still seen in the full live suite, every script passes alone). Findings ([plan § 7](docs/plans/enhanced-notifications-consistency-plan.md)):
 the flash and the bad fade are the theme's card background sitting on `.GamepadToastPopup`, outside the element our exit
 animates (it stays opaque; in the game overlay Steam moves the view to (0, 0) before hiding it, so the card flashes
