@@ -12,7 +12,11 @@ notes; the sections before it are the migration's layer doc (M6a backend, M6b fr
 - The `achievements` part of a record: `Part<{ schema, unlocks }>` and which source produced it.
 - The **source order** and each source's `supports` rule (below), so a source is only asked about a shortcut
   that can be one of its games.
-- Reading unlocks the observer detects while a game runs (`CheckUnlocks`).
+- Reading unlocks the observer detects while a game runs (`CheckUnlocks`): console-emulator logs and RPCS3 / shadPS4
+  trophy files.
+- Taking unlocks an extension pushes (`app/achievements.ingestExternal`, `window.SteamCartridges.reportUnlocks`,
+  ADR-0063): ids matched to the schema (`domain/achievement-ids.ts`), persisted, then announced. Steam API emulator
+  saves and PC-game engine logs are read by [steam-cartridges-local](../steam-cartridges-local.md), never here.
 
 It does **not** write to Steam (the `achievements`, `toasts` and `captures` surfaces do, `surfaces.md`).
 
@@ -84,8 +88,8 @@ hash's GameID (a definite "no game" for 7 days; a network failure is never store
 | `backend/ach_service.lua` | Source order, `supports` rules, `ensure`, `local_part` |
 | `backend/record_rpc.lua` | `EnsureFresh` `achievements`, `CheckUnlocks`, local parts |
 | `backend/achievements_rpc.lua` | The old RPC names, as aliases |
-| `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels (`emulator_files`, `trophy_files`, `log_paths`, shared with the reset); `get_possible_folder_names` (K7 fixed); log read positions kept in `log_offsets.json` |
-| `backend/achievement_files.lua` | Pure readers and clearers of the unlock files: Steam emulator INI / Goldberg JSON, RPCS3 `TROPUSR.DAT`, shadPS4 trophy XML |
+| `backend/achievements_observer.lua` | `check_unlocks` and the unlock channels (`trophy_files`, console-emulator `log_paths`, shared with the reset); log read positions kept in `log_offsets.json` |
+| `backend/achievement_files.lua` | Pure readers and clearers of the unlock files: RPCS3 `TROPUSR.DAT`, shadPS4 trophy XML |
 | `backend/achievements_reset.lua` | `sources` (where a shortcut's unlocks also live) and `reset` (ADR-0054) |
 | `backend/steam_schema.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
 | `backend/achievements_store.lua` | The store (`achievements.json`); no network since M10. `sync` (ADR-0056) replaces a store copy's unlocks and records its `source` |
@@ -122,7 +126,7 @@ files the observer reads unlocks back from, each copied to `<file>.bak-<yyyymmdd
 
 | Source id | Files | Cleared by |
 | --- | --- | --- |
-| `local` | CODEX / RUNE / GSE `achievements.ini`, Goldberg `achievements.json` (`observer.emulator_files(native)`) | `Achieved=0`, `UnlockTime=0`, the `[SteamAchievements]` list emptied; Goldberg `earned=false` |
+| extension id (e.g. `steam-cartridges-local`) | the extension's own files | the provider's `reset` (ADR-0063); listed under its own id and label |
 | `rpcs3` | `TROPUSR.DAT` in the trophy folder | RPCS3's own `LockTrophy`: state and both timestamps 0 in the type-6 table (entries are 0x70 bytes) |
 | `shadps4` | `<shadPS4>/[user/]home/<user>/trophy/<npcommid>.xml`, or the older in-folder `TROP*.XML` | `unlockstate="false"`, `timestamp` removed; shadNet may sync them back |
 | `retroachievements` | none: on the user's account | not resettable (its API has no reset); the source carries the game's page (`url`), where "Manage progress" resets it |
@@ -173,7 +177,8 @@ backend call in flight · trigger and reset. `tests/achievements.test.ts` still 
 1. Add a `{ name, supports, fetch }` row to `SOURCES` in `ach_service.lua`, in the position it should win.
 2. `supports` must be cheap and side-effect free (a path check, not a request); `fetch` returns `res, err`.
 3. Add its `deps` name (nil = the real module) and a test in `tests/test_ach_service.lua`.
-For a new emulator family or engine log reader see the Reference section "How to Add Support".
+A new console emulator or trophy format: see the Reference section "How to Add Support". A Steam API emulator or a
+PC-game engine log belongs to steam-cartridges-local ([its doc](../steam-cartridges-local.md), ADR-0063).
 
 ## History
 
@@ -268,38 +273,11 @@ When a game is launched from Steam, `steam-cartridges` launches an out-of-proces
 - **Operation:** When the storefront launcher displays a toast on Windows (*"Achievement Unlocked: Master of Hel"*), the listener captures the title text, matches it against the mirrored Steam schema, and passes it to the Steam sink pipeline.
 - **Epic Suppression Strategy:** Disabling in-game overlay notifications (`Shift + F3`) prevents Epic from drawing over the game, while Windows notification settings can be muted, allowing **only** Steam's toast and chime to sound.
 
-### Channel 3: Multi-Engine Runtime Log & Data Tailers
-- **Target:** Games built on Unity, Unreal Engine, Godot, GameMaker, or Ren'Py.
-- **Operation:** When the game boots, `steam-cartridges` identifies the engine from folder signatures and tails the engine's active runtime log:
-  - **Unity:** `%USERPROFILE%\AppData\LocalLow\[Company]\[Product]\Player.log`
-  - **Unreal Engine:** `%LOCALAPPDATA%\[Project]\Saved\Logs\[Project].log`
-  - **Godot Engine:** `%APPDATA%\Godot\app_userdata\[Project]\logs\godot.log`
-  - **GameMaker:** `%LOCALAPPDATA%\[Project]\` (sandboxed `.ini` / `.json` saves & `debug.log`)
-  - **Ren'Py:** `%APPDATA%\RenPy\[Project]\log.txt` and `persistent`
-- **`[Project]` folder name derivation:** the folder Unreal/Unity/Godot actually
-  write to is often the *internal project codename*, not the Steam Store title
-  (e.g. `"WUCHANG: Fallen Feathers"` ships as `Project_Plague.exe`, writing logs
-  to `%LOCALAPPDATA%\Project_Plague\Saved\Logs\Project_Plague.log`). Title-only
-  lookups miss this. `achievements_observer.get_possible_folder_names(game_title,
-  exe_path)` derives a deduplicated candidate list — checked in this order:
-  1. The shortcut's executable base name (directories, `.exe`, and Unreal
-     shipping/test/debug suffixes like `-Win64-Shipping` stripped).
-  2. The exact Steam title.
-  3. Punctuation-normalized variants (colon/en dash/em dash → `" - "` or
-     stripped, spaces collapsed or removed).
-  4. `snake_case` of the title.
-  5. The prefix before the first colon/dash (e.g. `"Wuchang"`).
+### Channels 3 and 4: engine logs and Steam API emulator saves (moved, ADR-0063)
 
-  Each candidate is checked against `Player.log`, `godot.log`, and
-  `Saved\Logs\<Candidate>.log`. If a candidate's `Saved\Logs\` directory exists
-  but no file matches `<Candidate>.log` exactly, the most recently modified
-  `*.log` in that directory is tailed instead.
-
-### Channel 4: Local Save & Emulator Watcher
-- **Target:** Steam emulators (Goldberg, CODEX, RUNE, GSE, DarkSiders) and GOG Galaxy SQLite database.
-- **Goldberg:** Monitors `%appdata%\Goldberg SteamEmu Saves\<AppID>\achievements.json`.
-- **CODEX / RUNE:** Monitors `%PUBLIC%\Documents\Steam\<Emu>\<AppID>\achievements.ini`.
-- **GOG Galaxy:** Monitors `C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db` table `UserAchievements` in read-only WAL mode.
+Unity / Unreal / Godot log tailing (with the project-codename guesses) and Steam API emulator save files are read by
+the [steam-cartridges-local](../steam-cartridges-local.md) extension, which pushes unlocks to the core with
+`reportUnlocks`. The core keeps console-emulator logs and trophy files only.
 
 ---
 
@@ -392,31 +370,10 @@ For retro games launched through emulators (e.g. SNES, Genesis, PS1, PS2) where 
 
 To support a new game engine, local emulator, or save format, follow this recipe:
 
-### Adding an Emulator or Save Format (File-Based Reader)
-1. Add the path resolver in `backend/achievements_readers.lua`:
-   ```lua
-   function readers.check_my_emulator(appid, game_dir)
-       local p = utils.expand_path("%APPDATA%/MyEmu/" .. appid .. "/achievements.json")
-       if fs.exists(p) then return p end
-       return nil
-   end
-   ```
-2. Implement the parser function returning a list of `{ api_name = string, earned = boolean, rtime = number }`.
-3. Register the path with the active file watcher pool.
-
-### Adding a Game Engine (Log Tailer)
-1. Define the identifying signature in `backend/achievements_engines.lua`:
-   ```lua
-   {
-       name = "MyEngine",
-       detect = function(game_dir) return fs.exists(game_dir .. "/myengine.dll") end,
-       log_path = function(company, title)
-           return utils.expand_path("%LOCALAPPDATA%/" .. title .. "/logs/game.log")
-       end,
-       pattern = "Achievement Granted: ([A-Za-z0-9_]+)"
-   }
-   ```
-2. When the shortcut launches, if `detect` is true, the observer spawns a file tailer on `log_path`.
+A console emulator's trophy or save format: add its reader to `achievement_files.lua` (pure, tested in
+`tests/test_achievements_reset.lua`), its path to `achievements_observer.trophy_files`, and its source to
+`achievements_reset.sources`. A console emulator's log line: add the pattern to `scan_log_for_unlocks` and the log's
+location to `log_paths`. Steam API emulators and PC-game engine logs go to steam-cartridges-local (ADR-0063).
 
 ---
 
@@ -424,7 +381,8 @@ To support a new game engine, local emulator, or save format, follow this recipe
 
 1. **Automated Unit Tests:**
    - `steam-cartridges/tests/achievements-schema.test.ts`: Verifies keyless schema ingestion and local JSON persistence.
-   - `steam-cartridges/tests/test_achievements.lua`: Hermetic Lua tests for file parsers (Goldberg, CODEX, GOG DB query logic).
+   - `steam-cartridges/tests/test_achievements_reset.lua`: RPCS3 / shadPS4 readers and clearers, log offsets, the reset flow.
+   - Steam API emulator formats: `steam-cartridges-local/tests/` (ADR-0063).
 2. **Automated CDP Live Tests (`scratch/test_fake_achievement.mjs`):**
    - Connects to Steam DevTools on `127.0.0.1:8080`.
    - Triggers `cartridges:trigger_fake_achievement(shortcutAppId, "ACH_WIN_RUN")`.

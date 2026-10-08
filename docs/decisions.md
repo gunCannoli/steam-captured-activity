@@ -3143,7 +3143,7 @@ had no way to pick "no theme".
 
 ## ADR-0054: Reset Achievements also clears the files a non-Steam game's unlocks come back from
 
-**Status:** Accepted · 2026-10-02 (the user's decisions)
+**Status:** Accepted · 2026-10-02 (the user's decisions) · **Superseded in part by [ADR-0063](#adr-0063-steam-api-emulator-and-local-game-achievements-live-only-in-steam-cartridges-local-extensions-push-unlocks)** (the `local` source and the engine-log offsets moved to steam-cartridges-local)
 
 ### Context
 
@@ -3491,3 +3491,33 @@ the feature as its own plugin with two toggles, and for deleted captures to leav
   by time range (152 of 152 on a test game); and a Steam game's server fetch can rebuild its entry in place after a
   publish, so the plugin re-checks once that fetch is done.
 - Supersedes the captured-activity part (pillar 4) of the extension plan, which is deleted with this change.
+
+## ADR-0063: Steam API emulator and local-game achievements live only in steam-cartridges-local; extensions push unlocks
+
+**Status:** Accepted · 2026-10-08 (the user's decision) · **Supersedes [ADR-0054](#adr-0054-reset-achievements-also-clears-the-files-a-non-steam-games-unlocks-come-back-from) in part** (decision 1's `local` source and decision 5 for engine logs move to the extension)
+
+### Context
+
+steam-cartridges read Steam API emulator saves (CODEX, RUNE, GSE, Goldberg) and Unity/Godot/Unreal logs itself, while
+steam-cartridges-local read the same saves and more. The core asked every extension for unlocks on each page view and every
+2 s while a game ran, with a full file search per call, kept nothing it was given, and toasted every old unlock on a first run.
+
+### Decision
+
+1. steam-cartridges-local owns every Steam API emulator format, the local-game engine logs, their discovery, reset and backups,
+   and the watch while a game runs. The core plugin folder names no emulator or release group; a test enforces it.
+2. The core keeps RetroAchievements, console emulators (logs and RPCS3/shadPS4 trophy files) and metadata.
+3. Extensions push unlocks with `window.SteamCartridges.reportUnlocks`; the core canonicalizes ids against the schema, persists
+   them and announces them (`silent` = Post-Game Summary only, no toast). The core never polls an extension for unlocks.
+4. The core passes `nativeAppid` and `achievementIds` in `AppContext`, and calls `notifyAppLaunched`. Extensions never read the
+   core's data files.
+5. A log the extension sees for the first time is read from its end, so moving the offsets never replays history (ADR-0054's
+   promise that a reset stays reset).
+
+### Consequences
+
+- One reader per format; the local plugin's tests own the format cases. Without steam-cartridges-local, emulator saves are not
+  read (they were partly read before): installing it is the way to get them (the README says so).
+- The Reset dialog lists `steam-cartridges-local` under the provider's own id and label.
+- Engine-log unlocks detected before the move are kept (they are in `achievements.json`); their old offsets in the core's
+  `log_offsets.json` become unused.

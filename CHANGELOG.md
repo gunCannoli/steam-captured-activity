@@ -7,6 +7,33 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08)**,
+  [plan](docs/plans/steam-cartridges-local-emulator-split-plan.md) phases 1-5:
+  - *Why:* the core still read CODEX/RUNE/GSE/Goldberg saves and Unity/Godot/Unreal logs itself, duplicating the local
+    plugin, and asked every extension for unlocks on each page view and every 2 s while a game ran, with a full file
+    search per call (shortcuts.vdf parse, a walk to the drive root, ~70 path checks), never persisting the result and
+    toasting every old unlock on a first run. The local plugin read the core's `steam_store.json` and fell back to this
+    machine's Steam path and user id.
+  - *Core (steam-cartridges):* extension API 1.1.0: `reportUnlocks` (ids matched to the schema by
+    `domain/achievement-ids.ts`, persisted through `CartridgesAchievementsUnlock`, announced, `silent` = Post-Game Summary
+    only), `onAppLaunched`, `AppContext.nativeAppid` / `achievementIds`. Providers are no longer polled (`load`,
+    `checkNow`); the Reset dialog lists them under their own id. Removed: the emulator INI/JSON readers and clearers, the
+    `local` reset source, the engine-log paths, codename guesses and generic log patterns. A test fails if the core
+    plugin folder names any Steam API emulator.
+  - *steam-cartridges-local 0.2.0:* new readers from PSerban93/Achievements (MIT) knowledge: hex Type 1 INI sections,
+    Type 2 precedence, `[SteamAchievements]`, Tenoke `user_stats.ini` (never read before: its line shape did not parse),
+    Online-Fix `Stats/achievements.ini` (its `Stats.ini` was wrongly an unlock file), SmartSteamEmu `stats.bin`, UTF-16
+    without BOM (and no more dropped non-ASCII characters); unknown unlock time is 0, not now. Own discovery from the
+    exe and AppContext (game folder up to 4 levels, AppID from `steam_appid.txt` / `SOVEREIGN.ini` / `UniverseLAN.ini` /
+    `tenoke.ini`, global roots x shared per-AppID layouts, 60 s cache). Engine logs moved in; a log seen for the first
+    time is read from its end. A watcher (start / 2 s poll on size and write time / stop, late-created files found within
+    8 polls) and a frontend observer push unlocks: the first snapshot of a session silently, later changes with Steam's
+    toast. Setting "Watch while a game runs". Reset writes UTF-16 files back as UTF-16.
+  - *Verification (offline):* steam-cartridges 347 TS tests (the architecture file runs twice: `app-routing.test.ts`
+    imports it), 12 Lua suites, `test_achievements_reset.lua` 23 (was 34; the moved cases live in the local suites);
+    steam-cartridges-local 8 Lua suites including a census of the real Wuchang `SOVEREIGN.ini` (40 keys, 0 unlocked),
+    `npm run check` and `npm run build` clean in both. Live verification (plan § 11) not run yet.
+
 - **steam-cartridges-local & steam-cartridges: SOVEREIGN.ini emulator achievements, PSerban93/Achievements research & core provider integration (2026-10-08)**:
   - *SOVEREIGN.ini Support (steam-cartridges-local)*:
     - Added parsing, tracking, and resetting for `SOVEREIGN.ini` save files (Format B `[Achievements]` with Unix timestamps, numeric/boolean flags, and interspersed comments/metadata).

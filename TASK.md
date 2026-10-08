@@ -16,6 +16,13 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
+**steam-cartridges-local owns every Steam API emulator and local-game source; extensions push unlocks (ADR-0063, 2026-10-08): phases 1-5 built and committed, offline-verified, not deployed.**
+[Plan](docs/plans/steam-cartridges-local-emulator-split-plan.md); history in [CHANGELOG.md](CHANGELOG.md). Next: plan § 11 live
+verification (deploy both plugins under the Steam lock, `test:live`, `window.SteamCartridges.version === "1.1.0"`, Wuchang page and
+Reset dialog; the user: a real unlock while playing). Then the Wuchang `SOVEREIGN.ini` investigation (the emulator wrote a key-less
+`=1` at 01:22; every launch since crashed 11 s after start). Optional follow-ups: plan phases 6 (core: Steam appcache schema, Xenia,
+shadPS4 layout) and 7 (local: progress, SOVEREIGN comment schema, mapping suggestion).
+
 **steam-cartridges-local & steam-cartridges SOVEREIGN.ini achievements & core provider integration (2026-10-08): completed and live-verified.**
 - Implemented SOVEREIGN.ini parsing (Format B `[Achievements]` with Unix timestamps, numeric/boolean states, comment tolerance, and safe reset with `.bak` backups).
 - Live verified against *WUCHANG: Fallen Feathers* (`AppID=2277560`, shortcut AppID `3135033888`) at `D:\Games\WUCHANG - Fallen Feathers\Engine\Binaries\ThirdParty\Steamworks\Steamv155\Win64\SOVEREIGN.ini`.
@@ -341,12 +348,6 @@ How to verify and roll back: [verification.md](docs/steam-cartridges/verificatio
 
 ## Next
 
-- **steam-cartridges-local owns every Steam API emulator and local-game source (planned 2026-10-08, nothing coded).** The core
-  still reads CODEX/RUNE/GSE/Goldberg saves and Unity/Godot/Unreal logs itself, and polls the local plugin with a full file
-  search every 2 s. Plan: extensions push unlocks (`reportUnlocks`, ADR-0063), the local plugin gets correct readers (Tenoke,
-  Online-Fix `Stats\`, hex INI, UTF-16 without BOM, `stats.bin`; ideas from PSerban93/Achievements) and its own watcher, then
-  the core loses every emulator name, enforced by a test. Phases 1-5 and optional 6-7:
-  [docs/plans/steam-cartridges-local-emulator-split-plan.md](docs/plans/steam-cartridges-local-emulator-split-plan.md).
 - **enhanced-notifications Theme Creator (designed 2026-10-04, nothing coded).** A big modal from the Theme section
   (above Reload): start from a bundled template, edit a user theme or start fresh; live in-modal preview of four toasts
   (chosen, random, achievement tiers, mixed) with sounds; "Test on screen" with real toasts; the 17 AI sound packs as a

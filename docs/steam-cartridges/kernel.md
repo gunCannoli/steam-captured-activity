@@ -167,6 +167,28 @@ export function assertDisjointTouches(surfaces: Pick<Surface, "id" | "touches">[
 export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 ```
 
+## Extension API (`kernel/extensions.ts`, version 1.1.0)
+
+`window.SteamCartridges` (installed by `initGlobalExtensionAPI` in `index.tsx`; registrations made before the core
+loads wait in `window.__STEAM_CARTRIDGES_QUEUE__`). Other plugins use it without importing the core (ADR-0013, ADR-0014:
+every callback is isolated, a throw is swallowed).
+
+- **Register:** `registerAchievementProvider`, `registerLibraryProvider`, `registerSettingsPanel`,
+  `registerSummaryProvider`; each returns an unregister function.
+- **Lifecycle:** `onAppViewed`, `onAppLaunched`, `onAppQuit` (the core calls `notifyApp*` from the bus events
+  `shortcut.viewed` / `shortcut.launched` / `shortcut.quit`).
+- **`AppContext`:** `appid`, `gameid`, `isShortcut`, `displayName`, `exe`, `launchOptions`, `nativeAppid` (the mapped Steam
+  app, from the record or the saved mapping) and `achievementIds` (the record's schema ids), built by
+  `app/achievements.context(appid)`. An extension never reads the core's files for them (ADR-0063).
+- **`reportUnlocks(appid, [{ id, unlockedAt }], { providerId, silent })`:** the only way an extension gives unlocks
+  (ADR-0063). `app/achievements.ingestExternal` matches each id to the schema (`domain/achievement-ids.ts`: exact,
+  case, `ach_` prefix, display name, letters and digits), drops ids it cannot name or already has, persists each with
+  `CartridgesAchievementsUnlock`, updates the record, then emits `achievements.unlocked` (toast) or, when `silent`,
+  `achievements.synced` (Post-Game Summary only). `unlockedAt` 0 = unknown: recorded as now. One ingest at a time per
+  shortcut. Returns `{ accepted }`.
+- **Providers are never polled for unlocks.** `match` / `getUnlocks` / `reset` serve the Reset dialog only
+  (`resetSources`, `reset`), keyed by the provider's own id.
+
 ## Files
 
 | File | Role |
@@ -177,6 +199,7 @@ export function createSurfaceRunner(opts: SurfaceRunnerOptions): SurfaceRunner;
 | `frontend/kernel/surface.ts` | `Surface` contract, `SurfaceRunner`, `createSurfaceRunner`, `assertDisjointTouches` |
 | `frontend/kernel/image-bin.ts` | M10: the slot bytes app/artwork fetched, waiting for the artwork surface (bounded to 8 shortcuts, reads do not remove; not in `GameRecord`: ~585 KB per mapped game) |
 | `frontend/kernel/manual-shelf.ts` | F2c: a manual's rendered pages (`blob:` URLs), waiting for the community viewer; 2 manuals, listeners told of every change (ADR-0048) |
+| `frontend/kernel/extensions.ts` | The extension API on `window.SteamCartridges` (above) |
 | `tests/kernel.test.ts` | Unit tests for all four files |
 
 ## Steam targets touched

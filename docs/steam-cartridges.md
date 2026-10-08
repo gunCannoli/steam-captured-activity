@@ -39,8 +39,11 @@ entry without knowing about each other: `steam-cartridges` sets a new entry on e
 
 **Extension & Expansion System:**
 The core exposes a global, typed extension registry on `window.SteamCartridges` (`frontend/kernel/extensions.ts`). External Millennium plugins can register as providers without direct code dependencies or crash risks:
-- [steam-cartridges-local.md](steam-cartridges-local.md): Local Steam API emulator achievement parsing (.ini and .json for CODEX, RUNE, GSE, Goldberg) and safe resets.
+- [steam-cartridges-local.md](steam-cartridges-local.md): Steam API emulator saves and PC-game logs: discovery, watching, reset (ADR-0063). The core reads none of them.
 - [steam-cartridges-third-party.md](steam-cartridges-third-party.md): External PC storefront integrations (Epic Games Store and Xbox / Microsoft Store / Game Pass: installed games discovery, auto-add, achievement sync, and overlay workarounds).
+
+Extensions **push** unlocks (`reportUnlocks`) and hear `onAppViewed` / `onAppLaunched` / `onAppQuit` with an `AppContext` that carries the
+mapped Steam app and the schema ids; the core never polls them for unlocks (ADR-0063, [kernel.md](steam-cartridges/kernel.md#extension-api-kernelextensionsts-version-110)).
 
 *Extension Isolation & Guardrails (plugins.md § Guardrails 21 & 22):*
 - **Error Boundaries:** Core wraps every dynamic extension settings panel in an `ExtensionErrorBoundary` (`frontend/settings/panel.tsx`). A crash in an extension panel is caught and isolated to that panel block without taking down core settings sections.
