@@ -1,5 +1,6 @@
 --- steam-cartridges-local - backend entry point.
---- Exposes local emulator save/ini detection, unlock reading, and reset RPCs.
+--- RPCs for Steam API emulator achievement files and engine logs: find, read, watch while a game runs, reset
+--- (ADR-0063). Every payload is shaped like steam-cartridges' AppContext.
 
 if jit and jit.off then
   jit.off()
@@ -8,18 +9,10 @@ end
 local millennium = require("millennium")
 local logger     = require("logger")
 local json       = require("json")
-local search     = require("file_search")
-local ini        = require("ini_parser")
-local goldberg   = require("goldberg_parser")
-local reset      = require("file_reset")
-
-local function read_file(path)
-  local f = io.open(path, "rb")
-  if not f then return nil end
-  local content = f:read("*a")
-  f:close()
-  return content
-end
+local search      = require("file_search")
+local watcher     = require("watcher")
+local reset       = require("file_reset")
+local engine_logs = require("engine_logs")
 
 local function decode_payload(payload_json)
   if type(payload_json) == "table" then
@@ -60,73 +53,97 @@ local function method(name, func)
   end
 end
 
---- Detect existing local save/ini files for an appid
-LocalDetectFiles = method("LocalDetectFiles", function(params)
-  local appid = tonumber(params and params.appid) or 0
-  if appid <= 0 then return { files = {} } end
+--- K1: Millennium's cjson encodes an empty Lua table as `{}`; mark lists as arrays when it can (guardrail 21).
+local function as_array(list)
+  local ok, cjson = pcall(require, "cjson")
+  if ok and type(cjson) == "table" and cjson.array_mt then setmetatable(list, cjson.array_mt) end
+  return list
+end
 
-  local ok, res = pcall(search.find_candidates, appid, params)
-  if not ok then
-    logger:error("LocalDetectFiles failed: " .. tostring(res))
-    return { files = {}, error = tostring(res) }
-  end
-  return { files = res or {} }
-end)
+local function normalize_appid(id)
+  local n = tonumber(id) or 0
+  if n < 0 then n = n + 0x100000000 end
+  return n
+end
 
---- Read all unlocked achievements for an appid
-LocalReadUnlocks = method("LocalReadUnlocks", function(params)
-  local appid = tonumber(params and params.appid) or 0
-  if appid <= 0 then return { unlocks = {} } end
-
-  local ok, candidates = pcall(search.find_candidates, appid, params)
-  if not ok or not candidates or #candidates == 0 then
-    return { unlocks = {} }
-  end
-
-  local all_unlocks = {}
-  for _, c in ipairs(candidates) do
-    local text = read_file(c.path)
-    if text then
-      local parsed = {}
-      if c.emulator == "Goldberg" then
-        parsed = goldberg.parse_goldberg(text)
-      else
-        parsed = ini.parse_ini(text)
-      end
-      for id, data in pairs(parsed) do
-        all_unlocks[#all_unlocks + 1] = {
-          id = tostring(id),
-          unlockedAt = data.unlocked_time or os.time(),
-          source = c.emulator,
-          file = c.path,
-        }
-      end
+--- AppContext payload -> search / watcher context.
+local function context(p)
+  p = type(p) == "table" and p or {}
+  local ids = {}
+  if type(p.achievementIds) == "table" then
+    for _, id in ipairs(p.achievementIds) do
+      if type(id) == "string" or type(id) == "number" then ids[#ids + 1] = tostring(id) end
     end
   end
-
-  return { unlocks = all_unlocks }
-end)
-
---- Reset achievements in candidate file(s)
-LocalResetUnlocks = method("LocalResetUnlocks", function(params)
-  local appid = tonumber(params and params.appid) or 0
-  local candidates = search.find_candidates(appid, params)
-  local total_cleared = 0
-  local last_backup = nil
-
-  for _, c in ipairs(candidates) do
-    local res = reset.reset_file(c.path, c.emulator)
-    if res.ok then
-      total_cleared = total_cleared + (res.cleared or 0)
-      last_backup = res.backup_path
-    end
-  end
-
   return {
-    ok = true,
-    cleared = total_cleared,
-    backupPath = last_backup,
+    appid = normalize_appid(p.appid),
+    exe = type(p.exe) == "string" and p.exe or nil,
+    start_dir = type(p.startDir) == "string" and p.startDir or nil,
+    native = tonumber(p.nativeAppid) or 0,
+    ids = ids,
+    title = type(p.displayName) == "string" and p.displayName or "",
   }
+end
+
+local function result_list(r)
+  r = type(r) == "table" and r or {}
+  return { changed = r.changed == true, unlocks = as_array(r.unlocks or {}), files = r.files and as_array(r.files) or nil }
+end
+
+--- Existing achievement files: { files = [{ path, label, format }] }.
+LocalDetectFiles = method("LocalDetectFiles", function(params)
+  local ctx = context(params)
+  if ctx.appid <= 0 then return { files = as_array({}) } end
+  local files = search.candidates(ctx)
+  return { files = as_array(files or {}) }
+end)
+
+--- Unlocks in the files (not the engine logs): { unlocks = [{ id, unlockedAt }] }, unlockedAt 0 = unknown.
+LocalReadUnlocks = method("LocalReadUnlocks", function(params)
+  local ctx = context(params)
+  if ctx.appid <= 0 then return { unlocks = as_array({}) } end
+  local snapshot = {}
+  for _, f in ipairs(search.candidates(ctx) or {}) do
+    for id, info in pairs(watcher.read_unlocks(f, ctx.ids)) do
+      local t = tonumber(info.unlocked_time) or 0
+      if snapshot[id] == nil or (t > 0 and (snapshot[id] == 0 or t < snapshot[id])) then snapshot[id] = t end
+    end
+  end
+  return { unlocks = as_array(watcher.list(snapshot)) }
+end)
+
+--- Clears every file's unlocks (backed up first) and marks the engine logs read.
+LocalResetUnlocks = method("LocalResetUnlocks", function(params)
+  local ctx = context(params)
+  local total, last_backup, errors, all_ok = 0, nil, {}, true
+  for _, f in ipairs(search.candidates(ctx) or {}) do
+    local res = reset.reset_file(f.path, f.format)
+    if res.ok then
+      total = total + (res.cleared or 0)
+      last_backup = res.backup_path or last_backup
+    else
+      all_ok = false
+      errors[#errors + 1] = tostring(res.error)
+      logger:warn("LocalResetUnlocks: " .. tostring(res.error))
+    end
+  end
+  local ok_logs, err_logs = pcall(engine_logs.mark_read, ctx.title, ctx.exe)
+  if not ok_logs then logger:warn("LocalResetUnlocks: could not mark logs read: " .. tostring(err_logs)) end
+  search.invalidate(ctx.appid)
+  return { ok = all_ok, cleared = total, backupPath = last_backup, errors = as_array(errors) }
+end)
+
+--- Watch while a game runs (ADR-0063).
+LocalWatchStart = method("LocalWatchStart", function(params)
+  return result_list(watcher.start(context(params)))
+end)
+
+LocalWatchPoll = method("LocalWatchPoll", function(params)
+  return result_list(watcher.poll(normalize_appid(type(params) == "table" and params.appid)))
+end)
+
+LocalWatchStop = method("LocalWatchStop", function(params)
+  return result_list(watcher.stop(normalize_appid(type(params) == "table" and params.appid)))
 end)
 
 -- Millennium's lifecycle (docs/plugins.md § 2): the table is required; ready() belongs in on_load.
