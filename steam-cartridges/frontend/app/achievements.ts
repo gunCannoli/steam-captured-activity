@@ -9,7 +9,8 @@ import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { AchievementResetSource, backend as Backend, Lane, ResetSourceResult } from "../ports/backend";
 import { asList } from "../kernel/lists.ts";
-import type { AppContext, AchievementSourceProvider } from "../kernel/extensions.ts";
+import type { AppContext, AchievementSourceProvider, AchievementUnlockItem, ReportUnlocksOptions } from "../kernel/extensions.ts";
+import { canonicalAchievementId } from "../domain/achievement-ids.ts";
 
 export type LaunchPolicy = "off" | "first_run" | "all_runs";
 
@@ -62,6 +63,10 @@ export interface AchievementsService {
     resetSources(appid: ShortcutId): Promise<AchievementResetSource[]>;
     /** Unlocked and total count from the record, for the settings panel's audit. */
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
+    /** Unlocks an extension reports (ADR-0063): canonical ids, persisted, then announced (silent: no toast). */
+    ingestExternal(appid: number, unlocks: AchievementUnlockItem[], opts: ReportUnlocksOptions): Promise<{ accepted: string[] }>;
+    /** What an extension is told about a shortcut: exe, launch options, mapped app, schema ids. */
+    context(appid: ShortcutId): Promise<AppContext>;
     /**
      * Can this shortcut's achievements be reset? false for an Epic or Xbox copy: its unlocks live on the store's account
      * and the next sync brings them back (ADR-0056, decision 7). Record only, synchronous.
@@ -136,8 +141,9 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         deps.bus.emit("achievements.unlocked", { appid, ids, items });
     }
 
-    function makeAppContext(appid: ShortcutId): AppContext {
+    function makeAppContext(appid: ShortcutId, nativeAppid?: number): AppContext {
         const sc = deps.shortcutData?.(appid);
+        const ids = current(appid)?.data?.schema.achievements.map((a) => String(a.id));
         return {
             appid,
             gameid: String(appid),
@@ -145,7 +151,55 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             displayName: deps.titleOf(appid) ?? sc?.strAppName ?? "",
             exe: sc?.szExe,
             launchOptions: sc?.szArguments,
+            nativeAppid,
+            achievementIds: ids && ids.length > 0 ? ids : undefined,
         };
+    }
+
+    /** One ingest at a time per shortcut, so two reports never persist the same id twice. */
+    const ingestChain = new Map<ShortcutId, Promise<unknown>>();
+
+    async function ingestOnce(appid: ShortcutId, unlocks: AchievementUnlockItem[], opts: ReportUnlocksOptions): Promise<{ accepted: string[] }> {
+        let set = current(appid)?.data;
+        if (!set) {
+            await ensure(appid, deps.routeOf(appid), { lane: "normal" });
+            set = current(appid)?.data;
+        }
+        if (!set) return { accepted: [] };
+        const fresh = new Map<string, number>();
+        for (const u of unlocks) {
+            const id = canonicalAchievementId(u?.id, set.schema.achievements);
+            if (!id || set.unlocks[id] || fresh.has(id)) continue;
+            const at = Number(u.unlockedAt) > 0 ? Math.floor(Number(u.unlockedAt)) : Math.floor(deps.now() / 1000);
+            fresh.set(id, at);
+        }
+        if (fresh.size === 0) return { accepted: [] };
+        const accepted: string[] = [];
+        for (const [id, at] of fresh) {
+            const res = (await deps.backend.unlockAchievement(appid, id, at).catch((e) => ({ error: String(e) }))) as { error?: string };
+            if (res?.error) {
+                logger.warn(`${opts.providerId}: could not record ${id} for shortcut ${appid}: ${res.error}`);
+                continue;
+            }
+            accepted.push(id);
+        }
+        if (accepted.length === 0) return { accepted };
+        const latest = current(appid)?.data ?? set;
+        const merged: Record<string, AchievementUnlockRecord> = { ...latest.unlocks };
+        for (const id of accepted) merged[id] = { unlocked_time: fresh.get(id)! };
+        deps.records.update(appid, { achievements: { ...current(appid)!, data: { ...latest, unlocks: merged } } });
+        logger.info(`${opts.providerId} reported ${accepted.length} new unlock(s) for shortcut ${appid}: ${accepted.join(", ")}`);
+        if (opts.silent || !deps.observerEnabled()) {
+            const items: UnlockedAchievement[] = [];
+            for (const id of accepted) {
+                const a = latest.schema.achievements.find((x) => x.id === id);
+                if (a) items.push({ id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: fresh.get(id)! });
+            }
+            if (items.length > 0) deps.bus.emit("achievements.synced", { appid, items });
+        } else {
+            announce(appid, accepted);
+        }
+        return { accepted };
     }
 
     async function load(appid: ShortcutId, route: Route, opts: EnsureOptions): Promise<Part<AchievementSet>> {
@@ -362,6 +416,20 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         ensure,
         checkNow,
         startSession,
+        ingestExternal(appid, unlocks, opts) {
+            const id = toShortcutId(Number(appid));
+            if (id === undefined) return Promise.resolve({ accepted: [] });
+            const prev = ingestChain.get(id) ?? Promise.resolve();
+            const next = prev.then(() => ingestOnce(id, Array.isArray(unlocks) ? unlocks : [], opts));
+            ingestChain.set(id, next.catch(() => undefined));
+            return next.catch((e) => {
+                logger.warn(`Ingest from ${opts?.providerId} failed for ${id}:`, e);
+                return { accepted: [] };
+            });
+        },
+        async context(appid) {
+            return makeAppContext(appid, await resolveNative(appid));
+        },
         async trigger(appid, achievementId) {
             const set = current(appid)?.data;
             const item = set?.schema.achievements.find((a) =>

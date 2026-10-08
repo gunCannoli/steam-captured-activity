@@ -19,7 +19,7 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
     const records = createRecordStore(bus);
     records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
     if (over.withSchema !== false) records.update(SC, { achievements: { status: 'ok', data: { schema: SCHEMA, unlocks: {} } } });
-    const calls = { ensure: 0, check: [] as any[], toast: 0, reset: [] as any[] };
+    const calls = { ensure: 0, check: [] as any[], toast: 0, reset: [] as any[], unlock: [] as any[] };
     const timers: { fn: () => void; ms: number; cleared: boolean }[] = [];
     const emitted: any[] = [];
     bus.on('achievements.unlocked', (e) => emitted.push(e));
@@ -34,7 +34,10 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
                 calls.check.push({ appid, native, title });
                 return over.checkUnlocks ? over.checkUnlocks() : { new_unlocks: [] };
             },
-            async unlockAchievement() { return { ok: true, unlocks: { A: { unlocked_time: 9 } } }; },
+            async unlockAchievement(appid: number, id: string, time?: number) {
+                calls.unlock.push({ appid, id, time });
+                return { ok: true, unlocks: { A: { unlocked_time: 9 } } };
+            },
             async resetAchievements(appid: number, opts: any) {
                 calls.reset.push({ appid, ...opts });
                 return { ok: true, sources: opts?.sources?.length ? [{ id: 'local', ok: true, cleared: 2 }] : {} };
@@ -451,4 +454,45 @@ test('extension achievement provider contributes unlocks and handles reset (ADR-
     assert.equal(res.ok, true);
     assert.equal(providerResetCalled, true);
     assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, {});
+});
+
+test('ingestExternal: a reported unlock is persisted, recorded and announced (ADR-0063)', async () => {
+    const { ach, records, emitted, calls } = setup();
+    assert.deepEqual(await ach.ingestExternal(SC, [{ id: 'A', unlockedAt: 50 }], { providerId: 'x' }), { accepted: ['A'] });
+    assert.deepEqual(calls.unlock, [{ appid: SC, id: 'A', time: 50 }]);
+    assert.deepEqual(records.get(SC)?.achievements?.data?.unlocks, { A: { unlocked_time: 50 } });
+    assert.equal(emitted.length, 1);
+    assert.deepEqual(emitted[0].ids, ['A']);
+});
+
+test('ingestExternal silent: recorded and synced, never announced as an unlock (ADR-0063)', async () => {
+    const { ach, bus, emitted } = setup();
+    const synced: any[] = [];
+    bus.on('achievements.synced', (e) => synced.push(e));
+    await ach.ingestExternal(SC, [{ id: 'B', unlockedAt: 60 }], { providerId: 'x', silent: true });
+    assert.equal(emitted.length, 0);
+    assert.equal(synced.length, 1);
+    assert.deepEqual(synced[0].items.map((i: any) => i.id), ['B']);
+});
+
+test('ingestExternal drops an id the schema lacks and one already unlocked', async () => {
+    const { ach, records, calls } = setup();
+    records.update(SC, { achievements: { status: 'ok', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 1 } } } } });
+    assert.deepEqual(await ach.ingestExternal(SC, [{ id: 'A', unlockedAt: 5 }, { id: 'ZZZ', unlockedAt: 5 }], { providerId: 'x' }), { accepted: [] });
+    assert.equal(calls.unlock.length, 0);
+});
+
+test('ingestExternal: an unknown time (0) is recorded as now', async () => {
+    const { ach, calls } = setup();
+    await ach.ingestExternal(SC, [{ id: 'Alpha', unlockedAt: 0 }], { providerId: 'x' });
+    assert.deepEqual(calls.unlock, [{ appid: SC, id: 'A', time: 1 }]);
+});
+
+test('ingestExternal: two concurrent reports of one id persist it once', async () => {
+    const { ach, calls } = setup();
+    await Promise.all([
+        ach.ingestExternal(SC, [{ id: 'B', unlockedAt: 7 }], { providerId: 'x' }),
+        ach.ingestExternal(SC, [{ id: 'B', unlockedAt: 7 }], { providerId: 'y' }),
+    ]);
+    assert.equal(calls.unlock.length, 1);
 });

@@ -10,6 +10,17 @@ export interface AppContext {
     displayName: string;
     exe?: string;
     launchOptions?: string;
+    /** The Steam app this shortcut maps to (0 or absent = none). Extensions never read the core's files for it (ADR-0063). */
+    nativeAppid?: number;
+    /** The ids of the record's achievement schema, when it has one (lets a provider decode CRC-keyed files). */
+    achievementIds?: string[];
+}
+
+export interface ReportUnlocksOptions {
+    /** The reporting provider's id, for the log. */
+    providerId: string;
+    /** true: record and show in the Post-Game Summary, no toast (a first snapshot of old unlocks). */
+    silent?: boolean;
 }
 
 export interface AchievementSchemaItem {
@@ -83,21 +94,28 @@ export interface SteamCartridgesAPI {
     getLibraryProviders(): LibrarySourceProvider[];
     getSettingsPanels(): SettingsPanelExtension[];
     onAppViewed(cb: (context: AppContext) => void): () => void;
+    onAppLaunched(cb: (context: AppContext) => void): () => void;
     onAppQuit(cb: (context: AppContext) => void): () => void;
     notifyAppViewed(context: AppContext): void;
+    notifyAppLaunched(context: AppContext): void;
     notifyAppQuit(context: AppContext): void;
+    /** Extensions push unlocks; the core canonicalizes, persists and announces them (ADR-0063). */
+    reportUnlocks(appid: number, unlocks: AchievementUnlockItem[], opts: ReportUnlocksOptions): Promise<{ accepted: string[] }>;
 }
 
-export function createExtensionRegistry(): SteamCartridgesAPI {
+export function createExtensionRegistry(
+    sink: { reportUnlocks: SteamCartridgesAPI["reportUnlocks"] } = { reportUnlocks: async () => ({ accepted: [] }) },
+): SteamCartridgesAPI {
     const achievementProviders: AchievementSourceProvider[] = [];
     const libraryProviders: LibrarySourceProvider[] = [];
     const settingsPanels: SettingsPanelExtension[] = [];
     const summaryProviders: SummaryProvider[] = [];
     const viewListeners: ((context: AppContext) => void)[] = [];
+    const launchListeners: ((context: AppContext) => void)[] = [];
     const quitListeners: ((context: AppContext) => void)[] = [];
 
     const api: SteamCartridgesAPI = {
-        version: "1.0.0",
+        version: "1.1.0",
         registerAchievementProvider(provider) {
             const existing = achievementProviders.findIndex((p) => p.id === provider.id);
             if (existing >= 0) achievementProviders.splice(existing, 1);
@@ -146,6 +164,13 @@ export function createExtensionRegistry(): SteamCartridgesAPI {
                 if (idx >= 0) viewListeners.splice(idx, 1);
             };
         },
+        onAppLaunched(cb) {
+            launchListeners.push(cb);
+            return () => {
+                const idx = launchListeners.indexOf(cb);
+                if (idx >= 0) launchListeners.splice(idx, 1);
+            };
+        },
         onAppQuit(cb) {
             quitListeners.push(cb);
             return () => {
@@ -160,6 +185,22 @@ export function createExtensionRegistry(): SteamCartridgesAPI {
                 } catch {
                     // Fail-silent isolation (ADR-0014)
                 }
+            }
+        },
+        notifyAppLaunched(ctx) {
+            for (const cb of launchListeners) {
+                try {
+                    cb(ctx);
+                } catch {
+                    // Fail-silent isolation (ADR-0014)
+                }
+            }
+        },
+        reportUnlocks(appid, unlocks, opts) {
+            try {
+                return sink.reportUnlocks(appid, Array.isArray(unlocks) ? unlocks : [], opts).catch(() => ({ accepted: [] }));
+            } catch {
+                return Promise.resolve({ accepted: [] });
             }
         },
         notifyAppQuit(ctx) {

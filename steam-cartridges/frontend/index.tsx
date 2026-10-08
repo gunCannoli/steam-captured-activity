@@ -422,7 +422,9 @@ export function initGlobalExtensionAPI(): SteamCartridgesAPI {
     const existing = (window as any).SteamCartridges;
     if (existing && existing.version) return existing as SteamCartridgesAPI;
 
-    const api = createExtensionRegistry();
+    const api = createExtensionRegistry({
+        reportUnlocks: (appid, unlocks, opts) => achievements.ingestExternal(appid, unlocks, opts),
+    });
     (window as any).SteamCartridges = api;
 
     // Flush any queue from plugins loaded before steam-cartridges
@@ -693,12 +695,7 @@ async function init() {
     bus.on("shortcut.viewed", ({ appid }) => {
         if (features.isEnabled("native-links")) features.run("native-links", () => wrapNavigators());
         if (features.isEnabled("captures")) void patchLibraryApp(appid);
-        extensionApi.notifyAppViewed({
-            appid,
-            gameid: String(appid),
-            isShortcut: true,
-            displayName: shortcutTitle(appid) ?? "",
-        });
+        void achievements.context(appid).then((ctx) => extensionApi.notifyAppViewed(ctx));
     });
     bus.on("shortcut.left", ({ appid }) => {
         if (features.isEnabled("captures")) unpatchLibraryApp(appid);
@@ -714,12 +711,10 @@ async function init() {
         logger.info(`${name} closed; refreshing its activity.`);
         void refreshLibraryApp(appid);
         void libraryStats.load().then(refreshLibraryHome);
-        extensionApi.notifyAppQuit({
-            appid,
-            gameid: String(appid),
-            isShortcut: true,
-            displayName: name ?? shortcutTitle(appid) ?? "",
-        });
+        void achievements.context(appid).then((ctx) => extensionApi.notifyAppQuit({ ...ctx, displayName: name ?? ctx.displayName }));
+    });
+    bus.on("shortcut.launched", ({ appid }) => {
+        void achievements.context(appid).then((ctx) => extensionApi.notifyAppLaunched(ctx));
     });
 
     // ===== Sensors (migration plan M2) =====
