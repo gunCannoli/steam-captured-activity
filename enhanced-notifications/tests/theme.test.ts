@@ -8,6 +8,74 @@ import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
 const load = (name: string) => parseJsonc(readFileSync(new URL(name, themesDir), 'utf8'));
+/** Two themes removed from the bundle in c874c63, kept here verbatim as fixtures: one without an `achievements` block,
+ *  one with tiers. The checks below are about those shapes, not about which themes ship. */
+const STEAM_MIDNIGHT = {
+    "popup": {
+        "background": ["#0e141b", "#1b2838"],
+        "gradient_angle": 135,
+        "border": [1, "#66c0f455", 6],
+        "glow": ["#66c0f433", 18, 0],
+        "watermark": false
+    },
+    "text": {
+        "title": ["#66c0f4", 100, "bold"],
+        "body": ["#ffffff", 100, "regular"],
+        "subtext": ["#8f98a0", 100, "regular"]
+    },
+    "game_icon": [true, 6]
+};
+const STEAM_TIERS = {
+    "settings": {
+        "position": "top_right",
+        "display_time_ms": 4000,
+        "animation": "slide"
+    },
+    "text": {
+        "title": ["#ffffff", 100, "bold"],
+        "body": ["#ffffff", 100, "regular"]
+    },
+    "achievements": {
+        "layout": "default_system_right",
+        "normal": {
+            "background": ["#2f2f2f", "#1f1f1f"],
+            "gradient_angle": 90,
+            "border": [2, "#cd7f32", 8],
+            "glow": ["#cd7f32", 40, 0],
+            "margin": [0, 0],
+            "padding": [6, 10],
+            "gap": [10, 2],
+            "icons": {
+                "achievement": true,
+                "system": false,
+                "rarity": "assets/trophy_bronze.svg"
+            }
+        },
+        "magic": {
+            "threshold": 25,
+            "border": [2, "#c0c0c0", 8],
+            "glow": ["#c0c0c0", 60, 0],
+            "icons": {
+                "rarity": "assets/trophy_silver.svg"
+            }
+        },
+        "rare": {
+            "threshold": 10,
+            "border": [2, "#e5a93c", 8],
+            "glow": ["#e5a93c", 80, 0],
+            "icons": {
+                "rarity": "assets/trophy_gold.svg"
+            }
+        },
+        "exceptional": {
+            "border": [2, "#40c4ff", 16],
+            "glow": ["#40c4ff", 90, 800],
+            "icons": {
+                "rarity": "assets/trophy_platinum.svg"
+            }
+        }
+    }
+};
 /** Theme files are .jsonc or .json; both parse as JSONC. */
 const isTheme = (f: string) => f.endsWith('.json') || f.endsWith('.jsonc');
 
@@ -45,9 +113,10 @@ test("every bundled theme's assets exist, relative to themes/", () => {
 });
 
 test('bundled themes: steam_midnight styles achievements like every toast; ps5, steam_tiers and theme draw the banner', () => {
-    assert.equal(resolveTheme(load('steam_midnight.json')).achievements, null);
-    for (const file of ['ps5.jsonc', 'steam_tiers.json', 'theme_example.jsonc']) {
-        const banner = resolveTheme(load(file)).achievements;
+    assert.equal(resolveTheme(STEAM_MIDNIGHT).achievements, null);
+    const themes: [string, unknown][] = [['ps5.jsonc', load('ps5.jsonc')], ['steam_tiers (fixture)', STEAM_TIERS], ['theme_example.jsonc', load('theme_example.jsonc')]];
+    for (const [file, raw] of themes) {
+        const banner = resolveTheme(raw).achievements;
         assert.ok(banner, file);
         assert.deepEqual(Object.keys(banner.tiers), ['normal', 'magic', 'rare', 'exceptional'], file);
         assert.equal(banner.position, 'top_right', `${file}: inherited from the theme's settings`);
@@ -133,7 +202,7 @@ function selectorList(list: string): string[] {
 }
 
 test('CSS is scoped to the styled toast window only', () => {
-    const css = buildCss(resolveTheme(load('steam_midnight.json')).style, SEL);
+    const css = buildCss(resolveTheme(STEAM_MIDNIGHT).style, SEL);
     assert.ok(css.length > 0);
     for (const rule of css.split('\n').filter((l) => l.includes('{') && !l.startsWith('@keyframes'))) {
         for (const selector of selectorList(rule.slice(0, rule.indexOf('{')))) {
@@ -283,4 +352,16 @@ test('hover CSS: the card holds its own overlay; false hides it; a colour replac
     const tinted = buildCss(resolveTheme({ settings: { hover: [true, '#66c0f4'] } }).style, sel);
     assert.match(tinted, /:is\(\.dp\)::before \{ background: #66c0f4 !important; \}/);
     assert.match(tinted, /:is\(\.dp\):hover :is\(\.wm\) \{ color: #66c0f4 !important; \}/);
+});
+
+test('Big Picture: the card is on the animated child, never on the popup (consistency plan H1d)', () => {
+    const css = buildCss(resolveTheme({ popup: { background: ['#1F1F1F', '#0F0F0F'], border: [0, '#000', 8] } }).style, SEL);
+    assert.match(css, /body\[data-en-type\] :is\(\.gp\) > \* \{ background: linear-gradient\(\d+deg, #1F1F1F, #0F0F0F\) !important;.*border-radius: 8px !important;/);
+    assert.doesNotMatch(css, /:is\(\.gp\) \{/, 'nothing on the popup itself: it is not animated');
+    assert.match(css, /body\[data-en-type\] :is\(\.gp\) > \* :is\(\.short\) \{ background: transparent !important; \}/, 'a nested template does not cover the card');
+    assert.match(css, /body\[data-en-type\] :is\(\.dp\) \{ background: linear-gradient/, 'desktop: the popup is still the card');
+    const glow = buildCss(resolveTheme({ popup: { glow: ['#8a2be2', 6, 1200] } }).style, SEL);
+    assert.match(glow, /:is\(\.dp\) \{[^}]*animation: en-pulse 1200ms/, 'desktop pulses the popup');
+    assert.match(glow, /:is\(\.gp\) > \*::after \{[^}]*animation: en-pulse 1200ms/, 'Big Picture pulses a layer, not the animated card');
+    assert.doesNotMatch(glow, /:is\(\.gp\) > \* \{[^}]*animation:/, 'the card keeps the entrance and exit');
 });

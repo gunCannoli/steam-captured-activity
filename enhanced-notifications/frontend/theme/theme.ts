@@ -331,33 +331,48 @@ export const STEAM_TEMPLATE_HEIGHT = { desktop: 70, short: 40 } as const;
 
 export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
     const root = 'body[data-en-type]';
-    const popup = [sel.desktopPopup, sel.gamepadPopup].filter(Boolean).map((p) => `${root} ${p}`).join(', ');
+    const desktopCard = sel.desktopPopup ? `${root} ${sel.desktopPopup}` : '';
+    // Big Picture and the in-game overlay animate the popup's child (`.GamepadToastPopup > *`, where Steam paints its own
+    // card), not the popup: a card on the popup stayed opaque after the exit, so the text slid out over a card that
+    // stayed, and in the game overlay (which moves its view to 0,0 before hiding it) flashed top-left (found live
+    // 2026-10-08, docs/plans/enhanced-notifications-consistency-plan.md H1d). So the card goes on that child.
+    const gamepadCard = sel.gamepadPopup ? `${root} ${sel.gamepadPopup} > *` : '';
     let css = '';
 
-    const popupDecls: string[] = [];
+    const cardDecls: string[] = [];
     if (s.background) {
         const bg = s.background.length > 1 ? `linear-gradient(${s.gradientAngle}deg, ${s.background.join(', ')})` : s.background[0];
-        popupDecls.push(`background: ${bg} !important;`);
-        // Big Picture paints its background on the template, not the popup.
-        if (sel.shortTemplate) css += `${root} ${sel.shortTemplate} { background: transparent !important; }\n`;
+        cardDecls.push(`background: ${bg} !important;`);
+        // A template nested inside Big Picture's card paints Steam's colour over ours.
+        if (gamepadCard && sel.shortTemplate) css += `${gamepadCard} ${sel.shortTemplate} { background: transparent !important; }\n`;
     }
     if (s.border) {
-        popupDecls.push(
+        cardDecls.push(
             s.border.width > 0 ? `border: ${s.border.width}px solid ${s.border.color} !important;` : 'border: none !important;',
             `border-radius: ${s.border.radius}px !important;`,
             'overflow: hidden !important;',
         );
     }
+    const pulse = s.glow && s.glow.spread > 0 && s.glow.pulseMs > 0 ? s.glow : null;
     if (s.glow && s.glow.spread > 0) {
-        popupDecls.push(`box-shadow: inset 0 0 ${s.glow.spread}px ${s.glow.color} !important;`);
-        if (s.glow.pulseMs > 0) {
-            const name = 'en-pulse';
-            css += `@keyframes ${name} { from { box-shadow: inset 0 0 0 ${s.glow.color}; } to { box-shadow: inset 0 0 ${s.glow.spread}px ${s.glow.color}; } }\n`;
-            popupDecls.push(`animation: ${name} ${s.glow.pulseMs}ms ease-in-out infinite alternate;`);
+        cardDecls.push(`box-shadow: inset 0 0 ${s.glow.spread}px ${s.glow.color} !important;`);
+        if (pulse) {
+            css += `@keyframes en-pulse { from { box-shadow: inset 0 0 0 ${pulse.color}; } to { box-shadow: inset 0 0 ${pulse.spread}px ${pulse.color}; } }\n`;
         }
     }
-    if (s.fontFamily) popupDecls.push(`font-family: ${s.fontFamily} !important;`);
-    if (popup && popupDecls.length) css += `${popup} { ${popupDecls.join(' ')} }\n`;
+    if (s.fontFamily) cardDecls.push(`font-family: ${s.fontFamily} !important;`);
+    if (cardDecls.length) {
+        const pulseDecl = pulse ? ` animation: en-pulse ${pulse.pulseMs}ms ease-in-out infinite alternate;` : '';
+        // Desktop: the popup is the card, and the theme's entrance and exit run on its wrapper, so the pulse can run here.
+        if (desktopCard) css += `${desktopCard} { ${cardDecls.join(' ')}${pulseDecl} }\n`;
+        if (gamepadCard) {
+            css += `${gamepadCard} { ${cardDecls.join(' ')}${pulse ? ' position: relative !important;' : ''} }\n`;
+            // Big Picture's card runs the entrance and exit itself, so the pulse is a layer of its own on top.
+            if (pulse) {
+                css += `${gamepadCard}::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;${pulseDecl} }\n`;
+            }
+        }
+    }
     if (s.fontFamily && sel.templates) css += `${root} ${sel.templates}, ${root} ${sel.templates} * { font-family: ${s.fontFamily} !important; }\n`;
 
     if (s.watermark === false && sel.watermark) css += `${root} ${sel.watermark} { display: none !important; }\n`;
