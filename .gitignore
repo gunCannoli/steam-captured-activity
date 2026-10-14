@@ -48,3 +48,7 @@ sgdb_key.txt
 __pycache__/
 # Scratch session logs
 scratch/*.jsonl
+
+# Source material for generated plugin assets (the Theme Creator sound packs: tools/import-sfx.mjs).
+# Kept in git history at 6ece444; regenerable, never shipped.
+assets-src/

@@ -42,10 +42,18 @@ export interface ThemeFile {
     text: string;
 }
 
+/** The Theme Creator's sound library (themes/sounds/library.json, tools/import-sfx.mjs). */
+export interface SoundLibraryManifest {
+    version: number;
+    cues: { id: string; label: string; seconds: number }[];
+    packs: { id: string; label: string; category: string; description: string; seconds: Record<string, number> }[];
+}
+
 export const rpc = {
     listThemes: () => call<{ themes: ThemeEntry[]; userDir: string }>('ListThemes'),
     loadTheme: (name: string) => call<ThemeFile>('LoadTheme', { name }),
     /** Asset path -> data URL, or false when missing / not allowed. */
     loadAssets: (dir: string, paths: string[]) => call<Record<string, string | false>>('LoadAssets', { dir, paths }),
     openThemesFolder: () => call<{ dir: string }>('OpenThemesFolder'),
+    soundLibrary: () => call<{ dir: string; manifest: SoundLibraryManifest }>('SoundLibrary'),
 };

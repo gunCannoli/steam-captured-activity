@@ -167,6 +167,21 @@ LoadAssets = method("LoadAssets", function(data)
   return out
 end)
 
+--- The Theme Creator's sound library (themes/sounds, tools/import-sfx.mjs): its folder and parsed manifest. The
+--- creator loads cues with LoadAssets(dir, { "<pack>/<cue>.wav" }). No manifest: an empty library, not an error.
+local function sounds_dir()
+  return fs.join(bundled_themes_dir(), "sounds")
+end
+
+SoundLibrary = method("SoundLibrary", function(_)
+  local dir = sounds_dir()
+  local path = fs.join(dir, "library.json")
+  if not fs.is_file(path) then return { dir = dir, manifest = { version = 1, cues = {}, packs = {} } } end
+  local ok, manifest = pcall(json.decode, utils.read_file(path))
+  if not ok or type(manifest) ~= "table" then return { error = "sound library manifest unreadable" } end
+  return { dir = dir, manifest = manifest }
+end)
+
 OpenThemesFolder = method("OpenThemesFolder", function(_)
   local dir = user_themes_dir()
   fs.create_directories(dir)

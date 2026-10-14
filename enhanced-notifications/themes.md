@@ -270,6 +270,17 @@ edits both: switch its preview between Desktop and Big Picture.
   `.mp3`, `.wav`, `.ogg`, up to 8 MB each. A missing, oversized or disallowed
   file keeps Steam's own (or, for an icon, hides it).
 
+## Sound library
+
+The plugin ships 17 sound packs (procedurally generated, free to share) in
+`<plugin>/themes/sounds/<pack>/`, each with three cues: `subtle.wav`
+(~0.95 s), `distinct.wav` (~1.4 s) and `grand.wav` (~2.2 s);
+`sounds/library.json` lists them. The Theme Creator offers them and, when it
+saves a theme, copies the cues it uses into the theme's own folder, so a saved
+theme never depends on the plugin folder. A bundled theme (one in
+`<plugin>/themes/`) can name one directly, relative to its own folder:
+`"sound": ["sounds/celtic_harp/subtle.wav", 80]`.
+
 ## Plugin settings
 
 Not part of a theme. Configured in the plugin's settings panel (Millennium

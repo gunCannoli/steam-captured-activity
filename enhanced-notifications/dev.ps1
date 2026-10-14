@@ -150,6 +150,9 @@ function Copy-PluginFiles {
     Where-Object { $_.Extension -in '.json', '.jsonc' } |
     Copy-Item -Destination $themesTarget -Force
   Copy-Item -Path (Join-Path $SourceRoot 'themes\SteamStation\assets') -Destination (Join-Path $themesTarget 'SteamStation') -Recurse -Force
+  # The Theme Creator's sound library (tools/import-sfx.mjs): WAV packs and library.json.
+  $sounds = Join-Path $SourceRoot 'themes\sounds'
+  if (Test-Path $sounds) { Copy-Item -Path $sounds -Destination $themesTarget -Recurse -Force }
   Remove-Item -Path (Join-Path $Target 'backend\_lib') -Recurse -Force -ErrorAction SilentlyContinue
 }
 
