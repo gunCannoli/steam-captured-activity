@@ -1,57 +1,24 @@
 import { useEffect, useState } from 'react';
-import { pluginConfig, subscribePluginConfig } from '@steambrew/client';
+import { onSettingChange, setSetting, setting } from './current';
+import type { ThirdPartySettings } from './defaults';
 
-export interface ThirdPartySettings {
-    services: { epicEnabled: boolean; xboxEnabled: boolean };
-    autoAddEpicGames: boolean;
-    autoAddXboxGames: boolean;
-    epicOverlayWorkaround: boolean;
-    muteXboxNotifications: boolean;
-}
+export { DEFAULTS, type ThirdPartySettings } from './defaults';
 
-export const DEFAULTS: ThirdPartySettings = {
-    services: { epicEnabled: true, xboxEnabled: true },
-    autoAddEpicGames: false,
-    autoAddXboxGames: false,
-    epicOverlayWorkaround: false,
-    muteXboxNotifications: false,
-};
-
+/** One setting in the panel, served from the shared in-memory copy (current.ts; Millennium#903 workaround there). */
 export function useSetting<K extends keyof ThirdPartySettings>(
     key: K,
 ): [ThirdPartySettings[K], (val: ThirdPartySettings[K]) => void] {
-    const [val, setVal] = useState<ThirdPartySettings[K]>(DEFAULTS[key]);
+    const [val, setVal] = useState<ThirdPartySettings[K]>(() => setting(key));
 
     useEffect(() => {
-        let mounted = true;
-        pluginConfig.get<ThirdPartySettings[K]>(key as string).then((stored) => {
-            if (mounted && stored !== undefined && stored !== null) {
-                if (typeof DEFAULTS[key] === 'object' && typeof stored === 'object') {
-                    setVal({ ...DEFAULTS[key], ...stored });
-                } else {
-                    setVal(stored);
-                }
-            }
-        }).catch(() => {});
-
-        const unsub = subscribePluginConfig((changedKey: string, newVal: any) => {
-            if (changedKey === key && mounted && newVal !== undefined && newVal !== null) {
-                if (typeof DEFAULTS[key] === 'object' && typeof newVal === 'object') {
-                    setVal({ ...DEFAULTS[key], ...newVal });
-                } else {
-                    setVal(newVal);
-                }
-            }
+        setVal(setting(key));
+        return onSettingChange((changed) => {
+            if (changed === key) setVal(setting(key));
         });
-        return () => {
-            mounted = false;
-            unsub?.();
-        };
     }, [key]);
 
     const update = (newVal: ThirdPartySettings[K]) => {
-        setVal(newVal);
-        pluginConfig.set(key as string, newVal).catch(() => {});
+        void setSetting(key, newVal);
     };
 
     return [val, update];

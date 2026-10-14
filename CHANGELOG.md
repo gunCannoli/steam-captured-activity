@@ -7,6 +7,22 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **steam-cartridges-third-party: settings read at start-up (2026-10-14).** Why Jotunnslayer's reinstall was never
+  auto-added: the plugin read its settings with `pluginConfig.get`, which always rejects on this Millennium
+  (Millennium#903, knowledgebase); the `.catch` fell back to the defaults, where both auto-add toggles are off. So
+  auto-add, the Epic launch hold and the Xbox mute ran with defaults after every Steam start whatever was stored, and
+  the panel showed the defaults too. Its writes called `set(key, value)`, which the runtime reads as an empty plugin
+  name. `settings/current.ts` now reads through `getAll` with the `PluginConfig_GetAll` FFI fallback, writes with
+  `set(plugin, key, value)` and reads back, and notifies its own listeners (frontend writes raise no change event, so
+  a toggle in the panel had not re-run auto-add either); the panel's `useSetting` serves the same in-memory copy.
+  Types and defaults moved to `settings/defaults.ts` (no import cycle). The backend's `StoreInstalledGames` was right
+  throughout: Jotunnslayer installed, `inLibrary = nil`, a valid launch spec. Live after deploy: at the first start
+  auto-add made Jotunnslayer shortcut 2308047645 in "Epic Games" (3 Epic unlocks pushed).
+- **Steam updated past the rollback (2026-10-14, the user's call).** Millennium refused to start next to
+  `Steam.cfg` (`BootStrapperInhibitAll=Enable`, written by the user's `SteamRollback.ps1` on 2026-10-08), so the file was
+  removed (backup kept outside the repo; `SteamRollback.ps1` recreates it). Steam went from build 1785799196 to
+  1791918634; Millennium and all six plugins load on it, and the live suites pass (steam-cartridges 12/12,
+  steam-captured-activity `check_feed` all PASS).
 - **Parity green, machine paths out of steam-cartridges (2026-10-14)**, [release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14):
   - *Parity:* the 14 failures were not a regression. Jotunnslayer's Epic copy had been uninstalled and auto-remove took
     its shortcut (4202674849; 7 of 8 mapped shortcuts are gone), so `open(S)` navigated nowhere and every check read
