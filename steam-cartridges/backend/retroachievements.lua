@@ -3,7 +3,7 @@
 --- Integrates RetroAchievements for retro games launched through RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP, etc.
 --- Key features:
 ---   1. Auto-discovers credentials from local emulator configs (RetroArch, DuckStation, PCSX2, Dolphin, PPSSPP) keylessly.
----   2. Hashes ROM/disc files (ra_hasher.js) to discover canonical RetroAchievements GameID.
+---   2. Hashes ROM/disc files (rom_hash.lua) to discover canonical RetroAchievements GameID.
 ---   3. Fallback console detection and title matching for compressed disc formats (.chd) and arcade romsets.
 ---   4. Queries dorequest.php for official achievement schemas (titles, descriptions, points, badge URLs)
 ---      and user unlock history.
@@ -655,12 +655,11 @@ function M.extract_rom_path(cmd, launch_options)
   return nil
 end
 
-local silent_exec = require("silent_exec")
 local ra_cache = require("ra_cache")
 local rom_md5_cache = {}
 
---- Computes the ROM MD5 using ra_hasher.js helper silently (no cmd window). Kept on disk while the file is
---- unchanged (ra_cache.lua, ADR-0060), so the hasher runs once per ROM, not once per Steam start.
+--- The ROM's RetroAchievements MD5 (rom_hash.lua, in Lua: no Node.js, ADR-0066). Kept on disk while the file is
+--- unchanged (ra_cache.lua, ADR-0060), so a ROM is hashed once, not once per Steam start.
 function M.compute_rom_md5(rom_path)
   if not rom_path then return nil, "missing rom path" end
   if rom_md5_cache[rom_path] then return rom_md5_cache[rom_path] end
@@ -670,38 +669,9 @@ function M.compute_rom_md5(rom_path)
     return stored
   end
   
-  -- Find ra_hasher.js in the backend directory
-  local millennium = require("millennium")
-  local sp = millennium and millennium.steam_path and millennium.steam_path() or "C:/game/steam"
-  local candidates = {
-    "steam-cartridges/backend/ra_hasher.js",
-    "C:/game/millennium/steam-cartridges/backend/ra_hasher.js",
-    sp .. "/millennium/plugins/steam-cartridges-dev/backend/ra_hasher.js",
-    sp .. "/millennium/plugins/steam-cartridges/backend/ra_hasher.js",
-  }
-  local script_path = nil
-  for _, p in ipairs(candidates) do
-    local f = io.open(p, "r")
-    if f then
-      f:close()
-      script_path = p
-      break
-    end
-  end
-  if not script_path then
-    script_path = "steam-cartridges/backend/ra_hasher.js"
-  end
-
-  local cmd = string.format('node "%s" "%s"', script_path, rom_path)
-  local output, err = silent_exec.run(cmd)
-  if not output or #output == 0 then
-    return nil, err or "empty hasher output"
-  end
-
-  local ok, data = pcall(json.decode, output)
-  if not ok or type(data) ~= "table" then
-    return nil, "invalid hasher output: " .. tostring(output)
-  end
+  local ok, data, herr = pcall(function() return require("rom_hash").rom_md5(rom_path) end)
+  if not ok then return nil, "hasher failed: " .. tostring(data) end
+  if not data then return nil, herr or "hasher failed" end
 
   if data.error then
     return nil, data.error

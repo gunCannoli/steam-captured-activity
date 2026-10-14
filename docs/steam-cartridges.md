@@ -117,7 +117,7 @@ One doc per layer, updated by every change that touches the layer.
 | Media service (community media) and its sources | [service-media.md](steam-cartridges/service-media.md) |
 | Artwork service and its sources | [service-artwork.md](steam-cartridges/service-artwork.md) |
 | Achievements service, sources, observer | [service-achievements.md](steam-cartridges/service-achievements.md) |
-| Store copies (Epic, Xbox): detection, sources, accounts, auto-add | [service-store.md](steam-cartridges/service-store.md) |
+| What extensions push (Epic, Xbox from steam-cartridges-third-party): Game Info, media, achievements | [service-provided.md](steam-cartridges/service-provided.md) |
 | Freshness and ingestion | [service-freshness.md](steam-cartridges/service-freshness.md) |
 | Settings panels and the Game Data editor | [settings.md](steam-cartridges/settings.md) |
 | Expansion plugin: Local Steam emulators (.ini / .json) | [steam-cartridges-local.md](steam-cartridges-local.md) |

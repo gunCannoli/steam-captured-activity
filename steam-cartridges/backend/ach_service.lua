@@ -2,9 +2,9 @@
 ---
 --- Sources, in this order (the chain CartridgesAchievementsGet used to hard-code), each with a
 --- `supports` rule so a source is only asked when the shortcut can be one of its games:
----   epic, xbox        the shortcut is that store's copy (ctx.store, ADR-0056) and the store is enabled: the
----                     player's own unlocks, synced (store_achievements.lua); a copy with a Steam match keeps
----                     Steam's list when it covers the store's ids
+---   provided          an extension pushed the player's achievements (ADR-0067: Epic, Xbox from
+---                     steam-cartridges-third-party): the stored set is the answer, no network; refreshed only by
+---                     the extension's next push
 ---   steam             the shortcut has a Steam match (ctx.native > 0)
 ---   rpcs3             a PS3 trophy directory is found from the launch command
 ---   shadps4           a PS4 trophy directory is found from the launch command
@@ -27,7 +27,7 @@ M.deps = {
   ps3_dir = nil,  -- fun(exe, launch_options) -> dir | nil ; nil = ps3_trophies.find_trophy_dir
   ps4_dir = nil,  -- fun(exe, launch_options) -> dir | nil ; nil = ps4_trophies.find_trophy_dir
   rom_path = nil, -- fun(exe, launch_options) -> path | nil ; nil = retroachievements.extract_rom_path
-  store_fetch = nil, -- fun(appid, copy, native) -> res, err ; nil = store_achievements.fetch (ADR-0056)
+  provided = nil,    -- fun(appid) -> pushed record | nil ; nil = provided_store.get (ADR-0067)
   now = function() return os.time() end,
 }
 
@@ -43,21 +43,25 @@ local function dep(name, module_name, fn_name)
   return M.deps[name] or function(...) return require(module_name)[fn_name](...) end
 end
 
-local function store_row(kind, allow_key)
-  return {
-    name = kind,
-    supports = function(ctx)
-      return type(ctx.store) == "table" and ctx.store.kind == kind and ctx[allow_key] ~= false
-    end,
-    fetch = function(appid, ctx)
-      return dep("store_fetch", "store_achievements", "fetch")(appid, ctx.store, tonumber(ctx.native) or 0)
-    end,
-  }
+--- An extension pushed this shortcut's achievements (ADR-0067): the stored set, whose `source` is the pushed one.
+local function provided_set(appid)
+  local rec = M.deps.provided and M.deps.provided(appid) or require("provided_store").get(appid)
+  if type(rec) ~= "table" then return nil end
+  local st = store.get_state(appid)
+  if not st or not st.schema or st.source ~= rec.source then return nil end
+  return { schema = st.schema, unlocks = st.unlocks or {}, source = st.source }
 end
 
 local SOURCES = {
-  store_row("epic", "allowEpic"),
-  store_row("xbox", "allowXbox"),
+  {
+    name = "provided",
+    supports = function(ctx) return ctx.appid ~= nil and provided_set(ctx.appid) ~= nil end,
+    fetch = function(appid)
+      local set = provided_set(appid)
+      if not set then return nil, "nothing pushed" end
+      return set
+    end,
+  },
   {
     name = "steam",
     supports = function(ctx) return (tonumber(ctx.native) or 0) > 0 end,
@@ -87,9 +91,10 @@ local SOURCES = {
 }
 
 --- Resolve, returning the part and the raw source result (the old RPC's response shape).
---- ctx = { native = number|nil, hardcore = boolean|nil, title = string, store = StoreCopy|nil, allowEpic?, allowXbox? }
+--- ctx = { native = number|nil, hardcore = boolean|nil, title = string }
 function M._resolve(appid, ctx)
   ctx = ctx or {}
+  ctx.appid = appid
   local st = store.get_state(appid)
   if st and (st.source == "none" or st.schema_appid == "none") then
     return { status = "none", source = "none", data = { schema = st.schema, unlocks = {} }, checkedAt = now_ms() }, nil
@@ -105,7 +110,7 @@ function M._resolve(appid, ctx)
       if okF and type(res) == "table" and res.schema then
         return {
           status = "ok",
-          source = source.name,
+          source = (source.name == "provided" and res.source) or source.name,
           data = { schema = res.schema, unlocks = res.unlocks or {} },
           checkedAt = now_ms(),
         }, res

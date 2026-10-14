@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+- **Changed: Epic and Xbox games come from steam-cartridges-third-party (2026-10-14, ADR-0067)**: Steam Cartridges no
+  longer finds Epic or Xbox copies, asks their stores, adds or repairs their shortcuts or holds Epic launches. Install
+  steam-cartridges-third-party for those; it pushes each copy's Game Info, screenshots and achievements through the
+  extension API (1.2.0: `reportGame`, `reportAchievementSet`, `forgetGame`, and a `steam-cartridges:ready` event), and
+  Steam Cartridges shows them as before: after a Steam match, before IGDB and ScreenScraper. The Epic/Xbox settings
+  (`services.epicEnabled` / `xboxEnabled`, `autoAddEpicGames` / `autoAddXboxGames`, `epicOverlayWorkaround`) left this
+  plugin.
+
+- **Changed: RetroAchievements ROM hashing needs no Node.js (2026-10-14, ADR-0066)**: ROMs and disc images are hashed in
+  Lua (MD5, zip, and the NES / SNES / N64 / Genesis / PS1 / PS2 rules), with the same results on every ROM tested. A raw
+  `.bin` PS1 disc is now read sector by sector, so its boot executable is hashed right.
+
+- **Changed: ScreenScraper works with your own account (2026-10-14, ADR-0066)**: the plugin ships its ScreenScraper
+  developer id; add your ScreenScraper username and password in Settings → Metadata → Add service.
+
+- **Removed (2026-10-14, ADR-0066)**: the "Achievements Enabled" launch notification and its setting (it never showed);
+  the in-memory patch of Millennium's Lua host (`millennium_patch.lua`; its cause was fixed by ADR-0059). RPCS3 and
+  shadPS4 trophies are listed in Reset Achievements but not reset from here until checked on real files.
+
 - **Changed: extensions push their unlocks; Steam API emulator and PC-game log reading moved to steam-cartridges-local (2026-10-08, ADR-0063)**: extension API 1.1.0 adds `reportUnlocks` (unlocks matched to the game's achievement list by id or name, saved, then shown with Steam's toast, or only in the Post-Game Summary for unlocks that were already there) and `onAppLaunched`, and tells extensions the mapped Steam app and the achievement ids. Extensions are no longer asked for unlocks on every page view and every 2 seconds while a game runs. Steam Cartridges no longer reads emulator save files or Unity / Godot / Unreal logs itself; install steam-cartridges-local for them. Console emulators (logs, RPCS3 and shadPS4 trophy files) and RetroAchievements are unchanged.
 
 - **Fixed: recordings disappeared from Steam (2026-10-07)**: at start-up the plugin re-published the Post-Game Summary of every shortcut (the achievements preload updates every record), sending ~450 clip requests to Steam's recording service at once; Steam then listed no recordings for the whole session, in its own media view too. Only a shortcut whose page is open is re-published now.

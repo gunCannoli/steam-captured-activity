@@ -2,7 +2,6 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { MetadataSection } from "./panels/metadata";
 import { AchievementsSection } from "./panels/achievements";
-import { NotificationsSection } from "./panels/notifications";
 import { ActivitySection } from "./panels/activity";
 import { CommunitySection } from "./panels/community";
 import { RulesSection } from "./panels/rules";
@@ -60,7 +59,6 @@ export function SettingsPanel() {
                     {p.render()}
                 </ExtensionErrorBoundary>
             ))}
-            <NotificationsSection />
             <ActivitySection />
             <CommunitySection />
             {postPanels.map((p) => (

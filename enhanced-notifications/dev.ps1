@@ -143,7 +143,15 @@ function Copy-PluginFiles {
   Write-JsonFile -Path (Join-Path $Target 'plugin.json') -Object $Manifest
   Copy-Item -Path (Join-Path $SourceRoot '.millennium') -Destination $Target -Recurse -Force
   Copy-Item -Path (Join-Path $SourceRoot 'backend') -Destination $Target -Recurse -Force
-  Copy-Item -Path (Join-Path $SourceRoot 'themes') -Destination $Target -Recurse -Force
+  # Bundled themes ship only the plugin's own files: the theme files and SteamStation/assets (tools/theme_assets.py).
+  # The rest of themes/ (PlayStation/, SteamStation's other files, assets/) is third-party material kept in the
+  # repo until it is removed before publishing (release plan); it is never deployed.
+  $themesTarget = Join-Path $Target 'themes'
+  New-Item -Path (Join-Path $themesTarget 'SteamStation') -ItemType Directory -Force | Out-Null
+  Get-ChildItem -Path (Join-Path $SourceRoot 'themes') -File |
+    Where-Object { $_.Extension -in '.json', '.jsonc' } |
+    Copy-Item -Destination $themesTarget -Force
+  Copy-Item -Path (Join-Path $SourceRoot 'themes\SteamStation\assets') -Destination (Join-Path $themesTarget 'SteamStation') -Recurse -Force
   Remove-Item -Path (Join-Path $Target 'backend\_lib') -Recurse -Force -ErrorAction SilentlyContinue
 }
 

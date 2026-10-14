@@ -6,7 +6,7 @@ local resolve_identity  = require("resolve_identity")
 local metadata_service  = require("metadata_service")
 local art_service       = require("art_service")
 local media_service     = require("media_service")
-local store_service     = require("store_service")
+local provided_store    = require("provided_store")
 local metadata_db       = require("web_metadata_db")
 local steam_store_store = require("steam_store_store")
 
@@ -19,6 +19,14 @@ local function fresh() return require("fresh_policy") end
 local function now_ms() return math.floor(os.time() * 1000) end
 
 local RPC = {}
+
+--- The `provided` part (ADR-0067): which source an extension pushed for the shortcut, and its title. Disk only.
+local function provided_part(appid)
+  local rec = provided_store.get(appid)
+  local now = os.time() * 1000
+  if type(rec) ~= "table" then return { status = "unsupported", checkedAt = now } end
+  return { status = "ok", source = rec.source, data = { source = rec.source, title = rec.title, provider = rec.provider }, checkedAt = now }
+end
 
 local function need(data, field)
   if data[field] == nil then error("missing " .. field) end
@@ -57,10 +65,9 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
         end
       end
       ctx.identity = parts.identity -- later parts of this same call see the fresh identity
-    elseif name == "store" then
-      -- The Epic or Xbox copy behind the shortcut (ADR-0056): local detection, then the store's ids once per game.
-      parts.store = store_service.ensure(appid, ctx)
-      ctx.store = parts.store -- later parts of this same call see the copy
+    elseif name == "provided" then
+      -- What an extension pushed for the shortcut (ADR-0067), disk only.
+      parts.provided = provided_part(appid)
     elseif name == "metadata" then
       parts.metadata = metadata_service.ensure(appid, ctx)
       -- The view's paint (ADR-0060): nothing usable on disk yet means the page asks its sources next.
@@ -117,15 +124,10 @@ RPC.EnsureFresh = method("EnsureFresh", function(data)
         parts.achievements = cached or { status = "pending", checkedAt = now }
         parts.achievements.stale = true
       else
-        -- The store copy (ADR-0056): this call's fresh part, else the saved one.
-        local copy = ctx.store or store_service.saved(appid)
         parts.achievements = ach().ensure(appid, {
           native = native and native.appid or nil,
           hardcore = ctx.hardcore ~= false,
           title = ctx.title,
-          store = copy and copy.data or nil,
-          allowEpic = ctx.allowEpic,
-          allowXbox = ctx.allowXbox,
         })
         local st = parts.achievements.status
         if st == "ok" or st == "error" or st == "unsupported" then fresh().touch(appid, "achievements", now_ms(), st) end
@@ -180,11 +182,12 @@ RPC.GetAllRecords = method("GetAllRecords", function(_)
       source = "steam-store",
     }
   end
-  local store_copies = require("store_copies_store")
-  for _, key in ipairs(store_copies.copy_keys()) do
-    records[key] = records[key] or {}
-    local copy_part = store_service.saved(tonumber(key))
-    if copy_part then records[key].store = copy_part end
+  for _, key in ipairs(provided_store.keys()) do
+    local p = provided_part(tonumber(key))
+    if p.status == "ok" then
+      records[key] = records[key] or {}
+      records[key].provided = p
+    end
   end
   for key in pairs(records) do
     local achievements = ach().local_part(tonumber(key))

@@ -23,8 +23,7 @@ M.deps = {
                              -- M.screenscraper_to_metadata; fun(appid, title, shortcut_info) -> meta|nil
   igdb_fetch = nil,       -- nil = igdb.fetch_game_metadata
   appdetails_fetch = nil, -- nil = appdetails.fetch
-  store_copy = nil,       -- fun(appid) -> StoreCopy | nil ; nil = store_service.saved (ADR-0056)
-  store_fetch = nil,      -- fun(copy, appid, title) -> meta | nil ; nil = the copy's store (epic_graphql, xbox_catalog)
+  provided = nil,         -- fun(appid) -> pushed record | nil ; nil = provided_store.get (ADR-0067)
   shortcut_info = nil,    -- nil = registry.shortcut (the shortcuts.vdf entry)
   now = function() return os.time() end,
 }
@@ -161,41 +160,20 @@ local function fresh()
   return M.deps.fresh or require("fresh_policy")
 end
 
---- The store copy behind the shortcut (ADR-0056): this call's part, else the saved one.
-local function store_copy(appid, ctx)
-  if ctx.store and ctx.store.data then return ctx.store.data end
-  if M.deps.store_copy then return M.deps.store_copy(appid) end
-  local part = require("store_service").saved(appid)
-  return part and part.data or nil
+--- What an extension pushed for the shortcut (ADR-0067: Epic, Xbox, ... found by steam-cartridges-third-party), or nil.
+--- Disk only: the core never asks a store.
+local function provided(appid)
+  if M.deps.provided then return M.deps.provided(appid) end
+  return require("provided_store").get(appid)
 end
 
---- May the copy's store be asked? (settings services.epicEnabled / xboxEnabled, sent as ctx.allowEpic / allowXbox)
-local function store_allowed(copy, ctx)
-  if not copy then return false end
-  if copy.kind == "epic" then return ctx.allowEpic ~= false and copy.namespace ~= nil and copy.offerId ~= nil end
-  if copy.kind == "xbox" then return ctx.allowXbox ~= false and (copy.storeId ~= nil or copy.pfn ~= nil) end
-  return false
-end
-
---- The store's own Game Info for a copy, or nil (ADR-0014: a failing store is silent, the next tier runs).
-local function default_store_fetch(copy, appid, title)
-  if copy.kind == "epic" then
-    local g = require("epic_graphql")
-    local offer = g.offer(copy.namespace, copy.offerId)
-    return offer and g.to_metadata(offer, appid, title) or nil
-  end
-  local catalog = require("xbox_catalog")
-  local product = (copy.storeId and catalog.by_store_id(copy.storeId)) or catalog.by_pfn(copy.pfn)
-  return product and catalog.to_metadata(product, appid, title) or nil
-end
-
-local function store_fetch(copy, appid, title)
-  local ok, meta = pcall(M.deps.store_fetch or default_store_fetch, copy, appid, title)
-  if ok and type(meta) == "table" then
-    meta.store_source = copy.kind -- the record remembers which store wrote it (a copy found later replaces others)
-    return meta
-  end
-  return nil
+--- The pushed Game Info, ready to store, or nil.
+local function provided_meta(rec)
+  if type(rec) ~= "table" or type(rec.metadata) ~= "table" then return nil end
+  local meta = {}
+  for k, v in pairs(rec.metadata) do meta[k] = v end
+  meta.store_source = rec.source -- the record remembers who wrote it (pushed data found later replaces others)
+  return meta
 end
 
 local function now_ms()
@@ -317,20 +295,21 @@ function M.ensure(appid, ctx)
   end
 
   -- web-scraping, or steam-store identity ok without a native match:
-  -- the local record while it is fresh, else the copy's store (Epic, Xbox: the game's own data, ADR-0056) -> igdb ->
-  -- screenscraper -> the fallback record.
-  local copy = store_copy(appid, ctx)
-  local use_store = store_allowed(copy, ctx)
-  local can_fetch = (ctx.allowWeb or ctx.allowScreenscraper or use_store) and not ctx.noNetwork
+  -- the local record while it is fresh, else what an extension pushed (Epic, Xbox: the game's own data, ADR-0067; no
+  -- network) -> igdb -> screenscraper -> the fallback record.
+  local pushed = provided(appid)
+  local pushed_meta = provided_meta(pushed)
+  local use_store = pushed_meta ~= nil
+  local can_fetch = ((ctx.allowWeb or ctx.allowScreenscraper) and not ctx.noNetwork) or use_store
   if local_rec then
     -- Stale (M7a: 24 h, or ctx.force) records are refreshed when a source may be asked. A custom_override
     -- record never reaches here (K15), so a manual edit is never refreshed. A record its store did not write is due
     -- as soon as the copy is known (the store comes first).
     local due = ctx.force or fresh().is_stale(appid, "metadata", { status = "ok", source = "local_db" }, now_ms())
-      or (use_store and local_rec.store_source ~= copy.kind)
+      or (use_store and local_rec.store_source ~= pushed.source)
     if not (due and can_fetch) then
       -- The view's paint (ADR-0060) shows the record now and flags it when a source would refresh it.
-      local stale = (ctx.noNetwork and due and (ctx.allowWeb or ctx.allowScreenscraper or use_store)) and true or nil
+      local stale = (ctx.noNetwork and due and (ctx.allowWeb or ctx.allowScreenscraper)) and true or nil
       return { status = "ok", data = local_rec, source = "local_db", stale = stale, checkedAt = now_ms() }
     end
   elseif not can_fetch then
@@ -342,14 +321,13 @@ function M.ensure(appid, ctx)
   -- in when IGDB is not configured or finds no match), then the fallback record (M5d).
   local meta, source
   if use_store then
-    meta = store_fetch(copy, appid, title)
-    if meta then source = copy.kind end
+    meta, source = pushed_meta, pushed.source
   end
-  if not meta and ctx.allowWeb then
+  if not meta and ctx.allowWeb and not ctx.noNetwork then
     meta = igdb_fetch(appid, title, info)
     if meta then source = "igdb" end
   end
-  if not meta and ctx.allowScreenscraper then
+  if not meta and ctx.allowScreenscraper and not ctx.noNetwork then
     meta = screenscraper_fetch(appid, title, info)
     if meta then source = "screenscraper" end
   end

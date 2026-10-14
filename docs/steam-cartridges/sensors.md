@@ -36,9 +36,6 @@ steam-cartridges architecture (ADR-0039); index:
   pure mapping half moved to `domain/store-item.ts`).
 - Shortcut titles and the shortcut list: `frontend/sensors/shortcuts/` is the only code that reads
   them (`shortcutTitle(appid)`, `listShortcuts()`; M10, was two copies in `index.tsx` and `steam/shortcut.ts`).
-- Store installs: `frontend/sensors/installs/` is a 60 s tick (`watchInstalls`) that asks `app/store-sync` to look again, so an
-  Epic or Xbox game installed while Steam runs is added without a restart. It reads nothing itself, and costs nothing while both
-  auto-add toggles are off (`run()` returns before any backend call). Verified live: the backend was called every 60.0 s.
 - The plugin's one event bus: `frontend/app/bus.ts` wraps
   `kernel/events.createEventBus`. Sensors emit into it; `index.tsx`
   subscribes the handlers.

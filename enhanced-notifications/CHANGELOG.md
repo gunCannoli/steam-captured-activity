@@ -7,6 +7,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled themes use only the plugin's own art and sounds (2026-10-14, ADR-0066): **SteamStation** was rebuilt with new
+  trophy icons and bell chimes (made by `tools/theme_assets.py`), and two new themes ship: **Neon Tiers** (rarity shown
+  by border and glow) and **Midnight Glass** (a quiet bottom-centre card, no achievement banner). The `ps5` and
+  `retrogames` themes are no longer bundled. Only the theme files and `SteamStation/assets/` are installed.
+
 ### Fixed
 
 - Big Picture and in game: a themed toast's card now leaves with its text. The card was drawn on the toast's outer box,

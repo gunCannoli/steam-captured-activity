@@ -47,6 +47,50 @@ export interface AchievementSourceProvider {
     reset?(context: AppContext): Promise<{ cleared: number; ok: boolean; backupPath?: string }>;
 }
 
+/** Options of every push (ADR-0067). */
+export interface ReportOptions {
+    /** The reporting extension's id, for the log and the record. */
+    providerId: string;
+}
+
+/** A community media item an extension pushes: public URLs only. */
+export interface ProvidedMediaItem {
+    kind: "screenshot" | "artwork" | "video";
+    url?: string;
+    thumb?: string;
+    youtube?: string;
+    width?: number;
+    height?: number;
+    title?: string;
+}
+
+/**
+ * A game an extension found behind a shortcut (ADR-0067: an Epic or Xbox copy). The core keeps it as one more source:
+ * after a Steam match, before IGDB and ScreenScraper. Every field but `source` is optional.
+ */
+export interface ProvidedGameReport {
+    /** The data's source id, shown in the record ("epic", "xbox", ...). */
+    source: string;
+    /** The source's name for the game (helps the Steam match). */
+    title?: string;
+    /** Game Info in the metadata part's shape (title, description, developers, publishers, genres, categories,
+     *  release_date, ...). */
+    metadata?: Record<string, unknown>;
+    media?: ProvidedMediaItem[];
+}
+
+/** The player's achievements as an extension found them (ADR-0067). The extension is the truth: unlocks are replaced. */
+export interface ProvidedAchievementSet {
+    source: string;
+    /** The list's id within the source (Epic: the namespace; Xbox: the title id): stored as "<source>_<key>". */
+    key: string;
+    /** The list's title, for the log. */
+    title?: string;
+    achievements: (AchievementSchemaItem & { global_pct?: number })[];
+    /** Unlock time (unix seconds) per achievement id. */
+    unlocks: Record<string, number>;
+}
+
 export interface InstalledGame {
     store: "epic" | "xbox" | string;
     id: string;
@@ -101,11 +145,40 @@ export interface SteamCartridgesAPI {
     notifyAppQuit(context: AppContext): void;
     /** Extensions push unlocks; the core canonicalizes, persists and announces them (ADR-0063). */
     reportUnlocks(appid: number, unlocks: AchievementUnlockItem[], opts: ReportUnlocksOptions): Promise<{ accepted: string[] }>;
+    /** Extensions push a game's Game Info and media (ADR-0067). Resolves to whether the core's copy changed. */
+    reportGame(appid: number, game: ProvidedGameReport, opts: ReportOptions): Promise<{ ok: boolean; changed?: boolean }>;
+    /** Extensions push a player's whole achievement set (ADR-0067). Resolves to the ids that were new. */
+    reportAchievementSet(appid: number, set: ProvidedAchievementSet, opts: ReportOptions): Promise<{ ok: boolean; new: string[] }>;
+    /** The shortcut is no longer the extension's game: drop what it pushed (ADR-0067). */
+    forgetGame(appid: number, opts: ReportOptions): Promise<{ ok: boolean }>;
 }
 
-export function createExtensionRegistry(
-    sink: { reportUnlocks: SteamCartridgesAPI["reportUnlocks"] } = { reportUnlocks: async () => ({ accepted: [] }) },
-): SteamCartridgesAPI {
+/** Where the registry hands what extensions push (index.tsx wires app/achievements and app/provided). */
+export interface ExtensionSink {
+    reportUnlocks: SteamCartridgesAPI["reportUnlocks"];
+    reportGame: SteamCartridgesAPI["reportGame"];
+    reportAchievementSet: SteamCartridgesAPI["reportAchievementSet"];
+    forgetGame: SteamCartridgesAPI["forgetGame"];
+}
+
+const NO_SINK: ExtensionSink = {
+    reportUnlocks: async () => ({ accepted: [] }),
+    reportGame: async () => ({ ok: false }),
+    reportAchievementSet: async () => ({ ok: false, new: [] }),
+    forgetGame: async () => ({ ok: false }),
+};
+
+export function createExtensionRegistry(sink: Partial<ExtensionSink> = {}): SteamCartridgesAPI {
+    const out: ExtensionSink = { ...NO_SINK, ...sink };
+    /** A push never throws into the extension (ADR-0014): a failure resolves to the sink's empty answer. */
+    function guarded<K extends keyof ExtensionSink>(key: K, args: Parameters<ExtensionSink[K]>): ReturnType<ExtensionSink[K]> {
+        const empty = (NO_SINK[key] as (...a: unknown[]) => Promise<unknown>)();
+        try {
+            return ((out[key] as (...a: unknown[]) => Promise<unknown>)(...args).catch(() => empty)) as ReturnType<ExtensionSink[K]>;
+        } catch {
+            return empty as ReturnType<ExtensionSink[K]>;
+        }
+    }
     const achievementProviders: AchievementSourceProvider[] = [];
     const libraryProviders: LibrarySourceProvider[] = [];
     const settingsPanels: SettingsPanelExtension[] = [];
@@ -115,7 +188,7 @@ export function createExtensionRegistry(
     const quitListeners: ((context: AppContext) => void)[] = [];
 
     const api: SteamCartridgesAPI = {
-        version: "1.1.0",
+        version: "1.2.0",
         registerAchievementProvider(provider) {
             const existing = achievementProviders.findIndex((p) => p.id === provider.id);
             if (existing >= 0) achievementProviders.splice(existing, 1);
@@ -197,11 +270,16 @@ export function createExtensionRegistry(
             }
         },
         reportUnlocks(appid, unlocks, opts) {
-            try {
-                return sink.reportUnlocks(appid, Array.isArray(unlocks) ? unlocks : [], opts).catch(() => ({ accepted: [] }));
-            } catch {
-                return Promise.resolve({ accepted: [] });
-            }
+            return guarded("reportUnlocks", [appid, Array.isArray(unlocks) ? unlocks : [], opts]);
+        },
+        reportGame(appid, game, opts) {
+            return guarded("reportGame", [appid, game, opts]);
+        },
+        reportAchievementSet(appid, set, opts) {
+            return guarded("reportAchievementSet", [appid, set, opts]);
+        },
+        forgetGame(appid, opts) {
+            return guarded("forgetGame", [appid, opts]);
         },
         notifyAppQuit(ctx) {
             for (const cb of quitListeners) {

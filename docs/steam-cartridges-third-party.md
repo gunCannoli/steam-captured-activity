@@ -17,10 +17,13 @@
   │  • Exposes window.SteamCartridges Extension Registry   │
   │  • Dynamically hosts settings panels from extensions   │
   └───────────────────────────▲────────────────────────────┘
-                              │ registers LibraryProvider & SettingsPanel
+                              │ registers SettingsPanel; pushes reportGame /
+                              │ reportAchievementSet / forgetGame (ADR-0067)
   ┌───────────────────────────┴────────────────────────────┐
   │           steam-cartridges-third-party                 │
   │                                                        │
+  │  • Finds Epic/Xbox copies, pushes their Game Info,     │
+  │    media & achievements to the core (ADR-0067)         │
   │  • Discovers Epic manifests & Xbox UWP packages        │
   │  • Auto-adds shortcuts into "Epic Games" / "Xbox" tabs │
   │  • Syncs Epic & Xbox Live profile achievements         │
@@ -30,7 +33,10 @@
   └────────────────────────────────────────────────────────┘
 ```
 
-The core `steam-cartridges` functions fully without this plugin (ADR-0012). When installed, `steam-cartridges-third-party` contributes installed game entries, store metadata, and its dedicated settings interface into the Steam Cartridges environment.
+The core `steam-cartridges` functions fully without this plugin (ADR-0012) and holds no Epic or Xbox code (ADR-0067):
+everything about the two stores lives here, and reaches the core only through the extension API's pushes
+([service-provided.md](steam-cartridges/service-provided.md)). How copies are found and each store's API:
+[steam-cartridges-third-party-stores.md](steam-cartridges-third-party-stores.md). When installed, `steam-cartridges-third-party` contributes installed game entries, store metadata, and its dedicated settings interface into the Steam Cartridges environment.
 
 ---
 
@@ -57,6 +63,10 @@ steam-cartridges-third-party/
 ├── frontend/
 │   ├── index.tsx               # Registers with window.SteamCartridges
 │   ├── backend.ts              # Frontend RPC client to third-party backend
+│   ├── push.ts                 # Pushes each copy's Game Info, media, achievements to steam-cartridges (ADR-0067)
+│   ├── store-sync.ts           # Auto-add / remove, Xbox repairs, collections, the 60 s install tick
+│   ├── epic-launcher.ts        # Epic Steam Overlay Workaround: RunGame hold + launcher reaper (ADR-0057)
+│   ├── lifecycle.ts            # One app-lifetime listener (launch / quit) for the whole plugin
 │   ├── xbox-mute.ts            # Mutes Steam's toasts while an Xbox game runs (ADR-0065)
 │   ├── toast-mute.ts           # The NotificationStore gates the mute uses (the only Steam hook)
 │   └── settings/
@@ -140,3 +150,11 @@ const settingsExtension = {
   ```powershell
   powershell -ExecutionPolicy Bypass -File dev.ps1 -NoRestart
   ```
+
+## 6. Epic launch hold: Steam facts
+
+**Facts (verified live 2026-10-03, launch-tracking plan E8):** `RunGame` is an own, writable, configurable property of
+`SteamClient.Apps`; Steam's Play paths look it up when called (the library Play action with its Big Picture branch, module
+`5808`; the game list, `59718`) and ignore its return value. Holding it 0.7 s while the launcher closed worked from Steam's
+own Play button. A launch from outside Steam's UI does not pass through it. Fail-open: a held launch goes on after 10 s; a
+second Play press while held is dropped (the first goes on). Uninstall restores Steam's original.

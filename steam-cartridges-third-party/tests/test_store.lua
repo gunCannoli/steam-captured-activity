@@ -384,6 +384,46 @@ check("with Epic switched off the local copy is still found, and the API is not 
 local list = svc.installed_games({})
 check("installed games say which ones the library has", list.epic[1].inLibrary == 4000000001 and list.xbox[1].inLibrary == 4000000002 and list.epicLauncher == true)
 check("... with a launch spec for the ones it does not", list.epic[1].launch.exe == '"C:\\L\\EpicGamesLauncher.exe"' and list.xbox[1].title == "Microsoft Jigsaw")
+-- ADR-0067: what the frontend pushes to steam-cartridges. library_copies (local only) and game_data (Game Info, media,
+-- achievements of one copy); store_achievements reads the store and never writes steam-cartridges' files.
+print("push to steam-cartridges (ADR-0067)")
+os.remove(copies._path); copies._reset(); svc._reset()
+local lc = svc.library_copies({})
+local kinds = {}
+for _, c in ipairs(lc) do kinds[c.appid] = c.kind end
+check("library_copies lists every Epic and Xbox copy, nothing else", #lc == 2 and kinds[4000000001] == "epic" and kinds[4000000002] == "xbox", #lc)
+check("... and leaves out a store that is switched off", #svc.library_copies({ allowXbox = false }) == 1)
+local sa = require("store_achievements")
+local epic_prev = svc.deps.epic
+svc.deps.epic = {
+  base_offer = function() return { id = "b1", title = "Jotunnslayer: Hordes of Hel" } end,
+  achievement_schema = function() return { product_id = "18f6", achievements = { { id = "ACH_A", name = "A", description = "", icon = "a", global_pct = 50 } } } end,
+  offer = function() return { title = "Jotunnslayer", description = "From Epic", tags = {}, keyImages = {} } end,
+  to_metadata = function(offer, appid, title) return { appid = appid, title = title, description = offer.description } end,
+  screenshots = function() return { { kind = "screenshot", source = "epic", url = "https://e/1" } } end,
+}
+sa.deps.epic = {
+  achievement_schema = function() return { product_id = "18f6", achievements = { { id = "ACH_A", name = "A", description = "", icon = "a", global_pct = 50 } } } end,
+  player_unlocks = function() return { ACH_A = 1790963093 } end,
+}
+sa.deps.epic_local = { account_id = function() return "acc" end }
+local gd = svc.game_data(4000000001, {})
+check("game_data: an Epic copy's Game Info and screenshots", gd.copy and gd.copy.kind == "epic" and gd.metadata and gd.metadata.description == "From Epic" and gd.media and gd.media[1].url == "https://e/1")
+check("... and the player's achievements, keyed by the namespace", gd.achievements and gd.achievements.source == "epic" and gd.achievements.key == EPIC_GAME.namespace and gd.achievements.unlocks.ACH_A == 1790963093 and #gd.achievements.achievements == 1)
+check("... achievements = false leaves them out (a page view needs Game Info only)", svc.game_data(4000000001, { achievements = false }).achievements == nil)
+check("a shortcut that is no copy answers no copy", svc.game_data(4000000003, {}).copy == nil)
+check("a store switched off answers no copy", svc.game_data(4000000001, { allowEpic = false }).copy == nil)
+sa.deps.epic.player_unlocks = function() return nil, "private" end
+local priv = svc.game_data(4000000001, {})
+check("a private Epic profile: no achievements pushed (steam-cartridges keeps what it has), and remembered", priv.achievements == nil and copies.lookup("epic:account").private == true)
+sa.deps.live = { achievements = function() return { achievements = { { id = "2", name = "First" } }, unlocks = { ["2"] = 1790963661 } } end }
+local xs = sa.fetch({ kind = "xbox", titleId = "2003863742", title = "Jigsaw" })
+check("an Xbox copy's list and unlocks from Xbox Live, keyed by the title id", xs and xs.source == "xbox" and xs.key == "2003863742" and xs.unlocks["2"] == 1790963661)
+sa.deps.live = { achievements = function() return nil, "not signed in" end }
+check("signed out of Xbox: no set", sa.fetch({ kind = "xbox", titleId = "1" }) == nil)
+sa.deps.epic, sa.deps.epic_local, sa.deps.live = nil, nil, nil
+svc.deps.epic = epic_prev
+os.remove(copies._path); copies._reset(); svc._reset()
 -- An Xbox package whose display name is an identifier gets the catalog's title (World of Tanks Blitz, 2026-10-04).
 local WOT = { pfn = "7458BE2C.546184C62B2A0_x4tje2y229k00", root = [[C:\WOT]], app_id = "App", executable = "wotblitz.exe", title = "worldoftanks_blitz", store_id = "9MWBFDRGH1SW" }
 local SPACED = { pfn = "Some.Spaced_abc", root = [[C:\SP]], app_id = "App", executable = "sp.exe", title = "Spaced Game" }

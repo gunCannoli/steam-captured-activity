@@ -28,8 +28,6 @@ export interface MediaDeps {
     cacheDays?(): number;
     /** Timing lines for the diagnostics log. */
     log?(message: string): void;
-    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
-    stores?(): { epic: boolean; xbox: boolean };
 }
 
 /**
@@ -82,8 +80,6 @@ export function createMedia(deps: MediaDeps): MediaResolver {
             igdb_id: deps.records.get(appid)?.metadata?.data?.igdb_id,
             allowWeb: deps.allowWeb(appid),
             allowScreenscraper: deps.allowScreenscraper(appid),
-            allowEpic: deps.stores?.().epic ?? true,
-            allowXbox: deps.stores?.().xbox ?? true,
             cacheDays: cacheDays(),
         }, { lane: "media" }); // community content may be slow; it never holds the page's own data (ADR-0060)
         const raw = res.error ? undefined : (res.parts.media as Part<CommunityMedia> | undefined);

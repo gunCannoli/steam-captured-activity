@@ -3598,3 +3598,88 @@ on top of the game (in Big Picture: behind it).
 - Turning the setting on while an Xbox game already runs takes effect at that game's next launch.
 - enhanced-notifications wraps other `NotificationStore` methods (`PopNextToastNotification`, `PlayNotificationSound`);
   the gates here are earlier in Steam's path, so nothing reaches it while muted.
+
+## ADR-0066: Release hardening: no Node, no binary patch, a shipped ScreenScraper developer id, own theme assets
+
+**Status:** Accepted · 2026-10-14 (the user, from the release plan's findings) · supersedes the ROM hasher of the ROM hash
+guard entry (2026-10-06) and the Millennium hot-patch of ADR-0059's follow-up
+
+### Context
+
+The release triage ([release plan](plans/release-plan.md)) found things that work on this PC only or should not ship:
+ROM hashing ran `node ra_hasher.js` from a hard-coded workspace path; `millennium_patch.lua` rewrote a branch in
+`millennium.luavm64.exe` in memory although ADR-0059 had removed its cause; ScreenScraper's developer account existed
+only in this machine's `.env`; the "Achievements Enabled" launch toast had never shown; RPCS3 / shadPS4 trophy files
+could be rewritten although that was never run on a real emulator's files; the bundled themes used Sony's trophy art
+and sounds.
+
+### Decision
+
+1. **ROM hashing in Lua** (`steam-cartridges/backend/rom_hash.lua`): MD5, raw DEFLATE for `.zip`, and every rule of
+   `ra_hasher.js` (deleted). Same answers on all 20 ROMs hashed on this PC and on synthetic NES / SNES / N64 (three byte
+   orders) / SMD / zip / m3u files. One change: a raw 2352-byte disc image is read sector by sector after a Mode 1 (16)
+   or Mode 2 (24) header, so a multi-sector boot exe no longer includes sector headers (ra_hasher.js hashed them, and
+   found no PS1 Mode 2 image at all).
+2. **No binary patch.** `millennium_patch.lua` is deleted; `main.lua` keeps `jit.off()`. If the crash at
+   `+0x1087C` comes back, find the code path (ADR-0059's rules: no dynamic `ffi.cdef` / `ffi.typeof`), do not re-patch.
+3. **ScreenScraper:** the plugin ships its developer id (`screenscraper_dev.lua`, XOR-ed against secret scanners, not
+   a secret); each player enters their own account (Settings → Metadata → Add service) and requests count against it.
+   No player account = no ScreenScraper. A developer pair in `.env` overrides the shipped one.
+4. **The launch toast is removed** with its setting (`localAchievementsNotifyOnLaunch`) and the Notifications section.
+5. **RPCS3 / shadPS4 sources are listed read-only** (`achievements_reset.TROPHY_RESET = false`) until checked on real
+   files; the write path stays tested.
+6. **Bundled themes use only the plugin's own files** (`themes/SteamStation/assets/`, made by
+   `enhanced-notifications/tools/theme_assets.py`): SteamStation (rewritten), neon_tiers and midnight_glass are new;
+   ps5 and retrogames became the user's local themes. `dev.ps1` deploys only theme files and `SteamStation/assets/`; a
+   test fails if a bundled theme names any other file.
+
+### Consequences
+
+- A user without Node.js gets exact RetroAchievements matches; a large zip takes a few seconds once (cached).
+- ScreenScraper needs each player's free account; this PC's account was saved to the data folder's `.env`.
+- The repo still holds the third-party theme material until it is deleted before publishing (release plan § 3).
+
+## ADR-0067: Epic and Xbox live only in steam-cartridges-third-party; extensions push a game's data to the core
+
+**Status:** Accepted · 2026-10-14 (the user: "move it all out") · supersedes ADR-0056 decisions 5-6 (the core finds and
+syncs store copies) and the core-side parts of ADR-0057 (launch hold) and ADR-0058 (Xbox repairs); extends ADR-0063
+(extensions push unlocks) to a whole game · extension API 1.2.0
+
+### Context
+
+The extraction of 2026-10-06 copied the Epic/Xbox stack into steam-cartridges-third-party and left it running in the
+core: the core found copies (`store_service`), asked Epic and Xbox for Game Info, screenshots and achievements, added and
+removed shortcuts, repaired Xbox shortcuts and held Epic launches; third-party only drew a settings panel whose
+auto-add toggles wrote its own config, which the core never read. The core must not know a store.
+
+### Decision
+
+1. **steam-cartridges keeps no Epic or Xbox code.** Deleted from the core: `store_service`, `store_epic_local`,
+   `store_xbox_local`, `epic_graphql`, `xbox_catalog`, `xbox_live`, `store_achievements`, `store_copies_store`,
+   `store_launch`, `store_rpc`, `app/store-copy`, `app/store-sync`, `app/epic-launcher`, the `launch-hold` and
+   `library-shortcuts` surfaces, the `installs` sensor, and the settings `services.epicEnabled` / `xboxEnabled`,
+   `autoAddEpicGames` / `autoAddXboxGames`, `epicOverlayWorkaround`.
+2. **Extensions push a game's data** (API 1.2.0, `window.SteamCartridges`):
+   - `reportGame(appid, { source, title?, metadata?, media? }, { providerId })`: the core keeps it on disk
+     (`provided_games.json`, backend `provided_store`), and its metadata and media services use it as one more source,
+     in the store copy's old place: after a Steam match, before IGDB / ScreenScraper. A record another source wrote is
+     replaced as soon as provided data exists (as ADR-0056 did for a copy found later). No network in the core.
+   - `reportAchievementSet(appid, { source, key, schema, unlocks }, { providerId })`: saved like any source
+     (`achievements_store.save_schema_and_sync`); the core keeps Steam's own list when the shortcut has a Steam match whose
+     list covers every provided id (ADR-0056's rule, store-agnostic). New unlocks are announced as `achievements.synced`
+     (Post-Game Summary and feed, no toast: the provider's own overlay already showed them). A provided set is "synced":
+     no in-game polling, no reset from Steam Cartridges.
+   - `forgetGame(appid, { providerId })`: drop it (the shortcut is no longer that provider's game).
+3. **steam-cartridges-third-party does all store work itself:** finds copies, fetches from Epic / Xbox and pushes
+   (`StoreGameData` RPC, at start-up for every copy, on a page view, and after a copy quits), auto-adds / removes /
+   repairs shortcuts and files them in collections (`SteamClient.Apps`, `collectionStore`), holds Epic launches
+   (`SteamClient.Apps.RunGame`), and mutes Steam's toasts for Xbox games (ADR-0065). Its settings are its own.
+4. Metadata records written by a store before this change (`store_source` "epic" / "xbox") and stored achievements stay
+   valid; nothing is migrated.
+
+### Consequences
+
+- Without third-party, an Epic or Xbox shortcut is an ordinary shortcut (Steam match, IGDB, ScreenScraper).
+- The first view of a copy can show IGDB's Game Info for a moment until third-party's push arrives; the core then
+  refreshes that page.
+- The extension API grows by three calls; `LibrarySourceProvider` stays registered but the core does not use it.

@@ -254,45 +254,49 @@ metadata.deps.igdb_fetch = nil
 wipe()
 
 
--- ---------- store copies: the store's own Game Info before IGDB (ADR-0056) ----------
-print("store copies")
-local EPIC_COPY = { kind = "epic", namespace = "ns", offerId = "o1" }
+-- ---------- pushed Game Info (ADR-0067): before IGDB, after a Steam match ----------
+print("pushed game info")
 local NO_MATCH = { status = "ok", data = {} }
-local store_calls = 0
-local function store_meta(copy, appid, title)
-  store_calls = store_calls + 1
-  return { appid = appid, title = title, description = "from epic", developers = { "Remedy" }, publishers = {}, franchises = {}, genres = {}, categories = { single_player = true }, release_date = 1698364800, custom_override = false }
+local reads = 0
+local function pushed_meta()
+  return { appid = SC, title = "AW2", description = "from epic", developers = { "Remedy" }, publishers = {}, franchises = {}, genres = {}, categories = { single_player = true }, release_date = 1698364800, custom_override = false }
 end
 -- wipe() reloads metadata_service, so its stubs are set again after each wipe.
-local function arm(fetch)
+local function arm(rec)
   wipe()
-  store_calls = 0
+  reads = 0
   metadata.deps.now = function() return 1000 end
-  metadata.deps.store_copy = function() return EPIC_COPY end
-  metadata.deps.store_fetch = fetch or store_meta
+  metadata.deps.provided = function()
+    reads = reads + 1
+    if rec == false then return nil end
+    return rec or { source = "epic", provider = "steam-cartridges-third-party", metadata = pushed_meta() }
+  end
   stub_igdb()
 end
 arm()
 r = metadata.ensure(SC, { title = "AW2", route = ROUTE_STORE, allowWeb = true, identity = NO_MATCH })
-check("a store copy with no Steam match: the store comes before IGDB", r.status == "ok" and r.source == "epic" and r.data.description == "from epic" and store_calls == 1)
-check("... persisted, with the store that wrote it", metadata_db.get(SC) ~= nil and metadata_db.get(SC).store_source == "epic")
+check("a pushed game with no Steam match: its Game Info comes before IGDB", r.status == "ok" and r.source == "epic" and r.data.description == "from epic")
+check("... persisted, with the source that wrote it", metadata_db.get(SC) ~= nil and metadata_db.get(SC).store_source == "epic")
 r = metadata.ensure(SC, { title = "AW2", route = ROUTE_STORE, allowWeb = true, identity = NO_MATCH })
-check("... the next view answers from the local record, no request", r.source == "local_db" and store_calls == 1)
+check("... the next view answers from the local record", r.source == "local_db")
 arm()
 metadata_db.set(SC, { appid = SC, title = "Old IGDB", igdb_id = 5 })
 fresh_policy.touch(SC, "metadata", 1000 * 1000)
 r = metadata.ensure(SC, { title = "AW2", route = ROUTE_STORE, allowWeb = true, identity = NO_MATCH })
-check("a fresh record the store did not write is replaced once the copy is known", r.source == "epic" and store_calls == 1, tostring(r.source))
+check("a fresh record another source wrote is replaced once a game is pushed", r.source == "epic", tostring(r.source))
 arm()
-r = metadata.ensure(SC, { title = "AW2", route = ROUTE_STORE, allowWeb = true, identity = NO_MATCH, allowEpic = false })
-check("Epic switched off: IGDB as before, the store is not asked", r.source == "igdb" and store_calls == 0, tostring(r.source))
-arm(function() error("store down") end)
+r = metadata.ensure(SC, { title = "AW2", route = ROUTE_STORE, identity = NO_MATCH, noNetwork = true })
+check("pushed Game Info needs no network: the view's paint shows it", r.status == "ok" and r.source == "epic", tostring(r.source))
+arm(false)
+r = metadata.ensure(SC, { title = "AW2", route = ROUTE_STORE, allowWeb = true, identity = NO_MATCH })
+check("nothing pushed: IGDB as before", r.source == "igdb", tostring(r.source))
+arm({ source = "epic", provider = "x" })
 r = metadata.ensure(SC, { title = "AW2", route = ROUTE_WEB, allowWeb = true })
-check("a failing store is silent: IGDB answers (web-scraping route too)", r.status == "ok" and r.source == "igdb", tostring(r.source))
+check("a pushed game without Game Info: IGDB answers (web-scraping route too)", r.status == "ok" and r.source == "igdb", tostring(r.source))
 arm()
 metadata.deps.appdetails_fetch = function() return { name = "Jotunnslayer", steam_appid = 2820820, short_description = "", categories = {}, genres = {} } end
 r = metadata.ensure(SC, { title = "J", route = ROUTE_STORE, identity = { status = "ok", data = { native = { appid = 2820820, source = "search" } } } })
-check("a copy with a Steam match keeps Steam's Game Info (Steam first, decision 2)", r.source == "steam-appdetails" and store_calls == 0)
+check("a pushed game with a Steam match keeps Steam's Game Info (Steam first)", r.source == "steam-appdetails")
 wipe()
 
 -- ---------- web-scraping: local db ----------

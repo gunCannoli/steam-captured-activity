@@ -1,24 +1,21 @@
 // app/achievements: a shortcut's achievements in its record, and Flow C (launch -> observe ->
 // unlock) (migration plan M6b). The backend picks the source (ach_service.lua); this loads the
-// part, runs the launch toast policy and the in-game unlock polling, and announces unlocks and the
-// launch toast on the bus. The surfaces (achievements, toasts, captures) only render what the record
-// and the `achievements.unlocked` / `achievements.launch-toast` events say (M10: no surface callbacks).
+// part, runs the in-game unlock polling, and announces unlocks on the bus. The surfaces (achievements, toasts, captures) only render what the record
+// and the `achievements.unlocked` event says (M10: no surface callbacks).
 import { logger } from "../logger.ts";
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
 import type { EventBus, UnlockedAchievement } from "../kernel/events";
 import type { AchievementSet, AchievementUnlockRecord, Part, RecordStore, Route } from "../kernel/record";
 import type { AchievementResetSource, backend as Backend, Lane, ResetSourceResult } from "../ports/backend";
 import { asList } from "../kernel/lists.ts";
-import type { AppContext, AchievementSourceProvider, AchievementUnlockItem, ReportUnlocksOptions } from "../kernel/extensions.ts";
+import type { AppContext, AchievementSourceProvider, AchievementUnlockItem, ProvidedAchievementSet, ReportOptions, ReportUnlocksOptions } from "../kernel/extensions.ts";
 import { canonicalAchievementId } from "../domain/achievement-ids.ts";
-
-export type LaunchPolicy = "off" | "first_run" | "all_runs";
 
 /** In-game unlock polling: the pause after one check settles before the next (today's value). */
 const POLL_MS = 2000;
 
 export interface AchievementsDeps {
-    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "resetAchievementSources" | "steamStoreGetMapping" | "getAllRecords">;
+    backend: Pick<typeof Backend, "ensureFresh" | "checkUnlocks" | "unlockAchievement" | "resetAchievements" | "resetAchievementSources" | "steamStoreGetMapping" | "getAllRecords" | "provideAchievements">;
     records: RecordStore;
     bus: EventBus;
     /** Creates the base record if the appid has none yet (app/records.ts ensureBase). */
@@ -27,12 +24,8 @@ export interface AchievementsDeps {
     routeOf(appid: ShortcutId): Route;
     /** Setting raHardcoreMode. */
     hardcore(): boolean;
-    /** Setting localAchievementsNotifyOnLaunch. */
-    launchPolicy(): LaunchPolicy;
-    /** Kill switch `achievements-observer`: gates the launch toast and the polling session. */
+    /** Kill switch `achievements-observer`: gates the polling session. */
     observerEnabled(): boolean;
-    /** Settings services.epicEnabled / xboxEnabled (ADR-0056); absent = both on. */
-    stores?(): { epic: boolean; xbox: boolean };
     /** Extension achievement providers (ADR-0013 / ADR-0062). */
     providers?(): AchievementSourceProvider[];
     /** Shortcut metadata for AppContext (exe, launch options). */
@@ -65,11 +58,16 @@ export interface AchievementsService {
     summary(appid: number): { nAchieved: number; nTotal: number } | undefined;
     /** Unlocks an extension reports (ADR-0063): canonical ids, persisted, then announced (silent: no toast). */
     ingestExternal(appid: number, unlocks: AchievementUnlockItem[], opts: ReportUnlocksOptions): Promise<{ accepted: string[] }>;
+    /**
+     * A whole set an extension pushes (ADR-0067: Epic, Xbox): stored as the shortcut's achievements, and its new unlocks
+     * announced as `achievements.synced` (no toast: the extension's own overlay showed them in game).
+     */
+    ingestProvidedSet(appid: number, set: ProvidedAchievementSet, opts: ReportOptions): Promise<{ ok: boolean; new: string[] }>;
     /** What an extension is told about a shortcut: exe, launch options, mapped app, schema ids. */
     context(appid: ShortcutId): Promise<AppContext>;
     /**
-     * Can this shortcut's achievements be reset? false for an Epic or Xbox copy: its unlocks live on the store's account
-     * and the next sync brings them back (ADR-0056, decision 7). Record only, synchronous.
+     * Can this shortcut's achievements be reset? false for a pushed set (ADR-0067: an Epic or Xbox copy): its unlocks live
+     * on the store's account and the extension's next push brings them back (ADR-0056, decision 7). Record only, synchronous.
      */
     resettable(appid: number): boolean;
     /**
@@ -103,7 +101,6 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         clearTimeout: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>),
     };
     const inflight = new Map<ShortcutId, Promise<Part<AchievementSet>>>();
-    const notified = new Set<ShortcutId>();
     const sessions = new Map<ShortcutId, () => void>();
     /** Games running now: a quit while the mapping is still loading must not start a session. */
     const running = new Set<ShortcutId>();
@@ -111,14 +108,10 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
     const current = (appid: ShortcutId) => deps.records.get(appid)?.achievements;
 
     /**
-     * An Epic or Xbox copy (ADR-0056): its unlocks are synced from the store, which already notified the player in game,
-     * so there is no launch toast and no in-game polling (decision 4). The record's store part, or a synced source.
+     * A game an extension reported (ADR-0067: an Epic or Xbox copy): its unlocks come from the extension's pushes, and its
+     * own overlay already notified the player in game, so there is no in-game polling (ADR-0056 decision 4).
      */
-    const isSynced = (appid: ShortcutId) => {
-        const rec = deps.records.get(appid);
-        const source = rec?.achievements?.source;
-        return (rec?.store?.status === "ok" && !!rec.store.data) || source === "epic" || source === "xbox";
-    };
+    const isSynced = (appid: ShortcutId) => deps.records.get(appid)?.provided?.status === "ok";
 
     /** The mapped native app (0 = none): the record's identity, else the saved mapping. */
     async function resolveNative(appid: ShortcutId): Promise<number> {
@@ -213,8 +206,6 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
             route,
             identity,
             hardcore: deps.hardcore(),
-            allowEpic: deps.stores?.().epic ?? true,
-            allowXbox: deps.stores?.().xbox ?? true,
             force: opts.force,
             noNetwork: opts.noNetwork,
         }, { lane: opts.lane ?? "view" });
@@ -299,46 +290,12 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         return stop;
     }
 
-    /**
-     * A store sync after the game quit (ADR-0056): ask the store now (force), and announce what it found that the record
-     * did not have, for the Post-Game Summary. No toast: the store's overlay already showed each unlock in game.
-     */
-    async function syncAfterQuit(appid: ShortcutId): Promise<void> {
-        const before = new Set(Object.keys(current(appid)?.data?.unlocks ?? {}));
-        const part = await ensure(appid, deps.routeOf(appid), { force: true, lane: "normal" });
-        const set = part.data;
-        if (part.status !== "ok" || !set) return;
-        const items: UnlockedAchievement[] = [];
-        for (const [id, u] of Object.entries(set.unlocks ?? {})) {
-            if (before.has(id)) continue;
-            const a = set.schema.achievements.find((x) => String(x.id) === id);
-            if (!a) continue;
-            items.push({ id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: u.unlocked_time || Math.floor(deps.now() / 1000) });
-        }
-        if (items.length === 0) return;
-        logger.info(`Store sync found ${items.length} new unlock(s) for shortcut ${appid}: ${items.map((i) => i.id).join(", ")}`);
-        deps.bus.emit("achievements.synced", { appid, items });
-    }
-
-    function launchToast(appid: ShortcutId): void {
-        const policy = deps.launchPolicy();
-        if (policy === "off") return;
-        const total = current(appid)?.data?.schema.total ?? 0;
-        if (total === 0) return;
-        if (policy === "first_run") {
-            if (notified.has(appid)) return;
-            notified.add(appid);
-        }
-        deps.bus.emit("achievements.launch-toast", { appid });
-    }
-
     return {
         install() {
             deps.bus.on("shortcut.launched", ({ appid, name }) => {
                 if (!deps.observerEnabled()) return;
-                if (isSynced(appid)) return; // the store's overlay notifies; synced when the game quits (ADR-0056)
+                if (isSynced(appid)) return; // the extension pushes its unlocks (ADR-0067); its overlay notified
                 running.add(appid);
-                launchToast(appid);
                 void resolveNative(appid).then((n) => {
                     if (!running.has(appid)) return; // the game quit while the mapping loaded
                     startSession(appid, { native: n, title: name });
@@ -348,10 +305,7 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
                 running.delete(appid);
                 const stop = sessions.get(appid);
                 stop?.();
-                if (isSynced(appid)) {
-                    void syncAfterQuit(appid);
-                    return;
-                }
+                if (isSynced(appid)) return; // the extension pushes after the game (ADR-0067)
                 // New captures and unlocks: reload what the record holds for this shortcut.
                 void ensure(appid, deps.routeOf(appid), { lane: "normal" });
             });
@@ -359,6 +313,36 @@ export function createAchievements(deps: AchievementsDeps): AchievementsService 
         ensure,
         checkNow,
         startSession,
+        async ingestProvidedSet(appid, set, opts) {
+            const id = toShortcutId(Number(appid));
+            const list = Array.isArray(set?.achievements) ? set.achievements : [];
+            if (id === undefined || !set?.source || !set.key || list.length === 0) return { ok: false, new: [] };
+            deps.ensureBase(id);
+            const native = deps.records.get(id)?.identity?.data?.native?.appid;
+            const res = await deps.backend.provideAchievements(id, {
+                source: set.source,
+                provider: opts?.providerId ?? set.source,
+                key: set.key,
+                schema: { title: set.title, achievements: list },
+                unlocks: set.unlocks ?? {},
+                native,
+            }, { lane: "background" });
+            if (!res || res.error || !res.part) return { ok: false, new: [] };
+            deps.records.update(id, { achievements: res.part });
+            const fresh = Array.isArray(res.new) ? res.new : [];
+            const items: UnlockedAchievement[] = [];
+            const data = res.part.data;
+            for (const aid of fresh) {
+                const a = data?.schema.achievements.find((x) => String(x.id) === aid);
+                if (!a) continue;
+                items.push({ id: aid, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, unlockedAt: data?.unlocks?.[aid]?.unlocked_time || Math.floor(deps.now() / 1000) });
+            }
+            if (items.length > 0) {
+                logger.info(`${opts?.providerId ?? set.source} pushed ${items.length} new unlock(s) for shortcut ${id}: ${items.map((i) => i.id).join(", ")}`);
+                deps.bus.emit("achievements.synced", { appid: id, items });
+            }
+            return { ok: true, new: fresh };
+        },
         ingestExternal(appid, unlocks, opts) {
             const id = toShortcutId(Number(appid));
             if (id === undefined) return Promise.resolve({ accepted: [] });

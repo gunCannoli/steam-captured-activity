@@ -592,39 +592,3 @@ Steam write lives under `frontend/surfaces/`. One exception remains until M6b: K
   `sections` follows the record and `captures.published`; `achievements` fixes guardrail 8 and retries its own hook;
   `toasts` and `captures` take `achievements.unlocked`; `captures` styles the windows the view sensor reports;
   `game-info` writes the record's badges and refreshes on a new Steam match. One `jsxRuntime()` in `steam/modules`.
-
-## library-shortcuts
-
-**One job (ADR-0056, ADR-0058):** add the shortcut app/store-sync asks for (auto-add of an installed Epic or Xbox game) and file it
-in its store's collection; and repoint an Xbox UWP shortcut to the current version's exe after an app update. Event-driven:
-`store.add-requested` in, `store.shortcut-added` out; `store.repair-requested` in, `store.shortcut-repaired` out.
-
-**touches:** `SteamClient.Apps.AddShortcut`, `SteamClient.Apps.SetShortcutName`, `SteamClient.Apps.SetShortcutLaunchOptions`,
-`SteamClient.Apps.SetShortcutExe`, `SteamClient.Apps.SetShortcutStartDir`, `collectionStore.NewUnsavedCollection`,
-`Collection.AsDragDropCollection.AddApps`.
-
-**reads:** none. **Kill switch:** `library-shortcuts`.
-
-**Facts (verified live 2026-10-02):** `AddShortcut(name, exe, startDir, launchOptions)` resolves to the new appid and
-writes `shortcuts.vdf` at once; it ignores the name (named after the exe) and the launch options (stored empty), so both
-are set right after; renaming keeps the appid. The collection calls are Steam UI's own and not yet verified on this
-build: fail-open (the shortcut is added, the log says the collection was skipped). `userCollections` is read only once
-`m_mapCollectionsFromStorage` exists (guardrail 13). `SetShortcutExe` / `SetShortcutStartDir` keep the appid (verified live
-2026-10-03 on BURIED STARS, appid 4069313383 unchanged).
-
-## launch-hold
-
-**One job (ADR-0057, Epic Steam Overlay Workaround):** hold Steam's launch of an Epic shortcut while app/epic-launcher has a
-running Epic launcher closed, so Steam starts the launcher itself and its overlay reaches the game. Event-driven:
-`launch.hold-mode` (the appids to hold: the Epic launcher-link copies while the setting is on, else none) and `launch.release`
-in, `launch.held` out. Every other launch goes to Steam untouched. It decides nothing and fetches nothing.
-
-**touches:** `SteamClient.Apps.RunGame`.
-
-**reads:** none. **Kill switch:** `launch-hold` (off = Steam launches at once; the reaper still runs).
-
-**Facts (verified live 2026-10-03, launch-tracking plan E8):** `RunGame` is an own, writable, configurable property of
-`SteamClient.Apps`; Steam's Play paths look it up when called (the library Play action with its Big Picture branch, module
-`5808`; the game list, `59718`) and ignore its return value. Holding it 0.7 s while the launcher closed worked from Steam's
-own Play button. A launch from outside Steam's UI does not pass through it. Fail-open: a held launch goes on after 10 s; a
-second Play press while held is dropped (the first goes on). Uninstall restores Steam's original.

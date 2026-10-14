@@ -112,14 +112,26 @@ test("every bundled theme's assets exist, relative to themes/", () => {
     }
 });
 
-test('bundled themes: steam_midnight styles achievements like every toast; ps5, steam_tiers and theme draw the banner', () => {
+test('bundled themes: steam_midnight and midnight_glass style achievements like every toast; SteamStation, steam_tiers and theme draw the banner', () => {
     assert.equal(resolveTheme(STEAM_MIDNIGHT).achievements, null);
-    const themes: [string, unknown][] = [['ps5.jsonc', load('ps5.jsonc')], ['steam_tiers (fixture)', STEAM_TIERS], ['theme_example.jsonc', load('theme_example.jsonc')]];
+    assert.equal(resolveTheme(load('midnight_glass.jsonc')).achievements, null);
+    const themes: [string, unknown][] = [['SteamStation.jsonc', load('SteamStation.jsonc')], ['steam_tiers (fixture)', STEAM_TIERS], ['theme_example.jsonc', load('theme_example.jsonc')]];
     for (const [file, raw] of themes) {
         const banner = resolveTheme(raw).achievements;
         assert.ok(banner, file);
         assert.deepEqual(Object.keys(banner.tiers), ['normal', 'magic', 'rare', 'exceptional'], file);
         assert.equal(banner.position, 'top_right', `${file}: inherited from the theme's settings`);
+    }
+    const neon = resolveTheme(load('neon_tiers.jsonc')).achievements;
+    assert.ok(neon);
+    assert.equal(neon.position, 'top_left', "neon_tiers: inherited from the theme's settings");
+});
+
+test("bundled themes ship only the plugin's own files (no PlayStation/ or third-party assets)", () => {
+    for (const file of readdirSync(themesDir).filter(isTheme)) {
+        for (const rel of resolveTheme(load(file)).assetPaths) {
+            assert.ok(rel.startsWith('SteamStation/assets/'), `${file}: "${rel}" is not one of the plugin's own assets`);
+        }
     }
 });
 

@@ -5,23 +5,16 @@ import { DEFAULT_BUCKETS, validateConfig, type RoutingRule } from '../domain/rou
 import { DEFAULTS, DEFAULT_SERVICES, MEDIA_CACHE_DAYS, type ControllerOverride, type SettingKey, type Settings } from './defaults';
 
 export { DEFAULTS, DEFAULT_SERVICES, MEDIA_CACHE_DAYS };
-export type { ControllerOverride, LaunchNotifyOption, ServicesConfig, SettingKey, Settings } from './defaults';
+export type { ControllerOverride, ServicesConfig, SettingKey, Settings } from './defaults';
 
 /** Progress of the background sync (app/ingest.ts), for the panel (plan § 7.0 D3: never an import of app/). */
 const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
     buckets: validateConfig,
     defaultFullController: (raw) => raw === true,
-    localAchievementsNotifyOnLaunch: (raw) => {
-        if (raw === 'off' || raw === 'first_run' || raw === 'all_runs') return raw;
-        return 'all_runs';
-    },
     raHardcoreMode: (raw) => raw !== false,
     activityShowAddedToLibrary: (raw) => raw !== false,
     activityShowFirstPlayed: (raw) => raw !== false,
     activityShowAchievements: (raw) => raw !== false,
-    autoAddEpicGames: (raw) => raw === true,
-    autoAddXboxGames: (raw) => raw === true,
-    epicOverlayWorkaround: (raw) => raw === true,
     communityShowTrailers: (raw) => raw !== false,
     communityShowManuals: (raw) => raw !== false,
     communityShowArtworks: (raw) => raw !== false,
@@ -45,8 +38,6 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
             retroachievementsEnabled: r.retroachievementsEnabled !== false,
             emulatorsEnabled: emu,
             rpcs3Enabled: emu,
-            epicEnabled: r.epicEnabled !== false,
-            xboxEnabled: r.xboxEnabled !== false,
         };
     },
     controllerOverrides: (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, ControllerOverride>) : {}),
@@ -55,7 +46,6 @@ const VALIDATORS: { [K in SettingKey]: (raw: unknown) => Settings[K] } = {
 const current: Settings = {
     buckets: DEFAULT_BUCKETS,
     defaultFullController: false,
-    localAchievementsNotifyOnLaunch: 'all_runs',
     raHardcoreMode: true,
     routingRules: [],
     autoRoutingMode: true,
@@ -64,9 +54,6 @@ const current: Settings = {
     activityShowAddedToLibrary: true,
     activityShowFirstPlayed: true,
     activityShowAchievements: true,
-    autoAddEpicGames: false,
-    autoAddXboxGames: false,
-    epicOverlayWorkaround: false,
     communityShowTrailers: true,
     communityShowManuals: true,
     communityShowArtworks: true,

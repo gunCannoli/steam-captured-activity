@@ -1,0 +1,28 @@
+// Midnight Glass: a quiet theme. Every notification a translucent navy card at the bottom centre that fades up, Steam's
+// own sounds, and achievements styled like every other toast (no banner). No files: a good start for your own theme.
+// Every option is explained in theme_example.jsonc.
+{
+    "settings": {
+        "position": "bottom_center",
+        "animation": "up",
+        "display_time_ms": 5000,
+        "text_align": "left",
+        "hover": [true, "#5b8cff"],
+    },
+    "popup": {
+        "background": ["#101a2ee6", "#0a1120e6"],
+        "gradient_angle": 135,
+        "border": [1, "#5b8cff55", 12],
+        "glow": ["#5b8cff22", 14, 0],
+        "watermark": false,
+        "margin": [0, 0, 24, 0],
+        "padding": [10, 14, 10, 10],
+        "gap": [12, 2],
+    },
+    "text": {
+        "title": ["#e8eeff", 110, "bold"],
+        "body": ["#b8c4e6", 100, "regular"],
+        "subtext": ["#8794b8", 95, "regular"],
+    },
+    "popup_icon": [true, 100, 10],
+}

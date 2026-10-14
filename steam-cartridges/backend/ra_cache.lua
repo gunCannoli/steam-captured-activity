@@ -1,6 +1,6 @@
 --- RetroAchievements lookups kept across Steam starts (ADR-0060): a ROM's hash by its file, and a hash's GameID.
 ---
---- Hashing a ROM spawns `node ra_hasher.js` (up to 5 s) and the GameID is a network call; both used to be
+--- Hashing a ROM (rom_hash.lua, up to a few seconds for a large zip) and the GameID is a network call; both used to be
 --- remembered in memory only, so every Steam start paid them again for every RetroAchievements game, while the
 --- backend (one call at a time) held every other call.
 ---

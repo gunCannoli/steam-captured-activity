@@ -2,8 +2,6 @@
 // directly, which is how tests/settings-defaults.test.ts pins every default (do-not-touch 1).
 import type { BucketsConfig, RoutingRule } from '../domain/routing/policy';
 
-export type LaunchNotifyOption = 'off' | 'first_run' | 'all_runs';
-
 export interface ServicesConfig {
     steamStoreEnabled: boolean;
     screenscraperEnabled: boolean;
@@ -13,10 +11,6 @@ export interface ServicesConfig {
     retroachievementsEnabled: boolean;
     emulatorsEnabled: boolean;
     rpcs3Enabled?: boolean;
-    /** Epic Games Store copies: the store's Game Info, screenshots and the user's unlocks (ADR-0056). */
-    epicEnabled: boolean;
-    /** Xbox (PC Game Pass / Microsoft Store) copies: the store's Game Info, screenshots and the user's unlocks (ADR-0056). */
-    xboxEnabled: boolean;
 }
 
 export const DEFAULT_SERVICES: ServicesConfig = {
@@ -27,8 +21,6 @@ export const DEFAULT_SERVICES: ServicesConfig = {
     retroachievementsEnabled: true,
     emulatorsEnabled: true,
     rpcs3Enabled: true,
-    epicEnabled: true,
-    xboxEnabled: true,
 };
 
 export type ControllerOverride = 'full' | 'partial' | 'none' | 'auto';
@@ -38,7 +30,6 @@ export interface Settings {
     /** Full Controller Support for a shortcut that neither Steam nor its emulator decides (ADR-0038 addendum). */
     defaultFullController: boolean;
     /** Game start notification when achievements tracking is active. */
-    localAchievementsNotifyOnLaunch: LaunchNotifyOption;
     /** RetroAchievements Hardcore Mode (strict rules, leaderboards, standard badge icons). Default true. */
     raHardcoreMode: boolean;
     /** General routing rules engine for multi-service targeting. */
@@ -55,12 +46,6 @@ export interface Settings {
     activityShowFirstPlayed: boolean;
     /** Show Steam's "achieved" activity card for each day a non-Steam game's achievements were unlocked (ADR-0056). Default true. */
     activityShowAchievements: boolean;
-    /** Add every installed Epic Games Store game that is not in the library yet as a shortcut (ADR-0056). Default false. */
-    autoAddEpicGames: boolean;
-    /** Add every installed Xbox PC game that is not in the library yet as a shortcut (ADR-0056). Default false. */
-    autoAddXboxGames: boolean;
-    /** Epic Steam Overlay Workaround (ADR-0057): close a running Epic launcher when Play is pressed, and again after the game. Default false. */
-    epicOverlayWorkaround: boolean;
     /** Show trailers carousel on community tab. Default true. */
     communityShowTrailers: boolean;
     /** Show digital game manuals on community tab. Default true. */
@@ -85,7 +70,6 @@ const DEFAULT_BUCKETS_LITERAL: BucketsConfig = { version: 2, default: 'steam-sto
 export const DEFAULTS: Settings = {
     buckets: DEFAULT_BUCKETS_LITERAL,
     defaultFullController: false,
-    localAchievementsNotifyOnLaunch: 'all_runs',
     raHardcoreMode: true,
     routingRules: [],
     autoRoutingMode: true,
@@ -94,9 +78,6 @@ export const DEFAULTS: Settings = {
     activityShowAddedToLibrary: true,
     activityShowFirstPlayed: true,
     activityShowAchievements: true,
-    autoAddEpicGames: false,
-    autoAddXboxGames: false,
-    epicOverlayWorkaround: false,
     communityShowTrailers: true,
     communityShowManuals: true,
     communityShowArtworks: true,

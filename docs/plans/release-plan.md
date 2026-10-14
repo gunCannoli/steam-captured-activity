@@ -1,6 +1,6 @@
 # Plan: first public release of enhanced-notifications and steam-cartridges
 
-**Status (2026-10-13):** triage done, nothing released. Every item that was pending in TASK.md and in `docs/plans/` is sorted
+**Status (2026-10-14):** triage done 2026-10-13; most blockers fixed 2026-10-14 (§ 0); nothing released. Every item that was pending in TASK.md and in `docs/plans/` is sorted
 below into **cleared** (done, or folded into one check), **blocker** (before the release), **check** (one hand-check session
 by the user), **decision** (the user's call) and **after** (not in this release). TASK.md keeps only what is open.
 **Kind:** an umbrella plan, like the features plan. Each blocker that needs code gets its own mechanical plan
@@ -13,6 +13,57 @@ steam-cartridges-third-party Lua suites pass. Live suites not run (Steam was up 
 
 ---
 
+## 0. Progress (2026-10-14)
+
+Done by the agent, offline-tested, deployed (`-dev`) and live-checked where noted ([ADR-0066](../decisions.md),
+[ADR-0067](../decisions.md)):
+
+| Item | State |
+| --- | --- |
+| D2 Epic/Xbox code | **Moved out (the user: "move it all out", ADR-0067).** The core has no Epic/Xbox code; third-party pushes each copy through extension API 1.2.0. Live: Pool Blitz pushed as an Xbox game (Game Info, 10 screenshots) |
+| D3 Millennium hot-patch | **Removed.** Stress run of ADR-0059 still to do (live suite, § 4 H9) |
+| D4 ScreenScraper | **Done (the user: ship the developer id).** `screenscraper_dev.lua`; each player adds their own account. This PC's account was saved to the data folder's `.env` |
+| D5 RPCS3 / shadPS4 reset | **Read-only** (`TROPHY_RESET = false`) until checked on real files |
+| D6 launch toast | **Deleted** with its setting and the Notifications section |
+| D7 Sony assets | **Logged for removal (the user)**: nothing bundled uses them; exact list in § 3b. New original themes ship instead (SteamStation rebuilt, Neon Tiers, Midnight Glass) |
+| D8 `ps5.jsonc` | **The user: local only.** `ps5.jsonc` and `retrogames.jsonc` moved to `<Steam>/millennium/config/enhanced-notifications/themes/` (the repo's newer `ps5.jsonc` there, the older local one kept as `ps5.jsonc.bak-20261014`) and out of the repo |
+| SC 2 ROM hashing | **In Lua** (`rom_hash.lua`, ADR-0066), Node hasher deleted; 20/20 of this PC's ROMs identical to Node's |
+| LICENSE | Added to steam-cartridges, -local and -third-party |
+| Xbox overlay | **Dropped** (ADR-0065); opt-in Steam notification mute instead; Pool Blitz repointed live (appid kept) |
+| Captured-activity clips | **Not a plugin bug as far as the code shows**: no code path deletes clip files (enhanced-notifications deletes only one clip it can name as its own; four went in one second, 75 s after a Steam restart, with nothing in Steam's logs). Most likely Steam's own clean-up of clips its index lost in the GetClips-burst session (fixed `ce32f01`), or a delete in Steam's media view. Watch item, not a blocker |
+
+Still open: D1, D9, the machine paths below (§ 3, new), the hand checks (§ 4), the publish checklists.
+
+## 3b. Third-party material to delete before publishing (logged 2026-10-14, the user)
+
+Nothing bundled refers to these any more (a theme test fails if a bundled theme names a file outside
+`themes/SteamStation/assets/`), and `dev.ps1` no longer deploys them. Delete them from `enhanced-notifications/` before the
+first `git subtree split` (or the public repo's history carries them):
+
+- `themes/PlayStation/` (Sony trophy art and sounds: `trophy_ps4.mp3`, `trophy_ps5.mp3`, `platinum_trophy_ps5.mp3`,
+  bronze/silver/gold/platinum images).
+- `themes/SteamStation/` **except** `themes/SteamStation/assets/`: Sony samples and derived files (`ps4_trophy.mp3`,
+  `ps5_trophy.mp3`, `ps5_trophy_platinum.mp3`, `*_playstation.png`, `top/hybrid_*_ps5_trophy_platinum.mp3`, the `sfx/`
+  packs built from them), Valve sounds (`deck_ui_*.wav`, `steam_os_startup.wav`), Steam logos, Vecteezy stock art (the
+  `vecteezy_*` folder and zip; its free licence forbids redistribution), svgrepo icons, and the generator scripts with
+  machine paths (`sfx/bronze_sound_designer.py`, `sfx/preview.html`, `generate_baseline_progressions.py`,
+  `hybrid_designer.py`).
+- `themes/assets/` (Sony samples `ps*_trophy*.mp3`, `trophies/` with PS and Steam images, `sfx/`; the trophy SVGs of
+  unknown origin were replaced by the SteamStation ones in `theme_example.jsonc`).
+- `examples/steam_ps_exemple.json` (a PS5 example; keep `theme_exemple.json` only if its assets are the plugin's own).
+- The repo history keeps them (private workspace); the public repo must be split after the deletion, or from a fresh
+  history.
+
+## 3c. Machine paths to remove from steam-cartridges (found 2026-10-14)
+
+`backend/retroachievements.lua`, `backend/achievements_observer.lua`, `backend/ps3_trophies.lua`,
+`backend/ps4_trophies.lua` fall back to `C:/emu/...` (this PC's emulator folder: RetroArch, DuckStation, PCSX2,
+PrimeHack, PPSSPP, RPCS3, shadPS4) when no emulator folder was found from the shortcuts. Harmless elsewhere (the path
+does not exist), but it is this machine's layout in a public plugin: replace with discovery only (the shortcuts' exe
+folders, `%APPDATA%` defaults) and a test that greps the backend for `C:/emu`.
+
+---
+
 ## 1. What ships
 
 | Plugin | Version now | Ships as | Note |
@@ -21,7 +72,7 @@ steam-cartridges-third-party Lua suites pass. Live suites not run (Steam was up 
 | steam-cartridges | `0.1.0` | `0.1.0` | Its own public repo |
 | steam-captured-activity | `0.1.0` | **D1** | Split out of steam-cartridges (ADR-0062): without it the Activity feed has no "{Username} captured" cards |
 | steam-cartridges-local | `0.2.0` | **D1** | Since ADR-0063 steam-cartridges reads no emulator save files itself; without it Goldberg/CODEX/RUNE games show no unlocks |
-| steam-cartridges-third-party | `0.1.0` | **after** | Epic/Xbox: the least verified part, many open items (§ 5) |
+| steam-cartridges-third-party | `0.1.0` | **after** (or with the core: since ADR-0067 Epic/Xbox games need it) | Epic/Xbox: the least verified part, many open items (§ 5) |
 
 ---
 

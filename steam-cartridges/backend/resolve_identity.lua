@@ -19,7 +19,7 @@ local M = {}
 M.deps = {
   http_get = nil,    -- nil = steam_store_throttle.http_get (search.search's default)
   is_emulator = nil, -- nil = launches_emulator(appid), moved here from steam_store_rpc.lua
-  store_copy = nil,  -- nil = store_copies_store.get(appid): the Epic or Xbox copy saved by the `store` part
+  provided = nil,    -- nil = provided_store.get(appid): what an extension pushed (ADR-0067), for its title
   now = function() return os.time() end,
 }
 
@@ -70,8 +70,8 @@ local function match_owned(appid, title, owned)
   return nil
 end
 
---- The titles to match, best first: the shortcut's name, then its store copy's title (ADR-0056) when that differs
---- after normalizing. An Xbox shortcut can carry the package's own name ("worldoftanks_blitz") while the catalog
+--- The titles to match, best first: the shortcut's name, then the title an extension pushed for it (ADR-0067: an Epic or
+--- Xbox copy's store title) when that differs after normalizing. An Xbox shortcut can carry the package's own name ("worldoftanks_blitz") while the catalog
 --- names the game ("World of Tanks Blitz"); Steam's search finds only the second.
 local function titles_of(appid, ctx)
   local out, seen = {}, {}
@@ -81,12 +81,8 @@ local function titles_of(appid, ctx)
     if norm ~= "" and not seen[norm] then seen[norm] = true; out[#out + 1] = t end
   end
   add(ctx.title)
-  local copy = ctx.store and ctx.store.data
-  if not copy then
-    local ok, saved = pcall(M.deps.store_copy or function(id) return require("store_copies_store").get(id) end, appid)
-    copy = ok and saved or nil
-  end
-  if type(copy) == "table" then add(copy.title) end
+  local ok, pushed = pcall(M.deps.provided or function(id) return require("provided_store").get(id) end, appid)
+  if ok and type(pushed) == "table" then add(pushed.title) end
   return out
 end
 

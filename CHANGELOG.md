@@ -7,6 +7,33 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Release fixes (2026-10-14)**, [release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14):
+  - *Epic and Xbox out of the core (ADR-0067, the user: "move it all out"):* steam-cartridges lost every Epic/Xbox module
+    (store service, readers, Epic GraphQL, Xbox catalog and Live, store achievements, launch hold, auto-add, Xbox
+    repairs, the installs sensor, five settings). Extension API 1.2.0: `reportGame`, `reportAchievementSet`,
+    `forgetGame`, a `steam-cartridges:ready` event; the core keeps pushes in `provided_games.json` and its metadata,
+    media and achievements services read them after a Steam match and before IGDB / ScreenScraper, no network.
+    steam-cartridges-third-party now does all store work: `push.ts` (start-up, page view, after a copy quits),
+    `store-sync.ts` (auto-add / remove / repairs / collections, 60 s tick), `epic-launcher.ts` (RunGame hold + reaper),
+    one `lifecycle.ts` listener, `settings/current.ts`; its `store_achievements.lua` no longer needs the core's
+    `achievements_store`; new RPCs `StoreLibraryCopies`, `StoreGameData`. Found on the way: third-party's auto-add
+    toggles wrote its own config that the core never read, and its `InstalledStoreGame` type did not match the backend.
+    Docs: `service-provided.md` (new), `steam-cartridges-third-party-stores.md` (moved from the core's `service-store.md`),
+    kernel / rpc / safety / sensors / settings / surfaces / achievements docs.
+  - *Release hardening (ADR-0066):* ROM hashing in Lua (`rom_hash.lua`: MD5, raw inflate, every ra_hasher.js rule; 20/20
+    of this PC's ROMs identical; raw Mode 2 discs read per sector), Node hasher deleted; `millennium_patch.lua` removed;
+    ScreenScraper developer id shipped (`screenscraper_dev.lua`, XOR-ed), each player brings an account; the never-shown
+    launch toast and its setting removed; RPCS3 / shadPS4 reset read-only; LICENSE in steam-cartridges, -local,
+    -third-party; the absolute `c:/game/millennium/.env` fallback dropped.
+  - *Themes (ADR-0066, the user):* SteamStation rebuilt from the plugin's own generated trophies and bell chimes
+    (`enhanced-notifications/tools/theme_assets.py`); new Neon Tiers and Midnight Glass; `ps5` and `retrogames` moved to
+    the user's local themes folder; `dev.ps1` deploys only theme files and `SteamStation/assets/` (290 MB -> 917 KB
+    deployed); the Sony / Valve / stock material is logged for deletion before publishing (release plan § 3b).
+  - *Investigated:* the four AM2R clips that vanished on 2026-10-07: no plugin code path deletes clip files; most likely
+    Steam's own clean-up after the GetClips-burst session (release plan § 0).
+  - *Tests:* steam-cartridges 318 TS + 12 Lua suites (new `test_rom_hash.lua`, pushed-data tests, `app-provided.test.ts`);
+    third-party Lua (push, game data, running check, repairs); enhanced-notifications 186 (a test keeps bundled themes on
+    the plugin's own assets).
 - **Release triage and plan (2026-10-13)**, [plan](docs/plans/release-plan.md): every pending TASK.md item and plan sorted
   into cleared, blocker, hand-check, decision and after, for enhanced-notifications 0.2.0 and steam-cartridges 0.1.0.
   Findings: the Epic/Xbox store stack was copied into steam-cartridges-third-party, not moved (steam-cartridges still runs

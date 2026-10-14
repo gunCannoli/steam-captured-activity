@@ -146,9 +146,10 @@ export function RevisionSection() {
                     idLib[key] = { appid: idData.appid, source: idData.source };
                 }
 
-                const storeData = recordParts?.store?.data as any;
-                if (storeData) {
-                    stLib[key] = { kind: storeData.kind, title: storeData.title };
+                // What an extension pushed (ADR-0067: an Epic or Xbox copy) counts as matched.
+                const pushed = recordParts?.provided?.data as any;
+                if (pushed) {
+                    stLib[key] = { kind: pushed.source, title: pushed.title };
                 }
 
                 const achPart = recordParts?.achievements;

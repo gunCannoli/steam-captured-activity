@@ -152,7 +152,7 @@ local ROUTE_STORE = { bucket = "steam-store", via = "default" }
 local ROUTE_OTHER = { bucket = "web-scraping", via = "default" }
 
 identity.deps.now = function() return 1000 end
-identity.deps.store_copy = function() return nil end
+identity.deps.provided = function() return nil end
 
 -- ---------- route not steam-store ----------
 print("route")
@@ -242,9 +242,10 @@ check("negative cache skips the request", neg_calls == 1, neg_calls)
 identity.deps.http_get = nil
 wipe()
 
--- ---------- store copy title (ADR-0056 "Steam first") ----------
-print("store copy title")
+-- ---------- a pushed title (ADR-0067; ADR-0056 "Steam first") ----------
+print("pushed title")
 -- The Xbox package names itself "worldoftanks_blitz"; its catalog title is "World of Tanks Blitz" (found 2026-10-04).
+-- steam-cartridges-third-party pushes the catalog title with the game (reportGame).
 local terms = {}
 identity.deps.http_get = function(url)
   terms[#terms + 1] = url
@@ -253,35 +254,29 @@ identity.deps.http_get = function(url)
   end
   return '{"total":0,"items":[]}'
 end
-identity.deps.store_copy = function() return { kind = "xbox", title = "World of Tanks Blitz" } end
+identity.deps.provided = function() return { source = "xbox", title = "World of Tanks Blitz" } end
 r = identity.ensure(SC, { title = "worldoftanks_blitz", route = ROUTE_STORE })
-check("a miss on the shortcut name is retried with the store copy's title", r.status == "ok" and r.data.native and r.data.native.appid == 444200, #terms)
+check("a miss on the shortcut name is retried with the pushed title", r.status == "ok" and r.data.native and r.data.native.appid == 444200, #terms)
 check("the shortcut name is searched first", #terms == 2 and terms[1]:find("worldoftanks_blitz", 1, true) ~= nil, terms[1])
 wipe()
 
 terms = {}
 r = identity.ensure(SC, { title = "worldoftanks_blitz", route = ROUTE_STORE,
   owned = { { appid = 444200, name = "World of Tanks Blitz" } } })
-check("an owned game matches the store copy's title without a search", r.source == "owned" and r.data.native.appid == 444200 and #terms == 0, #terms)
+check("an owned game matches the pushed title without a search", r.source == "owned" and r.data.native.appid == 444200 and #terms == 0, #terms)
 wipe()
 
 terms = {}
-r = identity.ensure(SC, { title = "worldoftanks_blitz", route = ROUTE_STORE,
-  store = { status = "ok", data = { kind = "xbox", title = "World of Tanks Blitz" } } })
-check("this call's store part is used before the saved copy", r.data.native and r.data.native.appid == 444200)
-wipe()
-
-terms = {}
-identity.deps.store_copy = function() return { kind = "epic", title = "World of Tanks: Blitz!" } end
+identity.deps.provided = function() return { source = "epic", title = "World of Tanks: Blitz!" } end
 r = identity.ensure(SC, { title = "World of Tanks Blitz", route = ROUTE_STORE })
-check("a store title equal after normalizing is not searched twice", #terms == 1 and r.data.native.appid == 444200, #terms)
+check("a pushed title equal after normalizing is not searched twice", #terms == 1 and r.data.native.appid == 444200, #terms)
 wipe()
 
 terms = {}
-identity.deps.store_copy = function() return { kind = "xbox", title = "World of Tanks Blitz" } end
+identity.deps.provided = function() return { source = "xbox", title = "World of Tanks Blitz" } end
 r = identity.ensure(SC, { title = "", route = ROUTE_STORE })
-check("an empty shortcut name still resolves through the store copy", r.data and r.data.native and r.data.native.appid == 444200)
-identity.deps.store_copy = function() return nil end
+check("an empty shortcut name still resolves through the pushed title", r.data and r.data.native and r.data.native.appid == 444200)
+identity.deps.provided = function() return nil end
 identity.deps.http_get = nil
 wipe()
 

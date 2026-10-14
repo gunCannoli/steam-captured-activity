@@ -298,6 +298,67 @@ local function root_running(root)
   return ok and M.parse_running(out) or false
 end
 
+--- Every shortcut that is an Epic or Xbox copy: { { appid, kind } }. Local data only (start-up: the frontend pushes each
+--- one to steam-cartridges, ADR-0067).
+function M.library_copies(ctx)
+  ctx = ctx or {}
+  local out = {}
+  for _, e in ipairs(all_entries()) do
+    local c = M.detect(e)
+    if c and ((c.kind == "epic" and ctx.allowEpic ~= false) or (c.kind == "xbox" and ctx.allowXbox ~= false)) then
+      out[#out + 1] = { appid = unsigned(e.appid), kind = c.kind }
+    end
+  end
+  return out
+end
+
+--- Everything steam-cartridges needs about a copy, to push (ADR-0067): { copy = { kind, title }, metadata?, media?,
+--- achievements? = { source, key, title, achievements, unlocks } }, or { copy = nil } for a shortcut that is not one.
+--- ctx = { allowEpic?, allowXbox?, achievements? (default true) }. A store that fails is silent (ADR-0014): its part is
+--- left out and the rest still answers.
+function M.game_data(appid, ctx)
+  ctx = ctx or {}
+  local entry = entry_of(appid)
+  local part = M.ensure(appid, ctx)
+  local copy = part.status == "ok" and part.data or nil
+  if not copy then return { copy = nil } end
+  if (copy.kind == "epic" and ctx.allowEpic == false) or (copy.kind == "xbox" and ctx.allowXbox == false) then
+    return { copy = nil, disabled = copy.kind }
+  end
+  local title = copy.title or (entry and (entry.appname or entry.name or entry.AppName)) or ""
+  local out = { copy = { kind = copy.kind, title = copy.title } }
+  local ok, err = pcall(function()
+    if copy.kind == "epic" then
+      if not (copy.namespace and copy.offerId) then return end
+      local g = epic()
+      local offer = g.offer(copy.namespace, copy.offerId)
+      if offer then
+        out.metadata = g.to_metadata(offer, unsigned(appid), title)
+        out.media = g.screenshots(offer)
+      end
+    else
+      local catalog = xbox_catalog()
+      local product = (copy.storeId and catalog.by_store_id(copy.storeId)) or (copy.pfn and catalog.by_pfn(copy.pfn))
+      if product then
+        out.metadata = catalog.to_metadata(product, unsigned(appid), title)
+        out.media = catalog.screenshots(product)
+      end
+    end
+  end)
+  if not ok then logger:warn("Store Game Info " .. tostring(appid) .. ": " .. tostring(err)) end
+  if ctx.achievements ~= false then
+    local okA, set, aerr = pcall(function() return require("store_achievements").fetch(copy) end)
+    if okA and set then
+      out.achievements = set
+    elseif okA then
+      out.achievementsError = tostring(aerr)
+    else
+      logger:warn("Store achievements " .. tostring(appid) .. ": " .. tostring(set))
+    end
+  end
+  return out
+end
+
 --- The notification mute (ADR-0065): is this shortcut an Xbox copy, and is its game running? { xbox, running? }.
 --- Local data only.
 function M.xbox_running(appid)

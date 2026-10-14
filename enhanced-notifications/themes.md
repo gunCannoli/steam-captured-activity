@@ -25,10 +25,10 @@ a theme that leaves the key out, or Steam default.
 
 **[themes/theme_example.jsonc](themes/theme_example.jsonc) is the commented version of this
 page**: every option, in a working theme you can copy and trim. Also bundled:
-[steam_midnight](themes/steam_midnight.json) (no achievement banner),
-[ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json)
-(colour-coded tiers). Fuller, asset-based examples are in
-[examples/](examples/).
+[SteamStation](themes/SteamStation.jsonc) (trophy banner with the plugin's own trophies and chimes),
+[neon_tiers](themes/neon_tiers.jsonc) (rarity shown by border and glow) and
+[midnight_glass](themes/midnight_glass.jsonc) (no achievement banner, no files).
+Fuller, asset-based examples are in [examples/](examples/).
 
 **File format:** `.jsonc` or `.json`. Both accept JSONC: `//` and `/* */`
 comments and trailing commas. If there are both `name.jsonc` and `name.json`,

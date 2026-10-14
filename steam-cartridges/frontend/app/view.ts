@@ -1,14 +1,14 @@
 // app/view: what happens when the user opens a shortcut's page (migration plan M7b; moved from
 // features/source-view.ts, the last features/ file of the pipeline). ADR-0060: paint from disk, then refresh.
 //   1. Game Info and achievements as stored on disk (`noNetwork`), so a known game's page fills at once;
-//   2. the store copy, then the Steam match (every refresh reads them);
+//   2. the Steam match (every refresh reads it; what an extension pushed is on disk, ADR-0067);
 //   3. a source is asked only for a part that is missing or due (the backend marks it `stale`; its TTLs in
 //      fresh_policy.lua decide), Game Info first, then achievements, then artwork and community media.
 // The Lua host serves one call at a time, so the order of the calls is the order of the page filling in; the
 // calls' lanes (ports/transport) keep background work behind them. A Steam render never starts a view (M0a):
 // views come from sensors/view.
 import { toShortcutId, type ShortcutId } from "../kernel/appid.ts";
-import type { ArtworkPlan, GameMetadata, Identity, Part, Route, StoreCopy } from "../kernel/record";
+import type { ArtworkPlan, GameMetadata, Identity, Part, Route } from "../kernel/record";
 
 export interface ViewDeps {
     routing: {
@@ -16,8 +16,6 @@ export interface ViewDeps {
         waitForCollections(timeoutMs?: number): Promise<boolean>;
     };
     identity: { ensure(appid: ShortcutId, route: Route): Promise<Part<Identity>> };
-    /** The Epic or Xbox copy behind the shortcut (ADR-0056); asked before any refresh, so every later part sees it. */
-    store: { ensure(appid: ShortcutId, route: Route): Promise<Part<StoreCopy>> };
     metadata: {
         ensure(appid: ShortcutId, route: Route, identity: Part<Identity> | undefined, opts?: { noNetwork?: boolean }): Promise<Part<GameMetadata>>;
     };
@@ -84,9 +82,8 @@ export function createView(deps: ViewDeps): View {
                 deps.achievements.ensure(id, route, { noNetwork: true }),
             ]);
 
-            // 2. ADR-0056: the store copy first (local files, then the store's ids once per game); then, for the
-            //    steam-store bucket, the Steam match (ADR-0036). The backend's metadata, media and achievements read both.
-            await deps.store.ensure(id, route);
+            // 2. For the steam-store bucket, the Steam match (ADR-0036). The backend's metadata, media and achievements read
+            //    it, and what an extension pushed (ADR-0067, on disk).
             const identityPart = bucket === "steam-store" ? await deps.identity.ensure(id, route) : undefined;
 
             // 3. Refresh what is missing or due. A Steam match's Game Info comes from Steam's own store item, which

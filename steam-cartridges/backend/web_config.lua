@@ -43,7 +43,6 @@ config.legacy_env_candidates = {
   "../.env",
   "../../.env",
   "../../../.env",
-  "c:/game/millennium/.env",
 }
 
 --- First legacy .env that parses to a non-empty map (used by migrate too).
@@ -132,33 +131,22 @@ function config.get_retroachievements_credentials()
 end
 
 
---- Resolve ScreenScraper credentials from .env if provided
+--- ScreenScraper: the player's account (Settings -> Metadata -> Add service, saved as screenscraper_user /
+--- screenscraper_pass) and the plugin's developer id (screenscraper_dev.lua, shipped; screenscraper_dev_user /
+--- screenscraper_dev_pw in .env override it). nil without a player account: every player brings their own, so requests
+--- count against their ScreenScraper quota, not one shared anonymous one.
 ---@return table|nil { user = string, pass = string, dev_user = string, dev_pw = string }
 function config.get_screenscraper_credentials()
   local env_map = get_env_map()
-  local u = env_map["screenscraper_user"] or env_map["screenscraper_dev_user"]
-  local p = env_map["screenscraper_pass"] or env_map["screenscraper_dev_pw"]
-  if (u and #u > 0) or (p and #p > 0) then
-    return {
-      user = u or "",
-      pass = p or "",
-      dev_user = env_map["screenscraper_dev_user"] or "",
-      dev_pw = env_map["screenscraper_dev_pw"] or "",
-    }
+  local u = env_map["screenscraper_user"]
+  local p = env_map["screenscraper_pass"]
+  if not u or #u == 0 or not p or #p == 0 then return nil end
+  local dev_user, dev_pw = env_map["screenscraper_dev_user"], env_map["screenscraper_dev_pw"]
+  if not dev_user or #dev_user == 0 or not dev_pw or #dev_pw == 0 then
+    local ok, dev = pcall(function() return require("screenscraper_dev").get() end)
+    dev_user, dev_pw = ok and dev.id or "", ok and dev.password or ""
   end
-  return nil
-end
-
---- The Xbox account (ADR-0056): the Microsoft refresh token and whose it is, or nil when signed out. Written by
---- xbox_live.lua through save_credentials (keys xbox_refresh_token, xbox_xuid, xbox_gamertag); never logged.
----@return table|nil { refresh_token = string, xuid = string, gamertag = string }
-function config.get_xbox_account()
-  local env_map = get_env_map()
-  local token = env_map["xbox_refresh_token"]
-  if token and #token > 0 then
-    return { refresh_token = token, xuid = env_map["xbox_xuid"] or "", gamertag = env_map["xbox_gamertag"] or "" }
-  end
-  return nil
+  return { user = u, pass = p, dev_user = dev_user, dev_pw = dev_pw }
 end
 
 --- Save key-value pairs into data_dir .env

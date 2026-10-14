@@ -6,11 +6,12 @@
 //        ADR-0058) runs under Steam's tree, so Steam's state alone is right; a GDK game is opened through Explorer
 //        and leaves Steam's tree within seconds (launch-tracking plan F18), so the backend checks its folder every
 //        POLL_MS, and a launch that never shows a process is given START_GRACE_MS before it counts as over.
-import { pluginConfig, subscribePluginConfig } from "@steambrew/client";
 import { backend } from "./backend";
+import { onLaunched, onQuit } from "./lifecycle";
+import { onSettingChange, setting } from "./settings/current";
 import { setToastsMuted } from "./toast-mute";
 
-const SETTING = "muteXboxNotifications";
+const SETTING = "muteXboxNotifications" as const;
 const POLL_MS = 15_000;
 const START_GRACE_MS = 90_000;
 
@@ -82,20 +83,14 @@ function setEnabled(on: unknown): void {
 
 let installed = false;
 
+/** Needs installLifecycle() and startSettings() (index.tsx). */
 export function installXboxMute(): void {
     if (installed) return;
     installed = true;
-    pluginConfig.get<boolean>(SETTING).then(setEnabled).catch(() => {});
-    subscribePluginConfig((key: string, val: unknown) => {
-        if (key === SETTING) setEnabled(val);
+    setEnabled(setting(SETTING));
+    onSettingChange((key) => {
+        if (key === SETTING) setEnabled(setting(SETTING));
     });
-    const sessionsApi = (window as any).SteamClient?.GameSessions;
-    if (typeof sessionsApi?.RegisterForAppLifetimeNotifications !== "function") {
-        console.warn("[steam-cartridges-third-party] SteamClient.GameSessions.RegisterForAppLifetimeNotifications not found; Xbox notification mute unavailable.");
-        return;
-    }
-    sessionsApi.RegisterForAppLifetimeNotifications((n: { unAppID?: number; bRunning?: boolean }) => {
-        const appid = Number(n?.unAppID) >>> 0;
-        if (appid) void onLifetime(appid, n?.bRunning === true);
-    });
+    onLaunched((appid) => void onLifetime(appid, true));
+    onQuit((appid) => void onLifetime(appid, false));
 }

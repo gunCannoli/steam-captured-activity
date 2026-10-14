@@ -14,7 +14,7 @@ const SCHEMA = {
     ],
 };
 
-function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'first_run' | 'all_runs'; observer?: boolean; withSchema?: boolean; bucket?: string } = {}) {
+function setup(over: { checkUnlocks?: (...a: any[]) => any; observer?: boolean; withSchema?: boolean; bucket?: string } = {}) {
     const bus = createEventBus();
     const records = createRecordStore(bus);
     records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
@@ -54,7 +54,6 @@ function setup(over: { checkUnlocks?: (...a: any[]) => any; policy?: 'off' | 'fi
         titleOf: () => 'Game',
         routeOf: () => ({ bucket: (over.bucket ?? 'web-scraping') as any, via: 'default' }),
         hardcore: () => true,
-        launchPolicy: () => over.policy ?? 'all_runs',
         observerEnabled: () => over.observer !== false,
         timers: {
             setTimeout: (fn: () => void, ms: number) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; },
@@ -77,31 +76,12 @@ test('poll result object is normalized to an array (K1)', async () => {
     assert.equal(await keyed.ach.checkNow(SC, { native: 77 }), 1);
 });
 
-test('launch toast off', async () => {
-    const { bus, calls } = setup({ policy: 'off' });
+test('a launch shows no "Achievements Enabled" toast (removed, ADR-0066)', async () => {
+    const { bus, calls } = setup();
+    bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
     bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
     await tick();
     assert.equal(calls.toast, 0);
-});
-
-test('launch toast first_run: once per game per session', async () => {
-    const { bus, calls } = setup({ policy: 'first_run' });
-    bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
-    bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
-    await tick();
-    assert.equal(calls.toast, 1);
-});
-
-test('launch toast all_runs: every launch, only when the record has achievements', async () => {
-    const { bus, calls } = setup({ policy: 'all_runs' });
-    bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
-    bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
-    await tick();
-    assert.equal(calls.toast, 2);
-    const none = setup({ policy: 'all_runs', withSchema: false });
-    none.bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
-    await tick();
-    assert.equal(none.calls.toast, 0);
 });
 
 test('unlock emits achievements.unlocked with the new ids and merges them into the record', async () => {
@@ -212,7 +192,6 @@ function preloadSetup(stored: Record<string, any>, titles: Record<number, string
         titleOf: (appid) => titles[appid],
         routeOf: () => ({ bucket: 'web-scraping' as any, via: 'default' }),
         hardcore: () => false,
-        launchPolicy: () => 'off',
         observerEnabled: () => false,
         now: () => 1000,
     });
@@ -261,33 +240,34 @@ test('rerenderAll: emits record.updated(achievements) for every record with an o
     assert.deepEqual(updated, [SC]);
 });
 
-// ---------- store copies: synced, not observed (ADR-0056) ----------
+// ---------- pushed games: synced by their extension, not observed (ADR-0067; ADR-0056 decision 4) ----------
 
-/** A record that is an Epic copy, whose backend answers with the store's unlocks (one call per ensure). */
-function storeSetup(answers: Record<string, { unlocked_time: number }>[]) {
+/** A record an extension reported (an Epic copy); its backend answers a push with the stored part and the new ids. */
+function storeSetup(pushAnswer: { part?: any; new?: string[]; error?: string } = {}) {
     const bus = createEventBus();
     const records = createRecordStore(bus);
     records.upsert({ appid: SC, gameid: 'g', title: 'Game', exe: '' });
-    records.update(SC, { store: { status: 'ok', data: { kind: 'epic', namespace: 'ns', via: 'manifest' } } as any });
+    records.update(SC, { provided: { status: 'ok', source: 'epic', data: { source: 'epic', title: 'Game' } } as any });
     records.update(SC, { achievements: { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 5 } } } } });
     const contexts: any[] = [];
+    const pushes: any[] = [];
     const synced: any[] = [];
     const unlocked: any[] = [];
-    const toasts: number[] = [];
     const timers: any[] = [];
-    let n = 0;
     bus.on('achievements.synced', (e) => synced.push(e));
     bus.on('achievements.unlocked', (e) => unlocked.push(e));
-    bus.on('achievements.launch-toast', () => toasts.push(1));
     const ach = createAchievements({
         backend: {
             async ensureFresh(_a: number, _p: string[], ctx: any) {
                 contexts.push(ctx);
-                const unlocks = answers[Math.min(n++, answers.length - 1)];
-                return { appid: SC, parts: { achievements: { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks } } } };
+                return { appid: SC, parts: {} };
             },
-            async checkUnlocks() { throw new Error('a synced copy is never polled'); },
+            async checkUnlocks() { throw new Error('a pushed game is never polled'); },
             async steamStoreGetMapping() { return { mapping: null }; },
+            async provideAchievements(_a: number, set: any) {
+                pushes.push(set);
+                return pushAnswer;
+            },
         } as any,
         records,
         bus,
@@ -295,48 +275,57 @@ function storeSetup(answers: Record<string, { unlocked_time: number }>[]) {
         titleOf: () => 'Game',
         routeOf: () => ({ bucket: 'steam-store', via: 'default' }),
         hardcore: () => true,
-        launchPolicy: () => 'all_runs',
         observerEnabled: () => true,
-        stores: () => ({ epic: true, xbox: false }),
         timers: { setTimeout: (fn: () => void, ms: number) => { timers.push(ms); return 1; }, clearTimeout: () => {} },
         now: () => 1000,
     });
     ach.install();
-    return { ach, bus, contexts, synced, unlocked, toasts, timers };
+    return { ach, bus, records, contexts, pushes, synced, unlocked, timers };
 }
 
-test('a store copy gets no launch toast and no in-game polling (the store notifies)', async () => {
-    const s = storeSetup([{ A: { unlocked_time: 5 } }]);
+test('a pushed game gets no in-game polling (its extension notifies)', async () => {
+    const s = storeSetup();
     s.bus.emit('shortcut.launched', { appid: SC, name: 'Game' });
     await tick();
-    assert.deepEqual(s.toasts, []);
     assert.deepEqual(s.timers, []);
 });
 
-test('after a store copy quits, a forced sync announces only the new unlocks, never as a toast', async () => {
-    const s = storeSetup([{ A: { unlocked_time: 5 }, B: { unlocked_time: 900 } }]);
+test('after a pushed game quits the core asks nothing: the extension pushes', async () => {
+    const s = storeSetup();
     s.bus.emit('shortcut.quit', { appid: SC, name: 'Game' });
     await tick();
     await tick();
-    assert.equal(s.contexts.length, 1);
-    assert.equal(s.contexts[0].force, true, 'the quit sync ignores the 15 min freshness');
-    assert.equal(s.contexts[0].allowEpic, true);
-    assert.equal(s.contexts[0].allowXbox, false);
-    assert.equal(s.synced.length, 1);
-    assert.deepEqual(s.synced[0].items.map((i: any) => [i.id, i.name, i.unlockedAt]), [['B', 'Beta', 900]]);
-    assert.equal(s.unlocked.length, 0, 'achievements.unlocked (which toasts) is never emitted for a sync');
-});
-
-test('a sync that finds nothing new announces nothing', async () => {
-    const s = storeSetup([{ A: { unlocked_time: 5 } }]);
-    s.bus.emit('shortcut.quit', { appid: SC, name: 'Game' });
-    await tick();
-    await tick();
+    assert.equal(s.contexts.length, 0);
     assert.equal(s.synced.length, 0);
 });
 
-test('a store copy is not resettable; any other shortcut is', () => {
-    const s = storeSetup([{}]);
+test('a pushed set is stored and its new unlocks are announced as synced, never as a toast', async () => {
+    const part = { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 5 }, B: { unlocked_time: 900 } } } };
+    const s = storeSetup({ part, new: ['B'] });
+    const res = await s.ach.ingestProvidedSet(SC, { source: 'epic', key: 'ns', title: 'Game', achievements: [{ id: 'A', name: 'Alpha', description: '', icon: '' }, { id: 'B', name: 'Beta', description: '', icon: '' }], unlocks: { A: 5, B: 900 } }, { providerId: 'steam-cartridges-third-party' });
+    assert.deepEqual(res, { ok: true, new: ['B'] });
+    assert.equal(s.pushes.length, 1);
+    assert.equal(s.pushes[0].provider, 'steam-cartridges-third-party');
+    assert.equal(s.pushes[0].key, 'ns');
+    assert.equal(s.records.get(SC)?.achievements?.data?.unlocks.B?.unlocked_time, 900);
+    assert.equal(s.synced.length, 1);
+    assert.deepEqual(s.synced[0].items.map((i: any) => [i.id, i.name, i.unlockedAt]), [['B', 'Beta', 900]]);
+    assert.equal(s.unlocked.length, 0, 'achievements.unlocked (which toasts) is never emitted for a push');
+});
+
+test('a push with nothing new announces nothing; a refused push changes nothing', async () => {
+    const part = { status: 'ok', source: 'epic', data: { schema: SCHEMA, unlocks: { A: { unlocked_time: 5 } } } };
+    const s = storeSetup({ part, new: [] });
+    const set = { source: 'epic', key: 'ns', achievements: [{ id: 'A', name: 'Alpha', description: '', icon: '' }], unlocks: { A: 5 } };
+    assert.deepEqual(await s.ach.ingestProvidedSet(SC, set, { providerId: 'x' }), { ok: true, new: [] });
+    assert.equal(s.synced.length, 0);
+    const bad = storeSetup({ error: 'no' });
+    assert.deepEqual(await bad.ach.ingestProvidedSet(SC, set, { providerId: 'x' }), { ok: false, new: [] });
+    assert.deepEqual(await bad.ach.ingestProvidedSet(SC, { ...set, achievements: [] }, { providerId: 'x' }), { ok: false, new: [] });
+});
+
+test('a pushed game is not resettable; any other shortcut is', () => {
+    const s = storeSetup();
     assert.equal(s.ach.resettable(SC), false);
     const other = setup();
     assert.equal(other.ach.resettable(SC), true);
@@ -363,7 +352,6 @@ test('the paint (noNetwork) asks the disk only, in the view lane, and an answer 
         titleOf: () => 'Game',
         routeOf: () => ({ bucket: 'web-scraping', via: 'default' }),
         hardcore: () => true,
-        launchPolicy: () => 'off',
         observerEnabled: () => true,
         now: () => 1000,
     });
@@ -429,7 +417,6 @@ test('extension provider: never polled for unlocks, pushes them, and handles res
         titleOf: () => 'Game',
         routeOf: () => ({ bucket: 'web-scraping', via: 'default' }),
         hardcore: () => true,
-        launchPolicy: () => 'off',
         observerEnabled: () => true,
         providers: () => [mockProvider],
         shortcutData: () => ({ strAppName: 'Game', szExe: 'D:/game/game.exe' }),

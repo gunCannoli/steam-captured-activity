@@ -26,30 +26,17 @@ export interface Identity {
     web?: { igdb?: number; ra?: number; ss?: number; romHash?: string };
 }
 
-/** The stores a shortcut can be a copy of (ADR-0056). */
-export type StoreKind = "epic" | "xbox";
-
 /**
- * A shortcut that is a copy of a game bought on another store (backend store_service.lua, ADR-0056): found from the
- * store's own install data on this PC, never typed by the user. A copy can also have a Steam match (`identity`).
+ * What an extension pushed for a shortcut (ADR-0067, backend provided_store): Epic and Xbox copies found by
+ * steam-cartridges-third-party. The core keeps it as one more source; it knows no store.
  */
-export interface StoreCopy {
-    kind: StoreKind;
-    /** The store's name for the game. */
+export interface ProvidedGame {
+    /** The data's source id ("epic", "xbox", ...). */
+    source: string;
+    /** The source's name for the game (helps the Steam match). */
     title?: string;
-    /** Epic: CatalogNamespace (also the achievement sandbox), CatalogItemId and AppName from the install manifest. */
-    namespace?: string;
-    itemId?: string;
-    appName?: string;
-    /** Epic: the store offer (Game Info) and the achievement product (player unlocks). */
-    offerId?: string;
-    productId?: string;
-    /** Xbox: package family name, Store product id and Xbox title id (decimal). */
-    pfn?: string;
-    storeId?: string;
-    titleId?: string;
-    /** How the copy was found: an Epic manifest, a launch link, an Xbox game config file, an installed package. */
-    via: "manifest" | "launch-link" | "config" | "package";
+    /** The reporting extension's id. */
+    provider?: string;
 }
 
 /** Player and controller flags from a metadata source (moved from rpc.ts in M3.3, plan § 7.0 D12). */
@@ -168,8 +155,8 @@ export interface AchievementSet {
 export interface MediaItem {
     /** "manual": a ScreenScraper PDF (features plan F2c), shown as a cover card and opened page by page. */
     kind: "video" | "screenshot" | "artwork" | "manual";
-    /** "epic" / "xbox": the store's own screenshots of a copy with no Steam match (ADR-0056), public URLs like IGDB's. */
-    source: "igdb" | "screenscraper" | "epic" | "xbox";
+    /** Any other id: an extension's pushed media (ADR-0067: "epic", "xbox"), public URLs like IGDB's. */
+    source: "igdb" | "screenscraper" | (string & {});
     /** A video's YouTube id. */
     youtube?: string;
     /** Public full-size and preview URLs (IGDB, Epic, Xbox). A ScreenScraper item has none: its image is fetched by `key` into the media bin. */
@@ -262,11 +249,11 @@ export interface GameRecord {
     achievements?: Part<AchievementSet>;
     media?: Part<CommunityMedia>;
     artwork?: Part<ArtworkPlan>;
-    /** The Epic or Xbox copy behind the shortcut (ADR-0056); `unsupported` for any other shortcut. */
-    store?: Part<StoreCopy>;
+    /** What an extension pushed for the shortcut (ADR-0067); `unsupported` for any other shortcut. */
+    provided?: Part<ProvidedGame>;
 }
 
-export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork" | "store";
+export type RecordPart = "identity" | "metadata" | "achievements" | "media" | "artwork" | "provided";
 
 export interface RecordStore {
     get(appid: ShortcutId): GameRecord | undefined;

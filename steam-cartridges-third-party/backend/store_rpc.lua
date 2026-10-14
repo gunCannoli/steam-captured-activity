@@ -6,6 +6,8 @@
 ---   StoreEpicLaunchShortcuts / StoreEpicPrelaunch / StoreEpicReap   the Epic Steam Overlay Workaround (store_launch.lua, ADR-0057)
 ---   StoreXboxRepairs     U0 Xbox shortcuts to repoint after an app update (ADR-0058)
 ---   StoreXboxRunning     is this shortcut an Xbox game, and is it running (the notification mute, ADR-0065)
+---   StoreLibraryCopies   every shortcut that is an Epic or Xbox copy (pushed to steam-cartridges at start-up, ADR-0067)
+---   StoreGameData        a copy's Game Info, media and achievements, for the frontend to push (ADR-0067)
 
 local core          = require("rpc")
 local store_service = require("store_service")
@@ -52,6 +54,18 @@ end)
 --- { appid }: { xbox, running? } for the notification mute (store_service.xbox_running, ADR-0065).
 RPC.StoreXboxRunning = method("StoreXboxRunning", function(data)
   return store_service.xbox_running(tonumber(data.appid))
+end)
+
+--- { allowEpic?, allowXbox? }: { copies = { { appid, kind } } }. Local data only.
+RPC.StoreLibraryCopies = method("StoreLibraryCopies", function(data)
+  return { copies = store_service.library_copies({ allowEpic = data.allowEpic, allowXbox = data.allowXbox }) }
+end)
+
+--- { appid, allowEpic?, allowXbox?, achievements? }: what steam-cartridges needs about a copy (store_service.game_data).
+RPC.StoreGameData = method("StoreGameData", function(data)
+  return store_service.game_data(tonumber(data.appid), {
+    allowEpic = data.allowEpic, allowXbox = data.allowXbox, achievements = data.achievements,
+  })
 end)
 
 --- {}: the shortcuts that are an Epic copy started through the launcher link (the ones held at Play).

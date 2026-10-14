@@ -388,66 +388,47 @@ local r2 = steam_schema.get_or_fetch(4000000001, 440, get_json, get_html)
 check("... the next call is served from the store, no request", r2.schema ~= nil and r2.schema.achievements[1].id == "A1" and fetches == 1)
 
 
--- ---------- store copies: sources epic and xbox (ADR-0056) ----------
-print("store copies")
-local EPIC_COPY = { kind = "epic", namespace = "d8a39ea2f35e49b58f18c2b96aec276a", productId = "18f6", title = "Jotunnslayer", via = "manifest" }
+-- ---------- pushed achievements (ADR-0067: extensions report a set; Epic, Xbox from steam-cartridges-third-party) ----------
+print("pushed achievements")
 wipe()
-fresh({ store_fetch = function(a, copy, native) calls.store = (calls.store or 0) + 1; calls.store_native = native; return { schema = SCHEMA, unlocks = { B = { unlocked_time = 9 } } } end })
-r = ach.ensure(SC, { native = 2820820, store = EPIC_COPY })
-check("an Epic copy answers from its store first, even with a Steam match", r.status == "ok" and r.source == "epic" and calls.store == 1 and (calls.steam or 0) == 0 and calls.store_native == 2820820)
-fresh({ store_fetch = function() calls.store = (calls.store or 0) + 1; return { schema = SCHEMA, unlocks = {} } end })
-r = ach.ensure(SC, { native = 2820820, store = EPIC_COPY, allowEpic = false })
-check("with Epic switched off the copy falls back to Steam's list", r.source == "steam" and (calls.store or 0) == 0)
-fresh({ store_fetch = function() return nil, "not signed in" end })
-r = ach.ensure(SC, { native = 2820820, store = { kind = "xbox", titleId = "1" } })
-check("a store that does not answer (signed out) falls through to the next source", r.status == "ok" and r.source == "steam")
-fresh({ store_fetch = function() calls.store = 1; return { schema = SCHEMA, unlocks = {} } end })
-r = ach.ensure(SC, { native = 0, store = { kind = "xbox", titleId = "1" }, allowXbox = false })
-check("an Xbox copy with Xbox off and no other source is unsupported, silently", r.status == "unsupported" and calls.store == nil)
-
--- store_achievements: the real source over fake store APIs.
-wipe()
-local sa = require("store_achievements")
-local remembered = {}
-local epic_unlocks = { ACH_FRIENDLY_JOTUNN = 1790963093 }
-local epic_err = nil
+local provided_store = require("provided_store")
+local PROVIDED_PATH = TMP .. "/sc_provided_test_" .. os.time() .. ".json"
+provided_store._path = PROVIDED_PATH
+provided_store._reset()
+local prpc = require("provided_rpc")
 local steam_fetches = 0
-sa.deps.epic = {
-  achievement_schema = function() return { product_id = "18f6", achievements = { { id = "ACH_A_TROPHY_SPECIAL", name = "A-Trophy", description = "", icon = "u", global_pct = 70 }, { id = "ACH_FRIENDLY_JOTUNN", name = "Friendly", description = "", icon = "f", global_pct = 5 } } } end,
-  player_unlocks = function() if epic_err then return nil, epic_err end return epic_unlocks end,
-}
-sa.deps.epic_local = { account_id = function() return "acc" end }
-sa.deps.copies = { remember = function(k, v) remembered[k] = v end }
-sa.deps.steam_fetch = function() steam_fetches = steam_fetches + 1; return { native_appid = 2820820, total = 3, achievements = { { id = "ACH_A_TROPHY_SPECIAL", name = "Steam A" }, { id = "ACH_FRIENDLY_JOTUNN", name = "Steam F" }, { id = "ACH_EXTRA", name = "x" } } } end
-local res1 = sa.fetch(SC, EPIC_COPY, 0)
-check("an Epic copy with no Steam match gets Epic's list and the profile's unlocks", res1 and res1.schema.source == "epic" and res1.schema.total == 2 and res1.unlocks.ACH_FRIENDLY_JOTUNN.unlocked_time == 1790963093 and remembered["epic:account"].private == false)
-local stored = store.get_state(SC)
-check("... persisted: the list under epic_<namespace>, the unlocks, the source", stored.schema and stored.schema.source == "epic" and stored.unlocks.ACH_FRIENDLY_JOTUNN ~= nil and stored.source == "epic" and store.get_schema("epic_" .. EPIC_COPY.namespace) ~= nil)
-local lp = ach.local_part(SC)
-check("... local_part carries the source (a short freshness for a synced store)", lp.source == "epic")
-fresh_policy.touch(SC, "achievements", 0, "ok")
-local at16 = 16 * 60 * 1000
-check("... fresh_policy: a synced part is stale after 15 min, a local one is not (24 h)",
-  fresh_policy.is_stale(SC, "achievements", { status = "ok", source = "epic" }, at16)
-    and not fresh_policy.is_stale(SC, "achievements", { status = "ok", source = "steam" }, at16))
-local res2 = sa.fetch(SC, EPIC_COPY, 2820820)
-check("with a Steam match whose list covers every Epic id, Steam's list is kept with Epic's unlocks", res2.schema.native_appid == 2820820 and res2.schema.total == 3 and res2.unlocks.ACH_FRIENDLY_JOTUNN ~= nil and steam_fetches == 1)
-sa.deps.steam_fetch = function() return { native_appid = 999, total = 1, achievements = { { id = "OTHER" } } } end
-store._reset(); os.remove(ACH_PATH)
-local res3 = sa.fetch(SC, EPIC_COPY, 999)
-check("a Steam list that misses an Epic id is not used: Epic's own list", res3.schema.source == "epic" and res3.schema.total == 2)
-epic_err = "private"
-local res4 = sa.fetch(SC, EPIC_COPY, 0)
-check("a private profile keeps the last unlocks known and is remembered", res4 and res4.unlocks.ACH_FRIENDLY_JOTUNN ~= nil and remembered["epic:account"].private == true)
-epic_err = "HTTP 500"
-check("a failed request is an error (the record keeps what it has)", sa.fetch(SC, EPIC_COPY, 0) == nil)
-epic_err = nil
-sa.deps.live = { achievements = function() return { achievements = { { id = "2", name = "First Unlock", description = "", icon = "", global_pct = 40 } }, unlocks = { ["2"] = 1790963661 } } end }
-local rx = sa.fetch(SC, { kind = "xbox", titleId = "2003863742", title = "Jigsaw" }, 0)
-check("an Xbox copy gets Xbox Live's list and unlocks, stored under xbox_<title id>", rx and rx.schema.source == "xbox" and rx.unlocks["2"].unlocked_time == 1790963661 and store.get_state(SC).source == "xbox" and store.get_schema("xbox_2003863742") ~= nil)
-sa.deps.live = { achievements = function() return nil, "not signed in" end }
-check("signed out of Xbox: no answer (ach_service asks the next source)", sa.fetch(SC, { kind = "xbox", titleId = "1" }, 0) == nil)
-sa.deps.epic, sa.deps.epic_local, sa.deps.copies, sa.deps.steam_fetch, sa.deps.live = nil, nil, nil, nil, nil
+prpc.deps.native = function() return nil end
+prpc.deps.steam_fetch = function() steam_fetches = steam_fetches + 1; return { native_appid = 2820820, total = 3, achievements = { { id = "ACH_A" }, { id = "ACH_F" }, { id = "ACH_EXTRA" } } } end
+local EPIC_LIST = { title = "Jotunnslayer", achievements = {
+  { id = "ACH_A", name = "A-Trophy", description = "", icon = "u", global_pct = 70 },
+  { id = "ACH_F", name = "Friendly", description = "", icon = "f", global_pct = 5 },
+} }
+check("a push needs a shortcut, a source, a key and a list", prpc.provide_achievements({ appid = 440, source = "epic", key = "ns", schema = EPIC_LIST }).error ~= nil)
+local pr = prpc.provide_achievements({ appid = SC, source = "epic", provider = "steam-cartridges-third-party", key = "ns1", schema = EPIC_LIST, unlocks = { ACH_F = 1790963093 } })
+check("a pushed set with no Steam match keeps its own list under <source>_<key>, with its unlocks", pr.ok and store.get_state(SC).source == "epic" and store.get_schema("epic_ns1") ~= nil and store.get_state(SC).unlocks.ACH_F.unlocked_time == 1790963093)
+check("... and reports the unlocks the store did not have", #pr.new == 1 and pr.new[1] == "ACH_F")
+check("... the part carries the source", pr.part ~= nil and pr.part.source == "epic" and pr.part.data.schema.total == 2)
+pr = prpc.provide_achievements({ appid = SC, source = "epic", key = "ns1", schema = EPIC_LIST, unlocks = { ACH_F = 1790963093, ACH_A = 1790963100 } })
+check("a second push reports only what is new", #pr.new == 1 and pr.new[1] == "ACH_A")
+pr = prpc.provide_achievements({ appid = SC, source = "epic", key = "ns1", schema = EPIC_LIST, unlocks = { ACH_A = 1790963100 }, native = 2820820 })
+check("with a Steam match whose list covers every pushed id, Steam's list is kept with the pushed unlocks (replaced)", store.get_state(SC).schema_appid == 2820820 and steam_fetches == 1 and store.get_state(SC).unlocks.ACH_F == nil)
+prpc.deps.steam_fetch = function() return { native_appid = 999, total = 1, achievements = { { id = "OTHER" } } } end
+pr = prpc.provide_achievements({ appid = SC, source = "epic", key = "ns1", schema = EPIC_LIST, unlocks = {}, native = 999 })
+check("a Steam list that misses a pushed id is not used", store.get_state(SC).schema_appid == "epic_ns1")
+
+-- ach_service answers a pushed set from disk, before any other source, once the extension reported the game.
+fresh({})
+calls = {}
+r = ach.ensure(SC, { native = 2820820 })
+check("before reportGame the stored set is not 'provided': the other sources answer", r.source ~= "epic")
+prpc.provide_game({ appid = SC, source = "epic", provider = "steam-cartridges-third-party", title = "Jotunnslayer" })
+pr = prpc.provide_achievements({ appid = SC, source = "epic", key = "ns1", schema = EPIC_LIST, unlocks = { ACH_A = 5 } })
+calls = {}
+r = ach.ensure(SC, { native = 2820820 })
+check("a pushed set answers first, with its source, and no source is asked", r.status == "ok" and r.source == "epic" and (calls.steam or 0) == 0 and r.data.unlocks.ACH_A ~= nil)
+check("ForgetProvidedGame drops the pushed record", prpc.forget_game({ appid = SC }).ok and provided_store.get(SC) == nil)
+prpc.deps.native, prpc.deps.steam_fetch = nil, nil
+os.remove(PROVIDED_PATH)
 wipe()
 os.remove(ACH_PATH); os.remove(STORE_PATH)
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))

@@ -16,10 +16,6 @@ if jit and jit.off then
   jit.off()
 end
 
-pcall(function()
-  require("millennium_patch").apply()
-end)
-
 local logger      = require("logger")
 local millennium  = require("millennium")
 local steam_paths = require("steam_paths")
@@ -34,7 +30,7 @@ local WEB_RPC = require("web_rpc")
 local STORE_RPC = require("steam_store_rpc")
 local ACH_RPC   = require("achievements_rpc")
 local RECORD_RPC = require("record_rpc")
-local STORE_RPC_3P = require("store_rpc")
+local PROVIDED_RPC = require("provided_rpc")
 
 -- Millennium exposes globals to the frontend as callable methods.
 GetLibraryStats = RPC.GetLibraryStats
@@ -84,12 +80,10 @@ SaveManualCover = RECORD_RPC.SaveManualCover
 -- Downloaded media on disk (ADR-0051): drop the games not opened within the setting's days.
 PruneMediaCache = RECORD_RPC.PruneMediaCache
 
--- Third-party stores (ADR-0056): installed Epic and Xbox games, launcher hooks.
-StoreInstalledGames = STORE_RPC_3P.StoreInstalledGames
-StoreEpicLaunchShortcuts = STORE_RPC_3P.StoreEpicLaunchShortcuts
-StoreXboxRepairs    = STORE_RPC_3P.StoreXboxRepairs
-StoreEpicPrelaunch  = STORE_RPC_3P.StoreEpicPrelaunch
-StoreEpicReap       = STORE_RPC_3P.StoreEpicReap
+-- Extensions push a game's data (ADR-0067: Game Info, media, achievements; Epic and Xbox from steam-cartridges-third-party).
+ProvideGame         = PROVIDED_RPC.ProvideGame
+ForgetProvidedGame  = PROVIDED_RPC.ForgetProvidedGame
+ProvideAchievements = PROVIDED_RPC.ProvideAchievements
 
 local function on_load()
   -- Resolve paths eagerly so a misconfigured install shows up in the log at

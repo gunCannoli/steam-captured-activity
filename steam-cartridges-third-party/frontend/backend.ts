@@ -18,15 +18,24 @@ export async function callBackend<R>(name: string, payload: object = {}): Promis
   throw lastErr || new Error(`Failed to call backend method ${name}`);
 }
 
+/** An installed Epic or Xbox game (backend store_service.installed_games). */
 export interface InstalledStoreGame {
-  store: 'epic' | 'xbox';
-  id: string;
+  /** Epic AppName or Xbox package family name. */
+  key: string;
   title: string;
-  inLibrary: boolean;
-  appid?: number;
-  installPath: string;
-  executable: string;
-  launchUri?: string;
+  /** The shortcut appid when the library already has one for it. */
+  inLibrary?: number;
+  /** How a shortcut for it is set up; absent when it cannot be (no Epic launcher found). */
+  launch?: { exe: string; start_dir: string; launch_options: string };
+}
+
+/** What the push sends to steam-cartridges for one copy (backend store_service.game_data, ADR-0067). */
+export interface StoreGameData {
+  copy?: { kind: 'epic' | 'xbox'; title?: string } | null;
+  metadata?: Record<string, unknown>;
+  media?: unknown[];
+  achievements?: { source: string; key: string; title?: string; achievements: unknown[]; unlocks: Record<string, number> };
+  error?: string;
 }
 
 export const backend = {
@@ -43,8 +52,11 @@ export const backend = {
   xboxSignOut: () => callBackend<{ ok: boolean }>("XboxSignOut"),
   storeEpicLaunchShortcuts: () => callBackend<{ appids: number[] }>("StoreEpicLaunchShortcuts"),
   storeXboxRunning: (appid: number) => callBackend<{ xbox: boolean; running?: boolean }>("StoreXboxRunning", { appid }),
-  storeXboxRepairs: () => callBackend<{ repairs: { appid: number; exe: string; start_dir: string }[] }>("StoreXboxRepairs"),
-  storeEpicPrelaunch: (appid: number, heldAt: number) => callBackend<{ status: string; closed?: boolean }>("StoreEpicPrelaunch", { appid, heldAt }),
-  storeEpicReap: (appid: number, act: string) => callBackend<{ status: string; done?: boolean }>("StoreEpicReap", { appid, act }),
+  storeXboxRepairs: () => callBackend<{ repairs: { appid: number; title?: string; exe: string; start_dir: string; launch_options?: string }[] }>("StoreXboxRepairs"),
+  storeLibraryCopies: (allowEpic: boolean, allowXbox: boolean) => callBackend<{ copies: { appid: number; kind: 'epic' | 'xbox' }[] }>("StoreLibraryCopies", { allowEpic, allowXbox }),
+  storeGameData: (appid: number, allowEpic: boolean, allowXbox: boolean, achievements: boolean) =>
+    callBackend<StoreGameData>("StoreGameData", { appid, allowEpic, allowXbox, achievements }),
+  storeEpicPrelaunch: (appid: number, heldAt: number) => callBackend<{ epic?: boolean; closed?: boolean; reason?: string }>("StoreEpicPrelaunch", { appid, heldAt }),
+  storeEpicReap: (appid: number, act: "start" | "tick" | "stop") => callBackend<{ active?: boolean; phase?: string; reason?: string }>("StoreEpicReap", { appid, act }),
   storeSensorLogs: (limit: number = 60) => callBackend<{ lines: string[] }>("StoreSensorLogs", { limit }),
 };

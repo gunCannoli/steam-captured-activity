@@ -16,6 +16,12 @@ local files    = require("achievement_files")
 
 local M = {}
 
+--- RPCS3 / shadPS4 files are only listed, not reset (ADR-0066): writing TROPUSR.DAT and the trophy XML was never run on a
+--- real emulator's files. Turn on once someone with a PS3 / PS4 game has checked that the emulator still loads the file
+--- and shows the trophies locked (release plan D5). Tests turn it on to keep the write path covered.
+M.TROPHY_RESET = false
+local TROPHY_NOTE = "Not reset from here yet: reset the trophies in the emulator."
+
 --- Injectable for tests. nil = the real dependency.
 M.deps = {
   read = nil,   -- fun(path) -> string | nil
@@ -58,9 +64,11 @@ function M.sources(shortcut_appid, _native_appid)
   if schema.ps3_title_id or schema.ps4_title_id then
     local sc, exe_dir
     if M.deps.entry then sc, exe_dir = M.deps.entry(s_appid) else sc, exe_dir = observer.shortcut_entry(s_appid) end
-    local ps3 = { id = "rpcs3", label = "RPCS3 achievements", resettable = true, unlocked = 0, files = {} }
-    local ps4 = { id = "shadps4", label = "shadPS4 achievements", resettable = true, unlocked = 0, files = {},
-      note = "shadNet may sync them back from your shadNet account." }
+    local on = M.TROPHY_RESET == true
+    local ps3 = { id = "rpcs3", label = "RPCS3 achievements", resettable = on, unlocked = 0, files = {},
+      note = not on and TROPHY_NOTE or nil }
+    local ps4 = { id = "shadps4", label = "shadPS4 achievements", resettable = on, unlocked = 0, files = {},
+      note = on and "shadNet may sync them back from your shadNet account." or TROPHY_NOTE }
     for _, p in ipairs(observer.trophy_files(schema, sc, exe_dir)) do
       local data = read(p) or ""
       local is_dat = p:match("%.[Dd][Aa][Tt]$") ~= nil

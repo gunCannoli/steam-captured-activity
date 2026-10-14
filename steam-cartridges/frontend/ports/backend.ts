@@ -1,7 +1,7 @@
 // The record facade RPC client (migration plan M4b/M4c; M5a extends it with
 // metadata and GetAllRecords). Imports kernel types only; transport from
 // ports/transport.ts.
-import type { AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, OwnedCandidate, Part, RecordPart, Route, StoreApplied } from "../kernel/record";
+import type { AchievementSet, AchievementUnlockRecord, ArtworkUrls, GameMetadata, Identity, OwnedCandidate, Part, RecordPart, Route, StoreApplied } from "../kernel/record";
 import { call, type CallOptions } from "./transport";
 
 export type { CallOptions, Lane } from "./transport";
@@ -16,24 +16,6 @@ export interface AchievementResetSource {
     note?: string;
     /** A page where the user resets this source by hand (RetroAchievements: the game's page). */
     url?: string;
-}
-
-/** An installed Epic or Xbox game (backend store_service.installed_games, ADR-0056). */
-export interface InstalledStoreGame {
-    /** Epic AppName or Xbox package family name. */
-    key: string;
-    title: string;
-    /** The shortcut appid when the library already has one for it. */
-    inLibrary?: number;
-    /** How a shortcut for it is set up; absent when it cannot be (no Epic launcher found). */
-    launch?: { exe: string; start_dir: string; launch_options: string };
-}
-
-/** A store game that is no longer installed on this PC but still has a shortcut in the library. */
-export interface UninstalledStoreGame {
-    key: string;
-    appid: number;
-    title: string;
 }
 
 /** What a reset did to one source. */
@@ -145,9 +127,6 @@ export interface FreshContext {
     igdb_id?: number;
     /** Media only (ADR-0051): setting mediaCacheDays; more than 0 counts this page open for the disk cache. */
     cacheDays?: number;
-    /** Store copies (ADR-0056): settings services.epicEnabled / xboxEnabled. false = that store's API is never asked. */
-    allowEpic?: boolean;
-    allowXbox?: boolean;
 }
 
 /** One ScreenScraper image of the media part (features plan F2b): the bytes, never the URL. */
@@ -247,31 +226,21 @@ export const backend = {
     pruneMediaCache(days: number, opts?: CallOptions): Promise<{ removed?: number; kept?: number; error?: string }> {
         return call<{ removed?: number; kept?: number; error?: string }>("PruneMediaCache", { days }, opts);
     },
-    /** Store copies (ADR-0056): every installed Epic and Xbox game and whether the library has it. */
-    storeInstalledGames(allowXbox: boolean, opts?: CallOptions) {
-        return call<{
-            epic?: InstalledStoreGame[];
-            xbox?: InstalledStoreGame[];
-            uninstalled?: { epic?: UninstalledStoreGame[]; xbox?: UninstalledStoreGame[] };
-            epicLauncher?: boolean;
-            error?: string;
-        }>("StoreInstalledGames", { allowXbox }, opts);
+    /** ADR-0067: keep what an extension found for a shortcut (Game Info, media); `changed` when the core's copy changed. */
+    provideGame(appid: number, game: { source: string; provider: string; title?: string; metadata?: unknown; media?: unknown }, opts?: CallOptions) {
+        return call<{ ok?: boolean; changed?: boolean; error?: string }>("ProvideGame", { appid, ...game }, opts);
     },
-    /** U0 Xbox shortcuts (ADR-0058) whose exe is an older version's: the current exe and start folder to repoint them to. */
-    storeXboxRepairs(opts?: CallOptions) {
-        return call<{ repairs?: { appid: number; title: string; exe: string; start_dir: string; launch_options?: string }[]; error?: string }>("StoreXboxRepairs", {}, opts);
+    /** ADR-0067: drop what an extension pushed for a shortcut. */
+    forgetProvidedGame(appid: number, opts?: CallOptions) {
+        return call<{ ok?: boolean; error?: string }>("ForgetProvidedGame", { appid }, opts);
     },
-    /** Epic Steam Overlay Workaround (ADR-0057): the shortcuts that are an Epic copy started through the launcher link. */
-    storeEpicLaunchShortcuts() {
-        return call<{ appids?: number[]; error?: string }>("StoreEpicLaunchShortcuts", {});
-    },
-    /** Epic Steam Overlay Workaround (ADR-0057): before Steam launches the shortcut, close a running Epic launcher. `heldAt`: when Play was held (ms). */
-    storeEpicPrelaunch(appid: number, heldAt: number) {
-        return call<{ epic: boolean; closed?: boolean; reason?: string; error?: string }>("StoreEpicPrelaunch", { appid, heldAt });
-    },
-    /** Epic Steam Overlay Workaround (ADR-0057): the launcher reaper; `start`, then `tick` every few seconds, or `stop`. */
-    storeEpicReap(appid: number, act: "start" | "tick" | "stop") {
-        return call<{ active: boolean; phase?: string; reason?: string; error?: string }>("StoreEpicReap", { appid, act });
+    /** ADR-0067: the player's achievements as an extension found them; the stored part and the ids that were new. */
+    provideAchievements(
+        appid: number,
+        set: { source: string; provider: string; key: string; schema: { title?: string; achievements: unknown[] }; unlocks: Record<string, number>; native?: number },
+        opts?: CallOptions,
+    ) {
+        return call<{ ok?: boolean; part?: Part<AchievementSet>; new?: string[]; error?: string }>("ProvideAchievements", { appid, ...set }, opts);
     },
     /** Disk only: every DB record and every saved mapping (M5a). */
     getAllRecords(opts?: CallOptions): Promise<{ records: Record<string, RecordResponse["parts"]> }> {

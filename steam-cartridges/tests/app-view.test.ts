@@ -23,7 +23,6 @@ function setup(
                 return { status: 'ok', data: opts.native === false ? {} : { native: { appid: 77, source: 'search' } } } as any;
             },
         },
-        store: { async ensure() { log.push('store'); return { status: 'unsupported' } as any; } },
         metadata: {
             async ensure(_a: any, _r: any, id: any, o?: { noNetwork?: boolean }) {
                 if (o?.noNetwork) {
@@ -63,7 +62,7 @@ test('a web-scraping shortcut with fresh stored data asks no source for it, only
     const s = setup(() => ({ bucket: 'web-scraping', via: 'default' }));
     await s.view.onSourceView(SC);
     await tick();
-    assert.deepEqual(s.log, ['metadata:paint', 'achievements:paint', 'store', 'artwork', 'media:none']);
+    assert.deepEqual(s.log, ['metadata:paint', 'achievements:paint', 'artwork', 'media:none']);
 });
 
 test('stale or missing parts are refreshed: Game Info, then achievements, both before artwork and media', async () => {
@@ -72,14 +71,14 @@ test('stale or missing parts are refreshed: Game Info, then achievements, both b
     });
     await s.view.onSourceView(SC);
     await tick();
-    assert.deepEqual(s.log, ['metadata:paint', 'achievements:paint', 'store', 'metadata:none', 'achievements', 'artwork', 'media:none']);
+    assert.deepEqual(s.log, ['metadata:paint', 'achievements:paint', 'metadata:none', 'achievements', 'artwork', 'media:none']);
 });
 
 test('a steam-store match always asks for its Game Info (Steam store item, never stored); fresh achievements are not asked', async () => {
     const s = setup(() => ({ bucket: 'steam-store', via: 'default' }));
     await s.view.onSourceView(SC);
     await tick();
-    assert.deepEqual(s.log, ['metadata:paint', 'achievements:paint', 'store', 'identity', 'metadata:identity', 'artwork', 'media:identity']);
+    assert.deepEqual(s.log, ['metadata:paint', 'achievements:paint', 'identity', 'metadata:identity', 'artwork', 'media:identity']);
 });
 
 test('a steam-store shortcut without a match and with fresh Game Info asks no metadata source', async () => {
@@ -100,11 +99,10 @@ test('needsRefresh: nothing answered, stale, or a failed call; a fresh or rememb
     assert.equal(needsRefresh({ status: 'error', data: {} }), false);
 });
 
-test('a shortcut routed to none asks for no store copy and paints nothing from disk (ADR-0056)', async () => {
+test('a shortcut routed to none paints nothing from disk', async () => {
     const s = setup(() => ({ bucket: 'none', via: 'default' }));
     await s.view.onSourceView(SC);
     await tick();
-    assert.ok(!s.log.includes('store'));
     assert.ok(!s.log.includes('metadata:paint'));
 });
 
@@ -126,7 +124,7 @@ test('a pending route is local metadata and stored achievements only, replayed o
     release(true);
     await tick();
     await tick();
-    assert.deepEqual(s.log, ['metadata:none', 'achievements:paint', 'metadata:paint', 'achievements:paint', 'store', 'artwork', 'media:none']);
+    assert.deepEqual(s.log, ['metadata:none', 'achievements:paint', 'metadata:paint', 'achievements:paint', 'artwork', 'media:none']);
 });
 
 test('leaving the steam-store bucket stops resolving identity', async () => {

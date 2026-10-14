@@ -177,6 +177,25 @@ local ra = reset.sources(42, 0).sources
 check("sources: RetroAchievements listed as not resettable, with its game page", #ra == 1 and ra[1].id == "retroachievements" and ra[1].resettable == false and ra[1].unlocked == 2 and ra[1].url == "https://retroachievements.org/game/99", ra[1] and ra[1].url)
 r = reset.reset(42, 0, { "retroachievements" }, "x")
 check("reset: a non-resettable source is skipped", #r.sources == 0)
+
+-- RPCS3 trophies (ADR-0066): listed with their count, but not reset until checked on a real emulator's files.
+local observer = require("achievements_observer")
+local real_files = observer.trophy_files
+observer.trophy_files = function() return { "C:/rpcs3/trophy/NPWR00000/TROPUSR.DAT" } end
+store.get_state = function(id) if id == 43 then return { schema = { ps3_title_id = "BLUS00000" }, unlocks = {} } end return real_get(id) end
+local writes = 0
+reset.deps.read = function() return dat end
+reset.deps.write = function() writes = writes + 1; return true end
+local ps = reset.sources(43, 0).sources
+check("sources: RPCS3 listed read-only by default, with a note", #ps == 1 and ps[1].id == "rpcs3" and ps[1].resettable == false and ps[1].unlocked == 2 and ps[1].note ~= nil, ps[1] and ps[1].unlocked)
+r = reset.reset(43, 0, { "rpcs3" }, "x")
+check("reset: RPCS3 files are not written by default", #r.sources == 0 and writes == 0, writes)
+reset.TROPHY_RESET = true
+r = reset.reset(43, 0, { "rpcs3" }, "x")
+check("reset: with TROPHY_RESET on, the file is backed up and written", #r.sources == 1 and r.sources[1].cleared == 2 and writes == 2, writes)
+reset.TROPHY_RESET = false
+reset.deps.read, reset.deps.write = nil, nil
+observer.trophy_files = real_files
 store.get_state = real_get
 
 print(string.format("\n%d passed, %d failed", pass, fail))

@@ -5,5 +5,6 @@
   "appid frontend/surfaces/native-links/core.ts": "Steam boundary: GetAppOverviewByAppID results carry the appid as Steam hands it",
   "details frontend/surfaces/native-links/core.ts": "not appData: the Friends element's jsx props get a proxied details object (guardrail 8 protects AppDetailsStore's appData)",
   "globals frontend/ports/transport.ts": "the port's job: Millennium.callServerMethod is reached through window",
-  "window-event frontend/surfaces/toasts/index.ts": "the documented CDP test hook `cartridges:trigger_fake_achievement` (public API, D8)"
+  "window-event frontend/surfaces/toasts/index.ts": "the documented CDP test hook `cartridges:trigger_fake_achievement` (public API, D8)",
+  "window-event frontend/index.tsx": "the public `steam-cartridges:ready` event for extensions loaded before the core (ADR-0067); crosses plugins, so not kernel/events"
 }

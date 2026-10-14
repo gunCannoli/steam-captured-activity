@@ -81,12 +81,12 @@ manual) for the game.
 
 Five minutes, no game required for the first four:
 
-1. Pick `steam_midnight` and press **Random notification** a few times: each
+1. Pick `midnight_glass` and press **Random notification** a few times: each
    press shows a different notification type (downloads, clips, cloud sync,
    battery, updates, an achievement), all restyled the same way. **Select
    Notification** shows the one you pick.
-2. Switch **Theme** to `ps5` and press each **Achievements Preview** row: a
-   PS5-style trophy banner per tier. Back on `steam_midnight` (no
+2. Switch **Theme** to `SteamStation` and press each **Achievements Preview** row: a
+   trophy banner per tier, each with its own chime. Back on `midnight_glass` (no
    `achievements` block) that section is hidden.
 3. Pick **Steam default**; confirm Steam's own look, sound and timing.
 4. Edit a theme (a copy in your themes folder), press **Reload themes**, then
@@ -101,8 +101,8 @@ Five minutes, no game required for the first four:
 Themes are `.jsonc` (or `.json`) files: JSON with `//` comments and trailing
 commas allowed. Start from [themes/theme_example.jsonc](themes/theme_example.jsonc): every
 option, commented, in a working theme. The full reference is
-[themes.md](themes.md). Also bundled: [steam_midnight](themes/steam_midnight.json),
-[ps5](themes/ps5.jsonc) and [steam_tiers](themes/steam_tiers.json). Fuller,
+[themes.md](themes.md). Also bundled: [SteamStation](themes/SteamStation.jsonc),
+[neon_tiers](themes/neon_tiers.jsonc) and [midnight_glass](themes/midnight_glass.jsonc). Fuller,
 asset-based examples are in [examples/](examples/) (not installed).
 
 Put your own in `<Steam>/millennium/config/enhanced-notifications/themes/`

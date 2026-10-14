@@ -1,14 +1,13 @@
 // Surface `toasts` (migration plan M3.6, ADR-0039): the only code that shows Steam
-// notifications. No hooks: two writes into NotificationStore. Event-driven (M10): one toast per item
-// of `achievements.unlocked`, and the launch toast on `achievements.launch-toast` (app/achievements
-// decides both); index.tsx only subscribes these handlers.
+// notifications. No hooks: writes into NotificationStore. Event-driven (M10): one toast per item
+// of `achievements.unlocked` (app/achievements decides); index.tsx only subscribes the handler. The "Achievements
+// Enabled" launch toast was removed (ADR-0066): it called ProcessNotification wrongly and never showed.
 import type { Events } from "../../kernel/events";
 import type { Surface, SurfaceDeps } from "../../kernel/surface";
 import { dispatchAchievementToast } from "./achievement";
 import { deps } from "./deps";
-import { dispatchLaunchToast } from "./launch";
 
-export { dispatchAchievementToast, dispatchLaunchToast };
+export { dispatchAchievementToast };
 export type { ToastAchievementPayload } from "./achievement";
 
 /** One native toast per new unlock. */
@@ -16,11 +15,6 @@ export function onUnlocked({ appid, items }: Events["achievements.unlocked"]): v
     for (const a of items) {
         dispatchAchievementToast(appid, { id: a.id, name: a.name, description: a.description, icon: a.icon, global_pct: a.global_pct, rtime_unlocked: a.unlockedAt });
     }
-}
-
-/** The "Achievements Enabled" toast on launch. */
-export function onLaunchToast(): void {
-    dispatchLaunchToast("Achievements Enabled", "Enjoy your game!");
 }
 
 let testHook = false;
@@ -50,13 +44,12 @@ export function createToastsSurface(d: SurfaceDeps): Surface {
         id: "toasts",
         touches: [
             "NotificationStore.OnNotification",
-            "NotificationStore.ProcessNotification",
             "NotificationStore.m_nNextTestNotificationID",
         ],
         reads: ["achievements"],
         install() {},
         render() {
-            /* event-driven: achievements.unlocked and achievements.launch-toast, subscribed in index.tsx (M10) */
+            /* event-driven: achievements.unlocked, subscribed in index.tsx (M10) */
         },
         clear() {},
         uninstall() {},

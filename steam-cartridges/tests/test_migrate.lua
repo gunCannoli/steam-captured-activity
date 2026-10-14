@@ -80,7 +80,7 @@ print("\n=== web_config.save_credentials keeps the legacy .env ===")
 -- after any save, until Steam restarted).
 local config = require("web_config")
 local legacy_path = base .. "/legacy.env"
-utils.write_file(legacy_path, "screenscraper_dev_user=dev\nscreenscraper_dev_pw=pw\n")
+utils.write_file(legacy_path, "screenscraper_user=player\nscreenscraper_pass=pw\n")
 local saved_candidates = config.legacy_env_candidates
 config.legacy_env_candidates = { legacy_path }
 config._reset()
@@ -88,6 +88,15 @@ check("legacy ScreenScraper account found", config.get_screenscraper_credentials
 config.save_credentials({ zz_probe = "x" })
 check("still found after a save", config.get_screenscraper_credentials() ~= nil)
 config.save_credentials({ zz_probe = "" })
+local ss = config.get_screenscraper_credentials()
+check("the player account is the saved one, the developer id the plugin's own (screenscraper_dev.lua)", ss.user == "player" and ss.pass == "pw" and #ss.dev_user > 0 and #ss.dev_pw > 0)
+utils.write_file(legacy_path, "screenscraper_dev_user=dev\nscreenscraper_dev_pw=devpw\n")
+config._reset()
+check("no player account: no ScreenScraper (each player brings their own)", config.get_screenscraper_credentials() == nil)
+utils.write_file(legacy_path, "screenscraper_user=player\nscreenscraper_pass=pw\nscreenscraper_dev_user=dev\nscreenscraper_dev_pw=devpw\n")
+config._reset()
+ss = config.get_screenscraper_credentials()
+check("a developer pair in .env overrides the shipped one", ss.dev_user == "dev" and ss.dev_pw == "devpw")
 config.legacy_env_candidates = saved_candidates
 config._reset()
 

@@ -30,7 +30,6 @@ import { createRouting } from "./app/routing";
 import { createRecords, sharedRead } from "./app/records";
 import { createRenderQueue } from "./app/render-queue";
 import { createIdentity } from "./app/identity";
-import { createStoreCopy } from "./app/store-copy";
 import { createMetadata } from "./app/metadata";
 import { createArtwork } from "./app/artwork";
 import { createMedia } from "./app/media";
@@ -39,15 +38,7 @@ import { createLibraryStats } from "./app/library-stats";
 import { fetchImage, objectUrl, objectUrlToBase64, releaseObjectUrl } from "./ports/image";
 import { pdfRenderer } from "./ports/pdf";
 import { createAchievements } from "./app/achievements";
-import { createStoreSync } from "./app/store-sync";
-import { createEpicLauncher } from "./app/epic-launcher";
-import {
-    createLibraryShortcutsSurface,
-    onAddRequested as libraryShortcutsOnAddRequested,
-    onRepairRequested as libraryShortcutsOnRepairRequested,
-    onRemoveRequested as libraryShortcutsOnRemoveRequested,
-} from "./surfaces/library-shortcuts";
-import { createLaunchHoldSurface, onHoldMode as launchHoldOnMode, onRelease as launchHoldOnRelease } from "./surfaces/launch-hold";
+import { createProvided } from "./app/provided";
 import { ownedCandidates } from "./sensors/owned-apps";
 import { loadStoreItem } from "./sensors/store-item";
 import { createFeatureSwitches, type FeatureId } from "./safety/features";
@@ -63,7 +54,6 @@ import { installLifecycleSensor } from "./sensors/lifecycle";
 import { collectionsSource } from "./sensors/collections";
 import { listShortcuts, shortcutTitle, shortcutData } from "./sensors/shortcuts";
 import { watchProgressCache } from "./sensors/progress-cache";
-import { watchInstalls } from "./sensors/installs";
 import { createSurfaceRunner, type SurfaceDeps } from "./kernel/surface";
 import { backend } from "./ports/backend";
 import {
@@ -87,7 +77,6 @@ import {
     createToastsSurface,
     dispatchAchievementToast,
     installTestHook as installToastTestHook,
-    onLaunchToast as toastsOnLaunch,
     onUnlocked as toastsOnUnlocked,
 } from "./surfaces/toasts";
 
@@ -153,18 +142,6 @@ const identity = createIdentity({
     titleOf: shortcutTitle,
 });
 
-/** Which store APIs may be asked (settings services.epicEnabled / xboxEnabled, ADR-0056). */
-const stores = () => ({ epic: setting("services").epicEnabled !== false, xbox: setting("services").xboxEnabled !== false });
-
-/** Store copies (app/store-copy.ts, ADR-0056): the Epic or Xbox copy behind a shortcut, found from the PC's install data. */
-const storeCopy = createStoreCopy({
-    backend,
-    records: records.store,
-    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
-    titleOf: shortcutTitle,
-    stores,
-});
-
 /** The start-up preloads share one GetAllRecords (ADR-0060): metadata and achievements get this backend. */
 const preloadBackend = { ...backend, getAllRecords: sharedRead(() => backend.getAllRecords({ lane: "view" })) };
 /** Resolves once the start-up preloads settled: ingest's needsFetch reads the records they fill (ADR-0060). */
@@ -199,7 +176,6 @@ const metadata = createMetadata({
         defaultFull: setting("defaultFullController"),
         override: lookupStored(setting("controllerOverrides"), appid),
     }),
-    stores,
 });
 
 /** Achievements (app/achievements.ts, plan M6b): the record's achievements part and Flow C
@@ -212,9 +188,7 @@ const achievements = createAchievements({
     titleOf: (appid) => shortcutTitle(appid),
     routeOf: (appid) => routing.getBucket(appid),
     hardcore: () => setting("raHardcoreMode"),
-    launchPolicy: () => setting("localAchievementsNotifyOnLaunch"),
     observerEnabled: () => features.isEnabled("achievements-observer"),
-    stores,
     providers: () => (window as any).SteamCartridges?.getAchievementProviders?.() ?? [],
     shortcutData: (appid) => shortcutData(appid),
     now: () => Date.now(),
@@ -257,7 +231,6 @@ const media = createMedia({
     cacheDays: () => setting("mediaCacheDays"),
     objectUrl,
     log: (message) => logger.info(message),
-    stores,
 });
 
 /** Manual pages as object URLs (kernel/manual-shelf, features plan F2c): app/manuals puts, surfaces/community reads. */
@@ -278,7 +251,19 @@ const manuals = createManuals({
 });
 
 /** The view pipeline (app/view.ts, plan M7b): what happens when a shortcut's page opens. */
-const view = createView({ routing, identity, store: storeCopy, metadata, artwork, achievements, media });
+const view = createView({ routing, identity, metadata, artwork, achievements, media });
+
+/** What extensions push (app/provided.ts, ADR-0067): a pushed game's Game Info and media are read again at once. */
+const provided = createProvided({
+    backend: preloadBackend,
+    records: records.store,
+    ensureBase: (appid) => records.ensureBase(appid, shortcutTitle(appid) ?? ""),
+    refresh: (appid) => {
+        const route = routing.getBucket(appid);
+        const identityPart = records.store.get(appid)?.identity;
+        void metadata.ensure(appid, route, identityPart).then(() => media.ensure(appid, route, identityPart)).catch(() => undefined);
+    },
+});
 
 /** Manual Steam Store mapping (app/steam-store.ts): the settings panel and the public API below. */
 const steamStore = createSteamStore({ backend, identity, metadata, artwork });
@@ -296,23 +281,6 @@ const gameEditor = createGameEditor({
 
 /** Capture stats for the library grid (app/library-stats.ts): loaded at start-up and after a game quits. */
 const libraryStats = createLibraryStats({ backend });
-
-/** Auto-add (app/store-sync.ts, ADR-0056): installed Epic and Xbox games without a shortcut, when the toggles are on. */
-const storeSync = createStoreSync({
-    backend,
-    bus,
-    autoAdd: () => ({ epic: setting("autoAddEpicGames") === true, xbox: setting("autoAddXboxGames") === true }),
-    allowXbox: () => stores().xbox,
-});
-onSettingChange((key) => {
-    if (key === "autoAddEpicGames" || key === "autoAddXboxGames") void storeSync.run();
-});
-
-/** Epic Steam Overlay Workaround (app/epic-launcher.ts, ADR-0057): the launcher closed at Play and after the game. */
-const epicLauncher = createEpicLauncher({ backend, bus, enabled: () => setting("epicOverlayWorkaround") === true });
-onSettingChange((key) => {
-    if (key === "epicOverlayWorkaround") epicLauncher.settingChanged();
-});
 
 const fetchedInSession = new Set<ShortcutId>();
 /** The background job (app/ingest.ts, plan M7b): only new shortcuts at start-up; "sync now" from the panel. */
@@ -424,6 +392,9 @@ export function initGlobalExtensionAPI(): SteamCartridgesAPI {
 
     const api = createExtensionRegistry({
         reportUnlocks: (appid, unlocks, opts) => achievements.ingestExternal(appid, unlocks, opts),
+        reportGame: (appid, game, opts) => provided.reportGame(appid, game, opts),
+        reportAchievementSet: (appid, set, opts) => achievements.ingestProvidedSet(appid, set, opts),
+        forgetGame: (appid, opts) => provided.forgetGame(appid, opts),
     });
     (window as any).SteamCartridges = api;
 
@@ -441,6 +412,13 @@ export function initGlobalExtensionAPI(): SteamCartridgesAPI {
             }
         }
         delete (window as any).__STEAM_CARTRIDGES_QUEUE__;
+    }
+    // Extensions that loaded first wait for this (ADR-0067: steam-cartridges-third-party starts its pushes on it). A window
+    // event because it crosses plugins: each plugin's bundle has its own kernel/events bus.
+    try {
+        window.dispatchEvent(new CustomEvent("steam-cartridges:ready", { detail: api }));
+    } catch {
+        // Fail-silent isolation (ADR-0014)
     }
 
     return api;
@@ -606,38 +584,13 @@ async function init() {
     runner.register(createToastsSurface(surfaceDeps));
     runner.installAll();
     features.run("achievements", () => initAchievements());
-    // Auto-add (ADR-0056): the library-shortcuts surface adds what app/store-sync asks for, once collections are ready.
-    runner.register(createLibraryShortcutsSurface({ ...surfaceDeps, bus }));
-    runner.installAll();
-    bus.on("store.add-requested", (e) => void libraryShortcutsOnAddRequested(e));
-    bus.on("store.remove-requested", (e) => void libraryShortcutsOnRemoveRequested(e));
-    bus.on("store.repair-requested", libraryShortcutsOnRepairRequested);
-    storeSync.install();
-    // Epic Steam Overlay Workaround (ADR-0057): the launch-hold surface holds Steam's Play while app/epic-launcher closes
-    // a running Epic launcher, and the app's reaper ends the launcher after the game.
-    runner.register(createLaunchHoldSurface({ ...surfaceDeps, bus }));
-    runner.installAll();
-    bus.on("launch.hold-mode", launchHoldOnMode);
-    bus.on("launch.release", launchHoldOnRelease);
-    epicLauncher.install();
-    // The first look at start-up, then one a minute, so a game installed while Steam runs is added without a restart
-    // (the tick returns at once while both toggles are off).
-    void routing.waitForCollections().then(() => {
-        void storeSync.run();
-        void storeSync.repair();
-        watchInstalls(() => {
-            void storeSync.run();
-            void storeSync.repair(); // ADR-0058: a UWP game updated while Steam runs keeps a working shortcut
-        });
-    });
     // Flow C (launch toast, unlock polling, quit reload) and the unlock announcements.
     achievements.install();
     // Each new unlock: a toast and a Post-Game Summary line; a launch with achievements: the launch toast.
     bus.on("achievements.unlocked", toastsOnUnlocked);
     bus.on("achievements.unlocked", capturesOnUnlocked);
-    // A store sync's new unlocks (ADR-0056): the Post-Game Summary only, never a toast.
+    // An extension's pushed unlocks (ADR-0067): the Post-Game Summary only, never a toast.
     bus.on("achievements.synced", capturesOnSynced);
-    bus.on("achievements.launch-toast", toastsOnLaunch);
 
     // ===== Game Info (surfaces/game-info, plan M3.3; record-driven from M5b) =====
     // Steam's Game Info components and AppOverview hooks; app/metadata (below) fills the record.
@@ -676,6 +629,8 @@ async function init() {
         // Steam rebuilds its progress cache from its own file after login, which drops what we wrote before
         // it: write again whenever the cache map appears or is replaced (bounded; ADR-0045).
         watchProgressCache(() => achievements.rerenderAll());
+        // Which shortcuts an extension reported (ADR-0067): their achievements are pushed, never polled.
+        preloads.push(provided.preload().catch((e) => logger.warn("Pushed-games preload failed.", e)));
     });
     void Promise.allSettled(preloads).then(() => markPreloaded());
 

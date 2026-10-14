@@ -6,7 +6,6 @@
     "overrides": {}
   },
   "defaultFullController": false,
-  "localAchievementsNotifyOnLaunch": "all_runs",
   "raHardcoreMode": true,
   "routingRules": [],
   "autoRoutingMode": true,
@@ -17,17 +16,12 @@
     "steamgriddbEnabled": true,
     "retroachievementsEnabled": true,
     "emulatorsEnabled": true,
-    "rpcs3Enabled": true,
-    "epicEnabled": true,
-    "xboxEnabled": true
+    "rpcs3Enabled": true
   },
   "controllerOverrides": {},
   "activityShowAddedToLibrary": true,
   "activityShowFirstPlayed": true,
   "activityShowAchievements": true,
-  "autoAddEpicGames": false,
-  "autoAddXboxGames": false,
-  "epicOverlayWorkaround": false,
   "communityShowTrailers": true,
   "communityShowManuals": true,
   "communityShowArtworks": true,

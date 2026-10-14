@@ -177,7 +177,7 @@
             "icons": {
                 "achievement": [true, 100, 0],
                 "system": [true, 60, 0],
-                "rarity": ["assets/trophy_bronze.svg", 100, 0],
+                "rarity": ["SteamStation/assets/trophy_bronze.svg", 100, 0],
             },
 
             // ---- sound -------------------------------------------------------
@@ -194,14 +194,14 @@
             // Leave it out and this tier is never chosen. Not inherited.
             "threshold": 25.0,
             "border": [1, "#c0c0c0aa", 6],
-            "icons": { "rarity": ["assets/trophy_silver.svg", 100, 0] },
+            "icons": { "rarity": ["SteamStation/assets/trophy_silver.svg", 100, 0] },
         },
 
         "rare": {
             // Checked before magic, so keep it lower than magic's threshold.
             "threshold": 10.0,
             "border": [2, "#e5a93c", 6],
-            "icons": { "rarity": ["assets/trophy_gold.svg", 110, 1500] },
+            "icons": { "rarity": ["SteamStation/assets/trophy_gold.svg", 110, 1500] },
         },
 
         "exceptional": {
@@ -216,8 +216,8 @@
                 "desc": "You've unlocked all achievements!",
             },
             "icons": {
-                "achievement": ["assets/trophy_platinum.svg", 100, 0],
-                "rarity": ["assets/trophy_platinum.svg", 100, 2000],
+                "achievement": ["SteamStation/assets/trophy_platinum.svg", 100, 0],
+                "rarity": ["SteamStation/assets/trophy_platinum.svg", 100, 2000],
             },
         },
     },

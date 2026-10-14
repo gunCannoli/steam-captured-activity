@@ -56,13 +56,9 @@ CheckUnlocks({ appid, native?, title? })    -- -> { new_unlocks = [...] }  (alwa
 | `shadps4` | `ps4_trophies.find_trophy_dir(exe, launch_options)` is not nil | `ps4_trophies.get_or_fetch(appid)` |
 | `retroachievements` | `retroachievements.extract_rom_path(exe, launch_options)` is not nil | `retroachievements.get_or_fetch(appid, hardcore)` |
 
-**Store copies (ADR-0056):** `ctx.store` is the record's `store` part (this call's, else `store_service.saved`). A copy
-with a Steam match keeps Steam's own list when every store id is in it (Epic's `ACH_*` names are Steam's API names for
-Jotunnslayer) and gets the store's unlocks; any mismatch keeps the store's list. A sync replaces the stored unlocks (the
-store is the truth) and records the `source`; `local_part` returns it, and `fresh_policy` gives a synced part 15 minutes
-(`achievements_synced`) instead of 24 h. A private Epic profile keeps the last unlocks known and is remembered for the
-settings panel (lookup `epic:account`). No in-game polling and no toast for a copy: the frontend syncs on page open and
-with `force` after the game quits, announcing new unlocks as `achievements.synced` (Post-Game Summary only).
+**Pushed sets (ADR-0067):** an extension pushes a player's whole set (`ProvideAchievements`, Epic and Xbox from
+steam-cartridges-third-party); the source `provided` answers it from disk, first in the chain, with the pushed source's
+name. Steam's own list is kept when the shortcut's Steam match covers every id. See [service-provided.md](service-provided.md).
 
 **Outcomes:** the first supporting source that returns a schema is `ok`; a supporting source that returns
 `nil, err` (or throws) falls through to the next; no source supports the shortcut → `unsupported`, with **no log
@@ -93,7 +89,7 @@ hash's GameID (a definite "no game" for 7 days; a network failure is never store
 | `backend/achievements_reset.lua` | `sources` (where a shortcut's unlocks also live) and `reset` (ADR-0054) |
 | `backend/steam_schema.lua`, `ps3_trophies.lua`, `ps4_trophies.lua`, `retroachievements.lua` | The sources |
 | `backend/achievements_store.lua` | The store (`achievements.json`); no network since M10. `sync` (ADR-0056) replaces a store copy's unlocks and records its `source` |
-| `backend/store_achievements.lua` | Sources `epic` and `xbox` (ADR-0056, [service-store.md](service-store.md)) |
+| `backend/provided_rpc.lua` | Pushed sets (ADR-0067, [service-provided.md](service-provided.md)) |
 
 ## Frontend (M6b)
 

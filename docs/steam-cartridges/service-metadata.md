@@ -109,7 +109,7 @@ which carries them, is never logged.
 | `backend/steam_store_appdetails.lua` | Store appdetails fetch + `to_metadata` (mapped native apps, in-memory 7-day TTL cache) |
 | `backend/web_igdb.lua` | IGDB search + match scoring (`fetch_game_metadata`) |
 | `backend/screenscraper_media.lua` | `fetch_jeu` and `jeu_for` (the jeuInfos client, shared with the media service, [service-media.md](service-media.md)) — the ScreenScraper metadata source |
-| `backend/epic_graphql.lua`, `backend/xbox_catalog.lua` | ADR-0056: the store tier's `to_metadata` (player flags only from exact tags: Epic `Single Player`, `Multiplayer`, `Co-op`, `Controller Support` = partial; Xbox `SinglePlayer`, `Xbl*MultiPlayer`, `Xbl*Coop`, local play = split screen) ([service-store.md](service-store.md)) |
+| `backend/provided_store.lua` (pushed by steam-cartridges-third-party's `epic_graphql.lua`, `xbox_catalog.lua`) | ADR-0067: the pushed tier; ADR-0056: the stores' `to_metadata` (player flags only from exact tags: Epic `Single Player`, `Multiplayer`, `Co-op`, `Controller Support` = partial; Xbox `SinglePlayer`, `Xbl*MultiPlayer`, `Xbl*Coop`, local play = split screen) ([service-provided.md](service-provided.md)) |
 | `backend/web_rpc.lua` | `get_shortcut_info`; pre-M5a `GetGameMetadata`/`RefreshGameMetadata`/`GetAllMetadata` (kept as aliases until M9) |
 
 ## Steam targets touched

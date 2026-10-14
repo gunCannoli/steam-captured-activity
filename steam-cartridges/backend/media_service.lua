@@ -22,8 +22,7 @@ local M = {}
 M.deps = {
   igdb_query = nil,    -- nil = web_igdb.query(apicalypse)
   ss_jeu = nil,        -- nil = screenscraper_media.jeu_for(appid, title, info) -> jeu | nil, err
-  store_copy = nil,    -- fun(appid) -> StoreCopy | nil ; nil = store_service.saved (ADR-0056)
-  store_items = nil,   -- fun(copy) -> items | nil ; nil = the copy's store screenshots
+  provided = nil,      -- fun(appid) -> pushed record | nil ; nil = provided_store.get (ADR-0067)
   shortcut_info = nil, -- nil = registry.shortcut (the shortcuts.vdf entry)
   download = nil,      -- nil = screenscraper_media.download(url) -> body, ext, width, height
   download_document = nil, -- nil = screenscraper_media.download_document(url) -> body | nil, err
@@ -55,24 +54,11 @@ end
 
 local function igdb_query(q) return (M.deps.igdb_query or require("web_igdb").query)(q) end
 
---- The store copy (ADR-0056): this call's part, else the saved one.
-local function store_copy(appid, ctx)
-  if ctx.store and ctx.store.data then return ctx.store.data end
-  if M.deps.store_copy then return M.deps.store_copy(appid) end
-  local part = require("store_service").saved(appid)
-  return part and part.data or nil
-end
-
---- The copy's own screenshots (Epic featuredMedia, Xbox Screenshot images), or nil when the store did not answer.
-local function default_store_items(copy)
-  if copy.kind == "epic" then
-    local g = require("epic_graphql")
-    local offer = g.offer(copy.namespace, copy.offerId)
-    return offer and g.screenshots(offer) or nil
-  end
-  local catalog = require("xbox_catalog")
-  local product = (copy.storeId and catalog.by_store_id(copy.storeId)) or catalog.by_pfn(copy.pfn)
-  return product and catalog.screenshots(product) or nil
+--- The media an extension pushed for the shortcut (ADR-0067: Epic, Xbox screenshots, public URLs), or nil. Disk only.
+local function provided_items(appid)
+  local rec = M.deps.provided and M.deps.provided(appid) or require("provided_store").get(appid)
+  if type(rec) ~= "table" or type(rec.media) ~= "table" then return nil, nil end
+  return rec.media, rec.source
 end
 
 local function ss_jeu(appid, title, info)
@@ -133,12 +119,19 @@ function M.ensure(appid, ctx)
   local igdb_id = tonumber(ctx.igdb_id)
   local use_igdb = ctx.allowWeb and igdb_id ~= nil
   local use_ss = ctx.allowScreenscraper and true or false
-  local copy = store_copy(appid, ctx)
-  local use_store = copy ~= nil and ((copy.kind == "epic" and ctx.allowEpic ~= false and copy.offerId ~= nil)
-    or (copy.kind == "xbox" and ctx.allowXbox ~= false and (copy.storeId ~= nil or copy.pfn ~= nil)))
-  local can_fetch = (use_igdb or use_ss or use_store) and not ctx.noNetwork
+  local pushed, pushed_source = provided_items(appid)
+  local use_store = pushed ~= nil
+  local can_fetch = ((use_igdb or use_ss) and not ctx.noNetwork) or use_store
   if stored then
     local due = ctx.force or fresh().is_stale(appid, "media", { status = "ok" }, now_ms())
+    if use_store and not ctx.noNetwork and not due then
+      -- Pushed media the stored list does not have yet (an extension reported after the last refresh): refresh now.
+      local has = false
+      for _, it in ipairs(type(stored.items) == "table" and stored.items or {}) do
+        if it.source == pushed_source then has = true break end
+      end
+      due = not has
+    end
     if not (due and can_fetch) then return part("ok", stored, { source = "local" }) end
   elseif not can_fetch then
     return part(ctx.noNetwork and "pending" or "unsupported")
@@ -146,15 +139,14 @@ function M.ensure(appid, ctx)
 
   local items, data = {}, {}
   local answered, sources, setup_missing = false, {}, false
-  -- The store first (decision 3), then IGDB, then ScreenScraper; domain/community-media orders the cards.
+  -- What an extension pushed first (ADR-0067), then IGDB, then ScreenScraper; domain/community-media orders the cards.
   if use_store then
-    local ok, list = pcall(M.deps.store_items or default_store_items, copy)
-    if ok and type(list) == "table" then
-      answered = true
-      sources[#sources + 1] = copy.kind
-      for _, it in ipairs(list) do items[#items + 1] = it end
-    end
+    answered = true
+    sources[#sources + 1] = pushed_source
+    for _, it in ipairs(pushed) do items[#items + 1] = it end
   end
+  use_igdb = use_igdb and not ctx.noNetwork
+  use_ss = use_ss and not ctx.noNetwork
   if use_igdb then
     igdb_id = math.floor(igdb_id)
     local ok, res = pcall(igdb_query, IGDB_FIELDS .. "where id = " .. igdb_id .. ";")

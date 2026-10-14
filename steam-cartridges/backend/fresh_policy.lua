@@ -23,7 +23,6 @@ M.TTL = {
   identity_ok_no_native = 7 * DAY,     -- same as the store search negative cache
   metadata_ok = 24 * HOUR,             -- igdb / screenscraper / fallback: Flow B
   achievements_ok = 24 * HOUR,         -- the schema; unlocks are read on every open by their own channels
-  achievements_synced = 15 * 60 * 1000, -- a store's unlocks (Epic, Xbox; ADR-0056): synced on open, at most this often
   achievements_ra = 30 * 60 * 1000,    -- RetroAchievements unlocks: one profile plays on several devices, so a page
                                        -- open asks again, at most this often per game (the user's choice: spare RA)
   media_ok = 7 * DAY,                  -- community media (features plan F2): trailers and art rarely change
@@ -90,7 +89,6 @@ local function ttl_for(part, info)
     end
     if part == "metadata" then return M.TTL.metadata_ok end
     if part == "achievements" then
-      if source == "epic" or source == "xbox" then return M.TTL.achievements_synced end
       if source == "retroachievements" then return M.TTL.achievements_ra end
       return M.TTL.achievements_ok
     end

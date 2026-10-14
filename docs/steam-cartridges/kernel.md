@@ -51,13 +51,6 @@ export interface Events {
     "record.updated": { appid: ShortcutId; parts: RecordPart[] };
     "achievements.unlocked": { appid: ShortcutId; ids: string[]; items: UnlockedAchievement[] };   // M10: items
     "achievements.synced": { appid: ShortcutId; items: UnlockedAchievement[] };   // ADR-0056: a store sync, no toast
-    "store.add-requested": { kind; key; title; launch; collection };   // ADR-0056: auto-add -> library-shortcuts
-    "store.shortcut-added": { kind; key; appid?; collection?; error? };   // ADR-0056: library-shortcuts' result
-    "store.repair-requested": { appid; title; exe; start_dir };          // ADR-0058: app/store-sync -> library-shortcuts
-    "store.shortcut-repaired": { appid; title; error? };                 // ADR-0058: library-shortcuts' result
-    "launch.hold-mode": { appids: ShortcutId[] };                        // ADR-0057: app/epic-launcher -> launch-hold
-    "launch.held": { appid: ShortcutId };                                // ADR-0057: launch-hold -> app/epic-launcher
-    "launch.release": { appid: ShortcutId };                             // ADR-0057: app/epic-launcher -> launch-hold
     "achievements.launch-toast": { appid: ShortcutId };                  // app/achievements -> toasts (M10)
     "captures.published": { appid: ShortcutId; hasContent: boolean };    // captures -> sections (M10)
     "artwork.applied": { appid; source; steamAppid?; attempted; kept; tried; written; icon? };  // artwork -> app (M10)
