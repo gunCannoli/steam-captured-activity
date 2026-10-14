@@ -14,8 +14,9 @@ import { isLocationProps, routeLocationProps } from '../../steam/toast-location'
  * unlocked achievements only.
  *
  * Verified live: the achievement renderer is not exported, but its dispatcher
- * is. That is the exported function that switches on a group's eType, and it
- * is created as `jsx(dispatcher, { location, group, onDismiss })` inside
+ * is. That is the exported function that picks the renderer by a group's eType (a `switch` up to Steam build
+ * 1785799196; from 1791918634 a table lookup by `props.group.eType` wrapped in an analytics context, verified live
+ * 2026-10-14), and it is created as `jsx(dispatcher, { location, group, onDismiss })` inside
  * Steam's toast container. Every toast window (desktop popup, Big Picture, in-game
  * overlay) is a portal from SharedJSContext, and `react/jsx-runtime` is one
  * shared module (ADR-0027), so one patch covers them all.
@@ -45,7 +46,8 @@ function resolveDispatcher(): unknown {
         (value) => {
             if (typeof value !== 'function') return false;
             const src = Function.prototype.toString.call(value);
-            return src.includes('group') && /switch\(\w\)\{case/.test(src);
+            // Either shape: the older switch over eType, or the newer lookup by `.group.eType`.
+            return src.includes('group') && (/switch\(\w+\)\{case/.test(src) || /\.group\.eType\b/.test(src));
         },
     );
     if (hits.length !== 1) {
