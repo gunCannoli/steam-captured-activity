@@ -91,9 +91,37 @@ export interface ResolvedTheme {
     style: ResolvedStyle;
     /** The achievement banner (the `achievements` block), or `null`: achievement toasts get `style` like every other toast. */
     achievements: AchievementTheme | null;
-    /** Every custom asset path the theme references (sounds and the banner's icons), for the backend to load. */
+    /** Every custom asset path the theme references (sounds and the banner's icons, both modes), for the backend to load. */
     assetPaths: string[];
     warnings: string[];
+    /**
+     * The theme in Big Picture: the `bigpicture` block merged over the rest (`mergeOverride`), resolved the same way.
+     * `null` = no block: Big Picture uses this same theme (ADR-0068).
+     */
+    bigPicture: ResolvedTheme | null;
+}
+
+/** The two looks a theme can have (ADR-0068): Steam's desktop (and its in-game overlay), and Big Picture. */
+export type ThemeMode = 'desktop' | 'bigpicture';
+
+/** The resolved theme for one mode: the `bigpicture` block's result in Big Picture, else the theme itself. */
+export function themeForMode(theme: ResolvedTheme, mode: ThemeMode): ResolvedTheme {
+    return mode === 'bigpicture' && theme.bigPicture ? theme.bigPicture : theme;
+}
+
+/**
+ * The `bigpicture` block over the rest of the theme (ADR-0068): objects merge key by key, anything else (a tuple, a
+ * number, a string) replaces the base value whole, and `null` removes the key, so Big Picture can go back to Steam's
+ * own for something the desktop look sets. Pure; returns a new object, the inputs untouched.
+ */
+export function mergeOverride(base: Record<string, unknown>, over: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...base };
+    for (const [key, value] of Object.entries(over)) {
+        if (value === null) delete out[key];
+        else if (isObject(value) && isObject(out[key])) out[key] = mergeOverride(out[key] as Record<string, unknown>, value);
+        else out[key] = value;
+    }
+    return out;
 }
 
 // --- validation helpers -------------------------------------------------------------
@@ -275,6 +303,24 @@ const GONE: Record<string, string> = {
  */
 export function resolveTheme(raw: unknown): ResolvedTheme {
     if (!isObject(raw)) throw new Error('Theme must be a JSON object.');
+    const { bigpicture, ...rest } = raw;
+    const theme = resolveOne(rest);
+    if (bigpicture === undefined || bigpicture === null) return theme;
+    if (!isObject(bigpicture)) {
+        theme.warnings.push('bigpicture must be an object of theme keys; Big Picture uses the desktop look.');
+        return theme;
+    }
+    const bp = resolveOne(mergeOverride(rest, bigpicture));
+    // The merged theme repeats the desktop look's warnings; only its own are new.
+    const seen = new Set(theme.warnings);
+    for (const warning of bp.warnings) if (!seen.has(warning)) theme.warnings.push(`bigpicture: ${warning}`);
+    theme.assetPaths = [...new Set([...theme.assetPaths, ...bp.assetPaths])];
+    theme.bigPicture = { ...bp, warnings: [] };
+    return theme;
+}
+
+/** One look, without the `bigpicture` block. */
+function resolveOne(raw: Json): ResolvedTheme {
     const warnings: string[] = [];
     const settings = isObject(raw.settings) ? raw.settings : {};
     const position = settings.position === undefined ? null : (oneOf(settings.position, POSITIONS) ?? null);
@@ -293,7 +339,7 @@ export function resolveTheme(raw: unknown): ResolvedTheme {
     const achievements = resolveAchievements(raw.achievements, { position, animation, displayTimeMs, textAlign, hover: style.hover, popup: raw.popup, text: raw.text }, warnings);
     const assetPaths = new Set<string>(style.sound ? [style.sound.path] : []);
     for (const path of achievements?.assetPaths ?? []) assetPaths.add(path);
-    return { position, animation, displayTimeMs, style, achievements, assetPaths: [...assetPaths], warnings };
+    return { position, animation, displayTimeMs, style, achievements, assetPaths: [...assetPaths], warnings, bigPicture: null };
 }
 
 /**

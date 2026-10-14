@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildAnimationCss, buildCss, buildPlaceholderCss, keyframeName, resolveTheme, type ToastSelectors } from '../frontend/theme/theme.ts';
+import { buildAnimationCss, buildCss, buildPlaceholderCss, keyframeName, mergeOverride, resolveTheme, themeForMode, type ToastSelectors } from '../frontend/theme/theme.ts';
 import { parseJsonc, stripJsonc } from '../frontend/theme/jsonc.ts';
 
 const themesDir = new URL('../themes/', import.meta.url);
@@ -388,4 +388,50 @@ test('Big Picture: the card is on the animated child, never on the popup (consis
     assert.match(glow, /:is\(\.dp\) \{[^}]*animation: en-pulse 1200ms/, 'desktop pulses the popup');
     assert.match(glow, /:is\(\.gp\) > \*::after \{[^}]*animation: en-pulse 1200ms/, 'Big Picture pulses a layer, not the animated card');
     assert.doesNotMatch(glow, /:is\(\.gp\) > \* \{[^}]*animation:/, 'the card keeps the entrance and exit');
+});
+
+// --- the Big Picture look (ADR-0068) ---------------------------------------------------------------
+
+test('mergeOverride: objects merge, tuples and scalars replace, null removes, inputs untouched', () => {
+    const base = { popup: { background: ['#111', '#222'], border: [1, '#fff', 4] }, settings: { position: 'top_right' }, sound: ['a.wav', 50] };
+    const over = { popup: { background: ['#333'] }, settings: { position: null }, sound: false };
+    assert.deepEqual(mergeOverride(base, over), { popup: { background: ['#333'], border: [1, '#fff', 4] }, settings: {}, sound: false });
+    assert.deepEqual(base.popup.background, ['#111', '#222'], 'base untouched');
+});
+
+test('a theme without a bigpicture block has one look for both modes', () => {
+    const t = resolveTheme({ popup: { background: ['#101010'] } });
+    assert.equal(t.bigPicture, null);
+    assert.equal(themeForMode(t, 'bigpicture'), t);
+    assert.equal(themeForMode(t, 'desktop'), t);
+});
+
+test('the bigpicture block overrides only what it sets, and its assets are loaded with the theme', () => {
+    const t = resolveTheme({
+        settings: { position: 'top_right', display_time_ms: 4000 },
+        popup: { background: ['#101010'], border: [2, '#ff0000', 8] },
+        sound: ['desk.wav', 80],
+        achievements: { normal: { icons: { rarity: 'bronze.svg' } } },
+        bigpicture: { settings: { position: 'bottom_center' }, popup: { border: null }, sound: ['bp.wav', 60], achievements: { normal: { icons: { rarity: 'bp_bronze.svg' } } } },
+    });
+    const bp = themeForMode(t, 'bigpicture');
+    assert.notEqual(bp, t);
+    assert.equal(t.position, 'top_right');
+    assert.equal(bp.position, 'bottom_center');
+    assert.equal(bp.displayTimeMs, 4000, 'inherited from the desktop look');
+    assert.deepEqual(bp.style.background, ['#101010']);
+    assert.equal(bp.style.border, null, 'null goes back to Steam\'s own');
+    assert.deepEqual(bp.style.sound, { path: 'bp.wav', volumePct: 60 });
+    assert.equal(bp.achievements?.tiers.normal.icons.rarity.source, 'bp_bronze.svg');
+    assert.deepEqual([...t.assetPaths].sort(), ['bp.wav', 'bp_bronze.svg', 'bronze.svg', 'desk.wav']);
+    assert.equal(bp.bigPicture, null, 'no nested block');
+});
+
+test('bigpicture warnings: only its own, prefixed; a non-object block is one warning', () => {
+    const t = resolveTheme({ settings: { position: 'nowhere' }, bigpicture: { settings: { text_align: 'sideways' } } });
+    assert.equal(t.warnings.filter((w) => w.includes('nowhere')).length, 1, 'the desktop warning is not repeated');
+    assert.ok(t.warnings.some((w) => w.startsWith('bigpicture: settings.text_align')));
+    const bad = resolveTheme({ bigpicture: 3 });
+    assert.equal(bad.bigPicture, null);
+    assert.ok(bad.warnings.some((w) => w.startsWith('bigpicture must be an object')));
 });

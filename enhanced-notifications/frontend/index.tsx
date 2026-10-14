@@ -11,7 +11,8 @@ import { achievementEType, resolveNotificationStore } from './steam/notification
 import { installNotificationHook } from './steam/notification-hook';
 import { resolveToastSelectors } from './steam/selectors';
 import { initNotificationSettingsDetection } from './steam/notification-settings';
-import { achievementTheme, initActiveTheme, setSelectors } from './theme/active-theme';
+import { achievementTheme, initActiveTheme, modeChanged, setModeSource, setSelectors } from './theme/active-theme';
+import { inBigPicture, initUiMode, onBigPictureChange } from './steam/ui-mode';
 import { TIERS } from './theme/achievements';
 import { installUnlockSensor } from './sensors/unlock';
 import { createSoundSurface } from './surfaces/sound';
@@ -99,6 +100,10 @@ async function init(): Promise<void> {
     initNotificationSettingsDetection(); // its failure only disables the settings-panel warning
     const sel = resolveToastSelectors();
     setSelectors(sel.theme);
+    // A theme's Big Picture look follows Steam's UI mode (ADR-0068).
+    await initUiMode();
+    setModeSource(() => (inBigPicture() ? 'bigpicture' : 'desktop'));
+    onBigPictureChange(modeChanged);
     await initActiveTheme();
 
     const surfaces = [

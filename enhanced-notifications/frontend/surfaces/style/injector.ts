@@ -4,7 +4,7 @@ import { typeName } from '../../steam/notification-store';
 import type { NotificationHook } from '../../steam/notification-hook';
 import type { SteamNotification } from '../../kernel/notification';
 import { achievementTheme, activeTheme, animationCss, onThemeChange, themeCss, themeStyle, tierFor } from '../../theme/active-theme';
-import { buildPlaceholderCss } from '../../theme/theme';
+import { buildPlaceholderCss, type ThemeMode } from '../../theme/theme';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { attachToastWindow, detachToastWindows, displayMsFor, pruneToastWindows } from './toast-window';
 import { bpLog, bpTracing, setManualTypeSink, typeSource } from './bp-debug';
@@ -51,6 +51,9 @@ import { takesSignal, viewTakesType, type TypeSignal } from './type-source';
  * achievement banner does? Verified live 2026-09-24: for these toasts the
  * wrapped element was not the one React committed. This approach needs no
  * React interception at all, which is also less risky.
+ *
+ * Each window gets its mode's look (ADR-0068): Big Picture's toast views (found through their placeholder) the theme's
+ * Big Picture look, every other toast window the desktop one.
  *
  * Kill switch `style` (safety/features.ts): switched off, no toast gets the
  * attribute (so no rule matches) and uninstall removes what was written.
@@ -106,6 +109,8 @@ const viewPlaceholders = new Map<Window, HTMLElement>();
 /** The signal being applied, so a view busy with its own toast keeps its type (./type-source.ts viewTakesType). */
 let applying: TypeSignal = 'refresh';
 let windowCss = '';
+/** Big Picture's toast views' CSS: the theme's Big Picture look (the same as `windowCss` without a `bigpicture` block). */
+let windowCssBp = '';
 let currentType: string | null = null;
 /** The eType behind `currentType`, so a theme or setting refresh keeps a debug type source's choice (./bp-debug.ts). */
 let currentEType: number | undefined;
@@ -120,10 +125,15 @@ let popAvailable = false;
 let windowHookAdded = false;
 let offs: (() => void)[] = [];
 
-/** The theme's CSS and its animation, each built once per theme load. */
-function buildThemeCss(): string {
-    if (!activeTheme()) return '';
-    return [animationCss(), themeCss()].filter(Boolean).join('\n');
+/** The theme's CSS and its animation for one mode, each built once per theme load. */
+function buildThemeCss(mode: ThemeMode): string {
+    if (!activeTheme(mode)) return '';
+    return [animationCss(mode), themeCss(mode)].filter(Boolean).join('\n');
+}
+
+function rebuildCss(): void {
+    windowCss = buildThemeCss('desktop');
+    windowCssBp = buildThemeCss('bigpicture');
 }
 
 function applyStyle(win: Window): void {
@@ -135,14 +145,15 @@ function applyStyle(win: Window): void {
         el.id = STYLE_ID;
         doc.head.appendChild(el);
     }
-    if (el.textContent !== windowCss) el.textContent = windowCss;
+    const css = viewPlaceholders.has(win) ? windowCssBp : windowCss;
+    if (el.textContent !== css) el.textContent = css;
 }
 
 /** The type name to mark a toast of `eType` with, or null to leave it stock. O(1) (the CSS is cached per theme). */
 function styledName(eType: number | undefined): string | null {
     const name = typeName(eType);
-    if (!name || !isEnabled('style') || !activeTheme() || bannerDraws(eType)) return null;
-    return themeCss() !== '' || animationCss() !== '' ? name : null;
+    if (!name || !isEnabled('style') || !activeTheme('desktop') || bannerDraws(eType)) return null;
+    return windowCss !== '' || windowCssBp !== '' ? name : null;
 }
 
 /** A placeholder is shown while its view shows a toast (Steam sets `display: none` on it while the view is idle). */
@@ -247,16 +258,16 @@ function viewWindowFromFiber(el: Element): Window | null {
  * and the tier's margin while the banner draws it, else the theme's corner and `popup.margin`.
  */
 function placementCss(): string {
-    const theme = activeTheme()?.theme;
+    const theme = activeTheme('bigpicture')?.theme;
     if (!theme || !isEnabled('placement') || !isEnabled('style')) return '';
-    const banner = achievementTheme()?.theme;
+    const banner = achievementTheme('bigpicture')?.theme;
     if (banner && currentToast && bannerDraws(currentToast.eType)) {
         // A debug type source (./bp-debug.ts) sets a type without the notification: its tier is unknown, so normal.
         const n = currentToast as Partial<SteamNotification>;
         const tier = banner.tiers[n.data ? tierFor(n as SteamNotification) : 'normal'];
         return buildPlaceholderCss(banner.position, tier.banner.margin, placeholderSelector);
     }
-    return buildPlaceholderCss(theme.position, themeStyle()?.margin ?? null, placeholderSelector);
+    return buildPlaceholderCss(theme.position, themeStyle('bigpicture')?.margin ?? null, placeholderSelector);
 }
 
 /** Big Picture's toast position: one `<style>` in the window that holds the placeholder (theme/theme.ts buildPlaceholderCss). */
@@ -301,7 +312,9 @@ function scanBigPictureToastWindows(): void {
                 const win = viewWindowFromFiber(el);
                 if (bpTracing()) bpLog('scan', { doc: doc.title, view: win?.name ?? null, placeholderDisplay: popup.window?.getComputedStyle(el).display });
                 if (win && !win.closed && /^notificationtoasts/i.test(win.name)) {
+                    const known = viewPlaceholders.has(win);
                     viewPlaceholders.set(win, el as HTMLElement);
+                    if (!known) applyStyle(win); // first seen as a Big Picture view: its own look
                     track(win);
                 }
             }
@@ -330,7 +343,7 @@ function onCurrentToast(toast: CurrentToast | null | undefined, signal: TypeSign
 }
 
 function refresh(): void {
-    windowCss = buildThemeCss();
+    rebuildCss();
     forEachToastWindow(applyStyle);
     scanBigPictureToastWindows();
     const store = Reflect.get(globalThis, 'NotificationStore') as { CurrentToastSubscribableValue?: Subscribable<CurrentToast> } | undefined;
@@ -351,7 +364,7 @@ export function installInjector(placeholder: string | undefined, onShown: Notifi
     installed = true;
     placeholderSelector = placeholder;
     bannerDraws = drawsBanner;
-    windowCss = buildThemeCss();
+    rebuildCss();
     const unpop = installToastPop(store, (n) => onCurrentToast(n, 'pop'), (error) => reportError('style', error));
     popAvailable = unpop !== null;
     if (!popAvailable) logger.warn('PopNextToastNotification unavailable; the toast type follows onShown, a frame late.');

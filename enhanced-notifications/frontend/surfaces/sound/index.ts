@@ -16,7 +16,7 @@ export function createSoundSurface(hook: NotificationHook): Surface {
                 createSoundHandler({
                     isEnabled: () => isEnabled('sound'),
                     nameOf: typeName,
-                    clipFor: themeSound,
+                    clipFor: () => themeSound(),
                     isAchievementUnlock,
                     tierClipFor: (n) => achievementTheme()?.sounds.get(tierFor(n)),
                     audioState: () => audio().state,

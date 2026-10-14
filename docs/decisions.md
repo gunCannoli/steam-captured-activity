@@ -3683,3 +3683,40 @@ auto-add toggles wrote its own config, which the core never read. The core must 
 - The first view of a copy can show IGDB's Game Info for a moment until third-party's push arrives; the core then
   refreshes that page.
 - The extension API grows by three calls; `LibrarySourceProvider` stays registered but the core does not use it.
+
+## ADR-0068: A theme can have its own Big Picture look (`bigpicture` block; enhanced-notifications)
+
+**Status:** Accepted · 2026-10-14 (the user: "add normal and big picture modes so the user can see both types of
+notifications and customize them, since in Big Picture mode we can't open Millennium options") · amends ADR-0052 (one
+theme, one look) to one look per mode
+
+### Context
+
+Desktop toasts and Big Picture toasts are different templates (a 70 px card in a 284 x 71 popup, a 40 px short toast
+in one persistent view), seen at different distances on different screens. Until now a theme had one look for both, so
+a theme tuned for a monitor could only be tuned for a TV by editing the file by hand, and Millennium's plugin settings
+(where the Theme Creator lives) cannot be opened in Big Picture at all.
+
+### Decision
+
+1. **Format.** An optional top-level `bigpicture` object holds any theme keys (`settings`, `popup`, `text`,
+   `popup_icon`, `header_icon`, `font_family`, `sound`, `achievements`). In Big Picture it is merged over the rest of
+   the theme: objects key by key, anything else (a tuple, a number, a string) replaced whole, and `null` removes the key
+   (back to Steam's own in Big Picture, whatever the desktop look sets). Pure: `theme/theme.ts` `mergeOverride`,
+   `resolveTheme` → `ResolvedTheme.bigPicture` (`null` without the block), `themeForMode`.
+2. **One theme, one file, one asset load.** Both looks' assets are loaded together; warnings about the block are
+   prefixed `bigpicture:`. A theme without the block behaves exactly as before.
+3. **Which look a toast gets.** The style surface decides per window: Big Picture's toast views (found through their
+   placeholder) get the Big Picture CSS, every other toast window the desktop CSS, and Big Picture's placement uses the
+   Big Picture look. Everything else (the sound, durations, the banner, its tier) follows Steam's UI mode
+   (`SteamClient.UI.GetUIMode()`, 4 = Big Picture, cached and followed by `RegisterForUIModeChanged` in
+   `steam/ui-mode.ts`), injected into `theme/active-theme.ts` by `index.tsx` (the theme layer never reads Steam). A mode
+   switch re-runs the theme's listeners only when the theme has the block.
+4. **The Theme Creator** (desktop, like every plugin setting) has a Desktop / Big Picture switch: the preview draws that
+   mode's toasts, and its editor writes that mode's keys (`bigpicture.*` in Big Picture, shown as "From desktop" until
+   set there).
+
+### Consequences
+
+- Every read in `active-theme.ts` takes an optional mode; caches are per mode.
+- The desktop in-game overlay is desktop (its toasts are desktop popups); Big Picture's in-game overlay is Big Picture.

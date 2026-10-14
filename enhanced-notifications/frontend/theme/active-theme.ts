@@ -3,7 +3,7 @@ import { rpc } from '../rpc';
 import { setting, onSettingChange } from '../settings/settings';
 import { parseJsonc } from './jsonc';
 import { achievementIdOf, type SteamNotification } from '../kernel/notification';
-import { buildAnimationCss, buildCss, resolveTheme, type ResolvedStyle, type ResolvedTheme, type ToastSelectors } from './theme';
+import { buildAnimationCss, buildCss, resolveTheme, themeForMode, type ResolvedStyle, type ResolvedTheme, type ThemeMode, type ToastSelectors } from './theme';
 import { tierOfNotification, type AchievementTheme, type Tier } from './achievements';
 import { STEAM_DEFAULT_THEME } from './schema';
 
@@ -13,6 +13,10 @@ import { STEAM_DEFAULT_THEME } from './schema';
  * Loading happens once per theme change (startup, theme setting, "Reload themes"). Toast-time reads
  * (`themeStyle`, `themeCss`, `animationCss`, `themeSound`, `achievementTheme`, `tierFor`) are cached values:
  * no disk, RPC or network work per toast.
+ *
+ * A theme has two looks (ADR-0068): desktop, and Big Picture (its `bigpicture` block merged over the rest). Every read
+ * takes the mode; left out, it is Steam's current one (`setModeSource`, wired by index.tsx: this layer never reads
+ * Steam). Both looks share one asset load.
  */
 
 export interface LoadedTheme {
@@ -42,24 +46,42 @@ export interface ThemeIssues {
 }
 
 let loaded: LoadedTheme | null = null;
+/** The Big Picture look; the same object as `loaded` when the theme has no `bigpicture` block. */
+let loadedBp: LoadedTheme | null = null;
 let achievements: LoadedAchievementTheme | null = null;
+let achievementsBp: LoadedAchievementTheme | null = null;
+let modeSource: () => ThemeMode = () => 'desktop';
 let issues: ThemeIssues | null = null;
 let loading: Promise<void> | null = null;
 let audioContext: AudioContext | null = null;
 let selectors: ToastSelectors = {};
-/** The theme's CSS, built once per theme load; undefined = not built yet. */
-let cssCache: string | undefined;
-/** The theme's entrance/exit CSS, built once per theme load; undefined = not built yet. */
-let animationCache: string | undefined;
+/** The theme's CSS per mode, built once per theme load; absent = not built yet. */
+const cssCache = new Map<ThemeMode, string>();
+/** The theme's entrance/exit CSS per mode, built once per theme load; absent = not built yet. */
+const animationCache = new Map<ThemeMode, string>();
 const listeners = new Set<() => void>();
 
-export function activeTheme(): LoadedTheme | null {
-    return loaded;
+/** Where the current mode comes from (index.tsx: Steam's UI mode). Set once at start-up. */
+export function setModeSource(source: () => ThemeMode): void {
+    modeSource = source;
 }
 
-/** The achievement banner's theme, or null: no theme loaded, or it has no `achievements` block. */
-export function achievementTheme(): LoadedAchievementTheme | null {
-    return achievements;
+/** Steam switched between desktop and Big Picture: with a `bigpicture` block, every surface follows the other look. */
+export function modeChanged(): void {
+    if (loaded && loadedBp !== loaded) for (const listener of listeners) listener();
+}
+
+export function currentMode(): ThemeMode {
+    return modeSource();
+}
+
+export function activeTheme(mode: ThemeMode = modeSource()): LoadedTheme | null {
+    return mode === 'bigpicture' ? loadedBp : loaded;
+}
+
+/** The achievement banner's theme, or null: no theme loaded, or it has no `achievements` block (in that mode). */
+export function achievementTheme(mode: ThemeMode = modeSource()): LoadedAchievementTheme | null {
+    return mode === 'bigpicture' ? achievementsBp : achievements;
 }
 
 /** The last load's problems; null when it had none. */
@@ -80,35 +102,39 @@ export function audio(): AudioContext {
 /** Set once at startup, before the first toast. */
 export function setSelectors(value: ToastSelectors): void {
     selectors = value;
-    cssCache = undefined;
-    animationCache = undefined;
+    cssCache.clear();
+    animationCache.clear();
 }
 
 /** The one style every notification gets, or null with no theme loaded. */
-export function themeStyle(): ResolvedStyle | null {
-    return loaded?.theme.style ?? null;
+export function themeStyle(mode: ThemeMode = modeSource()): ResolvedStyle | null {
+    return activeTheme(mode)?.theme.style ?? null;
 }
 
-/** The theme's CSS (the same for every notification), generated once per theme and cached. '' = leave stock. */
-export function themeCss(): string {
-    if (!loaded) return '';
-    cssCache ??= buildCss(loaded.theme.style, selectors);
-    return cssCache;
+/** The theme's CSS (the same for every notification), generated once per theme and mode and cached. '' = leave stock. */
+export function themeCss(mode: ThemeMode = modeSource()): string {
+    const t = activeTheme(mode);
+    if (!t) return '';
+    let css = cssCache.get(mode);
+    if (css === undefined) cssCache.set(mode, (css = buildCss(t.theme.style, selectors)));
+    return css;
 }
 
-/** The theme's entrance and exit CSS (one block for every type), cached. '' = Steam's own slide. */
-export function animationCss(): string {
-    if (!loaded) return '';
-    animationCache ??= buildAnimationCss(loaded.theme, selectors);
-    return animationCache;
+/** The theme's entrance and exit CSS (one block for every type), cached per mode. '' = Steam's own slide. */
+export function animationCss(mode: ThemeMode = modeSource()): string {
+    const t = activeTheme(mode);
+    if (!t) return '';
+    let css = animationCache.get(mode);
+    if (css === undefined) animationCache.set(mode, (css = buildAnimationCss(t.theme, selectors)));
+    return css;
 }
 
 /** The theme's sound: a decoded clip, `false` to mute, or `null` for Steam's own. */
-export function themeSound(): { buffer: AudioBuffer; volume: number } | false | null {
-    const spec = themeStyle()?.sound;
+export function themeSound(mode: ThemeMode = modeSource()): { buffer: AudioBuffer; volume: number } | false | null {
+    const spec = themeStyle(mode)?.sound;
     if (spec === false) return false;
     if (!spec) return null;
-    const buffer = loaded?.audio.get(spec.path);
+    const buffer = activeTheme(mode)?.audio.get(spec.path);
     return buffer ? { buffer, volume: spec.volumePct / 100 } : null;
 }
 
@@ -120,7 +146,7 @@ export function tierFor(n: SteamNotification): Tier {
     if (memo) return memo;
     let tier: Tier = 'normal';
     try {
-        tier = tierOfNotification({ id: achievementIdOf(n), globalPct: n.data.global_achieved_pct() }, achievements?.theme ?? null);
+        tier = tierOfNotification({ id: achievementIdOf(n), globalPct: n.data.global_achieved_pct() }, achievementTheme()?.theme ?? null);
     } catch (error) {
         logger.warn('Could not determine rarity tier; using normal.', error);
     }
@@ -135,21 +161,35 @@ function dataUrlToArrayBuffer(url: string): ArrayBuffer {
     return bytes.buffer;
 }
 
-/** Every sound path the theme uses: the notification sound and each tier's. */
+/** Every sound path the theme uses: the notification sound and each tier's, in both looks. */
 function soundPaths(theme: ResolvedTheme): Set<string> {
     const paths = new Set<string>();
-    if (theme.style.sound) paths.add(theme.style.sound.path);
-    for (const tier of Object.values(theme.achievements?.tiers ?? {})) if (tier.sound) paths.add(tier.sound.path);
+    for (const look of [theme, theme.bigPicture]) {
+        if (!look) continue;
+        if (look.style.sound) paths.add(look.style.sound.path);
+        for (const tier of Object.values(look.achievements?.tiers ?? {})) if (tier.sound) paths.add(tier.sound.path);
+    }
     return paths;
+}
+
+/** One look's achievement banner, with its tiers' decoded sounds; null without an `achievements` block. */
+function bannerOf(name: string, theme: ResolvedTheme, assets: Map<string, string>, decoded: Map<string, AudioBuffer>): LoadedAchievementTheme | null {
+    if (!theme.achievements) return null;
+    const sounds = new Map<Tier, { buffer: AudioBuffer; volume: number }>();
+    for (const tier of Object.values(theme.achievements.tiers)) {
+        const buffer = tier.sound ? decoded.get(tier.sound.path) : undefined;
+        if (tier.sound && buffer) sounds.set(tier.tier, { buffer, volume: tier.sound.volumePct / 100 });
+    }
+    return { name, theme: theme.achievements, assets, sounds };
 }
 
 /** "Steam default": no theme, so every surface leaves Steam's look, sound and display time alone. */
 function clear(): void {
-    loaded = null;
-    achievements = null;
+    loaded = loadedBp = null;
+    achievements = achievementsBp = null;
     issues = null;
-    cssCache = undefined;
-    animationCache = undefined;
+    cssCache.clear();
+    animationCache.clear();
     logger.info('Steam default: no theme loaded.');
     for (const listener of listeners) listener();
 }
@@ -190,25 +230,21 @@ async function load(name: string): Promise<void> {
         }
 
         loaded = { name, theme, audio: decoded, assets };
-        achievements = null;
-        if (theme.achievements) {
-            const sounds = new Map<Tier, { buffer: AudioBuffer; volume: number }>();
-            for (const tier of Object.values(theme.achievements.tiers)) {
-                const buffer = tier.sound ? decoded.get(tier.sound.path) : undefined;
-                if (tier.sound && buffer) sounds.set(tier.tier, { buffer, volume: tier.sound.volumePct / 100 });
-            }
-            achievements = { name, theme: theme.achievements, assets, sounds };
-        }
-        logger.info(`Theme "${name}" loaded (${assets.size} assets, ${decoded.size} sounds${achievements ? ', achievement banner' : ''}).`);
+        achievements = bannerOf(name, theme, assets, decoded);
+        const bp = themeForMode(theme, 'bigpicture');
+        loadedBp = bp === theme ? loaded : { name, theme: bp, audio: decoded, assets };
+        achievementsBp = bp === theme ? achievements : bannerOf(name, bp, assets, decoded);
+        const extras = `${achievements ? ', achievement banner' : ''}${bp === theme ? '' : ', own Big Picture look'}`;
+        logger.info(`Theme "${name}" loaded (${assets.size} assets, ${decoded.size} sounds${extras}).`);
     } catch (error) {
         // An unusable theme means stock Steam, never a half-styled toast.
-        loaded = null;
-        achievements = null;
+        loaded = loadedBp = null;
+        achievements = achievementsBp = null;
         failure = error instanceof Error ? error.message : String(error);
         logger.error(`Theme "${name}" could not be loaded; toasts stay stock.`, error);
     }
-    cssCache = undefined;
-    animationCache = undefined;
+    cssCache.clear();
+    animationCache.clear();
     issues = failure || warnings.length ? { name, error: failure, warnings } : null;
     for (const listener of listeners) listener();
 }

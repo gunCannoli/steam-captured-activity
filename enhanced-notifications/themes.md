@@ -5,7 +5,8 @@ toasts stay consistent: `settings`, `popup` and `text` apply to every toast.
 Every key is optional; anything unset stays Steam's own. An optional
 [`achievements`](#achievements) block replaces achievement toasts with a themed
 banner per rarity tier, built from that same look; without it, achievement
-toasts are styled like every other toast.
+toasts are styled like every other toast. An optional
+[`bigpicture`](#bigpicture) block gives Big Picture its own look.
 
 **Defaults.** A theme sets only what it changes. A key it leaves out uses the
 default, which is Steam's own unless this page names another:
@@ -233,6 +234,30 @@ Slots:
 (or `null`) to use the theme's notification `sound`, or Steam's own chime
 without one. A file that is missing or fails to load falls back the same way,
 never to silence.
+
+## bigpicture
+
+Optional. The theme's look in Big Picture, when it should differ from the
+desktop's ([ADR-0068](../docs/decisions.md#adr-0068-a-theme-can-have-its-own-big-picture-look-bigpicture-block-enhanced-notifications)).
+It holds any of the keys above (`settings`, `popup`, `text`, `popup_icon`,
+`header_icon`, `font_family`, `sound`, `achievements`) and only what differs:
+in Big Picture it is laid over the rest of the theme. Objects merge key by key,
+a tuple or a value replaces the desktop one whole, and `null` removes the key,
+so Big Picture goes back to Steam's own for it.
+
+```jsonc
+"settings": { "position": "top_right" },
+"popup":    { "background": ["#1F1F1F", "#0F0F0F"], "border": [1, "#8a2be2", 8] },
+"bigpicture": {
+  "settings": { "position": "bottom_center" },   // TV: centred at the bottom
+  "text":     { "title": ["#ffffff", 130, "bold"] },
+  "popup":    { "border": null }                  // Steam's own border in Big Picture
+}
+```
+
+Desktop toasts and the desktop in-game overlay use the theme without the block;
+Big Picture and its in-game overlay use it with the block. The Theme Creator
+edits both: switch its preview between Desktop and Big Picture.
 
 ## File paths
 

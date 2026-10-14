@@ -91,9 +91,9 @@ export function attachToastWindow(win: Window, onType: (win: Window, eType: numb
 
     const place = (x: number, y: number): { x: number; y: number } | null => {
         if (eType === null || !isEnabled('placement') || bannerDraws(eType)) return null;
-        const theme = activeTheme()?.theme;
+        const theme = activeTheme('desktop')?.theme;
         if (!theme || !typeName(eType)) return null;
-        const margin = themeStyle()?.margin ?? null;
+        const margin = themeStyle('desktop')?.margin ?? null;
         if (!theme.position && !margin && !theme.animation) return null;
 
         const screen = win.screen as Screen & { availLeft?: number; availTop?: number };
