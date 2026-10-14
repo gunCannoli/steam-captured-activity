@@ -30,9 +30,11 @@ Done by the agent, offline-tested, deployed (`-dev`) and live-checked where note
 | SC 2 ROM hashing | **In Lua** (`rom_hash.lua`, ADR-0066), Node hasher deleted; 20/20 of this PC's ROMs identical to Node's |
 | LICENSE | Added to steam-cartridges, -local and -third-party |
 | Xbox overlay | **Dropped** (ADR-0065); opt-in Steam notification mute instead; Pool Blitz repointed live (appid kept) |
+| Parity check | **Green** (live suite 12/12, 2026-10-14). The 14 failures were a deleted test shortcut: Jotunnslayer's Epic copy was uninstalled and auto-remove took its shortcut, so `open(S)` went nowhere and every check read B's page. The test now stops when its shortcut is missing, defaults to Pool Blitz (3436498948 -> 3942580, 16 PASS + check 8 expecting no logo, which Steam has none of for that app); `test_props.mjs` also passed on missing appids, now FAILs |
+| § 3c machine paths | **Done.** No `C:/emu`, `C:/game` or user id in steam-cartridges' backend (`test_globals.lua` checks every file). Emulator folders come only from the shortcuts (`retroachievements.emulator_dirs()`, now reading the program out of a full command line) and the %APPDATA% / Documents defaults; fixed on the way: a nil first entry in each candidate list made `ipairs` skip every default folder. Live: RetroArch (signed in) and Dolphin/Primehack read as before; DuckStation, installed but run by no shortcut, is no longer listed as detected |
 | Captured-activity clips | **Not a plugin bug as far as the code shows**: no code path deletes clip files (enhanced-notifications deletes only one clip it can name as its own; four went in one second, 75 s after a Steam restart, with nothing in Steam's logs). Most likely Steam's own clean-up of clips its index lost in the GetClips-burst session (fixed `ce32f01`), or a delete in Steam's media view. Watch item, not a blocker |
 
-Still open: D1, D9, the machine paths below (§ 3, new), the hand checks (§ 4), the publish checklists.
+Still open: D1, D9, the § 3b deletions, the hand checks (§ 4), the publish checklists.
 
 ## 3b. Third-party material to delete before publishing (logged 2026-10-14, the user)
 
@@ -54,13 +56,9 @@ first `git subtree split` (or the public repo's history carries them):
 - The repo history keeps them (private workspace); the public repo must be split after the deletion, or from a fresh
   history.
 
-## 3c. Machine paths to remove from steam-cartridges (found 2026-10-14)
+## 3c. Machine paths in steam-cartridges (found and done 2026-10-14)
 
-`backend/retroachievements.lua`, `backend/achievements_observer.lua`, `backend/ps3_trophies.lua`,
-`backend/ps4_trophies.lua` fall back to `C:/emu/...` (this PC's emulator folder: RetroArch, DuckStation, PCSX2,
-PrimeHack, PPSSPP, RPCS3, shadPS4) when no emulator folder was found from the shortcuts. Harmless elsewhere (the path
-does not exist), but it is this machine's layout in a public plugin: replace with discovery only (the shortcuts' exe
-folders, `%APPDATA%` defaults) and a test that greps the backend for `C:/emu`.
+Done, see § 0. `tests/test_globals.lua` fails if any backend file names `C:/emu`, `C:/game` or the user id again.
 
 ---
 
@@ -128,9 +126,7 @@ folders, `%APPDATA%` defaults) and a test that greps the backend for `C:/emu`.
 
 ### steam-cartridges
 
-1. **`check_parity.mjs`: 3 PASS / 14 FAIL** after the ADR-0063 deploy (Game Info, links, art, friends of mapped shortcut
-   4202674849). It read a native page left open by earlier tests, with Steam's window in the tray. Re-run with the window
-   open; if it still fails, bisect against `d4aa57e`. Must be green or explained.
+1. ~~`check_parity.mjs` 3 / 14~~ **Explained and green** (§ 0: the test shortcut had been removed).
 2. **ROM hashing needs Node.js** (`backend/retroachievements.lua` ~line 673): it runs `node ra_hasher.js` and looks for the
    script at `C:/game/millennium/...` and a `C:/game/steam` fallback. A user without Node gets no hash, so no exact
    RetroAchievements match and no "unsupported ROM" guard. Plan: hash in Lua (the RA rules per system: plain MD5 for most

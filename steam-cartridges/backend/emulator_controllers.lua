@@ -5,7 +5,7 @@
 --- controller) or false (a keyboard / mouse system). Anything else is nil: not
 --- inferred, the "Default to full controller support" setting decides.
 ---
---- Core names are the `<core>_libretro.info` names in C:\emu\RetroArch\info
+--- Core names are the `<core>_libretro.info` names in RetroArch's info/ folder
 --- (RetroArch's core catalog on the dev machine, read 2026-09-25); the four
 --- cores installed there (cores\*.dll) are listed first.
 

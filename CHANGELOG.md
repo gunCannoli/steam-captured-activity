@@ -7,6 +7,23 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Parity green, machine paths out of steam-cartridges (2026-10-14)**, [release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14):
+  - *Parity:* the 14 failures were not a regression. Jotunnslayer's Epic copy had been uninstalled and auto-remove took
+    its shortcut (4202674849; 7 of 8 mapped shortcuts are gone), so `open(S)` navigated nowhere and every check read
+    435150's page; check 1 passed on the stale saved mapping. `check_parity.mjs` now stops when its shortcut is not in
+    the library and defaults to Pool Blitz (3436498948 -> 3942580); check 8 expects a logo only when Steam has one for
+    the native app. `test_props.mjs` printed OK for an appid not in the library (both Properties checks were false
+    passes), now FAILs; the runner checks Pool Blitz instead of the removed WUCHANG and Jotunnslayer.
+    `check_settings_panel.mjs` no longer expects the Notifications section (removed with the launch toast).
+    Live suite 12/12.
+  - *Machine paths (§ 3c):* no `C:/emu` left in the backend (`retroachievements`, `achievements_observer`,
+    `ps3_trophies`, `ps4_trophies`; 35 sites). `retroachievements.emulator_dirs()` (60 s cache) finds emulator folders
+    from the shortcuts for credentials, retroarch.cfg and the status RPC. Fixed on the way: a shortcut whose exe field
+    holds a whole command line gave a folder inside the arguments; and each status candidate list began with a
+    possibly-nil entry, which ended `ipairs` before any %APPDATA% / Documents default was tried. `test_globals.lua`
+    now fails on `C:/emu`, `C:/game` or the user id in any backend file; 4 new unit checks in `test_ach_service.lua`.
+    Live after deploy: RetroArch (signed in) and Dolphin/Primehack as before; DuckStation (installed, no shortcut runs
+    it) is no longer listed as detected.
 - **Release fixes (2026-10-14)**, [release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14):
   - *Epic and Xbox out of the core (ADR-0067, the user: "move it all out"):* steam-cartridges lost every Epic/Xbox module
     (store service, readers, Epic GraphQL, Xbox catalog and Live, store achievements, launch hold, auto-add, Xbox

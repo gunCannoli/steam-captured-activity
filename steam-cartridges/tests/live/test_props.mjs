@@ -20,6 +20,11 @@ const ev = (expression, ms = 5000) => Promise.race([
     .then((r) => r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description?.slice(0, 600) } : r.result?.result?.value),
   new Promise((r) => setTimeout(() => r("__TIMEOUT__"), ms))]);
 const nav = `SteamUIStore.WindowStore.SteamUIWindows.find(w=>w.Navigator?.AppProperties)?.Navigator`;
+// A missing app opens nothing and would pass as "OK" (seen 2026-10-14 after two shortcuts were removed).
+if ((await ev(`!!appStore.GetAppOverviewByAppID(${APPID})`)) !== true) {
+  console.log(`FAIL appid ${APPID} is not in the library`);
+  process.exit(1);
+}
 if (pre) console.log("pre:", JSON.stringify(await ev(pre)));
 if (withPage) { await ev(`${nav}.App(${APPID})`); await new Promise((r) => setTimeout(r, 4000)); }
 const before = (await targets()).map((x) => x.id);

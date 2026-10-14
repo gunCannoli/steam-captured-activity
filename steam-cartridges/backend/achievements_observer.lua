@@ -219,7 +219,7 @@ end
 --- RetroArch's log folders: next to the executable, the defaults, and log_dir from retroarch.cfg (":\" expanded)
 --- when the shortcut runs RetroArch.
 local function retroarch_log_dirs(exe_dir, sc_match)
-  local dirs = { "C:/emu/RetroArch/logs", (os.getenv("APPDATA") or "") .. "/RetroArch/logs" }
+  local dirs = { (os.getenv("APPDATA") or "") .. "/RetroArch/logs" }
   if #exe_dir > 0 then dirs[#dirs + 1] = exe_dir .. "/logs" end
   if sc_match and tostring(sc_match.exe or ""):lower():find("retroarch", 1, true) then
     local ok, conf = pcall(function() return require("retroachievements").get_retroarch_config(exe_dir) end)
@@ -250,25 +250,18 @@ function M.log_paths(game_title, sc_match, exe_dir)
     end
   end
   for _, p in ipairs({
-    "C:\\emu\\RetroArch\\logs\\retroarch.log",
     appdata .. "\\RetroArch\\logs\\retroarch.log",
-    "C:\\emu\\duckstation\\duckstation.log",
     userprofile .. "\\Documents\\DuckStation\\duckstation.log",
     appdata .. "\\duckstation\\duckstation.log",
     localappdata .. "\\duckstation\\duckstation.log",
-    "C:\\emu\\PCSX2\\logs\\emulog.txt",
     userprofile .. "\\Documents\\PCSX2\\logs\\emulog.txt",
     appdata .. "\\PCSX2\\logs\\emulog.txt",
     localappdata .. "\\PCSX2\\logs\\emulog.txt",
-    "C:\\emu\\Primehack\\User\\Logs\\dolphin.log",
     userprofile .. "\\Documents\\Dolphin Emulator\\Logs\\dolphin.log",
     appdata .. "\\Dolphin Emulator\\Logs\\dolphin.log",
-    "C:\\emu\\PPSSPP\\memstick\\PSP\\SYSTEM\\ppsspp.log",
     appdata .. "\\PPSSPP\\PSP\\SYSTEM\\ppsspp.log",
-    "C:\\emu\\rpcs3\\RPCS3.log",
     appdata .. "\\rpcs3\\RPCS3.log",
     localappdata .. "\\rpcs3\\RPCS3.log",
-    "C:\\emu\\shadps4\\user\\log\\shadps4.log",
     appdata .. "\\shadps4\\user\\log\\shadps4.log",
     localappdata .. "\\shadps4\\user\\log\\shadps4.log",
   }) do

@@ -431,5 +431,28 @@ prpc.deps.native, prpc.deps.steam_fetch = nil, nil
 os.remove(PROVIDED_PATH)
 wipe()
 os.remove(ACH_PATH); os.remove(STORE_PATH)
+
+print("RetroAchievements: emulator folders come from the shortcuts, never from a fixed path (release plan § 3c)")
+do
+  local saved_resolve, saved_parse = require("steam_paths").resolve, require("shortcuts").parse
+  require("steam_paths").resolve = function() return { shortcuts = "x" } end
+  require("shortcuts").parse = function()
+    return {
+      { appid = 1, exe = '"D:\\Emus\\RetroArch\\retroarch.exe" -L cores/snes9x_libretro.dll D:/roms/snes/a.sfc' },
+      { appid = 2, exe = "E:/Games/Emus/PCSX2/pcsx2-qtx64.exe --fullscreen E:/isos/b.iso" },
+      { appid = 3, exe = "C:/Games/Some Game/game.exe" },
+    }
+  end
+  local dirs = ra.emulator_dirs()
+  check("a quoted exe followed by arguments gives the exe's folder", dirs.retroarch == "D:/Emus/RetroArch", dirs.retroarch)
+  check("an unquoted exe followed by arguments gives the exe's folder", dirs.pcsx2 == "E:/Games/Emus/PCSX2", dirs.pcsx2)
+  check("an emulator no shortcut runs has no folder", dirs.duckstation == nil and dirs.rpcs3 == nil)
+  local status = ra.get_emulator_status()
+  local duck
+  for _, e in ipairs(status.emulators or status) do if e.name == "DuckStation" then duck = e end end
+  check("an emulator with no folder is not detected and names no path", duck and duck.detected == false and duck.path == nil, duck and tostring(duck.detected) .. " " .. tostring(duck.path))
+  require("steam_paths").resolve, require("shortcuts").parse = saved_resolve, saved_parse
+end
+
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)

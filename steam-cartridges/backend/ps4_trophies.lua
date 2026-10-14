@@ -198,8 +198,6 @@ function M.find_trophy_dir(cmd, launch_options)
     appdata .. "/shadps4/user/trophy",
     appdata .. "/shadps4/home/1000/trophy",
     localappdata .. "/shadps4/user/trophy",
-    "C:/emu/shadps4/user/trophy",
-    "C:/emu/shadps4/home/1000/trophy",
   }
 
   -- Also check next to exe

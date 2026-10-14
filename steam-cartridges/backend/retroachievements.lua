@@ -22,8 +22,48 @@ local bit         = require("bit")
 local M = {}
 
 
---- Default RetroArch install directory on this machine
-local DEFAULT_RA_DIR = "C:/emu/RetroArch"
+--- Builds a candidate list, skipping nil/false entries (a nil inside a table literal would end ipairs early).
+local function present(...)
+  local out = {}
+  for i = 1, select("#", ...) do
+    local v = select(i, ...)
+    if v then out[#out + 1] = v end
+  end
+  return out
+end
+
+local EMULATORS = { "retroarch", "duckstation", "pcsx2", "dolphin", "primehack", "ppsspp", "rpcs3", "shadps4" }
+local _emu_dirs, _emu_dirs_at = nil, 0
+
+--- Emulator install folders found from the user's shortcuts (the folder of the first exe naming each emulator).
+--- No machine-specific defaults: an emulator no shortcut runs is found only in its %APPDATA% / Documents defaults.
+--- Cached for 60 s: credentials are read once per game page.
+function M.emulator_dirs()
+  if _emu_dirs and os.time() - _emu_dirs_at < 60 then return _emu_dirs end
+  local dirs = {}
+  local p_ok, p_paths = pcall(steam_paths.resolve)
+  if p_ok and p_paths and p_paths.shortcuts then
+    local s_ok, s_list = pcall(shortcuts.parse, p_paths.shortcuts)
+    if s_ok and type(s_list) == "table" then
+      for _, sc in ipairs(s_list) do
+        if type(sc.exe) == "string" then
+          -- Steam's exe field can hold a whole command line ("...\retroarch.exe" -L core rom): keep the program only.
+          local prog = sc.exe:match('^%s*"([^"]+)"') or sc.exe:match("^%s*(.-%.[eE][xX][eE])") or sc.exe
+          local es = prog:gsub("\\", "/")
+          local ed = es:match("^(.*)/[^/]+$")
+          if ed and #ed > 0 then
+            local low = es:lower()
+            for _, name in ipairs(EMULATORS) do
+              if not dirs[name] and low:find(name, 1, true) then dirs[name] = ed end
+            end
+          end
+        end
+      end
+    end
+  end
+  _emu_dirs, _emu_dirs_at = dirs, os.time()
+  return dirs
+end
 
 local function count_keys(tbl)
   local c = 0
@@ -338,7 +378,10 @@ function M.get_retroarch_config(override_dir)
   if override_dir and #override_dir > 0 then
     table.insert(candidates, override_dir .. "/retroarch.cfg")
   end
-  table.insert(candidates, DEFAULT_RA_DIR .. "/retroarch.cfg")
+  local ra_dir = M.emulator_dirs().retroarch
+  if ra_dir and ra_dir ~= override_dir then
+    table.insert(candidates, ra_dir .. "/retroarch.cfg")
+  end
   table.insert(candidates, (os.getenv("APPDATA") or "") .. "/RetroArch/retroarch.cfg")
 
   local cfg_path = nil
@@ -355,7 +398,7 @@ function M.get_retroarch_config(override_dir)
     return nil, "retroarch.cfg not found"
   end
 
-  local base_dir = cfg_path:match("^(.*)[/\\][^/\\]+$") or DEFAULT_RA_DIR
+  local base_dir = cfg_path:match("^(.*)[/\\][^/\\]+$") or "."
   local text = utils.read_file(cfg_path)
   if not text then
     return nil, "cannot read retroarch.cfg"
@@ -416,6 +459,7 @@ function M.get_credentials(exe_hint)
   local userprofile = os.getenv("USERPROFILE") or ""
   local exe_str = tostring(exe_hint or ""):lower():gsub("\\", "/")
   local exe_dir = exe_str:match("^(.*)/[^/]+$") or ""
+  local emu = M.emulator_dirs()
 
   local function read_ra()
     local conf = M.get_retroarch_config(#exe_dir > 0 and exe_dir or nil)
@@ -433,7 +477,7 @@ function M.get_credentials(exe_hint)
   local function read_duckstation()
     local candidates = {
       #exe_dir > 0 and (exe_dir .. "/settings.ini"),
-      "C:/emu/duckstation/settings.ini",
+      emu.duckstation and (emu.duckstation .. "/settings.ini"),
       #userprofile > 0 and (userprofile .. "/Documents/DuckStation/settings.ini"),
       #appdata > 0 and (appdata .. "/DuckStation/settings.ini"),
       #localappdata > 0 and (localappdata .. "/DuckStation/settings.ini"),
@@ -465,7 +509,7 @@ function M.get_credentials(exe_hint)
   local function read_pcsx2()
     local candidates = {
       #exe_dir > 0 and (exe_dir .. "/inis/PCSX2.ini"),
-      "C:/emu/PCSX2/inis/PCSX2.ini",
+      emu.pcsx2 and (emu.pcsx2 .. "/inis/PCSX2.ini"),
       #userprofile > 0 and (userprofile .. "/Documents/PCSX2/inis/PCSX2.ini"),
       #appdata > 0 and (appdata .. "/PCSX2/inis/PCSX2.ini"),
       #localappdata > 0 and (localappdata .. "/PCSX2/inis/PCSX2.ini"),
@@ -498,8 +542,10 @@ function M.get_credentials(exe_hint)
     local candidates = {
       #exe_dir > 0 and (exe_dir .. "/User/Config/RetroAchievements.ini"),
       #exe_dir > 0 and (exe_dir .. "/User/Config/Dolphin.ini"),
-      "C:/emu/Primehack/User/Config/RetroAchievements.ini",
-      "C:/emu/Primehack/User/Config/Dolphin.ini",
+      emu.primehack and (emu.primehack .. "/User/Config/RetroAchievements.ini"),
+      emu.primehack and (emu.primehack .. "/User/Config/Dolphin.ini"),
+      emu.dolphin and (emu.dolphin .. "/User/Config/RetroAchievements.ini"),
+      emu.dolphin and (emu.dolphin .. "/User/Config/Dolphin.ini"),
       #appdata > 0 and (appdata .. "/Dolphin Emulator/Config/RetroAchievements.ini"),
       #appdata > 0 and (appdata .. "/Dolphin Emulator/Config/Dolphin.ini"),
       #userprofile > 0 and (userprofile .. "/Documents/Dolphin Emulator/Config/RetroAchievements.ini"),
@@ -532,7 +578,7 @@ function M.get_credentials(exe_hint)
   local function read_ppsspp()
     local candidates = {
       #exe_dir > 0 and (exe_dir .. "/memstick/PSP/SYSTEM/ppsspp.ini"),
-      "C:/emu/PPSSPP/memstick/PSP/SYSTEM/ppsspp.ini",
+      emu.ppsspp and (emu.ppsspp .. "/memstick/PSP/SYSTEM/ppsspp.ini"),
       #appdata > 0 and (appdata .. "/PPSSPP/PSP/SYSTEM/ppsspp.ini"),
     }
     for _, p in ipairs(candidates) do
@@ -1384,49 +1430,28 @@ function M.get_emulator_status()
   local localappdata = (os.getenv("LOCALAPPDATA") or ""):gsub("\\", "/")
   local userprofile = (os.getenv("USERPROFILE") or ""):gsub("\\", "/")
 
-  -- Dynamically scan shortcuts.vdf for user-configured emulator directories
-  local emu_dirs = {}
-  local p_ok, p_paths = pcall(steam_paths.resolve)
-  if p_ok and p_paths and p_paths.shortcuts then
-    local s_ok, s_list = pcall(shortcuts.parse, p_paths.shortcuts)
-    if s_ok and type(s_list) == "table" then
-      for _, sc in ipairs(s_list) do
-        if sc.exe and type(sc.exe) == "string" then
-          local es = sc.exe:lower():gsub("\\", "/")
-          local ed = es:match("^(.*)/[^/]+$")
-          if ed and #ed > 0 then
-            for _, emu_name in ipairs({ "retroarch", "duckstation", "pcsx2", "dolphin", "primehack", "ppsspp", "rpcs3", "shadps4" }) do
-              if es:find(emu_name, 1, true) and not emu_dirs[emu_name] then
-                emu_dirs[emu_name] = ed
-              end
-            end
-          end
-        end
-      end
-    end
-  end
+  local emu_dirs = M.emulator_dirs()
 
   -- 1. RetroArch
   local ra_dir = emu_dirs["retroarch"]
   local ra_conf = M.get_retroarch_config(ra_dir)
-  local ra_detected = (ra_conf ~= nil) or (ra_dir and file_exists(ra_dir .. "/retroarch.exe")) or file_exists("C:/emu/RetroArch/retroarch.exe") or file_exists(appdata .. "/RetroArch/retroarch.exe")
+  local ra_detected = (ra_conf ~= nil) or (ra_dir and file_exists(ra_dir .. "/retroarch.exe")) or file_exists(appdata .. "/RetroArch/retroarch.exe")
   local ra_auth = (ra_conf and ra_conf.username and #ra_conf.username > 0 and ra_conf.token and #ra_conf.token > 0) or false
   table.insert(list, {
     name = "RetroArch",
     detected = ra_detected,
-    path = ra_conf and ra_conf.cfg_path or (ra_dir or "C:/emu/RetroArch"),
+    path = ra_conf and ra_conf.cfg_path or (ra_dir),
     username = ra_conf and ra_conf.username or nil,
     authenticated = ra_auth,
   })
 
   -- 2. DuckStation
-  local duck_paths = {
+  local duck_paths = present(
     emu_dirs["duckstation"] and (emu_dirs["duckstation"] .. "/settings.ini"),
     userprofile .. "/Documents/DuckStation/settings.ini",
     appdata .. "/DuckStation/settings.ini",
-    localappdata .. "/DuckStation/settings.ini",
-    "C:/emu/duckstation/settings.ini",
-  }
+    localappdata .. "/DuckStation/settings.ini"
+  )
   local duck_found, duck_user, duck_auth, duck_p = false, nil, false, nil
   for _, p in ipairs(duck_paths) do
     if p and file_exists(p) then
@@ -1446,20 +1471,19 @@ function M.get_emulator_status()
   end
   table.insert(list, {
     name = "DuckStation",
-    detected = duck_found or (emu_dirs["duckstation"] and file_exists(emu_dirs["duckstation"] .. "/duckstation-qt-x64-ReleaseLTCG.exe")) or file_exists("C:/emu/duckstation/duckstation-qt-x64-ReleaseLTCG.exe") or file_exists("C:/emu/duckstation/duckstation-nogui-x64-ReleaseLTCG.exe"),
-    path = duck_p or (emu_dirs["duckstation"] or "C:/emu/duckstation"),
+    detected = duck_found or (emu_dirs["duckstation"] and file_exists(emu_dirs["duckstation"] .. "/duckstation-qt-x64-ReleaseLTCG.exe")) or (emu_dirs["duckstation"] and file_exists(emu_dirs["duckstation"] .. "/duckstation-nogui-x64-ReleaseLTCG.exe")) or false,
+    path = duck_p or (emu_dirs["duckstation"]),
     username = duck_user,
     authenticated = duck_auth,
   })
 
   -- 3. PCSX2
-  local pcsx2_paths = {
+  local pcsx2_paths = present(
     emu_dirs["pcsx2"] and (emu_dirs["pcsx2"] .. "/inis/PCSX2.ini"),
     userprofile .. "/Documents/PCSX2/inis/PCSX2.ini",
     appdata .. "/PCSX2/inis/PCSX2.ini",
-    localappdata .. "/PCSX2/inis/PCSX2.ini",
-    "C:/emu/PCSX2/inis/PCSX2.ini",
-  }
+    localappdata .. "/PCSX2/inis/PCSX2.ini"
+  )
   local pcsx2_found, pcsx2_user, pcsx2_auth, pcsx2_p = false, nil, false, nil
   for _, p in ipairs(pcsx2_paths) do
     if p and file_exists(p) then
@@ -1479,23 +1503,21 @@ function M.get_emulator_status()
   end
   table.insert(list, {
     name = "PCSX2",
-    detected = pcsx2_found or (emu_dirs["pcsx2"] and file_exists(emu_dirs["pcsx2"] .. "/pcsx2-qtx64.exe")) or file_exists("C:/emu/PCSX2/pcsx2-qtx64.exe"),
-    path = pcsx2_p or (emu_dirs["pcsx2"] or "C:/emu/PCSX2"),
+    detected = pcsx2_found or (emu_dirs["pcsx2"] and file_exists(emu_dirs["pcsx2"] .. "/pcsx2-qtx64.exe")) or false,
+    path = pcsx2_p or (emu_dirs["pcsx2"]),
     username = pcsx2_user,
     authenticated = pcsx2_auth,
   })
 
   -- 4. Dolphin / Primehack
-  local dol_paths = {
+  local dol_paths = present(
     emu_dirs["dolphin"] and (emu_dirs["dolphin"] .. "/User/Config/RetroAchievements.ini"),
     emu_dirs["dolphin"] and (emu_dirs["dolphin"] .. "/User/Config/Dolphin.ini"),
     emu_dirs["primehack"] and (emu_dirs["primehack"] .. "/User/Config/RetroAchievements.ini"),
     emu_dirs["primehack"] and (emu_dirs["primehack"] .. "/User/Config/Dolphin.ini"),
     appdata .. "/Dolphin Emulator/Config/RetroAchievements.ini",
-    userprofile .. "/Documents/Dolphin Emulator/Config/RetroAchievements.ini",
-    "C:/emu/Primehack/User/Config/RetroAchievements.ini",
-    "C:/emu/Primehack/User/Config/Dolphin.ini",
-  }
+    userprofile .. "/Documents/Dolphin Emulator/Config/RetroAchievements.ini"
+  )
   local dol_found, dol_user, dol_auth, dol_p = false, nil, false, nil
   for _, p in ipairs(dol_paths) do
     if p and file_exists(p) then
@@ -1515,18 +1537,17 @@ function M.get_emulator_status()
   end
   table.insert(list, {
     name = "Dolphin / Primehack",
-    detected = dol_found or (emu_dirs["dolphin"] and file_exists(emu_dirs["dolphin"] .. "/Dolphin.exe")) or file_exists("C:/emu/Primehack/Dolphin.exe"),
-    path = dol_p or (emu_dirs["dolphin"] or emu_dirs["primehack"] or "C:/emu/Primehack"),
+    detected = dol_found or (emu_dirs["dolphin"] and file_exists(emu_dirs["dolphin"] .. "/Dolphin.exe")) or (emu_dirs["primehack"] and file_exists(emu_dirs["primehack"] .. "/Dolphin.exe")) or false,
+    path = dol_p or (emu_dirs["dolphin"] or emu_dirs["primehack"]),
     username = dol_user,
     authenticated = dol_auth,
   })
 
   -- 5. PPSSPP
-  local ppsspp_paths = {
+  local ppsspp_paths = present(
     emu_dirs["ppsspp"] and (emu_dirs["ppsspp"] .. "/memstick/PSP/SYSTEM/ppsspp.ini"),
-    appdata .. "/PPSSPP/PSP/SYSTEM/ppsspp.ini",
-    "C:/emu/PPSSPP/memstick/PSP/SYSTEM/ppsspp.ini",
-  }
+    appdata .. "/PPSSPP/PSP/SYSTEM/ppsspp.ini"
+  )
   local ppsspp_found, ppsspp_user, ppsspp_auth, ppsspp_p = false, nil, false, nil
   for _, p in ipairs(ppsspp_paths) do
     if p and file_exists(p) then
@@ -1546,21 +1567,19 @@ function M.get_emulator_status()
   end
   table.insert(list, {
     name = "PPSSPP",
-    detected = ppsspp_found or (emu_dirs["ppsspp"] and file_exists(emu_dirs["ppsspp"] .. "/PPSSPPWindows64.exe")) or file_exists("C:/emu/PPSSPP/PPSSPPWindows64.exe"),
-    path = ppsspp_p or (emu_dirs["ppsspp"] or "C:/emu/PPSSPP"),
+    detected = ppsspp_found or (emu_dirs["ppsspp"] and file_exists(emu_dirs["ppsspp"] .. "/PPSSPPWindows64.exe")) or false,
+    path = ppsspp_p or (emu_dirs["ppsspp"]),
     username = ppsspp_user,
     authenticated = ppsspp_auth,
   })
 
   -- 6. RPCS3 (PS3)
-  local rpcs3_paths = {
+  local rpcs3_paths = present(
     emu_dirs["rpcs3"] and (emu_dirs["rpcs3"] .. "/dev_hdd0/home/00000001/trophy"),
     appdata .. "/rpcs3/dev_hdd0/home/00000001/trophy",
-    "C:/emu/rpcs3/dev_hdd0/home/00000001/trophy",
     emu_dirs["rpcs3"] and (emu_dirs["rpcs3"] .. "/rpcs3.exe"),
-    appdata .. "/rpcs3/rpcs3.exe",
-    "C:/emu/rpcs3/rpcs3.exe",
-  }
+    appdata .. "/rpcs3/rpcs3.exe"
+  )
   local rpcs3_found, rpcs3_p = false, nil
   for _, p in ipairs(rpcs3_paths) do
     if p and file_exists(p) then
@@ -1572,25 +1591,22 @@ function M.get_emulator_status()
   table.insert(list, {
     name = "RPCS3 (PS3)",
     detected = rpcs3_found,
-    path = rpcs3_p or (emu_dirs["rpcs3"] or "C:/emu/rpcs3"),
+    path = rpcs3_p or (emu_dirs["rpcs3"]),
     username = rpcs3_found and "Local Trophy DB" or nil,
     authenticated = rpcs3_found,
   })
 
   -- 7. shadPS4 (PS4)
-  local shad_paths = {
+  local shad_paths = present(
     emu_dirs["shadps4"] and (emu_dirs["shadps4"] .. "/user/trophy"),
     emu_dirs["shadps4"] and (emu_dirs["shadps4"] .. "/home/1000/trophy"),
     appdata .. "/shadps4/user/trophy",
     appdata .. "/shadps4/home/1000/trophy",
     localappdata .. "/shadps4/user/trophy",
-    "C:/emu/shadps4/user/trophy",
-    "C:/emu/shadps4/home/1000/trophy",
     emu_dirs["shadps4"] and (emu_dirs["shadps4"] .. "/shadps4.exe"),
     appdata .. "/shadps4/shadps4.exe",
-    localappdata .. "/shadps4/shadps4.exe",
-    "C:/emu/shadps4/shadps4.exe",
-  }
+    localappdata .. "/shadps4/shadps4.exe"
+  )
   local shad_found, shad_p = false, nil
   for _, p in ipairs(shad_paths) do
     if p and file_exists(p) then
@@ -1602,7 +1618,7 @@ function M.get_emulator_status()
   table.insert(list, {
     name = "shadPS4 (PS4)",
     detected = shad_found,
-    path = shad_p or (emu_dirs["shadps4"] or "C:/emu/shadps4"),
+    path = shad_p or (emu_dirs["shadps4"]),
     username = shad_found and "Local Trophy DB" or nil,
     authenticated = shad_found,
   })

@@ -7,14 +7,15 @@
 //
 //   node tests/live/check_parity.mjs [shortcutAppid] [nativeAppid] [otherNativeAppid]
 //
-// Defaults: Jotunnslayer shortcut 4202674849 (added by Epic auto-add, ADR-0056; was 2315502503), native 2820820, B = 435150.
+// Defaults: Pool Blitz shortcut 3436498948 (Xbox), native 3942580, B = 435150. Was Jotunnslayer 4202674849 -> 2820820
+// until Epic uninstalled it on 2026-10-14 and auto-remove took the shortcut. Any shortcut with a Steam Store match works.
 // Needs Steam started with DevTools on 127.0.0.1:8080, desktop UI.
 // Exit code 0 only when every line is PASS (the P5 gate).
 import { existsSync } from 'node:fs';
 
 const PORT = process.env.CDP_PORT ?? '8080';
-const S = Number(process.argv[2] ?? 4202674849);
-const N = Number(process.argv[3] ?? 2820820);
+const S = Number(process.argv[2] ?? 3436498948);
+const N = Number(process.argv[3] ?? 3942580);
 const B = Number(process.argv[4] ?? 435150);
 const GRID = process.env.SC_GRID ?? 'C:/game/steam/userdata/83513586/config/grid';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -105,10 +106,13 @@ try {
                 rel: safe(() => it.GetReleaseDateRTime()),
                 orig: safe(() => it.GetOriginalReleaseDateRTime()),
                 cats: [...(safe(() => it.GetStoreCategories_SupportedPlayers()) ?? []), ...(safe(() => it.GetStoreCategories_Controller()) ?? [])],
+                logo: !!safe(() => it.GetAssets().GetLibraryLogoURL()),
             } : null);
         })()`),
     );
     if (!native) throw new Error(`StoreItemCache has no data for ${N}`);
+    // A missing shortcut leaves B's page open and every check reads the wrong app: stop here.
+    if (!(await shared.ev(`!!appStore.GetAppOverviewByAppID(${S})`))) throw new Error(`No shortcut ${S} in the library: pass one with a Steam Store match`);
 
     // Routine 2: A -> B -> A, then read everything on the second visit.
     await open(S);
@@ -172,11 +176,13 @@ try {
     check('6. Player + controller categories include every native one', missingCats.length === 0, missingCats.length ? `missing ${missingCats.join(',')}` : st.cats.join(','));
     const d = st.diag;
     check('7. Links use the native app', d?.lastNative?.links === N && d.counts.links > 0, d ? `links ${d.counts.links} -> ${d.lastNative.links}` : 'no nativeSectionsDiagnostics');
+    // Slot 2 is the logo; some apps have none on Steam, then it is expected missing (recorded as failed).
+    const want = native.logo ? [0, 1, 2, 3] : [0, 1, 3];
     const files = ['p', '_hero', '_logo', ''].map((s) => ['png', 'jpg', 'jpeg'].some((x) => existsSync(`${GRID}/${S}${s}.${x}`)));
     const slots = Array.isArray(st.applied?.slots) ? st.applied.slots : [];
     check(
-        '8. Artwork: 4 slots from the match, logo positioned',
-        files.every(Boolean) && st.applied?.steam_appid === N && !!st.mapping && [0, 1, 2, 3].every((s) => slots.includes(s)) && !!st.logoPosition,
+        `8. Artwork: ${want.length} slots from the match${native.logo ? ', logo positioned' : ' (native has no logo)'}`,
+        want.every((s) => files[s]) && st.applied?.steam_appid === N && !!st.mapping && want.every((s) => slots.includes(s)) && (!native.logo || !!st.logoPosition),
         `files ${files.map(Number).join('')}, slots ${slots.join(',')}, logoPosition ${st.logoPosition ? 'set' : 'null'}`,
     );
     check('9. Friends section reads the native app', d?.lastNative?.friends === N && d.counts.friends > 0, d ? `friends ${d.counts.friends}` : 'no diagnostics');

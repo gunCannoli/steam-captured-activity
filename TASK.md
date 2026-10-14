@@ -16,7 +16,7 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**Release fixes done 2026-10-14 (release plan § 0; ADR-0065-0067). Open: live re-run of check_parity alone, D1, D9, § 3b deletions, § 3c paths, hand checks.** Release of enhanced-notifications 0.2.0 and steam-cartridges 0.1.0: [the release plan](docs/plans/release-plan.md)
+**Release fixes done 2026-10-14 (release plan § 0; ADR-0065-0067). Parity green and § 3c machine paths done (2026-10-14). Open: D1, D9, § 3b deletions, hand checks.** Release of enhanced-notifications 0.2.0 and steam-cartridges 0.1.0: [the release plan](docs/plans/release-plan.md)
 (triage 2026-10-13).** Every pending item was sorted there into cleared, blocker, hand-check, decision and after. Next:
 the user answers D1-D9 (§ 2), runs the two Big Picture spikes (§ 3, enhanced-notifications 1-2) and the hand-check session
 (§ 4); offline, one mechanical plan per code blocker (D2 store code move, ROM hashing in Lua, D3, D5, D6).

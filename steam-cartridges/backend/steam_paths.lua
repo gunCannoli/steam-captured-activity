@@ -1,7 +1,7 @@
 --- Locates Steam's root and the active user's userdata directory.
 ---
---- Never hardcode paths: this machine keeps Steam at C:\game\steam, not the
---- default Program Files location. See AGENTS.md.
+--- Never hardcode paths: Steam is often installed outside the default
+--- Program Files location; ask Millennium for the root instead.
 
 local fs         = require("fs")
 local utils      = require("utils")

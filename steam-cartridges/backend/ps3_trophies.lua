@@ -144,11 +144,10 @@ function M.find_trophy_dir(cmd, launch_options)
     end
   end
 
-  -- Check RPCS3 install paths (first next to exe, then appdata, then fallback)
+  -- Check RPCS3 install paths (next to the shortcut's exe first, then %APPDATA%)
   local appdata = (os.getenv("APPDATA") or ""):gsub("\\", "/")
   local default_rpcs3_trophies = {
     appdata .. "/rpcs3/dev_hdd0/home/00000001/trophy",
-    "C:/emu/rpcs3/dev_hdd0/home/00000001/trophy",
   }
 
   for _, p in ipairs(candidates) do

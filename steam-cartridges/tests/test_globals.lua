@@ -1,4 +1,4 @@
--- No backend file reads a global it never declared.
+-- No backend file reads a global it never declared, or names a path of the developer's machine (release plan § 3c).
 --
 --   lua tests\test_globals.lua
 --
@@ -74,6 +74,11 @@ for line in list:lines() do
   local file = line:match("([^/\\]+%.lua)$")
   if file then
     files = files + 1
+    local fh = io.open(backend .. "/" .. file, "rb")
+    local text = fh and fh:read("*a") or ""
+    if fh then fh:close() end
+    local machine = text:lower():match("c:[/\\]+emu") or text:lower():match("c:[/\\]+game") or text:match("83513586")
+    if machine then check(file .. " names no path of the developer's machine", false, machine) end
     local chunk, err = loadfile(backend .. "/" .. file)
     if not chunk then
       check(file .. " compiles", false, err)
@@ -89,7 +94,7 @@ for line in list:lines() do
 end
 list:close()
 check("scanned the backend's files", files > 10, files .. " files")
-check("every backend file reads only standard globals (Millennium modules are required)", failures == 0)
+check("every backend file reads only standard globals and names no machine path (C:/emu, C:/game, the user id)", failures == 0)
 
 print("\n" .. (failures == 0 and "ALL PASS" or (failures .. " FAILURE(S)")))
 os.exit(failures == 0 and 0 or 1)
