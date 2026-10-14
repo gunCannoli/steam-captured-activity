@@ -769,13 +769,13 @@ Plus the touched plugin's own `tests/` (e.g. `enhanced-notifications/tests/categ
      RPC data (`accounts?.epic?.found`, `accounts?.xbox?.signed_in`, `res?.epic`) must have a fallback or optional chaining.
   2. **No unhandled throws in render:** A rejected promise (`.catch()`) must leave the component in a safe "scanning"
      or "error" fallback; it must never bubble an uncaught exception to the render pass.
-  3. **Core settings immutability:** Provider-specific settings (e.g. `xboxOverlayWorkaround`) belong strictly in the
+  3. **Core settings immutability:** Provider-specific settings (e.g. `muteXboxNotifications`) belong strictly in the
      provider plugin's own settings store; core `settings-defaults.ts` must remain pure and free from provider-specific keys.
   4. **Independent plugin config fallbacks:** Provider plugins use their own settings via Millennium's `@steambrew/client`
      `pluginConfig`. Always provide explicit default fallbacks in `useSetting` hooks so that uninitialized configs do not resolve
      to `undefined` or break rendering during first boot.
   5. **Shared matcher alignment for custom launch wrappers:** When an extension modifies shortcut launch targets or introduces
-     custom wrappers (e.g., `uwp_presenter.exe --aumid ...`), backend matchers in BOTH core and extension
+     custom wrappers (e.g. the retired `uwp_presenter.exe --aumid ...`, ADR-0065), backend matchers in BOTH core and extension
      (`store_xbox_local.lua` `pfn_from_target`) must recognize the custom format. Otherwise, an auto-add background timer in either
      plugin will fail to match the shortcut and create duplicate library entries.
 

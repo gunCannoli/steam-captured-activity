@@ -25,6 +25,7 @@
   │  • Auto-adds shortcuts into "Epic Games" / "Xbox" tabs │
   │  • Syncs Epic & Xbox Live profile achievements         │
   │  • Epic Steam Overlay Workaround process reaper        │
+  │  • Mutes Steam's toasts while an Xbox game runs        │
   │  • Microsoft OAuth device code sign-in flow            │
   └────────────────────────────────────────────────────────┘
 ```
@@ -41,19 +42,12 @@ steam-cartridges-third-party/
 ├── package.json                # Dependencies (@steambrew/client, @steambrew/ttc)
 ├── tsconfig.json               # TypeScript configuration
 ├── dev.ps1                     # Local deployment script
-├── bin/                        # Deployed standalone binaries
-│   └── uwp_presenter.exe       # Zero-copy WinRT D3D11 presentation wrapper for UWP overlay
-├── tools/
-│   └── uwp_presenter/          # Standalone presenter source (.NET 8 WinRT D3D11)
-│       ├── Program.cs          # Windows.Graphics.Capture compositing into DXGI swapchain
-│       ├── uwp_presenter.csproj
-│       └── build.ps1           # Single-file win-x64 build script
 ├── backend/
 │   ├── main.lua                # RPC endpoints
 │   ├── store_service.lua       # Unified store scanning and cache manager
 │   ├── store_epic_local.lua    # Epic .item manifest reader & dashed launch link builder
 │   ├── epic_graphql.lua        # Epic GraphQL API (catalog metadata, public achievements)
-│   ├── store_xbox_local.lua    # Registry & UWP package reader (shell:AppsFolder, MicrosoftGame.config, presenter wrapper)
+│   ├── store_xbox_local.lua    # Registry & UWP package reader (shell:AppsFolder, MicrosoftGame.config, U0 exe)
 │   ├── xbox_catalog.lua        # Microsoft Display Catalog API
 │   ├── xbox_live.lua           # Xbox Live OAuth device flow & achievements API
 │   ├── store_achievements.lua  # Store unlock aggregation
@@ -63,13 +57,15 @@ steam-cartridges-third-party/
 ├── frontend/
 │   ├── index.tsx               # Registers with window.SteamCartridges
 │   ├── backend.ts              # Frontend RPC client to third-party backend
+│   ├── xbox-mute.ts            # Mutes Steam's toasts while an Xbox game runs (ADR-0065)
+│   ├── toast-mute.ts           # The NotificationStore gates the mute uses (the only Steam hook)
 │   └── settings/
 │       ├── third-party.tsx     # Third-party settings section and Xbox sign-in modal
 │       ├── components.tsx      # Shared settings UI components
 │       └── settings.ts         # Settings accessor hooks
 └── tests/
     ├── harness.lua             # Lightweight Lua test harness
-    ├── test_store.lua          # Manifest parsing, store scanning, presenter specs, and catalog tests
+    ├── test_store.lua          # Manifest parsing, store scanning, launch specs, repairs, the running check, and catalog tests
     └── test_store_launch.lua   # Prelaunch hold, process detection, and reaper tests
 ```
 
@@ -86,11 +82,9 @@ steam-cartridges-third-party/
 ### 3.2 Xbox / Microsoft Store / Game Pass
 - **UWP & WindowsApps Discovery:** Reads Windows registry `HKEY_CURRENT_USER\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Families`. Reads `MicrosoftGame.config` and `xboxservices.config` for title IDs and store IDs.
 - **UWP Direct Exe Launch (U0):** Bypasses `explorer.exe shell:AppsFolder\...` for UWP titles by executing the game binary directly, enabling native Steam playtime tracking.
-- **Steam Overlay & Recording Workaround (`uwp_presenter`):** UWP games run inside an isolated `AppContainer` sandbox where COM activation, integrity levels, named IPC redirection, and window focus prevent Steam from injecting `GameOverlayRenderer64.dll` or capturing video frames. When the "Xbox Steam Overlay Workaround" setting is enabled, shortcuts launch via `uwp_presenter.exe --aumid "<PFN>!<AppId>"`:
-  - Steam tracks `uwp_presenter.exe` as the child process, injects `GameOverlayRenderer64.dll`, spawns `gameoverlayui64.exe`, and hooks its DXGI swapchain.
-  - The presenter activates the UWP game via WinRT `IApplicationActivationManager`, captures its frame stream using `Windows.Graphics.Capture` (zero-copy D3D11 texture copy), and renders to its own swapchain.
-  - As the active foreground window, in-game achievement notifications, Shift+Tab overlay, and Steam Game Recording all function seamlessly without AppContainer isolation barriers.
-- **UWP Auto-Repair:** Automatically detects package version directory shifts after Windows Store updates and patches the shortcut executable without duplicate entries (ADR-0058).
+- **No Steam overlay (ADR-0065):** Xbox games run without Shift+Tab, in-game banners or Steam recording. The `uwp_presenter` wrapper that tried was removed; a shortcut still on it is repointed by the repair below.
+- **Mute Steam notifications while playing (ADR-0065, off by default):** while a shortcut that is an Xbox copy runs, `toast-mute.ts` makes Steam's own `NotificationStore.BShouldSupressToasts` answer true and drops the batched server toasts, so nothing pops over the game; notifications still collect in Steam's list. "Running" = Steam's running state or a process inside the game's package folder (`StoreXboxRunning`, polled every 15 s while muted), since a GDK game leaves Steam's tree.
+- **UWP Auto-Repair:** Automatically detects package version directory shifts after Windows Store updates and patches the shortcut executable without duplicate entries (ADR-0058); also moves a shortcut off the retired `uwp_presenter.exe` (ADR-0065).
 - **Xbox Live Authentication:** Device code flow via `login.live.com/oauth20_connect.srf`. Displays verification URL and short code for player authentication.
 - **Xbox Live Achievements:** Fetches user unlock history using user XUID and XBL3.0 authorization headers.
 

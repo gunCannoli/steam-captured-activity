@@ -42,6 +42,7 @@ export const backend = {
   xboxSignInPoll: (device_code: string) => callBackend<{ status: string; gamertag?: string; error?: string }>("XboxSignInPoll", { device_code }),
   xboxSignOut: () => callBackend<{ ok: boolean }>("XboxSignOut"),
   storeEpicLaunchShortcuts: () => callBackend<{ appids: number[] }>("StoreEpicLaunchShortcuts"),
+  storeXboxRunning: (appid: number) => callBackend<{ xbox: boolean; running?: boolean }>("StoreXboxRunning", { appid }),
   storeXboxRepairs: () => callBackend<{ repairs: { appid: number; exe: string; start_dir: string }[] }>("StoreXboxRepairs"),
   storeEpicPrelaunch: (appid: number, heldAt: number) => callBackend<{ status: string; closed?: boolean }>("StoreEpicPrelaunch", { appid, heldAt }),
   storeEpicReap: (appid: number, act: string) => callBackend<{ status: string; done?: boolean }>("StoreEpicReap", { appid, act }),

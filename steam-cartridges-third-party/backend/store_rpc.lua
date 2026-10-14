@@ -5,6 +5,7 @@
 ---   XboxSignInStart / XboxSignInPoll / XboxSignOut   the device-code sign-in (xbox_live.lua)
 ---   StoreEpicLaunchShortcuts / StoreEpicPrelaunch / StoreEpicReap   the Epic Steam Overlay Workaround (store_launch.lua, ADR-0057)
 ---   StoreXboxRepairs     U0 Xbox shortcuts to repoint after an app update (ADR-0058)
+---   StoreXboxRunning     is this shortcut an Xbox game, and is it running (the notification mute, ADR-0065)
 
 local core          = require("rpc")
 local store_service = require("store_service")
@@ -46,6 +47,11 @@ end)
 --- {}: the U0 Xbox shortcuts whose exe is an older version's (ADR-0058), with the current exe and start folder.
 RPC.StoreXboxRepairs = method("StoreXboxRepairs", function(_)
   return { repairs = store_service.xbox_repairs() }
+end)
+
+--- { appid }: { xbox, running? } for the notification mute (store_service.xbox_running, ADR-0065).
+RPC.StoreXboxRunning = method("StoreXboxRunning", function(data)
+  return store_service.xbox_running(tonumber(data.appid))
 end)
 
 --- {}: the shortcuts that are an Epic copy started through the launcher link (the ones held at Play).

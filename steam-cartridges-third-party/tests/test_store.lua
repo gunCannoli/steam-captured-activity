@@ -220,15 +220,9 @@ check("a shortcut for an older version matches its game (no duplicate after an u
 local u0 = xbox_local.launch_spec(MS)
 check("a UWP game's launch spec runs its own exe (U0)", u0.exe == '"' .. MS_ROOT .. [[\Minesweeper.exe"]] and u0.start_dir == '"' .. MS_ROOT .. [[\"]] and u0.launch_options == "")
 check("a GDK game keeps the Explorer launch", xbox_local.launch_spec(FM).exe == '"C:\\Windows\\explorer.exe"')
--- UWP Presenter (Option 1 - Windows.Graphics.Capture wrapper)
-local pres = xbox_local.presenter_spec(MS, [[C:\bin\uwp_presenter.exe]])
-check("presenter_spec builds wrapper launch spec", pres.exe == [["C:\bin\uwp_presenter.exe"]] and pres.launch_options:find([[--aumid "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App"]], 1, true) ~= nil)
-xbox_local.deps.presenter_path = function() return [[C:\bin\uwp_presenter.exe]] end
-local l_pres = xbox_local.launch_spec(MS, { overlay = true })
-check("launch_spec with overlay uses presenter", l_pres.exe == [["C:\bin\uwp_presenter.exe"]])
+-- A shortcut left on the retired uwp_presenter wrapper (ADR-0065) still matches its game, so it is never duplicated
 local ma, mav = xbox_local.match({ exe = [["C:\bin\uwp_presenter.exe"]], launch_options = [[--aumid "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App"]] }, { MS })
-check("a shortcut running uwp_presenter matches by aumid", ma == MS and mav == "launch-link")
-xbox_local.deps.presenter_path = nil
+check("a shortcut running the retired uwp_presenter matches by aumid", ma == MS and mav == "launch-link")
 -- An Xbox Live game with no game config, marked only by its xboxliveapp- protocol (Microsoft Sudoku)
 check("the manifest's xboxliveapp- protocol marks an Xbox Live game", xbox_local.parse_appx_manifest('<uap:Protocol Name="xboxliveapp-1297292189" />').xbox_live == true and xbox_local.parse_appx_manifest('<uap:Protocol Name="myapp" />').xbox_live == false)
 xbox_local.deps.read = function(p)
@@ -423,6 +417,24 @@ local rep = svc.xbox_repairs()
 check("xbox_repairs lists the shortcut that runs an older version, with the current exe", #rep == 1 and rep[1].appid == 4000000011 and rep[1].exe == [["C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe\Minesweeper.exe"]], #rep)
 check("... not the up-to-date one, not the Explorer one (never converted silently)", #rep == 1)
 ENTRIES[4000000011], ENTRIES[4000000012], ENTRIES[4000000013] = nil, nil, nil
+-- ADR-0065: a shortcut still on the retired uwp_presenter wrapper goes back to the game's normal launch, options included
+ENTRIES[4000000014] = { appid = 4000000014, exe = [["C:\game\steam\millennium\plugins\steam-cartridges-third-party-dev\bin\uwp_presenter.exe"]], launch_options = [[--aumid "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App" --title "Microsoft Minesweeper"]] }
+rep = svc.xbox_repairs()
+check("xbox_repairs repoints a uwp_presenter shortcut to the game's own launch", #rep == 1 and rep[1].appid == 4000000014 and rep[1].exe == '"' .. MS_GAME.root .. [[\Minesweeper.exe"]] and rep[1].launch_options == "", #rep)
+ENTRIES[4000000014] = nil
+-- ADR-0065: the notification mute asks whether a shortcut is an Xbox game and whether a process runs from its folder
+ENTRIES[4000000015] = { appid = 4000000015, exe = '"' .. MS_GAME.root .. [[\Minesweeper.exe"]], launch_options = "" }
+local ran = {}
+svc.deps.run = function(cmd) ran[#ran + 1] = cmd; return "12345\r\n" end
+svc._reset()
+local xr = svc.xbox_running(4000000015)
+check("xbox_running: an Xbox shortcut whose game runs", xr.xbox == true and xr.running == true and #ran == 1 and ran[1]:find(MS_GAME.root .. "\\', 'OrdinalIgnoreCase')", 1, true) ~= nil, ran[1])
+svc.deps.run = function() return "" end
+check("... not running when no process is listed", svc.xbox_running(4000000015).running == false)
+check("... and a non-Xbox shortcut is not an Xbox game (no process check)", svc.xbox_running(4000000001).xbox == false)
+check("parse_running reads a pid, not an empty answer", svc.parse_running("  4242\r\n") and not svc.parse_running("\r\n"))
+svc.deps.run = nil
+ENTRIES[4000000015] = nil
 svc.deps.xbox_local = xbox_before
 ENTRIES[4000000001] = nil
 check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)

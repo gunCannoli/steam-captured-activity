@@ -37,7 +37,7 @@ export function ThirdPartySection() {
     const [autoEpic, setAutoEpic] = useSetting("autoAddEpicGames");
     const [autoXbox, setAutoXbox] = useSetting("autoAddXboxGames");
     const [epicOverlay, setEpicOverlay] = useSetting("epicOverlayWorkaround");
-    const [xboxOverlay, setXboxOverlay] = useSetting("xboxOverlayWorkaround");
+    const [muteXbox, setMuteXbox] = useSetting("muteXboxNotifications");
     const [accounts, setAccounts] = useState<Accounts | null>(null);
     const [installed, setInstalled] = useState<Installed | null>(null);
 
@@ -211,15 +211,15 @@ export function ThirdPartySection() {
                     )}
                     {xboxOn && (
                         <ToggleRow
-                            label="Xbox Steam Overlay Workaround"
-                            description="Uses a zero-copy presentation wrapper (Windows.Graphics.Capture) to enable the Steam Overlay, in-game achievement banners, and Game Recording for UWP games."
-                            value={xboxOverlay}
-                            onChange={setXboxOverlay}
+                            label="Mute Steam notifications while playing"
+                            description="Xbox games have no Steam overlay, so Steam's pop-ups land on top of the game. They still collect in Steam's notification list."
+                            value={muteXbox}
+                            onChange={setMuteXbox}
                         />
                     )}
                     <ButtonRow
                         label="Diagnostics & Sensor Telemetry"
-                        description="View recent telemetry and debug events recorded in third_party.log and uwp_presenter.log."
+                        description="View recent telemetry and debug events recorded in third_party.log."
                         buttonLabel="View Logs"
                         onClick={openLogsModal}
                     />
@@ -232,10 +232,10 @@ export function ThirdPartySection() {
                     <Blocks>
                         <ItemRow>
                             <div style={{ maxHeight: "350px", overflowY: "auto", background: "rgba(0,0,0,0.5)", padding: "10px", borderRadius: "4px", fontFamily: "monospace", fontSize: "11px", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "#ddd" }}>
-                                {logLines.length > 0 ? logLines.join("\n") : "No recent logs recorded yet. Logs write to <Steam>/millennium/config/steam-cartridges/third_party.log and uwp_presenter.log."}
+                                {logLines.length > 0 ? logLines.join("\n") : "No recent logs recorded yet. Logs write to <Steam>/millennium/config/steam-cartridges/third_party.log."}
                             </div>
                         </ItemRow>
-                        <ActionRow message="Telemetry writes to config/steam-cartridges/third_party.log & uwp_presenter.log">
+                        <ActionRow message="Telemetry writes to config/steam-cartridges/third_party.log">
                             <DialogButton onClick={fetchLogs} style={BUTTON_STYLE}>
                                 Refresh
                             </DialogButton>

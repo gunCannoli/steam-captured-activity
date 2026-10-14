@@ -3554,3 +3554,47 @@ re-renders on every toast arrival.
   view, which is Steam's own choice for the first toast.
 - With two games running, a toast for the game without focus waits until focus changes, as it would without B3.
 - `location` off restores Steam's routing exactly.
+
+## ADR-0065: Xbox games get no Steam overlay; they get an opt-in notification mute instead (steam-cartridges-third-party)
+
+**Status:** Accepted · 2026-10-13 (the user dropped the overlay work) · setting `muteXboxNotifications`, off by default
+
+### Context
+
+The Xbox overlay workaround ran a UWP or GDK game behind `uwp_presenter.exe`, a .NET wrapper that mirrored the game's
+window through `Windows.Graphics.Capture` into its own swapchain, so Steam's overlay and recording hooked the wrapper
+([the research plan](https://github.com/gunCannoli/millennium-plugins/blob/6c19f5f/docs/plans/steam-cartridges-uwp-overlay-research-plan.md)).
+The user's verdict after the Pool Blitz trials: never good enough in practice (input forwarding, splash windows,
+fullscreen, a wrapper window in front of the game), too much upkeep for one store, and a process that mirrors another
+game's frames looks like a cheat to anti-cheat software. Without an overlay, Steam shows its toasts on the desktop,
+on top of the game (in Big Picture: behind it).
+
+### Decision
+
+1. The presenter is removed: `tools/uwp_presenter`, its `bin/` output and its `dev.ps1` build step, `presenter_path` /
+   `presenter_spec`, `launch_spec`'s `overlay` option, the backend's `xbox_overlay_workaround` key and the
+   `xboxOverlayWorkaround` setting. Xbox shortcuts launch as ADR-0058 says: a UWP game's own exe (U0), else Explorer.
+2. A shortcut still on the wrapper (`uwp_presenter.exe --aumid <PFN>!<App>`) is repointed by the existing repair
+   (`store_service.xbox_repairs`, both copies), exe, start folder and launch options, keeping its appid. `--aumid` stays
+   in `pfn_from_target` so such a shortcut is never seen as missing (no duplicate) until it is repaired.
+3. New setting **Mute Steam notifications while playing** (Third-party, Xbox block, off by default). While a shortcut
+   that is an Xbox copy runs, Steam's toasts and their sounds are held back through Steam's own gates in
+   `NotificationStore`: `BShouldSupressToasts` (the check `ProcessNotification` makes before queueing a toast or
+   picking its sound) answers true, and the batched server toasts (`SendPendingServerToasts`) are dropped. Both are
+   prototype methods, wrapped as own properties on the store instance, always calling the original when not muted.
+   Notifications still reach Steam's notification list (the tray), which happens before either gate.
+4. "Running" is Steam's running state, or a process whose image lives in the game's package folder
+   (`StoreXboxRunning`, one PowerShell call, polled every 15 s only while an Xbox game is muted). A GDK game is opened
+   through Explorer and leaves Steam's tree within seconds, so Steam's state alone would unmute too early; a launch with
+   no process seen gets 90 s before it counts as over.
+5. Not Steam's own "disable toasts in game" client setting: it is the user's global choice for every game, it depends on
+   Steam seeing the game running (not true for GDK games), and changing it would rewrite the user's settings.
+
+### Consequences
+
+- No Shift+Tab, in-game achievement banner or Steam recording for Xbox games. Their playtime and timeline stay (U0).
+- Muted, an Xbox game is not interrupted by friend, download or achievement pop-ups; the user reads them after.
+- Toasts already on screen or queued when the game starts still show.
+- Turning the setting on while an Xbox game already runs takes effect at that game's next launch.
+- enhanced-notifications wraps other `NotificationStore` methods (`PopNextToastNotification`, `PlayNotificationSound`);
+  the gates here are earlier in Steam's path, so nothing reaches it while muted.

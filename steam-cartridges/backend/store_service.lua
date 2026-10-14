@@ -149,9 +149,11 @@ local function unsigned(id)
 end
 
 --- U0 shortcuts out of date after an app update (ADR-0058): a shortcut whose exe is inside a WindowsApps package folder
---- of an installed UWP game, but not the current version's exe. { { appid, title, exe, start_dir } } to repoint; the
---- library-shortcuts surface writes them (the appid stays, so playtime and activity stay). A shortcut that runs anything
---- else (Explorer, another exe) is never listed. Local data only.
+--- of an installed UWP game, but not the current version's exe. { { appid, title, exe, start_dir, launch_options? } } to
+--- repoint; the library-shortcuts surface writes them (the appid stays, so playtime and activity stay). Also a shortcut
+--- that still runs the retired uwp_presenter.exe wrapper (`--aumid <PFN>!<App>`, ADR-0065): it goes back to the game's
+--- normal launch, launch options included. A shortcut that runs anything else (Explorer, another exe) is never listed.
+--- Local data only.
 function M.xbox_repairs()
   local xbox = xbox_local()
   local games = installed(true).xbox
@@ -159,7 +161,18 @@ function M.xbox_repairs()
   local out = {}
   for _, e in ipairs(all_entries()) do
     local pfn = xbox.pfn_from_path(e.exe)
-    if pfn then
+    if norm(e.exe):find("uwp_presenter.exe", 1, true) then
+      local wrapped = xbox.pfn_from_target(e.launch_options)
+      for _, g in ipairs(wrapped and games or {}) do
+        if g.pfn and g.pfn:lower() == wrapped:lower() then
+          local want = xbox.launch_spec(g)
+          if want then
+            out[#out + 1] = { appid = unsigned(e.appid), title = g.title or g.pfn, exe = want.exe, start_dir = want.start_dir, launch_options = want.launch_options }
+          end
+          break
+        end
+      end
+    elseif pfn then
       for _, g in ipairs(games) do
         if g.pfn and g.pfn:lower() == pfn:lower() then
           local want = xbox.u0_spec(g)

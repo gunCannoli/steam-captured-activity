@@ -7,6 +7,22 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Release triage and plan (2026-10-13)**, [plan](docs/plans/release-plan.md): every pending TASK.md item and plan sorted
+  into cleared, blocker, hand-check, decision and after, for enhanced-notifications 0.2.0 and steam-cartridges 0.1.0.
+  Findings: the Epic/Xbox store stack was copied into steam-cartridges-third-party, not moved (steam-cartridges still runs
+  auto-add, Xbox repairs and the Epic launch hold); ROM hashing runs `node ra_hasher.js` with a hard-coded workspace path;
+  the ScreenScraper developer account exists only in this machine's `.env`; `steam-cartridges/` has no `LICENSE`. Offline
+  suites green: steam-cartridges 347 TS + 13 Lua, enhanced-notifications 185 (the two theme failures are gone),
+  third-party Lua. Deleted: the performance and stability plan (implemented, ADR-0059); verification.md K20 (fixed
+  2026-10-06). TASK.md trimmed to the release plan.
+- **steam-cartridges-third-party: Xbox overlay dropped, notification mute instead (2026-10-13, ADR-0065)**: the
+  `uwp_presenter` wrapper never reached an acceptable level and risked anti-cheat trouble, so it is removed with its
+  tool, `bin/`, `dev.ps1` build step, launch-spec option, backend key, setting and the research plan (readable at
+  `6c19f5f`). A shortcut still on the wrapper is repointed by the Xbox repair (both copies of `store_service.xbox_repairs`;
+  appid kept). New opt-in setting "Mute Steam notifications while playing": while an Xbox copy runs (Steam's running state,
+  or a process inside its package folder, `StoreXboxRunning`, polled every 15 s), Steam's own
+  `NotificationStore.BShouldSupressToasts` gate answers true and batched server toasts are dropped; notifications still
+  reach Steam's list. Lua tests added (repair, running check) in both plugins; `tsc` and the build pass. Not deployed.
 - **enhanced-notifications: Big Picture in-game investigation and the first two fixes (2026-10-08)**,
   [plan](docs/plans/enhanced-notifications-consistency-plan.md):
   - *Stage A (evidence):* frame traces in Big Picture and in game (AM2R), a sound ledger, control runs with the plugin
@@ -305,7 +321,7 @@ This repo is private and unversioned; entries are grouped by date.
   deep technical research into why Steam's native overlay fails on Xbox UWP games (COM activation, AppContainer ACLs,
   kernel object isolation, and `GetForegroundWindow()` toast routing) and evaluation of candidate solutions (SISR controller
   redirection vs overlay limitations, GlosSI WindowBands, Mirrored Presenter wrapper via `Windows.Graphics.Capture`,
-  and Millennium-native overlay HUD). Documented in [docs/plans/steam-cartridges-uwp-overlay-research-plan.md](docs/plans/steam-cartridges-uwp-overlay-research-plan.md).
+  and Millennium-native overlay HUD). Documented in [the research plan](https://github.com/gunCannoli/millennium-plugins/blob/6c19f5f/docs/plans/steam-cartridges-uwp-overlay-research-plan.md) (removed with the presenter, ADR-0065).
 
 - **steam-cartridges: SteamGridDB icon for every unmatched shortcut (2026-10-04, the user's choice)**: icon order is the Steam match's
   icon (184 px, then 32 px), else SteamGridDB's; the exe's own icon is never kept on purpose (Steam renders it as a 32×32 BMP). The icon

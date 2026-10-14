@@ -24,6 +24,7 @@ M.deps = {
   epic = nil,         -- nil = epic_graphql
   xbox_catalog = nil, -- nil = xbox_catalog
   now = function() return os.time() end,
+  run = nil,          -- fun(cmd) -> output | nil ; nil = silent_exec.run
 }
 
 local function now_ms() return math.floor((M.deps.now or os.time)() * 1000) end
@@ -154,9 +155,11 @@ local function unsigned(id)
 end
 
 --- U0 shortcuts out of date after an app update (ADR-0058): a shortcut whose exe is inside a WindowsApps package folder
---- of an installed UWP game, but not the current version's exe. { { appid, title, exe, start_dir } } to repoint; the
---- library-shortcuts surface writes them (the appid stays, so playtime and activity stay). A shortcut that runs anything
---- else (Explorer, another exe) is never listed. Local data only.
+--- of an installed UWP game, but not the current version's exe. { { appid, title, exe, start_dir, launch_options? } } to
+--- repoint; the library-shortcuts surface writes them (the appid stays, so playtime and activity stay). Also a shortcut
+--- that still runs the retired uwp_presenter.exe wrapper (`--aumid <PFN>!<App>`, ADR-0065): it goes back to the game's
+--- normal launch, launch options included. A shortcut that runs anything else (Explorer, another exe) is never listed.
+--- Local data only.
 function M.xbox_repairs()
   local xbox = xbox_local()
   local games = installed(true).xbox
@@ -164,7 +167,18 @@ function M.xbox_repairs()
   local out = {}
   for _, e in ipairs(all_entries()) do
     local pfn = xbox.pfn_from_path(e.exe)
-    if pfn then
+    if norm(e.exe):find("uwp_presenter.exe", 1, true) then
+      local wrapped = xbox.pfn_from_target(e.launch_options)
+      for _, g in ipairs(wrapped and games or {}) do
+        if g.pfn and g.pfn:lower() == wrapped:lower() then
+          local want = xbox.launch_spec(g)
+          if want then
+            out[#out + 1] = { appid = unsigned(e.appid), title = g.title or g.pfn, exe = want.exe, start_dir = want.start_dir, launch_options = want.launch_options }
+          end
+          break
+        end
+      end
+    elseif pfn then
       for _, g in ipairs(games) do
         if g.pfn and g.pfn:lower() == pfn:lower() then
           local want = xbox.u0_spec(g)
@@ -252,7 +266,6 @@ function M.installed_games(ctx)
       launch = epic_local().launch_spec(g, launcher),
     }
   end
-  local overlay_opts = { overlay = require("web_config").get_xbox_overlay_workaround() }
   for _, g in ipairs(games.xbox) do
     local copy = { kind = "xbox", title = g.title, pfn = g.pfn, titleId = g.title_id, storeId = g.store_id }
     if identifier_title(g.title, g.pfn) then pcall(fill_xbox, copy, ctx) end
@@ -261,10 +274,42 @@ function M.installed_games(ctx)
     pcall(sensor.write, "STORE:SYNC_XBOX", string.format("Installed game '%s' (PFN %s): inLibrary = %s", tostring(g.title or g.pfn), tostring(g.pfn), tostring(inLib)))
     out.xbox[#out.xbox + 1] = {
       key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = inLib,
-      launch = xbox_local().launch_spec(g, overlay_opts),
+      launch = xbox_local().launch_spec(g),
     }
   end
   return out
+end
+
+--- "<pid>" lines of the running-check's output -> true when one process was listed (pure).
+function M.parse_running(output)
+  return tostring(output or ""):match("%d+") ~= nil
+end
+
+--- Is a process running from inside this package folder? One PowerShell call (about 0.5 s), so it is asked only while
+--- an Xbox game is played with the notification mute on (ADR-0065). A GDK game relaunches itself outside Steam's tree
+--- (plan F18), so Steam's own running state cannot tell when it ends; its exe still lives in its package folder.
+local function root_running(root)
+  local dir = tostring(root or ""):gsub('"', ""):gsub("\\+$", "")
+  if dir == "" then return false end
+  local cmd = "powershell -NoProfile -NonInteractive -Command \"Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith('"
+    .. dir:gsub("'", "''") .. "\\', 'OrdinalIgnoreCase') } | Select-Object -First 1 -ExpandProperty Id\""
+  local run = M.deps.run or function(c) return require("silent_exec").run(c) end
+  local ok, out = pcall(run, cmd)
+  return ok and M.parse_running(out) or false
+end
+
+--- The notification mute (ADR-0065): is this shortcut an Xbox copy, and is its game running? { xbox, running? }.
+--- Local data only.
+function M.xbox_running(appid)
+  local entry = entry_of(appid)
+  local copy = entry and M.detect(entry)
+  if not copy or copy.kind ~= "xbox" then return { xbox = false } end
+  for _, g in ipairs(installed().xbox) do
+    if g.pfn and copy.pfn and g.pfn:lower() == copy.pfn:lower() then
+      return { xbox = true, running = root_running(g.root) }
+    end
+  end
+  return { xbox = true, running = false }
 end
 
 return M

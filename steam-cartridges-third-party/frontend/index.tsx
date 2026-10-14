@@ -1,6 +1,7 @@
 import React from 'react';
 import { backend } from './backend';
 import { ThirdPartySection } from './settings/third-party';
+import { installXboxMute } from './xbox-mute';
 
 const libraryProvider = {
     id: "steam-cartridges-third-party",
@@ -54,4 +55,5 @@ function register() {
 
 export default function Entry() {
     register();
+    installXboxMute();
 }

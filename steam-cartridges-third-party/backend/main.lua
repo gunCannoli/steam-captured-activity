@@ -17,6 +17,7 @@ XboxSignInPoll           = STORE_RPC.XboxSignInPoll
 XboxSignOut              = STORE_RPC.XboxSignOut
 StoreEpicLaunchShortcuts = STORE_RPC.StoreEpicLaunchShortcuts
 StoreXboxRepairs         = STORE_RPC.StoreXboxRepairs
+StoreXboxRunning         = STORE_RPC.StoreXboxRunning
 StoreEpicPrelaunch       = STORE_RPC.StoreEpicPrelaunch
 StoreEpicReap            = STORE_RPC.StoreEpicReap
 StoreSensorLogs          = STORE_RPC.StoreSensorLogs

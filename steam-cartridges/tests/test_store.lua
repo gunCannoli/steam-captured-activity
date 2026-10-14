@@ -414,6 +414,11 @@ local rep = svc.xbox_repairs()
 check("xbox_repairs lists the shortcut that runs an older version, with the current exe", #rep == 1 and rep[1].appid == 4000000011 and rep[1].exe == [["C:\Program Files\WindowsApps\Microsoft.MicrosoftMinesweeper_4.7.9021.0_x64__8wekyb3d8bbwe\Minesweeper.exe"]], #rep)
 check("... not the up-to-date one, not the Explorer one (never converted silently)", #rep == 1)
 ENTRIES[4000000011], ENTRIES[4000000012], ENTRIES[4000000013] = nil, nil, nil
+-- ADR-0065: a shortcut still on the retired uwp_presenter wrapper goes back to the game's normal launch, options included
+ENTRIES[4000000014] = { appid = 4000000014, exe = [["C:\game\steam\millennium\plugins\steam-cartridges-third-party-dev\bin\uwp_presenter.exe"]], launch_options = [[--aumid "Microsoft.MicrosoftMinesweeper_8wekyb3d8bbwe!App" --title "Microsoft Minesweeper"]] }
+rep = svc.xbox_repairs()
+check("xbox_repairs repoints a uwp_presenter shortcut to the game's own launch", #rep == 1 and rep[1].appid == 4000000014 and rep[1].exe == '"' .. MS_GAME.root .. [[\Minesweeper.exe"]] and rep[1].launch_options == "", #rep)
+ENTRIES[4000000014] = nil
 svc.deps.xbox_local = xbox_before
 ENTRIES[4000000001] = nil
 check("an Epic game without a shortcut is not in the library", svc.installed_games({}).epic[1].inLibrary == nil)
