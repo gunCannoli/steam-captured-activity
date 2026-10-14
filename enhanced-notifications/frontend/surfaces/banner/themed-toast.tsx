@@ -1,12 +1,11 @@
 import React, { Component, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
-import { IconsModule } from '@steambrew/client';
 import { logger } from '../../logger';
 import { achievementTheme, tierFor, type LoadedAchievementTheme } from '../../theme/active-theme';
-import type { AnchorPosition, IconSlot, ResolvedTier } from '../../theme/achievements';
+import type { ResolvedTier } from '../../theme/achievements';
 import type { SteamNotification } from '../../kernel/notification';
 import { notificationStore } from '../../steam/notification-store';
-import { BANNER_CSS } from '../../banner/styles';
 import { bannerSize, placeBanner } from '../../banner/geometry';
+import { BannerCard } from './banner-card';
 import { pinToastWindow, type PinnedWindow } from './window-pin';
 import { setting } from '../../settings/settings';
 import { admit, finish, forget, MAX_QUEUE, peek, phaseOf, subscribe, type Phase } from '../../banner/queue';
@@ -21,7 +20,8 @@ import { reportError } from '../../safety/runtime';
  * dismissal. Any failure renders Steam's own toast instead, through an error
  * boundary, so a theme bug can never blank a notification.
  *
- * Supports the authentic PS5 layout, custom anchor placement, and classic layouts.
+ * The markup is ./banner-card.tsx (shared with the Theme Creator's preview); this file keeps the queue, the window
+ * pin, the popup hold and the timing.
  */
 
 interface ToastProps {
@@ -57,46 +57,6 @@ class Fallback extends Component<{ toast: ToastProps; children: ReactNode }, { f
     override render(): ReactNode {
         return this.state.failed ? renderSteam(this.props.toast) : this.props.children;
     }
-}
-
-function iconUrl(slot: IconSlot, steamDefault: string | null, assets: Map<string, string>): string | null {
-    if (slot.source === false) return null;
-    if (slot.source === true) return steamDefault;
-    return assets.get(slot.source) ?? null;
-}
-
-function Icon({
-    url,
-    scalePct = 100,
-    rippleMs = 0,
-    className,
-    fallback,
-    style,
-}: {
-    url: string | null;
-    scalePct?: number;
-    rippleMs?: number;
-    className: string;
-    fallback?: ReactNode;
-    style?: React.CSSProperties;
-}) {
-    if (!url && !fallback) return null;
-    const combinedStyle = {
-        '--ea-icon-scale': String(scalePct / 100),
-        '--ea-ripple': rippleMs > 0 ? `${rippleMs}ms` : undefined,
-        ...style,
-    } as React.CSSProperties;
-
-    return (
-        <div className={`ea-icon ${className}`} style={combinedStyle}>
-            {rippleMs > 0 && <span className="ea-ripple" />}
-            {url ? <img src={url} alt="" draggable={false} /> : fallback}
-        </div>
-    );
-}
-
-function fontWeight(style: string): React.CSSProperties {
-    return style === 'bold' ? { fontWeight: 700 } : style === 'italic' ? { fontStyle: 'italic', fontWeight: 400 } : { fontWeight: 400 };
 }
 
 /** Stable React key per notification, so a reused toast slot (Big Picture) remounts per toast. */
@@ -169,7 +129,6 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedAchievementTheme
     const { theme, assets } = loaded;
     const tier: ResolvedTier = theme.tiers[tierFor(n)];
     const banner = tier.banner;
-    const { text, icons } = tier;
     const data = n.data;
     const size = bannerSize(theme.layout, banner);
     const timing = bannerTiming(theme.animation, themedDisplayMs(theme.displayTimeMs, notificationStore()?.achievement?.pristineMs));
@@ -227,189 +186,20 @@ function ThemedBanner({ loaded, n, onDismiss }: { loaded: LoadedAchievementTheme
         onDismiss?.();
     };
 
-    const background =
-        banner.background.length > 1
-            ? `linear-gradient(${banner.gradientAngle}deg, ${banner.background.join(', ')})`
-            : banner.background[0];
-
-    const textAlign = theme.textAlign;
-    const textJustify = textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start';
-
-    const rootStyle = {
-        '--ea-inner-h': `${size.innerH}px`,
-        '--ea-pad': `${banner.padding.top}px ${banner.padding.right}px ${banner.padding.bottom}px ${banner.padding.left}px`,
-        '--ea-gap-x': `${banner.gap[0]}px`,
-        '--ea-gap-y': `${banner.gap[1]}px`,
-        '--ea-text-align': textAlign,
-        '--ea-text-justify': textJustify,
-        '--ea-in-ms': `${timing.inMs}ms`,
-        '--ea-out-ms': `${timing.outMs}ms`,
-        '--ea-display-ms': `${timing.displayMs}ms`,
-        background,
-        border: banner.border.width > 0 ? `${banner.border.width}px solid ${banner.border.color}` : 'none',
-        borderRadius: `${banner.border.radius}px`,
-        ...(theme.hover.color ? { '--ea-hover-bg': theme.hover.color } : {}),
-    } as React.CSSProperties;
-
-    if (phase === 'waiting') {
-        // The root stays mounted (ref, pin) but paints nothing and hides Steam's popup chrome.
-        return (
-            <div ref={rootRef} className="ea-banner ea-waiting">
-                <style>{BANNER_CSS}</style>
-            </div>
-        );
-    }
-
-    const SteamLogo = (IconsModule as Record<string, React.ComponentType | undefined> | undefined)?.SteamLogo;
-
-    const isExceptional = tier.tier === 'exceptional';
-    const displayTitle = (isExceptional && tier.text.titleText) || data.name();
-    const displayDesc = (isExceptional && tier.text.descText) || data.description();
-
-    const titleStyle = {
-        color: text.title.color,
-        '--ea-title-size': `calc(${text.title.sizePct / 100} * 14px)`,
-        ...fontWeight(text.title.style),
-    } as React.CSSProperties;
-
-    const descStyle = {
-        color: text.desc.color,
-        '--ea-desc-size': `calc(${text.desc.sizePct / 100} * 12px)`,
-        ...fontWeight(text.desc.style),
-    } as React.CSSProperties;
-
-    // Elements
-    const achievementUrl =
-        isExceptional && typeof icons.achievement.source === 'string'
-            ? (assets.get(icons.achievement.source) ?? null)
-            : iconUrl(icons.achievement, data.image_url() || null, assets);
-
-    const AchievementIcon = (className = 'ea-achievement') => (
-        <Icon
-            key="achievement"
-            url={achievementUrl}
-            scalePct={icons.achievement.scalePct}
-            rippleMs={icons.achievement.rippleMs}
-            className={className}
-        />
-    );
-
-    const SystemIcon = (className = 'ea-system') => (
-        <Icon
-            key="system"
-            url={iconUrl(icons.system, null, assets)}
-            scalePct={icons.system.scalePct}
-            rippleMs={icons.system.rippleMs}
-            className={className}
-            fallback={icons.system.source === true && SteamLogo ? <SteamLogo /> : undefined}
-        />
-    );
-
-    const RarityIcon = (className = 'ea-rarity') => (
-        <Icon
-            key="rarity"
-            url={iconUrl(icons.rarity, null, assets)}
-            scalePct={icons.rarity.scalePct}
-            rippleMs={icons.rarity.rippleMs}
-            className={className}
-        />
-    );
-
-    // Render by layout mode
-    let content: ReactNode = null;
-
-    if (theme.layout === 'ps5') {
-        content = (
-            <>
-                <div className="ea-zone-left">{AchievementIcon()}</div>
-                <div className="ea-zone-center">
-                    <div className="ea-row-title">
-                        {RarityIcon('ea-anchored-icon ea-rarity')}
-                        <div className="ea-title" style={titleStyle}>
-                            {displayTitle}
-                        </div>
-                    </div>
-                    <div className="ea-row-desc">
-                        <div className="ea-desc" style={descStyle}>
-                            {displayDesc}
-                        </div>
-                    </div>
-                </div>
-                <div className="ea-zone-right">{SystemIcon()}</div>
-            </>
-        );
-    } else if (theme.layout === 'custom' && theme.customLayout) {
-        const cl = theme.customLayout;
-        const inSlot = (pos: AnchorPosition) => {
-            const list: ReactNode[] = [];
-            if (cl.achievement === pos) list.push(AchievementIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-achievement' : 'ea-achievement'));
-            if (cl.rarity === pos) list.push(RarityIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-rarity' : 'ea-rarity'));
-            if (cl.system === pos) list.push(SystemIcon(pos.includes('title') || pos.includes('desc') ? 'ea-anchored-icon ea-system' : 'ea-system'));
-            return list;
-        };
-
-        content = (
-            <>
-                <div className="ea-zone-left">
-                    {inSlot('left')}
-                    {inSlot('achievement_left')}
-                </div>
-                <div className="ea-zone-center">
-                    <div className="ea-row-title">
-                        {inSlot('title_left')}
-                        <div className="ea-title" style={titleStyle}>
-                            {displayTitle}
-                        </div>
-                        {inSlot('title_right')}
-                    </div>
-                    <div className="ea-row-desc">
-                        {inSlot('desc_left')}
-                        <div className="ea-desc" style={descStyle}>
-                            {displayDesc}
-                        </div>
-                        {inSlot('desc_right')}
-                    </div>
-                </div>
-                <div className="ea-zone-right">
-                    {inSlot('right')}
-                    {inSlot('achievement_right')}
-                </div>
-            </>
-        );
-    } else {
-        // Classic default_steam, default_system_right, compact_pill
-        const showSystem = theme.layout === 'default_system_right';
-        content = (
-            <>
-                {AchievementIcon()}
-                <div className="ea-text">
-                    <div className="ea-title" style={titleStyle}>
-                        {displayTitle}
-                    </div>
-                    {theme.layout !== 'compact_pill' && (
-                        <div className="ea-desc" style={descStyle}>
-                            {displayDesc}
-                        </div>
-                    )}
-                </div>
-                <div className="ea-badges">
-                    {RarityIcon()}
-                    {showSystem && SystemIcon()}
-                </div>
-            </>
-        );
-    }
-
     return (
-        <div
-            ref={rootRef}
-            className={`ea-banner ea-layout-${theme.layout} ea-in-${theme.animation.in} ea-out-${theme.animation.out} ea-pos-${theme.position} ea-tier-${tier.tier}${theme.hover.enabled ? '' : ' ea-hover-off'}${phase === 'done' ? ' ea-done' : ''}`}
-            style={rootStyle}
+        <BannerCard
+            theme={theme}
+            tier={tier}
+            assets={assets}
+            title={data.name()}
+            description={data.description()}
+            imageUrl={data.image_url() || null}
+            phase={phase}
+            size={size}
+            timing={timing}
             onClick={dismiss}
-        >
-            <style>{BANNER_CSS}</style>
-            {content}
-        </div>
+            rootRef={rootRef}
+        />
     );
 }
 

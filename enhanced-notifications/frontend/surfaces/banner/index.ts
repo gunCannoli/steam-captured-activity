@@ -11,3 +11,6 @@ export function createBannerSurface(): Surface {
         uninstall: () => disposeToastPatch(),
     };
 }
+
+/** The banner's markup, for the Theme Creator's preview (injected by index.tsx: the settings panel never imports a surface). */
+export { BannerCard, type BannerCardProps } from './banner-card';
