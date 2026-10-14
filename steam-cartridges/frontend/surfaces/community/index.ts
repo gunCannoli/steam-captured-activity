@@ -290,6 +290,11 @@ function installCards(): void {
                         ? wrapped(type as object, (T) => (q) => jsx(T, { ...q, onMenuButton: undefined, onMenuActionDescription: undefined }))
                         : undefined;
                 }
+                if (card === "strip-click") {
+                    return deps.isEnabled("community")
+                        ? wrapped(type as object, (T) => (q) => jsx(T, { ...q, onClick: undefined }))
+                        : undefined;
+                }
                 // 2. the image viewer Steam opens on a click: the creator and date row, and no comment thread for an unknown file
                 if (typeof p.artworkURL === "string" && p.file_details === undefined && viewerMeta.has(p.artworkURL)) {
                     if (!deps.isEnabled("community")) return undefined;

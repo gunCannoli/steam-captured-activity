@@ -17,7 +17,7 @@ so § 9 is the execution record instead of mechanical before/after steps.
 ## 1. The constraint everything follows from
 
 **Millennium's Lua host runs one RPC at a time, and every download in it blocks** (WinINet FFI, `rpc_client::run`):
-proved in [the community crash investigation](steam-cartridges-community-crash-and-speed-investigation.md) § H4 and
+proved in the community crash investigation (`git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md`) § H4 and
 recorded in [ADR-0051](../decisions.md). Parallel frontend calls only queue up behind each other (measured: 3-at-a-time
 images 30.6 s, serial 10.1 s).
 

@@ -23,7 +23,7 @@ Read first: [docs/enhanced-notifications.md](../enhanced-notifications.md) (laye
 | R4 | A **preview section** in the modal that shows the theme on several toasts at once |
 | R5 | Preview sets: **4 chosen notification types**, **4 random**, **4 achievement tiers**, and similar sets |
 | R6 | **Sounds can be previewed** |
-| R7 | The AI-generated sound packs in `enhanced-notifications/themes/SteamStation/custom/sfx/` are offered in the creator |
+| R7 | The AI-generated sound packs (formerly `enhanced-notifications/themes/SteamStation/custom/sfx/`; removed from the tree with the third-party material 2026-10-14, restore with `git checkout 6ece444 -- enhanced-notifications/themes/SteamStation/custom/sfx`) are offered in the creator |
 | R8 | Those sounds are **not named ps4 / ps5 / platinum** (proprietary names, only ever a reference) |
 | R13 | Layout: **navigation on the left, preview in the middle, editor on the right**; the preview stays visible on every page |
 | R14 | With a sound pack, the user **picks the cue for each tier** (and the notification sound): Subtle, Distinct or Grand |
@@ -72,7 +72,7 @@ block with two `ButtonRow`s, "Reload themes" (`refresh()` + `reloadTheme()`) and
 settings-page layout: a left page list and a content area), `ColorPickerModal` (returns an **HSL** string),
 `SliderField`, `Dropdown`, `TextField`, `Toggle`, `Field`, `Focusable`, `ModalRoot`, `Tabs`.
 
-**The sound packs** (`themes/SteamStation/custom/sfx/`, 17 zips, untracked except 10): every zip has the same shape,
+**The sound packs** (`themes/SteamStation/custom/sfx/` at `6ece444`, 17 zips, all tracked; P1 restores them from that commit into their new home): every zip has the same shape,
 three cues, each as WAV (48 kHz, 16-bit stereo) and MP3, plus a README:
 
 | Cue in the zip | Length | Character (README) |
@@ -86,7 +86,7 @@ MP3 per pack ≈ 190 KB (all 17: ≈ 3.2 MB). WAV per pack ≈ 875 KB (all 17: �
 base64 data URL `LoadAssets` returns.
 
 **The trap this design avoids:** a theme's relative paths resolve against **its own folder** (themes.md § File paths).
-A bundled template such as `ps5.jsonc` points at `PlayStation/bronze.png` inside the bundled folder. Saved as-is into
+A bundled template such as `SteamStation.jsonc` points at `SteamStation/assets/trophy_bronze.svg` inside the bundled folder. Saved as-is into
 the user folder, every one of those paths breaks. So saving must **copy the assets the theme uses next to the saved
 theme and rewrite the paths** (§ 6.6). The same holds for the sound library.
 
@@ -928,8 +928,8 @@ Prints `PASS creator`.
 - Do not change any surface's behaviour, `steam/*`, the notification hook, the banner queue or the toast patch,
   except P3's markup move (no logic change) and P9's override reader.
 - Do not edit, add or remove bundled themes (`themes/*.json`, `themes/*.jsonc`): the user makes the shipped templates
-  (Q7). Do not touch anything under `themes/PlayStation/`, `themes/SteamStation/` (except moving the `custom/sfx/`
-  zips in P1), `themes/assets/`.
+  (Q7). Do not touch `themes/SteamStation/assets/` (`themes/PlayStation/`, `themes/assets/` and the rest of `SteamStation/`
+  were deleted 2026-10-14, release plan § 3b; P1 restores only the `custom/sfx/` zips, from `6ece444`).
 - Banned: deploy or Steam restart outside the Steam lock; SharedJSContext reload; edits to Millennium's `config.json`;
   `npm install` / upgrades; `git push --force`; `--no-verify`; AI attribution in commits (AGENTS.md Routine 6).
 - Failure rule: a failing command at most twice, then stop and record it in TASK.md § Active failures.

@@ -133,6 +133,9 @@ test('community core: vote, award, comment and Report controls go only from our 
     assert.equal(cardElement({ card: ours, onReported() {} }), 'hide', 'the Report menu button');
     assert.equal(cardElement({ card: valve, showVotingControls: true }), undefined, "Steam's own card keeps its controls");
     assert.equal(cardElement({ card: valve, onReported() {} }), undefined);
+    assert.equal(cardElement({ className: 'Avatar', strAvatarURL: CREATOR_AVATARS.igdb, size: 'Small', onClick() {} }), 'strip-click', "our author avatar opens no profile");
+    assert.equal(cardElement({ className: 'Avatar', strAvatarURL: 'https://avatars.steamstatic.com/abc_medium.jpg', onClick() {} }), undefined, "a real author's avatar keeps its click");
+    assert.equal(cardElement({ strAvatarURL: CREATOR_AVATARS.igdb }), undefined, 'nothing to strip without a click');
     assert.equal(cardElement({ card: ours, index: 0, dismissedInappropriate: false }), undefined, 'the card itself is not hidden');
     assert.equal(cardElement({ onMenuButton() {}, 'data-id': feedId(SC, 1) }), 'strip-menu');
     assert.equal(cardElement({ onMenuButton() {}, 'data-id': '3843261199' }), undefined);

@@ -36,7 +36,7 @@
 .EXAMPLE
   npm run dev
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File dev.ps1 -SteamPath "C:\game\steam"
+  powershell -ExecutionPolicy Bypass -File dev.ps1 -SteamPath "D:\Games\Steam"
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File dev.ps1 -Release
 .EXAMPLE
@@ -144,8 +144,6 @@ function Copy-PluginFiles {
   Copy-Item -Path (Join-Path $SourceRoot '.millennium') -Destination $Target -Recurse -Force
   Copy-Item -Path (Join-Path $SourceRoot 'backend') -Destination $Target -Recurse -Force
   # Bundled themes ship only the plugin's own files: the theme files and SteamStation/assets (tools/theme_assets.py).
-  # The rest of themes/ (PlayStation/, SteamStation's other files, assets/) is third-party material kept in the
-  # repo until it is removed before publishing (release plan); it is never deployed.
   $themesTarget = Join-Path $Target 'themes'
   New-Item -Path (Join-Path $themesTarget 'SteamStation') -ItemType Directory -Force | Out-Null
   Get-ChildItem -Path (Join-Path $SourceRoot 'themes') -File |

@@ -16,18 +16,15 @@ own stores — not by rebuilding the page ([ADR-0022](docs/decisions.md#adr-0022
 
 ## Now
 
-**Release fixes done 2026-10-14 (release plan § 0; ADR-0065-0067). Parity green and § 3c machine paths done (2026-10-14). Open: D1, D9, § 3b deletions, hand checks.** Release of enhanced-notifications 0.2.0 and steam-cartridges 0.1.0: [the release plan](docs/plans/release-plan.md)
-(triage 2026-10-13).** Every pending item was sorted there into cleared, blocker, hand-check, decision and after. Next:
-the user answers D1-D9 (§ 2), runs the two Big Picture spikes (§ 3, enhanced-notifications 1-2) and the hand-check session
-(§ 4); offline, one mechanical plan per code blocker (D2 store code move, ROM hashing in Lua, D3, D5, D6).
+**Release (enhanced-notifications 0.2.0, steam-cartridges 0.1.0, with steam-captured-activity and steam-cartridges-local,
+D1): every agent-side blocker is done (2026-10-14; [the release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14)).**
+D1-D9 decided, § 3b third-party material deleted, publish checklist's agent part done, community crash check (H10) done,
+Steam updated to 1791918634 with both live suites green. Left: the user's two Big Picture spikes (§ 3, EN 1-2) and
+hand-check session (§ 4); steam-cartridges-local § 11 items 4-7 need a game with Steam API emulator files in the library;
+release-day steps (versions, dated changelog entries, user READMEs, `git subtree split`, plugin database).
 
-**Xbox: overlay dropped, notification mute added (ADR-0065, 2026-10-13): coded, offline-tested, not deployed.** The
-`uwp_presenter` wrapper and every trace of it are gone; a shortcut still on it (Pool Blitz, 3436498948) is repointed by
-the Xbox repair in both steam-cartridges and third-party (exe, start folder, launch options; appid kept). New setting
-Third-party → Xbox → "Mute Steam notifications while playing" (off by default). Next, agent with the Steam lock: deploy
-steam-cartridges and steam-cartridges-third-party (`dev.ps1`, restart), then over CDP: `window.NotificationStore` has
-own `BShouldSupressToasts` / `SendPendingServerToasts` once a mute ran; Pool Blitz's shortcut runs Explorer with
-`shell:AppsFolder\...` within a minute of start-up. The user: H15 of the release plan.
+**Xbox notification mute (ADR-0065): deployed and live** (Pool Blitz repointed 2026-10-14 00:51, appid kept). Left: the
+user's H15 (release plan § 4), after this release.
 
 **enhanced-notifications B3 / B5 (consistency plan):** waiting on the user's two Big Picture runs, listed as release
 blockers (release plan § 3).

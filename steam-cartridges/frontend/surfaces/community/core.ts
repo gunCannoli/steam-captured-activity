@@ -309,7 +309,7 @@ export function isOurFeedId(id: unknown): boolean {
 }
 
 /** What to do with one jsx element of Steam's Community Content cards. */
-export type CardElement = "hide" | "strip-menu";
+export type CardElement = "hide" | "strip-menu" | "strip-click";
 
 /**
  * Steam's card renders vote, award and comment buttons (`showVotingControls` + comments) and a Report menu for every card,
@@ -327,7 +327,17 @@ export function cardElement(props: unknown): CardElement | undefined {
         return undefined;
     }
     if (typeof p.onMenuButton === "function" && isOurFeedId(p["data-id"])) return "strip-menu";
+    // The author row's avatar opens `SteamIDPage(creator.steamid)`: a made-up account on ours (D9 of the release plan).
+    // Our avatars are inline icons no real account has, so the URL alone tells the card is ours.
+    if (typeof p.onClick === "function" && isOurAvatar(p.strAvatarURL)) return "strip-click";
     return undefined;
+}
+
+const OUR_AVATARS = new Set<string>(Object.values(CREATOR_AVATARS));
+
+/** Is this one of our made-up accounts' inline avatars? O(1). */
+export function isOurAvatar(url: unknown): boolean {
+    return typeof url === "string" && OUR_AVATARS.has(url);
 }
 
 /**

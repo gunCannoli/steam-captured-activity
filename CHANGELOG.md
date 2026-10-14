@@ -7,6 +7,23 @@ see [steam-cartridges/CHANGELOG.md](steam-cartridges/CHANGELOG.md).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This repo is private and unversioned; entries are grouped by date.
 
+- **Release: recommended options taken, third-party material removed, plans pruned (2026-10-14)**, [release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14)
+  (the user: "fix what we can using recommended options"):
+  - *D1:* steam-captured-activity and steam-cartridges-local ship with steam-cartridges; third-party after.
+  - *D9:* our Community cards' author avatar no longer opens a Steam profile for the made-up source account
+    (`cardElement` → `strip-click`, matched by the inline avatar URL). Live: 23/23 rows on Chrono Trigger without a click,
+    435150's real authors keep theirs. Manual position and the 7-day manual heal left as they are.
+  - *§ 3b:* enhanced-notifications' `themes/PlayStation/`, `themes/assets/`, all of `themes/SteamStation/` but `assets/`,
+    and `examples/steam_ps_exemple.json` deleted (restorable from `6ece444`); its tests read the neutral
+    `tests/fixtures/tiered_theme.json`; `npm test` 186/186. The Theme Creator plan now restores its sound packs from `6ece444`.
+  - *Publish checklist:* steam-cartridges' pnpm files dropped; example paths in four `dev.ps1` and a README no longer name
+    this PC.
+  - *H10:* Chrono Trigger opened four times after a restart on Steam 1791918634: no crash line or crash folder, 23 cards.
+    Module ids moved with that build (cards `88317`, viewer `39608`; steam-components.md).
+  - *Plans deleted:* the community crash investigation (verified) and the features plan (F1, F2 built and in the live
+    suite; their looks are H7, H8, H11). Both readable at `6ece444`.
+  - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
+  - Live suite 12/12 after the deploy.
 - **steam-cartridges-third-party: settings read at start-up (2026-10-14).** Why Jotunnslayer's reinstall was never
   auto-added: the plugin read its settings with `pluginConfig.get`, which always rejects on this Millennium
   (Millennium#903, knowledgebase); the `.catch` fell back to the defaults, where both auto-add toggles are off. So

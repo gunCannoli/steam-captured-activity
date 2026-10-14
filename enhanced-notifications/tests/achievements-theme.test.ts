@@ -16,6 +16,12 @@ function example(name: string) {
     assert.ok(theme.achievements, `${name}: no achievements block (${theme.warnings.join('; ')})`);
     return theme.achievements;
 }
+/** The same for a test theme in tests/fixtures/ (a full tiered theme: magic 25, rare 10, one icon set per tier). */
+function fixture(name: string) {
+    const theme = resolveTheme(load(new URL('./fixtures/', import.meta.url), name));
+    assert.ok(theme.achievements, `${name}: no achievements block (${theme.warnings.join('; ')})`);
+    return theme.achievements;
+}
 /** A theme with only this `achievements` block (plus `rest` at the top level), resolved; its block. */
 const block = (achievements: unknown, rest: Record<string, unknown> = {}) => resolveTheme({ ...rest, achievements }).achievements!;
 
@@ -27,7 +33,7 @@ test('every example theme resolves, its achievements block included, without war
 });
 
 test('tiers inherit omitted keys from normal', () => {
-    const theme = example('steam_ps_exemple.json');
+    const theme = fixture('tiered_theme.json');
     // magic overrides only glow + rarity icon; text and border come from normal.
     assert.deepEqual(theme.tiers.magic.text, theme.tiers.normal.text);
     assert.deepEqual(theme.tiers.magic.banner.border, theme.tiers.normal.banner.border);
@@ -170,7 +176,7 @@ test('an empty block is a banner with every default', () => {
 });
 
 test('tier selection: exceptional > rare > magic > normal', () => {
-    const theme = example('steam_ps_exemple.json'); // magic 25, rare 10
+    const theme = fixture('tiered_theme.json'); // magic 25, rare 10
     assert.equal(selectTier(theme, { globalPct: 50, completesGame: false }), 'normal');
     assert.equal(selectTier(theme, { globalPct: 25, completesGame: false }), 'magic');
     assert.equal(selectTier(theme, { globalPct: 10, completesGame: false }), 'rare');
@@ -178,7 +184,7 @@ test('tier selection: exceptional > rare > magic > normal', () => {
 });
 
 test('no rarity data (0 / undefined) selects normal', () => {
-    const theme = example('steam_ps_exemple.json');
+    const theme = fixture('tiered_theme.json');
     assert.equal(selectTier(theme, { globalPct: 0, completesGame: false }), 'normal');
     assert.equal(selectTier(theme, { globalPct: undefined, completesGame: false }), 'normal');
 });
@@ -195,7 +201,7 @@ test('completesGame reads the pre-unlock cache entry', () => {
 
 
 test('tier: a preview id carries its own tier, whatever the thresholds', () => {
-    const t = example('steam_ps_exemple.json'); // magic 25, rare 10
+    const t = fixture('tiered_theme.json'); // magic 25, rare 10
     for (const tier of ['normal', 'magic', 'rare', 'exceptional'] as const) {
         assert.equal(previewTierOfId(`EA_PREVIEW_${tier}`), tier);
         assert.equal(tierOfNotification({ id: `EA_PREVIEW_${tier}`, globalPct: 99 }, t), tier);
@@ -204,7 +210,7 @@ test('tier: a preview id carries its own tier, whatever the thresholds', () => {
 });
 
 test('tier: the completion id is exceptional; an unknown preview suffix falls back to rarity', () => {
-    const t = example('steam_ps_exemple.json'); // magic 25, rare 10
+    const t = fixture('tiered_theme.json'); // magic 25, rare 10
     const rare = t.tiers.rare.threshold!;
     assert.equal(tierOfNotification({ id: 'EA_100_PERCENT', globalPct: 99 }, t), 'exceptional');
     assert.equal(previewTierOfId('EA_PREVIEW_bogus'), null);
@@ -213,7 +219,7 @@ test('tier: the completion id is exceptional; an unknown preview suffix falls ba
 });
 
 test('tier: a real unlock uses the theme thresholds; no theme means normal', () => {
-    const t = example('steam_ps_exemple.json'); // magic 25, rare 10
+    const t = fixture('tiered_theme.json'); // magic 25, rare 10
     const rare = t.tiers.rare.threshold!, magic = t.tiers.magic.threshold!;
     assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: rare }, t), 'rare');
     assert.equal(tierOfNotification({ id: 'ACH_1', globalPct: magic }, t), 'magic');

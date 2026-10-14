@@ -6,7 +6,7 @@
 -- required. A file that reads `fs` without `local fs = require("fs")` raises "attempt to index global 'fs'", and in
 -- Millennium 3.5.0's Lua host a type error raised from an operator (an index or arithmetic on the wrong type) kills the
 -- whole backend even inside pcall (only error() and a call of nil are caught). That is how manual_cover_store.lua
--- took the backend down on every manual (2026-10-01, docs/plans/steam-cartridges-community-crash-and-speed-investigation.md).
+-- took the backend down on every manual (2026-10-01, git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md).
 --
 -- The check reads each file's LuaJIT bytecode without running it: every GGET (a global read) must name a standard Lua
 -- global. Writes (the RPC functions main.lua exports) are GSET and are not checked.

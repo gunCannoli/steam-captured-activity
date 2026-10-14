@@ -1922,6 +1922,11 @@ for the reusable lesson and CHANGELOG.md for the fix record.
 
 ### Community Content (module `77163`, export `wb`) and Friends (module `2326`)
 
+**Module ids moved with Steam build 1791918634 (2026-10-14):** the cards and their author row (`AuthorSection`: avatar
+`b.Ul` with `strAvatarURL: creator.avatar`, `onClick: SteamIDPage(creator.steamid)`; name a plain `div`) are in module `88317`,
+the image viewer (`N`, "Created by" row: avatar `fH` with `friend`, name with `persona` and an `onContextMenu`) in `39608`.
+The ids below are the older build's; resolve by content (`showVotingControls`, `ArtworkModalDetails`), never by id.
+
 Verified live 2026-09-30 (Big Picture): a card is `Ce` > `_e` (image card `ye`, author row `ve`, menu button `Ie` with prop
 `onReported`, controls row `xe` with prop `showVotingControls`); `xe` has the award, thumbs and comments buttons. An image click
 runs `Se(event, card)`: `PublishedFile.GetDetails` for the card's id, then module `94715`'s `N({ strURL, strTitle, children:

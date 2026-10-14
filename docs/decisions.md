@@ -3044,7 +3044,7 @@ plugin, enhanced-notifications as the baseline, the achievement features as opti
 
 ## ADR-0051: Downloaded media stays on disk while its game is opened; the user sets the days
 
-**Status:** Accepted · 2026-10-01 (user decision) · **Amends [ADR-0046](#adr-0046-community-media-feeds-steams-own-community-content-loader-screenscraper-bytes-stay-in-memory)** ("No media file on disk"; the rule that no ScreenScraper URL leaves the backend stands) · Builds on [ADR-0048](#adr-0048-a-manual-is-a-cover-card-that-opens-steams-own-viewer-pdfjs-renders-its-pages-on-demand-behind-a-port) · Evidence: [the community investigation § 6](plans/steam-cartridges-community-crash-and-speed-investigation.md#6-findings-2026-10-01-second-agent)
+**Status:** Accepted · 2026-10-01 (user decision) · **Amends [ADR-0046](#adr-0046-community-media-feeds-steams-own-community-content-loader-screenscraper-bytes-stay-in-memory)** ("No media file on disk"; the rule that no ScreenScraper URL leaves the backend stands) · Builds on [ADR-0048](#adr-0048-a-manual-is-a-cover-card-that-opens-steams-own-viewer-pdfjs-renders-its-pages-on-demand-behind-a-port) · Evidence: the community investigation § 6 (done and removed: `git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md`)
 
 ### Context
 

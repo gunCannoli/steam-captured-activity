@@ -25,7 +25,7 @@
 .EXAMPLE
   npm run dev
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File dev.ps1 -SteamPath "C:\game\steam"
+  powershell -ExecutionPolicy Bypass -File dev.ps1 -SteamPath "D:\Games\Steam"
 #>
 [CmdletBinding()]
 param(

@@ -124,7 +124,7 @@ One doc per layer, updated by every change that touches the layer.
 | Expansion plugin: Third-party storefronts (Epic Games & Xbox) | [steam-cartridges-third-party.md](steam-cartridges-third-party.md) |
 | Sibling plugin: captures in every game's Activity feed (independent) | [steam-captured-activity.md](steam-captured-activity.md) |
 | Live verification baseline, rollback, open known issues | [verification.md](steam-cartridges/verification.md) |
-| Next features (Game Data editor, Media) | [plans/steam-cartridges-features-plan.md](plans/steam-cartridges-features-plan.md) |
+| Game Data editor (F1) and community media (F2): built, plan removed | `git show 6ece444:docs/plans/steam-cartridges-features-plan.md` |
 
 The `app/` and `domain/` layers have no doc of their own; their rows are in the
 README's layer list and their contracts are in the layer docs that consume them.

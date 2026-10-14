@@ -465,7 +465,9 @@ so the user's "disable community content" setting still applies). `LoadAdditiona
 Native apps keep Steam's timing. Each card's author icon is the source's own logo, inline (`icons.ts`): IGDB's published
 SVG logo in white on its brand purple rgb(145, 71, 255), and ScreenScraper's profile emblem (white background made
 transparent) as a 96 px palette PNG (6 KB); not
-Steam's "?" avatar.
+Steam's "?" avatar. The avatar is not clickable on our cards (`cardElement` → `strip-click`, matched by that inline URL, which no
+real account has): Steam's `onClick` opens `SteamIDPage(creator.steamid)`, a made-up account's profile (release plan D9,
+2026-10-14). Real authors' avatars keep their click.
 
 **Stale loader (2026-09-30).** Steam reuses the section for the next app but its `componentDidUpdate` only resets the
 placeholder rows: the loader keeps the previous app's id, page counter, cards and "out of content" state (seen live: a section for

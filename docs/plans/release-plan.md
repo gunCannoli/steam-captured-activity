@@ -1,9 +1,9 @@
 # Plan: first public release of enhanced-notifications and steam-cartridges
 
-**Status (2026-10-14):** triage done 2026-10-13; most blockers fixed 2026-10-14 (§ 0); nothing released. Every item that was pending in TASK.md and in `docs/plans/` is sorted
+**Status (2026-10-14, evening):** triage done 2026-10-13; every agent-side blocker fixed 2026-10-14 (§ 0); D1-D9 decided; nothing released. Every item that was pending in TASK.md and in `docs/plans/` is sorted
 below into **cleared** (done, or folded into one check), **blocker** (before the release), **check** (one hand-check session
 by the user), **decision** (the user's call) and **after** (not in this release). TASK.md keeps only what is open.
-**Kind:** an umbrella plan, like the features plan. Each blocker that needs code gets its own mechanical plan
+**Kind:** an umbrella plan. Each blocker that needs code gets its own mechanical plan
 ([the standard](README.md)) before anyone writes code. **Owner of the decisions:** the user.
 
 **State at triage (offline):** steam-cartridges `npm run test:ts` 347 pass / 0 fail, all 13 Lua suites pass (with
@@ -32,9 +32,16 @@ Done by the agent, offline-tested, deployed (`-dev`) and live-checked where note
 | Xbox overlay | **Dropped** (ADR-0065); opt-in Steam notification mute instead; Pool Blitz repointed live (appid kept) |
 | Parity check | **Green** (live suite 12/12, 2026-10-14). The 14 failures were a deleted test shortcut: Jotunnslayer's Epic copy was uninstalled and auto-remove took its shortcut, so `open(S)` went nowhere and every check read B's page. The test now stops when its shortcut is missing, defaults to Pool Blitz (3436498948 -> 3942580, 16 PASS + check 8 expecting no logo, which Steam has none of for that app); `test_props.mjs` also passed on missing appids, now FAILs |
 | § 3c machine paths | **Done.** No `C:/emu`, `C:/game` or user id in steam-cartridges' backend (`test_globals.lua` checks every file). Emulator folders come only from the shortcuts (`retroachievements.emulator_dirs()`, now reading the program out of a full command line) and the %APPDATA% / Documents defaults; fixed on the way: a nil first entry in each candidate list made `ipairs` skip every default folder. Live: RetroArch (signed in) and Dolphin/Primehack read as before; DuckStation, installed but run by no shortcut, is no longer listed as detected |
+| D1 companions | **Recommended option taken (the user: "fix what we can using recommended options"):** steam-captured-activity and steam-cartridges-local ship in the same wave as steam-cartridges; third-party after. Both already have `LICENSE` and a dated `CHANGELOG` (`[0.1.0] - 2026-10-07`, `[0.2.0] - 2026-10-08`) |
+| D9 small calls | **Recommended options taken.** Our cards' author avatar no longer opens `SteamIDPage` for a made-up account (`cardElement` → `strip-click`, matched by our inline avatar URL; unit-tested). Live: 23 of 23 author rows on Chrono Trigger's cards have no click, a native game's (435150) keep theirs. The manual's position and the 7-day manual heal are left as they are |
+| § 3b deletions | **Done.** `themes/PlayStation/`, `themes/assets/`, everything in `themes/SteamStation/` but `assets/`, and `examples/steam_ps_exemple.json` (its tests now read `tests/fixtures/tiered_theme.json`, same values, neutral file names). Restore any of it from `6ece444` (the Theme Creator's sound packs: `git checkout 6ece444 -- enhanced-notifications/themes/SteamStation/custom/sfx`). enhanced-notifications `npm test` 186/186 |
+| Publish checklist (agent part) | **Done.** steam-cartridges' `pnpm-lock.yaml` / `pnpm-workspace.yaml` removed; the four `dev.ps1` examples and the steam-cartridges README use `D:GamesSteam` instead of this PC's path; no `83513586`, `C:/game`, `C:game`, `C:/emu` left outside `tests/` in the four release plugins. Left for release day: versions, dated `[0.2.0]` / `[0.1.0]` entries, user READMEs |
+| H10 community crash | **Done by the agent** (desktop, Steam 1791918634): Chrono Trigger opened four times after a restart, AM2R in between; no `real-time crash` line, no new crash folder, 27 cards ready, 23 shown, 2 videos. The investigation plan is deleted (`git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md`); the features plan too (F1 and F2 built and in the live suite; their looks are H7, H8, H11) |
+| Steam update | Steam updated past the rollback to build 1791918634 (the user's call: Millennium refused `Steam.cfg`); all plugins load, both live suites pass |
+| Local § 11 | **Blocked on a test game:** items 4-7 need a shortcut with Steam API emulator files (Goldberg, CODEX, RUNE, SOVEREIGN...). Wuchang's shortcut is gone and the only PC-game shortcut left is AM2R, so nothing in the library has such files |
 | Captured-activity clips | **Not a plugin bug as far as the code shows**: no code path deletes clip files (enhanced-notifications deletes only one clip it can name as its own; four went in one second, 75 s after a Steam restart, with nothing in Steam's logs). Most likely Steam's own clean-up of clips its index lost in the GetClips-burst session (fixed `ce32f01`), or a delete in Steam's media view. Watch item, not a blocker |
 
-Still open: D1, D9, the § 3b deletions, the hand checks (§ 4), the publish checklists.
+Still open: the user's Big Picture spikes (§ 3, EN 1-2), the hand checks (§ 4), local § 11 (a test game), release-day publish steps (§ 7.4).
 
 ## 3b. Third-party material to delete before publishing (logged 2026-10-14, the user)
 
@@ -164,14 +171,14 @@ Everything that waited on "a look by the user", merged. Tick each; a failure bec
 | H7 | SC | Settings panel and its popups (Add service/source, Emulator status, Add Rule, Review, Manual Edit) | tidy-up, F1 |
 | H8 | SC | Manual Edit: set Multi-player, Co-op and a controller on a wrong game; its Game Info shows them | F1 |
 | H9 | SC | Open a few RetroAchievements games and one never opened: achievements show with the page | ADR-0060 |
-| H10 | SC | Chrono Trigger three times, then after a restart: community tab, no crash; "Cache downloaded media" slider | community investigation § 7 |
+| H10 | SC | ~~Chrono Trigger crash check~~ done by the agent (§ 0); left: the "Cache downloaded media" slider moves and saves | community investigation § 7 |
 | H11 | SC | Big Picture COMMUNITY tab: viewer layout (tall image, Close), trailers, a 20+ item feed (Super Mario World), several shortcuts in a row each show their own cards | F2 1, 5, 6 |
 | H12 | SC | Reset Achievements for WUCHANG: warning, the local toggle, popup size; Super Mario World's "Open RetroAchievements" | ADR-0054 |
 | H13 | SC | The five visual checks of [verification.md](../steam-cartridges/verification.md); choose a shortcut icon by hand and confirm it is kept | owed since M10 |
 | H14 | SCA | Its settings panel (two toggles); delete a real screenshot, its card leaves the feed on the next visit | ADR-0062 |
 | H15 | 3P | (after this release) Xbox game with "Mute Steam notifications while playing" on: no toast over the game, toasts back after quitting | ADR-0065 |
 
-When H10 passes, delete the community investigation plan. When H7 and H8 pass, mark F1 done in the features plan.
+
 
 ---
 

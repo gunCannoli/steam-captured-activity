@@ -178,7 +178,7 @@ Millennium does not ship a standalone Lua, so get one from
 [luabinaries](https://luabinaries.sourceforge.net/) and run:
 
 ```bash
-NSGA_STEAM_ROOT="C:\game\steam" lua tests/test_backend.lua
+NSGA_STEAM_ROOT="D:\Games\Steam" lua tests/test_backend.lua
 lua tests/test_steam_store.lua   # hermetic: fixtures + injected http, no Steam, no network
 ```
 

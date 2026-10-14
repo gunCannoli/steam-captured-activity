@@ -1,7 +1,8 @@
 # Plan: steam-cartridges-local owns every Steam API emulator and local-game source (ideas from PSerban93/Achievements)
 
 **Status:** phases 1-5 implemented 2026-10-08 (`9098bff`, `f8e7408`, `f76e33b`, `0536a17`, docs commit), offline-verified;
-§ 11 live verification and the optional phases 6-7 are open. **Baseline commit:** `6661a21`. **ADR:** ADR-0063 (written).
+§ 11 live verification and the optional phases 6-7 are open. **§ 11 (2026-10-14):** items 1-3 hold on every deploy (health, `test:live`; the API is now 1.2.0, ADR-0067); items 4-7
+wait for a test game: Wuchang's shortcut is gone and no shortcut left in the library has Steam API emulator files. **Baseline commit:** `6661a21`. **ADR:** ADR-0063 (written).
 Deviations found while executing: the full TS suite counts 347, not 346 (`app-routing.test.ts` imports `architecture.test.ts`,
 so each architecture test runs twice); `test_achievements_reset.lua` prints `23 passed`.
 **Executor:** an implementing agent, phase by phase. Each phase ends green and is committed on its own; stop after any phase and the

@@ -1,4 +1,4 @@
-// Community crash investigation (docs/plans/steam-cartridges-community-crash-and-speed-investigation.md): call the backend's
+// Community crash investigation (git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md): call the backend's
 // RPCs directly, the way the frontend does, one step at a time, and say after each step whether the backend still answers.
 // Needs the Steam lock (a crash takes the backend down until Steam restarts). Never prints a payload, only sizes.
 //   node tests/live/probes/rpc_repro.mjs <steps> [appid=2710585679]

@@ -307,7 +307,7 @@ lookups in one `EnsureFresh`) should not be forced twice; read the stored result
    nil are caught normally. The answer of the call usually still arrives; the host dies right after it, so the *next*
    RPC is the one that fails. Seen as: the COMMUNITY tab of every shortcut with a manual crashed the backend, because
    `manual_cover_store.lua` read the global `fs` (Millennium's `fs` is preloaded, never a global) inside a `pcall`
-   (2026-10-01, [investigation](plans/steam-cartridges-community-crash-and-speed-investigation.md)). The one dump it
+   (2026-10-01, investigation, removed once verified: `git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md`). The one dump it
    left shows a C++ `std::bad_alloc` thrown while the host copied an RPC result, then a crash in nlohmann::json's
    destructor during the unwind: memory damaged by the error, not a real shortage (47 GB of commit was free).
 
