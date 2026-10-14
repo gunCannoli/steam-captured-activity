@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-import { ConfirmModal, DialogButton, Dropdown, Field, PanelSection, SliderField, TextField } from "@steambrew/client";
+import { ConfirmModal, DialogButton, Dropdown, Field, SliderField, TextField } from "@steambrew/client";
 import { originOf, effectiveValue, modePath, type CreatorDraft, type Origin, type Path } from "../../theme/draft";
 import type { ThemeMode } from "../../theme/theme";
 import type { SoundLibraryManifest } from "../../rpc";
@@ -35,6 +35,8 @@ export interface CreatorApi {
     refreshFiles(): void;
     /** The user themes folder (Open in the sound picker). */
     openFolder(): void;
+    /** The creator's own window: the parent of every dialog it opens. */
+    window(): Window;
 }
 
 export const CreatorContext = createContext<CreatorApi | null>(null);
@@ -146,6 +148,7 @@ function labelOf<T>(options: { value: T; label: string }[], o: Origin): string {
 
 /** A colour row: label, the hex as description, a swatch that opens Steam's colour picker, and ✕ when removable. */
 export function ColourRow({ label, value, onChange, onRemove }: { label: string; value: string; onChange: (hex: string) => void; onRemove?: () => void }) {
+    const api = useCreator();
     const open = () => {
         const [h, s, l, a] = hexToHsl(isHex(value) ? value : "#ffffff");
         showDialog(
@@ -156,6 +159,7 @@ export function ColourRow({ label, value, onChange, onRemove }: { label: string;
                 onPick={(hex) => onChange(hex)}
             />,
             { strTitle: label, popupWidth: 460, popupHeight: 620 },
+            api.window(),
         );
     };
     return (
@@ -196,7 +200,7 @@ function ColourDialog({ title, hex, hsl, onPick, closeModal }: { title: string; 
             closeModal={closeModal}
             onOK={() => onPick(current)}
             strDescription={
-                <PanelSection>
+                <div>
                     <ItemRow>
                         <div style={{ height: 40, borderRadius: 4, border: "1px solid rgba(255,255,255,0.3)", background: `linear-gradient(${current}, ${current}), repeating-conic-gradient(#808080 0 25%, #c0c0c0 0 50%) 0 0 / 12px 12px` }} />
                     </ItemRow>
@@ -225,7 +229,7 @@ function ColourDialog({ title, hex, hsl, onPick, closeModal }: { title: string; 
                             }}
                         />
                     </ItemRow>
-                </PanelSection>
+                </div>
             }
         />
     );

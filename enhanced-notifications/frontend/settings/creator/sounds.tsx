@@ -231,6 +231,7 @@ function openPicker(api: CreatorApi, target: SoundTarget, current: string | null
             <SoundPicker api={api} target={target} current={current} />
         </CreatorContext.Provider>,
         { strTitle: "Choose a sound", popupWidth: 520, popupHeight: 640 },
+        api.window(),
     );
 }
 
@@ -262,7 +263,7 @@ function SoundPicker({ api, target, current, closeModal }: { api: CreatorApi; ta
             onOK={use}
             closeModal={closeModal}
             strDescription={
-                <PanelSection>
+                <div>
                     <Blocks>
                         <FullWidthRows label="Source">
                             <Dropdown
@@ -321,7 +322,7 @@ function SoundPicker({ api, target, current, closeModal }: { api: CreatorApi; ta
                             <ControlledSliderRow label="Volume" value={volume} min={0} max={100} suffix=" %" onChange={setVolume} />
                         </>
                     </Blocks>
-                </PanelSection>
+                </div>
             }
         />
     );

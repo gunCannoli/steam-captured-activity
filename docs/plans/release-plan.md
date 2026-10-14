@@ -37,7 +37,8 @@ Done by the agent, offline-tested, deployed (`-dev`) and live-checked where note
 | § 3b deletions | **Done.** `themes/PlayStation/`, `themes/assets/`, everything in `themes/SteamStation/` but `assets/`, and `examples/steam_ps_exemple.json` (its tests now read `tests/fixtures/tiered_theme.json`, same values, neutral file names). Restore any of it from `6ece444` (the Theme Creator's sound packs: `git checkout 6ece444 -- enhanced-notifications/themes/SteamStation/custom/sfx`). enhanced-notifications `npm test` 186/186 |
 | Publish checklist (agent part) | **Done.** steam-cartridges' `pnpm-lock.yaml` / `pnpm-workspace.yaml` removed; the four `dev.ps1` examples and the steam-cartridges README use `D:GamesSteam` instead of this PC's path; no `83513586`, `C:/game`, `C:game`, `C:/emu` left outside `tests/` in the four release plugins. Left for release day: versions, dated `[0.2.0]` / `[0.1.0]` entries, user READMEs |
 | H10 community crash | **Done by the agent** (desktop, Steam 1791918634): Chrono Trigger opened four times after a restart, AM2R in between; no `real-time crash` line, no new crash folder, 27 cards ready, 23 shown, 2 videos. The investigation plan is deleted (`git show 6ece444:docs/plans/steam-cartridges-community-crash-and-speed-investigation.md`); the features plan too (F1 and F2 built and in the live suite; their looks are H7, H8, H11) |
-| Steam update | Steam updated past the rollback to build 1791918634 (the user's call: Millennium refused `Steam.cfg`); all plugins load, both live suites pass |
+| Steam update | Steam updated past the rollback to build 1791918634 (the user's call: Millennium refused `Steam.cfg`); all plugins load. It broke two enhanced-notifications lookups, fixed the same day: the toast dispatcher (banner off) and Steam's sized `showModal`. Every live suite green after that, Big Picture checks included |
+| Theme Creator | **Built** (ADR-0069) with a Big Picture look per theme (ADR-0068); in enhanced-notifications 0.2.0. Its look is the user's (H16) |
 | Local § 11 | **Blocked on a test game:** items 4-7 need a shortcut with Steam API emulator files (Goldberg, CODEX, RUNE, SOVEREIGN...). Wuchang's shortcut is gone and the only PC-game shortcut left is AM2R, so nothing in the library has such files |
 | Captured-activity clips | **Not a plugin bug as far as the code shows**: no code path deletes clip files (enhanced-notifications deletes only one clip it can name as its own; four went in one second, 75 s after a Steam restart, with nothing in Steam's logs). Most likely Steam's own clean-up of clips its index lost in the GetClips-burst session (fixed `ce32f01`), or a delete in Steam's media view. Watch item, not a blocker |
 
@@ -176,6 +177,7 @@ Everything that waited on "a look by the user", merged. Tick each; a failure bec
 | H12 | SC | Reset Achievements for WUCHANG: warning, the local toggle, popup size; Super Mario World's "Open RetroAchievements" | ADR-0054 |
 | H13 | SC | The five visual checks of [verification.md](../steam-cartridges/verification.md); choose a shortcut icon by hand and confirm it is kept | owed since M10 |
 | H14 | SCA | Its settings panel (two toggles); delete a real screenshot, its card leaves the feed on the next visit | ADR-0062 |
+| H16 | EN | Theme Creator: open it from Theme, start from a template, change a few things in Desktop and in Big Picture, listen to a sound pack, Save as, Test on screen; then the saved theme in Big Picture | ADR-0068, ADR-0069 |
 | H15 | 3P | (after this release) Xbox game with "Mute Steam notifications while playing" on: no toast over the game, toasts back after quitting | ADR-0065 |
 
 
@@ -189,7 +191,7 @@ Everything that waited on "a look by the user", merged. Tick each; a failure bec
   Microsoft app id, the live checks list), and H15. Xbox overlay work is dropped for good (ADR-0065).
 - **enhanced-notifications:** B4 (sounds as a schedule), B6's in-game group in `run-live.mjs`, B7's C10 (Warning-size
   re-measure), ADR-0061's "no recording available" tile after a capture (compare with a manual Ctrl+F11 first), Steam's own
-  toasts honouring `popup.scale` / `popup.layout`, the Theme Creator (P1, P2 first).
+  toasts honouring `popup.scale` / `popup.layout`, the Theme Creator's "not built" items (plan § 14).
 - **steam-cartridges:** `achievements.json` split (schemas vs unlocks) and dataflow phase 5; local split phases 6-7;
   achievement timeline markers for shortcuts; wrapping `LoadCacheFile`; the F30 ratchet rule; ScreenScraper videos and
   IGDB links; Phase 9 provider contract and the provider extraction; SteamGridDB filter rules.

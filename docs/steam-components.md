@@ -1256,6 +1256,14 @@ Plugins do not need custom modal overlays in Big Picture Mode. Steam provides a 
 
 Module `13869` exports `pg` (`showModal`):
 
+> **Steam build 1791918634 (verified live 2026-10-14):** the module is `12302`; `mK(modal, window, props)` is the sized
+> `showModal` (`popupWidth` / `popupHeight`, `bNeverPopOut`, `bForcePopOut`) and `pg` is the same with
+> `bHideMainWindowForPopouts: true`. Its measuring call moved into a helper, so `RequestModalMeasure` is in the module but
+> no longer in the export's own source: resolve by module (`RequestModalMeasure` and `bNeverPopOut`) and export
+> (`bNeverPopOut` and `popupWidth`), as `enhanced-notifications/frontend/steam/modal.ts` does. Millennium's own
+> `showModal` (the fallback) renders without Steam's `ConfigContextRoot`, which logs "Trying to use ConfigContext without
+> a provider" for every dialog.
+
 ```ts
 import { showModal } from '@steambrew/client'; // Or req(13869).pg
 

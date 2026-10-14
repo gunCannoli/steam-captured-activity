@@ -13,12 +13,12 @@ merged into this plugin; its history is in git, `git log -- enhanced-achievement
 | --- | --- | --- |
 | Safety | `frontend/safety/` | Kill switches, error budget, boot sentinel / safe mode |
 | Kernel | `frontend/kernel/` | The `Surface` contract, the notification shape and the synthetic achievement ids, the event bus, the toast selector type, the Reset Achievements types |
-| Pure domain | `theme/{theme,achievements,schema,placement,jsonc}.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts`, `surfaces/*/{sound,duration}.ts`, `surfaces/preview/pick.ts`, `surfaces/style/type-source.ts`, `surfaces/toasts/completion.ts`, `surfaces/reset/reset.ts`, `sensors/unlock/unlock.ts` | Themes (one style for every notification, plus the optional `achievements` block) and their CSS; where a desktop toast goes; the banner's geometry, timing and scheduler; capture planning; the sound decision; the duration plan; the random preview pick. No Steam, SDK, React or logger |
-| Steam access | `frontend/steam/` | Finding Steam's objects (`notification-store.ts`, `selectors.ts`, `webpack.ts`, `modal.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`), the `PopNextToastNotification` wrapper (`toast-pop.ts`), the jsx runtime hook shared with steam-cartridges (`jsx-hook.ts`), the toasts-off flag |
+| Pure domain | `theme/{theme,achievements,schema,placement,jsonc,draft}.ts`, `banner/{geometry,timing,queue,styles}.ts`, `capture/plan.ts`, `surfaces/*/{sound,duration}.ts`, `surfaces/preview/pick.ts`, `surfaces/style/type-source.ts`, `surfaces/toasts/completion.ts`, `surfaces/reset/reset.ts`, `sensors/unlock/unlock.ts` | Themes (one style for every notification, plus the optional `achievements` block) and their CSS; where a desktop toast goes; the banner's geometry, timing and scheduler; capture planning; the sound decision; the duration plan; the random preview pick; the Theme Creator's theme document (`draft.ts`). No Steam, SDK, React or logger |
+| Steam access | `frontend/steam/` | Finding Steam's objects (`notification-store.ts`, `selectors.ts`, `webpack.ts`, `modal.ts`), the one `PlayNotificationSound` hook (`notification-hook.ts`), the `PopNextToastNotification` wrapper (`toast-pop.ts`), the jsx runtime hook shared with steam-cartridges (`jsx-hook.ts`), the toasts-off flag, Steam's UI mode (`ui-mode.ts`) |
 | Sensor | `frontend/sensors/unlock/` | Sees an achievement toast shown and emits `achievement.unlocked` once, one macrotask later |
 | Surfaces | `frontend/surfaces/` | The only code that writes into Steam: `style` (with `style/toast-window.ts`), `sound`, `duration`, `preview`, `banner`, `toasts`, `captures`, `reset`. `surfaceStatus()` shows which installed |
 | Composition root | `frontend/index.tsx` | Start-up order, wiring, `bannerDraws`, the public exports |
-| Settings panel | `frontend/settings/` | `settings-panel.tsx` (the sections), `rows.tsx` (rows and spacing, [guardrail 18](plugins.md#18-settings-panel-layout-reference-enhanced-notifications)) |
+| Settings panel | `frontend/settings/` | `settings-panel.tsx` (the sections), `rows.tsx` (rows and spacing, [guardrail 18](plugins.md#18-settings-panel-layout-reference-enhanced-notifications)), `creator/` (the Theme Creator modal; `creator/model.ts` is pure) |
 
 ## One theme, two looks
 
@@ -39,6 +39,14 @@ the theme has an `achievements` block, the jsx patch is live and the `banner` sw
 the banner draws it (`surfaces/banner`); the style surface gives its window no `data-en-type`, its desktop remap passes
 the popup through, and in Big Picture the placeholder takes the banner's corner. Otherwise the achievement toast is
 styled like every other toast. The surfaces get `bannerDraws` injected: a surface never imports another.
+
+**Desktop and Big Picture** ([ADR-0068](decisions.md#adr-0068-a-theme-can-have-its-own-big-picture-look-bigpicture-block-enhanced-notifications)).
+A theme's optional `bigpicture` block is merged over the rest in Big Picture (`mergeOverride`: objects key by key, other
+values whole, `null` removes); `resolveTheme` returns it as `ResolvedTheme.bigPicture`. Every read in
+`active-theme.ts` takes a mode, defaulting to Steam's current one (`steam/ui-mode.ts`, injected by `index.tsx` through
+`setModeSource`), and caches per mode; both looks share one asset load. The style surface picks per window: Big Picture's
+toast views get the Big Picture CSS and placement, every other window the desktop CSS. A mode switch re-runs the
+theme's listeners only when the theme has the block.
 
 ## Safety net
 
@@ -204,9 +212,25 @@ Achievements: a non-Steam game's confirm popup lists where its unlocks also live
 resettable source and a warning built by `resetWarning` in `kernel/reset.ts`, ADR-0054). There are no style, sound or display-time switches: a theme that leaves a key out gets Steam's own, and
 "Steam default" (`theme` = `STEAM_DEFAULT_THEME`, `theme/schema.ts`) loads no theme at all
 ([ADR-0053](decisions.md#adr-0053-enhanced-notifications-has-no-style-sound-or-display-time-switches-steam-default-is-a-theme)).
-`onPreview`, `previewOptions`, `onPreviewTier` and `achievementReset` are injected by `index.tsx`. A random preview's achievement is the banner's own
+`onPreview`, `previewOptions`, `onPreviewTier`, `achievementReset` and `creator` are injected by `index.tsx`. A random preview's achievement is the banner's own
 synthetic preview (`previewTier`), never Steam's `TestAchievement`, whose real achievement id the sensor would take
 for an unlock.
+
+**Theme Creator** (`settings/creator/`, [the plan](plans/enhanced-notifications-theme-creator-plan.md)). A button in the Theme
+section opens a popout: navigation, the preview (a sticky stage that never remounts, with a Desktop / Big Picture
+switch) and the editor, then one action row (undo/redo, Save as, Save, Close). It edits a draft (`theme/draft.ts`: the
+raw theme by path, so the preview runs the plugin's own `resolveTheme`); in Big Picture mode every control writes the
+`bigpicture.*` key and shows "From desktop" until set. Notification toasts on the stage are a mock styled by the
+plugin's own `buildCss` through a selector set for the mock (`root` parameter), so the stage needs nothing from Steam's
+stylesheets; achievement banners are the real markup, `BannerCard` (`surfaces/banner/banner-card.tsx`), injected by
+`index.tsx` with the rest of `CreatorDeps` (previews, a sample game, can-test). Bundled themes are templates (Save as
+only); saving copies every file the theme names (and library cues) into `<user themes>/<name>/` (`copyPlan`). The
+creator's dialogs open over its own window (`showDialog(..., parent)`). Two writers that are not Steam targets: theme
+files, only through the backend's `SaveTheme` / `DeleteTheme` (user folder only, every copy checked before anything is
+written, the theme file through a temp file); and "Test on screen", only through `active-theme.ts` `loadDraft` /
+`clearDraft` (memory, at most 2 minutes, ended by any theme reload; an architecture test keeps every other file off
+`loadDraft`). The sound library is `themes/sounds/` (17 packs x Subtle / Distinct / Grand WAV, `library.json`,
+`tools/import-sfx.mjs`, the `SoundLibrary` RPC). No feature id: the creator writes nothing into Steam.
 
 Spacing: a **block** is a group of rows that read as one card; blocks in a section are `BLOCK_GAP` (22 px) apart, set
 only by `<Blocks>`. Steam's `SliderField` and `TextField` end with 22 px of blank space of their own, which `ItemRow
@@ -224,9 +248,10 @@ on a row.
 
 | Command | What it proves |
 | --- | --- |
-| `npm test` | Pure modules: themes, JSONC and CSS (`theme.test.ts`), the `achievements` block and its inheritance (`achievements-theme.test.ts`), safety, the hook and its composition with a second copy, the sound decision, the duration plan, the surface runner (`notifications.test.ts`), the unlock sensor, queued banner sounds, the 100% toast and the banner lifetime (`achievements.test.ts`), the scheduler, timing, geometry, capture plan, kernel, Reset Achievements, placement, the Big Picture type source |
-| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`), and a popup's `MoveTo` has exactly its two writers; no two surfaces declare the same target; every RPC is registered in `backend/main.lua`; `steam/jsx-hook.ts` matches steam-cartridges' copy; every live script is in `tests/run-live.mjs` |
-| `npm run test:live` | Every live check against the running client, settings snapshotted and restored; fails at once if enhanced-achievements is still loaded. Notification style: `safety`, `previews`, `sound-duration`, `notifications-queue`, `placement` (turns the queue off: it checks stacking), `bigpicture`. Achievement banner (theme `ps5`): `achievements-smoke`, `-tiers`, `-safety`, `-queue`, `-captures`, `-settings` (SKIP without a theme with tier sounds), `-reset`, `-bigpicture`. The Big Picture checks SKIP unless Big Picture is open; run them with Big Picture in front |
+| `npm test` | Pure modules: themes, JSONC and CSS (`theme.test.ts`), the `achievements` block and its inheritance (`achievements-theme.test.ts`), safety, the hook and its composition with a second copy, the sound decision, the duration plan, the surface runner (`notifications.test.ts`), the unlock sensor, queued banner sounds, the 100% toast and the banner lifetime (`achievements.test.ts`), the scheduler, timing, geometry, capture plan, kernel, Reset Achievements, placement, the Big Picture type source, the Big Picture look (`theme.test.ts`), the creator's draft and model (`draft.test.ts`, `creator.test.ts`) |
+| `npm test` → `tests/architecture.test.ts` | No new cross-area import (ratchet on `tests/architecture-allowlist.json`, empty and staying empty); pure files stay pure; one owner per Steam target (the table above, as `OWNERS`), and a popup's `MoveTo` has exactly its two writers; no two surfaces declare the same target; every RPC is registered in `backend/main.lua` (the whole list); only `active-theme.ts` and `settings/creator/` touch `loadDraft`; `steam/jsx-hook.ts` matches steam-cartridges' copy; every live script is in `tests/run-live.mjs` |
+| `npm run test:lua` | The backend (`tests/test_backend.lua`, its own stubs): SaveTheme's name and path rules, refused copies, atomic write, overwrite and backup; DeleteTheme only in the user folder; ListThemeAssets' roots; ListThemes never lists the sound library |
+| `npm run test:live` | Every live check against the running client, settings snapshotted and restored; fails at once if enhanced-achievements is still loaded. Notification style: `safety`, `previews`, `sound-duration`, `notifications-queue`, `placement` (turns the queue off: it checks stacking), `bigpicture`, `bigpicture-look` (ADR-0068). Theme Creator: `creator` (template, Big Picture edit, Save as, its files, Test on screen, Delete, through the UI). Achievement banner (theme `ps5`): `achievements-smoke`, `-tiers`, `-safety`, `-queue`, `-captures`, `-settings` (SKIP without a theme with tier sounds), `-reset`, `-bigpicture`. The Big Picture checks SKIP unless Big Picture is open; run them with Big Picture in front |
 
 ## How to add a feature
 

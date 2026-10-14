@@ -31,8 +31,10 @@ const checks = [
     { file: 'achievements-queue.mjs', must: /^PASS {2}queue off: never Steam fallback toast/m },
     { file: 'achievements-captures.mjs', must: /^PASS {2}settings restored/m },
     { file: 'achievements-settings.mjs', must: /^(PASS|SKIP) /m },
+    { file: 'creator.mjs', must: /^PASS {2}creator$/m },
     { file: 'achievements-reset.mjs', must: /^PASS {2}switched off: unavailable/m },
     { file: 'bigpicture.mjs', must: /^(PASS {2}Big Picture: settings reset|SKIP {2}Big Picture is not open)/m },
+    { file: 'bigpicture-look.mjs', must: /^(PASS {2}settings restored, temp theme removed|SKIP {2}Big Picture is not open)/m },
     { file: 'achievements-bigpicture.mjs', theme: 'ps5', must: /^PASS {2}themed banner in Big Picture/m, skipWhen: /is Big Picture open\?/ },
 ];
 

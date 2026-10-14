@@ -19,6 +19,8 @@ export interface Sample {
 
 /** Sample text per preview id (surfaces/preview: Steam's test toasts). `{game}` is the sample game's name. */
 export const SAMPLES: Record<string, Sample> = {
+    // An achievement drawn as a notification (no banner): `{game}` is the achievement's name here.
+    Achievement: { title: 'Achievement unlocked', body: '{game}', icon: 'game' },
     DownloadComplete: { title: 'Download complete', body: '{game}', subtext: 'Ready to play', icon: 'download' },
     GameRecordingInstantClip: { title: 'Clip saved', body: '15 seconds', icon: 'clip' },
     GameRecordingStart: { title: 'Recording started', body: '{game}', icon: 'clip' },

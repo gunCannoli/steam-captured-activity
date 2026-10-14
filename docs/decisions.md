@@ -3720,3 +3720,38 @@ a theme tuned for a monitor could only be tuned for a TV by editing the file by 
 
 - Every read in `active-theme.ts` takes an optional mode; caches are per mode.
 - The desktop in-game overlay is desktop (its toasts are desktop popups); Big Picture's in-game overlay is Big Picture.
+
+## ADR-0069: The Theme Creator (enhanced-notifications)
+
+**Status:** Accepted · 2026-10-14 (the user's requirements R1-R16 and answers Q1-Q9 in
+[the plan](plans/enhanced-notifications-theme-creator-plan.md); "execute the plan, use recommended options") · builds on
+ADR-0052/0053 (themes are hand-editable JSONC; Steam default is a theme) and ADR-0068 (the Big Picture look)
+
+### Decision
+
+1. **A popout in the settings panel**, desktop only (Millennium's plugin settings are), with a Desktop / Big Picture
+   switch: the preview draws that mode and the editor edits that mode's keys (`bigpicture.*`). Navigation, preview and
+   editor side by side; the preview never remounts.
+2. **The draft is the raw theme JSON** edited by path (`theme/draft.ts`); the preview resolves it with the plugin's own
+   `resolveTheme`; unknown keys survive. The creator writes its own formatted JSONC (comments are not kept; a `.bak` is
+   made before overwriting a commented file).
+3. **Bundled themes are templates**: Save as only, never saved over; only the user's own themes are saved and deleted.
+   Saving copies every file the theme names (template assets, library cues) into `<user themes>/<name>/` and rewrites
+   the paths, so a saved theme never depends on the plugin folder.
+4. **The preview draws mock toasts** styled by the plugin's own CSS builder through a selector set for the mock (no
+   dependence on Steam's stylesheets being in the popout), and the **real banner markup** (`BannerCard`, injected).
+   "Test on screen" is the ground truth: the draft becomes the active theme in memory for at most 2 minutes
+   (`loadDraft` / `clearDraft`), never through the `theme` setting or a file.
+5. **No feature id, no Steam target**: the creator writes theme files through the backend (user folder only, every copy
+   checked first, atomic write) and nothing into Steam.
+6. **The sound library ships as WAV** (17 procedurally generated packs, Subtle / Distinct / Grand), never named after a
+   console; the source zips stay out of the plugin (`assets-src/`, git history `6ece444`).
+7. **Its dialogs open over its own window** (`showDialog(..., parent)`), the colour picker is built from Steam's own
+   sliders and text field (the SDK's `ColorPickerModal` leans on gamepad slider classes).
+
+### Consequences
+
+- The mock can drift from Steam's real toast after a Steam update; Test on screen shows the truth.
+- Not built (plan items left for later): previewing a template on hover in the Start page, a Go button per theme
+  warning, a native file picker for importing images and sounds (the theme folder plus Rescan instead), playing Steam's
+  own chime in the preview (it plays with Test on screen).

@@ -1,7 +1,8 @@
 # enhanced-notifications: Theme Creator (design and phased plan)
 
-**Status (2026-10-04):** design, nothing coded. The user answered § 3.2 the same day; P1 (sound library) and P2 (pure
-groundwork) can start, the spikes in § 8 before P6.
+**Status (2026-10-14):** **built, P1-P10** (§ 14, ADR-0069), with the user's addition of a Desktop / Big Picture mode
+(ADR-0068: a theme's `bigpicture` block). Live: `tests/creator.mjs` 15/15, the whole live suite green on Steam 1791918634.
+Left: § 14 "Not built", and the user's look at it.
 **This plan's job:** what the Theme Creator is, how it looks, how it fits the plugin's architecture, and the order it
 is built in. It is the **feature design**. Each phase in § 9 gets its own mechanical plan (literal before/after blocks,
 the [plan writing standard](README.md)) when it starts, written against the files as they are then. Writing those
@@ -933,3 +934,49 @@ Prints `PASS creator`.
 - Banned: deploy or Steam restart outside the Steam lock; SharedJSContext reload; edits to Millennium's `config.json`;
   `npm install` / upgrades; `git push --force`; `--no-verify`; AI attribution in commits (AGENTS.md Routine 6).
 - Failure rule: a failing command at most twice, then stop and record it in TASK.md § Active failures.
+
+
+---
+
+## 14. Execution record (2026-10-14)
+
+Built in order, each phase committed green (`npm run check`, `npm test` 205, `npm run test:lua` 27, `npm run build`):
+
+| Phase | Commit | Notes |
+| --- | --- | --- |
+| P0 (added) Big Picture look | `d8e10ac` | The user: "add normal and big picture modes ... since on big picture mode we cant open millenium options". ADR-0068: `bigpicture` block, per-window CSS, Big Picture placement, sound / durations / banner by Steam's UI mode. Live: `tests/bigpicture-look.mjs` 8/8 in Big Picture |
+| P1 sound library | `2631b18` | 17 packs, 51 WAVs (two Grand cues are 2.10 s, inside the ± 0.1 s), `library.json` with each cue's measured length, `SoundLibrary`, `dev.ps1` deploys `themes/sounds/`. The zips are in `assets-src/sfx/` (ignored), restorable from `6ece444` |
+| P2 pure groundwork | `f06489d` | `theme/draft.ts` (with `modePath` / `viewOf` / `originOf` for Big Picture: set, From desktop, inherited, Steam's), `settings/creator/model.ts`, `buildCss` / `buildAnimationCss` `root`, `soundSpecFor`. Every bundled theme round-trips through `serialize` |
+| P3 BannerCard | `121aeaa` | Achievement live checks pass unchanged (after the dispatcher fix below) |
+| P4 backend writes | `e1c2211` | `SaveTheme`, `DeleteTheme`, `ListThemeAssets`; Lua suite with its own stubs (`tests/test_backend.lua`) |
+| P5 spikes | (this record) | See below |
+| P6-P9 modal, pages, preview, Test on screen | `5fc734b` + fixes | Live-checked by screenshot and `tests/creator.mjs` |
+| P10 docs | this commit | ADR-0069, enhanced-notifications.md, themes.md, CHANGELOG, TASK |
+
+**Spikes (§ 8), as answered:**
+
+- **S1/S2 (Steam's toast CSS / real markup in the popout):** made moot. The stage styles its own mock elements with the
+  plugin's `buildCss` through a mock selector set, so it needs neither. Baseline look: Steam's measured template heights
+  (70 / 40 px) and hover gradient, other values approximated (S9 not measured).
+- **S3 (ColorPickerModal in a popout):** not used; the creator's own picker (Steam's sliders and text field) instead.
+- **S4 (native file dialog):** not built; the sound picker and icon slots list the theme folder's files, with Open and
+  Rescan.
+- **S5 (Steam's chime):** not played in the preview; its rows say "plays with Test on screen".
+- **S6 (popout size):** the dialog opens at the clamped size (1100-1280 x 720-860) once Steam's `showModal` is found again
+  (it moved in Steam 1791918634, steam-components.md).
+- **S7 (Settings sidebar classes):** not used; the navigation has its own small style in Steam's colours.
+- **S8:** `ListThemes` never lists `sounds/library.json` (Lua test).
+
+**Deviations from the design:** the colour picker is the creator's own (S3); the creator's dialogs open over its own
+window, not as separate popouts (parenting them to the creator window); "Choose notifications" is four inline dropdowns
+instead of a popup; the theme warnings are rows without a Go button; the Start page does not preview a template on hover.
+
+**Found on the way (not the creator's):** Steam 1791918634 broke two lookups, both fixed: the toast dispatcher (a table
+lookup replaced the `switch`; the banner had been off since the update) and Steam's `showModal` (dialogs fell back to
+Millennium's, unsized). Steam's `ConfirmModal` logs "Trying to use ConfigContext without a provider" once or twice per
+dialog under this build, with nothing failing to render (also a plain text dialog): a known issue, not the creator's.
+`tests/bigpicture.mjs` measured "Steam's place" with the user's theme active and wiped the stored settings when run
+alone; it now measures with Steam default and restores the settings.
+
+**Not built** (ADR-0069 consequences): template preview on hover, a Go button per warning, a native file picker, the
+Steam chime in the preview.

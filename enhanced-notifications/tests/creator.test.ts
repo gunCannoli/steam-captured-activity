@@ -8,17 +8,19 @@ import {
 import { getAt, libraryPath, type CreatorDraft } from '../frontend/theme/draft.ts';
 import { resolveTheme, soundSpecFor } from '../frontend/theme/theme.ts';
 
+/** The notification ids the creator shuffles from (never Achievement; the UI filters it out the same way). */
+const NOTES = Object.keys(SAMPLES).filter((id) => id !== 'Achievement');
 const draft = (raw: Record<string, unknown> = {}): CreatorDraft => ({ name: 'mine', origin: { kind: 'fresh' }, raw, pendingCopies: {} });
 
 test('preview sets: four items, never Achievement among notifications, distinct random picks', () => {
     for (const set of PREVIEW_SETS) {
-        const items = previewItems(set.id, DEFAULT_CHOSEN, randomFour(Object.keys(SAMPLES)));
+        const items = previewItems(set.id, DEFAULT_CHOSEN, randomFour(NOTES));
         assert.equal(items.length, 4, set.id);
     }
     assert.deepEqual(previewItems('choose', ['Achievement', ...DEFAULT_CHOSEN], []).map((i) => (i.kind === 'notification' ? i.id : i.tier)), DEFAULT_CHOSEN);
     assert.deepEqual(previewItems('tiers', [], []).map((i) => (i.kind === 'achievement' ? i.tier : '')), ['normal', 'magic', 'rare', 'exceptional']);
     for (let i = 0; i < 50; i++) {
-        const four = randomFour(Object.keys(SAMPLES));
+        const four = randomFour(NOTES);
         assert.equal(new Set(four).size, 4);
     }
     assert.equal(randomFour(['a', 'b']).length, 2);

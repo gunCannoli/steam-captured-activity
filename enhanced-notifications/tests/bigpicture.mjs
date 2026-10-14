@@ -141,7 +141,13 @@ const userDir = JSON.parse(await cdp.evaluate(`window.Millennium.callServerMetho
 const themePath = `${userDir}/en_bp_test.json`;
 writeFileSync(themePath, JSON.stringify({ settings: { position: 'top_left', animation: 'fade' }, popup: { background: ['#101010'], margin: [20, 30], padding: [4, 8] } }));
 
+// The user's stored settings, put back exactly in `finally` (resetSettings alone wiped them when run outside run-live).
+const storedBefore = (await cdp.evaluate(`window.MILLENNIUM_API.ffi('core', 'PluginConfig_GetAll')('${PLUGIN}')`)) ?? {};
+
 try {
+    // Steam's own place is measured with no theme: the user's theme may set a corner of its own.
+    await plugin(`setSetting('theme', '<steam>')`);
+    for (let i = 0; i < 40 && (await plugin('activeTheme()?.name ?? null')) !== null; i++) await wait(250);
     const stock = await fire();
     check('Big Picture toast view found', !!stock, JSON.stringify(stock));
     await plugin(`setSetting('disabledFeatures', '')`);
@@ -164,6 +170,7 @@ try {
     check("placement off: Steam's place", !!off && !!stock && Math.abs(off.x - stock.x) <= 2 && Math.abs(off.y - stock.y) <= 2, JSON.stringify(off && { x: off.x, y: off.y, stock: [stock?.x, stock?.y] }));
 } finally {
     await plugin(`resetSettings()`);
+    for (const [key, value] of Object.entries(storedBefore)) await plugin(`setSetting(${JSON.stringify(key)}, ${JSON.stringify(value)})`);
     rmSync(themePath, { force: true });
     console.log(`${failed ? 'FAIL' : 'PASS'}  Big Picture: settings reset, temp theme removed`);
     cdp.close();

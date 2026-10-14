@@ -37,6 +37,11 @@ export interface CreatorDeps {
 }
 
 const STORAGE_KEY = "enhanced-notifications.creator.draft";
+
+/** Lua's JSON writes an empty list as `{}`: anything that is not an array is an empty list. */
+function asList<T>(v: T[]): T[] {
+    return Array.isArray(v) ? v : [];
+}
 const PAGES: { id: string; label: string; group?: string }[] = [
     { id: "start", label: "Start" },
     { id: "placement", label: "Placement", group: "Look" },
@@ -109,6 +114,8 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
     const [assets, setAssets] = useState<ReadonlyMap<string, string>>(new Map());
     const [restorable] = useState(stored);
     const cache = useRef(new Map<string, string | null>());
+    const rootRef = useRef<HTMLDivElement>(null);
+    const ownWindow = () => rootRef.current?.ownerDocument?.defaultView ?? window;
     const game = useMemo(() => deps.sampleGame(), [deps]);
 
     const dirOf = useCallback((d: CreatorDraft) => (d.origin.kind === "fresh" ? userDir : d.origin.dir), [userDir]);
@@ -116,7 +123,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
     const refreshThemes = useCallback(async () => {
         try {
             const r = await rpc.listThemes();
-            setThemes(r.themes);
+            setThemes(asList(r.themes));
             setUserDir(r.userDir);
         } catch (error) {
             logger.warn("Theme Creator: could not list themes.", error);
@@ -136,7 +143,10 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
         const dir = dirOf(draft);
         if (!dir) return;
         rpc.listThemeAssets(dir).then(
-            (r) => setFiles({ images: r.files.filter((f) => f.kind === "image").map((f) => f.path), sounds: r.files.filter((f) => f.kind === "sound").map((f) => f.path) }),
+            (r) => {
+                const all = asList(r.files);
+                setFiles({ images: all.filter((f) => f.kind === "image").map((f) => f.path), sounds: all.filter((f) => f.kind === "sound").map((f) => f.path) });
+            },
             () => setFiles({ images: [], sounds: [] }),
         );
     }, [draft.origin, dirOf]);
@@ -194,6 +204,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
         files,
         refreshFiles,
         openFolder: () => void rpc.openThemesFolder(),
+        window: ownWindow,
     };
 
     const resolved = useMemo(() => {
@@ -239,7 +250,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
             const hadComments = /\/\/|\/\*/.test(file.text);
             if (entry.source === "bundled") {
                 const name = freeName(`${entry.name}_custom`, themes.map((t) => t.name));
-                open({ name, origin: { kind: "template", id: entry.id, dir: file.dir, hadComments }, raw, pendingCopies: {} }, null);
+                open({ name, origin: { kind: "template", id: entry.id, dir: file.dir, hadComments }, raw, pendingCopies: {} }, raw);
                 setStatus(`● Template ${entry.name}: Save as to keep your copy`);
             } else {
                 open({ name: entry.name, origin: { kind: "user", id: entry.id, dir: file.dir, hadComments }, raw, pendingCopies: {} }, raw);
@@ -285,7 +296,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
             strTitle: "Save theme as",
             popupWidth: 480,
             popupHeight: 400,
-        });
+        }, ownWindow());
 
     const remove = (entry: ThemeEntry) =>
         showDialog(
@@ -303,6 +314,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
                 }}
             />,
             { strTitle: "Delete theme", popupWidth: 460, popupHeight: 300 },
+            ownWindow(),
         );
 
     const close = () => {
@@ -316,6 +328,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
                 onOK={() => closeModal?.()}
             />,
             { strTitle: "Theme Creator", popupWidth: 440, popupHeight: 240 },
+            ownWindow(),
         );
     };
 
@@ -374,7 +387,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
     const column: React.CSSProperties = { overflowY: "auto", height: "100%", boxSizing: "border-box" };
     return (
         <CreatorContext.Provider value={api}>
-            <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 16px)", minHeight: 560, background: "#1b1e24", color: "#dcdedf" }}>
+            <div ref={rootRef} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 16px)", minHeight: 560, background: "#1b1e24", color: "#dcdedf" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "190px minmax(420px, 1fr) minmax(400px, 480px)", flex: 1, minHeight: 0 }}>
                     <nav style={{ ...column, borderRight: "1px solid rgba(255,255,255,.08)", padding: "8px 0" }}>
                         <div style={{ padding: "4px 14px 10px", fontSize: 12, color: "#8f98a0" }}>{draft.name}{dirty ? " •" : ""}</div>
@@ -557,7 +570,7 @@ function SaveAsDialog({
             onOK={() => void go()}
             closeModal={closeModal}
             strDescription={
-                <PanelSection>
+                <div>
                     <Blocks>
                         <ItemRow trailing>
                             <div style={{ marginBottom: -STEAM_TRAILING + 22 }}>
@@ -581,7 +594,7 @@ function SaveAsDialog({
                         )}
                         {message && <ActionRow message={message} />}
                     </Blocks>
-                </PanelSection>
+                </div>
             }
         />
     );
@@ -597,9 +610,9 @@ function DeleteDialog({ entry, onDelete, closeModal }: { entry: ThemeEntry; onDe
             closeModal={closeModal}
             onOK={() => void onDelete(assetsToo)}
             strDescription={
-                <PanelSection>
+                <div>
                     <ControlledToggleRow label="Also delete its assets folder" description={`The ${entry.name} folder next to the theme, if any`} value={assetsToo} onChange={setAssetsToo} />
-                </PanelSection>
+                </div>
             }
         />
     );

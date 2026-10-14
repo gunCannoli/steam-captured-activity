@@ -24,6 +24,10 @@ is no theme at all: every notification keeps Steam's look, sound and display
 time. There are no on/off switches for the style, sounds or display time: pick
 a theme that leaves the key out, or Steam default.
 
+The **Theme Creator** (settings panel → Theme → Theme Creator) writes these files for you, with a live preview
+of desktop and Big Picture; a theme it saved is an ordinary file you can still edit by hand (it rewrites it
+without comments).
+
 **[themes/theme_example.jsonc](themes/theme_example.jsonc) is the commented version of this
 page**: every option, in a working theme you can copy and trim. Also bundled:
 [SteamStation](themes/SteamStation.jsonc) (trophy banner with the plugin's own trophies and chimes),

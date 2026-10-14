@@ -26,6 +26,12 @@ release-day steps (versions, dated changelog entries, user READMEs, `git subtree
 **Xbox notification mute (ADR-0065): deployed and live** (Pool Blitz repointed 2026-10-14 00:51, appid kept). Left: the
 user's H15 (release plan § 4), after this release.
 
+**enhanced-notifications Theme Creator (ADR-0069) and Big Picture look per theme (ADR-0068): built and live-checked
+2026-10-14** ([plan § 14](docs/plans/enhanced-notifications-theme-creator-plan.md#14-execution-record-2026-10-14)). Waiting on
+the user's look (settings panel → Theme → Theme Creator). Not built: template preview on hover, a Go button per theme
+warning, a native file picker, Steam's chime in the preview. Known issue: Steam 1791918634's `ConfirmModal` logs a
+ConfigContext error per dialog (nothing fails to render).
+
 **enhanced-notifications B3 / B5 (consistency plan):** waiting on the user's two Big Picture runs, listed as release
 blockers (release plan § 3).
 

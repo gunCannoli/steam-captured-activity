@@ -24,6 +24,23 @@ This repo is private and unversioned; entries are grouped by date.
     suite; their looks are H7, H8, H11). Both readable at `6ece444`.
   - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
   - Live suite 12/12 after the deploy.
+- **enhanced-notifications: the Theme Creator, and a Big Picture look per theme (2026-10-14)**,
+  [the plan](docs/plans/enhanced-notifications-theme-creator-plan.md) § 14, [ADR-0068](docs/decisions.md), [ADR-0069](docs/decisions.md):
+  - *Big Picture look (the user's addition):* a theme's optional `bigpicture` block is laid over the rest in Big Picture
+    (objects merge, other values replace, `null` back to Steam's). Big Picture's toast views get that look's CSS and
+    placement; sound, durations and the banner follow Steam's UI mode (`steam/ui-mode.ts`). Live in Big Picture:
+    `bigpicture-look.mjs` 8/8.
+  - *Theme Creator:* Theme section → Open: navigation, a sticky preview with a Desktop / Big Picture switch (mock
+    toasts styled by the plugin's own CSS builder, the real banner markup, preview sets, On screen, replay and loop,
+    each toast's sound), and the editor (Placement, Card, Text, Icons, Sound with the sound pack panel and picker,
+    Achievements and each tier with "inherited from", Code). Templates are Save as only; saving copies every file into
+    the theme's own folder; Test on screen shows real toasts with the draft for at most 2 minutes. Sound library: 17
+    packs x Subtle / Distinct / Grand WAV. Backend `SaveTheme` / `DeleteTheme` / `ListThemeAssets` / `SoundLibrary`
+    with a Lua suite (27). Live: `creator.mjs` 15/15 through the UI.
+  - *Steam 1791918634 fixes:* the toast dispatcher is a table lookup now (the banner had been off since the update) and
+    Steam's `showModal` moved its measuring into a helper (dialogs were unsized); `ConfirmModal` logs a harmless
+    ConfigContext error per dialog (known issue). `bigpicture.mjs` measures Steam's place with no theme and restores the
+    stored settings (it wiped them when run alone); `achievements-settings.mjs` no longer pins the user's display time.
 - **steam-cartridges-third-party: settings read at start-up (2026-10-14).** Why Jotunnslayer's reinstall was never
   auto-added: the plugin read its settings with `pluginConfig.get`, which always rejects on this Millennium
   (Millennium#903, knowledgebase); the `.catch` fell back to the defaults, where both auto-add toggles are off. So
@@ -38,8 +55,10 @@ This repo is private and unversioned; entries are grouped by date.
 - **Steam updated past the rollback (2026-10-14, the user's call).** Millennium refused to start next to
   `Steam.cfg` (`BootStrapperInhibitAll=Enable`, written by the user's `SteamRollback.ps1` on 2026-10-08), so the file was
   removed (backup kept outside the repo; `SteamRollback.ps1` recreates it). Steam went from build 1785799196 to
-  1791918634; Millennium and all six plugins load on it, and the live suites pass (steam-cartridges 12/12,
-  steam-captured-activity `check_feed` all PASS).
+  1791918634; Millennium and all six plugins load on it, and the live suites of steam-cartridges (12/12) and
+  steam-captured-activity (`check_feed` all PASS) pass. **Correction (same day):** enhanced-notifications' suite was not
+  run then; the update had broken its achievement banner (toast dispatcher) and Steam's sized `showModal`, both fixed
+  below.
 - **Parity green, machine paths out of steam-cartridges (2026-10-14)**, [release plan § 0](docs/plans/release-plan.md#0-progress-2026-10-14):
   - *Parity:* the 14 failures were not a regression. Jotunnslayer's Epic copy had been uninstalled and auto-remove took
     its shortcut (4202674849; 7 of 8 mapped shortcuts are gone), so `open(S)` navigated nowhere and every check read

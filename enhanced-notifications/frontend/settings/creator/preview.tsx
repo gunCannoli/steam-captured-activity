@@ -70,7 +70,7 @@ ${ROOT} .enm-desktop-popup { position: relative; width: ${STEAM_TOAST_WIDTH}px; 
 ${ROOT} .enm-desktop-popup::before { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity .3s linear;
   background: radial-gradient(155.42% 100% at 0% 0%, rgb(31, 42, 57) 0px, rgb(31, 42, 57) 0%, rgba(26, 160, 255, 0.325) 100%); }
 ${ROOT} .enm-desktop-popup:hover::before { opacity: .5; }
-${ROOT} .enm-watermark { position: absolute; right: -14px; bottom: -22px; width: 82px; height: 82px; opacity: .05; color: #fff; pointer-events: none; }
+${ROOT} .enm-watermark { position: absolute; right: -14px; bottom: -22px; width: 82px; height: 82px; opacity: .04; color: #fff; pointer-events: none; }
 ${ROOT} .enm-desktop-template { position: relative; display: flex; align-items: center; padding: 10px; height: ${STEAM_TEMPLATE_HEIGHT.desktop - 20}px; }
 ${ROOT} .enm-gamepad-popup { width: 300px; height: 80px; display: flex; align-items: center; justify-content: center; }
 ${ROOT} .enm-gamepad-popup > * { width: 288px; border-radius: 6px; overflow: hidden; box-sizing: border-box;
@@ -85,7 +85,6 @@ ${ROOT} .enm-title { font-size: 11px; font-weight: 700; color: #fff; text-transf
 ${ROOT} .enm-header-icon { width: 12px; height: 12px; border-radius: 2px; background: #1a9fff; flex: none; }
 ${ROOT} .enm-body { font-size: 12px; color: #dcdedf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 ${ROOT} .enm-subtext { font-size: 11px; color: #8f98a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-${ROOT} .enm-banner-frame { position: relative; overflow: hidden; }
 `;
 
 const GLYPH: Record<string, string> = { download: "⤓", clip: "●", cloud: "☁", battery: "▮", system: "⚙", game: "▶" };
@@ -192,7 +191,7 @@ function Stage({ theme, mode, items, assets, BannerCard, game, onScreen, loop, r
             const timing = bannerTiming(ach.animation, loop ? themedDisplayMs(ach.displayTimeMs, 5000) : STILL_MS);
             const frame = itemSize(theme, item, mode);
             return (
-                <div key={key} className="enm-banner-frame" style={{ width: frame.width, height: frame.height }}>
+                <div key={key} className="enm-banner-frame" style={{ position: "relative", overflow: "hidden", flex: "none", width: frame.width, height: frame.height }}>
                     <BannerCard
                         theme={ach}
                         tier={tier}
