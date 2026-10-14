@@ -122,28 +122,29 @@ export function effectiveValue(raw: Json, mode: ThemeMode, path: Path): unknown 
 
 export const HISTORY_DEPTH = 100;
 
-export interface History {
-    past: Json[];
-    present: Json;
-    future: Json[];
+/** Snapshots of anything immutable (the raw theme, or a whole draft). */
+export interface History<T = Json> {
+    past: T[];
+    present: T;
+    future: T[];
 }
 
-export function createHistory(present: Json): History {
+export function createHistory<T = Json>(present: T): History<T> {
     return { past: [], present, future: [] };
 }
 
 /** A new present; the redo list is dropped. The same object again is no step. */
-export function push(h: History, next: Json): History {
+export function push<T>(h: History<T>, next: T): History<T> {
     if (next === h.present) return h;
     return { past: [...h.past, h.present].slice(-HISTORY_DEPTH), present: next, future: [] };
 }
 
-export function undo(h: History): History {
+export function undo<T>(h: History<T>): History<T> {
     if (!h.past.length) return h;
     return { past: h.past.slice(0, -1), present: h.past[h.past.length - 1]!, future: [h.present, ...h.future] };
 }
 
-export function redo(h: History): History {
+export function redo<T>(h: History<T>): History<T> {
     if (!h.future.length) return h;
     return { past: [...h.past, h.present], present: h.future[0]!, future: h.future.slice(1) };
 }

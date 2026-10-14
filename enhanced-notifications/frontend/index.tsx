@@ -22,7 +22,9 @@ import { createStyleSurface } from './surfaces/style';
 import { createPreviewSurface, preview, previewOptions } from './surfaces/preview';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
 import { previewTier } from './surfaces/toasts/post';
-import { createBannerSurface } from './surfaces/banner';
+import { BannerCard, createBannerSurface } from './surfaces/banner';
+import { openThemeCreator, type CreatorDeps, type SampleGame } from './settings/creator';
+import { toastsEnabled } from './steam/notification-settings';
 import { toastPatchInstalled } from './surfaces/banner/toast-patch';
 import { achievementReset, createResetSurface } from './surfaces/reset';
 import { capturesHandler, createCapturesSurface } from './surfaces/captures';
@@ -133,6 +135,35 @@ async function init(): Promise<void> {
     bus.on('achievement.unlocked', capturesHandler);
 }
 
+/** A game from the library for the Theme Creator's samples: the first one with achievement progress. Read on open. */
+function sampleGame(): SampleGame | null {
+    try {
+        const cache = Reflect.get(globalThis, 'appAchievementProgressCache') as { m_achievementProgress?: { mapCache?: Map<number, unknown> } } | undefined;
+        const appid = cache?.m_achievementProgress?.mapCache?.keys().next().value;
+        const store = Reflect.get(globalThis, 'appStore') as { GetAppOverviewByAppID?: (id: number) => { display_name?: string } | null; GetIconURLForApp?: (o: unknown) => string } | undefined;
+        const overview = appid ? store?.GetAppOverviewByAppID?.(appid) : null;
+        if (!overview?.display_name) return null;
+        return { name: overview.display_name, iconUrl: store?.GetIconURLForApp?.(overview) ?? null, achievement: null };
+    } catch {
+        return null;
+    }
+}
+
+/** What the Theme Creator needs from the surfaces and start-up (the settings panel never imports a surface). */
+const creatorDeps: CreatorDeps = {
+    BannerCard,
+    previewOptions: previewOptions(),
+    preview: (id) => preview(id),
+    previewTier,
+    sampleGame,
+    canTest: () => toastsEnabled() !== false && isEnabled('preview'),
+};
+
+/** Open the Theme Creator as the panel does (tests/creator.mjs). */
+export function openThemeCreatorForTest(): void {
+    openThemeCreator(creatorDeps);
+}
+
 /** The settings panel's injected actions: the panel never imports a surface. */
 const panelProps = {
     // With an `achievements` block the panel previews achievements per tier, so a random preview leaves them out.
@@ -140,6 +171,7 @@ const panelProps = {
     previewOptions: previewOptions(),
     onPreviewTier: previewTier,
     achievementReset,
+    creator: creatorDeps,
 };
 
 /** The settings panel as a component, so live tests can mount it without opening Steam's settings window. */

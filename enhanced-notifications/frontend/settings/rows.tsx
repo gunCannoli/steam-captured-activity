@@ -49,6 +49,29 @@ export function Blocks({ children }: { children: React.ReactNode }) {
     );
 }
 
+/** A toggle row on a value the caller holds (the Theme Creator's draft); `ToggleRow` is this bound to a setting. */
+export function ControlledToggleRow({
+    label,
+    description,
+    value,
+    disabled,
+    onChange,
+}: {
+    label: string;
+    description?: string;
+    value: boolean;
+    disabled?: boolean;
+    onChange: (value: boolean) => void;
+}) {
+    return (
+        <ItemRow>
+            <Field label={label} description={description} disabled={disabled}>
+                <SteamToggle value={value} disabled={disabled} onChange={onChange} />
+            </Field>
+        </ItemRow>
+    );
+}
+
 export function ToggleRow({
     k,
     label,
@@ -61,16 +84,46 @@ export function ToggleRow({
     disabled?: boolean;
 }) {
     const [value, set] = useSetting(k);
+    return <ControlledToggleRow label={label} description={description} value={value as boolean} disabled={disabled} onChange={(v) => set(v as never)} />;
+}
 
+/** A slider row on a value the caller holds (Steam's SliderField: label and value above the track); `SliderRow` is this bound to a setting. */
+export function ControlledSliderRow({
+    label,
+    value,
+    min,
+    max,
+    step = 1,
+    suffix = "",
+    resetValue,
+    disabled,
+    onChange,
+}: {
+    label?: string;
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    suffix?: string;
+    resetValue?: number;
+    disabled?: boolean;
+    onChange: (value: number) => void;
+}) {
     return (
-        <ItemRow>
-            <Field label={label} description={description} disabled={disabled}>
-                <SteamToggle
-                    value={value as boolean}
-                    disabled={disabled}
-                    onChange={(v) => set(v as never)}
-                />
-            </Field>
+        <ItemRow trailing>
+            <SliderField
+                label={label}
+                layout="below"
+                value={value}
+                min={min}
+                max={max}
+                step={step}
+                showValue
+                valueSuffix={suffix}
+                resetValue={resetValue}
+                disabled={disabled}
+                onChange={onChange}
+            />
         </ItemRow>
     );
 }
@@ -88,22 +141,93 @@ export function SliderRow({
 }) {
     const [value, set] = useSetting(k);
     const range = RANGES[k]!;
-
     return (
-        <ItemRow trailing>
-            <SliderField
-                label={label}
-                layout="below"
-                value={value as unknown as number}
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                showValue
-                valueSuffix={suffix}
-                resetValue={DEFAULTS[k] as unknown as number}
-                disabled={disabled}
-                onChange={(v) => set(v as never)}
-            />
+        <ControlledSliderRow
+            label={label}
+            value={value as unknown as number}
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            suffix={suffix}
+            resetValue={DEFAULTS[k] as unknown as number}
+            disabled={disabled}
+            onChange={(v) => set(v as never)}
+        />
+    );
+}
+
+/** Label and description, then the control across the whole row (guardrail 18.3): dropdowns and text fields. */
+export function FullWidthRows({
+    label,
+    description,
+    disabled,
+    children,
+}: {
+    label: string;
+    description?: string;
+    disabled?: boolean;
+    children: React.ReactNode;
+}) {
+    return (
+        <>
+            <ItemRow>
+                <Field label={label} description={description} disabled={disabled} bottomSeparator="none" />
+            </ItemRow>
+            <ItemRow>
+                <Field disabled={disabled} childrenContainerWidth="max">
+                    {children}
+                </Field>
+            </ItemRow>
+        </>
+    );
+}
+
+/** A row's small icon button (reset, remove, play, undo). One fixed size, so different glyphs line up (18.7). */
+export function IconButton({
+    onClick,
+    title,
+    disabled,
+    children,
+    style,
+}: {
+    onClick: () => void;
+    title?: string;
+    disabled?: boolean;
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+}) {
+    return (
+        <DialogButton
+            onClick={onClick}
+            title={title}
+            disabled={disabled}
+            style={{ padding: 0, minWidth: 0, width: "40px", fontSize: "14px", lineHeight: "normal", ...style }}
+        >
+            {children}
+        </DialogButton>
+    );
+}
+
+/** A button sized to its label (popup actions, ButtonRow). */
+export const BUTTON_STYLE: React.CSSProperties = { padding: "0 16px", minWidth: 0, width: "auto" };
+
+/**
+ * The last row of a popup: a status message on the left, its buttons on the right (18.6). A message ending in "..." is
+ * progress, one starting with "✓" success, "●" a neutral state, anything else an error.
+ */
+export function ActionRow({ message, children }: { message?: string; children?: React.ReactNode }) {
+    const color = !message
+        ? undefined
+        : message.startsWith("✓")
+          ? "#a4d007"
+          : message.endsWith("...") || message.startsWith("●")
+            ? undefined
+            : "#eb4b4b";
+    return (
+        <ItemRow>
+            <Field label={message ? <span style={{ color, fontWeight: 400 }}>{message}</span> : undefined} bottomSeparator="none">
+                {children && <div style={{ display: "flex", gap: CONTROL_GAP }}>{children}</div>}
+            </Field>
         </ItemRow>
     );
 }
@@ -124,15 +248,7 @@ export function ButtonRow({
     return (
         <ItemRow>
             <Field label={label} description={description} disabled={disabled}>
-                <DialogButton
-                    disabled={disabled}
-                    onClick={onClick}
-                    style={{
-                        padding: "0 16px",
-                        minWidth: 0,
-                        width: "auto",
-                    }}
-                >
+                <DialogButton disabled={disabled} onClick={onClick} style={BUTTON_STYLE}>
                     {buttonLabel}
                 </DialogButton>
             </Field>

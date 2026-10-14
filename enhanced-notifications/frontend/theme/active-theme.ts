@@ -194,6 +194,28 @@ function clear(): void {
     for (const listener of listeners) listener();
 }
 
+/** Make a resolved theme the active one: decode its sounds once, build both looks. */
+async function install(name: string, theme: ResolvedTheme, assets: Map<string, string>, warn: (text: string, error?: unknown) => void): Promise<void> {
+    // Decode each distinct sound once; tiers often share a file.
+    const decoded = new Map<string, AudioBuffer>();
+    for (const path of soundPaths(theme)) {
+        const url = assets.get(path);
+        if (!url) continue;
+        try {
+            decoded.set(path, await audio().decodeAudioData(dataUrlToArrayBuffer(url)));
+        } catch (error) {
+            warn(`Could not decode ${path}; using the fallback sound.`, error);
+        }
+    }
+    loaded = { name, theme, audio: decoded, assets };
+    achievements = bannerOf(name, theme, assets, decoded);
+    const bp = themeForMode(theme, 'bigpicture');
+    loadedBp = bp === theme ? loaded : { name, theme: bp, audio: decoded, assets };
+    achievementsBp = bp === theme ? achievements : bannerOf(name, bp, assets, decoded);
+    const extras = `${achievements ? ', achievement banner' : ''}${bp === theme ? '' : ', own Big Picture look'}`;
+    logger.info(`Theme "${name}" loaded (${assets.size} assets, ${decoded.size} sounds${extras}).`);
+}
+
 async function load(name: string): Promise<void> {
     if (name === STEAM_DEFAULT_THEME) return clear();
     const warnings: string[] = [];
@@ -217,25 +239,7 @@ async function load(name: string): Promise<void> {
             }
         }
 
-        // Decode each distinct sound once; tiers often share a file.
-        const decoded = new Map<string, AudioBuffer>();
-        for (const path of soundPaths(theme)) {
-            const url = assets.get(path);
-            if (!url) continue;
-            try {
-                decoded.set(path, await audio().decodeAudioData(dataUrlToArrayBuffer(url)));
-            } catch (error) {
-                warn(`Could not decode ${path}; using the fallback sound.`, error);
-            }
-        }
-
-        loaded = { name, theme, audio: decoded, assets };
-        achievements = bannerOf(name, theme, assets, decoded);
-        const bp = themeForMode(theme, 'bigpicture');
-        loadedBp = bp === theme ? loaded : { name, theme: bp, audio: decoded, assets };
-        achievementsBp = bp === theme ? achievements : bannerOf(name, bp, assets, decoded);
-        const extras = `${achievements ? ', achievement banner' : ''}${bp === theme ? '' : ', own Big Picture look'}`;
-        logger.info(`Theme "${name}" loaded (${assets.size} assets, ${decoded.size} sounds${extras}).`);
+        await install(name, theme, assets, warn);
     } catch (error) {
         // An unusable theme means stock Steam, never a half-styled toast.
         loaded = loadedBp = null;
@@ -249,12 +253,53 @@ async function load(name: string): Promise<void> {
     for (const listener of listeners) listener();
 }
 
-/** (Re)load the theme named by the `theme` setting. */
+/** (Re)load the theme named by the `theme` setting. Ends a Theme Creator test (`loadDraft`) too. */
 export function reloadTheme(): Promise<void> {
     const name = setting('theme');
+    if (draftTimer) clearTimeout(draftTimer);
+    draftTimer = null;
+    draftActive = false;
     const next = (loading ?? Promise.resolve()).then(() => load(name));
     loading = next;
     return next;
+}
+
+let draftTimer: ReturnType<typeof setTimeout> | null = null;
+let draftActive = false;
+/** The longest a creator test may stay active, whatever the caller asks (theme creator plan § 4.8). */
+const DRAFT_MAX_MS = 120_000;
+
+/** A Theme Creator test is active (its draft is the active theme). */
+export function draftLoaded(): boolean {
+    return draftActive;
+}
+
+/**
+ * Theme Creator only (settings/creator, its "Test on screen"; plan § 4.8, D6): the draft as the active theme for at most
+ * `lifetimeMs` (capped at 2 minutes), through the same install path as a theme file but from memory, never the `theme`
+ * setting and never a file, so nothing persists if Steam stops mid-test. Every surface follows it through
+ * `onThemeChange`. `assets`: what the creator already loaded (path -> data URL). Ends by `clearDraft`, the timer, or any
+ * theme reload.
+ */
+export async function loadDraft(raw: unknown, assets: ReadonlyMap<string, string>, lifetimeMs: number): Promise<void> {
+    const theme = resolveTheme(raw);
+    const next = (loading ?? Promise.resolve()).then(async () => {
+        await install('Theme Creator test', theme, new Map(assets), (text, error) => logger.warn(`Theme Creator test: ${text}`, error));
+        cssCache.clear();
+        animationCache.clear();
+        for (const listener of listeners) listener();
+    });
+    loading = next;
+    await next;
+    draftActive = true;
+    if (draftTimer) clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => void clearDraft(), Math.max(1000, Math.min(DRAFT_MAX_MS, lifetimeMs)));
+}
+
+/** End a Theme Creator test: the `theme` setting's theme again (listeners fire, durations restored). No-op without one. */
+export function clearDraft(): Promise<void> {
+    if (!draftActive) return Promise.resolve();
+    return reloadTheme();
 }
 
 export function initActiveTheme(): Promise<void> {

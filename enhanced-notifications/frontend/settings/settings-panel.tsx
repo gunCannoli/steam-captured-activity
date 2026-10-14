@@ -31,6 +31,7 @@ import {
 } from "../kernel/reset";
 import { showDialog } from "../steam/modal";
 import { resetSettings, useSetting } from "./settings";
+import { openThemeCreator, type CreatorDeps } from "./creator";
 import {
     Blocks,
     ButtonRow,
@@ -95,7 +96,7 @@ function themeLabel(t: ThemeEntry, all: ThemeEntry[]): string {
     return paired && t.ext === ".jsonc" ? `${t.name} (jsonc)` : t.name;
 }
 
-function ThemeSection({ disabled }: { disabled: boolean }) {
+function ThemeSection({ disabled, creator }: { disabled: boolean; creator: CreatorDeps }) {
     const [theme, setTheme] = useSetting("theme");
     const [themes, setThemes] = useState<ThemeEntry[]>([]);
     // Set by a load the user started here (theme picked, Reload); the next finished load then reports its problems.
@@ -159,6 +160,12 @@ function ThemeSection({ disabled }: { disabled: boolean }) {
                         </Field>
                     </ItemRow>
                 </>
+                <ButtonRow
+                    label="Theme Creator"
+                    description="Make a new theme or edit one of yours, for desktop and Big Picture, with a live preview"
+                    buttonLabel="Open"
+                    onClick={() => openThemeCreator(creator)}
+                />
                 <>
                     <ButtonRow
                         label="Reload themes"
@@ -628,17 +635,19 @@ function ResetAchievementsRows({ api }: { api: AchievementResetApi }) {
     );
 }
 
-/** `onPreview`, `previewOptions`, `onPreviewTier` and `achievementReset` are injected by index.tsx: this panel never imports a surface. */
+/** `onPreview`, `previewOptions`, `onPreviewTier`, `achievementReset` and `creator` are injected by index.tsx: this panel never imports a surface. */
 export function SettingsPanel({
     onPreview,
     previewOptions,
     onPreviewTier,
     achievementReset,
+    creator,
 }: {
     onPreview: (id?: string) => Promise<unknown>;
     previewOptions: PreviewOption[];
     onPreviewTier: (tier: Tier) => void;
     achievementReset: AchievementResetApi;
+    creator: CreatorDeps;
 }) {
     const disabled = usePanelDisabled();
 
@@ -653,7 +662,7 @@ export function SettingsPanel({
                 </DialogBodyText>
             )}
 
-            <ThemeSection disabled={disabled} />
+            <ThemeSection disabled={disabled} creator={creator} />
             <PreviewSection
                 disabled={disabled}
                 onPreview={onPreview}

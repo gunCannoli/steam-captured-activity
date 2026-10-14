@@ -58,7 +58,7 @@ const LAYER_RULES: [RegExp, RegExp][] = [
     [/^(?!kernel$|safety$)/, /^kernel$/], // every layer may use the kernel contracts
     [/^(banner|capture)$/, /^theme$/], // pure domain: the achievement banner's and the captures' types and pure functions of the theme
     [/^theme$/, /^(rpc|settings)$/], // active-theme.ts loads through RPC and follows the theme setting
-    [/^settings$/, /^(rpc|theme|capture|steam)$/], // previews are injected as a prop; capture holds the sliders' ranges; steam is the read-only toasts-off flag
+    [/^settings$/, /^(rpc|theme|capture|steam|banner)$/], // previews are injected as a prop; capture holds the sliders' ranges; steam is the read-only toasts-off flag; banner: the pure banner domain (geometry, timing) for the Theme Creator's preview
     [/^sensors\//, /^(steam|theme)$/],
     [/^surfaces\//, /^(steam|theme|banner|capture|settings)$/],
 ];
@@ -163,6 +163,7 @@ test('architecture: layer rules allow the intended edges and nothing they forbid
         'surfaces/duration -> theme',
         'sensors/unlock -> steam',
         'settings -> steam',
+        'settings -> banner',
         'settings -> capture',
         'theme -> rpc',
         'steam -> kernel',
@@ -183,6 +184,7 @@ test('architecture: layer rules allow the intended edges and nothing they forbid
         'kernel -> safety',
         'safety -> kernel',
         'settings -> surfaces/preview',
+        'settings -> surfaces/banner',
         'theme -> steam',
     ];
     assert.deepEqual(allowed.filter((e) => !ruleAllows(e)), [], 'edges the layering must allow');
@@ -289,4 +291,13 @@ test('architecture: every live check is run by tests/run-live.mjs', () => {
     const runner = readFileSync(join(ROOT, 'tests', 'run-live.mjs'), 'utf8');
     const scripts = readdirSync(join(ROOT, 'tests')).filter((n) => n.endsWith('.mjs') && !LIVE_HELPERS.includes(n));
     assert.deepEqual(scripts.filter((n) => !runner.includes(`'${n}'`)), []);
+});
+
+test('architecture: only the theme loader and the Theme Creator touch loadDraft (theme creator plan § 6.8)', () => {
+    const bad = walk(FRONTEND)
+        .filter((f) => /\.(ts|tsx)$/.test(f))
+        .map((f) => relative(FRONTEND, f).split(sep).join('/'))
+        .filter((f) => f !== 'theme/active-theme.ts' && !f.startsWith('settings/creator/'))
+        .filter((f) => /\bloadDraft\b/.test(readFileSync(join(FRONTEND, f), 'utf8')));
+    assert.deepEqual(bad, []);
 });
