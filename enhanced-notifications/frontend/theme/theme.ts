@@ -18,7 +18,7 @@
 
 import type { ToastSelectors } from '../kernel/toast-selectors.ts';
 import { ANIMATIONS, POSITIONS, TEXT_ALIGNS, type Animation, type AnimationPair, type Edges, type FontStyle, type HoverSpec, type SoundSpec, type TextAlign, type ToastPosition } from './schema.ts';
-import { resolveAchievementTheme, type AchievementTheme, type Inherited } from './achievements.ts';
+import { resolveAchievementTheme, type AchievementTheme, type Inherited, type Tier } from './achievements.ts';
 
 /** Re-exported: theme.test.ts and active-theme.ts read it from here. */
 export type { ToastSelectors };
@@ -343,6 +343,16 @@ function resolveOne(raw: Json): ResolvedTheme {
 }
 
 /**
+ * The sound a toast plays under this theme, the same decision as surfaces/sound/sound.ts: an achievement's tier clip
+ * (`tier` given and the theme has an `achievements` block whose tier has one), else the notification sound; `false`
+ * mutes, `null` is Steam's own. For the Theme Creator's preview (plan § 4.7). Pure.
+ */
+export function soundSpecFor(theme: Pick<ResolvedTheme, 'style' | 'achievements'>, tier: Tier | null): SoundSpec | false | null {
+    const clip = tier && theme.achievements ? theme.achievements.tiers[tier].sound : null;
+    return clip ?? theme.style.sound;
+}
+
+/**
  * The optional `achievements` block. It inherits the theme's settings, `popup` and `text` (achievements.ts), so one
  * theme reads as one look. A block that cannot be used is a warning, never a failed theme: achievement toasts then get
  * the notification style.
@@ -392,8 +402,11 @@ function textRule(sel: string | undefined, root: string, t: TextStyle, basePx: n
  */
 export const STEAM_TEMPLATE_HEIGHT = { desktop: 70, short: 40 } as const;
 
-export function buildCss(s: ResolvedStyle, sel: ToastSelectors): string {
-    const root = 'body[data-en-type]';
+/** Where the theme's rules apply: the toast window's body while it shows a styled toast (surfaces/style/injector.ts). */
+export const TOAST_ROOT = 'body[data-en-type]';
+
+/** `root`: the element the rules are scoped to; the Theme Creator's preview passes its stage (plan § 6.3). */
+export function buildCss(s: ResolvedStyle, sel: ToastSelectors, root: string = TOAST_ROOT): string {
     const desktopCard = sel.desktopPopup ? `${root} ${sel.desktopPopup}` : '';
     // Big Picture and the in-game overlay animate the popup's child (`.GamepadToastPopup > *`, where Steam paints its own
     // card), not the popup: a card on the popup stayed opaque after the exit, so the text slid out over a card that
@@ -528,7 +541,7 @@ export function keyframeName(state: 'in' | 'out', a: Animation, position: ToastP
  * Steam closes the popup: Steam's slide in, then `--en-display-ms` (the type's own toast duration, set on the toast
  * window's body by the style surface), then Steam's slide out. '' when the theme sets no animation.
  */
-export function buildAnimationCss(theme: Pick<ResolvedTheme, 'animation' | 'position'>, sel: ToastSelectors): string {
+export function buildAnimationCss(theme: Pick<ResolvedTheme, 'animation' | 'position'>, sel: ToastSelectors, root: string = TOAST_ROOT): string {
     const anim = theme.animation;
     if (!anim || !sel.desktopPopup) return '';
     const corner = theme.position ?? 'bottom_right'; // Steam's default corner
@@ -548,10 +561,10 @@ export function buildAnimationCss(theme: Pick<ResolvedTheme, 'animation' | 'posi
         ' animation-fill-mode: both, forwards; }\n';
     let css = '';
     for (const name of [inName, outName]) if (name) css += `@keyframes ${name} { ${KEYFRAMES[name]} }\n`;
-    css += rule(`body[data-en-type] > :has(> ${sel.desktopPopup})`, `calc(var(--en-display-ms, 5000ms) + ${lead}ms)`);
+    css += rule(`${root} > :has(> ${sel.desktopPopup})`, `calc(var(--en-display-ms, 5000ms) + ${lead}ms)`);
     // Big Picture (verified live 2026-10-01): Steam animates `.GamepadToastPopup > *`, rebuilt for each toast, with a
     // 300 ms slide in and a 300 ms fade out starting at its own `--toast-duration`; ours replaces both and ends when it would.
-    if (sel.gamepadPopup) css += rule(`body[data-en-type] ${sel.gamepadPopup} > *`, `calc(var(--toast-duration, 5000ms) + ${STEAM_OUT_MS - outMs}ms)`);
+    if (sel.gamepadPopup) css += rule(`${root} ${sel.gamepadPopup} > *`, `calc(var(--toast-duration, 5000ms) + ${STEAM_OUT_MS - outMs}ms)`);
     return css;
 }
 
