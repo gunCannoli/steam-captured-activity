@@ -272,7 +272,7 @@ test('architecture: every RPC the frontend calls is registered in backend/main.l
     const mainLua = readFileSync(join(ROOT, 'backend', 'main.lua'), 'utf8');
     const registered = new Set([...mainLua.matchAll(/^([A-Z][A-Za-z0-9]+)\s*=\s*method\(/gm)].map((m) => m[1]!));
     // The whole list, so a method the regex misses (a changed call shape) fails here instead of passing unchecked.
-    assert.deepEqual([...called].sort(), ['ListThemes', 'LoadAssets', 'LoadTheme', 'OpenThemesFolder', 'SoundLibrary']);
+    assert.deepEqual([...called].sort(), ['DeleteTheme', 'ListThemeAssets', 'ListThemes', 'LoadAssets', 'LoadTheme', 'OpenThemesFolder', 'SaveTheme', 'SoundLibrary']);
     assert.deepEqual([...called].filter((n) => !registered.has(n)), []);
 });
 

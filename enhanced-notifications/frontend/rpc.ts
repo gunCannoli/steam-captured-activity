@@ -56,4 +56,11 @@ export const rpc = {
     loadAssets: (dir: string, paths: string[]) => call<Record<string, string | false>>('LoadAssets', { dir, paths }),
     openThemesFolder: () => call<{ dir: string }>('OpenThemesFolder'),
     soundLibrary: () => call<{ dir: string; manifest: SoundLibraryManifest }>('SoundLibrary'),
+    /** The Theme Creator's save: user folder only; `copies` first, refused as a whole if one is not allowed. Error "exists" without `overwrite`. */
+    saveTheme: (p: { name: string; text: string; overwrite: boolean; backup: boolean; copies: { from: 'bundled' | 'user' | 'library'; path: string; to: string }[] }) =>
+        call<{ id: string; path: string }>('SaveTheme', p),
+    /** A user theme (by its `theme` setting id), and with `assets` its folder. */
+    deleteTheme: (id: string, assets: boolean) => call<{ deleted: string; assets: boolean }>('DeleteTheme', { id, assets }),
+    /** Images and sounds in a theme folder (one level of subfolders). */
+    listThemeAssets: (dir: string) => call<{ files: { path: string; size: number; kind: 'image' | 'sound' }[] }>('ListThemeAssets', { dir }),
 };

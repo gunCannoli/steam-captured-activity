@@ -1,7 +1,8 @@
 --- enhanced-notifications - backend entry point.
 ---
 --- Owns only what the frontend cannot do itself: reading theme files and their
---- assets from disk. Settings are NOT stored here; they live in Millennium's
+--- assets from disk, and writing the Theme Creator's themes into the user folder
+--- (SaveTheme / DeleteTheme: never anywhere else, never the bundled folder). Settings are NOT stored here; they live in Millennium's
 --- Configuration API and are read by the frontend (docs/knowledgebase.md,
 --- "Plugin settings").
 ---
@@ -187,6 +188,159 @@ OpenThemesFolder = method("OpenThemesFolder", function(_)
   fs.create_directories(dir)
   utils.exec('explorer "' .. dir .. '"')
   return { dir = dir }
+end)
+
+-- ---------- Theme Creator: writes, user folder only (theme creator plan § 6.6) ----------
+
+--- A theme file stem the creator may write: letters, digits, "_" and "-", 1 to 40.
+local function valid_name(name)
+  return type(name) == "string" and #name >= 1 and #name <= 40 and name:match("^[%w_%-]+$") ~= nil
+end
+
+--- A relative path with no way out of its root: no "..", not absolute, not empty.
+local function safe_relative(path)
+  if type(path) ~= "string" or path == "" or is_absolute(path) then return false end
+  for part in path:gmatch("[^/\\]+") do
+    if part == ".." then return false end
+  end
+  return true
+end
+
+--- The roots a copy may read from.
+local function copy_root(from)
+  if from == "bundled" then return bundled_themes_dir() end
+  if from == "user" then return user_themes_dir() end
+  if from == "library" then return sounds_dir() end
+  return nil
+end
+
+--- Copy one file by content (fs.copy refuses an existing target). Errors carry the file's name.
+local function copy_file(src, dst)
+  local content = utils.read_file(src)
+  if content == nil then error("could not read " .. src) end
+  local ok, err = utils.write_file(dst, content)
+  if not ok then error("could not write " .. dst .. ": " .. tostring(err)) end
+end
+
+--- Write through a temp file and a rename, so a theme file is never half-written.
+local function write_atomic(path, text)
+  local tmp = path .. ".tmp"
+  local ok, err = utils.write_file(tmp, text)
+  if not ok then error("could not write " .. tmp .. ": " .. tostring(err)) end
+  if not fs.rename(tmp, path) then
+    -- A rename that cannot replace an existing file: remove it first.
+    fs.remove(path)
+    if not fs.rename(tmp, path) then
+      fs.remove(tmp)
+      error("could not replace " .. path)
+    end
+  end
+end
+
+--- The `theme` setting's id for a user theme file (list_themes' rule).
+local function id_of(name, ext)
+  for _, t in ipairs(list_themes()) do
+    if t.name == name and t.ext == ext and t.source == "user" then return t.id end
+  end
+  return name
+end
+
+--- Save a theme: { name, text, overwrite, backup, copies = { { from = "bundled"|"user"|"library", path, to } } }.
+--- Every copy is checked before anything is written (its root, type, size, and a target inside <name>/); one bad
+--- copy refuses the whole save. Copies first, then the theme file through a temp file. Returns { id, path }.
+SaveTheme = method("SaveTheme", function(data)
+  local name = data.name
+  if not valid_name(name) then return { error = "invalid theme name (letters, digits, _ and -, at most 40)" } end
+  if type(data.text) ~= "string" or data.text == "" then return { error = "no theme text" } end
+  local dir = user_themes_dir()
+  local path = fs.join(dir, name .. ".jsonc")
+  if fs.is_file(path) and data.overwrite ~= true then return { error = "exists" } end
+
+  local plan = {}
+  for _, c in ipairs(type(data.copies) == "table" and data.copies or {}) do
+    local root = copy_root(c.from)
+    if not root then return { error = "copy refused: unknown source " .. tostring(c.from) } end
+    if not safe_relative(c.path) then return { error = "copy refused: " .. tostring(c.path) } end
+    local file = type(c.to) == "string" and c.to:match("^" .. name:gsub("%-", "%%-") .. "[/\\]([^/\\]+)$")
+    if not file or file == ".." or file == "." then return { error = "copy refused: target " .. tostring(c.to) } end
+    local src = fs.join(root, c.path)
+    if not MIME[(fs.extension(src):sub(2)):lower()] then return { error = "copy refused: type not allowed: " .. c.path } end
+    if not fs.is_file(src) then return { error = "copy refused: not found: " .. c.path } end
+    if (fs.file_size(src) or 0) > MAX_ASSET_BYTES then return { error = "copy refused: larger than 8 MB: " .. c.path } end
+    if not MIME[(fs.extension(file):sub(2)):lower()] then return { error = "copy refused: target type: " .. c.to } end
+    plan[#plan + 1] = { src = src, dst = fs.join(dir, name, file) }
+  end
+
+  fs.create_directories(dir)
+  if #plan > 0 then fs.create_directories(fs.join(dir, name)) end
+  for _, step in ipairs(plan) do
+    if step.src ~= step.dst then copy_file(step.src, step.dst) end
+  end
+  if data.backup == true and fs.is_file(path) then copy_file(path, path .. ".bak") end
+  write_atomic(path, data.text)
+  logger:info("Theme Creator saved " .. path .. " (" .. #plan .. " files copied)")
+  return { id = id_of(name, ".jsonc"), path = path }
+end)
+
+--- Delete a user theme: { id, assets }. `id` is the theme setting's value (a stem, or a whole file name for the
+--- other of a .json / .jsonc pair); only the user folder is looked in. `assets`: also its <stem>/ folder.
+DeleteTheme = method("DeleteTheme", function(data)
+  local id = data.id
+  if type(id) ~= "string" or id:find("[/\\]") or id:find("%.%.") then return { error = "invalid theme id" } end
+  local dir = user_themes_dir()
+  local ext = fs.extension(id):lower()
+  local stem = IS_THEME_EXTENSION[ext] and id:sub(1, #id - #ext) or id
+  if not valid_name(stem) then return { error = "not a theme the creator manages: " .. id } end
+  local candidates = IS_THEME_EXTENSION[ext] and { id } or { stem .. ".jsonc", stem .. ".json" }
+  local path
+  for _, file in ipairs(candidates) do
+    if fs.is_file(fs.join(dir, file)) then path = fs.join(dir, file) break end
+  end
+  if not path then return { error = "not a user theme: " .. id } end
+  fs.remove(path)
+  local removed_assets = false
+  local assets = fs.join(dir, stem)
+  if data.assets == true and fs.is_directory(assets) then
+    fs.remove_all(assets)
+    removed_assets = true
+  end
+  logger:info("Theme Creator deleted " .. path .. (removed_assets and " and its folder" or ""))
+  return { deleted = path, assets = removed_assets }
+end)
+
+local IMAGE = { png = true, jpg = true, jpeg = true, gif = true, webp = true, svg = true }
+
+--- Images and sounds in a theme folder and its subfolders one level down: { dir } -> { files = { { path, size, kind } } }.
+--- `dir` must be the bundled or user themes folder, or a folder inside one of them.
+ListThemeAssets = method("ListThemeAssets", function(data)
+  local dir = type(data.dir) == "string" and native(data.dir) or ""
+  local allowed = false
+  for _, entry in ipairs(theme_dirs()) do
+    local root = native(entry.dir)
+    if dir:lower() == root:lower() or dir:lower():sub(1, #root + 1) == (root .. SEP):lower() then allowed = true end
+  end
+  if not allowed or dir:find("%.%.") then return { error = "not a themes folder: " .. tostring(data.dir) } end
+  local files = {}
+  local function scan(folder, prefix, depth)
+    if not fs.is_directory(folder) then return end
+    for _, item in ipairs(fs.list(folder) or {}) do
+      local path = type(item) == "table" and item.path or item
+      local name = type(item) == "table" and item.name or fs.filename(path)
+      if type(path) == "string" then
+        if fs.is_directory(path) then
+          if depth < 1 and name ~= "sounds" then scan(path, prefix .. name .. "/", depth + 1) end
+        else
+          local ext = (fs.extension(path):sub(2)):lower()
+          if MIME[ext] then
+            files[#files + 1] = { path = prefix .. name, size = fs.file_size(path) or 0, kind = IMAGE[ext] and "image" or "sound" }
+          end
+        end
+      end
+    end
+  end
+  scan(dir, "", 0)
+  table.sort(files, function(a, b) return a.path < b.path end)
+  return { files = files }
 end)
 
 local function on_load()
