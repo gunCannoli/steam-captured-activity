@@ -100,7 +100,8 @@ try {
     // banner/timing.ts), not the bare display time, so Steam keeps the popup open through the fades.
     const themed = JSON.parse(await cdp.evaluate(`JSON.stringify((() => { const t = window.PLUGIN_LIST['${PLUGIN}'].achievementTheme()?.theme; return { animation: t?.animation, displayTimeMs: t?.displayTimeMs }; })())`));
     const expected = bannerTiming(themed.animation, themed.displayTimeMs).totalMs;
-    check('display_time_ms applied to Steam achievement toast config', themed.displayTimeMs === 4000 && duration === expected, `toastDurationMS=${duration}, expected ${expected}`);
+    // The theme must set a display time (else this checks Steam's own); its value is the user's theme's, not fixed here.
+    check('display_time_ms applied to Steam achievement toast config', typeof themed.displayTimeMs === 'number' && duration === expected, `display_time_ms=${themed.displayTimeMs}, toastDurationMS=${duration}, expected ${expected}`);
 
     // First toast may find the AudioContext suspended (then Steam's chime plays once); warm it up.
     await fire();
