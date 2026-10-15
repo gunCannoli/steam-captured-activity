@@ -178,7 +178,7 @@ Everything that waited on "a look by the user", merged. Tick each; a failure bec
 | H13 | SC | The five visual checks of [verification.md](../steam-cartridges/verification.md); choose a shortcut icon by hand and confirm it is kept | owed since M10 |
 | H14 | SCA | Its settings panel (two toggles); delete a real screenshot, its card leaves the feed on the next visit | ADR-0062 |
 | H16 | EN | Theme Creator: open it from Theme, start from a template, change a few things in Desktop and in Big Picture, listen to a sound pack, Save as, Test on screen; then the saved theme in Big Picture | ADR-0068, ADR-0069 |
-| H15 | 3P | (after this release) Xbox game with "Mute Steam notifications while playing" on: no toast over the game, toasts back after quitting | ADR-0065 |
+| H15 | 3P | (after this release) Xbox game with "Mute Steam notifications while playing" on: no toast over the game, toasts back after quitting. **Agent-verified 2026-10-15** (`xbox_mute.mjs`, Pool Blitz); left for you: seeing it while playing | ADR-0065 |
 
 
 

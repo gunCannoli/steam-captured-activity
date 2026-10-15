@@ -59,6 +59,8 @@ async function onHeld(appid: number): Promise<void> {
         if (r?.epic && r.closed) logger.info(`Epic overlay workaround: launcher closed before ${appid} starts.`);
         else if (r?.epic && r.reason === "pending") logger.warn(`Epic overlay workaround: a download is pending; the launcher stays open and Steam's overlay will not reach ${appid}.`);
         else if (r?.epic && r.reason === "late") logger.warn(`Epic overlay workaround: the backend answered too late; ${appid} starts with the launcher as it was.`);
+        else if (r?.epic && r.reason === "not-running") logger.info(`Epic overlay workaround: no Epic launcher was running; Steam starts it for ${appid}.`);
+        else if (r?.epic) logger.warn(`Epic overlay workaround: the launcher was not closed before ${appid} (${r.reason ?? "unknown"}).`);
     } catch (err) {
         logger.warn("Epic overlay workaround: prelaunch failed; launching anyway.", err);
     } finally {

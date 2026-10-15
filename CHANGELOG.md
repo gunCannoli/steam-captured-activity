@@ -34,6 +34,11 @@ This repo is private and unversioned; entries are grouped by date.
   - *In game:* `enhanced-notifications/tests/probes/ingame-stress.mjs` (a game running, a burst of notifications and all
     four tiers): Axiom Verge and the AM2R shortcut on desktop, Axiom Verge in Big Picture; every toast styled, every tier's
     banner seen, no error.
+  - *steam-cartridges-third-party, with real games:* `tests/live/probes/xbox_mute.mjs` (release plan H15): launching
+    Pool Blitz mutes Steam's toasts (a test toast opens no window), the mute holds while the GDK game's process runs
+    outside Steam's tree, and lifts once it is gone (ADR-0065). `tests/live/probes/epic_hold.mjs`: with a running Epic
+    launcher, Jotunnslayer's Play closes it first, Steam tracks the game, and after it the reaper ends the launcher once
+    Epic's cloud sync logs (ADR-0057); every quiet prelaunch outcome is now logged too.
   - *Test fixes:* `tests/cdp.mjs` times out on a toast window that closes while read (achievements-tiers hung or read "no
     banner"); achievements-tiers and achievements-bigpicture retry across toast windows and wait for a settled state.
     steam-health tells Steam's own reported errors (the in-game overlay's news for a shortcut) and a test's deliberate
