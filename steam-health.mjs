@@ -84,8 +84,28 @@ function checkLogs(dir) {
     for (const l of pluginErrors.slice(0, 5)) say("WARN", `plugin error: ${short(l)}`);
     if (pluginErrors.length > 5) say("WARN", `... and ${pluginErrors.length - 5} more plugin errors`);
 
-    const caught = js.filter((l) => l.includes("ErrorBoundaryHook") && l.includes("Caught an error"));
-    if (caught.length) say("WARN", `Millennium's error boundary caught ${caught.length} render error(s) since start (first ${stamp(caught[0])}); open the failing page with DevTools to see whose`);
+    // Millennium's ErrorBoundaryHook also logs every error Steam itself reports (ReportError), not only render failures.
+    // A catch right after a known Steam-side error is Steam's own noise, said as INFO; the rest stay WARN, with the error
+    // line before each so the owner shows.
+    const STEAM_NOISE = [
+        // The in-game overlay's Game Overview news asks for a running shortcut's partner events; a shortcut has no
+        // official game group (verified 2026-10-15, module 74388).
+        [/LoadAdjacentPartnerEvents hit error/, "the in-game overlay asked for a shortcut's news (a shortcut has no game group)"],
+    ];
+    const noise = new Map();
+    const real = [];
+    js.forEach((l, i) => {
+        if (!(l.includes("ErrorBoundaryHook") && l.includes("Caught an error"))) return;
+        const before = js.slice(Math.max(0, i - 3), i);
+        const known = STEAM_NOISE.find(([re]) => before.some((b) => re.test(b)));
+        if (known) noise.set(known[1], (noise.get(known[1]) ?? 0) + 1);
+        else real.push({ at: l, cause: [...before].reverse().find((b) => /ERROR:/.test(b)) });
+    });
+    for (const [why, n] of noise) say("INFO", `Steam reported ${n} error(s) of its own: ${why}; not a plugin`);
+    if (real.length) {
+        say("WARN", `Millennium's error boundary caught ${real.length} error(s) since start (first ${stamp(real[0].at)}); open the failing page with DevTools to see whose`);
+        for (const r of real.slice(0, 3)) if (r.cause) say("WARN", `  after: ${short(r.cause)}`);
+    }
 
     const resumes = js.filter((l) => l.includes("SuspendResume: Received resume request"));
     if (resumes.length) say("INFO", `the PC resumed from sleep at ${resumes.map(stamp).join(", ")}: a window that stops painting after a resume is Steam/CEF, not a plugin (steam-debug.md Trap 12)`);

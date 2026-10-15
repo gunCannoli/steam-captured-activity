@@ -3,6 +3,7 @@
 // Map lookup, so it is safe from Steam's hot hooks (plugins.md guardrail 2).
 import type { ShortcutId } from "./appid";
 import type { EventBus } from "./events";
+import { asList } from "./lists.ts";
 
 export type PartStatus = "ok" | "partial" | "unsupported" | "needs-setup" | "error" | "pending";
 
@@ -268,6 +269,24 @@ export interface RecordStore {
     all(): GameRecord[];
 }
 
+/**
+ * K1 at the one door every part comes through: the backend's JSON writes an empty Lua list as `{}`, so a part's lists
+ * (an achievement schema's `achievements`, the media `items`) are made arrays here, once, instead of at every reader
+ * (found 2026-10-15: `schema.achievements.map is not a function` for a RetroAchievements game with an empty set). Pure.
+ */
+export function normalizePart<K extends RecordPart>(key: K, value: GameRecord[K]): GameRecord[K] {
+    const part = value as Part<any> | undefined;
+    const data = part?.data;
+    if (!data || typeof data !== "object") return value;
+    if (key === "achievements" && data.schema && typeof data.schema === "object" && !Array.isArray(data.schema.achievements)) {
+        return { ...part, data: { ...data, schema: { ...data.schema, achievements: asList(data.schema.achievements) } } } as GameRecord[K];
+    }
+    if (key === "media" && "items" in data && !Array.isArray(data.items)) {
+        return { ...part, data: { ...data, items: asList(data.items) } } as GameRecord[K];
+    }
+    return value;
+}
+
 export function createRecordStore(bus: EventBus): RecordStore {
     const records = new Map<ShortcutId, GameRecord>();
     return {
@@ -283,7 +302,7 @@ export function createRecordStore(bus: EventBus): RecordStore {
             if (!rec) return [];
             const changed: RecordPart[] = [];
             for (const key of Object.keys(parts) as RecordPart[]) {
-                const value = parts[key];
+                const value = normalizePart(key, parts[key]);
                 if (JSON.stringify(rec[key]) === JSON.stringify(value)) continue;
                 (rec as any)[key] = value;
                 changed.push(key);
