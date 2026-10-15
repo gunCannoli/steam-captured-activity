@@ -1,5 +1,6 @@
 import { Dropdown, TextField } from "@steambrew/client";
-import type { Path } from "../../theme/draft";
+import { modePath, setAt, type Path } from "../../theme/draft";
+import { canPickFiles, pickFile } from "../../steam/file-dialog";
 import { ButtonRow, ControlledToggleRow, FullWidthRows, ItemRow, STEAM_TRAILING } from "../rows";
 import { ColourRow, KeyBlock, NumberRow, useCreator, useKey } from "./controls";
 import { isHex } from "./model";
@@ -220,7 +221,7 @@ export function IconSlotBlock({ label, path, images, isNormal }: { label: string
                         { data: "inherit", label: isNormal ? "Default" : "From Normal" },
                         { data: "steam", label: "Steam's" },
                         { data: "hidden", label: "Hidden" },
-                        ...images.map((img) => ({ data: `img:${img}`, label: img })),
+                        ...[...new Set([...images, ...(kind === "image" && typeof source === "string" ? [source] : [])])].map((img) => ({ data: `img:${img}`, label: img.split(/[\\/]/).pop() ?? img })),
                     ]}
                     selectedOption={kind === "image" ? `img:${str(source, "")}` : kind}
                     contextMenuPositionOptions={{ bMatchWidth: true }}
@@ -233,6 +234,23 @@ export function IconSlotBlock({ label, path, images, isNormal }: { label: string
                     }}
                 />
             </FullWidthRows>
+            {canPickFiles() && (
+                <ButtonRow
+                    label="Choose an image"
+                    description="A .png, .jpg or .svg from your PC, copied into the theme's folder when you save"
+                    buttonLabel="Choose..."
+                    onClick={() =>
+                        void pickFile("image", label, api.window()).then((file) => {
+                            if (!file) return;
+                            api.replace({
+                                ...api.draft,
+                                raw: setAt(api.draft.raw, modePath(api.mode, path), [file, num(v[1], 100), num(v[2], 0)]),
+                                pendingCopies: { ...api.draft.pendingCopies, [file]: { kind: "file", path: file } },
+                            });
+                        })
+                    }
+                />
+            )}
             {isSet && source !== false && <NumberRow label="Scale" value={num(v[1], 100)} min={25} max={300} suffix="%" onChange={(x) => put(1, x)} />}
             {isSet && source !== false && <NumberRow label="Ripple" value={num(v[2], 0)} min={0} max={5000} step={100} suffix=" ms" onChange={(x) => put(2, x)} />}
         </>

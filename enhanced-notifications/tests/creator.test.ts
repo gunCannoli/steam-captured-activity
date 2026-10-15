@@ -2,10 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    applyPack, currentCue, DEFAULT_CHOSEN, freeName, hexToHsl, hslToHex, parseHslString, previewItems, PREVIEW_SETS, randomFour, sampleFor,
+    applyPack, currentCue, DEFAULT_CHOSEN, pageForWarning, freeName, hexToHsl, hslToHex, parseHslString, previewItems, PREVIEW_SETS, randomFour, sampleFor,
     setSound, SAMPLES,
 } from '../frontend/settings/creator/model.ts';
-import { getAt, libraryPath, type CreatorDraft } from '../frontend/theme/draft.ts';
+import { copyPlan, getAt, libraryPath, type CreatorDraft } from '../frontend/theme/draft.ts';
 import { resolveTheme, soundSpecFor } from '../frontend/theme/theme.ts';
 
 /** The notification ids the creator shuffles from (never Achievement; the UI filters it out the same way). */
@@ -88,4 +88,27 @@ test('freeName: first free, case-insensitive, cleaned', () => {
     assert.equal(freeName('my_theme', []), 'my_theme');
     assert.equal(freeName('my_theme', ['MY_THEME', 'my_theme_2']), 'my_theme_3');
     assert.equal(freeName('a b/c', []), 'a_b_c');
+});
+
+test('pageForWarning: each warning opens the page and mode that own its key', () => {
+    const t = (w: string) => { const r = pageForWarning(w); return `${r.page}/${r.mode}`; };
+    assert.equal(t('settings.position "x" is not one of ...'), 'placement/desktop');
+    assert.equal(t('bigpicture: settings.text_align "x" is not one of ...'), 'placement/bigpicture');
+    assert.equal(t('achievements: rare.threshold must be ...'), 'tier:rare/desktop');
+    assert.equal(t('achievements: layout "x" is not a preset'), 'achievements/desktop');
+    assert.equal(t('sound must be ["path", volume] or false; keeping Steam\'s sound.'), 'sound/desktop');
+    assert.equal(t('"game_icon" is now "popup_icon": ...'), 'icons/desktop');
+    assert.equal(t('font_family is not a plain font name; ignored.'), 'card/desktop');
+    assert.equal(t('"themes" (an Enhanced Achievements theme) is gone'), 'code/desktop');
+    assert.equal(t('bigpicture must be an object of theme keys; ...'), 'code/desktop');
+});
+
+test('a file picked with Steam\'s dialog is a pending copy: copied under its own name on Save', () => {
+    const picked = setSound(draft(), 'desktop', 'notification', { file: 'D:/Music/ding.wav', volume: 70, picked: true });
+    assert.deepEqual(picked.pendingCopies, { 'D:/Music/ding.wav': { kind: 'file', path: 'D:/Music/ding.wav' } });
+    const plan = copyPlan({ ...picked, name: 'mine' });
+    assert.deepEqual(plan.copies, [{ from: 'file', path: 'D:/Music/ding.wav', to: 'mine/ding.wav' }]);
+    assert.deepEqual(getAt(plan.raw, ['sound']), ['mine/ding.wav', 70]);
+    const typed = copyPlan({ ...draft({ sound: ['D:/Music/ding.wav', 70] }), name: 'mine' });
+    assert.deepEqual(typed.copies, [], 'an absolute path typed by hand stays (D2)');
 });

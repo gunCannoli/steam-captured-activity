@@ -241,14 +241,22 @@ export interface LibraryPick {
     cue: string;
 }
 
+/** A file the user picked with Steam's file dialog (an absolute path), copied into the theme's folder on Save. */
+export interface FilePick {
+    kind: 'file';
+    path: string;
+}
+
+export type PendingCopy = LibraryPick | FilePick;
+
 /** The draft: its file name, where it came from, the raw theme, and the library cues still to copy. */
 export interface CreatorDraft {
     /** File stem, `NAME_PATTERN`. */
     name: string;
     origin: { kind: 'fresh' } | { kind: 'template' | 'user'; id: string; dir: string; hadComments: boolean };
     raw: Json;
-    /** Path in `raw` -> the library cue it stands for (`sounds/<pack>/<cue>.wav` until saved). */
-    pendingCopies: Record<string, LibraryPick>;
+    /** Path in `raw` -> what it stands for until saved: a library cue (`sounds/<pack>/<cue>.wav`) or a picked file (its absolute path). */
+    pendingCopies: Record<string, PendingCopy>;
 }
 
 export const NAME_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
@@ -259,8 +267,8 @@ export function libraryPath(pack: string, cue: string): string {
 }
 
 export interface CopyStep {
-    /** Which root `path` is relative to. */
-    from: 'bundled' | 'user' | 'library';
+    /** Which root `path` is relative to; `file`: `path` is the absolute path the user picked. */
+    from: 'bundled' | 'user' | 'library' | 'file';
     path: string;
     /** Relative to the user themes folder: always `<name>/<file>`. */
     to: string;
@@ -273,7 +281,7 @@ function basename(p: string): string {
 /**
  * What Save writes (plan § 6.6, D2): every relative file the theme names that is not already in `<name>/` of the same
  * user theme is copied to `<name>/<file>` (a clash gets `-2`, `-3`, ...) and its path rewritten; a library cue becomes
- * `<name>/<pack>_<cue>.wav`; absolute paths stay as they are. A fresh theme's relative paths already point into the
+ * `<name>/<pack>_<cue>.wav`; a picked file is copied under its own name; other absolute paths stay as they are. A fresh theme's relative paths already point into the
  * user folder and stay. Returns the rewritten document and the copies, in order.
  */
 export function copyPlan(draft: CreatorDraft): { raw: Json; copies: CopyStep[] } {
@@ -296,14 +304,21 @@ export function copyPlan(draft: CreatorDraft): { raw: Json; copies: CopyStep[] }
         if (origin.kind === 'user' && origin.id === name && file.startsWith(`${name}/`) && !pendingCopies[file]) taken.add(file.slice(name.length + 1).toLowerCase());
     }
     for (const { file } of refs) {
-        if (moved.has(file) || isAbsolutePath(file)) continue;
+        if (moved.has(file)) continue;
         const pick = pendingCopies[file];
-        if (pick) {
+        if (pick?.kind === 'library') {
             const to = claim(`${pick.pack}_${pick.cue}.wav`);
             moved.set(file, to);
             copies.push({ from: 'library', path: libraryPath(pick.pack, pick.cue), to });
             continue;
         }
+        if (pick?.kind === 'file') {
+            const to = claim(basename(pick.path));
+            moved.set(file, to);
+            copies.push({ from: 'file', path: pick.path, to });
+            continue;
+        }
+        if (isAbsolutePath(file)) continue;
         if (origin.kind === 'fresh') continue;
         if (origin.kind === 'user' && origin.id === name && file.startsWith(`${name}/`)) continue;
         const to = claim(basename(file));

@@ -153,7 +153,8 @@ export function currentCue(draft: CreatorDraft, mode: ThemeMode, target: SoundTa
     const file = Array.isArray(v) && typeof v[0] === 'string' ? v[0] : null;
     if (!file) return null;
     const pick = draft.pendingCopies[file];
-    if (pick) return pick.pack === pack ? (CUES.find((c) => c === pick.cue) ?? null) : null;
+    if (pick?.kind === 'library') return pick.pack === pack ? (CUES.find((c) => c === pick.cue) ?? null) : null;
+    if (pick) return null;
     // A saved theme holds the copy Save made: `<name>/<pack>_<cue>.wav`.
     const m = /(?:^|\/)([A-Za-z0-9_]+)_(subtle|distinct|grand)(?:-\d+)?\.wav$/.exec(file);
     return m && m[1] === pack ? (m[2] as (typeof CUES)[number]) : null;
@@ -188,7 +189,7 @@ export function applyPack(
 }
 
 /** One sound for one target (the single sound picker): a library cue, a file path, Steam's (unset) or mute (false). */
-export function setSound(draft: CreatorDraft, mode: ThemeMode, target: SoundTarget, sound: { pack: string; cue: string; volume: number } | { file: string; volume: number } | 'steam' | 'mute'): CreatorDraft {
+export function setSound(draft: CreatorDraft, mode: ThemeMode, target: SoundTarget, sound: { pack: string; cue: string; volume: number } | { file: string; volume: number; picked?: boolean } | 'steam' | 'mute'): CreatorDraft {
     const path = modePath(mode, soundPath(target));
     const pendingCopies = { ...draft.pendingCopies };
     let raw: CreatorDraft['raw'];
@@ -198,10 +199,32 @@ export function setSound(draft: CreatorDraft, mode: ThemeMode, target: SoundTarg
         const file = libraryPath(sound.pack, sound.cue);
         pendingCopies[file] = { kind: 'library', pack: sound.pack, cue: sound.cue };
         raw = setAt(draft.raw, path, [file, sound.volume]);
-    } else raw = setAt(draft.raw, path, [sound.file, sound.volume]);
+    } else {
+        // A file from Steam's file dialog (absolute) is copied into the theme's folder on Save.
+        if (sound.picked) pendingCopies[sound.file] = { kind: 'file', path: sound.file };
+        raw = setAt(draft.raw, path, [sound.file, sound.volume]);
+    }
     const used = JSON.stringify(raw);
     for (const p of Object.keys(pendingCopies)) if (!used.includes(JSON.stringify(p))) delete pendingCopies[p];
     return { ...draft, raw, pendingCopies };
+}
+
+/** Which editor page owns a theme warning, and in which mode (the warning row's Go button). Pure. */
+export function pageForWarning(warning: string): { page: string; mode: ThemeMode } {
+    const bigPicture = warning.startsWith('bigpicture: ');
+    const w = bigPicture ? warning.slice('bigpicture: '.length) : warning;
+    const mode: ThemeMode = bigPicture ? 'bigpicture' : 'desktop';
+    if (w.startsWith('bigpicture must')) return { page: 'code', mode: 'desktop' };
+    if (w.startsWith('achievements')) {
+        const tier = TIERS.find((t) => new RegExp(`\\b${t}\\b`).test(w));
+        return { page: tier ? `tier:${tier}` : 'achievements', mode };
+    }
+    if (w.startsWith('settings')) return { page: 'placement', mode };
+    if (/^"?(sound|Asset unavailable|Could not decode)/.test(w)) return { page: 'sound', mode };
+    if (/^"?(popup_icon|game_icon|header_icon)/.test(w)) return { page: 'icons', mode };
+    if (/^"?(popup|font_family)/.test(w)) return { page: 'card', mode };
+    if (/^"?text/.test(w)) return { page: 'text', mode };
+    return { page: 'code', mode };
 }
 
 /** A free name: `base`, else `base_2`, `base_3`, ... not in `taken` (case-insensitive, as Windows file names are). */

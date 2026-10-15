@@ -245,7 +245,7 @@ local function id_of(name, ext)
   return name
 end
 
---- Save a theme: { name, text, overwrite, backup, copies = { { from = "bundled"|"user"|"library", path, to } } }.
+--- Save a theme: { name, text, overwrite, backup, copies = { { from = "bundled"|"user"|"library"|"file", path, to } } }.
 --- Every copy is checked before anything is written (its root, type, size, and a target inside <name>/); one bad
 --- copy refuses the whole save. Copies first, then the theme file through a temp file. Returns { id, path }.
 SaveTheme = method("SaveTheme", function(data)
@@ -258,12 +258,15 @@ SaveTheme = method("SaveTheme", function(data)
 
   local plan = {}
   for _, c in ipairs(type(data.copies) == "table" and data.copies or {}) do
-    local root = copy_root(c.from)
-    if not root then return { error = "copy refused: unknown source " .. tostring(c.from) } end
-    if not safe_relative(c.path) then return { error = "copy refused: " .. tostring(c.path) } end
+    -- "file": a file the user picked with Steam's file dialog (an absolute path); the rest are relative to their root.
+    local root = c.from ~= "file" and copy_root(c.from) or nil
+    if c.from ~= "file" and not root then return { error = "copy refused: unknown source " .. tostring(c.from) } end
+    if c.from == "file" then
+      if type(c.path) ~= "string" or not is_absolute(c.path) or c.path:find("%.%.") then return { error = "copy refused: " .. tostring(c.path) } end
+    elseif not safe_relative(c.path) then return { error = "copy refused: " .. tostring(c.path) } end
     local file = type(c.to) == "string" and c.to:match("^" .. name:gsub("%-", "%%-") .. "[/\\]([^/\\]+)$")
     if not file or file == ".." or file == "." then return { error = "copy refused: target " .. tostring(c.to) } end
-    local src = fs.join(root, c.path)
+    local src = root and fs.join(root, c.path) or native(c.path)
     if not MIME[(fs.extension(src):sub(2)):lower()] then return { error = "copy refused: type not allowed: " .. c.path } end
     if not fs.is_file(src) then return { error = "copy refused: not found: " .. c.path } end
     if (fs.file_size(src) or 0) > MAX_ASSET_BYTES then return { error = "copy refused: larger than 8 MB: " .. c.path } end

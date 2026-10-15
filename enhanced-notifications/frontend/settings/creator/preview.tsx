@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState, type ComponentType, type Ref } from "react";
-import { Dropdown, Field, PanelSection } from "@steambrew/client";
+import { DialogButton, Dropdown, Field, PanelSection } from "@steambrew/client";
 import type { AchievementTheme, ResolvedTier, Tier } from "../../theme/achievements";
 import { buildAnimationCss, buildCss, soundSpecFor, STEAM_TEMPLATE_HEIGHT, type ResolvedTheme, type ThemeMode, type ToastSelectors } from "../../theme/theme";
 import { placeToast, STEAM_TOAST_HEIGHT, STEAM_TOAST_WIDTH } from "../../theme/placement";
 import { bannerSize, placeBanner } from "../../banner/geometry";
 import { bannerTiming, themedDisplayMs } from "../../banner/timing";
 import type { Phase } from "../../banner/queue";
-import { Blocks, ButtonRow, ControlledToggleRow, FullWidthRows, IconButton, ItemRow } from "../rows";
+import { Blocks, BUTTON_STYLE, ButtonRow, ControlledToggleRow, FullWidthRows, IconButton, ItemRow } from "../rows";
 import { useCreator } from "./controls";
-import { DEFAULT_CHOSEN, previewItems, PREVIEW_SETS, randomFour, sampleFor, SAMPLE_ACHIEVEMENT, type PreviewItem, type PreviewSetId } from "./model";
+import { DEFAULT_CHOSEN, pageForWarning, previewItems, PREVIEW_SETS, randomFour, sampleFor, SAMPLE_ACHIEVEMENT, type PreviewItem, type PreviewSetId } from "./model";
 import { describeSound, play } from "./sounds";
 import { TIER_NAMES } from "./pages";
 
@@ -265,10 +265,16 @@ export interface PreviewColumnProps {
     onModeChange: (mode: ThemeMode) => void;
     onTest: (items: PreviewItem[]) => void;
     testDisabled: boolean;
+    /** Play Steam's own chime for a preview id ("Achievement" for the tiers); false when it cannot. */
+    onSteamChime: (id: string) => boolean;
+    /** Open the page (and mode) that owns a theme warning. */
+    onGo: (page: string, mode: ThemeMode) => void;
+    /** A template shown while its Start page row is hovered (the stage says so); null: the draft. */
+    peekName: string | null;
 }
 
 /** The middle column: the stage, sticky, then the preview's own settings. */
-export function PreviewColumn({ theme, warnings, assets, BannerCard, game, previewIds, previewLabels, onModeChange, onTest, testDisabled }: PreviewColumnProps) {
+export function PreviewColumn({ theme, warnings, assets, BannerCard, game, previewIds, previewLabels, onModeChange, onTest, testDisabled, onSteamChime, onGo, peekName }: PreviewColumnProps) {
     const api = useCreator();
     const [set, setSet] = useState<PreviewSetId>("tiers");
     const [chosen, setChosen] = useState<string[]>(DEFAULT_CHOSEN);
@@ -286,6 +292,7 @@ export function PreviewColumn({ theme, warnings, assets, BannerCard, game, previ
         <>
             <div style={{ position: "sticky", top: 0, zIndex: 2, background: "#1b1e24", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
                 <ModeSwitch mode={api.mode} onChange={onModeChange} />
+                {peekName && <div style={{ padding: "6px 14px 0", fontSize: 12, color: "#8f98a0" }}>Previewing the template {peekName}</div>}
                 <Stage theme={theme} mode={api.mode} items={items} assets={assets} BannerCard={BannerCard} game={game} onScreen={onScreen} loop={loop} replay={replay} />
             </div>
             <PanelSection title="Preview">
@@ -320,8 +327,12 @@ export function PreviewColumn({ theme, warnings, assets, BannerCard, game, previ
                     const { spec, text } = describe(item);
                     return (
                         <ItemRow key={i}>
-                            <Field label={item.kind === "achievement" ? TIER_NAMES[item.tier as Tier] : (previewLabels[item.id] ?? item.id)} description={spec === null ? "Steam's chime (plays with Test on screen)" : text} bottomSeparator="none">
-                                <IconButton title="Play" disabled={!spec} onClick={() => spec && void play(api, spec.path, spec.volumePct)}>
+                            <Field label={item.kind === "achievement" ? TIER_NAMES[item.tier as Tier] : (previewLabels[item.id] ?? item.id)} description={spec === null ? "Steam's chime" : text} bottomSeparator="none">
+                                <IconButton
+                                    title="Play"
+                                    disabled={spec === false}
+                                    onClick={() => (spec ? void play(api, spec.path, spec.volumePct) : spec === null && onSteamChime(item.kind === "achievement" ? "Achievement" : item.id))}
+                                >
                                     ▶
                                 </IconButton>
                             </Field>
@@ -346,11 +357,18 @@ export function PreviewColumn({ theme, warnings, assets, BannerCard, game, previ
             </PanelSection>
             {warnings.length > 0 && (
                 <PanelSection title="Theme warnings">
-                    {warnings.map((w, i) => (
-                        <ItemRow key={i}>
-                            <Field label={w.split(/[ :]/)[0]!} description={w} />
-                        </ItemRow>
-                    ))}
+                    {warnings.map((w, i) => {
+                        const target = pageForWarning(w);
+                        return (
+                            <ItemRow key={i}>
+                                <Field label={w.split(/[ :]/)[0]!.replace(/"/g, "")} description={w} bottomSeparator="none">
+                                    <DialogButton style={BUTTON_STYLE} onClick={() => onGo(target.page, target.mode)}>
+                                        Go
+                                    </DialogButton>
+                                </Field>
+                            </ItemRow>
+                        );
+                    })}
                 </PanelSection>
             )}
         </>

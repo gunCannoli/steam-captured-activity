@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { ConfirmModal, DialogButton, Dropdown, Field, PanelSection } from "@steambrew/client";
 import { audio } from "../../theme/active-theme";
 import type { Tier } from "../../theme/achievements";
-import { getAt, libraryPath, modePath, originOf, type CreatorDraft } from "../../theme/draft";
+import { getAt, isAbsolutePath, libraryPath, modePath, originOf, type CreatorDraft } from "../../theme/draft";
 import type { ThemeMode } from "../../theme/theme";
 import type { SoundLibraryManifest } from "../../rpc";
 import { showDialog } from "../../steam/modal";
+import { canPickFiles, pickFile } from "../../steam/file-dialog";
 import { Blocks, BUTTON_STYLE, ButtonRow, ControlledSliderRow, FullWidthRows, IconButton, ItemRow } from "../rows";
 import { CreatorContext, useCreator, type CreatorApi } from "./controls";
 import { applyPack, CUES, currentCue, PAIRING_HINT, setSound, soundPath, type CueChoice, type SoundTarget } from "./model";
@@ -64,7 +65,8 @@ export function describeSound(value: unknown, draft: CreatorDraft, library: Soun
     const vol = typeof value[1] === "number" ? value[1] : 100;
     const pick = draft.pendingCopies[file];
     const saved = /(?:^|\/)([A-Za-z0-9_]+)_(subtle|distinct|grand)(?:-\d+)?\.wav$/.exec(file);
-    const m = pick ?? (saved ? { pack: saved[1]!, cue: saved[2]! } : null);
+    if (pick?.kind === "file") return `${pick.path.split(/[\/]/).pop()}, ${vol} %`;
+    const m = pick?.kind === "library" ? pick : saved ? { pack: saved[1]!, cue: saved[2]! } : null;
     const pack = m && library?.packs.find((p) => p.id === m.pack);
     const cue = m && library?.cues.find((c) => c.id === m.cue);
     return `${pack && cue ? `${pack.label} · ${cue.label}` : file}, ${vol} %`;
@@ -239,7 +241,8 @@ const CATEGORIES = ["All", "Chiptune", "Bells", "Strings", "Orchestral", "World"
 
 function SoundPicker({ api, target, current, closeModal }: { api: CreatorApi; target: SoundTarget; current: string | null; closeModal?: () => void }) {
     const library = api.library;
-    const startPick = current ? api.draft.pendingCopies[current] : undefined;
+    const pending = current ? api.draft.pendingCopies[current] : undefined;
+    const startPick = pending?.kind === "library" ? pending : undefined;
     const [source, setSource] = useState<"library" | "files">(current && !startPick ? "files" : "library");
     const [category, setCategory] = useState("All");
     const packs = (library?.packs ?? []).filter((p) => category === "All" || p.category === category);
@@ -252,7 +255,7 @@ function SoundPicker({ api, target, current, closeModal }: { api: CreatorApi; ta
     const chosenPath = source === "library" ? libraryPath(pack, cue) : file;
     const use = () => {
         if (!chosenPath) return;
-        api.replace(setSound(api.draft, api.mode, target, source === "library" ? { pack, cue, volume } : { file, volume }));
+        api.replace(setSound(api.draft, api.mode, target, source === "library" ? { pack, cue, volume } : { file, volume, picked: isAbsolutePath(file) }));
         closeModal?.();
     };
     return (
@@ -288,14 +291,27 @@ function SoundPicker({ api, target, current, closeModal }: { api: CreatorApi; ta
                                     <Dropdown rgOptions={(library?.cues ?? []).map((c) => ({ data: c.id, label: c.label }))} selectedOption={cue} contextMenuPositionOptions={{ bMatchWidth: true }} onChange={(o) => setCue(o.data as string)} />
                                 </FullWidthRows>
                             </>
-                        ) : api.files.sounds.length ? (
-                            <FullWidthRows label="File" description=".mp3, .wav or .ogg in the theme's folder">
-                                <Dropdown rgOptions={api.files.sounds.map((f) => ({ data: f, label: f }))} selectedOption={file} contextMenuPositionOptions={{ bMatchWidth: true }} onChange={(o) => setFile(o.data as string)} />
+                        ) : api.files.sounds.length || isAbsolutePath(file) ? (
+                            <FullWidthRows label="File" description=".mp3, .wav or .ogg in the theme's folder, or one you imported">
+                                <Dropdown
+                                    rgOptions={[...new Set([...api.files.sounds, ...(isAbsolutePath(file) ? [file] : [])])].map((f) => ({ data: f, label: f.split(/[\\/]/).pop() ?? f }))}
+                                    selectedOption={file}
+                                    contextMenuPositionOptions={{ bMatchWidth: true }}
+                                    onChange={(o) => setFile(o.data as string)}
+                                />
                             </FullWidthRows>
                         ) : (
                             <ItemRow>
                                 <Field label="No sounds in the theme's folder" description="Add .mp3 or .wav files to the themes folder, then Rescan" />
                             </ItemRow>
+                        )}
+                        {source === "files" && canPickFiles() && (
+                            <ButtonRow
+                                label="Import a file"
+                                description="A sound from your PC, copied into the theme's folder when you save"
+                                buttonLabel="Import..."
+                                onClick={() => void pickFile("sound", "Choose a sound", api.window()).then((f) => f && setFile(f))}
+                            />
                         )}
                         {source === "files" && (
                             <ItemRow>

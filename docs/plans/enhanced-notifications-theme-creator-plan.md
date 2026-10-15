@@ -2,7 +2,7 @@
 
 **Status (2026-10-14):** **built, P1-P10** (§ 14, ADR-0069), with the user's addition of a Desktop / Big Picture mode
 (ADR-0068: a theme's `bigpicture` block). Live: `tests/creator.mjs` 15/15, the whole live suite green on Steam 1791918634.
-Left: § 14 "Not built", and the user's look at it.
+Every item built (§ 14, second pass); left: the user's look at it.
 **This plan's job:** what the Theme Creator is, how it looks, how it fits the plugin's architecture, and the order it
 is built in. It is the **feature design**. Each phase in § 9 gets its own mechanical plan (literal before/after blocks,
 the [plan writing standard](README.md)) when it starts, written against the files as they are then. Writing those
@@ -973,10 +973,26 @@ instead of a popup; the theme warnings are rows without a Go button; the Start p
 
 **Found on the way (not the creator's):** Steam 1791918634 broke two lookups, both fixed: the toast dispatcher (a table
 lookup replaced the `switch`; the banner had been off since the update) and Steam's `showModal` (dialogs fell back to
-Millennium's, unsized). Steam's `ConfirmModal` logs "Trying to use ConfigContext without a provider" once or twice per
-dialog under this build, with nothing failing to render (also a plain text dialog): a known issue, not the creator's.
+Millennium's, unsized). Steam's `ConfirmModal` logged "Trying to use ConfigContext without a provider" per dialog
+under this build: fixed in the second pass (below).
 `tests/bigpicture.mjs` measured "Steam's place" with the user's theme active and wiped the stored settings when run
 alone; it now measures with Steam default and restores the settings.
 
-**Not built** (ADR-0069 consequences): template preview on hover, a Go button per warning, a native file picker, the
-Steam chime in the preview.
+**Second pass (same day): every "not built" item built, and the known issue fixed.**
+
+- *Template preview:* hovering or focusing a template row on the Start page shows it on the stage after 300 ms
+  ("Previewing the template ..."); leaving the row goes back to the draft.
+- *Go per warning:* `pageForWarning` (pure, tested) maps each warning to its page and mode (a `bigpicture:` warning opens
+  the Big Picture mode).
+- *Import:* "Choose an image" on each icon slot and "Import a file" in the sound picker use Steam's file dialog
+  (`steam/file-dialog.ts`, S4 answered: `SteamClient.System.OpenFileDialog`). A picked file is a pending copy
+  (`FilePick`) and Save copies it into the theme's folder (backend source `file`, Lua-tested).
+- *Steam's chime (S5):* the preview surface's `previewChime` plays the type's own Steam sound through a stand-in
+  `PlayNotificationSound` call; achievements need `data.achieved()` on the stand-in (verified live: Steam picks sound 5
+  for achievements, 6 for a download).
+- *ConfigContext:* every dialog is now wrapped in Steam's `ConfigContextRoot` (`steam/modal.ts`, module 6739 `ss`):
+  0 errors over a whole creator run (was 5-7).
+- `tests/creator.mjs` gained the hover, chime and Go checks (19 checks).
+- Observed once: Millennium v3.6.1 crashed with a stack overflow in `millennium.dll` at one Steam start right after a
+  deploy (`crashes/millennium-20261014-223741`, the first Millennium crash on this machine); the next start with the same
+  code was clean. Watch item.

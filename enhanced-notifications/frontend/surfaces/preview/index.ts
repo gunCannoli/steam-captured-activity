@@ -1,5 +1,7 @@
 import type { Surface } from '../../kernel/surface';
 import { audio } from '../../theme/active-theme';
+import { achievementEType, eTypeOf, notificationStore } from '../../steam/notification-store';
+import type { SteamNotification } from '../../kernel/notification';
 import { isEnabled, reportError } from '../../safety/runtime';
 import { pickPreview } from './pick';
 
@@ -80,6 +82,29 @@ export async function preview(id?: string, withAchievement = true): Promise<stri
     } catch (error) {
         reportError('preview', error);
         return null;
+    }
+}
+
+/**
+ * Play the chime Steam would play for a preview id's type, with no toast (the Theme Creator's "Steam's chime" rows): a
+ * stand-in call through Steam's own `PlayNotificationSound`, which the notification hook passes straight to Steam for
+ * anything that is not the store itself, so Steam's choice and the user's "play sound" setting apply. Returns false when
+ * switched off (`preview`) or the type is unknown.
+ */
+export function previewChime(id: string): boolean {
+    if (!isEnabled('preview')) return false;
+    const handle = notificationStore();
+    const eType = id === 'Achievement' ? achievementEType() : (eTypeOf(id) ?? eTypeOf(id.replace(/Notification$/, '')));
+    if (!handle || eType === null) return false;
+    try {
+        void audio().resume();
+        // Steam's achievement sound asks `data.achieved()` (verified live 2026-10-14): the stand-in says it is an unlock.
+        const n = { eType, data: { achieved: () => true } } as unknown as SteamNotification;
+        handle.proto.PlayNotificationSound.call(Object.create(handle.store as object), n);
+        return true;
+    } catch (error) {
+        reportError('preview', error);
+        return false;
     }
 }
 

@@ -153,6 +153,12 @@ for _, case in ipairs(refusals) do
   check("SaveTheme refuses " .. case[1] .. ", writing nothing", res.error ~= nil and not fs.is_file(USER .. "\\x.jsonc") and not fs.is_directory(USER .. "\\x"), res.error)
 end
 
+local picked = save({ name = "picked", text = "{}", copies = { { from = "file", path = PLUGIN .. "/themes/SteamStation/assets/trophy.svg", to = "picked/trophy.svg" } } })
+check("SaveTheme copies a file the user picked (absolute path)", picked.error == nil and utils.read_file(USER .. "/picked/trophy.svg") == "<svg/>", picked.error)
+check("SaveTheme refuses a picked file of a disallowed type", save({ name = "picked2", text = "{}", copies = { { from = "file", path = PLUGIN .. "/themes/SteamStation/assets/tool.exe", to = "picked2/tool.exe" } } }).error ~= nil)
+check("SaveTheme refuses a relative path as a picked file", save({ name = "picked3", text = "{}", copies = { { from = "file", path = "SteamStation/assets/trophy.svg", to = "picked3/trophy.svg" } } }).error ~= nil)
+call("DeleteTheme", { id = "picked", assets = true })
+
 local listed = call("ListThemes", {})
 local names = {}
 for _, t in ipairs(listed.themes or {}) do names[#names + 1] = t.name end

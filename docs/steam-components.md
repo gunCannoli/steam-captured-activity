@@ -1260,9 +1260,14 @@ Module `13869` exports `pg` (`showModal`):
 > `showModal` (`popupWidth` / `popupHeight`, `bNeverPopOut`, `bForcePopOut`) and `pg` is the same with
 > `bHideMainWindowForPopouts: true`. Its measuring call moved into a helper, so `RequestModalMeasure` is in the module but
 > no longer in the export's own source: resolve by module (`RequestModalMeasure` and `bNeverPopOut`) and export
-> (`bNeverPopOut` and `popupWidth`), as `enhanced-notifications/frontend/steam/modal.ts` does. Millennium's own
-> `showModal` (the fallback) renders without Steam's `ConfigContextRoot`, which logs "Trying to use ConfigContext without
-> a provider" for every dialog.
+> (`bNeverPopOut` and `popupWidth`), as `enhanced-notifications/frontend/steam/modal.ts` does.
+> **ConfigContext:** from this build Steam's `ConfirmModal` reads a React context (module `6739`: `QO` the context, `rP` the
+> asserting reader, `ss` = `ConfigContextRoot({ IN_GAMEPADUI, IN_DESKTOPUI, IN_VR, children })` the provider) and logs
+> "Trying to use ConfigContext without a provider!" when a plugin's dialog tree has none, through either `showModal`.
+> Wrap the dialog in `ss` (resolve it by the assert string and `IN_DESKTOPUI` + `.Provider`), forwarding the
+> `closeModal` Steam injects into the root element. **File dialog:** `SteamClient.System.OpenFileDialog({ strTitle,
+> rgFilters: [{ strFileTypeName, rFilePatterns, bUseAsDefault }], strInitialFile, bChooseDirectory, bSaveMode })`
+> resolves to the chosen path (Steam's "Choose icon" and "Add a Non-Steam Game" use it).
 
 ```ts
 import { showModal } from '@steambrew/client'; // Or req(13869).pg

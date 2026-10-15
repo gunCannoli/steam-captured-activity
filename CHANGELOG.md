@@ -24,6 +24,13 @@ This repo is private and unversioned; entries are grouped by date.
     suite; their looks are H7, H8, H11). Both readable at `6ece444`.
   - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
   - Live suite 12/12 after the deploy.
+- **enhanced-notifications: known issues fixed, the Theme Creator completed (2026-10-14, second pass)**, [plan § 14](docs/plans/enhanced-notifications-theme-creator-plan.md):
+  every dialog is wrapped in Steam's `ConfigContextRoot` (the ConfigContext assert per dialog under Steam 1791918634: 0
+  over a whole creator run, was 5-7); the creator's last plan items: template preview on hover or focus, a Go button per
+  theme warning (`pageForWarning`), Import of images and sounds through Steam's file dialog (a pending copy, copied into
+  the theme's folder on Save; backend source `file`), Steam's own chime in the preview (`previewChime`, a stand-in
+  `PlayNotificationSound` call). `creator.mjs` 19 checks. Observed once: a Millennium stack-overflow crash at one Steam
+  start right after a deploy, clean on the next start (watch item).
 - **enhanced-notifications: the Theme Creator, and a Big Picture look per theme (2026-10-14)**,
   [the plan](docs/plans/enhanced-notifications-theme-creator-plan.md) § 14, [ADR-0068](docs/decisions.md), [ADR-0069](docs/decisions.md):
   - *Big Picture look (the user's addition):* a theme's optional `bigpicture` block is laid over the rest in Big Picture

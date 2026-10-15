@@ -34,6 +34,8 @@ export interface CreatorDeps {
     sampleGame: () => SampleGame | null;
     /** Steam's toasts on and the preview surface installed. */
     canTest: () => boolean;
+    /** Play Steam's own chime for a preview id's type (surfaces/preview `previewChime`); false when it cannot. */
+    previewChime: (id: string) => boolean;
 }
 
 const STORAGE_KEY = "enhanced-notifications.creator.draft";
@@ -113,6 +115,28 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
     const [files, setFiles] = useState<{ images: string[]; sounds: string[] }>({ images: [], sounds: [] });
     const [assets, setAssets] = useState<ReadonlyMap<string, string>>(new Map());
     const [restorable] = useState(stored);
+    /** A template shown in the preview while its Start page row is hovered or focused (plan § 4.4); read-only. */
+    const [peek, setPeek] = useState<{ name: string; raw: Record<string, unknown>; assets: ReadonlyMap<string, string> } | null>(null);
+    const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const peekAt = (entry: ThemeEntry | null) => {
+        if (peekTimer.current) clearTimeout(peekTimer.current);
+        if (!entry) return setPeek(null);
+        // 300 ms after hover or focus settles, so moving across the list loads nothing.
+        peekTimer.current = setTimeout(async () => {
+            try {
+                const file = await rpc.loadTheme(entry.id);
+                const raw = parseJsonc(file.text) as Record<string, unknown>;
+                const paths = resolveTheme(raw).assetPaths;
+                const urls = paths.length ? await rpc.loadAssets(file.dir, paths) : {};
+                setPeek({ name: entry.name, raw, assets: new Map(Object.entries(urls).filter((e): e is [string, string] => typeof e[1] === "string")) });
+            } catch {
+                setPeek(null);
+            }
+        }, 300);
+    };
+    useEffect(() => {
+        if (page !== "start") peekAt(null);
+    }, [page]);
     const cache = useRef(new Map<string, string | null>());
     const rootRef = useRef<HTMLDivElement>(null);
     const ownWindow = () => rootRef.current?.ownerDocument?.defaultView ?? window;
@@ -155,8 +179,9 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
     const loadAsset = useCallback(
         async (path: string): Promise<string | null> => {
             const pick = draft.pendingCopies[path];
-            const dir = pick ? (library?.dir ?? "") : isAbsolutePath(path) ? "" : dirOf(draft);
-            const rel = pick ? `${pick.pack}/${pick.cue}.wav` : path;
+            const library_ = pick?.kind === "library" ? pick : null;
+            const dir = library_ ? (library?.dir ?? "") : isAbsolutePath(path) ? "" : dirOf(draft);
+            const rel = library_ ? `${library_.pack}/${library_.cue}.wav` : path;
             const key = `${dir}|${rel}`;
             if (cache.current.has(key)) return cache.current.get(key)!;
             try {
@@ -214,7 +239,15 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
             return { theme: null, error: error instanceof Error ? error.message : String(error) };
         }
     }, [draft.raw]);
-    const view = resolved.theme ? themeForMode(resolved.theme, mode) : null;
+    const peekTheme = useMemo(() => {
+        try {
+            return peek ? resolveTheme(peek.raw) : null;
+        } catch {
+            return null;
+        }
+    }, [peek]);
+    const shown = peekTheme ?? resolved.theme;
+    const view = shown ? themeForMode(shown, mode) : null;
     const warnings = resolved.error ? [resolved.error] : (resolved.theme?.warnings ?? []);
 
     useEffect(() => {
@@ -363,6 +396,7 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
                         onOpen={(t) => void openTheme(t)}
                         onDelete={remove}
                         onRestore={(d) => open(d, null)}
+                        onPeek={peekAt}
                     />
                 );
             case "placement":
@@ -419,12 +453,18 @@ export function ThemeCreator({ deps, closeModal }: { deps: CreatorDeps; closeMod
                             <PreviewColumn
                                 theme={view}
                                 warnings={warnings}
-                                assets={assets}
+                                assets={peek ? peek.assets : assets}
+                                peekName={peek?.name ?? null}
                                 BannerCard={deps.BannerCard}
                                 game={game}
                                 previewIds={deps.previewOptions.map((o) => o.id)}
                                 previewLabels={Object.fromEntries(deps.previewOptions.map((o) => [o.id, o.label]))}
                                 onModeChange={setMode}
+                                onSteamChime={deps.previewChime}
+                                onGo={(target, targetMode) => {
+                                    setMode(targetMode);
+                                    setPage(target);
+                                }}
                                 onTest={(items) => void test(items)}
                                 testDisabled={!deps.canTest() || !resolved.theme}
                             />
@@ -467,6 +507,7 @@ function StartPage({
     onOpen,
     onDelete,
     onRestore,
+    onPeek,
 }: {
     themes: ThemeEntry[];
     restorable: { draft: CreatorDraft; at: number } | null;
@@ -474,6 +515,7 @@ function StartPage({
     onOpen: (t: ThemeEntry) => void;
     onDelete: (t: ThemeEntry) => void;
     onRestore: (d: CreatorDraft) => void;
+    onPeek: (t: ThemeEntry | null) => void;
 }) {
     const [restore, setRestore] = useState(restorable);
     const templates = themes.filter((t) => t.source === "bundled");
@@ -509,7 +551,9 @@ function StartPage({
             {templates.length > 0 && (
                 <PanelSection title="Templates">
                     {templates.map((t) => (
-                        <ButtonRow key={t.id} label={t.name} description="Bundled; saved as your own copy" buttonLabel="Use" onClick={() => onOpen(t)} />
+                        <div key={t.id} onMouseEnter={() => onPeek(t)} onMouseLeave={() => onPeek(null)} onFocus={() => onPeek(t)} onBlur={() => onPeek(null)}>
+                            <ButtonRow label={t.name} description="Bundled; saved as your own copy. Hover to preview it" buttonLabel="Use" onClick={() => onOpen(t)} />
+                        </div>
                     ))}
                 </PanelSection>
             )}

@@ -19,7 +19,7 @@ import { createSoundSurface } from './surfaces/sound';
 import { createDurationSurface } from './surfaces/duration';
 import { createQueueSurface } from './surfaces/queue';
 import { createStyleSurface } from './surfaces/style';
-import { createPreviewSurface, preview, previewOptions } from './surfaces/preview';
+import { createPreviewSurface, preview, previewChime, previewOptions } from './surfaces/preview';
 import { completionHandler, createToastsSurface } from './surfaces/toasts';
 import { previewTier } from './surfaces/toasts/post';
 import { BannerCard, createBannerSurface } from './surfaces/banner';
@@ -157,6 +157,7 @@ const creatorDeps: CreatorDeps = {
     previewTier,
     sampleGame,
     canTest: () => toastsEnabled() !== false && isEnabled('preview'),
+    previewChime,
 };
 
 /** Open the Theme Creator as the panel does (tests/creator.mjs). */

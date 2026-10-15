@@ -56,6 +56,58 @@ try {
     const listed = await win.evaluate(`[...document.querySelectorAll('div')].filter((e) => e.children.length === 0).map((e) => e.textContent.trim())`);
     check('the Start page lists every bundled template', bundled.every((b) => listed.includes(b)), bundled.join(', '));
 
+    // Hovering a template previews it (Start page).
+    await win.evaluate(`(() => {
+        const label = [...document.querySelectorAll('div')].find((e) => e.children.length === 0 && e.textContent.trim() === ${JSON.stringify(bundled[0] ?? '')});
+        label?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body }));
+        return true;
+    })()`);
+    await wait(1500);
+    check('hovering a template previews it', await win.evaluate(`document.body.innerText.includes(${JSON.stringify(`Previewing the template ${bundled[0]}`)})`));
+    // Leaving the row goes back to the draft (a fresh theme: Steam's chime on every row).
+    await win.evaluate(`(() => {
+        const label = [...document.querySelectorAll('div')].find((e) => e.children.length === 0 && e.textContent.trim() === ${JSON.stringify(bundled[0] ?? '')});
+        label?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }));
+        return true;
+    })()`);
+    await wait(500);
+    check('leaving the template shows the draft again', !(await win.evaluate(`document.body.innerText.includes('Previewing the template')`)));
+
+    // A fresh theme plays Steam's own chime from its Sounds rows (Steam's sound player records the request).
+    await shared.evaluate(`(() => {
+        window.__creatorNavs = [];
+        let req; const key = '__creator_probe_' + Date.now();
+        window.webpackChunksteamui.push([[key], { [key]: (m, e, r) => (req = r) }, (r) => r(key)]);
+        for (const id of Object.keys(req.m)) {
+            if (!req.m[id].toString().includes('m_fnCallbackOnPlaySound')) continue;
+            for (const v of Object.values(req(id))) if (v && typeof v.PlayNavSound === 'function' && v.m_fnCallbackOnPlaySound) {
+                v.__creatorOrig ??= v.PlayNavSound;
+                const o = v.__creatorOrig;
+                v.PlayNavSound = function (...a) { window.__creatorNavs.push(a[0]); return o.apply(this, a); };
+                window.__creatorNavRestore = () => { v.PlayNavSound = o; };
+            }
+        }
+        return true;
+    })()`);
+    await win.evaluate(`([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '▶')?.click(), true)`);
+    await wait(800);
+    const navs = await shared.evaluate(`JSON.stringify(window.__creatorNavs ?? [])`);
+    await shared.evaluate(`(window.__creatorNavRestore?.(), true)`);
+    check("a Steam's chime row plays Steam's own sound", JSON.parse(navs).length > 0, navs);
+
+    // A theme warning's Go opens the page that owns it.
+    await click(win, 'Code');
+    await win.evaluate(`(() => {
+        const ta = document.querySelector('textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, '{"settings":{"position":"nowhere"}}');
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+    })()`);
+    await click(win, 'Apply');
+    await click(win, 'Go');
+    check('a warning\'s Go opens its page (Placement)', await win.evaluate(`[...document.querySelectorAll('div')].some((e) => e.children.length === 0 && e.textContent.trim() === 'Placement' && getComputedStyle(e).borderLeftColor === 'rgb(26, 159, 255)')`));
+    await click(win, 'Start');
+
     check('a template opens', await click(win, 'Use', 0));
     check('Big Picture mode', await click(win, 'Big Picture'));
     check('a Big Picture key is customized', await click(win, 'Customize', 0));

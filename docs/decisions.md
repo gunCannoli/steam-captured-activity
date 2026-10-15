@@ -3748,10 +3748,15 @@ ADR-0052/0053 (themes are hand-editable JSONC; Steam default is a theme) and ADR
    console; the source zips stay out of the plugin (`assets-src/`, git history `6ece444`).
 7. **Its dialogs open over its own window** (`showDialog(..., parent)`), the colour picker is built from Steam's own
    sliders and text field (the SDK's `ColorPickerModal` leans on gamepad slider classes).
+8. **Files from the PC** come through Steam's own file dialog (`SteamClient.System.OpenFileDialog`, `steam/file-dialog.ts`):
+   a picked file is a pending copy in the draft and Save copies it into the theme's folder (backend copy source `file`:
+   an absolute path, the same type, size and target checks), so a saved theme stays shareable.
+9. **Steam's chime in the preview** is Steam's own sound: the preview surface's `previewChime` makes a stand-in call
+   through Steam's `PlayNotificationSound` (Steam's choice and the user's sound setting apply; no toast, kill switch
+   `preview`).
 
 ### Consequences
 
 - The mock can drift from Steam's real toast after a Steam update; Test on screen shows the truth.
-- Not built (plan items left for later): previewing a template on hover in the Start page, a Go button per theme
-  warning, a native file picker for importing images and sounds (the theme folder plus Rescan instead), playing Steam's
-  own chime in the preview (it plays with Test on screen).
+- Every plan item is built (2026-10-14, second pass): template preview on hover or focus, a Go button per theme warning,
+  Import through Steam's file dialog, Steam's chime in the preview.

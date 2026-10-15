@@ -55,6 +55,12 @@ export function typeName(eType: number | undefined): string | null {
     return eType === undefined ? null : (names.get(eType) ?? null);
 }
 
+/** Steam's eType for a type name (the SDK enum's, or `Type<n>`), or null. O(types): for clicks, never a hot path. */
+export function eTypeOf(name: string): number | null {
+    for (const [eType, n] of names) if (n === name) return eType;
+    return null;
+}
+
 /** The resolved store, or null (not resolved, or Steam lacks it). */
 export function notificationStore(): NotificationStoreHandle | null {
     return handle;
