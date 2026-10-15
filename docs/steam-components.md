@@ -1575,6 +1575,17 @@ reject only with no transport ("Transport Error").
    screenshot_handle, achievement_name, tag[], phase_id, attributes[]},
    clip_id? }`; response `{ entry_id }`.
 
+**Markers on a shortcut's timeline are refused (verified live 2026-10-15, Metroid Fusion shortcut, RetroArch, recording
+mode Manual).** `UserAddTimelineEntry` from SharedJSContext answers **EResult 42 (NoMatch)** for the shortcut's running
+timeline (`BIsTimelineRunning` true, ~1-2 min in), for both an `Event` (type 2, `range_title`, `marker_icon`) and Steam's
+own user-marker shape (`{ timeline_id, entry_id: "", time, type: 5, marker_icon: "steam_marker", marker_priority: 0 }`, the
+exact entry `AddUserMarkerAtGlobalMS` in module `60869` sends through `g_GRS.CreateUserTimelineMarkers`), and also
+**while a manual recording runs** (`g_GRS.StartRecording`, `recording_type 2`). So the cause is neither the timeline
+starting late nor missing video. Not yet known: whether Steam's own overlay "add marker" works on a shortcut (if it fails
+too, it is Steam's limit for non-Steam games), and whether the same call works for a native game from SharedJSContext.
+Side effects seen: stopping a manual recording ends the timeline and starts a new one; the test clip was deleted with
+`g_GRS.DeleteClip(clipId)` (EResult 1, no files left).
+
 **`ETimelineEntryType`** (protobuf wire enum, a network contract, not a
 webpack id): `GameMode=1, Event=2, StateDescription=3, Achievement=4,
 UserMarker=5, Screenshot=6, Error=7`. Rendering, from Steam's proto→UI

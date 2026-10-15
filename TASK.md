@@ -51,9 +51,12 @@ blockers (release plan § 3).
   offset plus `GetTimelineStartBeforeGlobalZeroMS`. enhanced-notifications sent an `Event` entry (`type: 2`,
   `marker_icon: 'steam_achievement'`, `range_title`, `marker_description`, `range_duration: '0'`) and fell back to a
   `UserMarker` (`type: 5`, `steam_marker`); its code is in git before this change (`frontend/surfaces/captures/captures.ts`
-  `sendMarker`, `frontend/capture/plan.ts`). Open: on Wuchang (2026-10-02 11:47, unlocks 2 s after launch) both forms
-  were rejected with EResult 42, likely because the timeline was not running yet; probe live with a game that has been
-  running for a while before designing.
+  `sendMarker`, `frontend/capture/plan.ts`). **Probed 2026-10-15** (Metroid Fusion, steam-components.md
+  § Game Recording RPCs): still EResult 42 with the timeline running for minutes, with Steam's own user-marker shape, and
+  while recording, so it was not a late timeline. Next, two checks before designing anything: (1) the user, in game on a
+  shortcut, adds a marker with Steam's own overlay timeline button: if Steam refuses it too, markers on non-Steam games are
+  Steam's limit and this item is dropped; (2) the same call on a native Steam game from SharedJSContext, to tell "shortcuts
+  refused" from "this context refused".
 - **Wrap `LoadCacheFile` instead of watching (ADR-0045 decision 5, option 2).** steam-cartridges re-applies its
   achievements when Steam replaces its progress cache after login, detected by polling the map's identity
   (`sensors/progress-cache`, 1 s, at most 10 min). If the poll ever proves too slow, too costly, or misses a user who logs
