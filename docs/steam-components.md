@@ -1581,8 +1581,11 @@ timeline (`BIsTimelineRunning` true, ~1-2 min in), for both an `Event` (type 2, 
 own user-marker shape (`{ timeline_id, entry_id: "", time, type: 5, marker_icon: "steam_marker", marker_priority: 0 }`, the
 exact entry `AddUserMarkerAtGlobalMS` in module `60869` sends through `g_GRS.CreateUserTimelineMarkers`), and also
 **while a manual recording runs** (`g_GRS.StartRecording`, `recording_type 2`). So the cause is neither the timeline
-starting late nor missing video. Not yet known: whether Steam's own overlay "add marker" works on a shortcut (if it fails
-too, it is Steam's limit for non-Steam games), and whether the same call works for a native game from SharedJSContext.
+starting late nor missing video. **Settled the same day:** the same calls on a native game (Axiom Verge, 332200) are
+accepted (EResult 1, entries removed again with `UserRemoveTimelineEntry`), and on another shortcut (AM2R, a direct exe)
+both the composed gameid and the plain appid are refused, and so is **Steam's own store method**
+`g_GRS.CreateUserTimelineMarkers` (what the overlay's marker button calls). Steam's recording service does not take user
+timeline entries on non-Steam shortcuts: a plugin cannot mark a shortcut's timeline.
 Side effects seen: stopping a manual recording ends the timeline and starts a new one; the test clip was deleted with
 `g_GRS.DeleteClip(clipId)` (EResult 1, no files left).
 

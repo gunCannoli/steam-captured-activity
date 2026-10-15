@@ -41,22 +41,6 @@ blockers (release plan § 3).
 - **Auto-add, what is left of the 2026-10-03 considerations** (the rest is ADR-0070, done 2026-10-15): skip or ask
   about a game the user already owns on Steam (needs the catalog title lookup first). Also not covered by the
   title match: `ms-xbl-<id>://` / `xboxliveapp-` URIs and a game on both stores.
-- **Achievement timeline markers for non-Steam games, in steam-cartridges** (removed from enhanced-notifications
-  2026-10-02 as a Steam-native feature for shortcuts). Steam marks achievements on its own games' timelines but not on
-  shortcuts'. steam-cartridges already knows each unlock (its `achievements.unlocked` event, with name and description),
-  so a `timeline` surface (with a kill switch and a `touches` entry) could add the marker. What is known: the RPC is
-  `GameRecording.UserAddTimelineEntry#1` on `CGameRecordingService`, resolved by signature (steam-components.md § Game
-  Recording RPCs); the running timeline is in `window.g_GRS.m_mapActiveTimelines` (loader `BIsTimelineRunning`,
-  `GetGameID`, `GetRunningTimelineDurationMS`, `GetTimelineStartBeforeGlobalZeroMS`); the entry time is the unlock's
-  offset plus `GetTimelineStartBeforeGlobalZeroMS`. enhanced-notifications sent an `Event` entry (`type: 2`,
-  `marker_icon: 'steam_achievement'`, `range_title`, `marker_description`, `range_duration: '0'`) and fell back to a
-  `UserMarker` (`type: 5`, `steam_marker`); its code is in git before this change (`frontend/surfaces/captures/captures.ts`
-  `sendMarker`, `frontend/capture/plan.ts`). **Probed 2026-10-15** (Metroid Fusion, steam-components.md
-  § Game Recording RPCs): still EResult 42 with the timeline running for minutes, with Steam's own user-marker shape, and
-  while recording, so it was not a late timeline. Next, two checks before designing anything: (1) the user, in game on a
-  shortcut, adds a marker with Steam's own overlay timeline button: if Steam refuses it too, markers on non-Steam games are
-  Steam's limit and this item is dropped; (2) the same call on a native Steam game from SharedJSContext, to tell "shortcuts
-  refused" from "this context refused".
 - **Wrap `LoadCacheFile` instead of watching (ADR-0045 decision 5, option 2).** steam-cartridges re-applies its
   achievements when Steam replaces its progress cache after login, detected by polling the map's identity
   (`sensors/progress-cache`, 1 s, at most 10 min). If the poll ever proves too slow, too costly, or misses a user who logs

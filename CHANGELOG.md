@@ -24,6 +24,11 @@ This repo is private and unversioned; entries are grouped by date.
     suite; their looks are H7, H8, H11). Both readable at `6ece444`.
   - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
   - Live suite 12/12 after the deploy.
+- **Timeline markers for shortcuts: not possible (2026-10-15, closed).** Live: Steam's recording service refuses
+  `UserAddTimelineEntry` with EResult 42 on non-Steam shortcuts (Metroid Fusion through RetroArch, AM2R direct), also with
+  Steam's own user-marker shape, while recording, with the plain appid, and through Steam's own
+  `g_GRS.CreateUserTimelineMarkers`; the same calls on a native game (Axiom Verge) succeed. The TASK consideration is
+  dropped; steam-components.md § Game Recording RPCs has the evidence.
 - **Plans pruned (2026-10-15):** removed the Theme Creator plan (built, ADR-0069), the store launch-tracking plan (executed:
   ADR-0057, ADR-0058; the Xbox route closed by ADR-0065) and the store-games handoff of 2026-10-03 (stale; its open items
   are the unlock research's list). All readable at `ee3e9a0`. Kept: release plan, enhanced-notifications consistency
