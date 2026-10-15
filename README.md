@@ -1,79 +1,37 @@
-# millennium-plugins
+# Steam Captured Activity
 
-A private workspace for building [Millennium](https://steambrew.app/) plugins —
-mods for the desktop Steam Client.
+A [Millennium](https://steambrew.app) plugin for the Steam client. It shows the screenshots and recordings you
+captured in each game's **Activity** feed, in Steam's own style:
 
-Plugins are developed here as subfolders and published individually as public
-repositories once they are ready for release. See [docs/plugins.md](docs/plugins.md).
+- one card per day with captures, headlined **"{your name} captured"**;
+- your screenshots and clips as 16:9 cards, with clips playable in place;
+- for Steam games **and** non-Steam games (shortcuts you added to your library);
+- on the desktop and in Big Picture.
 
-## The idea
+Steam normally leaves your captures out of the Activity feed unless you upload them to the Steam Community. This
+plugin uses only what Steam already has on your PC: nothing is uploaded, nothing is downloaded, and no account or key
+is needed.
 
-Steam's app detail page is rich for owned games: a post-game summary, an activity
-feed by date, achievements, screenshots, playtime. For a **non-Steam game** it
-shows a single grey box:
+## Settings
 
-> Some detailed information on … is unavailable because it is a non-Steam game or
-> mod.
+Open Steam's Millennium settings and pick **Steam Captured Activity**:
 
-That is misleading twice over. Steam *has* captured screenshots and recordings
-for those games, filed under a per-game id. And Steam already has the UI to show
-them — it hides those sections from non-Steam games with a **one-line app-type
-filter** in its section registry, then renders the grey box instead.
-
-So this workspace does not rebuild that page. It restores the sections Steam
-already draws, feeds Steam's own stores, and lets Steam render
-([ADR-0022](docs/decisions.md#adr-0022-render-through-steams-own-app-detail-sections-instead-of-rebuilding-them)).
-Then it makes that extensible.
-
-**One core plugin, plus optional providers:**
-
-```
-steam-cartridges          (core)      Steam's own screenshots + recordings, metadata, artwork
-   ├── retroarch          (provider)  playtime, emulator screenshots
-   ├── retroachievements  (provider)  achievements, badges, unlock dates
-   ├── guides-artwork     (provider)  manuals, box art (ScreenScraper / Archive.org)
-   └── game-metadata      (provider)  publisher, developer, release date (IGDB / TheGamesDB)
-```
-
-The core works with **zero providers** — no emulator, no API key, no network.
-Providers enrich games they recognise and fail silently for the rest. See
-[docs/millennium-architecture.md § Providers planned](docs/millennium-architecture.md#providers-planned)
-for what each one needs and where its data comes from.
-
-## Plugins
-
-| Plugin | Status | Public repo |
+| Option | Default | What it does |
 | --- | --- | --- |
-| [steam-cartridges](steam-cartridges/) (ex non-steam-games-activity + steamgriddb-artwork) | 🚧 Post-Game Summary shipped; Activity feed + Big Picture ahead | not yet published |
-| [steam-captured-activity](steam-captured-activity/) (split from steam-cartridges, ADR-0062) | 🚧 The screenshots and recordings Steam captured, as "{Username} captured" cards in every game's Activity feed (Steam games and non-Steam shortcuts); works alone | not yet published |
-| [enhanced-notifications](enhanced-notifications/) (ex enhanced-achievements, merged) | 🚧 Restyles every toast type in place, plus sounds and display time; optional themed achievement banner per rarity tier, captures on unlock; alpha | not yet published |
-| `retroarch` | 📋 planned | — |
-| `retroachievements` | 📋 planned | — |
-| `guides-artwork` | 📋 planned | — |
-| `game-metadata` | 📋 planned | — |
+| Steam games support | On | Your captures in the Activity feed of Steam games |
+| Non-Steam games support | On | Your captures in the Activity feed of non-Steam games |
 
-## Documentation
+## Deleted captures
 
-| Doc | What it holds |
-| --- | --- |
-| [TASK.md](TASK.md) | Current status, what is next |
-| [docs/plugins.md](docs/plugins.md) | How to build a plugin, and every regression guardrail |
-| [AGENTS.md](AGENTS.md) | Conventions and environment facts for contributors and AI agents |
-| [docs/knowledgebase.md](docs/knowledgebase.md) | Millennium SDK, Steam's local data formats, verified facts |
-| [docs/millennium-architecture.md](docs/millennium-architecture.md) | Core/provider split, data flow, the provider contract |
-| [docs/decisions.md](docs/decisions.md) | ADRs — why things are the way they are |
-| [CHANGELOG.md](CHANGELOG.md) | Workspace-level history |
+The feed follows what Steam lists. When you delete a screenshot or a recording, it leaves the feed the next time you
+open that game's page, or within 5 minutes if the page stays open.
 
-## Why this repo is private
+## Works with
 
-It documents a specific machine's Steam and RetroArch layout, including a Steam
-user id and library contents. Individual plugins are published as public repos
-without that context. Never commit `retroarch.cfg` (it holds RetroAchievements
-credentials), `.vdf` files, or anything from Steam's `userdata/`.
+[Steam Cartridges](https://github.com/gunCannoli) gives non-Steam games Steam's full detail page (Game Info, artwork,
+achievements). The two plugins are independent: each works without the other, and together a non-Steam game's feed
+shows both its captures and its achievements.
 
-## Requirements
+## License
 
-- [Millennium](https://steambrew.app/) installed into the Steam client
-- Node 20+ and [pnpm](https://pnpm.io/)
-- A standalone [Lua](https://luabinaries.sourceforge.net/) interpreter to run the
-  backend tests (Millennium ships only its embedded VM)
+MIT

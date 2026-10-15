@@ -1,9 +1,0 @@
-{
-  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
-  "name": "enhanced-notifications",
-  "common_name": "Enhanced Notifications",
-  "description": "Restyles every Steam notification (colours, borders, fonts, sounds, display time) from shareable JSON themes, keeping Steam's own icons and content; optional themed achievement banners and sounds per rarity tier.",
-  "version": "0.2.0-alpha.1",
-  "useBackend": true,
-  "backendType": "lua"
-}

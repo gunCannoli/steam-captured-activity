@@ -1,9 +1,0 @@
-{
-  "_fixture": "Edition-only result set for the query 'Alan Wake 2': no exact title, so nothing may be applied automatically.",
-  "total": 3,
-  "items": [
-    { "type": "app", "name": "Alan Wake 2 Deluxe Edition", "id": 1000001 },
-    { "type": "app", "name": "Alan Wake 2: Night Springs", "id": 1000002 },
-    { "type": "app", "name": "Unrelated Game", "id": 1000003 }
-  ]
-}

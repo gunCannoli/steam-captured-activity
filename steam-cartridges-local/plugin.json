@@ -1,9 +1,0 @@
-{
-  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
-  "name": "steam-cartridges-local",
-  "common_name": "Steam Cartridges - Local Emulators",
-  "description": "Reads, watches and resets achievements saved by Steam API emulators (CODEX, RUNE, GSE, Goldberg, SOVEREIGN, Online-Fix, Tenoke, SkidRow, EMPRESS, RELOADED, SmartSteamEmu, UniverseLAN) and by Unity, Godot and Unreal game logs, for steam-cartridges.",
-  "version": "0.2.0",
-  "useBackend": true,
-  "backendType": "lua"
-}

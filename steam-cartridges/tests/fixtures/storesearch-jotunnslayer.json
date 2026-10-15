@@ -1,9 +1,0 @@
-{
-  "_fixture": "Hand-shaped like https://store.steampowered.com/api/storesearch/?term=Jotunnslayer%3A%20Hordes%20of%20Hel&cc=us&l=english. Re-record with curl when online; no secrets involved.",
-  "total": 3,
-  "items": [
-    { "type": "app", "name": "Jotunnslayer: Hordes of Hel", "id": 2820820, "tiny_image": "https://shared.steamstatic.com/store_item_assets/steam/apps/2820820/capsule_231x87.jpg" },
-    { "type": "app", "name": "Jotunnslayer: Hordes of Hel - Soundtrack", "id": 3000001 },
-    { "type": "bundle", "name": "Jotunnslayer: Hordes of Hel", "id": 99999 }
-  ]
-}
