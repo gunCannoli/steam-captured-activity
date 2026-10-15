@@ -71,8 +71,8 @@ blockers (release plan § 3).
 ## Next
 
 After the release: [release plan § 5](docs/plans/release-plan.md#5-after-this-release-moved-out-of-now) (third-party
-and the Epic/Xbox handoff, enhanced-notifications B4/B6/B7 and the Theme Creator, steam-cartridges data flow phase 5,
-local phases 6-7, Phase 9 provider contract and the provider extraction).
+store-unlock feature, enhanced-notifications B4/B6/B7, steam-cartridges data flow phase 5, local phases 6-7, Phase 9
+provider contract and the provider extraction).
 
 ## Later
 
