@@ -25,6 +25,10 @@ export interface InstalledStoreGame {
   title: string;
   /** The shortcut appid when the library already has one for it. */
   inLibrary?: number;
+  /** Set when that shortcut matched by name only (one made by hand): its name (ADR-0070). */
+  inLibraryAs?: string;
+  /** Auto-add (or the panel's Add) made a shortcut for it before: auto-add never adds it again (ADR-0070). */
+  autoAdded?: boolean;
   /** How a shortcut for it is set up; absent when it cannot be (no Epic launcher found). */
   launch?: { exe: string; start_dir: string; launch_options: string };
 }
@@ -58,5 +62,6 @@ export const backend = {
     callBackend<StoreGameData>("StoreGameData", { appid, allowEpic, allowXbox, achievements }),
   storeEpicPrelaunch: (appid: number, heldAt: number) => callBackend<{ epic?: boolean; closed?: boolean; reason?: string }>("StoreEpicPrelaunch", { appid, heldAt }),
   storeEpicReap: (appid: number, act: "start" | "tick" | "stop") => callBackend<{ active?: boolean; phase?: string; reason?: string }>("StoreEpicReap", { appid, act }),
+  storeAutoAdded: (kind: 'epic' | 'xbox', key: string, appid: number, title: string) => callBackend<{ ok: boolean }>("StoreAutoAdded", { kind, key, appid, title }),
   storeSensorLogs: (limit: number = 60) => callBackend<{ lines: string[] }>("StoreSensorLogs", { limit }),
 };

@@ -493,6 +493,24 @@ check("the list before the install has one Epic game", #svc.installed_games({}).
 installed_now = { EPIC_GAME, EXTRA_EPIC }
 check("a game installed afterwards is found by the very next call", #svc.installed_games({}).epic == 2)
 check("... and installed_games reads afresh every time", (function() installed_now = { EPIC_GAME }; return #svc.installed_games({}).epic == 1 end)())
+-- ADR-0070: a shortcut with the game's name counts as it; the auto-add list; a reinstall is new.
+local aa = require("auto_added_store")
+aa._path = TMP .. "/sc_auto_added_test_" .. os.time() .. ".json"
+os.remove(aa._path); aa._reset()
+installed_now = { EPIC_GAME }
+check("norm_title ignores case and punctuation", svc.norm_title("Jotunnslayer: Hordes of Hel") == svc.norm_title("jotunnslayer - hordes OF hel"))
+ENTRIES[4000000060] = { appid = 4000000060, name = (EPIC_GAME.title or ""):upper() .. "!", exe = [["D:/Wrappers/play.bat"]] }
+local titled = svc.installed_games({}).epic[1]
+check("a hand-made shortcut with the game's name counts as in the library", titled.inLibrary == 4000000060 and titled.inLibraryAs == ENTRIES[4000000060].name, tostring(titled.inLibrary))
+ENTRIES[4000000060] = nil
+check("without it the game is not in the library, and was never auto-added", svc.installed_games({}).epic[1].inLibrary == nil and svc.installed_games({}).epic[1].autoAdded == false)
+aa.record("epic", EPIC_GAME.app_name, 4000000070, EPIC_GAME.title)
+check("a game auto-add made a shortcut for is flagged, so its deleted shortcut is not re-added", svc.installed_games({}).epic[1].autoAdded == true)
+installed_now = {}
+svc.installed_games({})
+installed_now = { EPIC_GAME }
+check("uninstalling drops it from the list, so a reinstall is added again", svc.installed_games({}).epic[1].autoAdded == false)
+os.remove(aa._path)
 -- the per-shortcut detection keeps its cache for 60 s, then reads again
 local clock = 5000
 svc.deps.now = function() return clock end

@@ -12,6 +12,7 @@
 local logger = require("logger")
 local store  = require("store_copies_store")
 local sensor = require("sensor_log")
+local auto_added = require("auto_added_store")
 
 local M = {}
 
@@ -214,7 +215,8 @@ local function identifier_title(title, pfn)
 end
 
 --- Every installed game and whether the library already has a shortcut for it (Third-party settings, auto-add).
---- { epic = { { key, title, inLibrary, launch } }, xbox = { ... }, epicLauncher = bool }: `launch` = { exe, start_dir,
+--- { epic = { { key, title, inLibrary, inLibraryAs?, autoAdded, launch } }, xbox = { ... }, epicLauncher = bool }:
+--- `inLibraryAs` names a shortcut matched by title only; `autoAdded`: auto-add made one before (ADR-0070). `launch` = { exe, start_dir,
 --- launch_options } for SteamClient.Apps.AddShortcut. Local data, except an Xbox game whose package names a resource or
 --- an identifier instead of a title: the catalog is asked once (ctx.allowXbox, remembered like any lookup), so the new
 --- shortcut carries the name Steam's store search can match.
@@ -228,6 +230,9 @@ function M.installed_games(ctx)
 
   local owned = {}
   local uninstalled = { epic = {}, xbox = {} }
+  -- A shortcut that is no store copy, by its name (ADR-0070): a game with no matching copy counts as in the library when a
+  -- shortcut carries its title (a shortcut the user made by hand, through a wrapper or a renamed exe).
+  local by_title = {}
 
   for _, e in ipairs(all_entries()) do
     local c = M.detect(e)
@@ -236,6 +241,9 @@ function M.installed_games(ctx)
       owned[key] = unsigned(e.appid)
       pcall(sensor.write, "STORE:OWNED", string.format("Owned: key='%s' -> appid=%s (title='%s')", key, tostring(e.appid), tostring(c.title or "")))
     else
+      local name = e.appname or e.AppName or e.name
+      local n = M.norm_title(name)
+      if n ~= "" and not by_title[n] then by_title[n] = { appid = unsigned(e.appid), name = name } end
       local epic_app = epic_local().app_name_from_link(e.launch_options) or epic_local().app_name_from_link(e.exe)
       if epic_app and not installed_epic[epic_app] then
         uninstalled.epic[#uninstalled.epic + 1] = {
@@ -256,13 +264,28 @@ function M.installed_games(ctx)
       end
     end
   end
+  -- The auto-add list forgets games that are gone, so a reinstall is added again (ADR-0070).
+  local present = {}
+  for k in pairs(installed_epic) do present["epic:" .. k] = true end
+  for k in pairs(installed_xbox) do present["xbox:" .. k] = true end
+  pcall(auto_added.prune, present)
+
+  --- In the library: a copy of it, else a shortcut with its name (`as` = that shortcut's name).
+  local function in_library(key, title)
+    if owned[key] then return owned[key], nil end
+    local t = by_title[M.norm_title(title)]
+    if t and M.norm_title(title) ~= "" then return t.appid, t.name end
+    return nil, nil
+  end
+
   local launcher = epic_local().launcher_exe()
   local out = { epic = {}, xbox = {}, uninstalled = uninstalled, epicLauncher = launcher ~= nil }
   for _, g in ipairs(games.epic) do
-    local inLib = owned[g.app_name]
+    local inLib, as = in_library(g.app_name, g.title)
     pcall(sensor.write, "STORE:SYNC_EPIC", string.format("Installed game '%s' (AppName %s): inLibrary = %s", tostring(g.title), tostring(g.app_name), tostring(inLib)))
     out.epic[#out.epic + 1] = {
-      key = g.app_name, title = g.title, inLibrary = inLib,
+      key = g.app_name, title = g.title, inLibrary = inLib, inLibraryAs = as,
+      autoAdded = auto_added.has("epic", g.app_name),
       launch = epic_local().launch_spec(g, launcher),
     }
   end
@@ -270,14 +293,22 @@ function M.installed_games(ctx)
     local copy = { kind = "xbox", title = g.title, pfn = g.pfn, titleId = g.title_id, storeId = g.store_id }
     if identifier_title(g.title, g.pfn) then pcall(fill_xbox, copy, ctx) end
     local known = store.lookup("xbox:" .. tostring(g.pfn)) or {}
-    local inLib = owned[g.pfn]
+    local title = known.title or g.title or g.pfn
+    local inLib, as = in_library(g.pfn, title)
     pcall(sensor.write, "STORE:SYNC_XBOX", string.format("Installed game '%s' (PFN %s): inLibrary = %s", tostring(g.title or g.pfn), tostring(g.pfn), tostring(inLib)))
     out.xbox[#out.xbox + 1] = {
-      key = g.pfn, title = known.title or g.title or g.pfn, inLibrary = inLib,
+      key = g.pfn, title = title, inLibrary = inLib, inLibraryAs = as,
+      autoAdded = auto_added.has("xbox", g.pfn),
       launch = xbox_local().launch_spec(g),
     }
   end
   return out
+end
+
+--- A title as it is compared for "a shortcut with the game's name" (ADR-0070): lower case, letters and digits only, so
+--- "Jotunnslayer: Hordes of Hel" and "jotunnslayer - hordes of hel" are the same. Pure.
+function M.norm_title(title)
+  return (tostring(title or ""):lower():gsub("[^%w]", ""))
 end
 
 --- "<pid>" lines of the running-check's output -> true when one process was listed (pure).

@@ -5,6 +5,7 @@
 import React from 'react';
 import { backend } from './backend';
 import { ThirdPartySection } from './settings/third-party';
+import { addGame, fileInCollection } from './store-sync';
 import { installXboxMute } from './xbox-mute';
 import { installLifecycle } from './lifecycle';
 import { onSettingChange, startSettings, storesOn } from './settings/current';
@@ -36,7 +37,8 @@ const settingsExtension = {
     id: "third-party",
     title: "Third-party",
     order: 30,
-    render: () => React.createElement(ThirdPartySection, null),
+    // The panel's Add and "File in collection" act through store-sync, injected here (the panel calls the backend only).
+    render: () => React.createElement(ThirdPartySection, { actions: { addGame, fileInCollection } }),
 };
 
 let registered = false;

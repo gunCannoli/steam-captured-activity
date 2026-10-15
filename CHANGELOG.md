@@ -24,6 +24,13 @@ This repo is private and unversioned; entries are grouped by date.
     suite; their looks are H7, H8, H11). Both readable at `6ece444`.
   - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
   - Live suite 12/12 after the deploy.
+- **steam-cartridges-third-party: auto-add remembers and respects (2026-10-15, ADR-0070)**: a game auto-add added once is
+  not added again while installed (`auto_added_store.lua`; a deleted shortcut stays deleted, a reinstall is new); the
+  Third-party panel lists each store's games ("In library", "In library as <name>", Add, "Add all missing", "File in
+  collection"); a shortcut with the game's name counts as it, and the live library is checked again before
+  AddShortcut; turning auto-add on lists the games it would add, each with a toggle (unticked ones are left out). Lua: 5 new checks. Live: the panel shows Jotunnslayer and Pool Blitz in library.
+- **steam-cartridges: F30 ratchet** (TASK consideration): `tests/architecture.test.ts` fails when a `create*Surface` is
+  called twice in `index.tsx` or a surface's `deps` is imported from outside its folder.
 - **enhanced-notifications: known issues fixed, the Theme Creator completed (2026-10-14, second pass)**, [plan § 14](docs/plans/enhanced-notifications-theme-creator-plan.md):
   every dialog is wrapped in Steam's `ConfigContextRoot` (the ConfigContext assert per dialog under Steam 1791918634: 0
   over a whole creator run, was 5-7); the creator's last plan items: template preview on hover or focus, a Go button per

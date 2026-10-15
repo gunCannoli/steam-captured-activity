@@ -1,7 +1,10 @@
 // Auto-add (ADR-0056 decision 6, moved here from steam-cartridges by ADR-0067). With a store's "Auto-add installed
 // games" toggle on, every installed game of that store with no shortcut yet gets one, in a collection named after the
 // store, so routing rules can treat the store's games together (ADR-0036); a shortcut whose game was uninstalled is
-// removed. The Xbox repair (ADR-0058, ADR-0065) repoints a shortcut that runs an older version's exe, or the retired
+// removed. ADR-0070: a game auto-add added once is never added again (the backend's list, so a deleted shortcut stays
+// deleted; a reinstall counts as new), a shortcut carrying the game's name counts as that game, and the live library is
+// checked once more just before AddShortcut. The settings panel adds a game by hand (`addGame`) and files existing
+// store shortcuts in the store's collection (`fileInCollection`). The Xbox repair (ADR-0058, ADR-0065) repoints a shortcut that runs an older version's exe, or the retired
 // uwp_presenter wrapper, keeping its appid. A slow tick (TICK_MS) notices games installed while Steam runs: neither
 // store tells Steam. Nothing runs while both toggles are off and the Xbox store is off.
 //
@@ -64,15 +67,34 @@ async function overviewReady(appid: number, tries = 20): Promise<boolean> {
     return false;
 }
 
-async function addShortcut(kind: Kind, game: InstalledStoreGame & { key?: string; launch?: { exe: string; start_dir: string; launch_options: string } }): Promise<void> {
+/** A title as the backend compares it (store_service.norm_title): lower case, letters and digits only. Pure. */
+export function normTitle(title: unknown): string {
+    return String(title ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** A shortcut in the live library with this title (one added since the backend last looked), or undefined. */
+function liveShortcutNamed(title: string): number | undefined {
+    const want = normTitle(title);
+    if (!want) return undefined;
+    const all = ((window as any).appStore?.allApps ?? []) as { appid: number; app_type?: number; display_name?: string }[];
+    return all.find((a) => a?.app_type === 1073741824 && normTitle(a.display_name) === want)?.appid;
+}
+
+async function addShortcut(kind: Kind, game: InstalledStoreGame & { key?: string; launch?: { exe: string; start_dir: string; launch_options: string } }): Promise<boolean> {
     const apps = steamApps();
-    if (typeof apps?.AddShortcut !== "function" || !game.launch) return;
+    if (typeof apps?.AddShortcut !== "function" || !game.launch) return false;
+    const already = liveShortcutNamed(game.title);
+    if (already !== undefined) {
+        logger.info(`Auto-add: ${kind} game ${game.key} already has a shortcut named "${game.title}" (${already}); nothing added.`);
+        return false;
+    }
     try {
         const appid = await apps.AddShortcut(game.title, game.launch.exe, game.launch.start_dir, game.launch.launch_options);
         if (typeof appid !== "number") {
             logger.warn(`Auto-add: ${kind} game ${game.key} was not added: AddShortcut answered ${JSON.stringify(appid)}`);
-            return;
+            return false;
         }
+        void backend.storeAutoAdded(kind, String(game.key ?? ""), appid >>> 0, game.title).catch(() => undefined);
         apps.SetShortcutName?.(appid, game.title);
         apps.SetShortcutLaunchOptions?.(appid, game.launch.launch_options);
         let filed = false;
@@ -90,9 +112,29 @@ async function addShortcut(kind: Kind, game: InstalledStoreGame & { key?: string
         logger.info(`Auto-add: ${kind} game ${game.key} is shortcut ${appid}${filed ? ` in "${STORE_COLLECTIONS[kind]}"` : " (not filed in a collection)"}.`);
         void pushGame(appid >>> 0);
         added?.(appid >>> 0, kind);
+        return true;
     } catch (err) {
         logger.warn(`Auto-add: ${kind} game ${game.key} was not added:`, err);
+        return false;
     }
+}
+
+/** The settings panel's Add: a shortcut for this game now, whatever auto-add's list says (a deleted one comes back). */
+export function addGame(kind: Kind, game: InstalledStoreGame): Promise<boolean> {
+    return addShortcut(kind, game);
+}
+
+/** File every shortcut of a store's installed games in that store's collection (ADR-0036); returns how many were filed. */
+export async function fileInCollection(kind: Kind, appids: number[]): Promise<number> {
+    let n = 0;
+    for (const appid of appids) {
+        try {
+            if (await addToCollection(appid, STORE_COLLECTIONS[kind])) n++;
+        } catch (err) {
+            logger.warn(`Could not file ${appid} in "${STORE_COLLECTIONS[kind]}":`, err);
+        }
+    }
+    return n;
 }
 
 async function removeShortcut(kind: Kind, appid: number, title: string): Promise<void> {
@@ -119,7 +161,8 @@ async function runOnce(): Promise<number> {
         if (!want[kind]) continue;
         for (const game of Array.isArray(res[kind]) ? (res[kind] as any[]) : []) {
             const id = `add:${kind}:${game.key ?? game.id}`;
-            if (game.inLibrary || !game.launch || requested.has(id)) continue;
+            // Added once before: the user may have deleted it on purpose (ADR-0070).
+            if (game.inLibrary || game.autoAdded || !game.launch || requested.has(id)) continue;
             requested.add(id);
             await addShortcut(kind, game);
             n++;

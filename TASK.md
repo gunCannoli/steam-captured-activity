@@ -38,31 +38,9 @@ blockers (release plan § 3).
 
 ## Considerations (decided later, not scheduled)
 
-- **Auto-add next to shortcuts the user added by hand, or had before the plugin (found 2026-10-03, decide with the item below).**
-  Today a game counts as "in the library" when a shortcut matches it: an Epic launcher link naming its AppName, an exe inside its
-  install folder, or for Xbox a `shell:AppsFolder\<package>` target or an exe inside the package folder (`match` in
-  `store_epic_local.lua` / `store_xbox_local.lua`, applied to every shortcut by `store_service.installed_games`). So the usual manual
-  shapes are not duplicated; verified on this PC only for the six shortcuts the plugin made (the other 219 are not store games).
-  Not covered: a shortcut that runs a wrapper (a .bat, Playnite, Heroic/Legendary), a renamed or different exe, an Xbox
-  `ms-xbl-<id>://` or `xboxliveapp-` URI, or a copy of the same game on both stores. Proposal: (1) keep the matching and add a
-  **title fallback**, a shortcut whose name equals the game's (case and punctuation ignored) counts as the same game and the panel
-  says "In library as <name>"; (2) **re-check the live shortcut list just before AddShortcut** (a shortcut added by hand between two
-  checks); (3) never edit or replace an existing shortcut, even a poor one; (4) **first enable asks first**: Settings lists the games
-  it would add (checkboxes, "already in your library" greyed) so turning the toggle on with 40 Epic games installed adds only what
-  the user ticked; (5) a button "Add existing store shortcuts to the Epic Games / Xbox collection" (routing rules use the
-  collections, ADR-0036), never done silently; (6) skip, or ask about, a game the user already owns on Steam (the Steam match is
-  only known after adding, so this needs the catalog title lookup first). Note for the persistent list: re-adding a deleted game
-  gave a different appid (Minesweeper 2811889182, then 2663546656), so a re-add loses that shortcut's playtime and activity.
-- **Auto-add and a shortcut the user deleted (needs a decision before auto-add is called finished, found 2026-10-03).** Today it is
-  inconsistent: a game is requested once per session (`requested` in `app/store-sync.ts`), so a shortcut the user deletes stays gone
-  until Steam restarts, then comes back at every restart while the toggle is on; and nothing restores one deleted by mistake.
-  Options: **A.** a persistent list of games auto-added (backend data file), never added again even after a restart; an entry is
-  dropped when the game is no longer installed, so uninstall then reinstall counts as new and is added again. **B.** restore controls
-  in Settings → Third-party: each installed game shows "In library" / "Not in library" with an **Add** button, plus "Add all
-  missing" (the panel already lists installed games and their library state). **C.** re-add on every 60 s check: rejected, it fights a
-  deliberate deletion. **D.** keep today's behaviour. Recommended: **A and B together** (A makes a deletion stick, B is the easy
-  undo; without B, A makes a mistaken deletion permanent). Questions: should a reinstall bring the shortcut back by itself (leaning
-  yes), and should Add also appear on the game's own page (leaning no, settings only). Plan and an ADR amendment first.
+- **Auto-add, what is left of the 2026-10-03 considerations** (the rest is ADR-0070, done 2026-10-15): skip or ask
+  about a game the user already owns on Steam (needs the catalog title lookup first). Also not covered by the
+  title match: `ms-xbl-<id>://` / `xboxliveapp-` URIs and a game on both stores.
 - **Achievement timeline markers for non-Steam games, in steam-cartridges** (removed from enhanced-notifications
   2026-10-02 as a Steam-native feature for shortcuts). Steam marks achievements on its own games' timelines but not on
   shortcuts'. steam-cartridges already knows each unlock (its `achievements.unlocked` event, with name and description),
@@ -89,10 +67,6 @@ blockers (release plan § 3).
   `tests/live/probes/ach_preload.mjs` right after a restart, and read
   `window.appAchievementProgressCache.m_achievementProgress.mapCache` identity before and after login (steam-components.md,
   "When Steam fills each achievement store"). Amend ADR-0045 (or supersede it) when done.
-- **Surface `deps` singletons (F30).** Each `surfaces/*/deps.ts` is a module-level object that `create*Surface` overwrites. Rewriting the
-  six surfaces as real factories would touch every Steam hook (the highest-risk code) for a benefit that has not occurred. Instead add one
-  capability-ratchet rule in `tests/architecture.test.ts`: `index.tsx` calls each `create*Surface` at most once, and nothing outside a
-  surface's folder imports its `deps`. Revisit the factory rewrite only if a surface ever needs a second instance.
 
 ## Next
 

@@ -328,3 +328,22 @@ test('architecture: core names no Steam API emulator (ADR-0063)', () => {
     }
     assert.deepEqual(hits, [], `emulator names in the core plugin:\n${hits.join('\n')}`);
 });
+
+test('architecture: surface deps stay singletons used only by their own surface (F30)', () => {
+    // Each surfaces/*/deps.ts is a module-level object its create*Surface overwrites: safe while index.tsx creates each
+    // surface once and no other folder reaches into it. Rewrite as a factory before ever needing a second instance.
+    const index = readFileSync(join(FRONTEND, 'index.tsx'), 'utf8');
+    const calls = [...index.matchAll(/\b(create[A-Z]\w*Surface)\s*\(/g)].map((m) => m[1]!);
+    const twice = [...new Set(calls.filter((c, i) => calls.indexOf(c) !== i))];
+    assert.deepEqual(twice, [], 'a create*Surface called more than once');
+    const offenders: string[] = [];
+    for (const file of walk(FRONTEND).filter((f) => /\.(ts|tsx)$/.test(f))) {
+        const r = relative(FRONTEND, file).split(sep).join('/');
+        for (const m of readFileSync(file, 'utf8').matchAll(/from\s+['"]([^'"]*\/deps)['"]/g)) {
+            const target = relative(FRONTEND, resolve(dirname(file), m[1]!)).split(sep).join('/');
+            const folder = target.slice(0, target.lastIndexOf('/'));
+            if (!r.startsWith(folder + '/')) offenders.push(`${r} -> ${target}`);
+        }
+    }
+    assert.deepEqual(offenders, []);
+});

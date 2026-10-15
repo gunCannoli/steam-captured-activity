@@ -1,5 +1,6 @@
 --- Third-party stores (ADR-0056): what the settings panel's Third-party section and the auto-add use.
 ---   StoreInstalledGames  every installed Epic and Xbox game, and whether the library has a shortcut for it
+---   StoreAutoAdded       auto-add (or the panel's Add) made a shortcut for a game: never auto-add it again (ADR-0070)
 ---   StoreAccounts        whether an Epic account was found on this PC (and whether its achievements are private),
 ---                        and whether an Xbox account is signed in (its gamertag). Never a token or an account id.
 ---   XboxSignInStart / XboxSignInPoll / XboxSignOut   the device-code sign-in (xbox_live.lua)
@@ -23,6 +24,11 @@ local RPC = {}
 --- { allowXbox? }: the installed games (store_service.installed_games).
 RPC.StoreInstalledGames = method("StoreInstalledGames", function(data)
   return store_service.installed_games({ allowXbox = data.allowXbox ~= false })
+end)
+
+--- { kind, key, appid, title }: remember a game a shortcut was made for (auto_added_store).
+RPC.StoreAutoAdded = method("StoreAutoAdded", function(data)
+  return { ok = require("auto_added_store").record(data.kind, data.key, data.appid, data.title) }
 end)
 
 RPC.StoreAccounts = method("StoreAccounts", function(_)

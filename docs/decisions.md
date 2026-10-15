@@ -3760,3 +3760,30 @@ ADR-0052/0053 (themes are hand-editable JSONC; Steam default is a theme) and ADR
 - The mock can drift from Steam's real toast after a Steam update; Test on screen shows the truth.
 - Every plan item is built (2026-10-14, second pass): template preview on hover or focus, a Go button per theme warning,
   Import through Steam's file dialog, Steam's chime in the preview.
+
+## ADR-0070: Auto-add remembers what it added, and respects shortcuts made by hand (steam-cartridges-third-party)
+
+**Status:** Accepted · 2026-10-15 (the user: "use recommended options"; TASK.md considerations of 2026-10-03, options A
+and B, and the by-hand proposal's items 1-3 and 5) · amends ADR-0056 decision 6 (auto-add) as moved by ADR-0067
+
+### Decision
+
+1. **A game auto-add added once is never added again** while it stays installed: the backend keeps the list
+   (`auto_added_store.lua`, `<data dir>/auto_added.json`, recorded through `StoreAutoAdded` after each AddShortcut), so a
+   shortcut the user deletes stays deleted, also across restarts. An entry is dropped as soon as its game is not
+   installed, so uninstalling and reinstalling counts as new and is added again.
+2. **The settings panel lists each store's installed games** with "In library", "In library as <name>" or Add, plus
+   "Add all missing" (the easy undo of a deletion; Add ignores the list) and "File in collection" (puts existing store
+   shortcuts in the store's collection; never done silently). The actions are injected by `index.tsx`.
+3. **A shortcut carrying the game's name counts as that game** (`store_service.norm_title`: lower case, letters and digits
+   only): one made by hand, through a wrapper or with a renamed exe is not duplicated. Just before AddShortcut the live
+   library is checked once more for a shortcut with that name (one added since the backend last looked).
+4. **Existing shortcuts are never edited or replaced by auto-add** (the Xbox repair of ADR-0058/0065 for shortcuts the
+   plugin made stays). Removal of a shortcut whose store game was uninstalled is unchanged (ADR-0056).
+
+5. **Turning auto-add on asks first** when games would be added: a popup lists them with a toggle each (all on); ticked
+   ones are added now, unticked ones go in the list (auto-add leaves them out until uninstalled; Add brings one back).
+
+### Not done (still open in TASK.md)
+
+- Skipping a game the user owns on Steam (needs the catalog title lookup first).

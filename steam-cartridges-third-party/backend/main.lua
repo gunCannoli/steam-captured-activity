@@ -12,6 +12,7 @@ local STORE_RPC  = require("store_rpc")
 -- Export RPC endpoints
 StoreInstalledGames      = STORE_RPC.StoreInstalledGames
 StoreAccounts            = STORE_RPC.StoreAccounts
+StoreAutoAdded           = STORE_RPC.StoreAutoAdded
 XboxSignInStart          = STORE_RPC.XboxSignInStart
 XboxSignInPoll           = STORE_RPC.XboxSignInPoll
 XboxSignOut              = STORE_RPC.XboxSignOut

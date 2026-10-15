@@ -31,7 +31,86 @@ function installedText(list: InstalledStoreGame[] | undefined): string {
     return `(${arr.length} installed, ${inLibrary} in library)`;
 }
 
-export function ThirdPartySection() {
+/** What the panel may do beyond the backend, injected by index.tsx (store-sync): add one game, file shortcuts in a collection. */
+export interface ThirdPartyActions {
+    addGame(kind: "epic" | "xbox", game: InstalledStoreGame): Promise<boolean>;
+    fileInCollection(kind: "epic" | "xbox", appids: number[]): Promise<number>;
+}
+
+/**
+ * One store's installed games (ADR-0070, option B): each row says whether the library has it ("In library", or "In
+ * library as <name>" for a shortcut matched by name) and offers Add when it does not, plus "Add all missing" and "File
+ * in collection". One block (guardrail 18.5); nothing shown with no games installed (18.7).
+ */
+function StoreGames({ kind, games, collection, actions, onChanged }: { kind: "epic" | "xbox"; games: InstalledStoreGame[] | undefined; collection: string; actions: ThirdPartyActions; onChanged: () => void }) {
+    const [busy, setBusy] = useState(false);
+    const [message, setMessage] = useState("");
+    const list = asArray<InstalledStoreGame>(games);
+    if (!list.length) return null;
+    const missing = list.filter((g) => !g.inLibrary && g.launch);
+    const inLibrary = list.filter((g) => typeof g.inLibrary === "number").map((g) => g.inLibrary as number);
+    const run = async (work: () => Promise<string>) => {
+        setBusy(true);
+        setMessage("Working...");
+        try {
+            setMessage(await work());
+        } finally {
+            setBusy(false);
+            onChanged();
+        }
+    };
+    return (
+        <>
+            {list.map((g) => (
+                <ItemRow key={g.key}>
+                    <Field
+                        label={g.title}
+                        description={g.inLibrary ? (g.inLibraryAs ? `In library as ${g.inLibraryAs}` : "In library") : g.autoAdded ? "Not in library (auto-add leaves it out: removed or left out; Add brings it back)" : "Not in library"}
+                        bottomSeparator="none"
+                    >
+                        {!g.inLibrary && g.launch && (
+                            <DialogButton style={BUTTON_STYLE} disabled={busy} onClick={() => void run(async () => ((await actions.addGame(kind, g)) ? `✓ Added ${g.title}` : `${g.title} was not added (see the log)`))}>
+                                Add
+                            </DialogButton>
+                        )}
+                    </Field>
+                </ItemRow>
+            ))}
+            {missing.length > 1 && (
+                <ButtonRow
+                    label="Add all missing"
+                    description={`${missing.length} games without a shortcut`}
+                    buttonLabel="Add all"
+                    onClick={() =>
+                        void run(async () => {
+                            let n = 0;
+                            for (const g of missing) if (await actions.addGame(kind, g)) n++;
+                            return `✓ Added ${n} of ${missing.length}`;
+                        })
+                    }
+                />
+            )}
+            {inLibrary.length > 0 && (
+                <ButtonRow
+                    label="File in collection"
+                    description={`Put these games' shortcuts in the "${collection}" collection`}
+                    buttonLabel="File"
+                    onClick={() => void run(async () => `✓ Filed ${await actions.fileInCollection(kind, inLibrary)} in "${collection}"`)}
+                />
+            )}
+            {message && <ActionRow message={message} />}
+        </>
+    );
+}
+
+/** Turning auto-add on asks first (ADR-0070): the games it would add, each with a toggle; unticked ones are left out for good. */
+interface EnableAsk {
+    kind: "epic" | "xbox";
+    games: InstalledStoreGame[];
+    picked: Set<string>;
+}
+
+export function ThirdPartySection({ actions }: { actions: ThirdPartyActions }) {
     const [services, setServices] = useSetting("services");
     const activeServices = services || DEFAULTS.services;
     const [autoEpic, setAutoEpic] = useSetting("autoAddEpicGames");
@@ -47,6 +126,8 @@ export function ThirdPartySection() {
     const [signInMsg, setSignInMsg] = useState("");
     const polling = useRef(0);
 
+    const [ask, setAsk] = useState<EnableAsk | null>(null);
+    const [askBusy, setAskBusy] = useState(false);
     const [logsOpen, setLogsOpen] = useState(false);
     const [logLines, setLogLines] = useState<string[]>([]);
 
@@ -130,6 +211,28 @@ export function ThirdPartySection() {
         refresh();
     };
 
+    /** The auto-add toggle: on with games to add asks first; off is immediate. */
+    const toggleAutoAdd = (kind: "epic" | "xbox", on: boolean, set: (v: boolean) => void) => {
+        const missing = asArray<InstalledStoreGame>(installed?.[kind]).filter((g) => !g.inLibrary && !g.autoAdded && g.launch);
+        if (!on || missing.length === 0) return set(on);
+        setAsk({ kind, games: missing, picked: new Set(missing.map((g) => g.key)) });
+    };
+
+    const confirmAsk = async () => {
+        if (!ask) return;
+        setAskBusy(true);
+        try {
+            // Left out first, so the auto-add that starts with the toggle never adds them.
+            for (const g of ask.games) if (!ask.picked.has(g.key)) await backend.storeAutoAdded(ask.kind, g.key, 0, g.title).catch(() => undefined);
+            for (const g of ask.games) if (ask.picked.has(g.key)) await actions.addGame(ask.kind, g);
+            (ask.kind === "epic" ? setAutoEpic : setAutoXbox)(true);
+        } finally {
+            setAskBusy(false);
+            setAsk(null);
+            refresh();
+        }
+    };
+
     const epicOn = activeServices.epicEnabled !== false;
     const xboxOn = activeServices.xboxEnabled !== false;
 
@@ -166,9 +269,10 @@ export function ThirdPartySection() {
                             }
                             value={autoEpic}
                             disabled={!!installed && !installed.epicLauncher}
-                            onChange={setAutoEpic}
+                            onChange={(on: boolean) => toggleAutoAdd("epic", on, setAutoEpic)}
                         />
                     )}
+                    {epicOn && <StoreGames kind="epic" games={installed?.epic} collection="Epic Games" actions={actions} onChanged={refresh} />}
                     {epicOn && (
                         <ToggleRow
                             label="Epic Steam Overlay Workaround"
@@ -206,9 +310,10 @@ export function ThirdPartySection() {
                             label="Auto-add installed games"
                             description={`Sync installed games to an "Xbox" collection; removes uninstalled games. ${installedText(installed?.xbox)}`}
                             value={autoXbox}
-                            onChange={setAutoXbox}
+                            onChange={(on: boolean) => toggleAutoAdd("xbox", on, setAutoXbox)}
                         />
                     )}
+                    {xboxOn && <StoreGames kind="xbox" games={installed?.xbox} collection="Xbox" actions={actions} onChanged={refresh} />}
                     {xboxOn && (
                         <ToggleRow
                             label="Mute Steam notifications while playing"
@@ -225,6 +330,38 @@ export function ThirdPartySection() {
                     />
                 </>
             </Blocks>
+
+            {/* Turning auto-add on: which installed games to add now (ADR-0070). */}
+            <SettingsModal title="Auto-add installed games" isOpen={!!ask} onClose={() => setAsk(null)} width="520px">
+                <PanelSection>
+                    <Blocks>
+                        <>
+                            {ask?.games.map((g) => (
+                                <ToggleRow
+                                    key={g.key}
+                                    label={g.title}
+                                    description={ask.picked.has(g.key) ? "Added now" : "Left out (you can still Add it in Settings)"}
+                                    value={ask.picked.has(g.key)}
+                                    onChange={(on: boolean) => {
+                                        const picked = new Set(ask.picked);
+                                        if (on) picked.add(g.key);
+                                        else picked.delete(g.key);
+                                        setAsk({ ...ask, picked });
+                                    }}
+                                />
+                            ))}
+                        </>
+                        <ActionRow message={askBusy ? "Adding..." : `${ask?.picked.size ?? 0} of ${ask?.games.length ?? 0} games will be added; later installs are added by themselves`}>
+                            <DialogButton onClick={() => void confirmAsk()} disabled={askBusy} style={BUTTON_STYLE}>
+                                Turn on
+                            </DialogButton>
+                            <DialogButton onClick={() => setAsk(null)} disabled={askBusy} style={BUTTON_STYLE}>
+                                Cancel
+                            </DialogButton>
+                        </ActionRow>
+                    </Blocks>
+                </PanelSection>
+            </SettingsModal>
 
             {/* Diagnostics & Sensor Logs Modal */}
             <SettingsModal title="Diagnostics & Sensor Telemetry" isOpen={logsOpen} onClose={() => setLogsOpen(false)} width="720px">
