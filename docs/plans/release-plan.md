@@ -21,7 +21,7 @@ Done by the agent, offline-tested, deployed (`-dev`) and live-checked where note
 | Item | State |
 | --- | --- |
 | D2 Epic/Xbox code | **Moved out (the user: "move it all out", ADR-0067).** The core has no Epic/Xbox code; third-party pushes each copy through extension API 1.2.0. Live: Pool Blitz pushed as an Xbox game (Game Info, 10 screenshots) |
-| D3 Millennium hot-patch | **Removed.** Stress run of ADR-0059 still to do (live suite, § 4 H9) |
+| D3 Millennium hot-patch | **Removed.** ADR-0059 stress run done 2026-10-15: 110 forced RetroAchievements refreshes and pages, no crash (CHANGELOG) |
 | D4 ScreenScraper | **Done (the user: ship the developer id).** `screenscraper_dev.lua`; each player adds their own account. This PC's account was saved to the data folder's `.env` |
 | D5 RPCS3 / shadPS4 reset | **Read-only** (`TROPHY_RESET = false`) until checked on real files |
 | D6 launch toast | **Deleted** with its setting and the Notifications section |

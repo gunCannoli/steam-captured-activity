@@ -80,7 +80,9 @@ function checkLogs(dir) {
     const notRunning = [...new Set(js.map((l) => l.match(/plugin not running: ([\w-]+)/)?.[1]).filter(Boolean))];
     for (const p of notRunning) say("FAIL", `a frontend calls backend "${p}", which is not running (bundle and plugin.json name disagree, or the backend crashed)`);
 
-    const pluginErrors = js.filter((l) => /SteamUI: ERROR: %c [A-Z][\w -]+ %c/.test(l));
+    // A live test selects a theme that does not exist on purpose (enhanced-notifications achievements-settings).
+    const testNoise = (l) => l.includes('Theme "does_not_exist" could not be loaded');
+    const pluginErrors = js.filter((l) => /SteamUI: ERROR: %c [A-Z][\w -]+ %c/.test(l) && !testNoise(l));
     for (const l of pluginErrors.slice(0, 5)) say("WARN", `plugin error: ${short(l)}`);
     if (pluginErrors.length > 5) say("WARN", `... and ${pluginErrors.length - 5} more plugin errors`);
 
@@ -97,6 +99,7 @@ function checkLogs(dir) {
     js.forEach((l, i) => {
         if (!(l.includes("ErrorBoundaryHook") && l.includes("Caught an error"))) return;
         const before = js.slice(Math.max(0, i - 3), i);
+        if (before.some(testNoise)) return; // the live test's missing theme, above
         const known = STEAM_NOISE.find(([re]) => before.some((b) => re.test(b)));
         if (known) noise.set(known[1], (noise.get(known[1]) ?? 0) + 1);
         else real.push({ at: l, cause: [...before].reverse().find((b) => /ERROR:/.test(b)) });

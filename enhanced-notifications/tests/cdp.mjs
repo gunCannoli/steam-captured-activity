@@ -5,15 +5,26 @@
 const PORT = process.env.CDP_PORT ?? '8080';
 const TARGET = process.env.CDP_TARGET ?? 'SharedJSContext';
 
-export async function connect(title = TARGET) {
+/**
+ * `timeoutMs`: how long opening the socket and each evaluate may take. A toast window can close between listing it and
+ * connecting (found 2026-10-15: achievements-tiers then hung for ever, or read "no banner"); a dead target now rejects.
+ */
+export async function connect(title = TARGET, { timeoutMs = 8000 } = {}) {
     const targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
     const target = targets.find((t) => t.title === title);
     if (!target) throw new Error(`No CDP target titled "${title}". Have: ${targets.map((t) => t.title).join(', ')}`);
 
     const ws = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
-        ws.onopen = resolve;
-        ws.onerror = reject;
+        const timer = setTimeout(() => reject(new Error(`CDP target "${title}" did not open within ${timeoutMs} ms`)), timeoutMs);
+        ws.onopen = () => {
+            clearTimeout(timer);
+            resolve();
+        };
+        ws.onerror = (e) => {
+            clearTimeout(timer);
+            reject(e);
+        };
     });
 
     let nextId = 1;
@@ -26,19 +37,27 @@ export async function connect(title = TARGET) {
         done(msg);
     };
 
-    const send = (method, params = {}) =>
-        new Promise((resolve) => {
+    // A long-running evaluate (a live check that waits) passes a larger timeout through evaluate(expr, ms).
+    const send = (method, params = {}, ms = timeoutMs) =>
+        new Promise((resolve, reject) => {
             const id = nextId++;
-            pending.set(id, resolve);
+            const timer = setTimeout(() => {
+                pending.delete(id);
+                reject(new Error(`CDP ${method} on "${title}" got no answer within ${ms} ms`));
+            }, ms);
+            pending.set(id, (msg) => {
+                clearTimeout(timer);
+                resolve(msg);
+            });
             ws.send(JSON.stringify({ id, method, params }));
         });
 
-    async function evaluate(expression) {
+    async function evaluate(expression, ms = 120_000) {
         const msg = await send('Runtime.evaluate', {
             expression: `(async () => { return (${expression}); })()`,
             awaitPromise: true,
             returnByValue: true,
-        });
+        }, ms);
         if (msg.result?.exceptionDetails) {
             throw new Error(msg.result.exceptionDetails.exception?.description ?? JSON.stringify(msg.result.exceptionDetails));
         }

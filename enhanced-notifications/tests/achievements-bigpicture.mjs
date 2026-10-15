@@ -13,20 +13,37 @@ import { connect, resolvePluginName } from './cdp.mjs';
 const cdp = await connect();
 let failed = false;
 try {
+    // Start from a settled state: the theme's banner loaded (a script before may just have restored the theme) and no
+    // toast still showing (with the notifications queue on, a banner waits for it). Found 2026-10-15: run right after
+    // bigpicture-look.mjs, a single look 1.2 s after the unlock found no banner; alone it passed.
+    const PLUGIN_NAME = await resolvePluginName(cdp, 'EN_PLUGIN', 'enhanced-notifications');
+    for (let i = 0; i < 40 && !(await cdp.evaluate(`!!window.PLUGIN_LIST['${PLUGIN_NAME}'].achievementTheme()`)); i++) await new Promise((r) => setTimeout(r, 250));
+    for (let i = 0; i < 40 && (await cdp.evaluate(`!!document.querySelector('.ea-banner') || (window.NotificationStore.CurrentToastSubscribableValue?.Value ?? null) !== null`).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 250));
     await cdp.evaluate(`window.NotificationStore.TestAchievement(480).then(() => true)`);
-    await new Promise((r) => setTimeout(r, 1200));
-    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
-    const toast = targets.find((t) => /^notificationtoasts_uid/i.test(t.title));
-    if (!toast) throw new Error('No Big Picture toast window; is Big Picture open?');
-    const win = await connect(toast.title);
-    const result = JSON.parse(
-        await win.evaluate(`JSON.stringify((() => {
-            const b = document.querySelector('.ea-banner');
-            if (!b) return { found: false };
-            const r = b.getBoundingClientRect(), p = b.parentElement.getBoundingClientRect();
-            return { found: true, classes: b.className, banner: [Math.round(r.width), Math.round(r.height)], frame: [Math.round(p.width), Math.round(p.height)], focused: document.activeElement?.closest?.('.ea-banner') ? 'banner' : document.activeElement?.tagName };
-        })())`),
-    );
+    let win;
+    let result = { found: false };
+    for (let t = 0; t < 8000 && !result.found; t += 400) {
+        await new Promise((r) => setTimeout(r, 400));
+        const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
+        for (const toast of targets.filter((x) => /^notificationtoasts_uid/i.test(x.title))) {
+            try {
+                win?.close();
+                win = await connect(toast.title, { timeoutMs: 3000 });
+                result = JSON.parse(
+                    await win.evaluate(`JSON.stringify((() => {
+                        const b = document.querySelector('.ea-banner:not(.ea-waiting)');
+                        if (!b) return { found: false };
+                        const r = b.getBoundingClientRect(), p = b.parentElement.getBoundingClientRect();
+                        return { found: true, classes: b.className, banner: [Math.round(r.width), Math.round(r.height)], frame: [Math.round(p.width), Math.round(p.height)], focused: document.activeElement?.closest?.('.ea-banner') ? 'banner' : document.activeElement?.tagName };
+                    })())`, 3000),
+                );
+                if (result.found) break;
+            } catch {
+                /* a toast view closing while read */
+            }
+        }
+    }
+    if (!win) throw new Error('No Big Picture toast window; is Big Picture open?');
     console.log(`${result.found ? 'PASS' : 'FAIL'}  themed banner in Big Picture toast  ${JSON.stringify(result)}`);
     if (!result.found) failed = true;
     if (result.found && result.focused === 'banner') {

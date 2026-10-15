@@ -27,30 +27,44 @@ async function allBannerTiers() {
     const targets = (await (await fetch('http://127.0.0.1:8080/json')).json()).filter((t) => /notificationtoasts/i.test(t.title));
     const tiers = [];
     for (const t of targets) {
-        const win = await connect(t.title);
+        let win;
         try {
-            const cls = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
+            win = await connect(t.title, { timeoutMs: 3000 });
+            const cls = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`, 3000);
             const tier = cls?.match(/ea-tier-(\w+)/)?.[1];
             if (tier) tiers.push(tier);
+        } catch {
+            /* a toast window that closed while being read */
         } finally {
-            win.close();
+            win?.close();
         }
     }
     return tiers;
 }
 
+/**
+ * The tier of the banner on screen. Every open toast window is tried, for up to 4 s: one in the list may be a toast
+ * still closing (it vanishes between listing and connecting: the run hung or read "no banner", 2026-10-15), and the
+ * banner may need a frame to mount.
+ */
 async function bannerTier() {
-    const targets = await (await fetch('http://127.0.0.1:8080/json')).json();
-    const toast = targets.find((t) => /notificationtoasts/i.test(t.title));
-    if (!toast) return { tier: null };
-    const win = await connect(toast.title);
-    try {
-        const cls = await win.evaluate(`document.querySelector('.ea-banner')?.className ?? null`);
-        return { tier: cls?.match(/ea-tier-(\w+)/)?.[1] ?? null, win };
-    } catch (error) {
-        win.close();
-        throw error;
+    for (let t = 0; t < 4000; t += 400) {
+        const targets = (await (await fetch('http://127.0.0.1:8080/json')).json()).filter((x) => /notificationtoasts/i.test(x.title));
+        for (const toast of targets) {
+            let win;
+            try {
+                win = await connect(toast.title, { timeoutMs: 3000 });
+                const cls = await win.evaluate(`document.querySelector('.ea-banner:not(.ea-waiting)')?.className ?? null`, 3000);
+                const tier = cls?.match(/ea-tier-(\w+)/)?.[1];
+                if (tier) return { tier, win };
+                win.close();
+            } catch {
+                win?.close();
+            }
+        }
+        await new Promise((r) => setTimeout(r, 400));
     }
+    return { tier: null };
 }
 
 /** Each case must start on a clean screen, or bannerTier() could read a toast still closing. */

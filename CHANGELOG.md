@@ -24,6 +24,21 @@ This repo is private and unversioned; entries are grouped by date.
     suite; their looks are H7, H8, H11). Both readable at `6ece444`.
   - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
   - Live suite 12/12 after the deploy.
+- **Pre-release stress run (2026-10-15), every plugin, desktop and Big Picture:**
+  - *ADR-0059 stress (release plan H9):* `steam-cartridges/tests/live/probes/stress_ra.mjs`, 110 forced full refreshes of
+    RetroAchievements games (Kirby, Lufia II, The Lion King first) plus their pages, through the Lua host without the
+    Millennium hot-patch: no crash, no tripped budget. It found one bug: a 0/0 RetroAchievements set crashed
+    `schema.achievements.map` (K1); empty lists are now normalised once where parts enter the record store.
+  - *Suites:* steam-cartridges 12/12, steam-captured-activity all PASS (desktop and Big Picture), enhanced-notifications
+    all PASS; steam-cartridges tabs and A -> B -> A in Big Picture; three cold restarts with no crash.
+  - *In game:* `enhanced-notifications/tests/probes/ingame-stress.mjs` (a game running, a burst of notifications and all
+    four tiers): Axiom Verge and the AM2R shortcut on desktop, Axiom Verge in Big Picture; every toast styled, every tier's
+    banner seen, no error.
+  - *Test fixes:* `tests/cdp.mjs` times out on a toast window that closes while read (achievements-tiers hung or read "no
+    banner"); achievements-tiers and achievements-bigpicture retry across toast windows and wait for a settled state.
+    steam-health tells Steam's own reported errors (the in-game overlay's news for a shortcut) and a test's deliberate
+    missing theme from plugin errors. Found, not ours: the installed non-steam-playtimes plugin throws "reading
+    'document'" when a shortcut page opens.
 - **Timeline markers for shortcuts: not possible (2026-10-15, closed).** Live: Steam's recording service refuses
   `UserAddTimelineEntry` with EResult 42 on non-Steam shortcuts (Metroid Fusion through RetroArch, AM2R direct), also with
   Steam's own user-marker shape, while recording, with the plain appid, and through Steam's own
