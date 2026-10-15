@@ -24,6 +24,10 @@ This repo is private and unversioned; entries are grouped by date.
     suite; their looks are H7, H8, H11). Both readable at `6ece444`.
   - *Local § 11:* items 1-3 hold (API 1.2.0 live); 4-7 wait for a game with Steam API emulator files (none left in the library).
   - Live suite 12/12 after the deploy.
+- **Plans pruned (2026-10-15):** removed the Theme Creator plan (built, ADR-0069), the store launch-tracking plan (executed:
+  ADR-0057, ADR-0058; the Xbox route closed by ADR-0065) and the store-games handoff of 2026-10-03 (stale; its open items
+  are the unlock research's list). All readable at `ee3e9a0`. Kept: release plan, enhanced-notifications consistency
+  (B3-B7), steam-cartridges dataflow (phase 5), local split (§ 11, phases 6-7), store-unlock research.
 - **steam-cartridges-third-party: auto-add remembers and respects (2026-10-15, ADR-0070)**: a game auto-add added once is
   not added again while installed (`auto_added_store.lua`; a deleted shortcut stays deleted, a reinstall is new); the
   Third-party panel lists each store's games ("In library", "In library as <name>", Add, "Add all missing", "File in

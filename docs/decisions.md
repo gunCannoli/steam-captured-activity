@@ -3251,7 +3251,7 @@ anonymously, and Xbox Live unlocks after a device-code sign-in. Unlocks of no so
 
 ## ADR-0057: The Epic Steam Overlay Workaround closes the Epic launcher at Steam's Play and after the game
 
-**Status:** Accepted · 2026-10-03 (the user's decisions A, B and E of the [launch-tracking plan § 8](plans/steam-cartridges-store-launch-tracking-plan.md#8-decisions-for-the-user-ask-after--7-with-the-recommendation))
+**Status:** Accepted · 2026-10-03 (the user's decisions A, B and E of the launch-tracking plan § 8 (executed and removed: `git show ee3e9a0:docs/plans/steam-cartridges-store-launch-tracking-plan.md`))
 
 ### Context
 
@@ -3294,7 +3294,7 @@ game and Epic's cloud sync ended the running state 8-13 s after the game (E1).
 
 ## ADR-0058: Xbox UWP shortcuts run the game's own exe, and the plugin repoints them after an app update
 
-**Status:** Accepted · 2026-10-04 (the user's decision C of the [launch-tracking plan § 8](plans/steam-cartridges-store-launch-tracking-plan.md#8-decisions-for-the-user-ask-after--7-with-the-recommendation), option U0)
+**Status:** Accepted · 2026-10-04 (the user's decision C of the launch-tracking plan § 8 (executed and removed: `git show ee3e9a0:docs/plans/steam-cartridges-store-launch-tracking-plan.md`), option U0)
 
 ### Context
 
@@ -3724,7 +3724,7 @@ a theme tuned for a monitor could only be tuned for a TV by editing the file by 
 ## ADR-0069: The Theme Creator (enhanced-notifications)
 
 **Status:** Accepted · 2026-10-14 (the user's requirements R1-R16 and answers Q1-Q9 in
-[the plan](plans/enhanced-notifications-theme-creator-plan.md); "execute the plan, use recommended options") · builds on
+the plan (built and removed: `git show ee3e9a0:docs/plans/enhanced-notifications-theme-creator-plan.md`); "execute the plan, use recommended options") · builds on
 ADR-0052/0053 (themes are hand-editable JSONC; Steam default is a theme) and ADR-0068 (the Big Picture look)
 
 ### Decision

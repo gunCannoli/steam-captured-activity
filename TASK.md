@@ -27,7 +27,7 @@ release-day steps (versions, dated changelog entries, user READMEs, `git subtree
 user's H15 (release plan § 4), after this release.
 
 **enhanced-notifications Theme Creator (ADR-0069) and Big Picture look per theme (ADR-0068): built and live-checked
-2026-10-14** ([plan § 14](docs/plans/enhanced-notifications-theme-creator-plan.md#14-execution-record-2026-10-14)). Every plan
+2026-10-14** (plan § 14, removed once built: `git show ee3e9a0:docs/plans/enhanced-notifications-theme-creator-plan.md`). Every plan
 item built (second pass the same day: hover preview, Go per warning, Import through Steam's file dialog, Steam's chime;
 the ConfigContext error per dialog fixed). Waiting on the user's look (settings panel → Theme → Theme Creator, H16).
 

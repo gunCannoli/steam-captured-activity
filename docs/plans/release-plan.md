@@ -186,9 +186,10 @@ Everything that waited on "a look by the user", merged. Tick each; a failure bec
 
 ## 5. After this release (moved out of "Now")
 
-- **steam-cartridges-third-party** (D2 first): the Epic/Xbox handoff's items (Epic captures on a real unlock, the unlock
-  feature with its ADR, the auto-add policy A + B and the by-hand-shortcut proposal, Epic overlay mute, a registered
-  Microsoft app id, the live checks list), and H15. Xbox overlay work is dropped for good (ADR-0065).
+- **steam-cartridges-third-party:** the store-unlock work ([the research](steam-cartridges-store-unlock-detection-research.md),
+  "To test, and to finish": Epic captures on a real unlock, the unlock feature with its ADR, Epic overlay mute, the live
+  checks), a registered Microsoft app id, skipping a game the user owns on Steam (ADR-0070's leftover), and H15. The
+  auto-add policy is done (ADR-0070); Xbox overlay work is dropped for good (ADR-0065).
 - **enhanced-notifications:** B4 (sounds as a schedule), B6's in-game group in `run-live.mjs`, B7's C10 (Warning-size
   re-measure), ADR-0061's "no recording available" tile after a capture (compare with a manual Ctrl+F11 first), Steam's own
   toasts honouring `popup.scale` / `popup.layout`, the Theme Creator's "not built" items (plan § 14).

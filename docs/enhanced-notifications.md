@@ -216,7 +216,7 @@ resettable source and a warning built by `resetWarning` in `kernel/reset.ts`, AD
 synthetic preview (`previewTier`), never Steam's `TestAchievement`, whose real achievement id the sensor would take
 for an unlock.
 
-**Theme Creator** (`settings/creator/`, [the plan](plans/enhanced-notifications-theme-creator-plan.md)). A button in the Theme
+**Theme Creator** (`settings/creator/`, the plan (built and removed: `git show ee3e9a0:docs/plans/enhanced-notifications-theme-creator-plan.md`)). A button in the Theme
 section opens a popout: navigation, the preview (a sticky stage that never remounts, with a Desktop / Big Picture
 switch) and the editor, then one action row (undo/redo, Save as, Save, Close). It edits a draft (`theme/draft.ts`: the
 raw theme by path, so the preview runs the plugin's own `resolveTheme`); in Big Picture mode every control writes the

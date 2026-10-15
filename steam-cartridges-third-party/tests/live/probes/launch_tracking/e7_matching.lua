@@ -1,4 +1,4 @@
--- Launch-tracking investigation, experiment E7 (docs/plans/steam-cartridges-store-launch-tracking-plan.md § 7): every
+-- Launch-tracking investigation, experiment E7 (git show ee3e9a0:docs/plans/steam-cartridges-store-launch-tracking-plan.md § 7): every
 -- shortcut form, legacy and proposed, through store_service.detect and installed_games. The stubs are test_store.lua's;
 -- the Epic games are this PC's manifests, the Xbox games hand-made from this PC's packages. Read-only, no network.
 --

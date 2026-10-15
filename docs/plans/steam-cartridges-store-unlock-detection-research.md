@@ -1,6 +1,11 @@
 # Research: seeing an Epic or Xbox unlock as it happens (ADR-0056 follow-up)
 
-**Status:** research done for both stores (2026-10-03); no design committed yet. **Goal:** steam-cartridges notices a store
+**Status:** research done for both stores (2026-10-03); no design committed yet. **Since then (2026-10-15):** the store
+code lives in steam-cartridges-third-party (ADR-0067), so the feature belongs there; the watcher probes are still in
+`steam-cartridges/tests/live/probes/`. Auto-add changed (ADR-0070): a deleted shortcut is never re-added while the game
+stays installed, so item 3 below now reads "not re-added at all". The launch toast was deleted (release plan D6), so a
+store-unlock toast needs its own `OnNotification` call. The earlier handoff note was removed
+(`git show ee3e9a0:docs/plans/steam-cartridges-store-games-handoff.md`); its open items are the list below. **Goal:** steam-cartridges notices a store
 unlock within a second or two and tells enhanced-notifications as if Steam raised an achievement, so it can take a screenshot
 or recording. **Tool:** `steam-cartridges/tests/live/probes/unlock_watcher.mjs` (+ `unlock_report.mjs`, `unlock_mark.mjs`).
 Logs go to `scratch/unlock-watch-*.jsonl` (UTC); the user marks with F8, Enter or `unlock_mark.mjs`; the report also marks
