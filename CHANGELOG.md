@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0] - 2026-10-19
+
+### Added
+
+- A ready-to-use download on the Releases page: no build needed.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added

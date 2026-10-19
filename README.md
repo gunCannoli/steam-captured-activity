@@ -12,6 +12,16 @@ captured in each game's **Activity** feed, in Steam's own style.
 
 [![Captured cards in a non-Steam game's Activity feed](.github/example.png)](.github/example.png)
 
+## Install
+
+Requires [Millennium](https://steambrew.app).
+
+1. Download `steam-captured-activity-<version>.zip` from the [latest release](../../releases).
+2. Extract it into `<Steam>/millennium/plugins/`, so the plugin is in `<Steam>/millennium/plugins/steam-captured-activity`.
+3. Restart Steam and enable **Steam Captured Activity** in the Millennium settings.
+
+To update, replace that folder with the new release's.
+
 ## Settings
 
 Open Steam's Millennium settings and pick **Steam Captured Activity**:

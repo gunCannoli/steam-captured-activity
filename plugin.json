@@ -3,7 +3,7 @@
   "name": "steam-captured-activity",
   "common_name": "Steam Captured Activity",
   "description": "Shows the screenshots and recordings Steam captured in each game's Activity feed, as daily 16:9 cards with inline clip playback, for Steam games and non-Steam shortcuts.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "useBackend": true,
   "backendType": "lua"
 }
