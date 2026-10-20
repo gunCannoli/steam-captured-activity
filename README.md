@@ -37,6 +37,10 @@ Open Steam's Millennium settings and pick **Steam Captured Activity**:
   feed the next time you open that game's page, or within 5 minutes if the page stays open.
 - **Many screenshots:** a game with more than 100 screenshots shows all of them.
 
+## Support
+
+If this plugin is useful to you, you can support its development on [Ko-fi](https://ko-fi.com/cannoligun).
+
 ## About
 
 Shows the screenshots and recordings Steam captured in each game's Activity feed, as daily 16:9 cards with inline clip
